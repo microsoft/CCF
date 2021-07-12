@@ -323,23 +323,21 @@ namespace ccf
           {
             case kv::CommitResult::SUCCESS:
             {
-              auto cv = tx.commit_version();
-              if (cv == 0)
-                cv = tx.get_read_version();
-              if (consensus != nullptr)
+              auto tx_id = tx.get_txid();
+              if (tx_id.has_value() && consensus != nullptr)
               {
-                if (cv != kv::NoVersion)
-                {
-                  ccf::TxID tx_id;
-                  tx_id.view = tx.commit_term();
-                  tx_id.seqno = cv;
-                  ctx->set_tx_id(tx_id);
-                }
+                // Only transactions that acquired one or more map handles have
+                // a TxID, while others (e.g. unauthenticated commands) don't.
+                // Also, only report a TxID if the consensus is set, as the
+                // consensus is required to verify that a TxID is valid.
+                ctx->set_tx_id(tx_id.value());
+              }
 
-                if (history != nullptr && consensus->can_replicate())
-                {
-                  history->try_emit_signature();
-                }
+              if (
+                consensus != nullptr && consensus->can_replicate() &&
+                history != nullptr)
+              {
+                history->try_emit_signature();
               }
 
               update_metrics(ctx, endpoint);
@@ -489,14 +487,20 @@ namespace ccf
     void set_root_on_proposals(
       const enclave::RpcContext& ctx, kv::CommittableTx& tx)
     {
-      if (ctx.get_request_path() == "/gov/proposals")
+      if (
+        ctx.get_request_path() == "/gov/proposals" &&
+        ctx.get_request_verb() == HTTP_POST)
       {
         update_history();
         if (history)
         {
-          const auto& [txid, root] =
+          // Warning: Retrieving the current TxID and root from the history
+          // should only ever be used for the proposal creation endpoint and
+          // nothing else. Many bad things could happen otherwise (e.g. breaking
+          // session consistency).
+          const auto& [txid, root, term_of_next_version] =
             history->get_replicated_state_txid_and_root();
-          tx.set_read_version_and_term(txid.version, txid.term);
+          tx.set_read_txid(txid, term_of_next_version);
           tx.set_root_at_read_version(root);
         }
       }

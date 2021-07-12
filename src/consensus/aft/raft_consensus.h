@@ -134,6 +134,12 @@ namespace aft
       aft->add_configuration(seqno, conf, learners);
     }
 
+    void add_network_configuration(
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& config) override
+    {
+      return aft->add_network_configuration(seqno, config);
+    }
+
     Configuration::Nodes get_latest_configuration() override
     {
       return aft->get_latest_configuration();

@@ -109,7 +109,7 @@ namespace tls
       free_ctx();
     }
 
-    const std::vector<uint8_t>& get_own_key_share()
+    const std::vector<uint8_t>& get_own_key_share() const
     {
       if (!ctx)
       {
@@ -127,7 +127,7 @@ namespace tls
       return key_share;
     }
 
-    const std::vector<uint8_t>& get_peer_key_share()
+    const std::vector<uint8_t>& get_peer_key_share() const
     {
       return peer_key_share;
     }

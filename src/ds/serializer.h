@@ -94,12 +94,18 @@ namespace serializer
         // possible to generalise this further and replace with
         // std::is_constructible, but these restrictions are sufficient for the
         // current uses.
+        // Additionally again, this will accept an array-like of ByteRanges for
+        // a single ByteRange parameter. These will be serialised in-order, and
+        // produce a single ByteRange in deserialisation.
         static constexpr bool value =
           std::is_same_v<CanonTarget, CanonArgument> ||
           (std::is_same_v<CanonTarget, std::vector<uint8_t>> &&
            std::is_same_v<CanonArgument, ByteRange>) ||
           (std::is_same_v<CanonTarget, ByteRange> &&
-           std::is_same_v<CanonArgument, std::vector<uint8_t>>);
+           std::is_same_v<CanonArgument, std::vector<uint8_t>>) ||
+          (std::is_same_v<CanonTarget, ByteRange> &&
+           (std::is_array_v<CanonArgument> &&
+            std::is_same_v<std::remove_extent_t<CanonArgument>, ByteRange>));
       };
 
       // Only reached when Ts is empty
@@ -226,6 +232,14 @@ namespace serializer
 
   class CommonSerializer : public EmptySerializer
   {
+    template <size_t N, size_t... Is>
+    static auto serialize_byte_range_with_index_sequence(
+      const ByteRange (&brs)[N], std::index_sequence<Is...>)
+    {
+      return std::make_tuple(
+        std::make_shared<MemoryRegionSection>(brs[Is].data, brs[Is].size)...);
+    }
+
     /// Overloads of serialize_value - return a tuple of PartialSerializations
     ///@{
     /// Overload for ByteRanges (no length-prefix)
@@ -233,6 +247,15 @@ namespace serializer
     {
       auto bfs = std::make_shared<MemoryRegionSection>(br.data, br.size);
       return std::make_tuple(bfs);
+    }
+
+    /// Overload for C-arrays of ByteRanges (potentially non-contiguous, no
+    /// length-prefix)
+    template <size_t N>
+    static auto serialize_value(const ByteRange (&brs)[N])
+    {
+      return serialize_byte_range_with_index_sequence(
+        brs, std::make_index_sequence<N>{});
     }
 
     /// Overload for std::vectors of bytes (no length-prefix)
@@ -251,8 +274,12 @@ namespace serializer
       return std::tuple_cat(std::make_tuple(cs), std::make_tuple(bfs));
     }
 
-    /// Generic case - use raw byte representation
-    template <typename T>
+    /// Generic case, for integral types - use raw byte representation
+    template <
+      typename T,
+      std::enable_if_t<
+        std::is_integral<T>::value || std::is_enum<T>::value,
+        bool> = true>
     static auto serialize_value(const T& t)
     {
       auto rs = std::make_shared<RawSection<T>>(t);
@@ -294,7 +321,11 @@ namespace serializer
     }
 
     /// Generic case
-    template <typename T>
+    template <
+      typename T,
+      std::enable_if_t<
+        std::is_integral<T>::value || std::is_enum<T>::value,
+        bool> = true>
     static T deserialize_value(
       const uint8_t*& data, size_t& size, const Tag<T>&)
     {

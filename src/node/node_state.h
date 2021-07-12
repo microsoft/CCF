@@ -801,7 +801,6 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
-        store->rollback(ledger_idx - 1);
         recover_public_ledger_end_unsafe();
         return;
       }
@@ -945,25 +944,27 @@ namespace ccf
       }
 
       // When reaching the end of the public ledger, truncate to last signed
-      // index and promote network secrets to this index
-      network.tables->rollback(last_recovered_signed_idx);
+      // index
+      const auto last_recovered_term = view_history.size();
+      auto new_term = last_recovered_term + 2;
+      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
+
+      // Note: KV term must be set before the first Tx is committed
+      network.tables->rollback(
+        {last_recovered_term, last_recovered_signed_idx}, new_term);
       ledger_truncate(last_recovered_signed_idx);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
-        "seqno: {}",
+        "TxID: {}.{}",
+        last_recovered_term,
         last_recovered_signed_idx);
-
-      // KV term must be set before the first Tx is committed
-      auto new_term = view_history.size() + 2;
-      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
-      network.tables->set_term(new_term);
 
       auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);
       g.create_service(network.identity->cert);
-      g.retire_active_nodes();
+      auto network_config = g.retire_active_nodes();
 
       if (network.consensus_type == ConsensusType::BFT)
       {
@@ -999,9 +1000,11 @@ namespace ccf
          quote_info,
          node_encrypt_kp->public_key_pem().raw(),
          NodeStatus::PENDING,
-         get_next_reconfiguration_id(network, tx),
          std::nullopt,
          ds::to_hex(code_digest.data)});
+
+      network_config.nodes.insert(self);
+      add_new_network_reconfiguration(network, tx, network_config);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1089,7 +1092,9 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        recovery_store->rollback(ledger_idx - 1);
+        // Note: rollback terms do not matter here as recovery store is about to
+        // be discarded
+        recovery_store->rollback({0, ledger_idx - 1}, 0);
         recover_private_ledger_end_unsafe();
         return;
       }
@@ -1417,10 +1422,15 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void recv_node_inbound(ccf::NodeMsgType msg_type, const ccf::NodeId& from, const uint8_t* payload_data, size_t payload_size)
+    void recv_node_inbound(const uint8_t* data, size_t size)
     {
-      if (
-        msg_type == ccf::NodeMsgType::forwarded_msg)
+      auto [msg_type, from, payload] =
+        ringbuffer::read_message<ccf::node_inbound>(data, size);
+
+      auto payload_data = payload.data;
+      auto payload_size = payload.size;
+
+      if (msg_type == ccf::NodeMsgType::forwarded_msg)
       {
         cmd_forwarder->recv_message(from, payload_data, payload_size);
       }
@@ -1654,8 +1664,11 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
-      create_params.configuration = {config.genesis.recovery_threshold,
-                                     network.consensus_type};
+      auto reconf_type = network.consensus_type == ConsensusType::BFT ?
+        ReconfigurationType::TWO_TRANSACTION :
+        ReconfigurationType::ONE_TRANSACTION;
+      create_params.configuration = {
+        config.genesis.recovery_threshold, network.consensus_type, reconf_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1984,6 +1997,14 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.network_configurations.get_name(),
+        network.network_configurations.wrap_map_hook(
+          [](kv::Version version, const NetworkConfigurations::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<NetworkConfigurationsHook>(version, w);
           }));
 
       setup_basic_hooks();

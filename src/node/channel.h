@@ -769,26 +769,6 @@ namespace ccf
         return false;
       }
 
-      RecvNonce nonce(
-        send_nonce.fetch_add(1), threading::get_current_thread_id());
-
-      GcmHdr gcm_hdr;
-      gcm_hdr.set_iv_seq(nonce.get_val());
-
-      assert(send_key);
-
-      std::vector<uint8_t> cipher(plain.n);
-      send_key->encrypt(
-        gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
-
-      // TODO: Remove these unnecessary copies
-      std::vector<uint8_t> payload(aad.p, aad.p + aad.n);
-
-      const auto gcm_hdr_serialised = gcm_hdr.serialise();
-      payload.insert(
-        payload.end(), gcm_hdr_serialised.begin(), gcm_hdr_serialised.end());
-
-      payload.insert(payload.end(), cipher.begin(), cipher.end());
 
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
@@ -796,6 +776,27 @@ namespace ccf
         aad.n,
         plain.n,
         (size_t)nonce.nonce);
+
+      GcmHdr gcm_hdr;
+      RecvNonce nonce(
+        send_nonce.fetch_add(1), threading::get_current_thread_id());
+      gcm_hdr.set_iv_seq(nonce.get_val());
+
+      std::vector<uint8_t> cipher(plain.n);
+      assert(send_key);
+      send_key->encrypt(
+        gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
+
+      const auto gcm_hdr_serialised = gcm_hdr.serialise();
+
+      // Payload is concatenation of 3 things:
+      // 1) aad
+      // 2) gcm header
+      // 3) ciphertext
+      const serializer::ByteRange payload[] = {
+        {aad.p, aad.n},
+        {gcm_hdr_serialised.data(), gcm_hdr_serialised.size()},
+        {cipher.data(), cipher.size()}};
 
       RINGBUFFER_WRITE_MESSAGE(
         node_outbound, to_host, peer_id.value(), type, self.value(), payload);

@@ -23,7 +23,7 @@ namespace http
     }
 
     const auto actor = path.substr(first_slash + 1, second_slash - 1);
-    const auto remaining_path = path.substr(second_slash + 1);
+    const auto remaining_path = path.substr(second_slash);
 
     if (actor.empty() || remaining_path.empty())
     {

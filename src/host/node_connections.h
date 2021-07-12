@@ -261,6 +261,7 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, ccf::node_outbound, [this](const uint8_t* data, size_t size) {
+          // Read piece-by-piece rather than all at once
           ccf::NodeId to = serialized::read<ccf::NodeId::Value>(data, size);
 
           auto node = find(to, true);
@@ -278,7 +279,6 @@ namespace asynchost
           // corresponding ledger entries
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           serialized::read<ccf::NodeId::Value>(data, size); // Ignore from_id
-
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
             (serialized::read<aft::RaftMsgType>(data, size) ==
