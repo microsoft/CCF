@@ -84,6 +84,7 @@ class Repository:
         # TODO: Remove lines below
         import hashlib
         if os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME):
+            LOG.warning(f"Len of token: {len(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))}")
             LOG.error(f"Hash of token: {hashlib.sha256(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME).encode()).hexdigest()}")
         # TODO: Remove lines above
         self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
