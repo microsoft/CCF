@@ -22,8 +22,8 @@ debs:
   - curl
   - shellcheck
   - iptables
-  - flex  # required to build doxygen
-  - bison  # required to build doxygen
+  - flex # required to build doxygen
+  - bison # required to build doxygen
 
 mbedtls_ver: "2.16.10"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
@@ -32,4 +32,3 @@ mbedtls_src: "{{ mbedtls_dir }}.tar.gz"
 doxygen_ver: "1_9_1"
 doxygen_dir: "Release_{{ doxygen_ver }}"
 doxygen_src: "{{ doxygen_ver }}.tar.gz"
-

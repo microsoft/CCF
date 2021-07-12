@@ -102,5 +102,3 @@
   args:
     chdir: "{{ workspace }}/doxygen-{{ doxygen_dir }}/build"
   become: true
-
-
