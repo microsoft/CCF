@@ -993,7 +993,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      LOG_INFO_FMT("Receiving view change evidence from {}", from);
+      LOG_INFO_FMT("Receiving view change evidence from {} for view {}", from, r.view);
 
       auto node = nodes.find(from);
       if (node == nodes.end())
