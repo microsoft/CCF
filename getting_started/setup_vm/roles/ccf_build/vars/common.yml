@@ -25,7 +25,7 @@ debs:
   - flex  # required to build doxygen
   - bison  # required to build doxygen
 
-mbedtls_ver: "2.16.8"
+mbedtls_ver: "2.16.10"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
 mbedtls_src: "{{ mbedtls_dir }}.tar.gz"
 
