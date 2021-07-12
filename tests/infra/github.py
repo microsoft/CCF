@@ -81,21 +81,18 @@ class Repository:
     """
 
     def __init__(self):
-        # TODO: Remove lines below
-        import hashlib
-        if os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME):
-            LOG.warning(f"Len of token: {len(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))}")
-            LOG.error(f"Hash of token: {hashlib.sha256(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME).encode()).hexdigest()}")
-        # TODO: Remove lines above
         self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
         self.repo = self.g.get_repo(REPOSITORY_NAME)
+        self.branches = self.repo.get_branches()
+        self.releases = self.repo.releases()
+        self.tags = self.repo.tags
 
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
         return sorted(
             [
                 branch.name
-                for branch in self.repo.get_branches()
+                for branch in self.branches()
                 if is_release_branch(branch.name)
             ],
             key=cmp_to_key(
@@ -127,11 +124,11 @@ class Repository:
     def get_tags_with_releases(self):
         # Only consider tags that have releases as perhaps a release is in progress
         # (i.e. tag exists but hasn't got a release just yet)
-        all_released_tags = [r.tag_name for r in self.repo.get_releases()]
-        return [t for t in self.repo.get_tags() if t.name in all_released_tags]
+        all_released_tags = [r.tag_name for r in self.releases]
+        return [t for t in self.tags if t.name in all_released_tags]
 
     def get_release_for_tag(self, tag):
-        releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
+        releases = [r for r in self.releases if r.tag_name == tag.name]
         if not releases:
             raise ValueError(
                 f"No releases found for tag {tag}. Has the release for {tag} not been published yet?"
