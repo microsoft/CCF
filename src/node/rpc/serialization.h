@@ -150,4 +150,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE(UpdateResharing::In)
   DECLARE_JSON_REQUIRED_FIELDS(UpdateResharing::In, rid)
+
+  DECLARE_JSON_TYPE(ORC::In)
+  DECLARE_JSON_REQUIRED_FIELDS(ORC::In, from, rid);
 }

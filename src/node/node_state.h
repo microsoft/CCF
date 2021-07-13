@@ -3,6 +3,7 @@
 #pragma once
 
 #include "blit.h"
+#include "consensus/aft/orc.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/entropy.h"
@@ -2021,6 +2022,8 @@ namespace ccf
       auto resharing_tracker =
         std::make_shared<ccf::SplitIdentityResharingTracker>(
           shared_state, rpc_map, node_sign_kp, self_signed_node_cert);
+      auto rpc_request_context = std::make_shared<aft::RPCRequestContext>(
+        rpc_map, node_sign_kp, self_signed_node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
@@ -2041,6 +2044,7 @@ namespace ccf
         request_tracker,
         std::move(view_change_tracker),
         std::move(resharing_tracker),
+        rpc_request_context,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),

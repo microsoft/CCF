@@ -179,4 +179,15 @@ namespace ccf
       size_t peak_allocated_heap_size = 0;
     };
   };
+
+  struct ORC
+  {
+    struct In
+    {
+      NodeId from;
+      kv::ReconfigurationId rid;
+    };
+
+    using Out = void;
+  };
 }
