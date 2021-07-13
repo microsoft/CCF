@@ -129,7 +129,7 @@ namespace asynchost
       {
         const auto unassociated = parent.unassociated_incoming.find(id);
         CCF_ASSERT_FMT(
-          unassociated != parent.unassociate_incoming.end(),
+          unassociated != parent.unassociated_incoming.end(),
           "Associating node {} with incoming ID {}, but have already forgotten "
           "the incoming connection",
           n,
@@ -391,7 +391,7 @@ namespace asynchost
 
       connections.emplace(node_id, s);
       LOG_DEBUG_FMT(
-        "Added node connection with {} ({}:{})", node, host, service);
+        "Added node connection with {} ({}:{})", node_id, host, service);
 
       if (!s->connect(host, service, client_interface))
       {

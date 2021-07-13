@@ -766,6 +766,9 @@ namespace ccf
         return false;
       }
 
+      RecvNonce nonce(
+        send_nonce.fetch_add(1), threading::get_current_thread_id());
+
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
         (size_t)type,
@@ -774,8 +777,6 @@ namespace ccf
         (size_t)nonce.nonce);
 
       GcmHdr gcm_hdr;
-      RecvNonce nonce(
-        send_nonce.fetch_add(1), threading::get_current_thread_id());
       gcm_hdr.set_iv_seq(nonce.get_val());
 
       std::vector<uint8_t> cipher(plain.n);
