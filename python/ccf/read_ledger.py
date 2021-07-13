@@ -77,7 +77,7 @@ def dump_entry(entry, table_filter):
                 print_key(key_indent, key, is_removed=True)
 
 
-def main(args):
+def main(args_):
     parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
     parser.add_argument(
         "paths", help="Path to ledger directories or snapshot file", nargs="+"
@@ -98,7 +98,7 @@ def main(args):
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
-    args = parser.parse_args(args)
+    args = parser.parse_args(args_)
 
     table_filter = re.compile(args.tables)
 
