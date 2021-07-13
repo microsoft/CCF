@@ -17,7 +17,7 @@ from loguru import logger as LOG
 
 # Optional. May be useful to avoid GitHub's low rate limits for unauthenticated clients
 # https://docs.github.com/en/rest/reference/rate-limit
-ENV_VAR_GITHUB_AUTH_TOKEN_NAME = "GITHUB_COMPATIBILITY_TOKEN"
+ENV_VAR_GITHUB_AUTH_TOKEN_NAME = "LTS_COMPATIBILITY_GH_TOKEN"
 
 REPOSITORY_NAME = "microsoft/CCF"
 BRANCH_RELEASE_PREFIX = "release/"
@@ -83,15 +83,14 @@ class Repository:
     def __init__(self):
         self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
         self.repo = self.g.get_repo(REPOSITORY_NAME)
+        self.branches = self.repo.get_branches()
+        self.releases = self.repo.get_releases()
+        self.tags = self.repo.get_tags()
 
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
         return sorted(
-            [
-                branch.name
-                for branch in self.repo.get_branches()
-                if is_release_branch(branch.name)
-            ],
+            [branch.name for branch in self.branches if is_release_branch(branch.name)],
             key=cmp_to_key(
                 lambda b1, b2: get_major_version_from_release_branch_name(b2)
                 - get_major_version_from_release_branch_name(b1)
@@ -121,11 +120,11 @@ class Repository:
     def get_tags_with_releases(self):
         # Only consider tags that have releases as perhaps a release is in progress
         # (i.e. tag exists but hasn't got a release just yet)
-        all_released_tags = [r.tag_name for r in self.repo.get_releases()]
-        return [t for t in self.repo.get_tags() if t.name in all_released_tags]
+        all_released_tags = [r.tag_name for r in self.releases]
+        return [t for t in self.tags if t.name in all_released_tags]
 
     def get_release_for_tag(self, tag):
-        releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
+        releases = [r for r in self.releases if r.tag_name == tag.name]
         if not releases:
             raise ValueError(
                 f"No releases found for tag {tag}. Has the release for {tag} not been published yet?"
