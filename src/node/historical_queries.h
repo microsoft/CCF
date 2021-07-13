@@ -182,6 +182,7 @@ namespace ccf::historical
         // find supporting signature. Its possible this was the supporting entry
         // we already had, or a signature in the range we already had, but
         // working that out is tricky so be pessimistic and refetch instead.
+        supporting_signature.reset();
         const auto last_details = get_store_details(last_requested_seqno);
         if (last_details->store != nullptr && !last_details->is_signature)
         {
