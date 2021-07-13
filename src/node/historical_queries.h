@@ -549,6 +549,7 @@ namespace ccf::historical
             assert(sig.has_value());
             details->receipt = std::make_shared<TxReceipt>(
               sig->sig, sig->root.h, nullptr, sig->node);
+            details->transaction_id = {sig->view, sig->seqno};
           }
 
           const auto result = request.update_trusted(seqno);

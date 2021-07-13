@@ -407,7 +407,7 @@ TEST_CASE("StateCache point queries")
 
       const auto state2 =
         cache.get_state_at(default_handle, high_signature_transaction);
-      REQUIRE(state2 == state1);
+      REQUIRE(*state1 == *state2);
     }
 
     {

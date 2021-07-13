@@ -81,6 +81,12 @@ namespace ccf::historical
       receipt(receipt_),
       transaction_id(transaction_id_)
     {}
+
+    bool operator==(const State& other)
+    {
+      return store == other.store && receipt == other.receipt &&
+        transaction_id == other.transaction_id;
+    };
   };
 
   using StatePtr = std::shared_ptr<State>;
