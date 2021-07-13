@@ -50,14 +50,21 @@ namespace ccf
         trusted */
     std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
 
-    /** Code identity for the node **/
+    /// Code identity for the node
     std::optional<std::string> code_digest = std::nullopt;
+
+    /**
+     *  Fields below are added in 2.x
+     */
 
     /// Node certificate subject identity
     std::optional<crypto::CertificateSubjectIdentity>
       certificate_subject_identity = std::nullopt;
 
-    /** Public key. Only set from 2.x releases onwards. */
+    /// Node original certificate signing request
+    std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
+
+    /// Public key
     std::optional<crypto::Pem> public_key = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
@@ -68,6 +75,7 @@ namespace ccf
     ledger_secret_seqno,
     code_digest,
     certificate_subject_identity,
+    certificate_signing_request,
     public_key);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;

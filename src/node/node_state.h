@@ -667,6 +667,10 @@ namespace ccf
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
+      join_params.certificate_subject_identity =
+        config.node_certificate_subject_identity;
+      join_params.certificate_signing_request =
+        node_sign_kp->create_csr(config.node_certificate_subject_identity.name);
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -1605,6 +1609,17 @@ namespace ccf
       auto sans = get_subject_alternative_names();
       return nw->sign_csr(network.identity->cert, csr, sans);
     }
+
+    // crypto::Pem generate_endorsed_certificate(
+    //   const crypto::Pem& subject_public_key,
+    //   const crypto::CertificateSubjectIdentity& subject_identity,
+    //   const crypto::Pem& endorser_private_key,
+    //   const crypto::Pem& endorser_cert) override
+    // {
+    //   auto endorser_privk = crypto::make_key_pair(endorser_private_key);
+    //   auto csr = node_sign_kp->create_csr(subject_identity.name);
+    //   return endorser_privk->sign_csr(endorser_cert, csr, sans);
+    // }
 
     void accept_node_tls_connections()
     {

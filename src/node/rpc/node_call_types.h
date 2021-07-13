@@ -83,6 +83,7 @@ namespace ccf
       std::optional<kv::Version> startup_seqno = std::nullopt;
       std::optional<crypto::CertificateSubjectIdentity>
         certificate_subject_identity = std::nullopt;
+      std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
     };
 
     struct Out

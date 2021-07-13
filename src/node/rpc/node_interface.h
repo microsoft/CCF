@@ -56,6 +56,9 @@ namespace ccf
       CodeDigest& code_digest) = 0;
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
-    // virtual void generate_endorsed_certificate()
+    // virtual void generate_endorsed_certificate(
+    //   const crypto::Pem& subject_public_key,
+    //   const crypto::CertificateSubjectIdentity& subject_identity,
+    //   const crypto::Pem& endorser_private_key) = 0;
   };
 }
