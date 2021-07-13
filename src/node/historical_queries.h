@@ -757,7 +757,7 @@ namespace ccf::historical
       ExpiryDuration seconds_until_expiry) override
     {
       auto range =
-        get_store_range_internal(handle, seqno, 0, default_expiry_duration);
+        get_store_range_internal(handle, seqno, 0, seconds_until_expiry);
 
       if (range.empty())
       {
