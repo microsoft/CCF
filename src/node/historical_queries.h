@@ -548,7 +548,7 @@ namespace ccf::historical
             const auto sig = get_signature(details->store);
             assert(sig.has_value());
             details->receipt = std::make_shared<TxReceipt>(
-                    sig->sig, sig->root.h, nullptr, sig->node);
+              sig->sig, sig->root.h, nullptr, sig->node);
           }
 
           const auto result = request.update_trusted(seqno);
