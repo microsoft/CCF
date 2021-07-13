@@ -436,7 +436,7 @@ namespace ccf
             active_service->status);
         }
       };
-      make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
+      make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
         .install();
@@ -466,7 +466,7 @@ namespace ccf
         return result;
       };
       make_read_only_endpoint(
-        "state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
+        "/state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
         .set_auto_schema<GetState>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
@@ -532,7 +532,7 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "quotes/self",
+        "/quotes/self",
         HTTP_GET,
         json_read_only_adapter(get_quote),
         no_auth_required)
@@ -585,7 +585,7 @@ namespace ccf
         return make_success(result);
       };
       make_read_only_endpoint(
-        "quotes",
+        "/quotes",
         HTTP_GET,
         json_read_only_adapter(get_quotes),
         no_auth_required)
@@ -618,7 +618,7 @@ namespace ccf
           "Service state not available.");
       };
       make_read_only_endpoint(
-        "network",
+        "/network",
         HTTP_GET,
         json_read_only_adapter(network_status),
         no_auth_required)
@@ -689,7 +689,7 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "network/nodes",
+        "/network/nodes",
         HTTP_GET,
         json_read_only_adapter(get_nodes),
         no_auth_required)
@@ -747,7 +747,7 @@ namespace ccf
                                          is_primary});
       };
       make_read_only_endpoint(
-        "network/nodes/{node_id}",
+        "/network/nodes/{node_id}",
         HTTP_GET,
         json_read_only_adapter(get_node_info),
         no_auth_required)
@@ -779,7 +779,7 @@ namespace ccf
           "Node info not available");
       };
       make_read_only_endpoint(
-        "network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
+        "/network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -821,7 +821,7 @@ namespace ccf
           "Primary unknown");
       };
       make_read_only_endpoint(
-        "network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
+        "/network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -859,7 +859,7 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "primary", HTTP_HEAD, is_primary, no_auth_required)
+        "/primary", HTTP_HEAD, is_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -887,7 +887,7 @@ namespace ccf
       };
 
       make_command_endpoint(
-        "config", HTTP_GET, consensus_config, no_auth_required)
+        "/config", HTTP_GET, consensus_config, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -909,7 +909,7 @@ namespace ccf
       };
 
       make_command_endpoint(
-        "consensus", HTTP_GET, consensus_state, no_auth_required)
+        "/consensus", HTTP_GET, consensus_state, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -937,7 +937,7 @@ namespace ccf
         args.rpc_ctx->set_response_body("Failed to read memory usage");
       };
 
-      make_command_endpoint("memory", HTTP_GET, memory_usage, no_auth_required)
+      make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -954,7 +954,8 @@ namespace ccf
         args.rpc_ctx->set_response_body(nlohmann::json(nm).dump());
       };
 
-      make_command_endpoint("metrics", HTTP_GET, node_metrics, no_auth_required)
+      make_command_endpoint(
+        "/metrics", HTTP_GET, node_metrics, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -978,7 +979,7 @@ namespace ccf
       };
 
       make_read_only_endpoint(
-        "js_metrics",
+        "/js_metrics",
         HTTP_GET,
         json_read_only_adapter(js_metrics),
         no_auth_required)
@@ -995,7 +996,7 @@ namespace ccf
       };
 
       make_command_endpoint(
-        "version", HTTP_GET, json_command_adapter(version), no_auth_required)
+        "/version", HTTP_GET, json_command_adapter(version), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<GetVersion>()
         .set_execute_outside_consensus(

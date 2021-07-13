@@ -117,7 +117,7 @@ The currently valid and in-flight network configurations of the network. The ent
 
 **Value** A set of node IDs of the nodes in the respective configuration, represented as a JSON array.
 
-.. doxygenstruct:: ccf::NetworkConfiguration
+.. doxygenstruct:: kv::NetworkConfiguration
    :project: CCF
    :members:
 
