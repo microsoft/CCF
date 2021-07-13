@@ -100,4 +100,4 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ccf::NodeId::Value,
   serializer::ByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ccf::close_node_outbound, ccf::NodeId::Value); // TODO: implement this
+  ccf::close_node_outbound, ccf::NodeId::Value);

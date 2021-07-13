@@ -595,11 +595,6 @@ namespace ccf
       hkdf_salt = e->random(salt_len);
     }
 
-    ~Channel()
-    {
-      // TODO: Send a close message now?
-    }
-
     ChannelStatus get_status()
     {
       return status.value();
@@ -901,6 +896,8 @@ namespace ccf
     void reset()
     {
       LOG_INFO_FMT("Resetting channel with {}", peer_id);
+
+      RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
 
       status.advance(INACTIVE);
       kex_ctx.reset();
