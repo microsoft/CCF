@@ -740,7 +740,9 @@ namespace ccf
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);
 
-      // TODO: Would like this to be true for state machine, but it isn't
+      // As a future simplification, we would like this to always be true
+      // (initiations must travel through reset/inactive), but it is not
+      // currently true
       // status.expect(INACTIVE);
       status.advance(INITIATED);
 

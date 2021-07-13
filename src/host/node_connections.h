@@ -143,7 +143,8 @@ namespace asynchost
         }
 
         parent.unassociated_incoming.erase(unassociated);
-        LOG_DEBUG_FMT("Node incoming connection ({}) associated with {}", id, n);
+        LOG_DEBUG_FMT(
+          "Node incoming connection ({}) associated with {}", id, n);
       }
     };
 
@@ -209,7 +210,8 @@ namespace asynchost
     Ledger& ledger;
     TCP listener;
 
-    std::unordered_map<ccf::NodeId, std::pair<std::string, std::string>> node_addresses;
+    std::unordered_map<ccf::NodeId, std::pair<std::string, std::string>>
+      node_addresses;
 
     std::unordered_map<ccf::NodeId, TCP> connections;
 
@@ -258,13 +260,14 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ccf::close_node_outbound,
+        disp,
+        ccf::close_node_outbound,
         [this](const uint8_t* data, size_t size) {
-          auto [node_id] = ringbuffer::read_message<ccf::close_node_outbound>(data, size);
+          auto [node_id] =
+            ringbuffer::read_message<ccf::close_node_outbound>(data, size);
 
           remove_connection(node_id);
-        }
-      );
+        });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, ccf::node_outbound, [this](const uint8_t* data, size_t size) {
@@ -392,8 +395,10 @@ namespace asynchost
 
       if (!s->connect(host, service, client_interface))
       {
-        LOG_DEBUG_FMT("Failed to connect to {} on {}:{}", node_id, host, service);
-        // Stored and returned even if connect fails, to allow later reconnect attempts
+        LOG_DEBUG_FMT(
+          "Failed to connect to {} on {}:{}", node_id, host, service);
+        // Stored and returned even if connect fails, to allow later reconnect
+        // attempts
       }
 
       return s;

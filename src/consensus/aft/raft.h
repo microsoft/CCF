@@ -3203,7 +3203,11 @@ namespace aft
             send_append_entries(node_info.first, index);
           }
 
-          LOG_INFO_FMT("Added raft node {} ({}:{})", node_info.first, node_info.second.hostname, node_info.second.port);
+          LOG_INFO_FMT(
+            "Added raft node {} ({}:{})",
+            node_info.first,
+            node_info.second.hostname,
+            node_info.second.port);
         }
       }
     }
