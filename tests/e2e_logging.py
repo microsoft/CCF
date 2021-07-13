@@ -1215,7 +1215,6 @@ def test_all_receipts(network, args):
         for s in random.sample(range(1, seqno - 1), 50):
             start_time = time.time()
             while time.time() < (start_time + 3.0):
-                # TODO: rev up the view as necessary on invalid tx
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
