@@ -90,11 +90,7 @@ class Repository:
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
         return sorted(
-            [
-                branch.name
-                for branch in self.branches
-                if is_release_branch(branch.name)
-            ],
+            [branch.name for branch in self.branches if is_release_branch(branch.name)],
             key=cmp_to_key(
                 lambda b1, b2: get_major_version_from_release_branch_name(b2)
                 - get_major_version_from_release_branch_name(b1)
