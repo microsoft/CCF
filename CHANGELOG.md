@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-[Unreleased]
+## [2.0.0-dev2]
+
+### Changed
+
+- `ccf.crypto.verifySignature()` previously required DER-encoded ECDSA signatures and now requires IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API (#2735).
+- Upgrade OpenEnclave from 0.16.1 to 0.17.0.
 
 ### Added
 
@@ -14,6 +19,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - Websockets endpoints are no longer supported. Usage is insufficient to justify ongoing maintenance.
+
+### Bugfix
+
+- Fixed incorrect transaction view returned in `x-ms-ccf-transaction-id` HTTP response header after primary change (i.e. new view) (#2755).
 
 ## [2.0.0-dev1]
 

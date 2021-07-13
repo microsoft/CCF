@@ -246,9 +246,6 @@ namespace ccf
       kv::CommittableTx tx(&store);
       auto new_views_tv = tx.rw(new_views);
 
-      crypto::Sha256Hash h = hash_new_view(new_view);
-      new_view.signature = kp.sign_hash(h.h.data(), h.h.size());
-
       new_views_tv->put(0, new_view);
       auto r = tx.commit();
       if (r != kv::CommitResult::SUCCESS)

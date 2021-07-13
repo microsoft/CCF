@@ -16,12 +16,11 @@ To guarantee that their request is successfully committed to the ledger, a user 
     HTTP/1.1 200 OK
     content-length: 23
     content-type: application/json
-    x-ccf-tx-seqno: 42
-    x-ccf-tx-view: 5
+    x-ms-ccf-transaction-id: 5.42
 
     {"status":"COMMITTED"}
 
-This example queries the status of transaction ID ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests (``x-ccf-tx-seqno: 42``) and changed view (``x-ccf-tx-view: 5``).
+This example queries the status of transaction ID ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests and changed view (``x-ms-ccf-transaction-id: 5.42``).
 
 The possible statuses returned by ``GET /tx`` are:
 

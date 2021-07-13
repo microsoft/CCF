@@ -298,7 +298,8 @@
           "Pending",
           "Trusted",
           "Retired",
-          "Learner"
+          "Learner",
+          "Retiring"
         ],
         "type": "string"
       },

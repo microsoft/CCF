@@ -561,7 +561,7 @@ TEST_CASE_TEMPLATE(
     kv::Store kv_store2;
     MapType map2("public:map");
 
-    auto tx = kv_store.create_reserved_tx(kv_store.next_version());
+    auto tx = kv_store.create_reserved_tx(kv_store.next_txid());
     auto handle = tx.rw(map);
     handle->put(k1, v1);
     handle->put(k2, v2);
@@ -657,7 +657,7 @@ TEST_CASE(
   kv_store_target.set_encryptor(encryptor);
 
   {
-    auto tx = store.create_reserved_tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_txid());
 
     auto data_handle_r = tx.rw<T>(data_replicated);
     auto data_handle_r_p = tx.rw<T>(data_replicated_private);

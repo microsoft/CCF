@@ -157,7 +157,7 @@ describe("polyfill", function () {
       // Not validating EC with certs here as node-forge used in
       // generateSelfSignedCert() does not support EC keys.
       const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", {
-        namedCurve: "secp256r1",
+        namedCurve: "P-256",
         publicKeyEncoding: {
           type: "spki",
           format: "pem",
@@ -173,6 +173,7 @@ describe("polyfill", function () {
       signer.end();
       const signature = signer.sign({
         key: crypto.createPrivateKey(privateKey),
+        dsaEncoding: "ieee-p1363",
       });
       assert.isTrue(
         ccf.crypto.verifySignature(

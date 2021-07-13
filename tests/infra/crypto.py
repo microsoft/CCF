@@ -15,6 +15,7 @@ from cryptography.x509 import (
     load_der_x509_certificate,
 )
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
     load_pem_public_key,
@@ -189,11 +190,32 @@ def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
     elif isinstance(key, ec.EllipticCurvePrivateKey):
         if algorithm["name"] == "ECDSA":
             # pylint: disable=no-value-for-parameter
-            return key.sign(data, ec.ECDSA(hash_alg))
+            signature = key.sign(data, ec.ECDSA(hash_alg))
+            encoding = algorithm.get("encoding", "ieee-p1363")
+            if encoding == "der":
+                pass
+            elif encoding == "ieee-p1363":
+                key_size_bits = key.key_size
+                signature = convert_ecdsa_signature_from_der_to_p1363(
+                    signature, key_size_bits
+                )
+            else:
+                raise ValueError(f"Unknown encoding: {encoding}")
+            return signature
         else:
             raise ValueError("Unsupported signing algorithm")
     else:
         raise ValueError("Unsupported key type")
+
+
+def convert_ecdsa_signature_from_der_to_p1363(
+    signature_der: bytes, key_size_bits: int
+) -> bytes:
+    (r, s) = decode_dss_signature(signature_der)
+    assert key_size_bits % 8 == 0
+    n = key_size_bits // 8
+    signature_p1363 = r.to_bytes(n, byteorder="big") + s.to_bytes(n, byteorder="big")
+    return signature_p1363
 
 
 def pub_key_pem_to_der(pem: str) -> bytes:

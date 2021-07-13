@@ -114,6 +114,7 @@ class CCFPolyfill implements CCF {
       return verifier.verify(
         {
           key: pubKey,
+          dsaEncoding: "ieee-p1363",
           padding: padding,
         },
         new Uint8Array(signature)

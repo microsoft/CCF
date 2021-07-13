@@ -1373,7 +1373,7 @@ TEST_CASE("Rollback and compact")
     handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-    kv_store.rollback(0);
+    kv_store.rollback({kv_store.commit_view(), 0}, kv_store.commit_view());
     auto handle2 = tx2.rw(map);
     auto v = handle2->get(k);
     REQUIRE(!v.has_value());
@@ -1649,7 +1649,7 @@ TEST_CASE("Deserialising from other Store")
 
   MapTypes::NumString public_map("public:public");
   MapTypes::NumString private_map("private");
-  auto tx1 = store.create_reserved_tx(store.next_version());
+  auto tx1 = store.create_reserved_tx(store.next_txid());
   auto handle1 = tx1.rw(public_map);
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
@@ -1684,7 +1684,7 @@ TEST_CASE("Deserialise return status")
   store.set_history(history);
 
   {
-    auto tx = store.create_reserved_tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_txid());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
     auto [success, data, hooks] = tx.commit_reserved();
@@ -1696,7 +1696,7 @@ TEST_CASE("Deserialise return status")
   }
 
   {
-    auto tx = store.create_reserved_tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
     auto tree_handle = tx.rw(serialised_tree);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
@@ -1712,7 +1712,7 @@ TEST_CASE("Deserialise return status")
 
   INFO("Signature transactions with additional contents should fail");
   {
-    auto tx = store.create_reserved_tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
@@ -2007,7 +2007,7 @@ TEST_CASE("Conflict resolution")
 
   // A third transaction just wants to read the value
   auto tx3 = kv_store.create_tx();
-  auto handle3 = tx3.rw(map);
+  auto handle3 = tx3.ro(map);
   REQUIRE(handle3->has("foo"));
 
   // First transaction is rerun on new object, producing different result
@@ -2025,7 +2025,7 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res3 == kv::CommitResult::SUCCESS);
 
   REQUIRE(tx1.commit_version() > tx2.commit_version());
-  REQUIRE(tx2.get_read_version() >= tx2.get_read_version());
+  REQUIRE(tx3.get_txid()->version >= tx2.get_txid()->version);
 
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
@@ -2102,7 +2102,7 @@ TEST_CASE("Max conflict version tracks execution order")
         REQUIRE(!handle->has(info.id));
         handle->put(info.id, info.value);
         auto version_resolver = [&](bool) {
-          kv_store_backup.next_version();
+          kv_store_backup.next_txid();
           return std::make_tuple(info.primary_committed_version, kv::NoVersion);
         };
         REQUIRE(
@@ -2122,7 +2122,7 @@ TEST_CASE("Max conflict version tracks execution order")
           REQUIRE(!handle->has(info.id));
           handle->put(info.id, info.value);
           auto version_resolver = [&](bool) {
-            kv_store_backup.next_version();
+            kv_store_backup.next_txid();
             return std::make_tuple(
               info.primary_committed_version, map_creation_version);
           };
@@ -2165,7 +2165,7 @@ TEST_CASE("Max conflict version tracks execution order")
             REQUIRE(!handle->has(info.id));
             handle->put(info.id, info.value);
             auto version_resolver = [&](bool) {
-              kv_store_backup.next_version();
+              kv_store_backup.next_txid();
               return std::make_tuple(
                 info.primary_committed_version, map_creation_version);
             };
@@ -2198,7 +2198,7 @@ TEST_CASE("Max conflict version tracks execution order")
             handle->get(info.id);
             handle->put(info.id, info.value);
             auto version_resolver = [&](bool) {
-              kv_store_backup.next_version();
+              kv_store_backup.next_txid();
               return std::make_tuple(
                 info.primary_committed_version, map_creation_version);
             };
@@ -2217,7 +2217,7 @@ TEST_CASE("Max conflict version tracks execution order")
             handle->get(info.id);
             handle->put(info.id, info.value);
             auto version_resolver = [&](bool) {
-              kv_store_backup.next_version();
+              kv_store_backup.next_txid();
               return std::make_tuple(
                 info.primary_committed_version, map_creation_version);
             };
@@ -2342,7 +2342,7 @@ TEST_CASE("Mid-tx compaction")
 TEST_CASE("Store clear")
 {
   kv::Store kv_store;
-  kv_store.set_term(42);
+  kv_store.initialise_term(42);
 
   auto map_a_name = "public:A";
   auto map_b_name = "public:B";
@@ -2389,5 +2389,192 @@ TEST_CASE("Store clear")
     auto tx_id = kv_store.current_txid();
     REQUIRE(tx_id.term == 0);
     REQUIRE(tx_id.version == 0);
+  }
+}
+
+TEST_CASE("Reported TxID after commit")
+{
+  kv::Store kv_store;
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  kv_store.set_consensus(consensus);
+
+  const auto map_name = "public:map";
+  MapTypes::StringString map(map_name);
+  auto store_last_seqno = kv_store.current_version();
+  kv::Term initial_term = 2;
+  kv::Term store_commit_term = initial_term;
+  kv::Term store_read_term = 0;
+
+  INFO("Initialise store");
+  {
+    kv_store.initialise_term(store_commit_term);
+
+    for (store_last_seqno = kv_store.current_version(); store_last_seqno < 10;
+         store_last_seqno++)
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      store_read_term = store_commit_term;
+    }
+
+    REQUIRE(kv_store.current_version() == store_last_seqno);
+    REQUIRE(
+      kv_store.current_txid() == kv::TxID(store_read_term, store_last_seqno));
+  }
+
+  INFO("Empty committed tx");
+  {
+    auto tx = kv_store.create_tx();
+
+    // No map handle acquired
+
+    // Tx is not yet committed
+    REQUIRE_THROWS_AS(tx.get_txid(), std::logic_error);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    // Committed transaction was not assigned a TxID because it was empty
+    REQUIRE_FALSE(tx.get_txid().has_value());
+  }
+
+  INFO("Simple read-only tx");
+  {
+    // The ReadOnlyTx returned by store.create_read_only_tx() has no commit()
+    // member. Here, we want to specifically test generic Txs that are created
+    // by the CCF frontend, but do not write to the key-value store.
+    auto tx = kv_store.create_tx();
+    auto handle = tx.ro(map); // Remember: opacity tx_id is acquired here
+
+    // No need to read a key, acquiring a map handle is sufficient to acquire a
+    // valid TxID
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    // Reported TxID includes store read term and last seqno
+    auto tx_id = tx.get_txid();
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
+  }
+
+  INFO("Rollback while read-only tx is in progress");
+  {
+    auto tx = kv_store.create_tx();
+
+    // Still a trivial case since the opacity TxID is acquired here
+    auto handle = tx.ro(map);
+
+    // Rollback at the current TxID, in the next term
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    auto tx_id = tx.get_txid();
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term); // Read in term in which
+                                             // last entry was committed
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
+  }
+
+  INFO("Read-only tx after rollback");
+  {
+    // Tricky! Rollback before opacity TxID is acquired
+
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.ro(map);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    auto tx_id = tx.get_txid();
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term); // Read in term in which
+                                             // last entry was committed
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
+  }
+
+  INFO("More rollbacks");
+  {
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.ro(map);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    auto tx_id = tx.get_txid();
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
+  }
+
+  INFO("Commit tx in new term and no-op rollback");
+  {
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      store_last_seqno = kv_store.current_version();
+      store_read_term = store_commit_term;
+
+      auto tx_id = tx.get_txid();
+      REQUIRE(tx_id.has_value());
+      REQUIRE(tx_id->term == store_commit_term);
+      REQUIRE(tx_id->version == store_last_seqno);
+
+      // Since a write Tx was committed, further Txs should read from there
+    }
+
+    {
+      // Read-only tx should report the new term
+      auto tx = kv_store.create_tx();
+      auto handle = tx.ro(map);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+      auto tx_id = tx.get_txid();
+      REQUIRE(tx_id.has_value());
+      REQUIRE(tx_id->term == store_read_term);
+      REQUIRE(tx_id->version == store_last_seqno);
+      REQUIRE(tx_id.value() == kv_store.current_txid());
+    }
+
+    {
+      kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
+
+      auto tx = kv_store.create_tx();
+      auto handle = tx.ro(map);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+      auto tx_id = tx.get_txid();
+      REQUIRE(tx_id.has_value());
+      REQUIRE(tx_id->term == store_read_term);
+      REQUIRE(tx_id->version == store_last_seqno);
+      REQUIRE(tx_id.value() == kv_store.current_txid());
+    }
+  }
+
+  INFO("Rollback to last entry in previous committed term");
+  {
+    // Rollback to initial term
+    kv_store.rollback(
+      {initial_term, store_last_seqno - 1}, ++store_commit_term);
+    store_read_term = initial_term;
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.ro(map);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    auto tx_id = tx.get_txid();
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno - 1);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 }

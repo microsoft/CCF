@@ -33,7 +33,16 @@ namespace kv
     Version version = 0;
     Version last_new_map = kv::NoVersion;
     Version compacted = 0;
-    Term term = 0;
+
+    // Term at which write future transactions should be committed.
+    Term term_of_next_version = 0;
+
+    // Term at which the last entry was committed. Further transactions
+    // should read in that term. Note that it is assumed that the history of
+    // terms of past transactions is kept track of by and specified by the
+    // caller on rollback
+    Term term_of_last_version = 0;
+
     Version last_replicated = 0;
     Version last_committable = 0;
     Version rollback_count = 0;
@@ -52,7 +61,8 @@ namespace kv
 
       version = 0;
       compacted = 0;
-      term = 0;
+      term_of_next_version = 0;
+      term_of_last_version = 0;
 
       last_replicated = 0;
       last_committable = 0;
@@ -91,7 +101,8 @@ namespace kv
 
     bool commit_deserialised(
       OrderedChanges& changes,
-      Version& v,
+      Version v,
+      Term term,
       const MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks) override
     {
@@ -109,6 +120,7 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = version;
+        term_of_last_version = term;
       }
       return true;
     }
@@ -122,7 +134,7 @@ namespace kv
       return false;
     }
 
-    Version next_version_internal()
+    Version next_version_unsafe()
     {
       // Get the next global version
       ++version;
@@ -135,7 +147,16 @@ namespace kv
         version = 0;
       }
 
+      // Further transactions should read in the commit term
+      term_of_last_version = term_of_next_version;
+
       return version;
+    }
+
+    TxID current_txid_unsafe()
+    {
+      // version_lock should be first acquired
+      return {term_of_last_version, version};
     }
 
   public:
@@ -560,7 +581,7 @@ namespace kv
       }
     }
 
-    void rollback(Version v, std::optional<Term> t = std::nullopt) override
+    void rollback(const TxID& tx_id, Term term_of_next_version_) override
     {
       // This is called to roll the store back to the state it was in
       // at the specified version.
@@ -569,42 +590,41 @@ namespace kv
 
       {
         std::lock_guard<std::mutex> vguard(version_lock);
-        if (v < compacted)
+        if (tx_id.version < compacted)
         {
           throw std::logic_error(fmt::format(
             "Attempting rollback to {}, earlier than commit version {}",
-            v,
+            tx_id.version,
             compacted));
         }
 
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
-        if (t.has_value())
-        {
-          term = t.value();
-        }
-        // History must be informed of the term change, even if no
-        // actual rollback is required
+        term_of_next_version = term_of_next_version_;
+        term_of_last_version = tx_id.term;
+
+        // History must be informed of the term_of_last_version change, even if
+        // no actual rollback is required
         auto h = get_history();
         if (h)
         {
-          h->rollback(v, term);
+          h->rollback(tx_id, term_of_next_version);
         }
 
-        if (v >= version)
+        if (tx_id.version >= version)
         {
           return;
         }
 
-        version = v;
-        last_replicated = v;
-        last_committable = v;
+        version = tx_id.version;
+        last_replicated = tx_id.version;
+        last_committable = tx_id.version;
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
         if (e)
         {
-          e->rollback(v);
+          e->rollback(tx_id.version);
         }
       }
 
@@ -620,8 +640,8 @@ namespace kv
         auto& [map_creation_version, map] = it->second;
         // Rollback this map whether we're forgetting about it or not. Anyone
         // else still holding it should see it has rolled back
-        map->rollback(v);
-        if (map_creation_version > v)
+        map->rollback(tx_id.version);
+        if (map_creation_version > tx_id.version)
         {
           // Map was created more recently; its creation is being forgotten.
           // Erase our knowledge of it
@@ -641,14 +661,21 @@ namespace kv
       }
     }
 
-    void set_term(Term t) override
+    void initialise_term(Term t) override
     {
+      // Note: This should only be called once, when the store is first
+      // initialised. term_of_next_version is later updated via rollback.
       std::lock_guard<std::mutex> vguard(version_lock);
-      term = t;
+      if (term_of_next_version != 0)
+      {
+        throw std::logic_error("term_of_next_version is already initialised");
+      }
+
+      term_of_next_version = t;
       auto h = get_history();
       if (h)
       {
-        h->set_term(term);
+        h->set_term(term_of_next_version);
       }
     }
 
@@ -684,7 +711,7 @@ namespace kv
 
       // Throw away any local commits that have not propagated via the
       // consensus.
-      rollback(v - 1);
+      rollback({term_of_last_version, v - 1}, term_of_next_version);
 
       if (strict_versions && !ignore_strict_versions)
       {
@@ -791,6 +818,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -804,6 +832,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -816,6 +845,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -829,6 +859,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -908,24 +939,25 @@ namespace kv
       return true;
     }
 
-    bool operator!=(const Store& that) const
-    {
-      // Only used for debugging, not thread safe.
-      return !(*this == that);
-    }
-
     Version current_version() override
     {
-      // Must lock in case the version or term is being incremented.
+      // Must lock in case the version is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
       return version;
     }
 
     TxID current_txid() override
     {
-      // Must lock in case the version is being incremented.
+      // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return {term, version};
+      return current_txid_unsafe();
+    }
+
+    std::pair<TxID, Term> current_txid_and_commit_term() override
+    {
+      // Must lock in case the version or commit term is being incremented.
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return {current_txid_unsafe(), term_of_next_version};
     }
 
     Version compacted_version() override
@@ -933,6 +965,13 @@ namespace kv
       // Must lock in case the store is being compacted.
       std::lock_guard<std::mutex> vguard(version_lock);
       return compacted;
+    }
+
+    Term commit_view() override
+    {
+      // Must lock in case the commit_view is being incremented.
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return term_of_next_version;
     }
 
     CommitResult commit(
@@ -959,12 +998,14 @@ namespace kv
 
       {
         std::lock_guard<std::mutex> vguard(version_lock);
-        if (txid.term != term && consensus->is_primary())
+        if (txid.term != term_of_next_version && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
           LOG_DEBUG_FMT(
-            "Want to commit for term {} but term is {}", txid.term, term);
+            "Want to commit for term {} but term is {}",
+            txid.term,
+            term_of_next_version);
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
@@ -1027,7 +1068,7 @@ namespace kv
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
 
-        replication_view = term;
+        replication_view = term_of_next_version;
 
         if (consensus->type() == ConsensusType::BFT && consensus->is_backup())
         {
@@ -1067,7 +1108,7 @@ namespace kv
     std::tuple<Version, Version> next_version(bool commit_new_map) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      Version v = next_version_internal();
+      Version v = next_version_unsafe();
 
       auto previous_last_new_map = last_new_map;
       if (commit_new_map)
@@ -1081,19 +1122,15 @@ namespace kv
     Version next_version() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      return next_version_internal();
+      return next_version_unsafe();
     }
 
     TxID next_txid() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
+      next_version_unsafe();
 
-      // Get the next global version. If we would go negative, wrap to 0.
-      ++version;
-      if (version < 0)
-        version = 0;
-
-      return {term, version};
+      return {term_of_next_version, version};
     }
 
     size_t commit_gap() override
@@ -1255,9 +1292,11 @@ namespace kv
       return CommittableTx(this);
     }
 
-    ReservedTx create_reserved_tx(Version v)
+    ReservedTx create_reserved_tx(const TxID& tx_id)
     {
-      return ReservedTx(this, v);
+      // version_lock should already been acquired in case term_of_last_version
+      // is incremented.
+      return ReservedTx(this, term_of_last_version, tx_id);
     }
   };
 }

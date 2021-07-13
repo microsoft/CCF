@@ -398,7 +398,9 @@ TEST_CASE("KV integrity verification")
 TEST_CASE("Encryptor rollback")
 {
   StringString map("map");
+  constexpr auto store_term = 2;
   kv::Store store;
+  store.initialise_term(2);
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
@@ -415,7 +417,7 @@ TEST_CASE("Encryptor rollback")
   commit_one(store, map);
 
   // Rollback store at seqno 1, discarding encryption key at 3
-  store.rollback(1);
+  store.rollback({store_term, 1}, store.commit_view());
 
   commit_one(store, map);
 
