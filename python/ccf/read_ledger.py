@@ -73,14 +73,7 @@ def dump_entry(entry, table_filter):
                 print_key(key_indent, key, is_removed=True)
 
 
-if __name__ == "__main__":
-
-    LOG.remove()
-    LOG.add(
-        sys.stdout,
-        format="<level>{message}</level>",
-    )
-
+def main(args):
     parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
     parser.add_argument(
         "paths", help="Path to ledger directories or snapshot file", nargs="+"
@@ -101,7 +94,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(args)
+
     table_filter = re.compile(args.tables)
 
     if args.snapshot:
@@ -127,9 +121,24 @@ if __name__ == "__main__":
                     dump_entry(transaction, table_filter)
         except Exception as e:
             LOG.exception(f"Error parsing ledger: {e}")
+            has_error = True
         else:
             LOG.success("Ledger verification complete")
+            has_error = False
         finally:
             LOG.info(
                 f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
             )
+            return not has_error
+
+
+if __name__ == "__main__":
+
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<level>{message}</level>",
+    )
+
+    if not main(sys.argv[1:]):
+        sys.exit(1)

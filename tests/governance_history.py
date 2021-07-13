@@ -13,6 +13,7 @@ import base64
 import json
 from loguru import logger as LOG
 import suite.test_requirements as reqs
+import ccf.read_ledger
 
 
 def check_operations(ledger, operations):
@@ -86,7 +87,7 @@ def test_tables_doc(network, args):
     return network
 
 
-@reqs.description("Test that all node's ledgers can be read")
+@reqs.description("Test that all nodes' ledgers can be read")
 def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
     for node in (primary, *backups):
@@ -96,6 +97,15 @@ def test_ledger_is_readable(network, args):
         for chunk in ledger:
             for _ in chunk:
                 pass
+    return network
+
+
+@reqs.description("Test that all nodes' ledgers can be read using read_ledger.py")
+def test_read_ledger_utility(network, args):
+    primary, backups = network.find_nodes()
+    for node in (primary, *backups):
+        ledger_dirs = node.remote.ledger_paths()
+        assert ccf.read_ledger.main(ledger_dirs)
     return network
 
 
@@ -164,6 +174,7 @@ def run(args):
         check_operations(ledger, governance_operations)
 
         test_ledger_is_readable(network, args)
+        test_read_ledger_utility(network, args)
         test_tables_doc(network, args)
 
 
