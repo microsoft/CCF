@@ -36,20 +36,27 @@ namespace ccf::historical
     {
       r.signature = tls::b64_from_raw(signature);
       r.root = root.to_string();
-      for (const auto& node : *path)
+      if (path)
       {
-        ccf::Receipt::Element n;
-        if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+        for (const auto& node : *path)
         {
-          n.left = node.hash.to_string();
+          ccf::Receipt::Element n;
+          if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+          {
+            n.left = node.hash.to_string();
+          }
+          else
+          {
+            n.right = node.hash.to_string();
+          }
+          r.proof.emplace_back(std::move(n));
         }
-        else
-        {
-          n.right = node.hash.to_string();
-        }
-        r.proof.emplace_back(std::move(n));
+        r.leaf = path->leaf().to_string();
       }
-      r.leaf = path->leaf().to_string();
+      else
+      {
+        r.leaf = r.root;
+      }
       r.node_id = node_id;
     }
   };
