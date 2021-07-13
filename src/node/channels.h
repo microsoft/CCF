@@ -999,6 +999,11 @@ namespace ccf
       }
     }
 
+    bool have_channel(const NodeId& nid) const
+    {
+      return channels.find(nid) != channels.end();
+    }
+
     std::shared_ptr<Channel> get(const NodeId& peer_id)
     {
       std::lock_guard<std::mutex> guard(lock);

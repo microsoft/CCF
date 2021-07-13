@@ -38,6 +38,8 @@ namespace ccf
 
     virtual void destroy_all_channels() = 0;
 
+    virtual bool have_channel(const NodeId& nid) const = 0;
+
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)
     {
@@ -201,6 +203,11 @@ namespace ccf
     void destroy_all_channels() override
     {
       channels->destroy_all_channels();
+    }
+
+    bool have_channel(const NodeId& nid) const override
+    {
+      return channels->have_channel(nid);
     }
 
     bool send_authenticated(

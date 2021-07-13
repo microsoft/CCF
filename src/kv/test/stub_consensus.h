@@ -152,9 +152,14 @@ namespace kv::test
       const std::unordered_set<NodeId>& learners = {}) override
     {}
 
-    void add_network_configuration(
+    void reconfigure(
       ccf::SeqNo seqno, const NetworkConfiguration& config) override
     {}
+
+    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) override
+    {
+      return false;
+    }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
