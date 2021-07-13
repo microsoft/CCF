@@ -889,6 +889,7 @@ namespace ccf
 
     void close_channel()
     {
+      RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
       reset();
       outgoing_msg.reset();
     }
@@ -896,8 +897,6 @@ namespace ccf
     void reset()
     {
       LOG_INFO_FMT("Resetting channel with {}", peer_id);
-
-      RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
 
       status.advance(INACTIVE);
       kex_ctx.reset();
