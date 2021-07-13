@@ -990,6 +990,7 @@ namespace ccf
       }
 #endif
 
+      // TODO: Record SAN and public key as well!
       g.add_node(
         self,
         {node_info_network,

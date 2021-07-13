@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "crypto/mbedtls/verifier.h"
-
 #include "crypto/openssl/verifier.h"
 #include "verifier.h"
 
@@ -52,6 +51,11 @@ namespace crypto
   std::vector<uint8_t> public_key_der_from_cert(const std::vector<uint8_t>& der)
   {
     return make_unique_verifier(der)->public_key_der();
+  }
+
+  crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der)
+  {
+    return make_unique_verifier(der)->public_key_pem();
   }
 
   void check_is_cert(const CBuffer& der)

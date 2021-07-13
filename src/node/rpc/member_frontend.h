@@ -839,6 +839,7 @@ namespace ccf
         // recovery member is added before the service is opened.
         g.init_configuration(in.configuration);
 
+        // TODO: Record SAN and public key as well
         g.add_node(
           in.node_id,
           {in.node_info_network,

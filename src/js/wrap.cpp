@@ -1,7 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "js/wrap.h"
-
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "ds/logger.h"
@@ -9,6 +7,7 @@
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
 #include "js/oe.cpp"
+#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -487,6 +486,60 @@ namespace js
     }
 
     return JS_UNDEFINED;
+  }
+
+  JSValue js_network_generate_endorsed_certificate(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 2)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+
+    if (node == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Node state is not set");
+    }
+
+    //////////
+
+    // TODO:
+    // 1. Parse arguments and verify type
+    // 2. Call into node state
+    auto public_key = argv[0];
+    if (!JS_IsArray(ctx, args))
+    {
+      return JS_ThrowTypeError(ctx, "First argument must be an array");
+    }
+
+    auto
+
+      ///////////
+
+      auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to fetch latest ledger secret seqno");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    return JS_NewInt64(
+      ctx, network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first);
   }
 
   JSValue js_network_latest_ledger_secret_seqno(
@@ -1356,6 +1409,15 @@ namespace js
           ctx,
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
+          0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "generateEndorsedCertificate",
+        JS_NewCFunction(
+          ctx,
+          js_node_generate_endorsed_certificate,
+          "generateEndorsedCertificate",
           0));
     }
 

@@ -191,7 +191,8 @@ namespace ccf
          node_status,
          ledger_secret_seqno,
          ds::to_hex(code_digest.data),
-         in.certificate_subject_identity});
+         in.certificate_subject_identity,
+         crypto::public_key_pem_from_cert(node_der)});
 
       kv::NetworkConfiguration nc =
         get_latest_network_configuration(network, tx);

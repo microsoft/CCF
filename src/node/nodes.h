@@ -36,8 +36,8 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
-    // TODO: Replace with node's public key in PEM format
-    /// Node certificate
+    /** Node certificate. Only set for 1.x releases. Further releases record
+     * node identity in `public_key` field */
     crypto::Pem cert;
     /// Node enclave quote
     QuoteInfo quote_info;
@@ -53,16 +53,22 @@ namespace ccf
     /** Code identity for the node **/
     std::optional<std::string> code_digest = std::nullopt;
 
-    // TODO: Move elsewhere?
-    /** Node certificate subject identity */
+    /// Node certificate subject identity
     std::optional<crypto::CertificateSubjectIdentity>
       certificate_subject_identity = std::nullopt;
+
+    /** Public key. Only set from 2.x releases onwards. */
+    std::optional<crypto::Pem> public_key = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, cert, quote_info, encryption_pub_key, status);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfo, ledger_secret_seqno, code_digest, certificate_subject_identity);
+    NodeInfo,
+    ledger_secret_seqno,
+    code_digest,
+    certificate_subject_identity,
+    public_key);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
 
