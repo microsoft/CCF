@@ -1200,7 +1200,7 @@ def test_receipts(network, args):
 @reqs.description("Validate all receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_all_receipts(network, args):
+def test_random_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
     cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
     with open(cert_path) as c:
@@ -1212,7 +1212,7 @@ def test_all_receipts(network, args):
         r = c.get("/app/commit")
         max_view, seqno = [int(e) for e in r.body.json()["transaction_id"].split(".")]
         view = 2
-        for s in random.sample(range(1, seqno - 1), 50):
+        for s in sorted(random.sample(range(1, seqno), min(50, seqno))) + [seqno]:
             start_time = time.time()
             while time.time() < (start_time + 3.0):
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
@@ -1222,6 +1222,10 @@ def test_all_receipts(network, args):
                         receipt["leaf"], receipt["proof"]
                     )
                     ccf.receipt.verify(receipt["root"], receipt["signature"], node_cert)
+                    if s == seqno:
+                        # Signature receipt
+                        assert receipt["root"] == receipt["leaf"], receipt
+                        assert receipt["proof"] == [], receipt
                     print(f"Verified receipt for {view}.{s}")
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
@@ -1298,7 +1302,7 @@ def run(args):
             network = test_liveness(network, args)
         if args.package == "liblogging":
             network = test_receipts(network, args)
-            network = test_all_receipts(network, args)
+            network = test_random_receipts(network, args)
         network = test_historical_receipts(network, args)
 
 
