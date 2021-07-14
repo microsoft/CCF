@@ -1575,9 +1575,9 @@ namespace ccf
   private:
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
-      // If no Subject Alternative Names are passed in at node creation, default
-      // to using node's RPC address as single SAN. Otherwise, use specified
-      // SANs.
+      // If no Subject Alternative Name (SAN) is passed in at node creation,
+      // default to using node's RPC address as single SAN. Otherwise, use
+      // specified SANs.
       if (!config.subject_alternative_names.empty())
       {
         return config.subject_alternative_names;
