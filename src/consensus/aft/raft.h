@@ -2643,9 +2643,10 @@ namespace aft
         return;
       }
 
-      // When we force to become the primary we are going are around the
-      // consensus protocol. Therefore in BFT we need to bypass the information in
-      // the progress tracker when working out how far we rollback.
+      // When we force to become the primary we are going around the
+      // consensus protocol. This only happens when a node starts a new network
+      // and have a gensis or recovery tx as the last transaction, for BFT this
+      // transaction is not prepared and but must not be rolled back.
       if (consensus_type == ConsensusType::BFT && !force_become_leader)
       {
         auto progress_tracker = store->get_progress_tracker();
