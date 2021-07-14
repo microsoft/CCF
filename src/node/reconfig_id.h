@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  kv::ReconfigurationId CONFIG_COUNT_KEY = -1;
+  kv::ReconfigurationId CONFIG_COUNT_KEY = 0;
 
   inline kv::ReconfigurationId get_next_reconfiguration_id(
     ccf::NetworkTables& tables, kv::ReadOnlyTx& tx)
@@ -17,7 +17,7 @@ namespace ccf
     auto e = nconfigs->get(CONFIG_COUNT_KEY);
     if (!e.has_value())
     {
-      return 0;
+      return 1;
     }
     else
     {
