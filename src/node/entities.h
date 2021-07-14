@@ -66,8 +66,8 @@ namespace ccf
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";
     static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
-    static constexpr auto NETWORK_CONFIGURATIONS =
-      "public:ccf.gov.network.configurations";
+    static constexpr auto NODES_CONFIGURATIONS =
+      "public:ccf.gov.nodes.configurations";
 
     // Service information
     static constexpr auto SERVICE = "public:ccf.gov.service.info";

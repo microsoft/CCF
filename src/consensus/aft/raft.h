@@ -614,9 +614,6 @@ namespace aft
         guard.lock();
       }
 
-      // Hooks may be reordered, so the node info in `configurations` and
-      // `nodes` may not be available yet.
-
       if (
         use_two_tx_reconfig && !is_learner() && !is_retired() &&
         config.nodes.find(state->my_node_id) != config.nodes.end())

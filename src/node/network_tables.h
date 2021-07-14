@@ -131,7 +131,7 @@ namespace ccf
       user_certs(Tables::USER_CERTS),
       user_info(Tables::USER_INFO),
       nodes(Tables::NODES),
-      network_configurations(Tables::NETWORK_CONFIGURATIONS),
+      network_configurations(Tables::NODES_CONFIGURATIONS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
