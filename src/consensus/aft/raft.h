@@ -3081,18 +3081,11 @@ namespace aft
       for (const auto& [id, _] : c.nodes)
       {
         if (
-          nodes.find(id) != nodes.end() && learners.find(id) == learners.end())
-        {
-          LOG_TRACE_FMT("trusted: {}", id);
-          r++;
-        }
-        else if (id == state->my_node_id && !is_learner())
+          (nodes.find(id) != nodes.end() &&
+           learners.find(id) == learners.end()) ||
+          (id == state->my_node_id && !is_learner()))
         {
           r++;
-        }
-        else
-        {
-          LOG_TRACE_FMT("untrusted: {}", id);
         }
       }
       return r;
