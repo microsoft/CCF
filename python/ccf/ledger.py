@@ -41,6 +41,7 @@ class NodeStatus(Enum):
     TRUSTED = "Trusted"
     RETIRED = "Retired"
     LEARNER = "Learner"
+    RETIRING = "Retiring"
 
 
 def to_uint_64(buffer):

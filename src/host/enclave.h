@@ -92,7 +92,6 @@ namespace host
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& network_cert,
       StartType start_type,
-      ConsensusType consensus_type,
       size_t num_worker_thread,
       void* time_location)
     {
@@ -122,7 +121,6 @@ namespace host
         enclave_version_buf.size(),
         &enclave_version_len,
         start_type,
-        consensus_type,
         num_worker_thread,
         time_location);
 
