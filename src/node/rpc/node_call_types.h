@@ -100,7 +100,9 @@ namespace ccf
 
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
-        ServiceStatus service_status;
+        ServiceStatus service_status; // TODO: This isn't serialised!
+
+        std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
 
         bool operator==(const NetworkInfo& other) const
         {
@@ -109,7 +111,8 @@ namespace ccf
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
             service_status == other.service_status &&
-            identity == other.identity;
+            identity == other.identity &&
+            endorsed_certificate == other.endorsed_certificate;
         }
 
         bool operator!=(const NetworkInfo& other) const

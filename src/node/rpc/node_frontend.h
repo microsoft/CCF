@@ -70,25 +70,45 @@ namespace ccf
   private:
     NetworkState& network;
 
-    using ExistingNodeInfo = std::pair<NodeId, std::optional<kv::Version>>;
+    struct ExistingNodeInfo
+    {
+      NodeId node_id;
+      std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+      crypto::Pem endorsed_certificate;
+    };
 
     std::optional<ExistingNodeInfo> check_node_exists(
       kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
-      auto nodes = tx.rw(network.nodes);
+      auto nodes = tx.ro(network.nodes);
+      auto endorsed_node_certificates =
+        tx.ro(network.node_endorsed_certificates);
 
       auto node_pem = crypto::cert_der_to_pem(node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
-      nodes->foreach([&existing_node_info, &node_pem, &node_status](
+      nodes->foreach([&existing_node_info,
+                      &node_pem,
+                      &node_status,
+                      &endorsed_node_certificates](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
           ni.cert == node_pem &&
           (!node_status.has_value() || ni.status == node_status.value()))
         {
-          existing_node_info = std::make_pair(nid, ni.ledger_secret_seqno);
+          auto endorsed_node_certificate = endorsed_node_certificates->get(nid);
+          if (!endorsed_node_certificate.has_value())
+          {
+            // TODO: Compatibility issue?
+            throw std::logic_error(fmt::format(
+              "Did not find endorsed certificate for node {}", nid));
+          }
+          existing_node_info = {
+            nid,
+            ni.ledger_secret_seqno,
+            endorsed_node_certificate->endorsed_certificate};
           return false;
         }
         return true;
@@ -126,6 +146,7 @@ namespace ccf
       NodeStatus node_status,
       ServiceStatus service_status)
     {
+      LOG_FAIL_FMT("Service status: {}", service_status);
       auto nodes = tx.rw(network.nodes);
 
       auto conflicting_node_id =
@@ -184,8 +205,6 @@ namespace ccf
 
       // TODO: Check that the public key in the CSR matches the TLS identity
 
-      // TODO: Add node id to [CN]
-
       nodes->put(
         joining_node_id,
         {in.node_info_network,
@@ -235,7 +254,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.4.0";
+      openapi_info.document_version = "1.4.0"; // TODO: Bump up
     }
 
     void init_handlers() override
@@ -310,15 +329,16 @@ namespace ccf
           {
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
-            rep.node_id = existing_node_info->first;
+            rep.node_id = existing_node_info->node_id;
             rep.network_info = {
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
-                args.tx, existing_node_info->second),
+                args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
-              active_service->status};
+              active_service->status,
+              existing_node_info->endorsed_certificate};
             return make_success(rep);
           }
 
@@ -369,11 +389,11 @@ namespace ccf
         if (existing_node_info.has_value())
         {
           JoinNetworkNodeToNode::Out rep;
-          rep.node_id = existing_node_info->first;
+          rep.node_id = existing_node_info->node_id;
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
-          auto node_status = nodes->get(existing_node_info->first)->status;
+          auto node_status = nodes->get(existing_node_info->node_id)->status;
           rep.node_status = node_status;
           if (
             node_status == NodeStatus::TRUSTED ||
@@ -384,9 +404,10 @@ namespace ccf
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
-                args.tx, existing_node_info->second),
+                args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
-              active_service->status};
+              active_service->status,
+              existing_node_info->endorsed_certificate};
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
