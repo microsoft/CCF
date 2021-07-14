@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Upgrade OpenEnclave from 0.17.0 to 0.17.1.
-- `get_state_at()` now returns receipts for signature transactions (#2785).
+- `get_state_at()` now returns receipts for signature transactions (#2785), see [documentation](https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#transaction-receipts) for details.
 
 ## [2.0.0-dev2]
 
