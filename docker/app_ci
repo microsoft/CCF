@@ -10,6 +10,20 @@ RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 # Work-around for https://github.com/intel/linux-sgx/issues/395
 RUN mkdir -p /etc/init
 
+ENV PSW_VERSION=2.13.103
+RUN if [ -z "$PSW_VERSION" ]; then echo "Please set PSW_VERSION (e.g. 2.11)." >&2; exit 1; fi
+ENV DCAP_CLIENT_VERSION=1.10
+RUN if [ -z "$DCAP_CLIENT_VERSION" ]; then echo "Please set DCAP_CLIENT_VERSION (e.g. 1.8)." >&2; exit 1; fi
+
+RUN apt-get update && apt-get install -y wget gnupg
+
+# Use the APT preference file to pin sgx packages to specific versions
+# Reference https://manpages.debian.org/buster/apt/apt_preferences.5.en.html
+# Download the pref file from https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files/
+# Assuming file name to follow *sgx_<PSW_VERSION>_bionic_custom_version.cfg convention
+RUN ["/bin/bash", "-c", "wget -r -l1 --no-parent -nd -A *sgx_$(echo ${PSW_VERSION//./_})_bionic_custom_version.cfg https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files/"]
+RUN ["/bin/bash", "-c", "mv *sgx_$(echo ${PSW_VERSION//./_})_bionic_custom_version.cfg /etc/apt/preferences.d/intel-sgx.pref"]
+
 COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update \
     && apt install -y ansible software-properties-common bsdmainutils dnsutils \
