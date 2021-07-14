@@ -424,7 +424,7 @@ namespace aft
     Index get_commit_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      return state->commit_idx;
+      return get_commit_idx_unsafe();
     }
 
     Term get_term()
@@ -436,16 +436,8 @@ namespace aft
     std::pair<Term, Index> get_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      if (consensus_type == ConsensusType::CFT)
-      {
-        return {get_term_internal(state->commit_idx), state->commit_idx};
-      }
-      else
-      {
-        auto progress_tracker = store->get_progress_tracker();
-        auto idx = progress_tracker->get_highest_committed_level();
-        return {get_term_internal(idx), idx};
-      }
+      ccf::SeqNo commit_idx = get_commit_idx_unsafe();
+      return {get_term_internal(commit_idx), commit_idx};
     }
 
     std::optional<kv::Consensus::SignableTxIndices>
@@ -994,7 +986,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      LOG_DEBUG_FMT("Received evidence for view:{}, from {}", r.view, from);
+      LOG_DEBUG_FMT("Received evidence for view:{}, from:{}", r.view, from);
       auto node = nodes.find(from);
       if (node == nodes.end())
       {
@@ -1146,7 +1138,8 @@ namespace aft
 
     void append_new_view(ccf::View view)
     {
-      LOG_INFO_FMT("Writing view change {} to ledger as a new primay", view);
+      LOG_INFO_FMT(
+        "Writing view change to ledger as a new primay, view:{}", view);
       state->current_view = view;
       become_leader();
       state->new_view_idx =
@@ -1217,6 +1210,19 @@ namespace aft
         return ccf::VIEW_UNKNOWN;
 
       return state->view_history.view_at(idx);
+    }
+
+    Index get_commit_idx_unsafe()
+    {
+      if (consensus_type == ConsensusType::CFT)
+      {
+        return state->commit_idx;
+      }
+      else
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        return progress_tracker->get_highest_committed_level();
+      }
     }
 
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
@@ -2391,7 +2397,7 @@ namespace aft
           reinterpret_cast<uint8_t*>(&vw),
           reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
 
-        LOG_DEBUG_FMT("Sending evidence to {}", from);
+        LOG_DEBUG_FMT("Sending evidence to:{}", from);
         channels->send_authenticated(
           from, ccf::NodeMsgType::consensus_msg, data);
       }
@@ -3038,8 +3044,8 @@ namespace aft
          idx < state->bft_watermark_idx))
       {
         LOG_FAIL_FMT(
-          "Asked to rollback to {} but committed to commit_idx {}, "
-          "bft_watermark_idx {} - ignoring rollback request",
+          "Asked to rollback to idx:{} but committed to commit_idx:{}, "
+          "bft_watermark_idx:{} - ignoring rollback request",
           idx,
           state->commit_idx,
           state->bft_watermark_idx);
