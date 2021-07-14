@@ -189,10 +189,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=False,
     )
     parser.add_argument(
-        "--domain",
-        help="Domain name used for node certificate verification, eg. example.com",
-    )
-    parser.add_argument(
         "--sn",
         help="Subject Name in node certificate, eg. CN=CCF Node",
     )
