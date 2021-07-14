@@ -10,6 +10,7 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "ds/net.h"
 #include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
@@ -1580,21 +1581,18 @@ namespace ccf
     }
 
   private:
-    crypto::SubjectAltName get_subject_alt_name()
-    {
-      // If a domain is passed at node creation, record domain in SAN for node
-      // hostname authentication over TLS. Otherwise, record IP in SAN.
-      bool san_is_ip = config.domain.empty();
-      return {san_is_ip ? config.node_info_network.rpchost : config.domain,
-              san_is_ip};
-    }
-
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
-      std::vector<crypto::SubjectAltName> sans =
-        config.node_certificate_subject_identity.sans;
-      sans.push_back(get_subject_alt_name());
-      return sans;
+      // If no Subject Alternative Name (SAN) is passed in at node creation,
+      // default to using node's RPC address as single SAN. Otherwise, use
+      // specified SANs.
+      if (!config.node_certificate_subject_identity.sans.empty())
+      {
+        return config.node_certificate_subject_identity.sans;
+      }
+
+      return {{config.node_info_network.rpchost,
+               ds::is_valid_ip(config.node_info_network.rpchost)}};
     }
 
     Pem create_self_signed_node_cert()
