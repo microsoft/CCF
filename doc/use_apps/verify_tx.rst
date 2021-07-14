@@ -81,6 +81,8 @@ Note that receipts over signature transactions are a special case, for example:
      'signature': 'MGQCMACklXqd0ge+gBS8WzewrwtwzRzSKy+bfrLZVx0YHmQvtsqs7dExYESsqrUrB8ZcKwIwS3NPKaGq0w2QlPlCqUC3vQoQvhcZgPHPu2GkFYa7JEOdSKLknNPHaCRv80zx2RGF'}
 
 The proof is empty, and the 'leaf' and 'root' fields are both set to the value being signed, which is the root of the Merkle Tree covering all transactions until the signature.
+This allows writing verification code that handles both regular and signature receipts without special casing, but it is worth noting that the 'leaf' value for signatures is not
+the digest of the signature transaction itself.
 
 Verifying a receipt is a two-phase process:
 
