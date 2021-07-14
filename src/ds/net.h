@@ -38,4 +38,9 @@ namespace ds
   {
     return ip_to_binary(hostname).has_value();
   }
+
+  inline bool is_valid_ip(const std::string& hostname)
+  {
+    return is_valid_ip(hostname.c_str());
+  }
 }
