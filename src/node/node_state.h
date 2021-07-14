@@ -328,7 +328,10 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::initialized);
 
+      // TODO: To remove once Eddy's PR is merged
       config = std::move(config_);
+      config.node_certificate_subject_identity.sans =
+        get_subject_alternative_names();
 
       js::register_class_ids();
       open_frontend(ActorsType::nodes);
@@ -1610,16 +1613,17 @@ namespace ccf
       return nw->sign_csr(network.identity->cert, csr, sans);
     }
 
-    // crypto::Pem generate_endorsed_certificate(
-    //   const crypto::Pem& subject_public_key,
-    //   const crypto::CertificateSubjectIdentity& subject_identity,
-    //   const crypto::Pem& endorser_private_key,
-    //   const crypto::Pem& endorser_cert) override
-    // {
-    //   auto endorser_privk = crypto::make_key_pair(endorser_private_key);
-    //   auto csr = node_sign_kp->create_csr(subject_identity.name);
-    //   return endorser_privk->sign_csr(endorser_cert, csr, sans);
-    // }
+    // TODO: Rename
+    crypto::Pem generate_endorsed_certificate(
+      const crypto::Pem& subject_csr,
+      const crypto::CertificateSubjectIdentity& subject_identity,
+      const crypto::Pem& endorser_private_key,
+      const crypto::Pem& endorser_cert) override
+    {
+      LOG_FAIL_FMT("SAN count: {}", subject_identity.sans.size());
+      return crypto::make_key_pair(endorser_private_key)
+        ->sign_csr(endorser_cert, subject_csr, subject_identity.sans);
+    }
 
     void accept_node_tls_connections()
     {

@@ -488,60 +488,81 @@ namespace js
     return JS_UNDEFINED;
   }
 
-  // JSValue js_node_generate_endorsed_certificate(
-  //   JSContext* ctx,
-  //   JSValueConst this_val,
-  //   int argc,
-  //   [[maybe_unused]] JSValueConst* argv)
-  // {
-  //   if (argc != 2)
-  //   {
-  //     return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2",
-  //     argc);
-  //   }
+  JSValue js_network_generate_endorsed_certificate(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 2)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
+    }
 
-  //   auto node = static_cast<ccf::AbstractNodeState*>(
-  //     JS_GetOpaque(this_val, node_class_id));
+    auto network =
+      static_cast<ccf::NetworkState*>(JS_GetOpaque(this_val, network_class_id));
+    if (network == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Network state is not set");
+    }
 
-  //   if (node == nullptr)
-  //   {
-  //     return JS_ThrowInternalError(ctx, "Node state is not set");
-  //   }
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto node_ = JS_GetPropertyStr(ctx, ccf, "node");
 
-  //   //////////
+    auto node =
+      static_cast<ccf::AbstractNodeState*>(JS_GetOpaque(node_, node_class_id));
 
-  //   // TODO:
-  //   // 1. Parse arguments and verify type
-  //   // 2. Call into node state
-  //   auto public_key = argv[0];
-  //   if (!JS_IsArray(ctx, args))
-  //   {
-  //     return JS_ThrowTypeError(ctx, "First argument must be an array");
-  //   }
+    if (node == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Node state is not set");
+    }
 
-  //   auto
+    JS_FreeValue(ctx, node_);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
 
-  //     ///////////
+    auto csr_cstr = JS_ToCString(ctx, argv[0]);
+    if (csr_cstr == nullptr)
+    {
+      throw JS_ThrowTypeError(ctx, "csr argument is not a string");
+    }
+    auto csr = crypto::Pem(csr_cstr);
 
-  //     auto global_obj = JS_GetGlobalObject(ctx);
-  //   auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
-  //   auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+    JSValue certificate_subject_identity_val =
+      JS_JSONStringify(ctx, argv[1], JS_NULL, JS_NULL);
+    if (JS_IsException(certificate_subject_identity_val))
+    {
+      return JS_ThrowTypeError(
+        ctx, "certificate subject identity argument is not a JSON object");
+    }
+    auto certificate_subject_identity_cstr =
+      JS_ToCString(ctx, certificate_subject_identity_val);
+    std::string certificate_subject_identity_json(
+      certificate_subject_identity_cstr);
+    JS_FreeCString(ctx, certificate_subject_identity_cstr);
+    JS_FreeValue(ctx, certificate_subject_identity_val);
 
-  //   auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+    crypto::CertificateSubjectIdentity certificate_subject_identity;
+    try
+    {
+      certificate_subject_identity =
+        nlohmann::json::parse(certificate_subject_identity_json)
+          .get<crypto::CertificateSubjectIdentity>();
+    }
+    catch (std::exception& exc)
+    {
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+    }
 
-  //   if (tx_ctx_ptr->tx == nullptr)
-  //   {
-  //     return JS_ThrowInternalError(
-  //       ctx, "No transaction available to fetch latest ledger secret seqno");
-  //   }
+    auto endorsed_cert = node->generate_endorsed_certificate(
+      csr,
+      certificate_subject_identity,
+      network->identity->priv_key,
+      network->identity->cert);
 
-  //   JS_FreeValue(ctx, kv);
-  //   JS_FreeValue(ctx, ccf);
-  //   JS_FreeValue(ctx, global_obj);
-
-  //   return JS_NewInt64(
-  //     ctx, network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first);
-  // }
+    return JS_NewString(ctx, endorsed_cert.str().c_str());
+  }
 
   JSValue js_network_latest_ledger_secret_seqno(
     JSContext* ctx,
@@ -1411,15 +1432,6 @@ namespace js
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
           0));
-      // JS_SetPropertyStr(
-      //   ctx,
-      //   node,
-      //   "generateEndorsedCertificate",
-      //   JS_NewCFunction(
-      //     ctx,
-      //     js_node_generate_endorsed_certificate,
-      //     "generateEndorsedCertificate",
-      //     0));
     }
 
     if (host_node_state != nullptr)
@@ -1455,6 +1467,19 @@ namespace js
           js_network_latest_ledger_secret_seqno,
           "getLatestLedgerSecretSeqno",
           0));
+
+      if (node_state != nullptr)
+      {
+        JS_SetPropertyStr(
+          ctx,
+          network,
+          "generateEndorsedCertificate",
+          JS_NewCFunction(
+            ctx,
+            js_network_generate_endorsed_certificate,
+            "generateEndorsedCertificate",
+            0));
+      }
     }
 
     if (rpc_ctx != nullptr)

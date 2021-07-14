@@ -349,7 +349,6 @@ int main(int argc, char** argv)
       "Subject Name in node certificate, eg. CN=CCF Node")
     ->capture_default_str();
 
-  std::vector<crypto::SubjectAltName> subject_alternative_names;
   cli::add_subject_alternative_name_option(
     app,
     node_certificate_subject_identity.sans,

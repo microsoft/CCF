@@ -15,13 +15,17 @@ def indent(n):
 
 
 def stringify_bytes(bs):
-    s = bs.decode()
-    if s.isprintable():
-        return s
-    if len(bs) > 0 and len(bs) <= 8:
-        n = int.from_bytes(bs, byteorder="little")
-        return f"<u{8 * len(bs)}: {n}>"
-    return bs
+    try:
+        s = bs.decode()
+        if s.isprintable():
+            return s
+    except:
+        pass
+    finally:
+        if len(bs) > 0 and len(bs) <= 8:
+            n = int.from_bytes(bs, byteorder="little")
+            return f"<u{8 * len(bs)}: {n}>"
+        return bs
 
 
 def print_key(indent_s, k, is_removed=False):

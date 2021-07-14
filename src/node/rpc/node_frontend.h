@@ -182,6 +182,10 @@ namespace ccf
           this->network.ledger_secrets->get_latest(tx).first;
       }
 
+      // TODO: Check that the public key in the CSR matches the TLS identity
+
+      // TODO: Add node id to [CN]
+
       nodes->put(
         joining_node_id,
         {in.node_info_network,
