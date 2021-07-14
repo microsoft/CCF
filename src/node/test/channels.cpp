@@ -102,6 +102,12 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
               NodeOutboundMsg<T>{from, to, msg_type, aad, payload});
             break;
           }
+          case associate_node_address:
+          case close_node_outbound:
+          {
+            // Ignored
+            break;
+          }
           default:
           {
             LOG_INFO_FMT("Outbound message is not expected: {}", m);
