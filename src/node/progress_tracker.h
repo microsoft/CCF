@@ -353,7 +353,7 @@ namespace ccf
       if (can_send_reply_and_nonce(cert, config))
       {
         LOG_TRACE_FMT(
-          "sending revealed nonce, view:{}, seqno:{}", tx_id.view, tx_id.seqno);
+          "Sending revealed nonce, view:{}, seqno:{}", tx_id.view, tx_id.seqno);
         return !is_public_only ? kv::TxHistory::Result::SEND_REPLY_AND_NONCE :
                                  kv::TxHistory::Result::OK;
       }

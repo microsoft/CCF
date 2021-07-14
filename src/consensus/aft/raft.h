@@ -2643,6 +2643,9 @@ namespace aft
         return;
       }
 
+      // When we force to become the primary we are going are around the
+      // consensus protocol. Therefore in BFT we need to bypass the information in
+      // the progress tracker when working out how far we rollback.
       if (consensus_type == ConsensusType::BFT && !force_become_leader)
       {
         auto progress_tracker = store->get_progress_tracker();
