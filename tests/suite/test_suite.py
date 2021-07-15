@@ -116,6 +116,7 @@ all_tests_suite = [
     # jwt
     jwt_test.test_refresh_jwt_issuer,
 ]
+
 suites["all"] = all_tests_suite
 
 #
