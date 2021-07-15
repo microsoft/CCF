@@ -114,6 +114,7 @@ namespace asynchost
     {
     public:
       size_t id;
+      std::optional<ccf::NodeId> node_id;
 
       IncomingBehaviour(NodeConnections& parent, size_t id_) :
         ConnectionBehaviour(parent),
@@ -124,10 +125,17 @@ namespace asynchost
       {
         LOG_DEBUG_FMT("Disconnecting incoming connection {}", id);
         parent.unassociated_incoming.erase(id);
+
+        if (node_id.has_value())
+        {
+          parent.remove_connection(node_id.value());
+        }
       }
 
       void associate_incoming(const ccf::NodeId& n) override
       {
+        node_id = n;
+
         const auto unassociated = parent.unassociated_incoming.find(id);
         CCF_ASSERT_FMT(
           unassociated != parent.unassociated_incoming.end(),
@@ -135,7 +143,7 @@ namespace asynchost
           "the incoming connection",
           n,
           id);
-
+        
         // Always prefer this (probably) newer connection. Pathological case is
         // where both nodes open outgoings to each other at the same time, both
         // see the corresponding incoming connections and _drop_ their outgoing
@@ -160,31 +168,26 @@ namespace asynchost
 
       void on_bind_failed() override
       {
-        LOG_DEBUG_FMT("node bind failed: {}", node.value());
-        reconnect();
+        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: bind failed", node.value());
+        parent.remove_connection(node.value());
       }
 
       void on_resolve_failed() override
       {
-        LOG_DEBUG_FMT("node resolve failed {}", node.value());
-        reconnect();
+        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: resolve failed", node.value());
+        parent.remove_connection(node.value());
       }
 
       void on_connect_failed() override
       {
-        LOG_DEBUG_FMT("node connect failed {}", node.value());
-        reconnect();
+        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: connect failed", node.value());
+        parent.remove_connection(node.value());
       }
 
       void on_disconnect() override
       {
-        LOG_DEBUG_FMT("node disconnect failed {}", node.value());
-        reconnect();
-      }
-
-      void reconnect()
-      {
-        parent.request_reconnect(node.value());
+        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: disconnected", node.value());
+        parent.remove_connection(node.value());
       }
     };
 
@@ -222,7 +225,6 @@ namespace asynchost
     size_t next_id = 1;
 
     ringbuffer::WriterPtr to_enclave;
-    std::set<ccf::NodeId> reconnect_queue;
 
     std::optional<std::string> client_interface = std::nullopt;
     size_t client_connection_timeout;
@@ -291,14 +293,14 @@ namespace asynchost
 
               const auto& [host, service] = address_it->second;
               outbound_connection = create_connection(to, host, service);
+              if (outbound_connection.is_null())
+              {
+                LOG_FAIL_FMT("Unable to connect to {}, dropping outbound message message", to);
+              }
             }
             else
             {
               outbound_connection = connection_it->second;
-              if (outbound_connection->is_disconnected())
-              {
-                outbound_connection->reconnect();
-              }
             }
           }
 
@@ -362,31 +364,6 @@ namespace asynchost
         });
     }
 
-    void request_reconnect(const ccf::NodeId& node)
-    {
-      reconnect_queue.insert(node);
-    }
-
-    void on_timer()
-    {
-      // Swap to local copy of queue. Although this should only be modified by
-      // this thread, it may be modified recursively (ie - executing this
-      // function may result in calls to request_reconnect). These recursive
-      // calls are queued until the next iteration
-      decltype(reconnect_queue) local_queue;
-      std::swap(reconnect_queue, local_queue);
-
-      for (const auto& node : local_queue)
-      {
-        LOG_DEBUG_FMT("reconnecting node {}", node);
-        auto s = connections.find(node);
-        if (s != connections.end())
-        {
-          s->second->reconnect();
-        }
-      }
-    }
-
   private:
     TCP create_connection(
       const ccf::NodeId& node_id,
@@ -396,17 +373,16 @@ namespace asynchost
       auto s = TCP(true, client_connection_timeout);
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node_id));
 
+      if (!s->connect(host, service, client_interface))
+      {
+        LOG_FAIL_FMT(
+          "Failed to connect to {} on {}:{}", node_id, host, service);
+        return nullptr;
+      }
+
       connections.emplace(node_id, s);
       LOG_DEBUG_FMT(
         "Added node connection with {} ({}:{})", node_id, host, service);
-
-      if (!s->connect(host, service, client_interface))
-      {
-        LOG_DEBUG_FMT(
-          "Failed to connect to {} on {}:{}", node_id, host, service);
-        // Stored and returned even if connect fails, to allow later reconnect
-        // attempts
-      }
 
       return s;
     }
@@ -435,6 +411,4 @@ namespace asynchost
       return id;
     }
   };
-
-  using NodeConnectionsTickingReconnect = proxy_ptr<Timer<NodeConnections>>;
 }
