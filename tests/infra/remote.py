@@ -575,7 +575,6 @@ class CCFRemote(object):
         log_format_json=None,
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
-        domain=None,
         san=None,
         snapshot_tx_interval=None,
         max_open_sessions=None,
@@ -670,9 +669,6 @@ class CCFRemote(object):
 
         if ledger_chunk_bytes:
             cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
-
-        if domain:
-            cmd += [f"--domain={domain}"]
 
         if san:
             cmd += [f"--san={s}" for s in san]
