@@ -278,13 +278,13 @@ TEST_CASE("StateCache point queries")
     INFO(
       "Initially, no stores are available, even if they're requested multiple "
       "times");
-    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
-    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
-    REQUIRE(cache.get_store_at(high_handle, high_seqno) == nullptr);
-    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
-    REQUIRE(cache.get_store_at(default_handle, unsigned_seqno) == nullptr);
-    REQUIRE(cache.get_store_at(high_handle, high_seqno) == nullptr);
-    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(high_handle, high_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(default_handle, unsigned_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(high_handle, high_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
   }
 
   {
@@ -324,11 +324,11 @@ TEST_CASE("StateCache point queries")
     for (size_t i = high_seqno + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(high_handle, high_seqno) == nullptr);
+      REQUIRE(cache.get_state_at(high_handle, high_seqno) == nullptr);
     }
 
     REQUIRE(provide_ledger_entry(high_signature_transaction));
-    REQUIRE(cache.get_store_at(high_handle, high_seqno) != nullptr);
+    REQUIRE(cache.get_state_at(high_handle, high_seqno) != nullptr);
   }
 
   {
@@ -339,33 +339,33 @@ TEST_CASE("StateCache point queries")
     // will accept anything that looks quite like a valid entry, even if it
     // never came from a legitimate node - they should all fail at the signature
     // check
-    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
     REQUIRE(cache.handle_ledger_entry(low_seqno, ledger.at(low_seqno + 1)));
 
     // Count up to next signature
     for (size_t i = low_seqno + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+      REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
     }
 
     // Signature is good
     REQUIRE(provide_ledger_entry(high_signature_transaction));
     // Junk entry is still not available
-    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
   }
 
   {
     INFO("Historical state can be retrieved from provided entries");
-    auto store_at_seqno = cache.get_store_at(high_handle, high_seqno);
-    REQUIRE(store_at_seqno != nullptr);
+    auto state_at_seqno = cache.get_state_at(high_handle, high_seqno);
+    REQUIRE(state_at_seqno != nullptr);
 
-    validate_business_transaction(store_at_seqno, high_seqno);
+    validate_business_transaction(state_at_seqno->store, high_seqno);
   }
 
   {
     INFO("Cache doesn't throw when given junk");
-    REQUIRE(cache.get_store_at(default_handle, unsigned_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(default_handle, unsigned_seqno) == nullptr);
     bool result;
     REQUIRE_NOTHROW(result = cache.handle_ledger_entry(unsigned_seqno, {}));
     REQUIRE(!result);
@@ -382,35 +382,40 @@ TEST_CASE("StateCache point queries")
   }
 
   {
-    INFO("Signature transactions can be requested");
+    INFO(fmt::format(
+      "Signature transactions can be requested between {} and {}",
+      low_signature_transaction,
+      high_signature_transaction));
     for (const auto i : {low_signature_transaction, high_signature_transaction})
     {
-      auto store_at_seqno = cache.get_store_at(default_handle, i);
-      REQUIRE(store_at_seqno == nullptr);
+      auto state_at_seqno = cache.get_state_at(default_handle, i);
+      REQUIRE(state_at_seqno == nullptr);
 
       REQUIRE(provide_ledger_entry(i));
 
-      store_at_seqno = cache.get_store_at(default_handle, i);
-      REQUIRE(store_at_seqno != nullptr);
+      state_at_seqno = cache.get_state_at(default_handle, i);
+      REQUIRE(state_at_seqno != nullptr);
+      INFO(fmt::format("Receipt for transaction at {}", i));
+      REQUIRE(state_at_seqno->receipt.get() != nullptr);
     }
 
     {
-      INFO("Store remains available for future requests using the same handle");
-      const auto store1 =
-        cache.get_store_at(default_handle, high_signature_transaction);
-      REQUIRE(store1 != nullptr);
+      INFO("State remains available for future requests using the same handle");
+      const auto state1 =
+        cache.get_state_at(default_handle, high_signature_transaction);
+      REQUIRE(state1 != nullptr);
 
-      const auto store2 =
-        cache.get_store_at(default_handle, high_signature_transaction);
-      REQUIRE(store2 == store1);
+      const auto state2 =
+        cache.get_state_at(default_handle, high_signature_transaction);
+      REQUIRE(*state1 == *state2);
     }
 
     {
       INFO("Dropping a handle deletes it, and it can no longer be retrieved");
       cache.drop_request(default_handle);
-      const auto store =
-        cache.get_store_at(default_handle, high_signature_transaction);
-      REQUIRE(store == nullptr);
+      const auto state =
+        cache.get_state_at(default_handle, high_signature_transaction);
+      REQUIRE(state == nullptr);
     }
 
     {
@@ -419,48 +424,48 @@ TEST_CASE("StateCache point queries")
       // Initial requests - low uses default expiry while high gets custom
       // expiry
       cache.set_default_expiry_duration(std::chrono::seconds(60));
-      cache.get_store_at(low_handle, low_signature_transaction);
-      cache.get_store_at(
+      cache.get_state_at(low_handle, low_signature_transaction);
+      cache.get_state_at(
         high_handle, high_signature_transaction, std::chrono::seconds(30));
 
       REQUIRE(provide_ledger_entry(low_signature_transaction));
       REQUIRE(provide_ledger_entry(high_signature_transaction));
 
-      // NB: Calling get_store_at always resets the expiry time, so it must be
+      // NB: Calling get_state_at always resets the expiry time, so it must be
       // passed on each retrieval attempt
 
       // No time has passed, both are available
       REQUIRE(
-        cache.get_store_at(low_handle, low_signature_transaction) != nullptr);
+        cache.get_state_at(low_handle, low_signature_transaction) != nullptr);
       REQUIRE(
-        cache.get_store_at(
+        cache.get_state_at(
           high_handle, high_signature_transaction, std::chrono::seconds(30)) !=
         nullptr);
 
       // Some time passes, but not enough for either expiry
       cache.tick(std::chrono::milliseconds(20'000));
       REQUIRE(
-        cache.get_store_at(low_handle, low_signature_transaction) != nullptr);
+        cache.get_state_at(low_handle, low_signature_transaction) != nullptr);
       REQUIRE(
-        cache.get_store_at(
+        cache.get_state_at(
           high_handle, high_signature_transaction, std::chrono::seconds(30)) !=
         nullptr);
 
       // More time passes, and one request expires
       cache.tick(std::chrono::milliseconds(40'000));
       REQUIRE(
-        cache.get_store_at(low_handle, low_signature_transaction) != nullptr);
+        cache.get_state_at(low_handle, low_signature_transaction) != nullptr);
       REQUIRE(
-        cache.get_store_at(
+        cache.get_state_at(
           high_handle, high_signature_transaction, std::chrono::seconds(30)) ==
         nullptr);
 
       // More time passes, and both requests expire
       cache.tick(std::chrono::milliseconds(60'000));
       REQUIRE(
-        cache.get_store_at(low_handle, low_signature_transaction) == nullptr);
+        cache.get_state_at(low_handle, low_signature_transaction) == nullptr);
       REQUIRE(
-        cache.get_store_at(
+        cache.get_state_at(
           high_handle, high_signature_transaction, std::chrono::seconds(30)) ==
         nullptr);
     }
@@ -673,12 +678,12 @@ TEST_CASE("StateCache concurrent access")
     {
       const auto target_seqno = random_seqno();
 
-      ccf::historical::StorePtr store;
+      ccf::historical::StatePtr state;
       const auto start_time = Clock::now();
       while (true)
       {
-        store = cache.get_store_at(handle, target_seqno);
-        if (store != nullptr)
+        state = cache.get_state_at(handle, target_seqno);
+        if (state != nullptr)
         {
           break;
         }
@@ -702,7 +707,7 @@ TEST_CASE("StateCache concurrent access")
           signature_versions.begin(), signature_versions.end(), target_seqno) ==
         signature_versions.end())
       {
-        validate_business_transaction(store, target_seqno);
+        validate_business_transaction(state->store, target_seqno);
       }
     }
   };
@@ -850,7 +855,7 @@ TEST_CASE("Recover historical ledger secrets")
 
   {
     INFO("Retrieve latest seqno, applicable with latest ledger secret");
-    REQUIRE(cache.get_store_at(default_handle, third_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(default_handle, third_seqno) == nullptr);
 
     // Provide target and subsequent entries until next signature
     for (size_t i = third_seqno; i <= signature_seqno; ++i)
@@ -859,18 +864,18 @@ TEST_CASE("Recover historical ledger secrets")
     }
 
     // Store is now trusted, proceed to recover entries
-    auto historical_store = cache.get_store_at(default_handle, third_seqno);
-    REQUIRE(historical_store != nullptr);
+    auto historical_state = cache.get_state_at(default_handle, third_seqno);
+    REQUIRE(historical_state != nullptr);
 
-    validate_business_transaction(historical_store, third_seqno);
+    validate_business_transaction(historical_state->store, third_seqno);
   }
 
   {
     INFO("Retrieve second seqno, requiring one historical ledger secret");
-    REQUIRE(cache.get_store_at(default_handle, second_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(default_handle, second_seqno) == nullptr);
 
     // Request is always in flight
-    REQUIRE(cache.get_store_at(default_handle, second_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(default_handle, second_seqno) == nullptr);
 
     // The encrypted ledger secret applicable for second_seqno was recorded in
     // the store at the next rekey
@@ -886,15 +891,15 @@ TEST_CASE("Recover historical ledger secrets")
     }
 
     // Store is now trusted, proceed to recover entries
-    auto historical_store = cache.get_store_at(default_handle, second_seqno);
-    REQUIRE(historical_store != nullptr);
+    auto historical_state = cache.get_state_at(default_handle, second_seqno);
+    REQUIRE(historical_state != nullptr);
 
-    validate_business_transaction(historical_store, second_seqno);
+    validate_business_transaction(historical_state->store, second_seqno);
   }
 
   {
     INFO("Retrieve first seqno, requiring all historical ledger secrets");
-    REQUIRE(cache.get_store_at(default_handle, first_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(default_handle, first_seqno) == nullptr);
 
     // Recover all ledger secrets since the start of time
     REQUIRE(provide_ledger_entry(second_rekey_seqno));
@@ -907,9 +912,9 @@ TEST_CASE("Recover historical ledger secrets")
     }
 
     // Store is now trusted, proceed to recover entries
-    auto historical_store = cache.get_store_at(default_handle, first_seqno);
-    REQUIRE(historical_store != nullptr);
+    auto historical_state = cache.get_state_at(default_handle, first_seqno);
+    REQUIRE(historical_state != nullptr);
 
-    validate_business_transaction(historical_store, first_seqno);
+    validate_business_transaction(historical_state->store, first_seqno);
   }
 }
