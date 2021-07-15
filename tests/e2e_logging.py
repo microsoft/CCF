@@ -1225,9 +1225,15 @@ def test_random_receipts(network, args):
             int(e) for e in r.body.json()["transaction_id"].split(".")
         ]
         view = 2
-        seqnos = range(3, max_seqno)
+        genesis_seqno = 1
+        likely_first_sig_seqno = 2
+        last_sig_seqno = max_seqno
+        interesting_prefix = [genesis_seqno, likely_first_sig_seqno]
+        seqnos = range(len(interesting_prefix) + 1, max_seqno)
         for s in (
-            [1, 2] + sorted(random.sample(seqnos, min(50, len(seqnos)))) + [max_seqno]
+            interesting_prefix
+            + sorted(random.sample(seqnos, min(50, len(seqnos))))
+            + [max_seqno]
         ):
             start_time = time.time()
             while time.time() < (start_time + 3.0):
