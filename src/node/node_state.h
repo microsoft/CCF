@@ -539,7 +539,18 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
-            node_cert = create_endorsed_node_cert();
+            // Endorsed node certificate is included in join response from 2.x.
+            // When joining an existing 1.x service, self-sign own certificate
+            // and use it to endorse TLS connections
+            if (resp.network_info.endorsed_certificate.has_value())
+            {
+              node_cert = resp.network_info.endorsed_certificate.value();
+            }
+            else
+            {
+              node_cert = create_endorsed_node_cert();
+              accept_network_tls_connections();
+            }
 
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info.ledger_secrets));
@@ -628,9 +639,8 @@ namespace ccf
                 sig->view);
             }
 
+            // TODO: Move later?
             open_frontend(ActorsType::members);
-
-            accept_network_tls_connections();
 
             if (resp.network_info.public_only)
             {
@@ -648,8 +658,7 @@ namespace ccf
               self,
               (resp.network_info.public_only ? "public only" : "all domains"));
 
-            // The network identity is now known, the user frontend can be
-            // opened once the KV state catches up
+            // TODO: Move later?
             open_user_frontend();
           }
           else if (resp.node_status == NodeStatus::PENDING)
@@ -1059,6 +1068,8 @@ namespace ccf
 
       // Sets itself as trusted
       g.trust_node(self, network.ledger_secrets->get_latest(tx).first);
+
+      // TODO: Record endorsed identity as well!
 
 #ifdef GET_QUOTE
       g.trust_node_code_id(node_code_id);
@@ -1884,6 +1895,32 @@ namespace ccf
 
             return kv::ConsensusHookPtr(nullptr);
           }));
+
+      network.tables->set_map_hook(
+        network.node_endorsed_certificates.get_name(),
+        network.node_endorsed_certificates.wrap_map_hook(
+          [this](
+            kv::Version hook_version,
+            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            for (auto const& [node_id, endorsed_certificate] : w)
+            {
+              if (node_id != self)
+              {
+                continue;
+              }
+
+              if (!endorsed_certificate.has_value())
+              {
+                throw std::logic_error(fmt::format(
+                  "Could not find endorsed node certificate for {}", self));
+              }
+
+              node_cert = endorsed_certificate->endorsed_certificate;
+              accept_network_tls_connections();
+            }
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
     }
 
     kv::Version get_last_recovered_signed_idx() override
@@ -1960,7 +1997,28 @@ namespace ccf
       cmd_forwarder->initialize(self);
     }
 
-    void setup_raft(ServiceStatus service_status, bool public_only = false)
+    void setup_history()
+    {
+      history = std::make_shared<MerkleTxHistory>(
+        *network.tables.get(),
+        self,
+        *node_sign_kp,
+        sig_tx_interval,
+        sig_ms_interval,
+        true);
+
+      network.tables->set_history(history);
+    }
+
+    void setup_encryptor()
+    {
+      // This function makes use of ledger secrets and should be called once
+      // the node has joined the service
+      encryptor = make_encryptor();
+      network.tables->set_encryptor(encryptor);
+    }
+
+    void setup_consensus(ServiceStatus service_status, bool public_only = false)
     {
       setup_n2n_channels();
       setup_cmd_forwarder();
@@ -2023,32 +2081,6 @@ namespace ccf
           }));
 
       setup_basic_hooks();
-    }
-
-    void setup_history()
-    {
-      history = std::make_shared<MerkleTxHistory>(
-        *network.tables.get(),
-        self,
-        *node_sign_kp,
-        sig_tx_interval,
-        sig_ms_interval,
-        true);
-
-      network.tables->set_history(history);
-    }
-
-    void setup_encryptor()
-    {
-      // This function makes use of ledger secrets and should be called once
-      // the node has joined the service
-      encryptor = make_encryptor();
-      network.tables->set_encryptor(encryptor);
-    }
-
-    void setup_consensus(ServiceStatus service_status, bool public_only = false)
-    {
-      setup_raft(service_status, public_only);
     }
 
     void setup_progress_tracker()

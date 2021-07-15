@@ -74,7 +74,7 @@ namespace ccf
     {
       NodeId node_id;
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      crypto::Pem endorsed_certificate;
+      std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
     };
 
     std::optional<ExistingNodeInfo> check_node_exists(
@@ -99,16 +99,13 @@ namespace ccf
           (!node_status.has_value() || ni.status == node_status.value()))
         {
           auto endorsed_node_certificate = endorsed_node_certificates->get(nid);
-          if (!endorsed_node_certificate.has_value())
-          {
-            // TODO: Compatibility issue?
-            throw std::logic_error(fmt::format(
-              "Did not find endorsed certificate for node {}", nid));
-          }
           existing_node_info = {
             nid,
             ni.ledger_secret_seqno,
-            endorsed_node_certificate->endorsed_certificate};
+            endorsed_node_certificate.has_value() ?
+              std::make_optional(
+                endorsed_node_certificate->endorsed_certificate) :
+              std::nullopt};
           return false;
         }
         return true;
@@ -148,6 +145,8 @@ namespace ccf
     {
       LOG_FAIL_FMT("Service status: {}", service_status);
       auto nodes = tx.rw(network.nodes);
+      auto node_endorsed_certificates =
+        tx.rw(network.node_endorsed_certificates);
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -214,7 +213,8 @@ namespace ccf
          node_status,
          ledger_secret_seqno,
          ds::to_hex(code_digest.data),
-         in.certificate_subject_identity,
+         in.certificate_subject_identity, // TODO: Remove as we only need
+                                          // OpenSSL backend!
          in.certificate_signing_request,
          crypto::public_key_pem_from_cert(node_der)});
 
@@ -233,13 +233,29 @@ namespace ccf
         node_status == NodeStatus::TRUSTED ||
         node_status == NodeStatus::LEARNER)
       {
+        // Joining node only submit a CSR from 2.x
+        std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+        if (in.certificate_signing_request.has_value())
+        {
+          LOG_FAIL_FMT("Recording endorsed identity!");
+          endorsed_certificate =
+            context.get_node_state().generate_endorsed_certificate(
+              in.certificate_signing_request.value(),
+              in.certificate_subject_identity.value(),
+              this->network.identity->priv_key,
+              this->network.identity->cert);
+          node_endorsed_certificates->put(
+            joining_node_id, {endorsed_certificate.value()});
+        }
+
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
-          service_status};
+          service_status,
+          endorsed_certificate};
       }
       return make_success(rep);
     }

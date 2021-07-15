@@ -82,7 +82,8 @@ namespace ccf
       ConsensusType consensus_type = ConsensusType::CFT;
       std::optional<kv::Version> startup_seqno = std::nullopt;
       std::optional<crypto::CertificateSubjectIdentity>
-        certificate_subject_identity = std::nullopt;
+        certificate_subject_identity =
+          std::nullopt; // TODO: Remove since OpenSSL is sufficient!
       std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
     };
 

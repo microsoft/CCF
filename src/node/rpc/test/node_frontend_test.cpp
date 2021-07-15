@@ -104,7 +104,7 @@ TEST_CASE("Add a node to an opening service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign(fmt::format("CN=nodes"));
+  const auto caller = kp->self_sign(fmt::format("CN=Joiner"));
   const auto node_public_encryption_key =
     crypto::make_key_pair()->public_key_pem();
 
@@ -145,6 +145,8 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
+    // Join input does not include CSR (1.x)
+    join_input.certificate_signing_request = std::nullopt;
 
     auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
@@ -157,6 +159,8 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
+    // No endorsed certificate since no CSR was passed in
+    CHECK(response.network_info.endorsed_certificate == std::nullopt);
 
     const NodeId node_id = response.node_id;
     auto nodes = tx.rw(network.nodes);
@@ -194,7 +198,8 @@ TEST_CASE("Add a node to an opening service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    auto v =
+      crypto::make_verifier(kp->self_sign(fmt::format("CN=Other Joiner")));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -240,12 +245,13 @@ TEST_CASE("Add a node to an open service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign(fmt::format("CN=nodes"));
+  const auto caller = kp->self_sign(fmt::format("CN=Joiner"));
 
   std::optional<NodeInfo> node_info;
   auto tx = network.tables->create_tx();
 
   JoinNetworkNodeToNode::In join_input;
+  join_input.certificate_signing_request = kp->create_csr("CN=Joiner");
 
   INFO("Add node once service is open");
   {
@@ -270,7 +276,7 @@ TEST_CASE("Add a node to an open service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=Joiner")));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -298,9 +304,12 @@ TEST_CASE("Add a node to an open service")
   {
     // In a real scenario, nodes are trusted via member governance.
     GenesisGenerator g(network, tx);
-    g.trust_node(
-      crypto::Sha256Hash(kp->public_key_der()).hex_str(),
-      network.ledger_secrets->get_latest(tx).first);
+    auto joining_node_id = crypto::Sha256Hash(kp->public_key_der()).hex_str();
+    g.trust_node(joining_node_id, network.ledger_secrets->get_latest(tx).first);
+    const auto dummy_endorsed_certificate =
+      crypto::make_key_pair()->self_sign("CN=dummy endorsed certificate");
+    auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);
+    endorsed_certificate->put(joining_node_id, {dummy_endorsed_certificate});
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     // In the meantime, a new ledger secret is added. The new ledger secret
@@ -318,8 +327,13 @@ TEST_CASE("Add a node to an open service")
     require_ledger_secrets_equal(
       response.network_info.ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
+    CHECK(response.node_id == joining_node_id);
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == true);
+    CHECK(response.network_info.endorsed_certificate.has_value());
+    CHECK(
+      response.network_info.endorsed_certificate.value() ==
+      dummy_endorsed_certificate);
   }
 }
