@@ -1233,7 +1233,7 @@ def test_random_receipts(network, args):
         for s in (
             interesting_prefix
             + sorted(random.sample(seqnos, min(50, len(seqnos))))
-            + [max_seqno]
+            + [last_sig_seqno]
         ):
             start_time = time.time()
             while time.time() < (start_time + 3.0):
