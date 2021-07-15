@@ -100,6 +100,7 @@ all_tests_suite = [
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
 ]
+
 suites["all"] = all_tests_suite
 
 #
