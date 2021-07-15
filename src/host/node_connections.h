@@ -140,8 +140,9 @@ namespace asynchost
         // where both nodes open outgoings to each other at the same time, both
         // see the corresponding incoming connections and _drop_ their outgoing
         // connections. Both have a useless incoming connection they think they
-        // can use. Assumption is that they progress at different rates, and one of
-        // them eventually spots the dead connection and opens a new one which succeeds.
+        // can use. Assumption is that they progress at different rates, and one
+        // of them eventually spots the dead connection and opens a new one
+        // which succeeds.
         parent.connections[n] = unassociated->second;
         parent.unassociated_incoming.erase(unassociated);
 
