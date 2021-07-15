@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import abc
 import contextlib
+import functools
 import json
 import time
 import sys
@@ -76,7 +77,7 @@ class Request:
         return string
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class Identity:
     """
     Identity (as private key and corresponding certificate) for a :py:class:`ccf.clients.CCFClient` client.
@@ -674,6 +675,11 @@ class CCFClient:
         ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
 
+@functools.lru_cache()
+def _client(*args, **kwargs):
+    return CCFClient(*args, **kwargs)
+
+
 @contextlib.contextmanager
 def client(*args, **kwargs):
-    yield CCFClient(*args, **kwargs)
+    yield _client(*args, **kwargs)
