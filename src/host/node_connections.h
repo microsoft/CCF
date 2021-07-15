@@ -296,6 +296,7 @@ namespace asynchost
               if (outbound_connection.is_null())
               {
                 LOG_FAIL_FMT("Unable to connect to {}, dropping outbound message message", to);
+                return;
               }
             }
             else
