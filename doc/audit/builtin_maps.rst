@@ -108,7 +108,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 .. doxygenenum:: ccf::QuoteFormat
    :project: CCF
 
-``nodes.configurations``
+``nodes.network.configurations``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The currently valid and in-flight network configurations of the network. The entry at 0 contains a dummy configuration that holds the largest ID used so far.

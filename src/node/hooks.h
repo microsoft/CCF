@@ -109,6 +109,9 @@ namespace ccf
     {
       // This hook is always executed after the hook for the nodes table above,
       // because the hooks are sorted by table name.
+      assert(
+        std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATIONS));
+
       for (const auto& nc : configs)
       {
         consensus->add_network_configuration(version, nc);
