@@ -160,6 +160,11 @@ namespace asynchost
       remaining_read_quota = max_read_quota;
     }
 
+    bool is_disconnected()
+    {
+      return status == DISCONNECTED;
+    }
+
     void set_behaviour(std::unique_ptr<TCPBehaviour> b)
     {
       behaviour = std::move(b);

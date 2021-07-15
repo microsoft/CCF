@@ -122,6 +122,7 @@ namespace asynchost
 
       void on_disconnect() override
       {
+        LOG_DEBUG_FMT("Disconnecting incoming connection {}", id);
         parent.unassociated_incoming.erase(id);
       }
 
@@ -135,14 +136,15 @@ namespace asynchost
           n,
           id);
 
-        // If we already have an associated connection, prefer it
-        const auto existing = parent.connections.find(n);
-        if (existing == parent.connections.end())
-        {
-          parent.connections[n] = unassociated->second;
-        }
-
+        // Always prefer this (probably) newer connection. Pathological case is
+        // where both nodes open outgoings to each other at the same time, both
+        // see the corresponding incoming connections and _drop_ their outgoing
+        // connections. Both have a useless incoming connection they think they
+        // can use. Assumption is that they progress at different rates, and one of
+        // them eventually spots the dead connection and opens a new one which succeeds.
+        parent.connections[n] = unassociated->second;
         parent.unassociated_incoming.erase(unassociated);
+
         LOG_DEBUG_FMT(
           "Node incoming connection ({}) associated with {}", id, n);
       }
@@ -292,6 +294,10 @@ namespace asynchost
             else
             {
               outbound_connection = connection_it->second;
+              if (outbound_connection->is_disconnected())
+              {
+                outbound_connection->reconnect();
+              }
             }
           }
 

@@ -1274,10 +1274,12 @@ namespace aft
         (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       LOG_DEBUG_FMT(
-        "Send append entries from {} to {}: {} to {} ({})",
-        state->my_node_id.trim(),
-        to.trim(),
-        start_idx,
+        "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
+        state->my_node_id,
+        to,
+        prev_term,
+        prev_idx,
+        term_of_idx,
         end_idx,
         state->commit_idx);
 
