@@ -1318,9 +1318,9 @@ def run(args):
             network = test_liveness(network, args)
             network = test_rekey(network, args)
             network = test_liveness(network, args)
+            network = test_random_receipts(network, args)
         if args.package == "liblogging":
             network = test_receipts(network, args)
-            network = test_random_receipts(network, args)
         network = test_historical_receipts(network, args)
 
 
