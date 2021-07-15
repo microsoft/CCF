@@ -142,11 +142,6 @@ namespace ccf
     bool have_identity_for(
       kv::ReconfigurationId rid, ccf::SeqNo commit_idx) const
     {
-      if (rid == (kv::ReconfigurationId)-1)
-      {
-        return false;
-      }
-
       auto idt = identities.find(rid);
       return idt != identities.end() && idt->second.seqno <= commit_idx;
     }
