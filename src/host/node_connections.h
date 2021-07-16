@@ -143,7 +143,7 @@ namespace asynchost
           "the incoming connection",
           n,
           id);
-        
+
         // Always prefer this (probably) newer connection. Pathological case is
         // where both nodes open outgoings to each other at the same time, both
         // see the corresponding incoming connections and _drop_ their outgoing
@@ -168,25 +168,33 @@ namespace asynchost
 
       void on_bind_failed() override
       {
-        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: bind failed", node.value());
+        LOG_DEBUG_FMT(
+          "Disconnecting outgoing connection with {}: bind failed",
+          node.value());
         parent.remove_connection(node.value());
       }
 
       void on_resolve_failed() override
       {
-        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: resolve failed", node.value());
+        LOG_DEBUG_FMT(
+          "Disconnecting outgoing connection with {}: resolve failed",
+          node.value());
         parent.remove_connection(node.value());
       }
 
       void on_connect_failed() override
       {
-        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: connect failed", node.value());
+        LOG_DEBUG_FMT(
+          "Disconnecting outgoing connection with {}: connect failed",
+          node.value());
         parent.remove_connection(node.value());
       }
 
       void on_disconnect() override
       {
-        LOG_DEBUG_FMT("Disconnecting outgoing connection with {}: disconnected", node.value());
+        LOG_DEBUG_FMT(
+          "Disconnecting outgoing connection with {}: disconnected",
+          node.value());
         parent.remove_connection(node.value());
       }
     };
@@ -295,7 +303,9 @@ namespace asynchost
               outbound_connection = create_connection(to, host, service);
               if (outbound_connection.is_null())
               {
-                LOG_FAIL_FMT("Unable to connect to {}, dropping outbound message message", to);
+                LOG_FAIL_FMT(
+                  "Unable to connect to {}, dropping outbound message message",
+                  to);
                 return;
               }
             }
