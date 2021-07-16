@@ -94,7 +94,7 @@ namespace aft
       return count;
     }
 
-    std::optional<std::vector<uint8_t>> pop_first(RaftMsgType type, std::optional<ccf::NodeId> target = std::nullopt)
+    std::optional<std::vector<uint8_t>> pop_first(RaftMsgType type, ccf::NodeId target)
     {
       for (auto it = messages.begin(); it != messages.end(); ++it)
       {
@@ -104,7 +104,7 @@ namespace aft
         
         if (serialized::peek<RaftMsgType>(data, size) == type)
         {
-          if (!target.has_value() || *target == nid)
+          if (target == nid)
           {
             messages.erase(it);
             return m;
