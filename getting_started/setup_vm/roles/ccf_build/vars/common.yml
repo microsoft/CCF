@@ -11,6 +11,7 @@ debs:
   - clang-8
   - clang-format-8
   - clang-tools-8
+  - build-essential
   - expect
   - git
   - ccache
