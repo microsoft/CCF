@@ -32,7 +32,9 @@ def fmt_json(data):
     return json.dumps(json.loads(data), indent=2)
 
 
-# Dictionary of store table name regex to format function
+# Dictionary of store table name regex to format function (first match is used)
+# Callers can specify additional rules (e.g. for application-specific
+# public tables) which get looked up first.
 default_format_rule = {"key": fmt_hex, "value": fmt_hex}
 default_tables_format_rules = {
     "^public:ccf\.internal\..*$": {
