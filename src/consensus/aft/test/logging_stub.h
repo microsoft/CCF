@@ -254,7 +254,8 @@ namespace aft
 
       kv::ApplyResult apply() override
       {
-        return kv::ApplyResult::PASS;
+        // For purposes of stub testing, every received entry looks like a valid signature, so they are all committable
+        return kv::ApplyResult::PASS_SIGNATURE;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
