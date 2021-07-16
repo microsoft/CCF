@@ -31,8 +31,8 @@ struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
     bool globally_committable,
     bool force_chunk)
   {
-    RAFT_DRIVER_OUT << "  Node" << _id << "->>Ledger" << _id
-                    << ": put s: " << stringify(data) << std::endl;
+    RAFT_DRIVER_OUT << "  Node" << _id << "->>Node" << _id
+                    << ": ledger put s: " << stringify(data) << std::endl;
     aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
   }
 };

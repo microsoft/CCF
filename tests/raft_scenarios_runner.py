@@ -72,8 +72,8 @@ if __name__ == "__main__":
             with block(raft, "steps", 3):
                 with open(scenario, "r") as scen:
                     raft.write(scen.read())
-            proc = Popen([driver], stdout=PIPE, stderr=PIPE, stdin=PIPE)
-            out, err = proc.communicate(input=open(scenario, "rb").read())
+            proc = Popen([driver, os.path.realpath(scenario)], stdout=PIPE, stderr=PIPE, stdin=PIPE)
+            out, err = proc.communicate()
             test_result = test_result and proc.returncode == 0
 
             if err:

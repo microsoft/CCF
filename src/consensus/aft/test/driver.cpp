@@ -24,11 +24,20 @@ constexpr auto shash = ds::fnv_1a<size_t>;
 int main(int argc, char** argv)
 {
   const regex delim{","};
-  string line;
   size_t lineno = 1;
   auto driver = shared_ptr<RaftDriver>(nullptr);
 
-  while (getline(cin, line))
+  if (argc < 2)
+  {
+    throw std::runtime_error(
+      "Too few arguments - first must be path to scenario");
+  }
+
+  std::ifstream fstream;
+  fstream.open(argv[1]);
+
+  string line;
+  while (getline(fstream, line))
   {
     // Strip off any comments (preceded with #)
     const auto comment_start = line.find_first_of("#");
