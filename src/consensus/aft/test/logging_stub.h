@@ -72,16 +72,51 @@ namespace aft
   {
   public:
     // Capture what is being sent out
-    std::list<std::pair<ccf::NodeId, RequestVote>> sent_request_vote;
-    std::list<std::pair<ccf::NodeId, AppendEntries>> sent_append_entries;
-    std::list<std::pair<ccf::NodeId, RequestVoteResponse>>
-      sent_request_vote_response;
-    std::list<std::pair<ccf::NodeId, AppendEntriesResponse>>
-      sent_append_entries_response;
+    using MessageList = std::list<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
+    MessageList messages;
 
     ChannelStubProxy() {}
 
-    void create_channel(
+    size_t count_messages_with_type(RaftMsgType type)
+    {
+      size_t count = 0;
+      for (const auto& [nid, m]: messages)
+      {
+        const uint8_t* data = m.data();
+        size_t size = m.size();
+        
+        if (serialized::peek<RaftMsgType>(data, size) == type)
+        {
+          ++count;
+        }
+      }
+
+      return count;
+    }
+
+    std::optional<std::vector<uint8_t>> pop_first(RaftMsgType type, std::optional<ccf::NodeId> target = std::nullopt)
+    {
+      for (auto it = messages.begin(); it != messages.end(); ++it)
+      {
+        const auto [nid, m] = *it;
+        const uint8_t* data = m.data();
+        size_t size = m.size();
+        
+        if (serialized::peek<RaftMsgType>(data, size) == type)
+        {
+          if (!target.has_value() || *target == nid)
+          {
+            messages.erase(it);
+            return m;
+          }
+        }
+      }
+
+      return std::nullopt;
+    }
+
+    void
+    create_channel(
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service,
@@ -100,35 +135,14 @@ namespace aft
       const uint8_t* data,
       size_t size) override
     {
-      switch (serialized::peek<RaftMsgType>(data, size))
-      {
-        case aft::RaftMsgType::raft_append_entries:
-          sent_append_entries.push_back(
-            std::make_pair(to, *(AppendEntries*)(data)));
-          break;
-        case aft::RaftMsgType::raft_request_vote:
-          sent_request_vote.push_back(
-            std::make_pair(to, *(RequestVote*)(data)));
-          break;
-        case aft::RaftMsgType::raft_request_vote_response:
-          sent_request_vote_response.push_back(
-            std::make_pair(to, *(RequestVoteResponse*)(data)));
-          break;
-        case aft::RaftMsgType::raft_append_entries_response:
-          sent_append_entries_response.push_back(
-            std::make_pair(to, *(AppendEntriesResponse*)(data)));
-          break;
-        default:
-          throw std::logic_error("unexpected response type");
-      }
-
+      std::vector<uint8_t> m(data, data + size);
+      messages.emplace_back(to, std::move(m));
       return true;
     }
 
     size_t sent_msg_count() const
     {
-      return sent_request_vote.size() + sent_request_vote_response.size() +
-        sent_append_entries.size() + sent_append_entries_response.size();
+      return messages.size();
     }
 
     bool recv_authenticated(
