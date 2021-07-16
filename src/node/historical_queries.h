@@ -543,6 +543,15 @@ namespace ccf::historical
           details->store = store;
 
           details->is_signature = is_signature;
+          if (is_signature)
+          {
+            // Construct a signature receipt
+            const auto sig = get_signature(details->store);
+            assert(sig.has_value());
+            details->receipt = std::make_shared<TxReceipt>(
+              sig->sig, sig->root.h, nullptr, sig->node);
+            details->transaction_id = {sig->view, sig->seqno};
+          }
 
           const auto result = request.update_trusted(seqno);
           switch (result)
@@ -741,8 +750,16 @@ namespace ccf::historical
 
     StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
     {
+      return get_state_at(handle, seqno, default_expiry_duration);
+    }
+
+    StatePtr get_state_at(
+      RequestHandle handle,
+      ccf::SeqNo seqno,
+      ExpiryDuration seconds_until_expiry) override
+    {
       auto range =
-        get_store_range_internal(handle, seqno, 1, default_expiry_duration);
+        get_store_range_internal(handle, seqno, 0, seconds_until_expiry);
 
       if (range.empty())
       {

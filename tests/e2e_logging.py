@@ -27,6 +27,9 @@ from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
 import urllib.parse
+import random
+import re
+import infra.crypto
 
 from loguru import logger as LOG
 
@@ -1089,6 +1092,69 @@ def test_receipts(network, args):
     return network
 
 
+@reqs.description("Validate all receipts")
+@reqs.supports_methods("receipt", "log/private")
+@reqs.at_least_n_nodes(2)
+def test_random_receipts(network, args):
+    primary, _ = network.find_primary_and_any_backup()
+
+    common = os.listdir(network.common_dir)
+    cert_paths = [
+        os.path.join(network.common_dir, path)
+        for path in common
+        if re.compile(r"^\d+\.pem$").match(path)
+    ]
+    certs = {}
+    for path in cert_paths:
+        with open(path) as c:
+            cert = c.read()
+        certs[
+            infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)
+        ] = load_pem_x509_certificate(cert.encode("ascii"), default_backend())
+
+    with primary.client("user0") as c:
+        r = c.get("/app/commit")
+        max_view, max_seqno = [
+            int(e) for e in r.body.json()["transaction_id"].split(".")
+        ]
+        view = 2
+        genesis_seqno = 1
+        likely_first_sig_seqno = 2
+        last_sig_seqno = max_seqno
+        interesting_prefix = [genesis_seqno, likely_first_sig_seqno]
+        seqnos = range(len(interesting_prefix) + 1, max_seqno)
+        for s in (
+            interesting_prefix
+            + sorted(random.sample(seqnos, min(50, len(seqnos))))
+            + [last_sig_seqno]
+        ):
+            start_time = time.time()
+            while time.time() < (start_time + 3.0):
+                rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    receipt = rc.body.json()
+                    assert receipt["root"] == ccf.receipt.root(
+                        receipt["leaf"], receipt["proof"]
+                    )
+                    ccf.receipt.verify(
+                        receipt["root"], receipt["signature"], certs[receipt["node_id"]]
+                    )
+                    if s == max_seqno:
+                        # Always a signature receipt
+                        assert receipt["root"] == receipt["leaf"], receipt
+                        assert receipt["proof"] == [], receipt
+                    print(f"Verified receipt for {view}.{s}")
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    view += 1
+                    if view > max_view:
+                        assert False, rc
+
+    return network
+
+
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
 def test_liveness(network, args):
@@ -1149,6 +1215,7 @@ def run(args):
             network = test_liveness(network, args)
             network = test_rekey(network, args)
             network = test_liveness(network, args)
+            network = test_random_receipts(network, args)
         if args.package == "liblogging":
             network = test_ws(network, args)
             network = test_receipts(network, args)
