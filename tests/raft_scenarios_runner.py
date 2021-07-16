@@ -54,8 +54,8 @@ def prepend_error_report(fd, errors=None):
 def strip_log_lines(text):
     ol = []
     for line in text.split(os.linesep):
-        if not line.startswith("["):
-            ol.append(line)
+        if line.startswith("<RaftDriver>"):
+            ol.append(line[len("<RaftDriver>"):])
     return os.linesep.join(ol)
 
 

@@ -72,7 +72,8 @@ namespace aft
   {
   public:
     // Capture what is being sent out
-    using MessageList = std::list<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
+    // Using a deque so we can both pop from the front and shuffle
+    using MessageList = std::deque<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
     MessageList messages;
 
     ChannelStubProxy() {}

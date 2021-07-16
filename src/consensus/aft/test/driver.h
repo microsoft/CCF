@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 
 #include <chrono>
+#include <random>
 #include <set>
 #include <sstream>
 #include <string>
@@ -14,6 +15,8 @@
 
 #define STUB_LOG 1
 #include "logging_stub.h"
+
+#define RAFT_DRIVER_OUT std::cout << "<RaftDriver>  "
 
 using ms = std::chrono::milliseconds;
 using TRaft =
@@ -79,14 +82,14 @@ public:
 
   void log(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    std::cout << "  Node" << first << "->>"
-              << "Node" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  Node" << first << "->>"
+                    << "Node" << second << ": " << message << std::endl;
   }
 
   void rlog(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    std::cout << "  Node" << first << "-->>"
-              << "Node" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  Node" << first << "-->>"
+                    << "Node" << second << ": " << message << std::endl;
   }
 
   void log_msg_details(
@@ -173,8 +176,8 @@ public:
 
   void connect(ccf::NodeId first, ccf::NodeId second)
   {
-    std::cout << "  Node" << first << "-->Node" << second << ": connect"
-              << std::endl;
+    RAFT_DRIVER_OUT << "  Node" << first << "-->Node" << second << ": connect"
+                    << std::endl;
     _connections.insert(std::make_pair(first, second));
     _connections.insert(std::make_pair(second, first));
   }
@@ -197,14 +200,12 @@ public:
 
   void state_one(ccf::NodeId node_id)
   {
-    std::cout << "  Note right of Node" << node_id << ": ";
     auto raft = _nodes.at(node_id).raft;
-
-    if (raft->is_primary())
-      std::cout << "L ";
-
-    std::cout << " t: " << raft->get_term() << ", li: " << raft->get_last_idx()
-              << ", ci: " << raft->get_commit_idx() << std::endl;
+    RAFT_DRIVER_OUT << "  Note right of Node" << node_id << ": "
+                    << (raft->is_primary() ? "L " : "")
+                    << " t: " << raft->get_term()
+                    << ", li: " << raft->get_last_idx()
+                    << ", ci: " << raft->get_commit_idx() << std::endl;
   }
 
   void state_all()
@@ -218,21 +219,11 @@ public:
   void shuffle_messages_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    // TODO
-    // dispatch_one_queue(
-    //   node_id,
-    //   channel_stub_proxy(raft)->sent_request_vote);
-    // dispatch_one_queue(
-    //   node_id,
-    //   channel_stub_proxy(raft)
-    //     ->sent_request_vote_response);
-    // dispatch_one_queue(
-    //   node_id,
-    //   channel_stub_proxy(raft)->sent_append_entries);
-    // dispatch_one_queue(
-    //   node_id,
-    //   channel_stub_proxy(raft)
-    //     ->sent_append_entries_response);
+    auto& messages = channel_stub_proxy(*raft)->messages;
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(messages.begin(), messages.end(), g);
   }
 
   void shuffle_messages_all()
@@ -303,8 +294,8 @@ public:
     aft::Index idx,
     std::shared_ptr<std::vector<uint8_t>> data)
   {
-    std::cout << "  KV" << node_id << "->>Node" << node_id
-              << ": replicate idx: " << idx << std::endl;
+    RAFT_DRIVER_OUT << "  KV" << node_id << "->>Node" << node_id
+                    << ": replicate idx: " << idx << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     _nodes.at(node_id).raft->replicate(
       kv::BatchVector{{idx, data, true, hooks}}, 1);
@@ -327,8 +318,8 @@ public:
     }
     if (!noop)
     {
-      std::cout << "  Node" << left << "-->Node" << right << ": disconnect"
-                << std::endl;
+      RAFT_DRIVER_OUT << "  Node" << left << "-->Node" << right
+                      << ": disconnect" << std::endl;
     }
   }
 
@@ -345,8 +336,8 @@ public:
 
   void reconnect(ccf::NodeId left, ccf::NodeId right)
   {
-    std::cout << "  Node" << left << "-->Node" << right << ": reconnect"
-              << std::endl;
+    RAFT_DRIVER_OUT << "  Node" << left << "-->Node" << right << ": reconnect"
+                    << std::endl;
     _connections.insert(std::make_pair(left, right));
     _connections.insert(std::make_pair(right, left));
   }

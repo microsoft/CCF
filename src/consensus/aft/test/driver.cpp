@@ -57,6 +57,18 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->state_one(items[1]);
         break;
+      case shash("state_all"):
+        assert(items.size() == 1);
+        driver->state_all();
+        break;
+      case shash("shuffle_one"):
+        assert(items.size() == 2);
+        driver->shuffle_messages_one(items[1]);
+        break;
+      case shash("shuffle_all"):
+        assert(items.size() == 1);
+        driver->shuffle_messages_all();
+        break;
       case shash("dispatch_all"):
         assert(items.size() == 1);
         driver->dispatch_all();
@@ -64,10 +76,6 @@ int main(int argc, char** argv)
       case shash("dispatch_all_once"):
         assert(items.size() == 1);
         driver->dispatch_all_once();
-        break;
-      case shash("state_all"):
-        assert(items.size() == 1);
-        driver->state_all();
         break;
       case shash("replicate"):
         assert(items.size() == 4);
