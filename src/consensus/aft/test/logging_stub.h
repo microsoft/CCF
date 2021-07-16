@@ -246,11 +246,12 @@ namespace aft
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     private:
-      const std::vector<uint8_t>& data;
+      std::vector<uint8_t> data;
       kv::ConsensusHookPtrs hooks;
 
     public:
-      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
+      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {
+      }
 
       kv::ApplyResult apply() override
       {
