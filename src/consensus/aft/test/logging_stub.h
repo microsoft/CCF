@@ -48,7 +48,8 @@ namespace aft
 
     std::vector<uint8_t> get_entry_by_idx(size_t idx)
     {
-      return *(ledger[idx]);
+      // Ledger indices are 1-based, hence the -1
+      return *(ledger[idx - 1]);
     }
 
     virtual void truncate(Index idx)

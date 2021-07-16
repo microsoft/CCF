@@ -301,13 +301,15 @@ public:
         if (msg_type == aft::raft_append_entries)
         {
           // Parse the indices to be sent to the recipient.
-          const auto& ae =
-            serialized::overlay<consensus::AppendEntriesIndex>(data, size);
+          auto ae = *(aft::AppendEntries*)data;
+
+          std::cout << fmt::format("!!! I'm looking at an AppendEntries which says {} to {}", ae.prev_idx, ae.idx) << std::endl;
 
           auto& sender_ledger = _nodes.at(node_id).raft->ledger;
-          for (auto idx = ae.prev_idx + 1; idx < ae.idx; ++idx)
+          for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
           {
             const auto entry = sender_ledger->get_entry_by_idx(idx);
+            std::cout << fmt::format("!!! I'm appending the data at {}, which is {}", idx,  entry) << std::endl;
             contents.insert(contents.end(), entry.begin(), entry.end());
           }
         }
@@ -381,6 +383,7 @@ public:
                          stringify(*data))
                     << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    std::cout << fmt::format("!!! I'm replicating the data at {}, which is {}", idx, *data) << std::endl;
     // True means all these entries are committable
     raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, 1);
   }
