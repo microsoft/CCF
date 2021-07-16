@@ -167,6 +167,34 @@ public:
     }
   }
 
+  void shuffle_messages_one(ccf::NodeId node_id)
+  {
+    auto raft = _nodes.at(node_id).raft;
+    // TODO
+    // dispatch_one_queue(
+    //   node_id,
+    //   ((aft::ChannelStubProxy*)raft->channels.get())->sent_request_vote);
+    // dispatch_one_queue(
+    //   node_id,
+    //   ((aft::ChannelStubProxy*)raft->channels.get())
+    //     ->sent_request_vote_response);
+    // dispatch_one_queue(
+    //   node_id,
+    //   ((aft::ChannelStubProxy*)raft->channels.get())->sent_append_entries);
+    // dispatch_one_queue(
+    //   node_id,
+    //   ((aft::ChannelStubProxy*)raft->channels.get())
+    //     ->sent_append_entries_response);
+  }
+
+  void shuffle_messages_all()
+  {
+    for (auto& node : _nodes)
+    {
+      shuffle_messages_one(node.first);
+    }
+  }
+
   template <class Messages>
   size_t dispatch_one_queue(ccf::NodeId node_id, Messages& messages)
   {
