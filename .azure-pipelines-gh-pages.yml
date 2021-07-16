@@ -7,9 +7,9 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe0.17.1
+    container: ccfciteam/ccf-ci:oe0.17.1-focal
     pool:
-      vmImage: ubuntu-18.04
+      vmImage: ubuntu-20.04
 
     steps:
       - checkout: self

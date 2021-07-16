@@ -1,7 +1,7 @@
 # Application Runtime image
 # Contains the cchost binary and its runtime dependencies
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 ARG extra_vars
 
