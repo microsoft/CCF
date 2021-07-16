@@ -435,4 +435,27 @@ public:
       }
     }
   }
+
+  void assert_state_sync()
+  {
+    auto [_, nd] = *_nodes.begin();
+    auto& target_raft = nd.raft;
+    const auto target_term = target_raft->get_term();
+    const auto target_last_idx = target_raft->get_last_idx();
+    const auto target_commit_idx = target_raft->get_commit_idx();
+
+    const auto target_final_entry = target_raft->ledger->get_entry_by_idx(target_last_idx);
+
+    for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
+    {
+      auto& raft = it->second.raft;
+
+      assert(raft->get_term() == target_term);
+      assert(raft->get_last_idx() == target_last_idx);
+      assert(raft->get_commit_idx() == target_commit_idx);
+
+      // Check that the final entries are the same, assume prior entries also match
+      assert(raft->ledger->get_entry_by_idx(target_last_idx) == target_final_entry);
+    }
+  }
 };

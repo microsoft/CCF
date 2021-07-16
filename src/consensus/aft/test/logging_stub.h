@@ -250,12 +250,12 @@ namespace aft
       kv::ConsensusHookPtrs hooks;
 
     public:
-      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {
-      }
+      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
 
       kv::ApplyResult apply() override
       {
-        // For purposes of stub testing, every received entry looks like a valid signature, so they are all committable
+        // For purposes of stub testing, every received entry looks like a valid
+        // signature, so they are all committable
         return kv::ApplyResult::PASS_SIGNATURE;
       }
 

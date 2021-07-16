@@ -24,3 +24,5 @@ periodic_all,30
 dispatch_all
 
 state_all
+
+assert_state_sync

@@ -55,7 +55,7 @@ def strip_log_lines(text):
     ol = []
     for line in text.split(os.linesep):
         if line.startswith("<RaftDriver>"):
-            ol.append(line[len("<RaftDriver>"):])
+            ol.append(line[len("<RaftDriver>") :])
     return os.linesep.join(ol)
 
 
@@ -72,7 +72,12 @@ if __name__ == "__main__":
             with block(raft, "steps", 3):
                 with open(scenario, "r") as scen:
                     raft.write(scen.read())
-            proc = Popen([driver, os.path.realpath(scenario)], stdout=PIPE, stderr=PIPE, stdin=PIPE)
+            proc = Popen(
+                [driver, os.path.realpath(scenario)],
+                stdout=PIPE,
+                stderr=PIPE,
+                stdin=PIPE,
+            )
             out, err = proc.communicate()
             test_result = test_result and proc.returncode == 0
 

@@ -115,6 +115,10 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->reconnect_node(items[1]);
         break;
+      case shash("assert_state_sync"):
+        assert(items.size() == 1);
+        driver->assert_state_sync();
+        break;
       case shash(""):
         // Ignore empty lines
         break;
