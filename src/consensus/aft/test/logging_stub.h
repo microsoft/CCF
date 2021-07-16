@@ -140,11 +140,6 @@ namespace aft
       return true;
     }
 
-    size_t sent_msg_count() const
-    {
-      return messages.size();
-    }
-
     bool recv_authenticated(
       const ccf::NodeId& from_node,
       CBuffer cb,

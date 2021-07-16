@@ -236,25 +236,28 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Node 1 votes for Node 0");
 
   DOCTEST_REQUIRE(
-    r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote_response) == 1);
+    r1c->count_messages_with_type(
+      aft::RaftMsgType::raft_request_vote_response) == 1);
 
-  auto rvr_raw = r1c->pop_first(aft::RaftMsgType::raft_request_vote_response, node_id0);
+  auto rvr_raw =
+    r1c->pop_first(aft::RaftMsgType::raft_request_vote_response, node_id0);
   DOCTEST_REQUIRE(rvr_raw.has_value());
   {
     auto rvrc = *(aft::RequestVoteResponse*)rvr_raw->data();
     DOCTEST_REQUIRE(rvrc.term == 1);
     DOCTEST_REQUIRE(rvrc.vote_granted);
   }
-  
+
   r0.recv_message(node_id1, rvr_raw->data(), rvr_raw->size());
 
   DOCTEST_INFO("Node 2 votes for Node 0");
 
   DOCTEST_REQUIRE(
-    r2c->count_messages_with_type(aft::RaftMsgType::raft_request_vote_response) == 1);
+    r2c->count_messages_with_type(
+      aft::RaftMsgType::raft_request_vote_response) == 1);
 
-    
-  rvr_raw = r2c->pop_first(aft::RaftMsgType::raft_request_vote_response, node_id0);
+  rvr_raw =
+    r2c->pop_first(aft::RaftMsgType::raft_request_vote_response, node_id0);
   DOCTEST_REQUIRE(rvr_raw.has_value());
   {
     auto rvrc = *(aft::RequestVoteResponse*)rvr_raw->data();
@@ -294,238 +297,203 @@ DOCTEST_TEST_CASE(
   }
 }
 
-// template <class NodeMap, class Messages>
-// static size_t dispatch_all(
-//   NodeMap& nodes, const ccf::NodeId& from, Messages& messages)
-// {
-//   size_t count = 0;
-//   while (messages.size())
-//   {
-//     auto message = messages.front();
-//     messages.pop_front();
-//     auto tgt_node_id = get<0>(message);
-//     auto contents = get<1>(message);
-//     nodes[tgt_node_id]->recv_message(
-//       from, reinterpret_cast<uint8_t*>(&contents), sizeof(contents));
-//     count++;
-//   }
-//   return count;
-// }
+template <class NodeMap>
+static size_t dispatch_all(
+  NodeMap& nodes,
+  const ccf::NodeId& from,
+  aft::ChannelStubProxy::MessageList& messages)
+{
+  size_t count = 0;
+  while (messages.size())
+  {
+    auto message = messages.front();
+    messages.pop_front();
+    auto tgt_node_id = get<0>(message);
+    auto contents = get<1>(message);
+    nodes[tgt_node_id]->recv_message(from, contents.data(), contents.size());
+    count++;
+  }
+  return count;
+}
 
-// template <class NodeMap, class Messages, class Assertion>
-// static size_t dispatch_all_and_DOCTEST_CHECK(
-//   NodeMap& nodes,
-//   const ccf::NodeId& from,
-//   Messages& messages,
-//   const Assertion& assertion)
-// {
-//   size_t count = 0;
-//   while (messages.size())
-//   {
-//     auto message = messages.front();
-//     messages.pop_front();
-//     auto tgt_node_id = get<0>(message);
-//     auto contents = get<1>(message);
-//     assertion(contents);
-//     nodes[tgt_node_id]->recv_message(
-//       from, reinterpret_cast<uint8_t*>(&contents), sizeof(contents));
-//     count++;
-//   }
-//   return count;
-// }
+template <typename AssertionArg, class NodeMap, class Assertion>
+static size_t dispatch_all_and_DOCTEST_CHECK(
+  NodeMap& nodes,
+  const ccf::NodeId& from,
+  aft::ChannelStubProxy::MessageList& messages,
+  const Assertion& assertion)
+{
+  size_t count = 0;
+  while (messages.size())
+  {
+    auto message = messages.front();
+    messages.pop_front();
+    auto tgt_node_id = get<0>(message);
+    auto contents = get<1>(message);
+    AssertionArg arg = *(AssertionArg*)contents.data();
+    assertion(arg);
+    nodes[tgt_node_id]->recv_message(from, contents.data(), contents.size());
+    count++;
+  }
+  return count;
+}
 
-// DOCTEST_TEST_CASE(
-//   "Multiple nodes append entries" * doctest::test_suite("multiple"))
-// {
-//   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
-//   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
-//   ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
+DOCTEST_TEST_CASE(
+  "Multiple nodes append entries" * doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
 
-//   auto kv_store0 = std::make_shared<Store>(node_id0);
-//   auto kv_store1 = std::make_shared<Store>(node_id1);
-//   auto kv_store2 = std::make_shared<Store>(node_id2);
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store2 = std::make_shared<Store>(node_id2);
 
-//   ms request_timeout(10);
+  ms request_timeout(10);
 
-//   TRaft r0(
-//     ConsensusType::CFT,
-//     std::make_unique<Adaptor>(kv_store0),
-//     std::make_unique<aft::LedgerStubProxy>(node_id0),
-//     std::make_shared<aft::ChannelStubProxy>(),
-//     std::make_shared<aft::StubSnapshotter>(),
-//     nullptr,
-//     nullptr,
-//     cert,
-//     std::make_shared<aft::State>(node_id0),
-//     nullptr,
-//     nullptr,
-//     nullptr,
-//     request_timeout,
-//     ms(20),
-//     ms(1000));
-//   TRaft r1(
-//     ConsensusType::CFT,
-//     std::make_unique<Adaptor>(kv_store1),
-//     std::make_unique<aft::LedgerStubProxy>(node_id1),
-//     std::make_shared<aft::ChannelStubProxy>(),
-//     std::make_shared<aft::StubSnapshotter>(),
-//     nullptr,
-//     nullptr,
-//     cert,
+  TRaft r0(
+    ConsensusType::CFT,
+    std::make_unique<Adaptor>(kv_store0),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
+    cert,
+    std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr,
+    nullptr,
+    request_timeout,
+    ms(20),
+    ms(1000));
+  TRaft r1(
+    ConsensusType::CFT,
+    std::make_unique<Adaptor>(kv_store1),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
+    cert,
+    std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr,
+    nullptr,
+    request_timeout,
+    ms(100),
+    ms(1000));
+  TRaft r2(
+    ConsensusType::CFT,
+    std::make_unique<Adaptor>(kv_store2),
+    std::make_unique<aft::LedgerStubProxy>(node_id2),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
+    cert,
+    std::make_shared<aft::State>(node_id2),
+    nullptr,
+    nullptr,
+    nullptr,
+    request_timeout,
+    ms(50),
+    ms(1000));
 
-//     std::make_shared<aft::State>(node_id1),
-//     nullptr,
-//     nullptr,
-//     nullptr,
-//     request_timeout,
-//     ms(100),
-//     ms(1000));
-//   TRaft r2(
-//     ConsensusType::CFT,
-//     std::make_unique<Adaptor>(kv_store2),
-//     std::make_unique<aft::LedgerStubProxy>(node_id2),
-//     std::make_shared<aft::ChannelStubProxy>(),
-//     std::make_shared<aft::StubSnapshotter>(),
-//     nullptr,
-//     nullptr,
-//     cert,
-//     std::make_shared<aft::State>(node_id2),
-//     nullptr,
-//     nullptr,
-//     nullptr,
-//     request_timeout,
-//     ms(50),
-//     ms(1000));
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  config[node_id2] = {};
+  r0.add_configuration(0, config);
+  r1.add_configuration(0, config);
+  r2.add_configuration(0, config);
 
-//   aft::Configuration::Nodes config;
-//   config[node_id0] = {};
-//   config[node_id1] = {};
-//   config[node_id2] = {};
-//   r0.add_configuration(0, config);
-//   r1.add_configuration(0, config);
-//   r2.add_configuration(0, config);
+  map<ccf::NodeId, TRaft*> nodes;
+  nodes[node_id0] = &r0;
+  nodes[node_id1] = &r1;
+  nodes[node_id2] = &r2;
 
-//   map<ccf::NodeId, TRaft*> nodes;
-//   nodes[node_id0] = &r0;
-//   nodes[node_id1] = &r1;
-//   nodes[node_id2] = &r2;
+  auto r0c = channel_stub_proxy(r0);
+  auto r1c = channel_stub_proxy(r1);
+  auto r2c = channel_stub_proxy(r2);
 
-//   r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(std::chrono::milliseconds(200));
 
-//   DOCTEST_INFO("Send request_votes to other nodes");
-//   DOCTEST_REQUIRE(
-//     2 ==
-//     dispatch_all(
-//       nodes,
-//       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_request_vote));
+  DOCTEST_INFO("Send request_votes to other nodes");
+  DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
 
-//   DOCTEST_INFO("Send request_vote_reponses back");
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all(
-//       nodes,
-//       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote_response));
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all(
-//       nodes,
-//       node_id2,
-//       ((aft::ChannelStubProxy*)r2.channels.get())->sent_request_vote_response));
+  DOCTEST_INFO("Send request_vote_reponses back");
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id2, r2c->messages));
 
-//   DOCTEST_INFO("Send empty append_entries to other nodes");
-//   DOCTEST_REQUIRE(
-//     2 ==
-//     dispatch_all(
-//       nodes,
-//       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+  DOCTEST_INFO("Send empty append_entries to other nodes");
+  DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
 
-//   DOCTEST_INFO("Send append_entries_reponses back");
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all_and_DOCTEST_CHECK(
-//       nodes,
-//       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
-//       [](const auto& msg) {
-//         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-//         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
-//       }));
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all_and_DOCTEST_CHECK(
-//       nodes,
-//       node_id2,
-//       ((aft::ChannelStubProxy*)r2.channels.get())->sent_append_entries_response,
-//       [](const auto& msg) {
-//         DOCTEST_REQUIRE(msg.last_log_idx == 0);
-//         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
-//       }));
+  DOCTEST_INFO("Send append_entries_reponses back");
+  DOCTEST_REQUIRE(
+    1 ==
+    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+      nodes, node_id1, r1c->messages, [](const auto& msg) {
+        DOCTEST_REQUIRE(msg.last_log_idx == 0);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
+      }));
+  DOCTEST_REQUIRE(
+    1 ==
+    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+      nodes, node_id2, r2c->messages, [](const auto& msg) {
+        DOCTEST_REQUIRE(msg.last_log_idx == 0);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
+      }));
 
-//   DOCTEST_INFO("There ought to be no messages pending anywhere now");
-//   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r0.channels.get())->sent_msg_count() == 0);
-//   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r1.channels.get())->sent_msg_count() == 0);
-//   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r2.channels.get())->sent_msg_count() == 0);
+  DOCTEST_INFO("There ought to be no messages pending anywhere now");
+  DOCTEST_REQUIRE(r0c->messages.size() == 0);
+  DOCTEST_REQUIRE(r1c->messages.size() == 0);
+  DOCTEST_REQUIRE(r2c->messages.size() == 0);
 
-//   DOCTEST_INFO("Try to replicate on a follower, and fail");
-//   std::vector<uint8_t> entry = {1, 2, 3};
-//   auto data = std::make_shared<std::vector<uint8_t>>(entry);
-//   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-//   DOCTEST_REQUIRE_FALSE(
-//     r1.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
+  DOCTEST_INFO("Try to replicate on a follower, and fail");
+  std::vector<uint8_t> entry = {1, 2, 3};
+  auto data = std::make_shared<std::vector<uint8_t>>(entry);
+  auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+  DOCTEST_REQUIRE_FALSE(
+    r1.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
 
-//   DOCTEST_INFO("Tell the leader to replicate a message");
-//   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
-//   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
-//   DOCTEST_REQUIRE(*r0.ledger->ledger.front() == entry);
-//   DOCTEST_INFO("The other nodes are not told about this yet");
-//   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r0.channels.get())->sent_msg_count() == 0);
+  DOCTEST_INFO("Tell the leader to replicate a message");
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
+  DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
+  DOCTEST_REQUIRE(*r0.ledger->ledger.front() == entry);
+  DOCTEST_INFO("The other nodes are not told about this yet");
+  DOCTEST_REQUIRE(r0c->messages.size() == 0);
 
-//   r0.periodic(ms(10));
+  r0.periodic(ms(10));
 
-//   DOCTEST_INFO("Now the other nodes are sent append_entries");
-//   DOCTEST_REQUIRE(
-//     2 ==
-//     dispatch_all_and_DOCTEST_CHECK(
-//       nodes,
-//       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries,
-//       [](const auto& msg) {
-//         DOCTEST_REQUIRE(msg.idx == 1);
-//         DOCTEST_REQUIRE(msg.term == 1);
-//         DOCTEST_REQUIRE(msg.prev_idx == 0);
-//         DOCTEST_REQUIRE(msg.prev_term == aft::ViewHistory::InvalidView);
-//         DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
-//       }));
+  DOCTEST_INFO("Now the other nodes are sent append_entries");
+  DOCTEST_REQUIRE(
+    2 ==
+    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
+      nodes, node_id0, r0c->messages, [](const auto& msg) {
+        DOCTEST_REQUIRE(msg.idx == 1);
+        DOCTEST_REQUIRE(msg.term == 1);
+        DOCTEST_REQUIRE(msg.prev_idx == 0);
+        DOCTEST_REQUIRE(msg.prev_term == aft::ViewHistory::InvalidView);
+        DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
+      }));
 
-//   DOCTEST_INFO("Which they acknowledge correctly");
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all_and_DOCTEST_CHECK(
-//       nodes,
-//       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
-//       [](const auto& msg) {
-//         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-//         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
-//       }));
-//   DOCTEST_REQUIRE(
-//     1 ==
-//     dispatch_all_and_DOCTEST_CHECK(
-//       nodes,
-//       node_id2,
-//       ((aft::ChannelStubProxy*)r2.channels.get())->sent_append_entries_response,
-//       [](const auto& msg) {
-//         DOCTEST_REQUIRE(msg.last_log_idx == 1);
-//         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
-//       }));
-// }
+  DOCTEST_INFO("Which they acknowledge correctly");
+  DOCTEST_REQUIRE(
+    1 ==
+    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+      nodes, node_id1, r1c->messages, [](const auto& msg) {
+        DOCTEST_REQUIRE(msg.last_log_idx == 1);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
+      }));
+  DOCTEST_REQUIRE(
+    1 ==
+    dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+      nodes, node_id2, r2c->messages, [](const auto& msg) {
+        DOCTEST_REQUIRE(msg.last_log_idx == 1);
+        DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
+      }));
+}
 
 // DOCTEST_TEST_CASE("Multiple nodes late join" *
 // doctest::test_suite("multiple"))
@@ -609,48 +577,48 @@ DOCTEST_TEST_CASE(
 //     dispatch_all(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_request_vote));
+//       r0c->sent_request_vote));
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all(
 //       nodes,
 //       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote_response));
+//       r1c->sent_request_vote_response));
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+//       r0c->sent_append_entries));
 
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all_and_DOCTEST_CHECK(
 //       nodes,
 //       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
+//       r1c->sent_append_entries_response,
 //       [](const auto& msg) {
 //         DOCTEST_REQUIRE(msg.last_log_idx == 0);
 //         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
 //       }));
 
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r0.channels.get())->sent_msg_count() == 0);
+//     r0c->messages.size() == 0);
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r1.channels.get())->sent_msg_count() == 0);
+//     r1c->messages.size() == 0);
 
 //   std::vector<uint8_t> first_entry = {1, 2, 3};
 //   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
 //   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-//   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
-//   r0.periodic(ms(10));
+//   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}},
+//   1)); r0.periodic(ms(10));
 
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all_and_DOCTEST_CHECK(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries,
+//       r0c->sent_append_entries,
 //       [](const auto& msg) {
 //         DOCTEST_REQUIRE(msg.idx == 1);
 //         DOCTEST_REQUIRE(msg.term == 1);
@@ -664,7 +632,7 @@ DOCTEST_TEST_CASE(
 //     dispatch_all_and_DOCTEST_CHECK(
 //       nodes,
 //       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
+//       r1c->sent_append_entries_response,
 //       [](const auto& msg) {
 //         DOCTEST_REQUIRE(msg.last_log_idx == 1);
 //         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
@@ -684,16 +652,16 @@ DOCTEST_TEST_CASE(
 
 //   DOCTEST_INFO("Node 0 sends Node 2 what it's missed by joining late");
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r2.channels.get())->sent_msg_count() == 0);
+//     r2c->messages.size() == 0);
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r1.channels.get())->sent_msg_count() == 0);
+//     r1c->messages.size() == 0);
 
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all_and_DOCTEST_CHECK(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries,
+//       r0c->sent_append_entries,
 //       [](const auto& msg) {
 //         DOCTEST_REQUIRE(msg.idx == 1);
 //         DOCTEST_REQUIRE(msg.term == 1);
@@ -768,27 +736,27 @@ DOCTEST_TEST_CASE(
 //       dispatch_all(
 //         nodes,
 //         node_id0,
-//         ((aft::ChannelStubProxy*)r0.channels.get())->sent_request_vote));
+//         r0c->sent_request_vote));
 //     DOCTEST_REQUIRE(
 //       1 ==
 //       dispatch_all(
 //         nodes,
 //         node_id1,
-//         ((aft::ChannelStubProxy*)r1.channels.get())
+//         r1c
 //           ->sent_request_vote_response));
 
 //     DOCTEST_REQUIRE(r0.is_primary());
 //     DOCTEST_REQUIRE(
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//       r0c->sent_append_entries.size()
 //       == 1);
 //     DOCTEST_REQUIRE(
 //       1 ==
 //       dispatch_all(
 //         nodes,
 //         node_id0,
-//         ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+//         r0c->sent_append_entries));
 //     DOCTEST_REQUIRE(
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//       r0c->sent_append_entries.size()
 //       == 0);
 //   }
 
@@ -807,11 +775,11 @@ DOCTEST_TEST_CASE(
 //     hooks}}, 1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
 //     r0.periodic(ms(10));
 //     DOCTEST_REQUIRE(
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//       r0c->sent_append_entries.size()
 //       == 1);
 
 //     // Receive append entries (idx: 2, prev_idx: 0)
-//     ae_idx_2 = ((aft::ChannelStubProxy*)r0.channels.get())
+//     ae_idx_2 = r0c
 //                  ->sent_append_entries.front()
 //                  .second;
 //     r1.recv_message(
@@ -826,7 +794,7 @@ DOCTEST_TEST_CASE(
 //       dispatch_all(
 //         nodes,
 //         node_id0,
-//         ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+//         r0c->sent_append_entries));
 //     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
 //   }
 
@@ -840,15 +808,15 @@ DOCTEST_TEST_CASE(
 
 //     // Simulate that the append entries was not deserialised successfully
 //     // This ensures that r0 re-sends an AE with prev_idx = 0 next time
-//     auto aer = ((aft::ChannelStubProxy*)r1.channels.get())
+//     auto aer = r1c
 //                  ->sent_append_entries_response.front()
 //                  .second;
-//     ((aft::ChannelStubProxy*)r1.channels.get())
+//     r1c
 //       ->sent_append_entries_response.pop_front();
 //     aer.success = aft::AppendEntriesResponseType::FAIL;
-//     r0.recv_message(node_id1, reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
-//     DOCTEST_REQUIRE(
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//     r0.recv_message(node_id1, reinterpret_cast<uint8_t*>(&aer),
+//     sizeof(aer)); DOCTEST_REQUIRE(
+//       r0c->sent_append_entries.size()
 //       == 1);
 
 //     // Only the third entry is deserialised
@@ -858,7 +826,7 @@ DOCTEST_TEST_CASE(
 //       dispatch_all(
 //         nodes,
 //         node_id0,
-//         ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+//         r0c->sent_append_entries));
 //     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 //     DOCTEST_REQUIRE(r1.ledger->skip_count == 2);
 //     r1.ledger->reset_skip_count();
@@ -877,16 +845,16 @@ DOCTEST_TEST_CASE(
 //     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
 //     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 //     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}},
-//     1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4); r0.periodic(ms(10));
-//     DOCTEST_REQUIRE(
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//     1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
+//     r0.periodic(ms(10)); DOCTEST_REQUIRE(
+//       r0c->sent_append_entries.size()
 //       == 1);
 //     DOCTEST_REQUIRE(
 //       1 ==
 //       dispatch_all(
 //         nodes,
 //         node_id0,
-//         ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+//         r0c->sent_append_entries));
 //     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 4);
 //   }
 
@@ -897,24 +865,24 @@ DOCTEST_TEST_CASE(
 //     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
 //     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 //     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}},
-//     1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5); r0.periodic(ms(10));
-//     DOCTEST_REQUIRE(
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//     1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
+//     r0.periodic(ms(10)); DOCTEST_REQUIRE(
+//       r0c->sent_append_entries.size()
 //       == 1);
-//     ((aft::ChannelStubProxy*)r0.channels.get())
+//     r0c
 //       ->sent_append_entries.pop_front();
 
 //     // Simulate that the append entries was not deserialised successfully
 //     // This ensures that r0 re-sends an AE with prev_idx = 3 next time
-//     auto aer = ((aft::ChannelStubProxy*)r1.channels.get())
+//     auto aer = r1c
 //                  ->sent_append_entries_response.front()
 //                  .second;
-//     ((aft::ChannelStubProxy*)r1.channels.get())
+//     r1c
 //       ->sent_append_entries_response.pop_front();
 //     aer.success = aft::AppendEntriesResponseType::FAIL;
-//     r0.recv_message(node_id1, reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
-//     DOCTEST_REQUIRE(
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//     r0.recv_message(node_id1, reinterpret_cast<uint8_t*>(&aer),
+//     sizeof(aer)); DOCTEST_REQUIRE(
+//       r0c->sent_append_entries.size()
 //       == 1);
 
 //     // Receive append entries (idx: 5, prev_idx: 3)
@@ -924,7 +892,7 @@ DOCTEST_TEST_CASE(
 //       dispatch_all(
 //         nodes,
 //         node_id0,
-//         ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+//         r0c->sent_append_entries));
 //     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 5);
 //     DOCTEST_REQUIRE(r1.ledger->skip_count == 2);
 //   }
@@ -1013,35 +981,35 @@ DOCTEST_TEST_CASE(
 //     dispatch_all(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_request_vote));
+//       r0c->sent_request_vote));
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all(
 //       nodes,
 //       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_request_vote_response));
+//       r1c->sent_request_vote_response));
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries));
+//       r0c->sent_append_entries));
 
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all_and_DOCTEST_CHECK(
 //       nodes,
 //       node_id1,
-//       ((aft::ChannelStubProxy*)r1.channels.get())->sent_append_entries_response,
+//       r1c->sent_append_entries_response,
 //       [](const auto& msg) {
 //         DOCTEST_REQUIRE(msg.last_log_idx == 0);
 //         DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::OK);
 //       }));
 
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r0.channels.get())->sent_msg_count() == 0);
+//     r0c->messages.size() == 0);
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r1.channels.get())->sent_msg_count() == 0);
+//     r1c->messages.size() == 0);
 
 //   // large entries of size (append_entries_size_limit / 2), so 2nd and 4th
 //   entry
@@ -1068,7 +1036,7 @@ DOCTEST_TEST_CASE(
 //       dispatch_all_and_DOCTEST_CHECK(
 //         nodes,
 //         node_id0,
-//         ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries,
+//         r0c->sent_append_entries,
 //         [&i](const auto& msg) {
 //           DOCTEST_REQUIRE(msg.idx == i);
 //           DOCTEST_REQUIRE(msg.term == 1);
@@ -1089,7 +1057,7 @@ DOCTEST_TEST_CASE(
 //     dispatch_all(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries);
+//       r0c->sent_append_entries);
 //   }
 
 //   DOCTEST_INFO("Node 2 joins the ensemble");
@@ -1106,14 +1074,14 @@ DOCTEST_TEST_CASE(
 
 //   DOCTEST_INFO("Node 0 sends Node 2 what it's missed by joining late");
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r2.channels.get())->sent_msg_count() == 0);
+//     r2c->messages.size() == 0);
 
 //   DOCTEST_REQUIRE(
 //     1 ==
 //     dispatch_all_and_DOCTEST_CHECK(
 //       nodes,
 //       node_id0,
-//       ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries,
+//       r0c->sent_append_entries,
 //       [&individual_entries](const auto& msg) {
 //         DOCTEST_REQUIRE(msg.idx == individual_entries);
 //         DOCTEST_REQUIRE(msg.term == 1);
@@ -1125,26 +1093,26 @@ DOCTEST_TEST_CASE(
 
 //   DOCTEST_INFO("Node 2 asks for Node 0 to send all the data up to now");
 //   DOCTEST_REQUIRE(
-//     ((aft::ChannelStubProxy*)r2.channels.get())
+//     r2c
 //       ->sent_append_entries_response.size() == 1);
-//   auto aer = ((aft::ChannelStubProxy*)r2.channels.get())
+//   auto aer = r2c
 //                ->sent_append_entries_response.front()
 //                .second;
-//   ((aft::ChannelStubProxy*)r2.channels.get())
+//   r2c
 //     ->sent_append_entries_response.pop_front();
 //   r0.recv_message(node_id2, reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
 
 //   DOCTEST_REQUIRE(
-//     (((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//     (r0c->sent_append_entries.size()
 //     >
 //        num_small_entries_sent &&
-//      ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries.size()
+//      r0c->sent_append_entries.size()
 //      <=
 //        num_small_entries_sent + num_big_entries));
 //   auto sent_entries = dispatch_all(
 //     nodes,
 //     node_id0,
-//     ((aft::ChannelStubProxy*)r0.channels.get())->sent_append_entries);
+//     r0c->sent_append_entries);
 //   DOCTEST_REQUIRE(
 //     (sent_entries > num_small_entries_sent &&
 //      sent_entries <= num_small_entries_sent + num_big_entries));
@@ -1192,8 +1160,8 @@ DOCTEST_TEST_CASE(
 
 //     {
 //       // execute a transaction that does not support async execution
-//       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 5) == false);
-//       aec.increment_pending();
+//       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 5) ==
+//       false); aec.increment_pending();
 //     }
 
 //     // Reset for next round of execution
