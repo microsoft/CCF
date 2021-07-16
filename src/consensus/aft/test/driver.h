@@ -23,6 +23,11 @@ using Adaptor = aft::Adaptor<Store>;
 
 std::vector<uint8_t> cert;
 
+aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
+{
+  return (aft::ChannelStubProxy*)r.channels.get();
+}
+
 class RaftDriver
 {
 private:
@@ -123,6 +128,49 @@ public:
     rlog(node_id, tgt_node_id, s.str());
   }
 
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    const std::vector<uint8_t>& contents)
+  {
+    const uint8_t* data = contents.data();
+    size_t size = contents.size();
+
+    const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    switch (msg_type)
+    {
+      case (aft::RaftMsgType::raft_request_vote):
+      {
+        auto rv = *(aft::RequestVote*)data;
+        log_msg_details(node_id, tgt_node_id, rv);
+        break;
+      }
+      case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        auto rvr = *(aft::RequestVoteResponse*)data;
+        log_msg_details(node_id, tgt_node_id, rvr);
+        break;
+      }
+      case (aft::RaftMsgType::raft_append_entries):
+      {
+        auto ae = *(aft::AppendEntries*)data;
+        log_msg_details(node_id, tgt_node_id, ae);
+        break;
+      }
+      case (aft::RaftMsgType::raft_append_entries_response):
+      {
+        auto aer = *(aft::AppendEntriesResponse*)data;
+        log_msg_details(node_id, tgt_node_id, aer);
+        break;
+      }
+      default:
+      {
+        throw std::runtime_error(
+          fmt::format("Unhandled RaftMsgType: {}", msg_type));
+      }
+    }
+  }
+
   void connect(ccf::NodeId first, ccf::NodeId second)
   {
     std::cout << "  Node" << first << "-->Node" << second << ": connect"
@@ -173,17 +221,17 @@ public:
     // TODO
     // dispatch_one_queue(
     //   node_id,
-    //   ((aft::ChannelStubProxy*)raft->channels.get())->sent_request_vote);
+    //   channel_stub_proxy(raft)->sent_request_vote);
     // dispatch_one_queue(
     //   node_id,
-    //   ((aft::ChannelStubProxy*)raft->channels.get())
+    //   channel_stub_proxy(raft)
     //     ->sent_request_vote_response);
     // dispatch_one_queue(
     //   node_id,
-    //   ((aft::ChannelStubProxy*)raft->channels.get())->sent_append_entries);
+    //   channel_stub_proxy(raft)->sent_append_entries);
     // dispatch_one_queue(
     //   node_id,
-    //   ((aft::ChannelStubProxy*)raft->channels.get())
+    //   channel_stub_proxy(raft)
     //     ->sent_append_entries_response);
   }
 
@@ -202,19 +250,16 @@ public:
 
     while (messages.size())
     {
-      auto message = messages.front();
+      auto [tgt_node_id, contents] = messages.front();
       messages.pop_front();
-      auto tgt_node_id = std::get<0>(message);
 
       if (
         _connections.find(std::make_pair(node_id, tgt_node_id)) !=
         _connections.end())
       {
-        auto contents = std::get<1>(message);
         log_msg_details(node_id, tgt_node_id, contents);
         _nodes.at(tgt_node_id)
-          .raft->recv_message(
-            node_id, reinterpret_cast<uint8_t*>(&contents), sizeof(contents));
+          .raft->recv_message(node_id, contents.data(), contents.size());
         count++;
       }
     }
@@ -225,20 +270,7 @@ public:
   void dispatch_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())->sent_request_vote);
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())
-        ->sent_request_vote_response);
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())->sent_append_entries);
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())
-        ->sent_append_entries_response);
+    dispatch_one_queue(node_id, channel_stub_proxy(*raft)->messages);
   }
 
   void dispatch_all_once()
@@ -257,8 +289,7 @@ public:
              _nodes.end(),
              0,
              [](int acc, auto& node) {
-               return ((aft::ChannelStubProxy*)node.second.raft->channels.get())
-                        ->sent_msg_count() +
+               return channel_stub_proxy(*node.second.raft)->messages.size() +
                  acc;
              }) &&
            iterations++ < 5)
