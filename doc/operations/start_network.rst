@@ -18,7 +18,6 @@ To create a new CCF network, the first node of the network should be started wit
     --rpc-address <ccf-node-address>
     --node-address <ccf-node-to-node-address>
     --public-rpc-address <ccf-node-public-address>
-    [--domain domain]
     --ledger-dir /path/to/ledger/dir
     --node-cert-file /path/to/node_certificate
     start

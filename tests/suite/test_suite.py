@@ -81,6 +81,7 @@ all_tests_suite = [
     e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
+    e2e_logging.test_random_receipts,
     # membership:
     membership.test_set_recovery_threshold,
     membership.test_add_member,
@@ -119,6 +120,7 @@ all_tests_suite = [
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
 ]
+
 suites["all"] = all_tests_suite
 
 #
