@@ -23,13 +23,52 @@ def stringify_bytes(bs):
         pass
     finally:
         if len(bs) > 0 and len(bs) <= 8:
-            n = int.from_bytes(bs, byteorder="little", signed=True)
+            n = int.from_bytes(bs, byteorder="little")
             return f"<u{8 * len(bs)}: {n}>"
         return bs
 
 
-def print_key(indent_s, k, is_removed=False):
-    k = stringify_bytes(k)
+def fmt_unsigned_int_little(data):
+    return (
+        f'<u{8 * len(data)}: {int.from_bytes(data, byteorder="little", signed=False)}>'
+    )
+
+
+def fmt_hex(data):
+    return data.hex()
+
+
+def fmt_str(data):
+    return data.decode()
+
+
+# Dictionary of store table name regex to format function
+default_tables_format_rules = {
+    "^public:ccf\.internal\..*$": {
+        "key_fmt": fmt_unsigned_int_little,
+        "value_fmt": None,
+    },
+    "^public:ccf\.gov\.(service|network|constitution).*$": {
+        "key_fmt": fmt_unsigned_int_little,
+        "value_fmt": None,
+    },
+    "^public:ccf\.gov\..*$": {"key_fmt": fmt_str, "value_fmt": None},
+    ".*": {"key_fmt": fmt_hex, "value_fmt": fmt_hex},  # Default
+}
+
+
+def find_rule(target_table_name):
+    for table_name_re, format_rules in default_tables_format_rules.items():
+        if re.compile(table_name_re).match(target_table_name):
+            # LOG.success(format_rules["key_fmt"])
+            return format_rules["key_fmt"]
+    return fmt_hex
+
+
+def print_key(table_name, indent_s, k, is_removed=False):
+
+    # k = stringify_bytes(k)
+    k = find_rule(table_name)(k)
 
     if is_removed:
         LOG.error(f"{indent_s}Removed {k}")
@@ -71,10 +110,10 @@ def dump_entry(entry, table_filter):
                 except (json.decoder.JSONDecodeError, UnicodeDecodeError):
                     pass
                 finally:
-                    print_key(key_indent, key)
+                    print_key(table_name, key_indent, key)
                     LOG.info(f"{value_indent}{value}")
             else:
-                print_key(key_indent, key, is_removed=True)
+                print_key(table_name, key_indent, key, is_removed=True)
 
 
 def main(args_):
