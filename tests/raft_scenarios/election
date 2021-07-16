@@ -2,6 +2,20 @@ nodes,3
 connect,0,1
 connect,1,2
 connect,0,2
-periodic_all,110
+
+# Node 0 starts first, and begins sending messages first
+periodic_one,0,110
 dispatch_all
+
+periodic_all,30
+dispatch_all
+
+replicate,1,helloworld
+periodic_all,30
+dispatch_all
+
+replicate,1,salutonmondo
+periodic_all,30
+dispatch_all
+
 state_all

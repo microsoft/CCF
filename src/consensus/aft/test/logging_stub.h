@@ -13,7 +13,7 @@ namespace aft
 {
   class LedgerStubProxy
   {
-  private:
+  protected:
     ccf::NodeId _id;
 
   public:
@@ -22,16 +22,11 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
-    void put_entry(
+    virtual void put_entry(
       const std::vector<uint8_t>& data,
       bool globally_committable,
       bool force_chunk)
     {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>Ledger" << _id
-                << ": put s: " << data.size() << std::endl;
-#endif
-
       auto size = data.size();
       auto buffer = std::make_shared<std::vector<uint8_t>>(size);
       auto ptr = buffer->data();
@@ -73,7 +68,8 @@ namespace aft
   public:
     // Capture what is being sent out
     // Using a deque so we can both pop from the front and shuffle
-    using MessageList = std::deque<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
+    using MessageList =
+      std::deque<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
     MessageList messages;
 
     ChannelStubProxy() {}
@@ -81,11 +77,11 @@ namespace aft
     size_t count_messages_with_type(RaftMsgType type)
     {
       size_t count = 0;
-      for (const auto& [nid, m]: messages)
+      for (const auto& [nid, m] : messages)
       {
         const uint8_t* data = m.data();
         size_t size = m.size();
-        
+
         if (serialized::peek<RaftMsgType>(data, size) == type)
         {
           ++count;
@@ -95,14 +91,15 @@ namespace aft
       return count;
     }
 
-    std::optional<std::vector<uint8_t>> pop_first(RaftMsgType type, ccf::NodeId target)
+    std::optional<std::vector<uint8_t>> pop_first(
+      RaftMsgType type, ccf::NodeId target)
     {
       for (auto it = messages.begin(); it != messages.end(); ++it)
       {
         const auto [nid, m] = *it;
         const uint8_t* data = m.data();
         size_t size = m.size();
-        
+
         if (serialized::peek<RaftMsgType>(data, size) == type)
         {
           if (target == nid)
@@ -116,8 +113,7 @@ namespace aft
       return std::nullopt;
     }
 
-    void
-    create_channel(
+    void create_channel(
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service,

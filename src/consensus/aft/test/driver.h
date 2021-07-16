@@ -4,6 +4,7 @@
 
 #include "consensus/aft/raft.h"
 #include "ds/logger.h"
+#include "logging_stub.h"
 
 #include <chrono>
 #include <random>
@@ -13,14 +14,32 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#define STUB_LOG 1
-#include "logging_stub.h"
+#define RAFT_DRIVER_OUT std::cout << "<RaftDriver>"
 
-#define RAFT_DRIVER_OUT std::cout << "<RaftDriver>  "
+std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
+{
+  auto size = std::min(v.size(), max_size);
+    return fmt::format("[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
+}
+
+struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
+{
+  using LedgerStubProxy::LedgerStubProxy;
+
+  virtual void put_entry(
+    const std::vector<uint8_t>& data,
+    bool globally_committable,
+    bool force_chunk)
+  {
+    RAFT_DRIVER_OUT << "  Node" << _id << "->>Ledger" << _id
+                    << ": put s: " << stringify(data) << std::endl;
+    aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
+  }
+};
 
 using ms = std::chrono::milliseconds;
-using TRaft =
-  aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
+using TRaft = aft::
+  Aft<LedgerStubProxy_WithLogging, aft::ChannelStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -56,7 +75,7 @@ public:
       auto raft = std::make_shared<TRaft>(
         ConsensusType::CFT,
         std::make_unique<Adaptor>(kv),
-        std::make_unique<aft::LedgerStubProxy>(node_id),
+        std::make_unique<LedgerStubProxy_WithLogging>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
         std::make_shared<aft::StubSnapshotter>(),
         nullptr,
@@ -145,8 +164,7 @@ public:
       }
     }
     s << "append_entries_response t: " << aer.term
-      << ", lli: " << aer.last_log_idx
-      << ", s: " << success;
+      << ", lli: " << aer.last_log_idx << ", s: " << success;
     rlog(node_id, tgt_node_id, s.str());
   }
 
@@ -310,9 +328,10 @@ public:
 
   ccf::NodeId find_primary_in_term(aft::Term term)
   {
-    for (const auto& [node_id, node_driver]: _nodes)
+    for (const auto& [node_id, node_driver] : _nodes)
     {
-      if (node_driver.raft->get_term() == term && node_driver.raft->is_primary())
+      if (
+        node_driver.raft->get_term() == term && node_driver.raft->is_primary())
       {
         return node_id;
       }
@@ -321,18 +340,21 @@ public:
     throw std::runtime_error(fmt::format("Found no primary in term {}", term));
   }
 
-  void replicate(
-    aft::Term term,
-    std::shared_ptr<std::vector<uint8_t>> data)
+  void replicate(aft::Term term, std::shared_ptr<std::vector<uint8_t>> data)
   {
     const auto node_id = find_primary_in_term(term);
     auto& raft = _nodes.at(node_id).raft;
     const auto idx = raft->get_last_idx() + 1;
-    RAFT_DRIVER_OUT << "  KV" << node_id << "->>Node" << node_id
-                    << ": replicate idx: " << idx << std::endl;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  Node{}->>Node{}: replicate {}.{} = {}",
+                         node_id,
+                         node_id,
+                         term,
+                         idx,
+                         stringify(*data))
+                    << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    raft->replicate(
-      kv::BatchVector{{idx, data, true, hooks}}, 1);
+    raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, 1);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
