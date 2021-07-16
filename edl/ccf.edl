@@ -6,7 +6,6 @@ enclave {
     from "openenclave/edl/time.edl" import *;
 
     include "common/enclave_interface_types.h"
-    include "enclave/consensus_type.h"
 
     trusted {
 
@@ -24,7 +23,6 @@ enclave {
             size_t enclave_version_size,
             [out] size_t* enclave_version_len,
             StartType start_type,
-            ConsensusType consensus_type,
             size_t num_worker_thread,
             [user_check] void* time_location,
         );

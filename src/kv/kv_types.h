@@ -68,6 +68,11 @@ namespace kv
     {
       return {term, version};
     }
+
+    bool operator==(const TxID& other)
+    {
+      return term == other.term && version == other.version;
+    }
   };
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
@@ -87,10 +92,11 @@ namespace kv
       {}
     };
 
-    using Nodes = std::unordered_map<NodeId, NodeInfo>;
+    using Nodes = std::map<NodeId, NodeInfo>;
 
     ccf::SeqNo idx;
     Nodes nodes;
+    uint32_t bft_offset;
   };
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
@@ -111,7 +117,9 @@ namespace kv
     Leader,
     Follower,
     Candidate,
-    Retired
+    Retired,
+    Learner,
+    Retiring
   };
 
   DECLARE_JSON_ENUM(
@@ -119,7 +127,9 @@ namespace kv
     {{ReplicaState::Leader, "Leader"},
      {ReplicaState::Follower, "Follower"},
      {ReplicaState::Candidate, "Candidate"},
-     {ReplicaState::Retired, "Retired"}});
+     {ReplicaState::Retired, "Retired"},
+     {ReplicaState::Learner, "Learner"},
+     {ReplicaState::Retiring, "Retiring"}});
 
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);
@@ -129,19 +139,41 @@ namespace kv
     std::vector<Configuration> configs = {};
     std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
     ReplicaState state;
+    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
   };
 
-  DECLARE_JSON_TYPE(ConsensusDetails);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
+  DECLARE_JSON_OPTIONAL_FIELDS(ConsensusDetails, learners);
+
+  using ReconfigurationId = uint64_t;
+
+  struct NetworkConfiguration
+  {
+    ReconfigurationId rid;
+    std::unordered_set<NodeId> nodes;
+
+    bool operator<(const NetworkConfiguration& other) const
+    {
+      return rid < other.rid;
+    }
+  };
+
+  DECLARE_JSON_TYPE(kv::NetworkConfiguration);
+  DECLARE_JSON_REQUIRED_FIELDS(kv::NetworkConfiguration, rid, nodes);
 
   class ConfigurableConsensus
   {
   public:
     virtual void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
+      ccf::SeqNo seqno,
+      const Configuration::Nodes& conf,
+      const std::unordered_set<NodeId>& learners = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
+    virtual void add_network_configuration(
+      ccf::SeqNo seqno, const NetworkConfiguration& config) = 0;
   };
 
   class ConsensusHook
@@ -300,13 +332,18 @@ namespace kv
 
     virtual ~TxHistory() {}
     virtual Result verify_and_sign(
-      ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
+      ccf::PrimarySignature& signature,
+      Term* term,
+      kv::Configuration::Nodes& nodes) = 0;
     virtual bool verify(
       Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::pair<kv::TxID, crypto::Sha256Hash>
+    virtual std::tuple<
+      kv::TxID /* TxID of last transaction seen by history */,
+      crypto::Sha256Hash /* root as of TxID */,
+      kv::Term /* term_of_next_version */>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
@@ -320,7 +357,8 @@ namespace kv
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
-    virtual void rollback(Version v, kv::Term) = 0;
+    virtual void rollback(
+      const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
@@ -400,7 +438,8 @@ namespace kv
     virtual bool view_change_in_progress() = 0;
     virtual std::set<NodeId> active_nodes() = 0;
 
-    virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
+    virtual void recv_message(
+      const NodeId& from, const uint8_t* data, size_t size) = 0;
 
     virtual bool on_request(const TxHistory::RequestCallbackArgs&)
     {
@@ -412,7 +451,6 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual uint32_t node_count() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
@@ -583,6 +621,21 @@ namespace kv
     virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
+
+    // Setting a short rollback is a work around that should be fixed
+    // shortly. In BFT mode when we deserialize and realize we need to
+    // create a new map we remember this. If we need to create the same
+    // map multiple times (for tx in the same group of append entries) the
+    // first create successes but the second fails because the map is
+    // already there. This works around the problem by stopping just
+    // before the 2nd create (which failed at this point) and when the
+    // primary resends the append entries we will succeed as the map is
+    // already there. This will only occur on BFT startup so not a perf
+    // problem but still need to be resolved.
+    //
+    // Thus, a large rollback is one which did not result from the map creating
+    // issue. https://github.com/microsoft/CCF/issues/2799
+    virtual bool should_rollback_to_last_committed() = 0;
   };
 
   class AbstractStore
@@ -608,8 +661,10 @@ namespace kv
 
     virtual Version current_version() = 0;
     virtual TxID current_txid() = 0;
+    virtual std::pair<TxID, Term> current_txid_and_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
+    virtual Term commit_view() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
       Version v, const std::string& map_name) = 0;
@@ -626,8 +681,8 @@ namespace kv
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
-    virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
-    virtual void set_term(Term t) = 0;
+    virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
+    virtual void initialise_term(Term t) = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
@@ -645,3 +700,23 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<kv::NetworkConfiguration>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::NetworkConfiguration& config, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    return format_to(
+      ctx.out(), "{}:{{{}}}", config.rid, fmt::join(config.nodes, " "));
+  }
+};
+FMT_END_NAMESPACE

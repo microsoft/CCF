@@ -23,9 +23,9 @@ parameters:
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
     debug:
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF -DBUILD_TPCC=OFF"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug"
     perf:
-      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
+      cmake_args: '-DBUILD_UNIT_TESTS=OFF -DBUILD_TPCC=ON -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
     release:
       cmake_args: "-DTLS_TEST=ON -DLONG_TESTS=ON -DENABLE_BFT=OFF"
 

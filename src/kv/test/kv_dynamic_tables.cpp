@@ -56,7 +56,7 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
     REQUIRE(it.value() == "bar");
   }
 
-  const auto version_before = kv_store.current_version();
+  const auto txid_before = kv_store.current_txid();
 
   constexpr auto new_map1 = "new_map1";
   constexpr auto new_map2 = "new_map2";
@@ -92,7 +92,7 @@ TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))
 
   {
     INFO("Rollback can delete dynamic tables");
-    kv_store.rollback(version_before);
+    kv_store.rollback(txid_before, kv_store.commit_view());
 
     {
       auto tx = kv_store.create_tx();
@@ -443,7 +443,7 @@ TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
 
   constexpr auto map_name = "my_new_map";
 
-  const auto version_before = kv_store.current_version();
+  const auto txid_before = kv_store.current_txid();
 
   {
     auto tx = kv_store.create_tx();
@@ -463,7 +463,7 @@ TEST_CASE("Mid rollback safety" * doctest::test_suite("dynamic"))
 
     // Rollbacks may happen while a tx is executing, and these can delete the
     // maps this tx is executing over
-    kv_store.rollback(version_before);
+    kv_store.rollback(txid_before, kv_store.commit_view());
 
     const auto v_1 = handle->get("foo");
     REQUIRE(v_0.has_value());

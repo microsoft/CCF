@@ -16,12 +16,11 @@ To guarantee that their request is successfully committed to the ledger, a user 
     HTTP/1.1 200 OK
     content-length: 23
     content-type: application/json
-    x-ccf-tx-seqno: 42
-    x-ccf-tx-view: 5
+    x-ms-ccf-transaction-id: 5.42
 
     {"status":"COMMITTED"}
 
-This example queries the status of transaction ID ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests (``x-ccf-tx-seqno: 42``) and changed view (``x-ccf-tx-view: 5``).
+This example queries the status of transaction ID ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests and changed view (``x-ms-ccf-transaction-id: 5.42``).
 
 The possible statuses returned by ``GET /tx`` are:
 
@@ -68,6 +67,22 @@ This means that the request may return ``202 Accepted`` at first, with a suggest
                {'left': 'f0e95ed85f5f6c0197aed4f6685b93dc56edd823a2532bd717558a5ab77267cb'}],
      'root': '06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78',
      'signature': 'MGQCMACklXqd0ge+gBS8WzewrwtwzRzSKy+bfrLZVx0YHmQvtsqs7dExYESsqrUrB8ZcKwIwS3NPKaGq0w2QlPlCqUC3vQoQvhcZgPHPu2GkFYa7JEOdSKLknNPHaCRv80zx2RGF'}
+
+Note that receipts over signature transactions are a special case, for example:
+
+.. code-block:: bash
+
+    $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.35" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    
+    {'leaf': 'fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec',
+     'node_id': '06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78',
+     'proof': [],
+     'root': '06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78',
+     'signature': 'MGQCMACklXqd0ge+gBS8WzewrwtwzRzSKy+bfrLZVx0YHmQvtsqs7dExYESsqrUrB8ZcKwIwS3NPKaGq0w2QlPlCqUC3vQoQvhcZgPHPu2GkFYa7JEOdSKLknNPHaCRv80zx2RGF'}
+
+The proof is empty, and the 'leaf' and 'root' fields are both set to the value being signed, which is the root of the Merkle Tree covering all transactions until the signature.
+This allows writing verification code that handles both regular and signature receipts without special casing, but it is worth noting that the 'leaf' value for signatures is not
+the digest of the signature transaction itself.
 
 Verifying a receipt is a two-phase process:
 

@@ -20,11 +20,7 @@ namespace ccf
     /// Hashed nonce created by the node, only used for BFT
     Nonce hashed_nonce;
 
-    NodeSignature(const NodeSignature& ns) :
-      sig(ns.sig),
-      node(ns.node),
-      hashed_nonce(ns.hashed_nonce)
-    {}
+    NodeSignature(const NodeSignature& ns) = default;
     NodeSignature(
       const std::vector<uint8_t>& sig_,
       const NodeId& node_,

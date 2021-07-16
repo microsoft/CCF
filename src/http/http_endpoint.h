@@ -7,9 +7,6 @@
 #include "enclave/rpc_map.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
-#include "ws_parser.h"
-#include "ws_rpc_context.h"
-#include "ws_upgrade.h"
 
 namespace http
 {
@@ -17,19 +14,14 @@ namespace http
   {
   protected:
     http::Parser& p;
-    ws::Parser& wp;
-    bool is_websocket = false;
-    size_t ws_next_read = ws::INITIAL_READ;
 
     HTTPEndpoint(
       http::Parser& p_,
-      ws::Parser& wp_,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_),
-      wp(wp_)
+      p(p_)
     {}
 
   public:
@@ -55,85 +47,44 @@ namespace http
 
       LOG_TRACE_FMT("recv called with {} bytes", size_);
 
-      if (is_websocket)
+      constexpr auto read_block_size = 4096;
+      std::vector<uint8_t> buf(read_block_size);
+      auto data = buf.data();
+      auto n_read = read(data, buf.size(), false);
+
+      while (true)
       {
-        std::vector<uint8_t> buf(ws_next_read);
-        while (true)
+        if (n_read == 0)
         {
-          if (ws_next_read > buf.size())
-          {
-            buf.resize(ws_next_read);
-          }
-
-          auto r = read(buf.data(), ws_next_read, true);
-          if (r == 0)
-          {
-            return;
-          }
-          else
-          {
-            try
-            {
-              ws_next_read = wp.consume(buf.data(), r);
-            }
-            catch (const std::exception& e)
-            {
-              LOG_FAIL_FMT("Error parsing WebSocket request");
-              LOG_DEBUG_FMT("Error parsing WebSocket request: {}", e.what());
-              close();
-              return;
-            }
-
-            if (!ws_next_read)
-            {
-              close();
-              return;
-            }
-          }
+          return;
         }
-      }
-      else
-      {
-        constexpr auto read_block_size = 4096;
-        std::vector<uint8_t> buf(read_block_size);
-        auto data = buf.data();
-        auto n_read = read(data, buf.size(), false);
 
-        while (true)
+        LOG_TRACE_FMT("Going to parse {} bytes", n_read);
+
+        try
         {
-          if (n_read == 0)
-          {
-            return;
-          }
+          p.execute(data, n_read);
 
-          LOG_TRACE_FMT("Going to parse {} bytes", n_read);
+          // Used all provided bytes - check if more are available
+          n_read = read(buf.data(), buf.size(), false);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error parsing HTTP request");
+          LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
-          try
-          {
-            p.execute(data, n_read);
+          auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
+          response.set_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          auto body = fmt::format(
+            "Unable to parse data as a HTTP request. Error details are "
+            "below.\n\n{}",
+            e.what());
+          response.set_body((const uint8_t*)body.data(), body.size());
+          send_raw(response.build_response());
 
-            // Used all provided bytes - check if more are available
-            n_read = read(buf.data(), buf.size(), false);
-          }
-          catch (const std::exception& e)
-          {
-            LOG_FAIL_FMT("Error parsing HTTP request");
-            LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
-
-            auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
-            response.set_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::TEXT);
-            auto body = fmt::format(
-              "Unable to parse data as a HTTP request. Error details are "
-              "below.\n\n{}",
-              e.what());
-            response.set_body((const uint8_t*)body.data(), body.size());
-            send_raw(response.build_response());
-
-            close();
-            break;
-          }
+          close();
+          break;
         }
       }
     }
@@ -143,7 +94,6 @@ namespace http
   {
   private:
     http::RequestParser request_parser;
-    ws::RequestParser ws_request_parser;
 
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
@@ -157,14 +107,8 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(
-        request_parser,
-        ws_request_parser,
-        session_id,
-        writer_factory,
-        std::move(ctx)),
+      HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
       request_parser(*this),
-      ws_request_parser(*this),
       rpc_map(rpc_map),
       session_id(session_id)
     {}
@@ -188,18 +132,6 @@ namespace http
 
       try
       {
-        // Check if the client requested upgrade to websocket, and complete
-        // handshake if necessary
-        auto upgrade_resp =
-          http::WebSocketUpgrader::upgrade_if_necessary(headers);
-        if (upgrade_resp.has_value())
-        {
-          LOG_TRACE_FMT("Upgraded to websocket");
-          is_websocket = true;
-          send_raw(std::move(upgrade_resp.value()));
-          return;
-        }
-
         if (session_ctx == nullptr)
         {
           session_ctx =
@@ -209,38 +141,20 @@ namespace http
         std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;
         try
         {
-          if (is_websocket)
-          {
-            rpc_ctx = std::make_shared<ws::WsRpcContext>(
-              request_index++, session_ctx, url, std::move(body));
-          }
-          else
-          {
-            rpc_ctx = std::make_shared<HttpRpcContext>(
-              request_index++,
-              session_ctx,
-              verb,
-              url,
-              std::move(headers),
-              std::move(body));
-          }
+          rpc_ctx = std::make_shared<HttpRpcContext>(
+            request_index++,
+            session_ctx,
+            verb,
+            url,
+            std::move(headers),
+            std::move(body));
         }
         catch (std::exception& e)
         {
-          if (is_websocket)
-          {
-            send_raw(ws::error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              e.what()));
-          }
-          else
-          {
-            send_raw(http::error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              e.what()));
-          }
+          send_raw(http::error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            e.what()));
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -286,20 +200,10 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        if (is_websocket)
-        {
-          send_raw(ws::error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Exception: {}", e.what())));
-        }
-        else
-        {
-          send_raw(http::error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Exception: {}", e.what())));
-        }
+        send_raw(http::error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Exception: {}", e.what())));
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
@@ -316,22 +220,15 @@ namespace http
   {
   private:
     http::ResponseParser response_parser;
-    ws::ResponseParser ws_response_parser;
 
   public:
     HTTPClientEndpoint(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(
-        response_parser,
-        ws_response_parser,
-        session_id,
-        writer_factory,
-        std::move(ctx)),
+      HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
       ClientEndpoint(session_id, writer_factory),
-      response_parser(*this),
-      ws_response_parser(*this)
+      response_parser(*this)
     {}
 
     void send_request(std::vector<uint8_t>&& data) override

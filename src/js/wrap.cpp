@@ -1228,13 +1228,21 @@ namespace js
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
-
     JS_SetPropertyStr(
       ctx,
       ccf,
       "refreshAppBytecodeCache",
       JS_NewCFunction(
         ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
+
+    auto crypto = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
+
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "verifySignature",
+      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
 
     if (txctx != nullptr)
     {

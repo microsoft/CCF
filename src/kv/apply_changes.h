@@ -46,7 +46,7 @@ namespace kv
     // and possibly committed, and then all maps with pending writes are
     // unlocked. This is to prevent transactions from being committed in an
     // interleaved fashion.
-    Version version = 0;
+    Version version = NoVersion;
     bool has_writes = false;
     kv::Version max_conflict_version = 0;
 

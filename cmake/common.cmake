@@ -7,6 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+option(PROFILE_TESTS "Profile tests" OFF)
 set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
@@ -175,7 +176,12 @@ set(CCF_ENDPOINTS_SOURCES
 find_library(CRYPTO_LIBRARY crypto)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
-list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
+else()
+  # Clang <9 needs to link libc++fs when using <filesystem>
+  list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
+endif()
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
@@ -282,10 +288,17 @@ endif()
 add_executable(
   scenario_perf_client ${CCF_DIR}/src/perf_client/scenario_perf_client.cpp
 )
-target_link_libraries(
-  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                               ccfcrypto.host c++fs
-)
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(
+    scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                                 ccfcrypto.host
+  )
+else()
+  target_link_libraries(
+    scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                                 ccfcrypto.host c++fs
+  )
+endif()
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
@@ -393,12 +406,27 @@ function(add_e2e_test)
   endif()
 
   if(BUILD_END_TO_END_TESTS)
+    if(PROFILE_TESTS)
+      set(PYTHON_WRAPPER
+          py-spy
+          record
+          --format
+          speedscope
+          -o
+          ${PARSED_ARGS_NAME}.trace
+          --
+          python3
+      )
+    else()
+      set(PYTHON_WRAPPER ${PYTHON})
+    endif()
+
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
-        ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --consensus
-        ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
+        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
+        --consensus ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 

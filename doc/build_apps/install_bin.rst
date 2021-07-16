@@ -4,7 +4,7 @@ Install CCF
 Requirements
 ------------
 
-CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 18.04.
+CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 18.04, with Clang 8.
 Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
 
 .. note::

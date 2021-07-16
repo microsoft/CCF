@@ -66,7 +66,7 @@ public:
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
-      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
+      "/empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
       .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
@@ -74,7 +74,7 @@ public:
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
-      "empty_function_signed",
+      "/empty_function_signed",
       HTTP_POST,
       empty_function_signed,
       {user_signature_auth_policy})
@@ -85,7 +85,7 @@ public:
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
-      "empty_function_no_auth",
+      "/empty_function_no_auth",
       HTTP_POST,
       empty_function_no_auth,
       no_auth_required)
@@ -104,7 +104,7 @@ public:
     auto echo_function = [this](auto& ctx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
-    make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
+    make_endpoint("/echo", HTTP_POST, json_adapter(echo_function)).install();
 
     auto echo_query_function = [this](auto& ctx, nlohmann::json&&) {
       const auto parsed_query =
@@ -112,7 +112,7 @@ public:
       return make_success(std::move(parsed_query));
     };
     make_endpoint(
-      "echo_parsed_query", HTTP_POST, json_adapter(echo_query_function))
+      "/echo_parsed_query", HTTP_POST, json_adapter(echo_query_function))
       .install();
 
     auto get_caller_function = [this](auto& ctx, nlohmann::json&&) {
@@ -120,7 +120,7 @@ public:
       return make_success(ident.user_id);
     };
     make_endpoint(
-      "get_caller",
+      "/get_caller",
       HTTP_POST,
       json_adapter(get_caller_function),
       {user_cert_auth_policy})
@@ -138,7 +138,7 @@ public:
 
       return make_success(true);
     };
-    make_endpoint("failable", HTTP_POST, json_adapter(failable_function))
+    make_endpoint("/failable", HTTP_POST, json_adapter(failable_function))
       .install();
   }
 };
@@ -153,18 +153,18 @@ public:
     auto get_only = [this](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("get_only", HTTP_GET, get_only).install();
+    make_endpoint("/get_only", HTTP_GET, get_only).install();
 
     auto post_only = [this](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("post_only", HTTP_POST, post_only).install();
+    make_endpoint("/post_only", HTTP_POST, post_only).install();
 
     auto put_or_delete = [this](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("put_or_delete", HTTP_PUT, put_or_delete).install();
-    make_endpoint("put_or_delete", HTTP_DELETE, put_or_delete).install();
+    make_endpoint("/put_or_delete", HTTP_PUT, put_or_delete).install();
+    make_endpoint("/put_or_delete", HTTP_DELETE, put_or_delete).install();
   }
 };
 
@@ -197,7 +197,7 @@ public:
       const auto status = parsed["status"].get<http_status>();
       ctx.rpc_ctx->set_response_status(status);
     };
-    make_endpoint("maybe_commit", HTTP_POST, maybe_commit).install();
+    make_endpoint("/maybe_commit", HTTP_POST, maybe_commit).install();
   }
 };
 
@@ -212,7 +212,7 @@ public:
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     endpoints
-      .make_command_endpoint("command", HTTP_POST, command, no_auth_required)
+      .make_command_endpoint("/command", HTTP_POST, command, no_auth_required)
       .install();
 
     auto read_only = [this](auto& ctx) {
@@ -220,11 +220,11 @@ public:
     };
     endpoints
       .make_read_only_endpoint(
-        "read_only", HTTP_POST, read_only, no_auth_required)
+        "/read_only", HTTP_POST, read_only, no_auth_required)
       .install();
     endpoints
       .make_read_only_endpoint(
-        "read_only", HTTP_GET, read_only, no_auth_required)
+        "/read_only", HTTP_GET, read_only, no_auth_required)
       .install();
   }
 };
@@ -241,7 +241,7 @@ public:
       ctx.rpc_ctx->set_response_body(response_body.dump(2));
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("{foo}/{bar}/{baz}", HTTP_POST, endpoint).install();
+    make_endpoint("/{foo}/{bar}/{baz}", HTTP_POST, endpoint).install();
   }
 };
 
@@ -261,7 +261,7 @@ public:
     };
     member_endpoints
       .make_endpoint(
-        "empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
+        "/empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
       .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
       .install();
   }
@@ -283,7 +283,7 @@ public:
     };
     endpoints
       .make_endpoint(
-        "empty_function", HTTP_POST, empty_function, no_auth_required)
+        "/empty_function", HTTP_POST, empty_function, no_auth_required)
       .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
       .install();
   }
@@ -334,14 +334,14 @@ public:
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     make_endpoint(
-      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
+      "/empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
       .install();
 
     auto empty_function_no_auth = [this](auto& ctx) {
       record_ctx(ctx);
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
+    make_endpoint("/empty_function_no_auth", HTTP_POST, empty_function_no_auth)
       .install();
   }
 };
@@ -364,7 +364,7 @@ public:
     // will forward it to the primary
     endpoints
       .make_endpoint(
-        "empty_function", HTTP_POST, empty_function, no_auth_required)
+        "/empty_function", HTTP_POST, empty_function, no_auth_required)
       .install();
   }
 };
@@ -390,7 +390,7 @@ public:
     // will forward it to the primary
     endpoints
       .make_endpoint(
-        "empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
+        "/empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
       .install();
   }
 };
@@ -406,7 +406,7 @@ auto history = std::make_shared<NullTxHistory>(
   *bft_network.tables, kv::test::PrimaryNodeId, *history_kp);
 
 auto create_simple_request(
-  const std::string& method = "empty_function",
+  const std::string& method = "/empty_function",
   serdes::Pack pack = default_pack)
 {
   http::Request request(method);
@@ -577,7 +577,7 @@ TEST_CASE("process with signatures")
 
   SUBCASE("missing rpc")
   {
-    constexpr auto rpc_name = "this_rpc_doesnt_exist";
+    constexpr auto rpc_name = "/this_rpc_doesnt_exist";
     const auto invalid_call = create_simple_request(rpc_name);
     const auto serialized_call = invalid_call.build_request();
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -616,7 +616,7 @@ TEST_CASE("process with signatures")
 
   SUBCASE("endpoint requires signature")
   {
-    const auto simple_call = create_simple_request("empty_function_signed");
+    const auto simple_call = create_simple_request("/empty_function_signed");
     const auto signed_call = create_signed_request(user_caller, simple_call);
     const auto serialized_simple_call = simple_call.build_request();
     const auto serialized_signed_call = signed_call.build_request();
@@ -653,7 +653,7 @@ TEST_CASE("process with caller")
 
   SUBCASE("endpoint does not require valid caller")
   {
-    const auto simple_call = create_simple_request("empty_function_no_auth");
+    const auto simple_call = create_simple_request("/empty_function_no_auth");
     const auto serialized_simple_call = simple_call.build_request();
     auto authenticated_rpc_ctx =
       enclave::make_rpc_context(user_session, serialized_simple_call);
@@ -692,7 +692,7 @@ TEST_CASE("process with caller")
 
   SUBCASE("endpoint requires valid caller")
   {
-    const auto simple_call = create_simple_request("empty_function");
+    const auto simple_call = create_simple_request("/empty_function");
     const auto serialized_simple_call = simple_call.build_request();
     auto authenticated_rpc_ctx =
       enclave::make_rpc_context(user_session, serialized_simple_call);
@@ -804,7 +804,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
   {
     {
       INFO("Calling echo, with params in body");
-      auto echo_call = create_simple_request("echo", pack_type);
+      auto echo_call = create_simple_request("/echo", pack_type);
       const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
                                      {"other", "Another string"}};
       const auto serialized_body = serdes::pack(j_body, pack_type);
@@ -821,7 +821,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
 
     {
       INFO("Calling echo_query, with params in query");
-      auto echo_call = create_simple_request("echo_parsed_query", pack_type);
+      auto echo_call = create_simple_request("/echo_parsed_query", pack_type);
       const std::map<std::string, std::string> query_params = {
         {"foo", "helloworld"},
         {"bar", "1"},
@@ -845,7 +845,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
 
     {
       INFO("Calling get_caller");
-      const auto get_caller = create_simple_request("get_caller", pack_type);
+      const auto get_caller = create_simple_request("/get_caller", pack_type);
       const auto serialized_call = get_caller.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -859,7 +859,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
 
   {
     INFO("Calling failable, without failing");
-    auto dont_fail = create_simple_request("failable");
+    auto dont_fail = create_simple_request("/failable");
     const auto serialized_call = dont_fail.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -876,7 +876,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
     {
       INFO("Calling failable, with error");
       const auto msg = fmt::format("An error message about {}", err);
-      auto fail = create_simple_request("failable");
+      auto fail = create_simple_request("/failable");
       const nlohmann::json j_body = {
         {"error", {{"code", err}, {"message", msg}}}};
       const auto serialized_body = serdes::pack(j_body, default_pack);
@@ -1081,7 +1081,7 @@ TEST_CASE("Alternative endpoints")
   TestAlternativeHandlerTypes frontend(*network.tables);
 
   {
-    auto command = create_simple_request("command");
+    auto command = create_simple_request("/command");
     const auto serialized_command = command.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_command);
@@ -1108,7 +1108,7 @@ TEST_CASE("Templated paths")
   TestTemplatedPaths frontend(*network.tables);
 
   {
-    auto request = create_simple_request("fin/fang/foom");
+    auto request = create_simple_request("/fin/fang/foom");
     const auto serialized_request = request.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_request);
@@ -1127,7 +1127,7 @@ TEST_CASE("Templated paths")
   }
 
   {
-    auto request = create_simple_request("users/1/address");
+    auto request = create_simple_request("/users/1/address");
     const auto serialized_request = request.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_request);
@@ -1495,7 +1495,7 @@ public:
 
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("conflict", HTTP_POST, conflict).install();
+    make_endpoint("/conflict", HTTP_POST, conflict).install();
   }
 };
 
@@ -1505,7 +1505,7 @@ TEST_CASE("Retry on conflict")
   prepare_callers(network);
   TestConflictFrontend frontend(*network.tables);
 
-  auto req = create_simple_request("conflict");
+  auto req = create_simple_request("/conflict");
 
   constexpr size_t ccf_max_attempts = 30; // Defined by CCF (frontend.h)
 

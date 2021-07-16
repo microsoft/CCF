@@ -24,6 +24,7 @@
 
 #include "async_execution.h"
 #include "async_executor.h"
+#include "ccf/tx_id.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "impl/execution.h"
@@ -143,6 +144,8 @@ namespace aft
     // Configurations
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
+    bool use_two_tx_reconfig = false;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -193,11 +196,12 @@ namespace aft
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
-      bool public_only_ = false) :
+      bool public_only_ = false,
+      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
-      replica_state(kv::ReplicaState::Follower),
+      replica_state(initial_state_),
       timeout_elapsed(0),
 
       state(state_),
@@ -243,6 +247,7 @@ namespace aft
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
+        use_two_tx_reconfig = true;
       }
     }
 
@@ -295,10 +300,15 @@ namespace aft
       return replica_state == kv::ReplicaState::Leader;
     }
 
+    bool is_bft_reexecution()
+    {
+      return consensus_type == ConsensusType::BFT && !is_primary();
+    }
+
     bool can_replicate()
     {
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
-      if (!(consensus_type == ConsensusType::BFT && is_follower()))
+      if (!is_bft_reexecution())
       {
         guard.lock();
       }
@@ -311,18 +321,29 @@ namespace aft
       return replica_state == kv::ReplicaState::Follower;
     }
 
+    bool is_learner()
+    {
+      return replica_state == kv::ReplicaState::Learner;
+    }
+
+    bool is_retired()
+    {
+      return replica_state == kv::ReplicaState::Retired;
+    }
+
+    bool is_retiring()
+    {
+      return replica_state == kv::ReplicaState::Retiring;
+    }
+
     ccf::NodeId get_primary(ccf::View view)
     {
       CCF_ASSERT_FMT(
         consensus_type == ConsensusType::BFT,
         "Computing primary id from view is only supported with BFT consensus");
 
-      // This will not work once we have reconfiguration support
-      // https://github.com/microsoft/CCF/issues/1852
-      auto active_nodes_ = active_nodes();
-      auto it = active_nodes_.begin();
-      std::advance(it, (view - starting_view_change) % active_nodes_.size());
-      return *it;
+      const auto& config = configurations.back();
+      return get_primary_at_config(view, config.bft_offset, config.nodes);
     }
 
     Index last_committable_index() const
@@ -360,7 +381,7 @@ namespace aft
 
       std::lock_guard<std::mutex> guard(state->lock);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void force_become_leader(
@@ -384,7 +405,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void init_as_follower(
@@ -413,7 +434,7 @@ namespace aft
     Index get_commit_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      return state->commit_idx;
+      return get_commit_idx_unsafe();
     }
 
     Term get_term()
@@ -425,14 +446,17 @@ namespace aft
     std::pair<Term, Index> get_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      return {get_term_internal(state->commit_idx), state->commit_idx};
+      ccf::SeqNo commit_idx = get_commit_idx_unsafe();
+      return {get_term_internal(commit_idx), commit_idx};
     }
 
     std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      if (state->commit_idx >= election_index)
+      if (
+        consensus_type == ConsensusType::BFT ||
+        state->commit_idx >= election_index)
       {
         kv::Consensus::SignableTxIndices r;
         r.term = get_term_internal(state->commit_idx);
@@ -464,40 +488,109 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
-    void add_configuration(Index idx, const Configuration::Nodes& conf)
+    void add_configuration(
+      Index idx,
+      const Configuration::Nodes& conf,
+      const std::unordered_set<ccf::NodeId>& new_learners = {})
     {
+      std::unordered_set<ccf::NodeId> conf_ids;
+      for (const auto& [id, _] : conf)
+      {
+        conf_ids.insert(id);
+      }
+      LOG_DEBUG_FMT("Configurations: add {{{}}}", fmt::join(conf_ids, ", "));
+
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
       // can only change from leader or follower while in a view-change during
       // which time transaction cannot be executed.
-      if (
-        consensus_type == ConsensusType::BFT && is_follower() &&
-        threading::ThreadMessaging::thread_count > 1)
+      if (is_bft_reexecution() && threading::ThreadMessaging::thread_count > 1)
       {
         guard.lock();
       }
 
-      // Detect when we are retired by observing a configuration
-      // from which we are absent following a configuration in which
-      // we were included. Note that this relies on retirement being
-      // a final state, and node identities never being re-used.
-      if (
-        !configurations.empty() &&
-        configurations.back().nodes.find(state->my_node_id) !=
-          configurations.back().nodes.end() &&
-        conf.find(state->my_node_id) == conf.end())
+      if (!use_two_tx_reconfig)
       {
-        CCF_ASSERT_FMT(
-          !retirement_idx.has_value(),
-          "retirement_idx already set to {}",
-          retirement_idx.value());
-        retirement_idx = idx;
-        LOG_INFO_FMT("Node retiring at {}", idx);
+        // Detect when we are retired by observing a configuration
+        // from which we are absent following a configuration in which
+        // we were included. Note that this relies on retirement being
+        // a final state, and node identities never being re-used.
+        if (
+          !configurations.empty() &&
+          configurations.back().nodes.find(state->my_node_id) !=
+            configurations.back().nodes.end() &&
+          conf.find(state->my_node_id) == conf.end())
+        {
+          CCF_ASSERT_FMT(
+            !retirement_idx.has_value(),
+            "retirement_idx already set to {}",
+            retirement_idx.value());
+          retirement_idx = idx;
+          LOG_INFO_FMT("Node retiring at {}", idx);
+        }
       }
 
-      configurations.push_back({idx, std::move(conf)});
+      uint32_t offset = 0;
+      if (consensus_type == ConsensusType::BFT && !configurations.empty())
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        auto target = progress_tracker->get_primary_at_last_view_change();
+        for (; offset < configurations.back().nodes.size(); ++offset)
+        {
+          if (
+            get_primary_at_config(std::get<1>(target), offset, conf) ==
+            std::get<0>(target))
+          {
+            break;
+          }
+        }
+      }
+      configurations.push_back({idx, std::move(conf), offset});
+      if (use_two_tx_reconfig)
+      {
+        if (!new_learners.empty())
+        {
+          LOG_DEBUG_FMT(
+            "Configurations: new learners: {{{}}}",
+            fmt::join(new_learners, ", "));
+          for (auto& id : new_learners)
+          {
+            if (learners.find(id) == learners.end())
+            {
+              learners[id] = idx;
+            }
+          }
+        }
+      }
+      else if (!new_learners.empty())
+      {
+        throw std::runtime_error(
+          "learner requires two-transaction reconfiguration");
+      }
       backup_nodes.clear();
       create_and_remove_node_state();
+    }
+
+    void add_network_configuration(
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& config)
+    {
+      LOG_DEBUG_FMT("Configurations: new network config: {{{}}}", config);
+      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
+
+      if (is_bft_reexecution() && threading::ThreadMessaging::thread_count > 1)
+      {
+        guard.lock();
+      }
+
+      // Hooks may be reordered, so the node info in `configurations` and
+      // `nodes` may not be available yet.
+
+      if (
+        use_two_tx_reconfig && !is_learner() && !is_retired() &&
+        config.nodes.find(state->my_node_id) != config.nodes.end())
+      {
+        // Send/schedule ORCs
+      }
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const
@@ -529,12 +622,11 @@ namespace aft
       {
         details.acks[k] = v.match_idx;
       }
+      if (use_two_tx_reconfig)
+      {
+        details.learners = learners;
+      }
       return details;
-    }
-
-    uint32_t node_count() const
-    {
-      return get_latest_configuration_unsafe().size();
     }
 
     template <typename T>
@@ -544,7 +636,7 @@ namespace aft
         entries,
       Term term)
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
+      if (is_bft_reexecution())
       {
         // Already under lock in the current BFT path
         for (auto& [_, __, ___, hooks] : entries)
@@ -658,14 +750,7 @@ namespace aft
 
     void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
-      recv_message(from, OArray({data, data + size}));
-    }
-
-    void recv_message(const ccf::NodeId& from, OArray&& d)
-    {
       std::unique_ptr<AbstractMsgCallback> aee;
-      const uint8_t* data = d.data();
-      size_t size = d.size();
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
       try
@@ -678,7 +763,7 @@ namespace aft
               channels->template recv_authenticated<AppendEntries>(
                 from, data, size);
             aee = std::make_unique<AppendEntryCallback>(
-              *this, from, std::move(r), data, size, std::move(d));
+              *this, from, std::move(r), data, size);
             break;
           }
           case raft_append_entries_response:
@@ -746,7 +831,7 @@ namespace aft
                 ->template recv_authenticated_with_load<RequestViewChangeMsg>(
                   from, data, size);
             aee = std::make_unique<ViewChangeCallback>(
-              *this, from, std::move(r), data, size, std::move(d));
+              *this, from, std::move(r), data, size);
             break;
           }
 
@@ -767,7 +852,7 @@ namespace aft
                   from, data, size);
 
             aee = std::make_unique<ViewChangeEvidenceCallback>(
-              *this, from, std::move(r), data, size, std::move(d));
+              *this, from, std::move(r), data, size);
             break;
           }
 
@@ -843,7 +928,7 @@ namespace aft
 
         if (
           !view_change_tracker->is_view_change_in_progress(time) &&
-          is_follower() && (has_bft_timeout_occurred(time)) &&
+          (is_follower() || is_learner()) && (has_bft_timeout_occurred(time)) &&
           view_change_tracker->should_send_view_change(time))
         {
           // We have not seen a request executed within an expected period of
@@ -872,7 +957,10 @@ namespace aft
           vc->serialize(data, size);
           CCF_ASSERT_FMT(size == 0, "Did not write everything");
 
-          LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
+          LOG_INFO_FMT(
+            "Sending view change msg view:{}, primary_at_view:{}",
+            vcm.view,
+            get_primary(vcm.view));
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto to = it->first;
@@ -886,7 +974,7 @@ namespace aft
           if (
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, node_count()) &&
+                *vc, id(), new_view, get_last_configuration_nodes()) &&
             get_primary(new_view) == id())
           {
             // We need to reobtain the lock when writing to the ledger so we
@@ -919,9 +1007,7 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (
-          replica_state != kv::ReplicaState::Retired &&
-          timeout_elapsed >= election_timeout)
+        if (can_endorse_primary() && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -935,6 +1021,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
+      LOG_DEBUG_FMT("Received evidence for view:{}, from:{}", r.view, from);
       auto node = nodes.find(from);
       if (node == nodes.end())
       {
@@ -974,7 +1061,7 @@ namespace aft
       if (
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, from, r.view, node_count()) &&
+            v, from, r.view, get_last_configuration_nodes()) &&
         get_primary(r.view) == id())
       {
         append_new_view(r.view);
@@ -1011,7 +1098,7 @@ namespace aft
         return;
       }
       if (!view_change_tracker->add_unknown_primary_evidence(
-            {data, size}, r.view, from, node_count()))
+            {data, size}, r.view, from, get_last_configuration_nodes()))
       {
         LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
         return;
@@ -1072,13 +1159,27 @@ namespace aft
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
+    ccf::NodeId get_primary_at_config(
+      ccf::View view, uint32_t offset, const Configuration::Nodes& conf)
+    {
+      CCF_ASSERT_FMT(
+        consensus_type == ConsensusType::BFT,
+        "Computing primary id from view is only supported with BFT consensus");
+
+      auto it = conf.begin();
+      std::advance(it, (view - starting_view_change + offset) % conf.size());
+      return it->first;
+    }
+
     void append_new_view(ccf::View view)
     {
+      LOG_INFO_FMT(
+        "Writing view change to ledger as a new primay, view:{}", view);
       state->current_view = view;
       become_leader();
       state->new_view_idx =
-        view_change_tracker->write_view_change_confirmation_append_entry(view);
-
+        view_change_tracker->write_view_change_confirmation_append_entry(
+          view, id());
       view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
     }
@@ -1146,6 +1247,19 @@ namespace aft
       return state->view_history.view_at(idx);
     }
 
+    Index get_commit_idx_unsafe()
+    {
+      if (consensus_type == ConsensusType::CFT)
+      {
+        return state->commit_idx;
+      }
+      else
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        return progress_tracker->get_highest_committed_level();
+      }
+    }
+
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
       Index end_idx = (state->last_idx == 0) ?
@@ -1169,7 +1283,7 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (replica_state == kv::ReplicaState::Retired && start_idx >= end_idx)
+      if (is_retired() && start_idx >= end_idx)
       {
         // Continue to replicate, but do not send heartbeats if we are retired
         return;
@@ -1434,7 +1548,13 @@ namespace aft
             "rolling back from {} to {}",
             state->last_idx,
             r.prev_idx);
-          rollback(r.prev_idx);
+          auto rollback_level = r.prev_idx;
+          if (consensus_type == ConsensusType::BFT)
+          {
+            auto progress_tracker = store->get_progress_tracker();
+            rollback_level = progress_tracker->get_rollback_seqno();
+          }
+          rollback(rollback_level);
         }
         else
         {
@@ -1727,8 +1847,18 @@ namespace aft
         // primary resends the append entries we will succeed as the map is
         // already there. This will only occur on BFT startup so not a perf
         // problem but still need to be resolved.
-        state->last_idx = i - 1;
-        ledger->truncate(state->last_idx);
+        // https://github.com/microsoft/CCF/issues/2799
+        if (ds->should_rollback_to_last_committed())
+        {
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          rollback(rollback_level);
+        }
+        else
+        {
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
+        }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return false;
       }
@@ -2022,8 +2152,18 @@ namespace aft
                                        static_cast<uint32_t>(sig.sig.size()),
                                        {}};
 
+      std::optional<crypto::Sha256Hash> hashed_nonce;
       progress_tracker->get_node_hashed_nonce(
-        {state->current_view, state->last_idx}, r.hashed_nonce);
+        {state->current_view, state->last_idx}, hashed_nonce);
+      if (!hashed_nonce.has_value())
+      {
+        LOG_TRACE_FMT(
+          "Nonce for view:{}, seqno:{} does not exist",
+          state->current_view,
+          state->last_idx);
+        return;
+      }
+      r.hashed_nonce = hashed_nonce.value();
 
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
@@ -2033,7 +2173,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        node_count(),
+        get_last_configuration_nodes(),
         is_primary());
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -2070,7 +2210,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        node_count(),
+        get_last_configuration_nodes(),
         is_primary());
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
@@ -2102,7 +2242,7 @@ namespace aft
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           auto result = progress_tracker->add_signature_ack(
-            tx_id, state->my_node_id, node_count());
+            tx_id, state->my_node_id, get_last_configuration_nodes());
           try_send_reply_and_nonce(tx_id, result);
           break;
         }
@@ -2136,7 +2276,7 @@ namespace aft
         r.idx);
 
       auto result = progress_tracker->add_signature_ack(
-        {r.term, r.idx}, from, node_count());
+        {r.term, r.idx}, from, get_last_configuration_nodes());
       try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
@@ -2151,13 +2291,17 @@ namespace aft
         }
         case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
         {
-          Nonce nonce;
+          std::optional<Nonce> nonce;
           auto progress_tracker = store->get_progress_tracker();
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           nonce = progress_tracker->get_node_nonce(tx_id);
+          if (!nonce.has_value())
+          {
+            break;
+          }
           NonceRevealMsg r = {
-            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce};
+            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce.value()};
 
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
@@ -2169,7 +2313,12 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            tx_id, nonce, state->my_node_id, node_count(), is_primary());
+            tx_id,
+            nonce.value(),
+            state->my_node_id,
+            get_last_configuration_nodes(),
+            is_primary(),
+            tx_id.seqno <= state->last_idx);
           break;
         }
         default:
@@ -2200,7 +2349,12 @@ namespace aft
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
-        {r.term, r.idx}, r.nonce, from, node_count(), is_primary());
+        {r.term, r.idx},
+        r.nonce,
+        from,
+        get_last_configuration_nodes(),
+        is_primary(),
+        r.idx <= state->last_idx);
 
       update_commit();
     }
@@ -2281,13 +2435,14 @@ namespace aft
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
-            state->current_view);
+            state->current_view, id());
 
         data.insert(
           data.begin(),
           reinterpret_cast<uint8_t*>(&vw),
           reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
 
+        LOG_DEBUG_FMT("Sending evidence to:{}", from);
         channels->send_authenticated(
           from, ccf::NodeMsgType::consensus_msg, data);
       }
@@ -2526,27 +2681,39 @@ namespace aft
       }
     }
 
-    void become_leader()
+    void become_leader(bool force_become_leader = false)
     {
-      if (replica_state == kv::ReplicaState::Retired)
+      if (is_retired())
       {
         return;
       }
 
-      election_index = last_committable_index();
+      // When we force to become the primary we are going around the
+      // consensus protocol. This only happens when a node starts a new network
+      // and have a gensis or recovery tx as the last transaction, for BFT this
+      // transaction is not prepared and but must not be rolled back.
+      if (consensus_type == ConsensusType::BFT && !force_become_leader)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        election_index = progress_tracker->get_rollback_seqno();
+      }
+      else
+      {
+        election_index = last_committable_index();
+      }
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
-      if (state->commit_idx)
+      if (state->commit_idx > 0)
       {
         rollback(election_index);
       }
       else
       {
         // but we still want the KV to know which term we're in
-        store->set_term(state->current_view);
+        store->initialise_term(state->current_view);
       }
 
       replica_state = kv::ReplicaState::Leader;
@@ -2578,6 +2745,18 @@ namespace aft
       }
     }
 
+    bool can_advance_watermark()
+    {
+      return replica_state != kv::ReplicaState::Retired &&
+        replica_state != kv::ReplicaState::Learner;
+    }
+
+    bool can_endorse_primary()
+    {
+      return replica_state != kv::ReplicaState::Retired &&
+        replica_state != kv::ReplicaState::Learner;
+    }
+
     // Called when a replica becomes aware of the existence of a new term
     // If retired already, state remains unchanged, but the replica otherwise
     // becomes a follower in the new term.
@@ -2604,12 +2783,30 @@ namespace aft
 
       is_new_follower = true;
 
-      if (replica_state != kv::ReplicaState::Retired)
+      if (can_endorse_primary())
       {
         replica_state = kv::ReplicaState::Follower;
         LOG_INFO_FMT(
           "Becoming follower {}: {}", state->my_node_id, state->current_view);
       }
+    }
+
+    void become_retiring()
+    {
+      assert(use_two_tx_reconfig);
+
+      LOG_INFO_FMT(
+        "Becoming retiring {}: {}", state->my_node_id, state->current_view);
+
+      replica_state = kv::ReplicaState::Retiring;
+      leader_id.reset();
+
+      CCF_ASSERT_FMT(
+        !retirement_idx.has_value(),
+        "retirement_idx already set to {}",
+        retirement_idx.value());
+      retirement_idx = state->commit_idx;
+      LOG_INFO_FMT("Node retiring at {}", state->commit_idx);
     }
 
     void become_retired()
@@ -2623,11 +2820,33 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
-      // Need 50% + 1 of the total nodes, which are the other nodes plus us.
-      votes_for_me.insert(from);
+      size_t quorum = -1;
 
-      if (votes_for_me.size() >= ((nodes.size() + 1) / 2) + 1)
+      if (use_two_tx_reconfig)
+      {
+        const auto& cfg = configurations.front();
+
+        if (cfg.nodes.find(from) == cfg.nodes.end())
+        {
+          LOG_INFO_FMT("Ignoring vote from ineligible voter {}", from);
+          return;
+        }
+
+        // Need 50% + 1 of the total nodes in the current config (including us).
+        votes_for_me.insert(from);
+        quorum = get_quorum(cfg);
+      }
+      else
+      {
+        // Need 50% + 1 of the total nodes, which are the other nodes plus us.
+        votes_for_me.insert(from);
+        quorum = ((nodes.size() + 1) / 2) + 1;
+      }
+
+      if (votes_for_me.size() >= quorum)
+      {
         become_leader();
+      }
     }
 
     void update_commit()
@@ -2642,7 +2861,7 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
-        new_commit_bft_idx = progress_tracker->get_highest_committed_nonce();
+        new_commit_bft_idx = progress_tracker->get_highest_committed_level();
       }
 
       // Obtain CFT watermarks
@@ -2721,8 +2940,55 @@ namespace aft
         }
 
         if (can_commit)
-          commit(highest_committable);
+        {
+          if (consensus_type == ConsensusType::CFT)
+          {
+            commit(highest_committable);
+          }
+          else
+          {
+            auto progress_tracker = store->get_progress_tracker();
+            commit(progress_tracker->get_highest_committed_level());
+          }
+        }
       }
+    }
+
+    size_t num_trusted(const kv::Configuration& c) const
+    {
+      size_t r = 0;
+      for (const auto& [id, _] : c.nodes)
+      {
+        if (
+          nodes.find(id) != nodes.end() && learners.find(id) == learners.end())
+        {
+          r++;
+        }
+      }
+      return r;
+    }
+
+    size_t get_quorum(const kv::Configuration& c) const
+    {
+      switch (consensus_type)
+      {
+        case CFT:
+          return (c.nodes.size() / 2) + 1;
+        case BFT:
+          return (c.nodes.size() / 3) + 1;
+        default:
+          return -1;
+      }
+    }
+
+    bool have_quorum(size_t n, const kv::Configuration& c) const
+    {
+      return n >= get_quorum(c);
+    }
+
+    bool enough_trusted(const kv::Configuration& c) const
+    {
+      return have_quorum(num_trusted(c), c);
     }
 
     void commit(Index idx)
@@ -2743,7 +3009,8 @@ namespace aft
       state->commit_idx = idx;
       if (
         retirement_committable_idx.has_value() &&
-        idx >= retirement_committable_idx.value())
+        idx >= retirement_committable_idx.value() &&
+        (!use_two_tx_reconfig || is_retiring()))
       {
         become_retired();
       }
@@ -2777,9 +3044,48 @@ namespace aft
         if (idx < next->idx)
           break;
 
-        configurations.pop_front();
-        backup_nodes.clear();
-        changed = true;
+        if (!use_two_tx_reconfig)
+        {
+          configurations.pop_front();
+          backup_nodes.clear();
+          changed = true;
+        }
+        else
+        {
+          if (is_primary())
+          {
+            if (!enough_trusted(*next))
+            {
+              LOG_TRACE_FMT(
+                "Configurations: not enough trusted nodes for next "
+                "configuration");
+              break;
+            }
+          }
+
+          if (num_trusted(*next) == next->nodes.size())
+          {
+            LOG_TRACE_FMT(
+              "Configurations: all nodes trusted, switching to next "
+              "configuration");
+
+            if (!is_retiring())
+            {
+              if (
+                conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
+                next->nodes.find(state->my_node_id) == next->nodes.end())
+              {
+                become_retiring();
+              }
+            }
+
+            configurations.pop_front();
+          }
+          else
+          {
+            break;
+          }
+        }
       }
 
       if (changed)
@@ -2800,20 +3106,33 @@ namespace aft
       }
     }
 
+    const Configuration::Nodes& get_last_configuration_nodes()
+    {
+      if (configurations.empty())
+      {
+        throw std::logic_error("Configurations is empty");
+      }
+      return configurations.back().nodes;
+    }
+
     void rollback(Index idx)
     {
-      if (idx < state->commit_idx)
+      if (
+        (consensus_type == ConsensusType::CFT && idx < state->commit_idx) ||
+        (consensus_type == ConsensusType::BFT &&
+         idx < state->bft_watermark_idx))
       {
         LOG_FAIL_FMT(
-          "Asked to rollback to {} but committed to {} - ignoring rollback "
-          "request",
+          "Asked to rollback to idx:{} but committed to commit_idx:{}, "
+          "bft_watermark_idx:{} - ignoring rollback request",
           idx,
-          state->commit_idx);
+          state->commit_idx,
+          state->bft_watermark_idx);
         return;
       }
 
       snapshotter->rollback(idx);
-      store->rollback(idx, state->current_view);
+      store->rollback({get_term_internal(idx), idx}, state->current_view);
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;
@@ -2846,20 +3165,56 @@ namespace aft
         changed = true;
       }
 
+      if (use_two_tx_reconfig && changed)
+      {
+        std::unordered_set<ccf::NodeId> to_erase;
+        for (auto& [id, seqno] : learners)
+        {
+          if (seqno > idx)
+          {
+            to_erase.insert(id);
+          }
+        }
+        for (auto& id : to_erase)
+        {
+          learners.erase(id);
+        }
+      }
+
       if (changed)
       {
         create_and_remove_node_state();
-      }
-
-      if (consensus_type == ConsensusType::BFT)
-      {
-        auto progress_tracker = store->get_progress_tracker();
-        progress_tracker->rollback(idx, state->current_view);
       }
     }
 
     void create_and_remove_node_state()
     {
+      if (use_two_tx_reconfig && is_learner())
+      {
+        for (auto& cfg : configurations)
+        {
+          if (cfg.idx > state->commit_idx)
+            break;
+
+          if (
+            cfg.nodes.find(state->my_node_id) != cfg.nodes.end() &&
+            learners.find(state->my_node_id) != learners.end())
+          {
+            LOG_INFO_FMT("Configurations: ready for promotion");
+            // Submit promotion RPC here.
+            learners.erase(state->my_node_id);
+
+            // The transition to follower will happen when the reconfiguration
+            // transaction commits.
+            LOG_INFO_FMT(
+              "Becoming follower {}: {}",
+              state->my_node_id,
+              state->current_view);
+            replica_state = kv::ReplicaState::Follower;
+          }
+        }
+      }
+
       // Find all nodes present in any active configuration.
       Configuration::Nodes active_nodes;
 

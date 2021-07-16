@@ -33,6 +33,11 @@ export const generateRsaKeyPair = ccf.generateRsaKeyPair;
 export const wrapKey = ccf.wrapKey;
 
 /**
+ * @inheritDoc CCF.crypto.verifySignature
+ */
+export const verifySignature = ccf.crypto.verifySignature;
+
+/**
  * @inheritDoc CCF.digest
  */
 export const digest = ccf.digest;
@@ -54,4 +59,7 @@ export {
   RsaOaepAesKwpParams,
   CryptoKeyPair,
   DigestAlgorithm,
+  SigningAlgorithm,
+  RsaPkcsParams,
+  EcdsaParams,
 } from "./global";

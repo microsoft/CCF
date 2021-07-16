@@ -5,7 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [Unreleased]
+
+### Changed
+
+- Upgrade OpenEnclave from 0.17.0 to 0.17.1.
+- `get_state_at()` now returns receipts for signature transactions (#2785), see [documentation](https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#transaction-receipts) for details.
+
+### Removed
+
+- Remove long-deprecated `--domain` argument from `cchost`. Node certificate Subject Alternative Names should be passed in via existing `--san` argument (#2798).
+
+## [2.0.0-dev2]
+
+### Changed
+
+- `ccf.crypto.verifySignature()` previously required DER-encoded ECDSA signatures and now requires IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API (#2735).
+- Upgrade OpenEnclave from 0.16.1 to 0.17.0.
+
+### Added
+
+- Nodes code digests are now extracted and cached at network join time in `public:ccf.gov.nodes.info`, and the `/node/quotes` and `/node/quotes/self` endpoints will use this cached value whenever possible (#2651).
+
+### Removed
+
+- Websockets endpoints are no longer supported. Usage is insufficient to justify ongoing maintenance.
+
+### Bugfix
+
+- Fixed incorrect transaction view returned in `x-ms-ccf-transaction-id` HTTP response header after primary change (i.e. new view) (#2755).
+
+## [2.0.0-dev1]
 
 ### Added
 
@@ -14,11 +44,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added JavaScript bytecode caching to avoid repeated compilation overhead. See the [documentation](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#deployment) for more information (#2643).
 - Added new operator RPC `/node/js_metrics` returning the JavaScript bytecode size and whether the bytecode is used (#2643).
 - Added QuickJS version to RPC `/node/version` (#2643).
+- Added `GET /gov/jwt_keys/all` endpoint (#2519).
+- Added `ccf.crypto.verifySignature()` for verifying digital signatures to the JavaScript API (#2661).
 
 ### Changed
 
 - CCF now responds to HTTP requests that could not be parsed with a 400 response including error details (#2652).
-- Added `GET /gov/jwt_keys/all` endpoint (#2519)
 
 ## [2.0.0-dev0]
 
@@ -914,6 +945,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev1
 [ccf-2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
 [1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
 [1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2

@@ -105,7 +105,7 @@ def run(args):
 
         # Resume original primary, check that they rejoin correctly, including new transactions
         primary.resume()
-        network.wait_for_node_commit_sync()
+        network.wait_for_node_commit_sync(timeout=16)
 
 
 if __name__ == "__main__":

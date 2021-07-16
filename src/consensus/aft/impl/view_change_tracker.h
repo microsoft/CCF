@@ -86,7 +86,7 @@ namespace aft
       ccf::ViewChangeRequest& v,
       const ccf::NodeId& from,
       ccf::View view,
-      uint32_t node_count)
+      const kv::Configuration::Nodes& config)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
@@ -97,9 +97,11 @@ namespace aft
       }
       it->second.received_view_changes.emplace(from, v);
 
+      uint32_t endorsements =
+        count_endorsements_in_config(it->second.received_view_changes, config);
+
       if (
-        should_send_new_view(
-          it->second.received_view_changes.size(), node_count) &&
+        endorsements == ccf::get_endorsement_threshold(config.size()) &&
         it->second.new_view_sent == false)
       {
         it->second.new_view_sent = true;
@@ -110,18 +112,19 @@ namespace aft
       return ResultAddView::OK;
     }
 
-    ccf::SeqNo write_view_change_confirmation_append_entry(ccf::View view)
+    ccf::SeqNo write_view_change_confirmation_append_entry(
+      ccf::View view, const ccf::NodeId& from)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view, true);
+        create_view_change_confirmation_msg(view, from, true);
       return store->write_view_change_confirmation(nv);
     }
 
     std::vector<uint8_t> get_serialized_view_change_confirmation(
-      ccf::View view, bool force_create_new = false)
+      ccf::View view, const ccf::NodeId& from, bool force_create_new = false)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view, force_create_new);
+        create_view_change_confirmation_msg(view, from, force_create_new);
       nlohmann::json j;
       to_json(j, nv);
       std::string s = j.dump();
@@ -132,7 +135,7 @@ namespace aft
       CBuffer data,
       ccf::View view,
       const ccf::NodeId& from,
-      uint32_t node_count)
+      const kv::Configuration::Nodes& config)
     {
       nlohmann::json j = nlohmann::json::parse(data.p);
       auto vc = j.get<ccf::ViewChangeConfirmation>();
@@ -160,14 +163,18 @@ namespace aft
         return false;
       }
 
+      uint32_t endorsements =
+        count_endorsements_in_config(vc.view_change_messages, config);
+
       if (
-        vc.view_change_messages.size() < ccf::get_message_threshold(node_count))
+        vc.view_change_messages.size() <
+        ccf::get_endorsement_threshold(config.size()))
       {
         LOG_INFO_FMT(
           "Add unknown evidence - not enough evidence, need:{}, have:{}, "
           "from:{}",
-          vc.view_change_messages.size(),
-          ccf::get_message_threshold(node_count),
+          endorsements,
+          ccf::get_endorsement_threshold(config.size()),
           from);
         return false;
       }
@@ -222,7 +229,7 @@ namespace aft
     ccf::ViewChangeConfirmation last_nvc;
 
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
-      ccf::View view, bool force_create_new = false)
+      ccf::View view, const ccf::NodeId& from, bool force_create_new = false)
     {
       if (view == last_nvc.view && !force_create_new)
       {
@@ -239,7 +246,7 @@ namespace aft
       }
 
       auto& vc = it->second;
-      ccf::ViewChangeConfirmation nv(vc.view);
+      ccf::ViewChangeConfirmation nv(vc.view, from);
 
       for (auto it : vc.received_view_changes)
       {
@@ -251,14 +258,10 @@ namespace aft
         nv.view_change_messages.emplace(it.first, it.second);
       }
 
+      store->sign_view_change_confirmation(nv);
       last_nvc = nv;
 
       return nv;
-    }
-
-    bool should_send_new_view(size_t received_requests, size_t node_count) const
-    {
-      return received_requests == ccf::get_message_threshold(node_count);
     }
   };
 }

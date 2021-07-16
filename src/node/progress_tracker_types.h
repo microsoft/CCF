@@ -79,6 +79,8 @@ namespace ccf
       ccf::SeqNo seqno) = 0;
     virtual ccf::SeqNo write_view_change_confirmation(
       ViewChangeConfirmation& new_view) = 0;
+    virtual void sign_view_change_confirmation(
+      ViewChangeConfirmation& new_view) = 0;
     virtual bool verify_view_change_request_confirmation(
       ViewChangeConfirmation& new_view, const NodeId& from) = 0;
   };
@@ -127,13 +129,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto new_views_tv = tx.ro(new_views);
-      auto new_view = new_views_tv->get(0);
-      if (!new_view.has_value())
-      {
-        LOG_FAIL_FMT("No new_view found in new_view map");
-        throw ccf_logic_error("No new_view found in new_view map");
-      }
-      return new_view;
+      return new_views_tv->get(0);
     }
 
     void write_nonces(aft::RevealedNonces& nonces) override
@@ -237,14 +233,18 @@ namespace ccf
         h.h, new_view.signature, crypto::MDType::SHA256);
     }
 
+    void sign_view_change_confirmation(
+      ViewChangeConfirmation& new_view) override
+    {
+      crypto::Sha256Hash h = hash_new_view(new_view);
+      new_view.signature = kp.sign_hash(h.h.data(), h.h.size());
+    }
+
     ccf::SeqNo write_view_change_confirmation(
       ViewChangeConfirmation& new_view) override
     {
       kv::CommittableTx tx(&store);
       auto new_views_tv = tx.rw(new_views);
-
-      crypto::Sha256Hash h = hash_new_view(new_view);
-      new_view.signature = kp.sign_hash(h.h.data(), h.h.size());
 
       new_views_tv->put(0, new_view);
       auto r = tx.commit();
@@ -299,12 +299,30 @@ namespace ccf
     }
   };
 
-  static constexpr uint32_t get_message_threshold(uint32_t node_count)
+  static constexpr uint32_t get_endorsement_threshold(uint32_t count)
   {
     uint32_t f = 0;
-    for (; 3 * f + 1 < node_count; ++f)
+    for (; 3 * f + 1 < count; ++f)
       ;
 
     return 2 * f + 1;
+  }
+
+  // Counts the number of endorsements (backup signatures, nonces,
+  // view-changes) that come from a specific configuration.
+  template <typename T>
+  static uint32_t count_endorsements_in_config(
+    T& messages, const kv::Configuration::Nodes& config)
+  {
+    uint32_t endorsements = 0;
+    for (const auto node : config)
+    {
+      if (messages.find(node.first) != messages.end())
+      {
+        ++endorsements;
+      }
+    }
+
+    return endorsements;
   }
 }

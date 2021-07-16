@@ -336,10 +336,6 @@ int main(int argc, char** argv)
       "latency at a cost to throughput")
     ->capture_default_str();
 
-  std::string domain;
-  app.add_option(
-    "--domain", domain, "DNS to use for TLS certificate validation");
-
   std::string subject_name("CN=CCF Node");
   app
     .add_option(
@@ -496,14 +492,6 @@ int main(int argc, char** argv)
   uint32_t oe_flags = 0;
   try
   {
-    if (domain.empty() && !ds::is_valid_ip(rpc_address.hostname.c_str()))
-    {
-      throw std::logic_error(fmt::format(
-        "--rpc-address ({}) does not appear to specify valid IP address. "
-        "Please specify a domain name via the --domain option",
-        rpc_address.hostname));
-    }
-
     if (*start && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
@@ -708,7 +696,8 @@ int main(int argc, char** argv)
 #endif
 
     CCFConfig ccf_config;
-    ccf_config.consensus_config = {raft_timeout,
+    ccf_config.consensus_config = {consensus,
+                                   raft_timeout,
                                    raft_election_timeout,
                                    bft_view_change_timeout,
                                    bft_status_interval};
@@ -719,7 +708,6 @@ int main(int argc, char** argv)
                                     node_address.port,
                                     rpc_address.port,
                                     public_rpc_address.port};
-    ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
     ccf_config.max_open_sessions_soft = max_open_sessions;
     ccf_config.max_open_sessions_hard = max_open_sessions_hard;
@@ -846,7 +834,6 @@ int main(int argc, char** argv)
       node_cert,
       network_cert,
       start_type,
-      consensus,
       num_worker_threads,
       time_updater->behaviour.get_value());
 

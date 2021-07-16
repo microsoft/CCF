@@ -46,7 +46,7 @@ private:
       LOG_INFO_FMT("Header: {}", header);
     }
 
-    auto conn = create_connection(true, false);
+    auto conn = create_connection(true);
 
     nlohmann::json accs = nlohmann::json::array();
 
@@ -236,7 +236,7 @@ private:
     }
 
     // Create new connection to read balances
-    auto conn = create_connection(true, false);
+    auto conn = create_connection(true);
 
     for (const auto& entry : expected)
     {

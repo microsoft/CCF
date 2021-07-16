@@ -101,7 +101,8 @@ namespace ccf
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const std::vector<uint8_t>& expected_node_public_key_der) override
+      const std::vector<uint8_t>& expected_node_public_key_der,
+      CodeDigest& code_digest) override
     {
       return QuoteVerificationResult::Verified;
     }
@@ -134,6 +135,14 @@ namespace ccf
 
     historical::StorePtr get_store_at(
       historical::RequestHandle handle, ccf::SeqNo seqno)
+    {
+      return nullptr;
+    }
+
+    historical::StatePtr get_state_at(
+      historical::RequestHandle handle,
+      ccf::SeqNo seqno,
+      historical::ExpiryDuration seconds_until_expiry)
     {
       return nullptr;
     }

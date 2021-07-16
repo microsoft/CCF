@@ -89,6 +89,7 @@ class Node:
         self.node_id = None
         self.node_client_host = None
         self.version = version
+        self.consensus = None
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
@@ -179,6 +180,9 @@ class Node:
         )
         self.network_state = NodeNetworkState.joined
 
+    def get_consensus(self):
+        return self.consensus
+
     def _start(
         self,
         start_type,
@@ -247,8 +251,9 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
         self.remote.get_startup_files(self.common_dir)
+        self.consensus = kwargs.get("consensus")
 
-        if kwargs.get("consensus") == "cft":
+        if self.consensus == "cft":
             with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
                 self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
                     f.read()

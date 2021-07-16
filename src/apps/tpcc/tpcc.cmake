@@ -5,7 +5,13 @@
 add_client_exe(
   tpcc_client SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/tpcc_client.cpp
 )
-target_link_libraries(tpcc_client PRIVATE http_parser.host ccfcrypto.host c++fs)
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(tpcc_client PRIVATE http_parser.host ccfcrypto.host)
+else()
+  target_link_libraries(
+    tpcc_client PRIVATE http_parser.host ccfcrypto.host c++fs
+  )
+endif()
 
 # tpcc application
 add_ccf_app(
@@ -19,10 +25,13 @@ sign_app_library(
 )
 
 if(BUILD_TESTS)
-
-  set(TPCC_ITERATIONS 200000)
-
   foreach(CONSENSUS ${CONSENSUSES})
+    if("bft" STREQUAL CONSENSUS)
+      set(TPCC_ITERATIONS 100000)
+    else()
+      set(TPCC_ITERATIONS 200000)
+    endif()
+
     add_perf_test(
       NAME tpcc
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc.py

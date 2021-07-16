@@ -81,6 +81,7 @@ all_tests_suite = [
     e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
+    e2e_logging.test_random_receipts,
     # membership:
     membership.test_set_recovery_threshold,
     membership.test_add_member,
@@ -115,6 +116,7 @@ all_tests_suite = [
     # jwt
     jwt_test.test_refresh_jwt_issuer,
 ]
+
 suites["all"] = all_tests_suite
 
 #

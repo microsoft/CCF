@@ -17,6 +17,7 @@ import random
 from dataclasses import dataclass
 from math import ceil
 import http
+import pprint
 
 from loguru import logger as LOG
 
@@ -91,7 +92,6 @@ class Network:
         "join_timer",
         "worker_threads",
         "ledger_chunk_bytes",
-        "domain",
         "san",
         "snapshot_tx_interval",
         "max_open_sessions",
@@ -266,7 +266,7 @@ class Network:
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
-                LOG.error(f"New node {node.node_id} failed to join the network")
+                LOG.error(f"New node {node.local_node_id} failed to join the network")
                 raise
 
     def _start_all_nodes(
@@ -331,7 +331,7 @@ class Network:
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:
-                LOG.exception("Failed to start node {}".format(node.node_id))
+                LOG.exception("Failed to start node {}".format(node.local_node_id))
                 raise
 
         self.election_duration = (
@@ -486,7 +486,8 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-        self.wait_for_all_nodes_to_commit(primary=primary)
+        # Catch-up in recovery can take a long time, so extend this timeout
+        self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
     def recover(self, args):
@@ -634,13 +635,14 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args):
+    def trust_node(self, node, args, expected_status=NodeStatus.TRUSTED):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
+                    expected_status,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
@@ -876,6 +878,10 @@ class Network:
                 break
             time.sleep(0.1)
         expected = [commits[0]] * len(commits)
+        if expected != commits:
+            for node in self.get_joined_nodes():
+                r = c.get("/node/consensus")
+                pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
     def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
@@ -890,6 +896,22 @@ class Network:
         logs = []
         while time.time() < end_time:
             try:
+                backup = self.find_any_backup()
+                if backup.get_consensus() == "bft":
+                    try:
+                        with backup.client("user0") as c:
+                            _ = c.post(
+                                "/app/log/private",
+                                {
+                                    "id": -1,
+                                    "msg": "This is submitted to force a view change",
+                                },
+                            )
+                        time.sleep(1)
+                    except CCFConnectionException:
+                        LOG.warning(
+                            f"Could not successfully connect to node {backup.node_id}."
+                        )
                 logs = []
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:

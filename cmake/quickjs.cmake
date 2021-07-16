@@ -13,6 +13,9 @@ set(QUICKJS_SRC
     ${QUICKJS_PREFIX}/libunicode.c ${QUICKJS_PREFIX}/libregexp.c
     ${QUICKJS_PREFIX}/quickjs.c
 )
+set_source_files_properties(
+  quickjs.c PROPERTIES COMPILE_FLAGS -Wnoimplicit-int-float-conversion
+)
 
 execute_process(
   COMMAND cat "${QUICKJS_PREFIX}/VERSION"

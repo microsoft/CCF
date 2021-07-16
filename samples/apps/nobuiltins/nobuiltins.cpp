@@ -123,7 +123,7 @@ namespace nobuiltins
         ctx.rpc_ctx->set_response_body(nlohmann::json(summary).dump(2));
       };
       make_endpoint(
-        "node_summary", HTTP_GET, node_summary, ccf::no_auth_required)
+        "/node_summary", HTTP_GET, node_summary, ccf::no_auth_required)
         .set_auto_schema<void, NodeSummary>()
         .install();
 
@@ -155,7 +155,7 @@ namespace nobuiltins
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_body(nlohmann::json(summary).dump(2));
       };
-      make_endpoint("all_nodes", HTTP_GET, all_nodes, ccf::no_auth_required)
+      make_endpoint("/all_nodes", HTTP_GET, all_nodes, ccf::no_auth_required)
         .set_auto_schema<void, AllNodesSummary>()
         .install();
 
@@ -183,7 +183,7 @@ namespace nobuiltins
         }
       };
       make_endpoint(
-        "api", HTTP_GET, ccf::json_adapter(openapi), ccf::no_auth_required)
+        "/api", HTTP_GET, ccf::json_adapter(openapi), ccf::no_auth_required)
         .set_auto_schema<void, ccf::GetAPI::Out>()
         .install();
 
@@ -210,7 +210,7 @@ namespace nobuiltins
         }
       };
       make_command_endpoint(
-        "commit",
+        "/commit",
         HTTP_GET,
         ccf::json_command_adapter(get_commit),
         ccf::no_auth_required)
@@ -273,7 +273,7 @@ namespace nobuiltins
           fmt::format("Missing query parameter '{}'", "seqno"));
       };
       make_command_endpoint(
-        "tx_id",
+        "/tx_id",
         HTTP_GET,
         ccf::json_command_adapter(get_txid),
         ccf::no_auth_required)
@@ -317,7 +317,7 @@ namespace nobuiltins
         return ccf::make_success(response);
       };
       make_command_endpoint(
-        "current_time",
+        "/current_time",
         HTTP_GET,
         ccf::json_command_adapter(get_time),
         ccf::no_auth_required)
