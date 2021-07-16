@@ -1854,8 +1854,18 @@ namespace aft
         // primary resends the append entries we will succeed as the map is
         // already there. This will only occur on BFT startup so not a perf
         // problem but still need to be resolved.
-        state->last_idx = i - 1;
-        ledger->truncate(state->last_idx);
+        // https://github.com/microsoft/CCF/issues/2799
+        if (ds->should_rollback_to_last_committed())
+        {
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          rollback(rollback_level);
+        }
+        else
+        {
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
+        }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return false;
       }

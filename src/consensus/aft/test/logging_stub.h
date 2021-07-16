@@ -290,6 +290,11 @@ namespace aft
       {
         return false;
       }
+
+      bool should_rollback_to_last_committed() override
+      {
+        return false;
+      }
     };
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
