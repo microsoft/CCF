@@ -6,8 +6,6 @@ from subprocess import Popen, PIPE
 from raft_scenarios_gen import generate_scenarios
 from contextlib import contextmanager
 
-RAFT_TEST_FILE_NAME = "raft_tests.md"
-
 
 def scenarios(path):
     for scenario in sorted(os.listdir(path)):
@@ -24,31 +22,19 @@ def block(fd, title, level, lang=None, lines=None):
     fd.write("\n```\n\n")
 
 
-@contextmanager
-def error_report_block(fd, errors=None):
-    fd.seek(0, 0)
+def write_error_report(errors=None):
     if errors:
-        fd.write("???+ error \n")
-        fd.write(4 * " " + "| Scenario | stderr |\n")
-        fd.write(4 * " " + "|----------|--------|\n")
+        errors = [(error[0], error[1].replace('\n', ' <br> ')) for error in errors]
+        scenario_len = max(len('Scenario'), *(len(error[0]) for error in errors))
+        stderr_len = max(len('stderr'), *(len(error[1]) for error in errors))
+        print("???+ error \n")
+        fmt_s = "   | {{:<{}}} | {{:<{}}} |\n".format(scenario_len, stderr_len)
+        print(fmt_s.format("Scenario", "stderr"))
+        print(fmt_s.format("-" * scenario_len, "-" * stderr_len))
         for error in errors:
-            fd.write(4 * " " + "| " + error[0] + " | ")
-            stderr_lines = error[1].split("\n")
-            for err in stderr_lines:
-                if err:
-                    fd.write(4 * " " + "```" + err + "``` <br>")
-            fd.write(4 * " " + "|\n")
+            print(fmt_s.format(error[0], error[1]))
     else:
-        fd.write("??? success \n")
-    yield
-
-
-def prepend_error_report(fd, errors=None):
-    content = raft.read()
-    raft.seek(0, 0)
-    with error_report_block(raft, errors):
-        raft.write("***\n")
-    raft.write(content)
+        print("??? success \n")
 
 
 def strip_log_lines(text):
@@ -66,31 +52,31 @@ if __name__ == "__main__":
 
     # generate_scenarios(path)
 
-    with open(os.path.join(doc, RAFT_TEST_FILE_NAME), "w") as raft:
-        for scenario in scenarios(path):
-            raft.write("## {}\n\n".format(os.path.basename(scenario)))
-            with block(raft, "steps", 3):
-                with open(scenario, "r") as scen:
-                    raft.write(scen.read())
-            proc = Popen(
-                [driver, os.path.realpath(scenario)],
-                stdout=PIPE,
-                stderr=PIPE,
-                stdin=PIPE,
-            )
-            out, err = proc.communicate()
-            test_result = test_result and proc.returncode == 0
+    ostream = sys.stdout
 
-            if err:
-                err_list.append([os.path.basename(scenario), err.decode()])
-                with block(raft, "stderr", 3):
-                    raft.write(err.decode())
+    for scenario in scenarios(path):
+        ostream.write("## {}\n\n".format(os.path.basename(scenario)))
+        with block(ostream, "steps", 3):
+            with open(scenario, "r") as scen:
+                ostream.write(scen.read())
+        proc = Popen(
+            [driver, os.path.realpath(scenario)],
+            stdout=PIPE,
+            stderr=PIPE,
+            stdin=PIPE,
+        )
+        out, err = proc.communicate()
+        test_result = test_result and proc.returncode == 0
 
-            with block(raft, "diagram", 3, "mermaid", ["sequenceDiagram"]):
-                raft.write(strip_log_lines(out.decode()))
+        if err:
+            err_list.append([os.path.basename(scenario), err.decode()])
+            with block(ostream, "stderr", 3):
+                ostream.write(err.decode())
 
-    with open(os.path.join(doc, RAFT_TEST_FILE_NAME), "r+") as raft:
-        prepend_error_report(raft, err_list)
+        with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
+            ostream.write(strip_log_lines(out.decode()))
+
+    write_error_report(err_list)
 
     if not test_result or err_list:
         sys.exit(1)

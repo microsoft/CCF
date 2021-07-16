@@ -21,3 +21,12 @@ replicate,1,salutonmondo
 dispatch_all
 reconnect_node,1
 dispatch_all
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync

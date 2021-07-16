@@ -7,20 +7,20 @@ connect,0,2
 periodic_one,0,110
 dispatch_all
 
-periodic_all,30
+periodic_all,10
 dispatch_all
 
 state_all
 
 replicate,1,helloworld
-periodic_all,30
+periodic_all,10
 dispatch_all
 
 replicate,1,salutonmondo
-periodic_all,30
+periodic_all,10
 dispatch_all
 
-periodic_all,30
+periodic_all,10
 dispatch_all
 
 state_all
