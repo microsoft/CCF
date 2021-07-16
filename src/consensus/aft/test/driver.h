@@ -19,21 +19,29 @@
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
   auto size = std::min(v.size(), max_size);
-    return fmt::format("[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
+  return fmt::format(
+    "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
 }
 
 struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
 {
   using LedgerStubProxy::LedgerStubProxy;
 
-  virtual void put_entry(
+  void put_entry(
     const std::vector<uint8_t>& data,
     bool globally_committable,
-    bool force_chunk)
+    bool force_chunk) override
   {
     RAFT_DRIVER_OUT << "  Node" << _id << "->>Node" << _id
                     << ": ledger put s: " << stringify(data) << std::endl;
     aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
+  }
+
+  void truncate(aft::Index idx) override
+  {
+    RAFT_DRIVER_OUT << "  Node" << _id << "->>Node" << _id
+                    << ": truncate i: " << idx << std::endl;
+    aft::LedgerStubProxy::truncate(idx);
   }
 };
 
@@ -285,6 +293,25 @@ public:
         _connections.find(std::make_pair(node_id, tgt_node_id)) !=
         _connections.end())
       {
+        // If this is an AppendEntries, then append the corresponding entry from
+        // the sender's ledger
+        const uint8_t* data = contents.data();
+        auto size = contents.size();
+        auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+        if (msg_type == aft::raft_append_entries)
+        {
+          // Parse the indices to be sent to the recipient.
+          const auto& ae =
+            serialized::overlay<consensus::AppendEntriesIndex>(data, size);
+
+          auto& sender_ledger = _nodes.at(node_id).raft->ledger;
+          for (auto idx = ae.prev_idx + 1; idx < ae.idx; ++idx)
+          {
+            const auto entry = sender_ledger->get_entry_by_idx(idx);
+            contents.insert(contents.end(), entry.begin(), entry.end());
+          }
+        }
+
         log_msg_details(node_id, tgt_node_id, contents);
         _nodes.at(tgt_node_id)
           .raft->recv_message(node_id, contents.data(), contents.size());
@@ -354,6 +381,7 @@ public:
                          stringify(*data))
                     << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    // True means all these entries are committable
     raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, 1);
   }
 

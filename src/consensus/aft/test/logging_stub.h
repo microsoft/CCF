@@ -46,13 +46,14 @@ namespace aft
       return {data, data + size};
     }
 
-    void truncate(Index idx)
+    std::vector<uint8_t> get_entry_by_idx(size_t idx)
+    {
+      return *(ledger[idx]);
+    }
+
+    virtual void truncate(Index idx)
     {
       ledger.resize(idx);
-#ifdef STUB_LOG
-      std::cout << "  KV" << _id << "->>Node" << _id << ": truncate i: " << idx
-                << std::endl;
-#endif
     }
 
     void reset_skip_count()
