@@ -257,6 +257,7 @@ namespace ccf
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
         ccf::Receipt out;
+        assert(historical_state->receipt);
         historical_state->receipt->describe(out);
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
