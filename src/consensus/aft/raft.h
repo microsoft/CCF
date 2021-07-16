@@ -1483,7 +1483,11 @@ namespace aft
             prev_term,
             r.prev_term);
         }
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+
+        // Tell them explicitly how far we agree, which we believe is to the
+        // transaction before the one they just started with
+        send_append_entries_response(
+          from, AppendEntriesResponseType::FAIL, r.prev_idx - 1);
         return;
       }
 
@@ -2103,24 +2107,26 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to, AppendEntriesResponseType answer)
+      ccf::NodeId to,
+      AppendEntriesResponseType answer,
+      std::optional<kv::Version> matching_idx = std::nullopt)
     {
-      LOG_DEBUG_FMT(
-        "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
-        state->last_idx,
-        answer);
-
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
       }
 
-      AppendEntriesResponse response = {{raft_append_entries_response},
-                                        state->current_view,
-                                        state->last_idx,
-                                        answer};
+      const auto match = matching_idx.value_or(state->last_idx);
+
+      LOG_DEBUG_FMT(
+        "Send append entries response from {} to {} for index {}: {}",
+        state->my_node_id.trim(),
+        to.trim(),
+        match,
+        answer);
+
+      AppendEntriesResponse response = {
+        {raft_append_entries_response}, state->current_view, match, answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
