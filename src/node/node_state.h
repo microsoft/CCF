@@ -89,7 +89,7 @@ namespace ccf
     std::mutex lock;
 
     CurveID curve_id;
-    crypto::KeyPairPtr node_sign_kp;
+    std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
     crypto::Pem node_cert;
@@ -257,7 +257,7 @@ namespace ccf
       CurveID curve_id_) :
       sm("NodeState", State::uninitialized),
       curve_id(curve_id_),
-      node_sign_kp(crypto::make_key_pair(curve_id_)),
+      node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
@@ -1616,10 +1616,10 @@ namespace ccf
     Pem create_endorsed_node_cert()
     {
       auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto csr =
-        node_sign_kp->create_csr(config.node_certificate_subject_identity.name);
       auto sans = get_subject_alternative_names();
-      return nw->sign_csr(network.identity->cert, csr, sans);
+      auto csr = node_sign_kp->create_csr(
+        config.node_certificate_subject_identity.name, sans);
+      return nw->sign_csr(network.identity->cert, csr);
     }
 
     // TODO: Rename
@@ -1631,7 +1631,7 @@ namespace ccf
     {
       LOG_FAIL_FMT("SAN count: {}", subject_identity.sans.size());
       return crypto::make_key_pair(endorser_private_key)
-        ->sign_csr(endorser_cert, subject_csr, subject_identity.sans);
+        ->sign_csr(endorser_cert, subject_csr);
     }
 
     void accept_node_tls_connections()

@@ -26,8 +26,9 @@ int main(int argc, char** argv)
 
   auto kp = crypto::make_key_pair();
   auto icrt = kp->self_sign("CN=issuer");
-  auto csr = kp->create_csr(cert_subject_identity.name);
-  auto cert = kp->sign_csr(icrt, csr, cert_subject_identity.sans);
+  auto csr =
+    kp->create_csr(cert_subject_identity.name, cert_subject_identity.sans);
+  auto cert = kp->sign_csr(icrt, csr);
 
   std::cout << cert.str() << std::endl;
   return 0;
