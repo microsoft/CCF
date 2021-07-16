@@ -44,19 +44,19 @@ default_tables_format_rules = {
         "value": fmt_json,
     },
     "^public:ccf\.gov\..*$": {"key": fmt_str, "value": fmt_json},
-    ".*": {"key": fmt_hex, "value": fmt_hex},  # Default
+    ".*": {"key": fmt_hex, "value": fmt_hex},
 }
 
 
-def find_rule(target_table_name):
-    for table_name_re, format_rules in default_tables_format_rules.items():
+def find_rule(tables_format_rules, target_table_name):
+    for table_name_re, format_rules in tables_format_rules.items():
         if re.compile(table_name_re).match(target_table_name):
             return format_rules
     return default_format_rule
 
 
-def print_key(table_name, indent_s, k, is_removed=False):
-    k = find_rule(table_name)["key"](k)
+def print_key(key, table_name, tables_format_rules, indent_s, is_removed=False):
+    k = find_rule(tables_format_rules, table_name)["key"](key)
 
     if is_removed:
         LOG.error(f"{indent_s}Removed {k}")
@@ -68,7 +68,7 @@ def counted_string(l, name):
     return f"{len(l)} {name}{'s' * bool(len(l) != 1)}"
 
 
-def dump_entry(entry, table_filter):
+def dump_entry(entry, table_filter, tables_format_rules):
     public_transaction = entry.get_public_domain()
     public_tables = public_transaction.get_tables()
     LOG.success(
@@ -91,20 +91,22 @@ def dump_entry(entry, table_filter):
         for key, value in records.items():
             if value is not None:
                 try:
-                    value = find_rule(table_name)["value"](value)
+                    value = find_rule(tables_format_rules, table_name)["value"](value)
                     value = value.replace(
                         "\n", f"\n{value_indent}"
                     )  # Indent every line within stringified JSON
                 except (json.decoder.JSONDecodeError, UnicodeDecodeError):
                     pass
                 finally:
-                    print_key(table_name, key_indent, key)
+                    print_key(key, table_name, tables_format_rules, key_indent)
                     LOG.info(f"{value_indent}{value}")
             else:
-                print_key(table_name, key_indent, key, is_removed=True)
+                print_key(
+                    key, table_name, tables_format_rules, key_indent, is_removed=True
+                )
 
 
-def main(args_):
+def run(args_, tables_format_rules={}):
     parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
     parser.add_argument(
         "paths", help="Path to ledger directories or snapshot file", nargs="+"
@@ -129,13 +131,15 @@ def main(args_):
 
     table_filter = re.compile(args.tables)
 
+    tables_format_rules.update(default_tables_format_rules)
+
     if args.snapshot:
         snapshot_file = args.paths[0]
         with ccf.ledger.Snapshot(snapshot_file) as snapshot:
             LOG.info(
                 f"Reading snapshot from {snapshot_file} ({'' if snapshot.commit_seqno() else 'un'}committed)"
             )
-            dump_entry(snapshot, table_filter)
+            dump_entry(snapshot, table_filter, tables_format_rules)
     else:
         ledger_dirs = args.paths
         ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not args.uncommitted)
@@ -149,7 +153,7 @@ def main(args_):
                     f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
                 )
                 for transaction in chunk:
-                    dump_entry(transaction, table_filter)
+                    dump_entry(transaction, table_filter, tables_format_rules)
         except Exception as e:
             LOG.exception(f"Error parsing ledger: {e}")
             has_error = True
@@ -171,5 +175,5 @@ if __name__ == "__main__":
         format="<level>{message}</level>",
     )
 
-    if not main(sys.argv[1:]):
+    if not run(sys.argv[1:]):
         sys.exit(1)
