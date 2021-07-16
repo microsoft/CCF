@@ -67,8 +67,8 @@ public:
         std::make_shared<aft::RequestTracker>(),
         nullptr,
         ms(10),
-        ms(i * 100),
-        ms(i * 100));
+        ms(100),
+        ms(100));
 
       _nodes.emplace(node_id, NodeDriver{kv, raft});
       configuration.try_emplace(node_id);
@@ -125,9 +125,28 @@ public:
     aft::AppendEntriesResponse aer)
   {
     std::ostringstream s;
+    char const* success = "UNHANDLED";
+    switch (aer.success)
+    {
+      case (aft::AppendEntriesResponseType::OK):
+      {
+        success = "Y";
+        break;
+      }
+      case (aft::AppendEntriesResponseType::FAIL):
+      {
+        success = "N";
+        break;
+      }
+      case (aft::AppendEntriesResponseType::REQUIRE_EVIDENCE):
+      {
+        success = "E";
+        break;
+      }
+    }
     s << "append_entries_response t: " << aer.term
       << ", lli: " << aer.last_log_idx
-      << ", s: " << static_cast<uint8_t>(aer.success);
+      << ", s: " << success;
     rlog(node_id, tgt_node_id, s.str());
   }
 
@@ -289,15 +308,30 @@ public:
     }
   }
 
+  ccf::NodeId find_primary_in_term(aft::Term term)
+  {
+    for (const auto& [node_id, node_driver]: _nodes)
+    {
+      if (node_driver.raft->get_term() == term && node_driver.raft->is_primary())
+      {
+        return node_id;
+      }
+    }
+
+    throw std::runtime_error(fmt::format("Found no primary in term {}", term));
+  }
+
   void replicate(
-    ccf::NodeId node_id,
-    aft::Index idx,
+    aft::Term term,
     std::shared_ptr<std::vector<uint8_t>> data)
   {
+    const auto node_id = find_primary_in_term(term);
+    auto& raft = _nodes.at(node_id).raft;
+    const auto idx = raft->get_last_idx() + 1;
     RAFT_DRIVER_OUT << "  KV" << node_id << "->>Node" << node_id
                     << ": replicate idx: " << idx << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    _nodes.at(node_id).raft->replicate(
+    raft->replicate(
       kv::BatchVector{{idx, data, true, hooks}}, 1);
   }
 

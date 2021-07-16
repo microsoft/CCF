@@ -30,6 +30,13 @@ int main(int argc, char** argv)
 
   while (getline(cin, line))
   {
+    // Strip off any comments (preceded with #)
+    const auto comment_start = line.find_first_of("#");
+    if (comment_start != std::string::npos)
+    {
+      line.erase(comment_start);
+    }
+    // Strip off any trailing whitespace
     line.erase(line.find_last_not_of(" \t\n\r\f\v") + 1);
     vector<string> items{
       sregex_token_iterator(line.begin(), line.end(), delim, -1),
@@ -78,10 +85,10 @@ int main(int argc, char** argv)
         driver->dispatch_all_once();
         break;
       case shash("replicate"):
-        assert(items.size() == 4);
+        assert(items.size() == 3);
         data = std::make_shared<std::vector<uint8_t>>(
-          items[3].begin(), items[3].end());
-        driver->replicate(items[1], stoi(items[2]), data);
+          items[2].begin(), items[2].end());
+        driver->replicate(stoi(items[1]), data);
         break;
       case shash("disconnect"):
         assert(items.size() == 3);
@@ -98,6 +105,9 @@ int main(int argc, char** argv)
       case shash("reconnect_node"):
         assert(items.size() == 2);
         driver->reconnect_node(items[1]);
+        break;
+      case shash(""):
+        // Ignore empty lines
         break;
       default:
         cerr << "Unknown action '" << items[0] << "' at line " << lineno

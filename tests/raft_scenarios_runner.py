@@ -16,7 +16,7 @@ def scenarios(path):
 
 @contextmanager
 def block(fd, title, level, lang=None, lines=None):
-    fd.write(level * "#" + title + "\n\n")
+    fd.write(level * "#" + " " + title + "\n\n")
     fd.write("```" + (lang or "") + "\n")
     for line in lines or []:
         fd.write(line + "\n")
@@ -64,11 +64,11 @@ if __name__ == "__main__":
     err_list = []
     test_result = True
 
-    generate_scenarios(path)
+    # generate_scenarios(path)
 
     with open(os.path.join(doc, RAFT_TEST_FILE_NAME), "w") as raft:
         for scenario in scenarios(path):
-            raft.write("##{}\n\n".format(os.path.basename(scenario)))
+            raft.write("## {}\n\n".format(os.path.basename(scenario)))
             with block(raft, "steps", 3):
                 with open(scenario, "r") as scen:
                     raft.write(scen.read())
