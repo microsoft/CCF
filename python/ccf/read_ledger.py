@@ -14,20 +14,6 @@ def indent(n):
     return " " * n
 
 
-def stringify_bytes(bs):
-    try:
-        s = bs.decode()
-        if s.isprintable():
-            return s
-    except:
-        pass
-    finally:
-        if len(bs) > 0 and len(bs) <= 8:
-            n = int.from_bytes(bs, byteorder="little")
-            return f"<u{8 * len(bs)}: {n}>"
-        return bs
-
-
 def fmt_unsigned_int_little(data):
     return (
         f'<u{8 * len(data)}: {int.from_bytes(data, byteorder="little", signed=False)}>'
@@ -42,33 +28,35 @@ def fmt_str(data):
     return data.decode()
 
 
+def fmt_json(data):
+    return json.dumps(json.loads(data), indent=2)
+
+
 # Dictionary of store table name regex to format function
+default_format_rule = {"key": fmt_hex, "value": fmt_hex}
 default_tables_format_rules = {
     "^public:ccf\.internal\..*$": {
-        "key_fmt": fmt_unsigned_int_little,
-        "value_fmt": None,
+        "key": fmt_unsigned_int_little,
+        "value": fmt_json,
     },
     "^public:ccf\.gov\.(service|network|constitution).*$": {
-        "key_fmt": fmt_unsigned_int_little,
-        "value_fmt": None,
+        "key": fmt_unsigned_int_little,
+        "value": fmt_json,
     },
-    "^public:ccf\.gov\..*$": {"key_fmt": fmt_str, "value_fmt": None},
-    ".*": {"key_fmt": fmt_hex, "value_fmt": fmt_hex},  # Default
+    "^public:ccf\.gov\..*$": {"key": fmt_str, "value": fmt_json},
+    ".*": {"key": fmt_hex, "value": fmt_hex},  # Default
 }
 
 
 def find_rule(target_table_name):
     for table_name_re, format_rules in default_tables_format_rules.items():
         if re.compile(table_name_re).match(target_table_name):
-            # LOG.success(format_rules["key_fmt"])
-            return format_rules["key_fmt"]
-    return fmt_hex
+            return format_rules
+    return default_format_rule
 
 
 def print_key(table_name, indent_s, k, is_removed=False):
-
-    # k = stringify_bytes(k)
-    k = find_rule(table_name)(k)
+    k = find_rule(table_name)["key"](k)
 
     if is_removed:
         LOG.error(f"{indent_s}Removed {k}")
@@ -103,7 +91,7 @@ def dump_entry(entry, table_filter):
         for key, value in records.items():
             if value is not None:
                 try:
-                    value = json.dumps(json.loads(value), indent=2)
+                    value = find_rule(table_name)["value"](value)
                     value = value.replace(
                         "\n", f"\n{value_indent}"
                     )  # Indent every line within stringified JSON
