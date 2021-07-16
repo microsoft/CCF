@@ -10,11 +10,16 @@ dispatch_all
 periodic_all,30
 dispatch_all
 
+state_all
+
 replicate,1,helloworld
 periodic_all,30
 dispatch_all
 
 replicate,1,salutonmondo
+periodic_all,30
+dispatch_all
+
 periodic_all,30
 dispatch_all
 
