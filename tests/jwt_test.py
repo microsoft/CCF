@@ -130,7 +130,6 @@ def make_attested_cert(network, args):
     ).check_returncode()
     return pem
 
-
 @reqs.description("JWT with SGX key policy")
 def test_jwt_with_sgx_key_policy(network, args):
     primary, _ = network.find_nodes()
@@ -142,9 +141,23 @@ def test_jwt_with_sgx_key_policy(network, args):
     kid = "my_kid"
     issuer = infra.jwt_issuer.JwtIssuer("my_issuer", oe_cert_pem)
 
+    oesign = os.path.join(args.oe_binary, "oesign")
+    oeutil_enc = os.path.join(args.oe_binary, "oeutil_enc.signed")
+    sc = infra.proc.ccall(
+        oesign, "dump", "-e", oeutil_enc,
+    )
+    sc.check_returncode()
+    lines = sc.stdout.decode().split()
+    for line in lines:
+        if line.startswith("mrsigner="):
+            mrsigner = line.strip().split("=")[1]
+            break
+    else:
+        assert False, f"Could not find mrsigner in {lines}"
+
     matching_key_policy = {
         "sgx_claims": {
-            "signer_id": "c03633124785becb6b1b007e45e4ba8f07aea3000c9a500e91e00bdd5a232d46",
+            "signer_id": mrsigner,
             "attributes": "0300000000000000",
         }
     }
