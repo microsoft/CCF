@@ -51,36 +51,18 @@
 
 - name: Download doxygen
   get_url:
-    url: https://github.com/doxygen/doxygen/archive/Release_{{ doxygen_src }}
-    dest: "{{ workspace }}/{{ doxygen_src }}"
-  become: true
-
-- name: Remove existing doxygen checkout
-  file:
-    path: "{{ workspace }}/doxygen-{{ doxygen_dir }}"
-    state: absent
+    url: "{{ doxygen_url }}"
+    dest: "{{ workspace }}/{{ doxygen_bin }}"
 
 - name: Expand doxygen
   unarchive:
-    src: "{{ workspace }}/{{ doxygen_src }}"
+    src: "{{ workspace }}/{{ doxygen_bin }}"
     dest: "{{ workspace }}"
     copy: no
-    creates: "{{ workspace }}/doxygen-{{ doxygen_dir }}/CMakeLists.txt"
-
-- name: Make doxygen build dir
-  file:
-    path: "{{ workspace }}/doxygen-{{ doxygen_dir }}/build"
-    state: directory
-
-- name: Build doxygen
-  shell: |
-    CC=$(which clang-8) CXX=$(which clang++-8) cmake -DCMAKE_BUILD_TYPE=Release ..
-    make
-  args:
-    chdir: "{{ workspace }}/doxygen-{{ doxygen_dir }}/build"
+    creates: "{{ workspace }}/doxygen-{{ doxygen_ver }}/Makefile"
 
 - name: Install doxygen
   command: make install
   args:
-    chdir: "{{ workspace }}/doxygen-{{ doxygen_dir }}/build"
+    chdir: "{{ workspace }}/doxygen-{{ doxygen_ver }}"
   become: true

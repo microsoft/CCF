@@ -130,6 +130,7 @@ def make_attested_cert(network, args):
     ).check_returncode()
     return pem
 
+
 @reqs.description("JWT with SGX key policy")
 def test_jwt_with_sgx_key_policy(network, args):
     primary, _ = network.find_nodes()
@@ -144,7 +145,10 @@ def test_jwt_with_sgx_key_policy(network, args):
     oesign = os.path.join(args.oe_binary, "oesign")
     oeutil_enc = os.path.join(args.oe_binary, "oeutil_enc.signed")
     sc = infra.proc.ccall(
-        oesign, "dump", "-e", oeutil_enc,
+        oesign,
+        "dump",
+        "-e",
+        oeutil_enc,
     )
     sc.check_returncode()
     lines = sc.stdout.decode().split()
