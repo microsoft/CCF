@@ -978,13 +978,12 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   r2c->messages.pop_front();
   r0.recv_message(node_id2, aer.data(), aer.size());
 
+  DOCTEST_REQUIRE(r0c->messages.size() > num_small_entries_sent);
   DOCTEST_REQUIRE(
-    (r0c->messages.size() > num_small_entries_sent &&
-     r0c->messages.size() <= num_small_entries_sent + num_big_entries));
+    r0c->messages.size() <= num_small_entries_sent + num_big_entries);
   auto sent_entries = dispatch_all(nodes, node_id0, r0c->messages);
-  DOCTEST_REQUIRE(
-    (sent_entries > num_small_entries_sent &&
-     sent_entries <= num_small_entries_sent + num_big_entries));
+  DOCTEST_REQUIRE(sent_entries > num_small_entries_sent);
+  DOCTEST_REQUIRE(sent_entries <= num_small_entries_sent + num_big_entries);
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }
 

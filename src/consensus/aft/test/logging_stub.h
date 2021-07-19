@@ -256,7 +256,8 @@ namespace aft
       {
         // For purposes of stub testing, every received entry looks like a valid
         // signature, so they are all committable
-        return kv::ApplyResult::PASS_SIGNATURE;
+        // TODO: Good for driver, bad for unit test! Bah!
+        return kv::ApplyResult::PASS;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
