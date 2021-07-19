@@ -428,34 +428,37 @@ def run(args):
 
         test_version(network, args)
 
-        if args.consensus != "bft":
-            test_join_straddling_primary_replacement(network, args)
-            test_node_replacement(network, args)
-            test_add_node_from_backup(network, args)
-            test_add_node(network, args)
-            test_add_node_on_other_curve(network, args)
-            test_retire_backup(network, args)
-            test_add_as_many_pending_nodes(network, args)
-            test_add_node(network, args)
-            test_retire_primary(network, args)
+        txs.issue(network, number_txs=1000)
+        test_add_node(network, args)
 
-            test_add_node_from_snapshot(network, args)
-            test_add_node_from_snapshot(network, args, from_backup=True)
-            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-            latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
-            with open(latest_node_log, "r+") as log:
-                assert any(
-                    "No snapshot found: Node will replay all historical transactions"
-                    in l
-                    for l in log.readlines()
-                ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
+        # if args.consensus != "bft":
+        #     test_join_straddling_primary_replacement(network, args)
+        #     test_node_replacement(network, args)
+        #     test_add_node_from_backup(network, args)
+        #     test_add_node(network, args)
+        #     test_add_node_on_other_curve(network, args)
+        #     test_retire_backup(network, args)
+        #     test_add_as_many_pending_nodes(network, args)
+        #     test_add_node(network, args)
+        #     test_retire_primary(network, args)
 
-            test_node_filter(network, args)
-            test_retiring_nodes_emit_at_most_one_signature(network, args)
-        else:
-            test_learner_catches_up(network, args)
-            test_learner_does_not_take_part(network, args)
-            test_retire_backup(network, args)
+        #     test_add_node_from_snapshot(network, args)
+        #     test_add_node_from_snapshot(network, args, from_backup=True)
+        #     test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        #     latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
+        #     with open(latest_node_log, "r+") as log:
+        #         assert any(
+        #             "No snapshot found: Node will replay all historical transactions"
+        #             in l
+        #             for l in log.readlines()
+        #         ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
+
+        #     test_node_filter(network, args)
+        #     test_retiring_nodes_emit_at_most_one_signature(network, args)
+        # else:
+        #     test_learner_catches_up(network, args)
+        #     test_learner_does_not_take_part(network, args)
+        #     test_retire_backup(network, args)
 
 
 def run_join_old_snapshot(args):
@@ -527,5 +530,5 @@ if __name__ == "__main__":
 
     run(args)
 
-    if args.consensus != "bft":
-        run_join_old_snapshot(args)
+    # if args.consensus != "bft":
+    #     run_join_old_snapshot(args)

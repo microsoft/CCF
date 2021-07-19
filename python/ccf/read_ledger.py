@@ -32,27 +32,33 @@ def fmt_json(data):
     return json.dumps(json.loads(data), indent=2)
 
 
-# Dictionary of store table name regex to format function (first match is used)
+# List of table name regex to key and value format functions (first match is used)
 # Callers can specify additional rules (e.g. for application-specific
 # public tables) which get looked up first.
 default_format_rule = {"key": fmt_hex, "value": fmt_hex}
-default_tables_format_rules = {
-    "^public:ccf\.internal\..*$": {
-        "key": fmt_unsigned_int_little,
-        "value": fmt_json,
-    },
-    "^public:ccf\.gov\.(service|network|constitution).*$": {
-        "key": fmt_unsigned_int_little,
-        "value": fmt_json,
-    },
-    "^public:ccf\.gov\..*$": {"key": fmt_str, "value": fmt_json},
-    ".*": {"key": fmt_hex, "value": fmt_hex},
-}
+default_tables_format_rules = [
+    (
+        "^public:ccf\.internal\..*$",
+        {
+            "key": fmt_unsigned_int_little,
+            "value": fmt_json,
+        },
+    ),
+    (
+        "^public:ccf\.gov\.(service|network|constitution).*$",
+        {
+            "key": fmt_unsigned_int_little,
+            "value": fmt_json,
+        },
+    ),
+    ("^public:ccf\.gov\..*$", {"key": fmt_str, "value": fmt_json}),
+    (".*", {"key": fmt_hex, "value": fmt_hex}),
+]
 
 
 def find_rule(tables_format_rules, target_table_name):
-    for table_name_re, format_rules in tables_format_rules.items():
-        if re.compile(table_name_re).match(target_table_name):
+    for table_name_re, format_rules in tables_format_rules:
+        if table_name_re.match(target_table_name):
             return format_rules
     return default_format_rule
 
@@ -108,7 +114,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
                 )
 
 
-def run(args_, tables_format_rules={}):
+def run(args_, tables_format_rules=[]):
     parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
     parser.add_argument(
         "paths", help="Path to ledger directories or snapshot file", nargs="+"
@@ -133,7 +139,11 @@ def run(args_, tables_format_rules={}):
 
     table_filter = re.compile(args.tables)
 
-    tables_format_rules.update(default_tables_format_rules)
+    # Extend and compile rules
+    tables_format_rules.extend(default_tables_format_rules)
+    tables_format_rules = [
+        (re.compile(table_name_re), _) for (table_name_re, _) in tables_format_rules
+    ]
 
     if args.snapshot:
         snapshot_file = args.paths[0]

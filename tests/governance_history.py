@@ -103,10 +103,10 @@ def test_ledger_is_readable(network, args):
 
 @reqs.description("Test that all nodes' ledgers can be read using read_ledger.py")
 def test_read_ledger_utility(network, args):
-    def fmt_key(data: bytes) -> str:
+    def fmt_str(data: bytes) -> str:
         return data.decode()
 
-    format_rule = {".*records.*": {"key": fmt_key, "value": fmt_key}}
+    format_rule = [(".*records.*", {"key": fmt_str, "value": fmt_str})]
 
     # Issue at least one transaction to see how it is read in the ledger
     network.txs.issue(network, number_txs=1)
