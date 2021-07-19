@@ -11,17 +11,22 @@ def fully_connected_scenario(nodes, steps):
     step_def = {
         0: lambda: "dispatch_all",
         1: lambda: "periodic_all,{}".format(randrange(500)),
-        2: lambda: "replicate,0,{},{}".format(next(index), "hello"),
+        2: lambda: "replicate,latest,{}".format(f"hello {next(index)}"),
     }
 
     lines = ["nodes,{}".format(nodes)]
     for first, second in combinations(range(nodes), 2):
         lines.append("connect,{},{}".format(first, second))
     # Get past the initial election
-    lines.append("periodic_all,110")
+    lines.append("periodic_one,0,110")
     lines.append("dispatch_all")
+    lines.append("periodic_all,30")
+    lines.append("dispatch_all")
+    lines.append("state_all")
     for _ in range(steps):
         lines.append(step_def[choice(list(step_def.keys()))]())
+
+    lines.append("state_all")
 
     return "\n".join(lines)
 

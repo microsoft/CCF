@@ -97,7 +97,7 @@ int main(int argc, char** argv)
         assert(items.size() == 3);
         data = std::make_shared<std::vector<uint8_t>>(
           items[2].begin(), items[2].end());
-        driver->replicate(stoi(items[1]), data);
+        driver->replicate(items[1], data);
         break;
       case shash("disconnect"):
         assert(items.size() == 3);

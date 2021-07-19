@@ -50,7 +50,7 @@ if __name__ == "__main__":
     err_list = []
     test_result = True
 
-    # generate_scenarios(path)
+    generate_scenarios(path)
 
     ostream = sys.stdout
 

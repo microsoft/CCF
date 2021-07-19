@@ -352,30 +352,61 @@ public:
     }
   }
 
-  ccf::NodeId find_primary_in_term(aft::Term term)
+  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(const std::string& term_s)
   {
+    std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
     for (const auto& [node_id, node_driver] : _nodes)
     {
-      if (
-        node_driver.raft->get_term() == term && node_driver.raft->is_primary())
+      if (node_driver.raft->is_primary())
       {
-        return node_id;
+        primaries.emplace_back(node_driver.raft->get_term(), node_id);
       }
     }
 
-    throw std::runtime_error(fmt::format("Found no primary in term {}", term));
+    if (term_s == "latest")
+    {
+      if (!primaries.empty())
+      {
+        std::sort(primaries.begin(), primaries.end());
+        return primaries.back();
+      }
+      else
+      {
+        // Having no 'latest' term is valid, and may result in scenario steps being ignored
+        return std::nullopt;
+      }
+    }
+    else
+    {
+      const auto desired_term = atoi(term_s.c_str());
+      for (const auto& pair: primaries)
+      {
+        if (pair.first == desired_term)
+        {
+          return pair;
+        }
+      }
+    }
+
+    throw std::runtime_error(fmt::format("Found no primary in term {}", term_s));
   }
 
-  void replicate(aft::Term term, std::shared_ptr<std::vector<uint8_t>> data)
+  void replicate(const std::string& term_s, std::shared_ptr<std::vector<uint8_t>> data)
   {
-    const auto node_id = find_primary_in_term(term);
+    const auto opt = find_primary_in_term(term_s);
+    if (!opt.has_value())
+    {
+      // TODO: Print mermaid comment saying replication failed?
+      return;
+    }
+    const auto& [term, node_id] = *opt;
     auto& raft = _nodes.at(node_id).raft;
     const auto idx = raft->get_last_idx() + 1;
     RAFT_DRIVER_OUT << fmt::format(
                          "  Node{}->>Node{}: replicate {}.{} = {}",
                          node_id,
                          node_id,
-                         term,
+                         term_s,
                          idx,
                          stringify(*data))
                     << std::endl;
