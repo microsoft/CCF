@@ -18,7 +18,6 @@ using ms = std::chrono::milliseconds;
 using TRaft =
   aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
-using StoreSig = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store>;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;

@@ -48,7 +48,7 @@ struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
 using ms = std::chrono::milliseconds;
 using TRaft = aft::
   Aft<LedgerStubProxy_WithLogging, aft::ChannelStubProxy, aft::StubSnapshotter>;
-using Store = aft::LoggingStubStore;
+using Store = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store>;
 
 std::vector<uint8_t> cert;

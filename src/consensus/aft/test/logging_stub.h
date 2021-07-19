@@ -217,15 +217,6 @@ namespace aft
 #endif
     }
 
-    virtual kv::ApplyResult apply(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term = nullptr)
-    {
-      return kv::ApplyResult::PASS;
-    }
-
     kv::Version current_version()
     {
       return kv::NoVersion;
@@ -243,6 +234,7 @@ namespace aft
       return kv::ApplyResult::PASS;
     }
 
+    template <kv::ApplyResult AR>
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     private:
@@ -254,10 +246,7 @@ namespace aft
 
       kv::ApplyResult apply() override
       {
-        // For purposes of stub testing, every received entry looks like a valid
-        // signature, so they are all committable
-        // TODO: Good for driver, bad for unit test! Bah!
-        return kv::ApplyResult::PASS;
+        return AR;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -316,7 +305,7 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false)
     {
-      return std::make_unique<ExecutionWrapper>(data);
+      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(data);
     }
 
     std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
@@ -330,13 +319,12 @@ namespace aft
   public:
     LoggingStubStoreSig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    kv::ApplyResult apply(
+    std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term = nullptr) override
+      ConsensusType consensus_type,
+      bool public_only = false) override
     {
-      return kv::ApplyResult::PASS_SIGNATURE;
+      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data);
     }
   };
 
