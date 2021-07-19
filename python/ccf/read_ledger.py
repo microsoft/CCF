@@ -114,7 +114,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
                 )
 
 
-def run(args_, tables_format_rules=[]):
+def run(args_, tables_format_rules=None):
     parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
     parser.add_argument(
         "paths", help="Path to ledger directories or snapshot file", nargs="+"
@@ -140,6 +140,7 @@ def run(args_, tables_format_rules=[]):
     table_filter = re.compile(args.tables)
 
     # Extend and compile rules
+    tables_format_rules = tables_format_rules or []
     tables_format_rules.extend(default_tables_format_rules)
     tables_format_rules = [
         (re.compile(table_name_re), _) for (table_name_re, _) in tables_format_rules
@@ -176,7 +177,7 @@ def run(args_, tables_format_rules=[]):
             LOG.info(
                 f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
             )
-            return not has_error
+        return not has_error
 
 
 if __name__ == "__main__":
