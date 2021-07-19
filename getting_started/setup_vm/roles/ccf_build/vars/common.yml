@@ -15,14 +15,14 @@ debs:
   - expect
   - git
   - ccache
-  - kmod
+  - kmod # modinfo for sgxinfo.sh
   - cmake
   - libssl-dev
-  - jq
+  - jq # operation scripts
   - sudo
-  - curl
-  - shellcheck
-  - iptables
+  - curl # client test infra
+  - shellcheck # bash lint
+  - iptables # partition test infra
   - flex # required to build doxygen
   - bison # required to build doxygen
 
