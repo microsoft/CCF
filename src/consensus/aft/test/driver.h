@@ -352,7 +352,8 @@ public:
     }
   }
 
-  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(const std::string& term_s)
+  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
+    const std::string& term_s)
   {
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
     for (const auto& [node_id, node_driver] : _nodes)
@@ -372,14 +373,15 @@ public:
       }
       else
       {
-        // Having no 'latest' term is valid, and may result in scenario steps being ignored
+        // Having no 'latest' term is valid, and may result in scenario steps
+        // being ignored
         return std::nullopt;
       }
     }
     else
     {
       const auto desired_term = atoi(term_s.c_str());
-      for (const auto& pair: primaries)
+      for (const auto& pair : primaries)
       {
         if (pair.first == desired_term)
         {
@@ -388,15 +390,21 @@ public:
       }
     }
 
-    throw std::runtime_error(fmt::format("Found no primary in term {}", term_s));
+    throw std::runtime_error(
+      fmt::format("Found no primary in term {}", term_s));
   }
 
-  void replicate(const std::string& term_s, std::shared_ptr<std::vector<uint8_t>> data)
+  void replicate(
+    const std::string& term_s, std::shared_ptr<std::vector<uint8_t>> data)
   {
     const auto opt = find_primary_in_term(term_s);
     if (!opt.has_value())
     {
-      // TODO: Print mermaid comment saying replication failed?
+      RAFT_DRIVER_OUT << fmt::format(
+                           "  Note right of Node{}: No primary to replicate {}",
+                           _nodes.begin()->first,
+                           stringify(*data))
+                      << std::endl;
       return;
     }
     const auto& [term, node_id] = *opt;
@@ -475,7 +483,8 @@ public:
     const auto target_last_idx = target_raft->get_last_idx();
     const auto target_commit_idx = target_raft->get_commit_idx();
 
-    const auto target_final_entry = target_raft->ledger->get_entry_by_idx(target_last_idx);
+    const auto target_final_entry =
+      target_raft->ledger->get_entry_by_idx(target_last_idx);
 
     for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
     {
@@ -485,8 +494,10 @@ public:
       assert(raft->get_last_idx() == target_last_idx);
       assert(raft->get_commit_idx() == target_commit_idx);
 
-      // Check that the final entries are the same, assume prior entries also match
-      assert(raft->ledger->get_entry_by_idx(target_last_idx) == target_final_entry);
+      // Check that the final entries are the same, assume prior entries also
+      // match
+      assert(
+        raft->ledger->get_entry_by_idx(target_last_idx) == target_final_entry);
     }
   }
 };

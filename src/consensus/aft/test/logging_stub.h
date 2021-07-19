@@ -324,7 +324,8 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false) override
     {
-      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data);
+      return std::make_unique<
+        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data);
     }
   };
 
