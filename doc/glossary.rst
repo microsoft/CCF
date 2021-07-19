@@ -10,7 +10,7 @@ Glossary
     Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
 
   BFT
-    Byzantine Fault Tolerance is a type of fault tolerance that expects some nodes in the network to behave maliciously. This usually requires additional messages and checks on inputs that are received from other servers since these inputs can not be fully trusted (in contrast to :term:`CFT` where the servers are expected to behave honestly but may fail). Read more on BFT :ref:`here <overview/consensus/index:BFT Consensus Protocol>`.
+    Byzantine Fault Tolerance is a type of fault tolerance that expects some nodes in the network to behave maliciously. This usually requires additional messages and checks on inputs that are received from other servers since these inputs are not trusted (in contrast to :term:`CFT` where the servers are expected to behave honestly but may fail). Read more on BFT :ref:`here <overview/consensus/index:BFT Consensus Protocol>`.
 
   Consensus Protocols
     The term Consensus protocol refers to either :term:`CFT` described  :ref:`here <overview/consensus/index:CFT
