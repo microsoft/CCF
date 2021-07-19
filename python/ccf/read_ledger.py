@@ -38,20 +38,20 @@ def fmt_json(data):
 default_format_rule = {"key": fmt_hex, "value": fmt_hex}
 default_tables_format_rules = [
     (
-        "^public:ccf\.internal\..*$",
+        "^public:ccf\\.internal\\..*$",
         {
             "key": fmt_unsigned_int_little,
             "value": fmt_json,
         },
     ),
     (
-        "^public:ccf\.gov\.(service|network|constitution).*$",
+        "^public:ccf\\.gov\\.(service|network|constitution).*$",
         {
             "key": fmt_unsigned_int_little,
             "value": fmt_json,
         },
     ),
-    ("^public:ccf\.gov\..*$", {"key": fmt_str, "value": fmt_json}),
+    ("^public:ccf\\.gov\\..*$", {"key": fmt_str, "value": fmt_json}),
     (".*", {"key": fmt_hex, "value": fmt_hex}),
 ]
 
