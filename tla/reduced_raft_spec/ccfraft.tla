@@ -2,15 +2,19 @@
 \* This is the formal specification for the Raft consensus algorithm.
 \*
 \* Copyright 2014 Diego Ongaro.
+\* Modifications Copyright 2021 Microsoft.
 \* This work is licensed under the Creative Commons Attribution-4.0
 \* International License https://creativecommons.org/licenses/by/4.0/
 
 \* Modified for CCF by Microsoft Research
-\* Author of these modifications: Fritz Alder
+\* Author of these modifications: Fritz Alder <fritz.alder@acm.org>
 \* Partially based on
-\* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
-\* - https://github.com/jinlmsft/raft.tla/blob/master/raft.tla
 \* - https://github.com/ongardie/raft.tla/blob/master/raft.tla
+\*   (base spec, modified)
+\* - https://github.com/jinlmsft/raft.tla/blob/master/raft.tla
+\*   (e.g. clientRequests, committedLog, committedLogDecrease)
+\* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
+\*   (e.g. certain invariants)
 
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
