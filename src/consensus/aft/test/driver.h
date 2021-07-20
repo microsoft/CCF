@@ -23,6 +23,16 @@ std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
     "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
 }
 
+std::string stringify(const std::optional<std::vector<uint8_t>>& o)
+{
+  if (o.has_value())
+  {
+    return stringify(*o);
+  }
+
+  return "MISSING";
+}
+
 struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
 {
   using LedgerStubProxy::LedgerStubProxy;
@@ -318,11 +328,21 @@ public:
           auto& sender_raft = _nodes.at(node_id).raft;
           for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
           {
+            const auto entry_opt = sender_raft->ledger->get_entry_by_idx(idx);
+            if (!entry_opt.has_value())
+            {
+              // While trying to construct an AppendEntries, we asked for an
+              // entry that doesn't exist. This is a valid situation - we queued
+              // the AppendEntries, but rolled back before it was ready to send!
+              // We abandon this operation here. TODO: Log this in mermaid?
+              continue;
+            }
+
             // The payload that we eventually deserialise must include the
             // ledger entry as well as the View and Index that identify it. In
             // the real entries, they are nested in the payload and the IV. For
             // our purposes, we just prefix them manually (to mirror the
-            // desserialisation in LoggingStubStore::ExecutionWrapper)
+            // deserialisation in LoggingStubStore::ExecutionWrapper)
             const auto term_of_idx = sender_raft->get_term(idx);
             const auto size_before = contents.size();
             auto additional_size = sizeof(term_of_idx) + sizeof(idx);
@@ -333,8 +353,7 @@ public:
               serialized::write(data, additional_size, term_of_idx);
               serialized::write(data, additional_size, idx);
             }
-            const auto entry = sender_raft->ledger->get_entry_by_idx(idx);
-            contents.insert(contents.end(), entry.begin(), entry.end());
+            contents.insert(contents.end(), entry_opt->begin(), entry_opt->end());
           }
         }
 

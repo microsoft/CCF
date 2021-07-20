@@ -17,7 +17,7 @@ namespace aft
     ccf::NodeId _id;
 
   public:
-    std::vector<std::shared_ptr<std::vector<uint8_t>>> ledger;
+    std::vector<std::vector<uint8_t>> ledger;
     uint64_t skip_count = 0;
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
@@ -27,13 +27,7 @@ namespace aft
       bool globally_committable,
       bool force_chunk)
     {
-      auto size = data.size();
-      auto buffer = std::make_shared<std::vector<uint8_t>>(size);
-      auto ptr = buffer->data();
-
-      serialized::write(ptr, size, data.data(), data.size());
-
-      ledger.push_back(buffer);
+      ledger.push_back(data);
     }
 
     void skip_entry(const uint8_t*& data, size_t& size)
@@ -46,10 +40,15 @@ namespace aft
       return {data, data + size};
     }
 
-    std::vector<uint8_t> get_entry_by_idx(size_t idx)
+    std::optional<std::vector<uint8_t>> get_entry_by_idx(size_t idx)
     {
       // Ledger indices are 1-based, hence the -1
-      return *(ledger[idx - 1]);
+      if (idx > 0 && idx <= ledger.size())
+      {
+        return ledger[idx - 1];
+      }
+
+      return std::nullopt;
     }
 
     virtual void truncate(Index idx)

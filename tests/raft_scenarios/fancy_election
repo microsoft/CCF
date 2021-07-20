@@ -33,9 +33,9 @@ dispatch_one,0
 # this commit point to clients), but even if that didn't happen the decision taken locally by
 # Node 1 and the final result are the same
 dispatch_one,1
-
+ 
 state_all
-
+ 
 # Build a further suffix which is _not_ shared in time
 replicate,1,z
 replicate,1,zz
@@ -54,21 +54,38 @@ dispatch_all
 # Eventually, Node 1 (the only live/connected node who has the committed suffix), will call
 # an election and win
 periodic_one,1,110
-dispatch_all_once
+
+# Node 1 asks for votes
+dispatch_one,1
+
+# Node 2 responds in support
+dispatch_one,2
+
+# Node 1 sends an initial AppendEntries probe
+dispatch_one,1
+
+# Node 2 indicates it is behind
+dispatch_one,2
+
+# Node 1 sends its committable suffix
+dispatch_one,1
+
+# Node 2 ACKs all of that, advancing commit on Node 1
+dispatch_one,2
+
+# Node 1 sends Node 2 a heartbeat indicating the current commit index
+periodic_all,10
+dispatch_one,1
+
 state_all
 
-dispatch_all_once
+# Node 0 rejoins the network
+connect,0,1
+connect,0,2
+
+periodic_all,10
+dispatch_all
+
 state_all
 
-dispatch_all_once
-state_all
-
-#periodic_all,10
-#dispatch_all
-#
-#state_all
-
-#periodic_all,10
-#dispatch_all
-#
-#state_all
+assert_state_sync
