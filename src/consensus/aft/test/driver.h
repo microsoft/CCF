@@ -315,10 +315,25 @@ public:
           // Parse the indices to be sent to the recipient.
           auto ae = *(aft::AppendEntries*)data;
 
-          auto& sender_ledger = _nodes.at(node_id).raft->ledger;
+          auto& sender_raft = _nodes.at(node_id).raft;
           for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
           {
-            const auto entry = sender_ledger->get_entry_by_idx(idx);
+            // The payload that we eventually deserialise must include the
+            // ledger entry as well as the View and Index that identify it. In
+            // the real entries, they are nested in the payload and the IV. For
+            // our purposes, we just prefix them manually (to mirror the
+            // desserialisation in LoggingStubStore::ExecutionWrapper)
+            const auto term_of_idx = sender_raft->get_term(idx);
+            const auto size_before = contents.size();
+            auto additional_size = sizeof(term_of_idx) + sizeof(idx);
+            const auto size_after = size_before + additional_size;
+            contents.resize(size_after);
+            {
+              uint8_t* data = contents.data() + size_before;
+              serialized::write(data, additional_size, term_of_idx);
+              serialized::write(data, additional_size, idx);
+            }
+            const auto entry = sender_raft->ledger->get_entry_by_idx(idx);
             contents.insert(contents.end(), entry.begin(), entry.end());
           }
         }

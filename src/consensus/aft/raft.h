@@ -2099,14 +2099,17 @@ namespace aft
       auto lci = last_committable_index();
       if (r.term_of_idx == aft::ViewHistory::InvalidView)
       {
-        // If we don't yet have a term history, then this must be happening in the current term.
-        // Believe the only case this can happen in is before _any_ transactions have occurred,
-        // when processing a heartbeat at index 0
+        // If we don't yet have a term history, then this must be happening in
+        // the current term. Believe the only case this can happen in is before
+        // _any_ transactions have occurred, when processing a heartbeat at
+        // index 0
         state->view_history.update(1, r.term);
       }
       else
       {
-        // The end of this append entries was not a signature, but may be in a new term. If it's a new term, this term started immediately after the previous signature we saw
+        // The end of this append entries was not a signature, but may be in a
+        // new term. If it's a new term, this term started immediately after the
+        // previous signature we saw
         if (r.idx < lci)
         {
           state->view_history.update(lci + 1, r.term_of_idx);

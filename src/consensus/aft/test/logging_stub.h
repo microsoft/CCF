@@ -255,7 +255,7 @@ namespace aft
 
       const std::vector<uint8_t>& get_entry() override
       {
-        return data;
+        return entry;
       }
 
       Term get_term() override
