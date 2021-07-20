@@ -40,6 +40,18 @@ def strip_log_lines(text):
     return os.linesep.join(ol)
 
 
+def expand_files(files):
+    all_files = []
+    for path in files:
+        if os.path.isdir(path):
+            for dirpath, dirnames, filenames in os.walk(path):
+                for name in filenames:
+                    all_files.append(os.path.join(dirpath, name))
+        else:
+            all_files.append(path)
+    return all_files
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -52,12 +64,14 @@ if __name__ == "__main__":
     err_list = []
     test_result = True
 
+    files = expand_files(args.files)
+
     if args.gen_scenarios:
-        args.files += generate_scenarios()
+        files += generate_scenarios()
 
     ostream = sys.stdout
 
-    for scenario in args.files:
+    for scenario in files:
         ostream.write("## {}\n\n".format(os.path.basename(scenario)))
         with block(ostream, "steps", 3):
             with open(scenario, "r") as scen:
