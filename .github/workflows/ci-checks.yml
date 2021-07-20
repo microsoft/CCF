@@ -8,8 +8,8 @@ on:
 
 jobs:
   checks:
-    runs-on: ubuntu-18.04
-    container: ccfciteam/ccf-ci:oe0.17.1
+    runs-on: ubuntu-20.04
+    container: ccfciteam/ccf-ci:oe0.17.1-focal
 
     steps:
       - name: Checkout repository
