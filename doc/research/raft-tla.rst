@@ -65,7 +65,7 @@ Reconfiguration steps
 
 The one transaction reconfiguration is already described :doc:`here </overview/consensus>`. In the TLA model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log. This also triggers a change in the ``Configurations`` variable which keeps track of all running configurations.
 
-In the following, this ``Configurations`` variable is then checked to calculate a Quorum and to check which nodes should be contacted or received messages from.
+In the following, this ``Configurations`` variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
 
 .. literalinclude:: ../../tla/raft_spec/ccfraft.tla
     :language: text
