@@ -57,10 +57,6 @@ namespace ccf
      *  Fields below are added in 2.x
      */
 
-    /// Node certificate subject identity
-    std::optional<crypto::CertificateSubjectIdentity>
-      certificate_subject_identity = std::nullopt;
-
     /// Node original certificate signing request
     std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
 
@@ -74,7 +70,6 @@ namespace ccf
     NodeInfo,
     ledger_secret_seqno,
     code_digest,
-    certificate_subject_identity,
     certificate_signing_request,
     public_key);
 

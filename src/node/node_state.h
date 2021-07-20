@@ -679,8 +679,6 @@ namespace ccf
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
-      join_params.certificate_subject_identity =
-        config.node_certificate_subject_identity;
       join_params.certificate_signing_request =
         node_sign_kp->create_csr(config.node_certificate_subject_identity);
 
@@ -1621,11 +1619,9 @@ namespace ccf
     // TODO: Rename
     crypto::Pem generate_endorsed_certificate(
       const crypto::Pem& subject_csr,
-      const crypto::CertificateSubjectIdentity& subject_identity,
       const crypto::Pem& endorser_private_key,
       const crypto::Pem& endorser_cert) override
     {
-      LOG_FAIL_FMT("SAN count: {}", subject_identity.sans.size());
       return crypto::make_key_pair(endorser_private_key)
         ->sign_csr(endorser_cert, subject_csr);
     }

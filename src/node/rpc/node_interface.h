@@ -58,7 +58,6 @@ namespace ccf
     virtual SessionMetrics get_session_metrics() = 0;
     virtual crypto::Pem generate_endorsed_certificate(
       const crypto::Pem& subject_csr,
-      const crypto::CertificateSubjectIdentity& subject_identity,
       const crypto::Pem& endorser_private_key,
       const crypto::Pem& endorser_cert) = 0;
   };

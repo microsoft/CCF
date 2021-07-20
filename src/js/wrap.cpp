@@ -543,23 +543,8 @@ namespace js
     JS_FreeCString(ctx, certificate_subject_identity_cstr);
     JS_FreeValue(ctx, certificate_subject_identity_val);
 
-    crypto::CertificateSubjectIdentity certificate_subject_identity;
-    try
-    {
-      certificate_subject_identity =
-        nlohmann::json::parse(certificate_subject_identity_json)
-          .get<crypto::CertificateSubjectIdentity>();
-    }
-    catch (std::exception& exc)
-    {
-      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
-    }
-
     auto endorsed_cert = node->generate_endorsed_certificate(
-      csr,
-      certificate_subject_identity,
-      network->identity->priv_key,
-      network->identity->cert);
+      csr, network->identity->priv_key, network->identity->cert);
 
     return JS_NewString(ctx, endorsed_cert.str().c_str());
   }

@@ -213,8 +213,6 @@ namespace ccf
          node_status,
          ledger_secret_seqno,
          ds::to_hex(code_digest.data),
-         in.certificate_subject_identity, // TODO: Remove as we only need
-                                          // OpenSSL backend!
          in.certificate_signing_request,
          crypto::public_key_pem_from_cert(node_der)});
 
@@ -237,11 +235,10 @@ namespace ccf
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
         if (in.certificate_signing_request.has_value())
         {
-          LOG_FAIL_FMT("Recording endorsed identity!");
+          LOG_FAIL_FMT("Recording endorsed identity!"); // TODO: Remove!
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(
               in.certificate_signing_request.value(),
-              in.certificate_subject_identity.value(),
               this->network.identity->priv_key,
               this->network.identity->cert);
           node_endorsed_certificates->put(
