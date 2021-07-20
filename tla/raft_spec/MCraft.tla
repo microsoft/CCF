@@ -14,7 +14,7 @@ InitialConfig_mc == [tmp EXCEPT ![NodeFour] = Pending,
 \* constraint below is too restrictive.
 TermLimit_mc == 4
 
-\* Limit number of requests (new entires) that can be made
+\* Limit number of requests (new entries) that can be made
 RequestLimit_mc == 2
 
 \* Limit on number of request votes that can be sent to each other node
