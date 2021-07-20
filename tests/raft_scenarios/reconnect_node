@@ -1,4 +1,4 @@
-nodes,3
+nodes,0,1,2
 connect,0,1
 connect,1,2
 connect,0,2

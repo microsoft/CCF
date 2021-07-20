@@ -54,8 +54,9 @@ int main(int argc, char** argv)
     switch (shash(items[0].c_str()))
     {
       case shash("nodes"):
-        assert(items.size() == 2);
-        driver = make_shared<RaftDriver>(stoi(items[1]));
+        assert(items.size() >= 2);
+        items.erase(items.begin());
+        driver = make_shared<RaftDriver>(items);
         break;
       case shash("connect"):
         assert(items.size() == 3);
