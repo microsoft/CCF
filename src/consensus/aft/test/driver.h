@@ -39,8 +39,8 @@ struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
 
   void truncate(aft::Index idx) override
   {
-    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id
-                    << ": truncate i: " << idx << std::endl;
+    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id << ": truncate i: " << idx
+                    << std::endl;
     aft::LedgerStubProxy::truncate(idx);
   }
 };
@@ -75,7 +75,7 @@ public:
   {
     kv::Configuration::Nodes configuration;
 
-    for (const auto& node_id_s: node_ids)
+    for (const auto& node_id_s : node_ids)
     {
       ccf::NodeId node_id(node_id_s);
 
@@ -109,12 +109,14 @@ public:
 
   void log(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    RAFT_DRIVER_OUT << "  " << first << "->>" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "->>" << second << ": " << message
+                    << std::endl;
   }
 
   void rlog(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    RAFT_DRIVER_OUT << "  " << first << "-->>" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "-->>" << second << ": " << message
+                    << std::endl;
   }
 
   void log_msg_details(
@@ -450,8 +452,8 @@ public:
     }
     if (!noop)
     {
-      RAFT_DRIVER_OUT << "  " << left << "-->" << right
-                      << ": disconnect" << std::endl;
+      RAFT_DRIVER_OUT << "  " << left << "-->" << right << ": disconnect"
+                      << std::endl;
     }
   }
 
