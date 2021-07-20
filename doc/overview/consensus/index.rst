@@ -21,7 +21,7 @@ BFT Consensus Protocol
 ----------------------
 .. warning:: CCF with BFT is currently still in development and should not be used in a production environment.
 
-BFT is still under development and should not be enabled in a production environment. More details on this mode is given :doc:`here <bft>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
+More details on this mode is given :doc:`here <bft>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
 By default CCF runs with CFT. To run CCF with BFT the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
 
