@@ -345,11 +345,12 @@ public:
             // deserialisation in LoggingStubStore::ExecutionWrapper)
             const auto term_of_idx = sender_raft->get_term(idx);
             const auto size_before = contents.size();
-            auto additional_size = sizeof(term_of_idx) + sizeof(idx);
+            auto additional_size = sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
             const auto size_after = size_before + additional_size;
             contents.resize(size_after);
             {
               uint8_t* data = contents.data() + size_before;
+              serialized::write(data, additional_size, (sizeof(term_of_idx) + sizeof(idx) + entry_opt->size()));
               serialized::write(data, additional_size, term_of_idx);
               serialized::write(data, additional_size, idx);
             }

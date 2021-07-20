@@ -37,7 +37,10 @@ namespace aft
 
     std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      return {data, data + size};
+      const auto entry_size = serialized::read<size_t>(data, size);
+      std::vector<uint8_t> entry(data, data + entry_size);
+      serialized::skip(data, size, entry_size);
+      return entry;
     }
 
     std::optional<std::vector<uint8_t>> get_entry_by_idx(size_t idx)
