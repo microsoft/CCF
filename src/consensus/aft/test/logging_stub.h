@@ -188,37 +188,17 @@ namespace aft
 
   class LoggingStubStore
   {
-  private:
+  protected:
     ccf::NodeId _id;
 
   public:
     LoggingStubStore(ccf::NodeId id) : _id(id) {}
 
-    // TODO: Move these logging lines as well
-    virtual void compact(Index i)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id << ": compact i: " << i
-                << std::endl;
-#endif
-    }
+    virtual void compact(Index i) {}
 
-    virtual void rollback(const kv::TxID& tx_id, Term t)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id
-                << ": rollback i: " << tx_id.version << " term: " << t;
-      std::cout << std::endl;
-#endif
-    }
+    virtual void rollback(const kv::TxID& tx_id, Term t) {}
 
-    virtual void initialise_term(Term t)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id
-                << ": initialise_term t: " << t << std::endl;
-#endif
-    }
+    virtual void initialise_term(Term t) {}
 
     kv::Version current_version()
     {

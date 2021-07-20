@@ -33,7 +33,7 @@ std::string stringify(const std::optional<std::vector<uint8_t>>& o)
   return "MISSING";
 }
 
-struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
+struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
 {
   using LedgerStubProxy::LedgerStubProxy;
 
@@ -42,23 +42,62 @@ struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
     bool globally_committable,
     bool force_chunk) override
   {
-    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id
-                    << ": ledger put s: " << stringify(data) << std::endl;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [ledger] appending: {}",
+                         _id,
+                         _id,
+                         stringify(data))
+                    << std::endl;
     aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
   }
 
   void truncate(aft::Index idx) override
   {
-    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id << ": truncate i: " << idx
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [ledger] truncating to {}", _id, _id, idx)
                     << std::endl;
     aft::LedgerStubProxy::truncate(idx);
   }
 };
 
+struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
+{
+  using LoggingStubStoreSig::LoggingStubStoreSig;
+
+  void compact(aft::Index idx) override
+  {
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [KV] compacting to {}", _id, _id, idx)
+                    << std::endl;
+    aft::LoggingStubStoreSig::compact(idx);
+  }
+
+  void rollback(const kv::TxID& tx_id, aft::Term t) override
+  {
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [KV] rolling back to {}.{}, in term {}",
+                         _id,
+                         _id,
+                         tx_id.term,
+                         tx_id.version,
+                         t)
+                    << std::endl;
+    aft::LoggingStubStoreSig::rollback(tx_id, t);
+  }
+
+  void initialise_term(aft::Term t) override
+  {
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [KV] initialising in term {}", _id, _id, t)
+                    << std::endl;
+    aft::LoggingStubStoreSig::initialise_term(t);
+  }
+};
+
 using ms = std::chrono::milliseconds;
 using TRaft = aft::
-  Aft<LedgerStubProxy_WithLogging, aft::ChannelStubProxy, aft::StubSnapshotter>;
-using Store = aft::LoggingStubStoreSig;
+  Aft<LedgerStubProxy_Mermaid, aft::ChannelStubProxy, aft::StubSnapshotter>;
+using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
 std::vector<uint8_t> cert;
@@ -93,7 +132,7 @@ public:
       auto raft = std::make_shared<TRaft>(
         ConsensusType::CFT,
         std::make_unique<Adaptor>(kv),
-        std::make_unique<LedgerStubProxy_WithLogging>(node_id),
+        std::make_unique<LedgerStubProxy_Mermaid>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
         std::make_shared<aft::StubSnapshotter>(),
         nullptr,
@@ -320,6 +359,7 @@ public:
         const uint8_t* data = contents.data();
         auto size = contents.size();
         auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+        bool should_send = true;
         if (msg_type == aft::raft_append_entries)
         {
           // Parse the indices to be sent to the recipient.
@@ -333,9 +373,23 @@ public:
             {
               // While trying to construct an AppendEntries, we asked for an
               // entry that doesn't exist. This is a valid situation - we queued
-              // the AppendEntries, but rolled back before it was ready to send!
-              // We abandon this operation here. TODO: Log this in mermaid?
-              continue;
+              // the AppendEntries, but rolled back before it was dispatched!
+              // We abandon this operation here.
+              // We could log this in Mermaid with the line below, but since
+              // this does not occur in a real node it is silently ignored. In a
+              // real node, the AppendEntries and truncate messages are ordered
+              // and processed by the host in that order. All AppendEntries
+              // referencing a specific index will be processed before any
+              // truncation that removes that index.
+              // RAFT_DRIVER_OUT
+              //   << fmt::format(
+              //        "  Note right of {}: Abandoning AppendEntries"
+              //        "containing {} - no longer in ledger",
+              //        node_id,
+              //        idx)
+              //   << std::endl;
+              should_send = false;
+              break;
             }
 
             // The payload that we eventually deserialise must include the
@@ -345,23 +399,31 @@ public:
             // deserialisation in LoggingStubStore::ExecutionWrapper)
             const auto term_of_idx = sender_raft->get_term(idx);
             const auto size_before = contents.size();
-            auto additional_size = sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
+            auto additional_size =
+              sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
             const auto size_after = size_before + additional_size;
             contents.resize(size_after);
             {
               uint8_t* data = contents.data() + size_before;
-              serialized::write(data, additional_size, (sizeof(term_of_idx) + sizeof(idx) + entry_opt->size()));
+              serialized::write(
+                data,
+                additional_size,
+                (sizeof(term_of_idx) + sizeof(idx) + entry_opt->size()));
               serialized::write(data, additional_size, term_of_idx);
               serialized::write(data, additional_size, idx);
             }
-            contents.insert(contents.end(), entry_opt->begin(), entry_opt->end());
+            contents.insert(
+              contents.end(), entry_opt->begin(), entry_opt->end());
           }
         }
 
-        log_msg_details(node_id, tgt_node_id, contents);
-        _nodes.at(tgt_node_id)
-          .raft->recv_message(node_id, contents.data(), contents.size());
-        count++;
+        if (should_send)
+        {
+          log_msg_details(node_id, tgt_node_id, contents);
+          _nodes.at(tgt_node_id)
+            .raft->recv_message(node_id, contents.data(), contents.size());
+          count++;
+        }
       }
     }
 
