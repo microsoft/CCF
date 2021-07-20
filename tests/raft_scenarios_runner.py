@@ -1,16 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import argparse
 import sys
 import os
 from subprocess import Popen, PIPE
 from raft_scenarios_gen import generate_scenarios
 from contextlib import contextmanager
-
-
-def scenarios(path):
-    for scenario in sorted(os.listdir(path)):
-        yield os.path.join(path, scenario)
-
 
 @contextmanager
 def block(fd, title, level, lang=None, lines=None):
@@ -46,21 +41,29 @@ def strip_log_lines(text):
 
 
 if __name__ == "__main__":
-    driver, path, doc = sys.argv[1], sys.argv[2], sys.argv[3]
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("driver", type=str, help="Path to raft_driver binary")
+    parser.add_argument("--gen-scenarios", action="store_true")
+    parser.add_argument("files", nargs="+", type=str, help="Path to scenario files")
+
+    args = parser.parse_args()
+
     err_list = []
     test_result = True
 
-    generate_scenarios(path)
+    if args.gen_scenarios:
+        args.files += generate_scenarios()
 
     ostream = sys.stdout
 
-    for scenario in scenarios(path):
+    for scenario in args.files:
         ostream.write("## {}\n\n".format(os.path.basename(scenario)))
         with block(ostream, "steps", 3):
             with open(scenario, "r") as scen:
                 ostream.write(scen.read())
         proc = Popen(
-            [driver, os.path.realpath(scenario)],
+            [args.driver, os.path.realpath(scenario)],
             stdout=PIPE,
             stderr=PIPE,
             stdin=PIPE,

@@ -420,7 +420,7 @@ public:
                     << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     // True means all these entries are committable
-    raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, 1);
+    raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, term);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
@@ -477,7 +477,7 @@ public:
 
   void assert_state_sync()
   {
-    auto [_, nd] = *_nodes.begin();
+    auto [target_id, nd] = *_nodes.begin();
     auto& target_raft = nd.raft;
     const auto target_term = target_raft->get_term();
     const auto target_last_idx = target_raft->get_last_idx();
@@ -486,18 +486,46 @@ public:
     const auto target_final_entry =
       target_raft->ledger->get_entry_by_idx(target_last_idx);
 
+    bool all_match = true;
     for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
     {
+      const auto& node_id = it->first;
       auto& raft = it->second.raft;
 
-      assert(raft->get_term() == target_term);
-      assert(raft->get_last_idx() == target_last_idx);
-      assert(raft->get_commit_idx() == target_commit_idx);
+      if (raft->get_term() != target_term)
+      {
+        RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Term {} doesn't match term {} on Node{}", node_id, raft->get_term(), target_term, target_id) << std::endl;
+        all_match = false;
+      }
 
-      // Check that the final entries are the same, assume prior entries also
-      // match
-      assert(
-        raft->ledger->get_entry_by_idx(target_last_idx) == target_final_entry);
+      if (raft->get_last_idx() != target_last_idx)
+      {
+        RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Last index {} doesn't match last index {} on Node{}", node_id, raft->get_last_idx(), target_last_idx, target_id) << std::endl;
+        all_match = false;
+      }
+      else
+      {
+        // Check that the final entries are the same, assume prior entries also
+        // match
+        const auto final_entry = raft->ledger->get_entry_by_idx(target_last_idx);
+
+        if (final_entry != target_final_entry)
+        {
+          RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Final entry at index {} doesn't match entry on Node{}: {} != {}", node_id, target_last_idx, target_id, stringify(final_entry), stringify(target_final_entry)) << std::endl;
+          all_match = false;
+        }
+      }
+
+      if (raft->get_commit_idx() != target_commit_idx)
+      {
+        RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Commit index {} doesn't match commit index {} on Node{}", node_id, raft->get_commit_idx(), target_commit_idx, target_id) << std::endl;
+        all_match = false;
+      }
+    }
+
+    if (!all_match)
+    {
+      throw std::runtime_error("States not in sync");
     }
   }
 };
