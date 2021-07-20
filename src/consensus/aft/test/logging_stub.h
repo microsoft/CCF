@@ -192,6 +192,7 @@ namespace aft
   public:
     LoggingStubStore(ccf::NodeId id) : _id(id) {}
 
+    // TODO: Move these logging lines as well
     virtual void compact(Index i)
     {
 #ifdef STUB_LOG
@@ -222,27 +223,25 @@ namespace aft
       return kv::NoVersion;
     }
 
-    virtual kv::ApplyResult deserialise_views(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr,
-      kv::Version* index = nullptr,
-      kv::Tx* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr)
-    {
-      return kv::ApplyResult::PASS;
-    }
-
     template <kv::ApplyResult AR>
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     private:
-      std::vector<uint8_t> data;
       kv::ConsensusHookPtrs hooks;
+      aft::Term term;
+      kv::Version index;
+      std::vector<uint8_t> entry;
 
     public:
-      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
+      ExecutionWrapper(const std::vector<uint8_t>& data_)
+      {
+        const uint8_t* data = data_.data();
+        auto size = data_.size();
+
+        term = serialized::read<aft::Term>(data, size);
+        index = serialized::read<kv::Version>(data, size);
+        entry = serialized::read(data, size, size);
+      }
 
       kv::ApplyResult apply() override
       {
@@ -261,12 +260,12 @@ namespace aft
 
       Term get_term() override
       {
-        return 0;
+        return term;
       }
 
       kv::Version get_index() override
       {
-        return 0;
+        return index;
       }
 
       kv::Version get_max_conflict_version() override
