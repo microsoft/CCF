@@ -19,7 +19,7 @@ This file controls the constants as seen below. In addition to basic settings of
 
 Possible state transitions in the model
 ---------------------------------------
-During the model check, the model checker will exhaustively search through all possible state transitions. The belo snippet defines the possible state transitions at each step. Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step. For example, BecomeLeader is only a possible step if the selected node has enough votes to do so.
+During the model check, the model checker will exhaustively search through all possible state transitions. The below snippet defines the possible state transitions at each step. Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step. For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
 
 .. literalinclude:: ../../tla/raft_spec/ccfraft.tla
     :language: text
