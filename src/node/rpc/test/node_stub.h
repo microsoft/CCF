@@ -149,6 +149,14 @@ namespace ccf
     }
 
     historical::StatePtr get_state_at(
+      historical::RequestHandle handle,
+      ccf::SeqNo seqno,
+      historical::ExpiryDuration seconds_until_expiry)
+    {
+      return nullptr;
+    }
+
+    historical::StatePtr get_state_at(
       historical::RequestHandle handle, ccf::SeqNo seqno)
     {
       return nullptr;

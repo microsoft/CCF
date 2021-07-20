@@ -7,6 +7,8 @@
 #include "key_pair.h"
 #include "openssl_wrappers.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <openssl/asn1.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
@@ -191,35 +193,13 @@ namespace crypto
     {
       Unique_STACK_OF_X509_EXTENSIONS exts;
 
-      std::string all_alt_names;
-      bool first = true;
-      for (const auto& san : sans)
-      {
-        LOG_FAIL_FMT("Adding san: {}", san.san);
-        if (first)
-        {
-          first = !first;
-        }
-        else
-        {
-          all_alt_names += ", ";
-        }
-
-        if (san.is_ip)
-        {
-          all_alt_names += "IP:";
-        }
-        else
-        {
-          all_alt_names += "DNS:";
-        }
-        all_alt_names += san.san;
-      }
-
       X509_EXTENSION* ext = NULL;
       OpenSSL::CHECKNULL(
         ext = X509V3_EXT_conf_nid(
-          NULL, NULL, NID_subject_alt_name, all_alt_names.c_str()));
+          NULL,
+          NULL,
+          NID_subject_alt_name,
+          fmt::format("{}", fmt::join(sans, ", ")).c_str()));
       sk_X509_EXTENSION_push(exts, ext);
       X509_REQ_add_extensions(req, exts);
     }

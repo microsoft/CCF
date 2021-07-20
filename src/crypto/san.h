@@ -4,6 +4,8 @@
 
 #include "ds/json.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <string>
 
 // TODO: Rename file?
@@ -48,3 +50,31 @@ namespace crypto
   DECLARE_JSON_TYPE(CertificateSubjectIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(CertificateSubjectIdentity, sans, name);
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<crypto::SubjectAltName>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const crypto::SubjectAltName& san, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    std::string prefix;
+    if (san.is_ip)
+    {
+      prefix = "IP";
+    }
+    else
+    {
+      prefix = "DNS";
+    }
+    return format_to(ctx.out(), "{}:{}", prefix, san.san);
+  }
+};
+FMT_END_NAMESPACE

@@ -329,7 +329,6 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::initialized);
 
-      // TODO: To remove once Eddy's PR is merged
       config = std::move(config_);
       config.node_certificate_subject_identity.sans =
         get_subject_alternative_names();
@@ -682,8 +681,9 @@ namespace ccf
       join_params.startup_seqno = startup_seqno;
       join_params.certificate_subject_identity =
         config.node_certificate_subject_identity;
-      join_params.certificate_signing_request =
-        node_sign_kp->create_csr(config.node_certificate_subject_identity.name);
+      join_params.certificate_signing_request = node_sign_kp->create_csr(
+        config.node_certificate_subject_identity.name,
+        config.node_certificate_subject_identity.sans);
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
