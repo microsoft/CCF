@@ -86,6 +86,10 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->shuffle_messages_all();
         break;
+      case shash("dispatch_one"):
+        assert(items.size() == 2);
+        driver->dispatch_one(items[1]);
+        break;
       case shash("dispatch_all"):
         assert(items.size() == 1);
         driver->dispatch_all();
