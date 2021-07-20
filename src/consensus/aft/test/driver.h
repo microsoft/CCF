@@ -32,15 +32,15 @@ struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
     bool globally_committable,
     bool force_chunk) override
   {
-    RAFT_DRIVER_OUT << "  Node" << _id << "->>Node" << _id
+    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id
                     << ": ledger put s: " << stringify(data) << std::endl;
     aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
   }
 
   void truncate(aft::Index idx) override
   {
-    RAFT_DRIVER_OUT << "  Node" << _id << "->>Node" << _id
-                    << ": truncate i: " << idx << std::endl;
+    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id << ": truncate i: " << idx
+                    << std::endl;
     aft::LedgerStubProxy::truncate(idx);
   }
 };
@@ -71,13 +71,13 @@ private:
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
 public:
-  RaftDriver(size_t number_of_nodes)
+  RaftDriver(std::vector<std::string> node_ids)
   {
     kv::Configuration::Nodes configuration;
 
-    for (size_t i = 0; i < number_of_nodes; ++i)
+    for (const auto& node_id_s : node_ids)
     {
-      ccf::NodeId node_id = std::to_string(i);
+      ccf::NodeId node_id(node_id_s);
 
       auto kv = std::make_shared<Store>(node_id);
       auto raft = std::make_shared<TRaft>(
@@ -109,14 +109,14 @@ public:
 
   void log(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    RAFT_DRIVER_OUT << "  Node" << first << "->>"
-                    << "Node" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "->>" << second << ": " << message
+                    << std::endl;
   }
 
   void rlog(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    RAFT_DRIVER_OUT << "  Node" << first << "-->>"
-                    << "Node" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "-->>" << second << ": " << message
+                    << std::endl;
   }
 
   void log_msg_details(
@@ -231,7 +231,7 @@ public:
 
   void connect(ccf::NodeId first, ccf::NodeId second)
   {
-    RAFT_DRIVER_OUT << "  Node" << first << "-->Node" << second << ": connect"
+    RAFT_DRIVER_OUT << "  " << first << "-->" << second << ": connect"
                     << std::endl;
     _connections.insert(std::make_pair(first, second));
     _connections.insert(std::make_pair(second, first));
@@ -257,7 +257,7 @@ public:
   {
     auto raft = _nodes.at(node_id).raft;
     RAFT_DRIVER_OUT << fmt::format(
-                         "  Note right of Node{}: @{}.{} (committed {})",
+                         "  Note right of {}: @{}.{} (committed {})",
                          node_id,
                          raft->get_term(),
                          raft->get_last_idx(),
@@ -413,7 +413,7 @@ public:
     if (!opt.has_value())
     {
       RAFT_DRIVER_OUT << fmt::format(
-                           "  Note right of Node{}: No primary to replicate {}",
+                           "  Note right of {}: No primary to replicate {}",
                            _nodes.begin()->first,
                            stringify(*data))
                       << std::endl;
@@ -423,7 +423,7 @@ public:
     auto& raft = _nodes.at(node_id).raft;
     const auto idx = raft->get_last_idx() + 1;
     RAFT_DRIVER_OUT << fmt::format(
-                         "  Node{}->>Node{}: replicate {}.{} = {}",
+                         "  {}->>{}: replicate {}.{} = {}",
                          node_id,
                          node_id,
                          term_s,
@@ -452,8 +452,8 @@ public:
     }
     if (!noop)
     {
-      RAFT_DRIVER_OUT << "  Node" << left << "-->Node" << right
-                      << ": disconnect" << std::endl;
+      RAFT_DRIVER_OUT << "  " << left << "-->" << right << ": disconnect"
+                      << std::endl;
     }
   }
 
@@ -470,7 +470,7 @@ public:
 
   void reconnect(ccf::NodeId left, ccf::NodeId right)
   {
-    RAFT_DRIVER_OUT << "  Node" << left << "-->Node" << right << ": reconnect"
+    RAFT_DRIVER_OUT << "  " << left << "-->" << right << ": reconnect"
                     << std::endl;
     _connections.insert(std::make_pair(left, right));
     _connections.insert(std::make_pair(right, left));
@@ -508,7 +508,7 @@ public:
       {
         RAFT_DRIVER_OUT
           << fmt::format(
-               "  Note over Node{}: Term {} doesn't match term {} on Node{}",
+               "  Note over {}: Term {} doesn't match term {} on {}",
                node_id,
                raft->get_term(),
                target_term,
@@ -520,8 +520,8 @@ public:
       if (raft->get_last_idx() != target_last_idx)
       {
         RAFT_DRIVER_OUT << fmt::format(
-                             "  Note over Node{}: Last index {} doesn't match "
-                             "last index {} on Node{}",
+                             "  Note over {}: Last index {} doesn't match "
+                             "last index {} on {}",
                              node_id,
                              raft->get_last_idx(),
                              target_last_idx,
@@ -539,8 +539,8 @@ public:
         if (final_entry != target_final_entry)
         {
           RAFT_DRIVER_OUT << fmt::format(
-                               "  Note over Node{}: Final entry at index {} "
-                               "doesn't match entry on Node{}: {} != {}",
+                               "  Note over {}: Final entry at index {} "
+                               "doesn't match entry on {}: {} != {}",
                                node_id,
                                target_last_idx,
                                target_id,
@@ -554,8 +554,8 @@ public:
       if (raft->get_commit_idx() != target_commit_idx)
       {
         RAFT_DRIVER_OUT << fmt::format(
-                             "  Note over Node{}: Commit index {} doesn't "
-                             "match commit index {} on Node{}",
+                             "  Note over {}: Commit index {} doesn't "
+                             "match commit index {} on {}",
                              node_id,
                              raft->get_commit_idx(),
                              target_commit_idx,
