@@ -7,6 +7,7 @@ from subprocess import Popen, PIPE
 from raft_scenarios_gen import generate_scenarios
 from contextlib import contextmanager
 
+
 @contextmanager
 def block(fd, title, level, lang=None, lines=None):
     fd.write(level * "#" + " " + title + "\n\n")
@@ -19,9 +20,9 @@ def block(fd, title, level, lang=None, lines=None):
 
 def write_error_report(errors=None):
     if errors:
-        errors = [(error[0], error[1].replace('\n', ' <br> ')) for error in errors]
-        scenario_len = max(len('Scenario'), *(len(error[0]) for error in errors))
-        stderr_len = max(len('stderr'), *(len(error[1]) for error in errors))
+        errors = [(error[0], error[1].replace("\n", " <br> ")) for error in errors]
+        scenario_len = max(len("Scenario"), *(len(error[0]) for error in errors))
+        stderr_len = max(len("stderr"), *(len(error[1]) for error in errors))
         print("???+ error \n")
         fmt_s = "   | {{:<{}}} | {{:<{}}} |\n".format(scenario_len, stderr_len)
         print(fmt_s.format("Scenario", "stderr"))
@@ -44,7 +45,7 @@ def expand_files(files):
     all_files = []
     for path in files:
         if os.path.isdir(path):
-            for dirpath, dirnames, filenames in os.walk(path):
+            for dirpath, _, filenames in os.walk(path):
                 for name in filenames:
                     all_files.append(os.path.join(dirpath, name))
         else:
