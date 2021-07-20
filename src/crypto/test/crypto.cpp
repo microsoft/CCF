@@ -401,7 +401,7 @@ void run_csr()
     subject_alternative_names.push_back({"192.168.0.1", true});
   }
 
-  auto csr = kpm.create_csr(subject_name, subject_alternative_names);
+  auto csr = kpm.create_csr({subject_name, subject_alternative_names});
 
   auto icrt = kpm.self_sign("CN=issuer");
   auto crt = kpm.sign_csr(icrt, csr);

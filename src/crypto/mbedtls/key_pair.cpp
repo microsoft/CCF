@@ -229,13 +229,12 @@ namespace crypto
 #endif
   }
 
-  Pem KeyPair_mbedTLS::create_csr(
-    const std::string& name, const std::vector<SubjectAltName>& sans) const
+  Pem KeyPair_mbedTLS::create_csr(const CertificateSubjectIdentity& csi) const
   {
     // mbedtls does not support parsing x509v3 extensions from a CSR
     // (https://github.com/ARMmbed/mbedtls/issues/2912) so disallow CSR creation
     // if any SAN is specified (use OpenSSL implementation instead)
-    if (!sans.empty())
+    if (!csi.sans.empty())
     {
       throw std::logic_error("mbedtls cannot create CSR with SAN");
     }
@@ -243,7 +242,8 @@ namespace crypto
     auto csr = mbedtls::make_unique<mbedtls::X509WriteCsr>();
     mbedtls_x509write_csr_set_md_alg(csr.get(), MBEDTLS_MD_SHA512);
 
-    if (mbedtls_x509write_csr_set_subject_name(csr.get(), name.c_str()) != 0)
+    if (
+      mbedtls_x509write_csr_set_subject_name(csr.get(), csi.name.c_str()) != 0)
       return {};
 
     mbedtls_x509write_csr_set_key(csr.get(), ctx.get());

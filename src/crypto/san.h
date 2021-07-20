@@ -31,11 +31,15 @@ namespace crypto
 
   struct CertificateSubjectIdentity
   {
-    std::vector<SubjectAltName> sans = {};
     std::string name;
+    std::vector<SubjectAltName> sans = {};
 
     CertificateSubjectIdentity() = default;
-    CertificateSubjectIdentity(const std::string& name) : name(name) {}
+    CertificateSubjectIdentity(
+      const std::string& name, const std::vector<SubjectAltName>& sans = {}) :
+      name(name),
+      sans(sans)
+    {}
 
     bool operator==(const CertificateSubjectIdentity& other) const
     {

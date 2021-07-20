@@ -104,7 +104,7 @@ TEST_CASE("Add a node to an opening service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign(fmt::format("CN=Joiner"));
+  const auto caller = kp->self_sign("CN=Joiner");
   const auto node_public_encryption_key =
     crypto::make_key_pair()->public_key_pem();
 
@@ -198,8 +198,7 @@ TEST_CASE("Add a node to an opening service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v =
-      crypto::make_verifier(kp->self_sign(fmt::format("CN=Other Joiner")));
+    auto v = crypto::make_verifier(kp->self_sign("CN=Other Joiner"));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -245,7 +244,7 @@ TEST_CASE("Add a node to an open service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign(fmt::format("CN=Joiner"));
+  const auto caller = kp->self_sign("CN=Joiner");
 
   std::optional<NodeInfo> node_info;
   auto tx = network.tables->create_tx();
@@ -276,7 +275,7 @@ TEST_CASE("Add a node to an open service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=Joiner")));
+    auto v = crypto::make_verifier(kp->self_sign("CN=Joiner"));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)

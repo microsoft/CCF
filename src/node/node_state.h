@@ -681,9 +681,8 @@ namespace ccf
       join_params.startup_seqno = startup_seqno;
       join_params.certificate_subject_identity =
         config.node_certificate_subject_identity;
-      join_params.certificate_signing_request = node_sign_kp->create_csr(
-        config.node_certificate_subject_identity.name,
-        config.node_certificate_subject_identity.sans);
+      join_params.certificate_signing_request =
+        node_sign_kp->create_csr(config.node_certificate_subject_identity);
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -1608,17 +1607,14 @@ namespace ccf
 
     Pem create_self_signed_node_cert()
     {
-      auto sans = get_subject_alternative_names();
-      return node_sign_kp->self_sign(
-        config.node_certificate_subject_identity.name, sans);
+      return node_sign_kp->self_sign(config.node_certificate_subject_identity);
     }
 
     Pem create_endorsed_node_cert()
     {
       auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto sans = get_subject_alternative_names();
-      auto csr = node_sign_kp->create_csr(
-        config.node_certificate_subject_identity.name, sans);
+      auto csr =
+        node_sign_kp->create_csr(config.node_certificate_subject_identity);
       return nw->sign_csr(network.identity->cert, csr);
     }
 

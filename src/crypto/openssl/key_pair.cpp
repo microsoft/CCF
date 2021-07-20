@@ -161,8 +161,7 @@ namespace crypto
     return 0;
   }
 
-  Pem KeyPair_OpenSSL::create_csr(
-    const std::string& name, const std::vector<SubjectAltName>& sans) const
+  Pem KeyPair_OpenSSL::create_csr(const CertificateSubjectIdentity& csi) const
   {
     Unique_X509_REQ req;
 
@@ -171,7 +170,7 @@ namespace crypto
     X509_NAME* subj_name = NULL;
     OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
 
-    for (const auto& [k, v] : parse_name(name))
+    for (const auto& [k, v] : parse_name(csi.name))
     {
       OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
         subj_name,
@@ -189,7 +188,7 @@ namespace crypto
     if (key)
       OpenSSL::CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
 
-    if (!sans.empty())
+    if (!csi.sans.empty())
     {
       Unique_STACK_OF_X509_EXTENSIONS exts;
 
@@ -199,7 +198,7 @@ namespace crypto
           NULL,
           NULL,
           NID_subject_alt_name,
-          fmt::format("{}", fmt::join(sans, ", ")).c_str()));
+          fmt::format("{}", fmt::join(csi.sans, ", ")).c_str()));
       sk_X509_EXTENSION_push(exts, ext);
       X509_REQ_add_extensions(req, exts);
     }
