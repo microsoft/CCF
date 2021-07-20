@@ -1366,7 +1366,7 @@ namespace aft
         r.prev_idx,
         r.term_of_idx,
         r.idx,
-        from.trim(),
+        from,
         r.term);
 
       // Don't check that the sender node ID is valid. Accept anything that
