@@ -23,7 +23,7 @@ BFT Consensus Protocol
 
 More details on this mode is given :doc:`here <bft>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
-By default CCF runs with CFT. To run CCF with BFT the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
+By default CCF runs with CFT **and BFT is disabled on release versions**. To run CCF with BFT, CCF first needs to be :doc:`built from source </contribute/build_ccf>`. Then, the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
 
 BFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CLI are:
 
