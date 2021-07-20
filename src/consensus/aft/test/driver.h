@@ -122,28 +122,36 @@ public:
   void log_msg_details(
     ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVote rv)
   {
-    std::ostringstream s;
-    s << "request_vote t: " << rv.term << ", lci: " << rv.last_committable_idx
-      << ", tolci: " << rv.term_of_last_committable_idx;
-    log(node_id, tgt_node_id, s.str());
+    const auto s = fmt::format(
+      "request_vote for term {}, at tx {}.{}",
+      rv.term,
+      rv.term_of_last_committable_idx,
+      rv.last_committable_idx);
+    log(node_id, tgt_node_id, s);
   }
 
   void log_msg_details(
     ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVoteResponse rv)
   {
-    std::ostringstream s;
-    s << "request_vote_response t: " << rv.term << ", vg: " << rv.vote_granted;
-    rlog(node_id, tgt_node_id, s.str());
+    const auto s = fmt::format(
+      "request_vote_response for term {} = {}",
+      rv.term,
+      (rv.vote_granted ? "Y" : "N"));
+    rlog(node_id, tgt_node_id, s);
   }
 
   void log_msg_details(
     ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::AppendEntries ae)
   {
-    std::ostringstream s;
-    s << "append_entries i: " << ae.idx << ", t: " << ae.term
-      << ", pi: " << ae.prev_idx << ", pt: " << ae.prev_term
-      << ", lci: " << ae.leader_commit_idx;
-    log(node_id, tgt_node_id, s.str());
+    const auto s = fmt::format(
+      "append_entries ({}.{}, {}.{}] (term {}, commit {})",
+      ae.prev_term,
+      ae.prev_idx,
+      ae.term_of_idx,
+      ae.idx,
+      ae.term,
+      ae.leader_commit_idx);
+    log(node_id, tgt_node_id, s);
   }
 
   void log_msg_details(
@@ -151,29 +159,31 @@ public:
     ccf::NodeId tgt_node_id,
     aft::AppendEntriesResponse aer)
   {
-    std::ostringstream s;
     char const* success = "UNHANDLED";
     switch (aer.success)
     {
       case (aft::AppendEntriesResponseType::OK):
       {
-        success = "Y";
+        success = "ACK";
         break;
       }
       case (aft::AppendEntriesResponseType::FAIL):
       {
-        success = "N";
+        success = "NACK";
         break;
       }
       case (aft::AppendEntriesResponseType::REQUIRE_EVIDENCE):
       {
-        success = "E";
+        success = "REQUIRE EVIDENCE";
         break;
       }
     }
-    s << "append_entries_response t: " << aer.term
-      << ", lli: " << aer.last_log_idx << ", s: " << success;
-    rlog(node_id, tgt_node_id, s.str());
+    const auto s = fmt::format(
+      "append_entries_response {} for {}.{}",
+      success,
+      aer.term,
+      aer.last_log_idx);
+    rlog(node_id, tgt_node_id, s);
   }
 
   void log_msg_details(
@@ -246,11 +256,13 @@ public:
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    RAFT_DRIVER_OUT << "  Note right of Node" << node_id << ": "
-                    << (raft->is_primary() ? "L " : "")
-                    << " t: " << raft->get_term()
-                    << ", li: " << raft->get_last_idx()
-                    << ", ci: " << raft->get_commit_idx() << std::endl;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  Note right of Node{}: @{}.{} (committed {})",
+                         node_id,
+                         raft->get_term(),
+                         raft->get_last_idx(),
+                         raft->get_commit_idx())
+                    << std::endl;
   }
 
   void state_all()
@@ -494,31 +506,61 @@ public:
 
       if (raft->get_term() != target_term)
       {
-        RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Term {} doesn't match term {} on Node{}", node_id, raft->get_term(), target_term, target_id) << std::endl;
+        RAFT_DRIVER_OUT
+          << fmt::format(
+               "  Note over Node{}: Term {} doesn't match term {} on Node{}",
+               node_id,
+               raft->get_term(),
+               target_term,
+               target_id)
+          << std::endl;
         all_match = false;
       }
 
       if (raft->get_last_idx() != target_last_idx)
       {
-        RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Last index {} doesn't match last index {} on Node{}", node_id, raft->get_last_idx(), target_last_idx, target_id) << std::endl;
+        RAFT_DRIVER_OUT << fmt::format(
+                             "  Note over Node{}: Last index {} doesn't match "
+                             "last index {} on Node{}",
+                             node_id,
+                             raft->get_last_idx(),
+                             target_last_idx,
+                             target_id)
+                        << std::endl;
         all_match = false;
       }
       else
       {
         // Check that the final entries are the same, assume prior entries also
         // match
-        const auto final_entry = raft->ledger->get_entry_by_idx(target_last_idx);
+        const auto final_entry =
+          raft->ledger->get_entry_by_idx(target_last_idx);
 
         if (final_entry != target_final_entry)
         {
-          RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Final entry at index {} doesn't match entry on Node{}: {} != {}", node_id, target_last_idx, target_id, stringify(final_entry), stringify(target_final_entry)) << std::endl;
+          RAFT_DRIVER_OUT << fmt::format(
+                               "  Note over Node{}: Final entry at index {} "
+                               "doesn't match entry on Node{}: {} != {}",
+                               node_id,
+                               target_last_idx,
+                               target_id,
+                               stringify(final_entry),
+                               stringify(target_final_entry))
+                          << std::endl;
           all_match = false;
         }
       }
 
       if (raft->get_commit_idx() != target_commit_idx)
       {
-        RAFT_DRIVER_OUT << fmt::format("  Note over Node{}: Commit index {} doesn't match commit index {} on Node{}", node_id, raft->get_commit_idx(), target_commit_idx, target_id) << std::endl;
+        RAFT_DRIVER_OUT << fmt::format(
+                             "  Note over Node{}: Commit index {} doesn't "
+                             "match commit index {} on Node{}",
+                             node_id,
+                             raft->get_commit_idx(),
+                             target_commit_idx,
+                             target_id)
+                        << std::endl;
         all_match = false;
       }
     }
