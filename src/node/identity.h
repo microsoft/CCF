@@ -3,7 +3,7 @@
 #pragma once
 
 #include "crypto/curve.h"
-#include "crypto/key_pair.h"
+#include "crypto/openssl/key_pair.h"
 
 #include <string>
 #include <vector>
@@ -24,7 +24,8 @@ namespace ccf
 
     NetworkIdentity(const std::string& name, crypto::CurveID curve_id)
     {
-      auto identity_key_pair = crypto::make_key_pair(curve_id);
+      auto identity_key_pair =
+        std::make_shared<crypto::KeyPair_OpenSSL>(curve_id);
       cert = identity_key_pair->self_sign(name);
       priv_key = identity_key_pair->private_key_pem();
     }
