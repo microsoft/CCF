@@ -200,6 +200,32 @@ namespace crypto
       }
     };
 
+    class Unique_STACK_OF_X509_EXTENSIONS
+    {
+      std::unique_ptr<
+        STACK_OF(X509_EXTENSION),
+        void (*)(STACK_OF(X509_EXTENSION)*)>
+        p;
+
+    public:
+      Unique_STACK_OF_X509_EXTENSIONS() :
+        p(sk_X509_EXTENSION_new_null(),
+          [](auto x) { sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free); })
+      {
+        OpenSSL::CHECKNULL(p.get());
+      }
+
+      Unique_STACK_OF_X509_EXTENSIONS(STACK_OF(X509_EXTENSION) * exts) :
+        p(exts,
+          [](auto x) { sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free); })
+      {}
+
+      operator STACK_OF(X509_EXTENSION) * ()
+      {
+        return p.get();
+      }
+    };
+
     class Unique_ECDSA_SIG
     {
       std::unique_ptr<ECDSA_SIG, void (*)(ECDSA_SIG*)> p;
