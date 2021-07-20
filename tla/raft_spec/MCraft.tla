@@ -34,7 +34,7 @@ CommitNotificationLimit_mc == 1
 \* real-world deployments handle graciously. 
 \* One example of this is if a Quorum of nodes becomes Candidate but can not
 \* timeout anymore since we constrained the terms. Then, an artificial Deadlock
-\* is reached. We solve this below. If TerLimit is set to any number >2, this is
+\* is reached. We solve this below. If TermLimit is set to any number >2, this is
 \* not an issue since breadth-first search will make sure that a similar
 \* situation is simulated at term==1 which results in a term increase to 2.
 MaxSimultaneousCandidates_mc == 1
