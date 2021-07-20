@@ -459,7 +459,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Tell the leader to replicate a message");
   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
-  DOCTEST_REQUIRE(*r0.ledger->ledger.front() == entry);
+  DOCTEST_REQUIRE(r0.ledger->ledger.front() == entry);
   DOCTEST_INFO("The other nodes are not told about this yet");
   DOCTEST_REQUIRE(r0c->messages.size() == 0);
 
