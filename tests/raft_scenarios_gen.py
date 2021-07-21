@@ -14,7 +14,9 @@ def fully_connected_scenario(nodes, steps):
         2: lambda: "replicate,latest,{}".format(f"hello {next(index)}"),
     }
 
-    lines = ["nodes,{}".format(nodes)]
+    # Define the nodes
+    lines = ["nodes,{}".format(','.join(str(n) for n in range(nodes)))]
+
     for first, second in combinations(range(nodes), 2):
         lines.append("connect,{},{}".format(first, second))
     # Get past the initial election
