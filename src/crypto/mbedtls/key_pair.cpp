@@ -272,29 +272,6 @@ namespace crypto
     }
   }
 
-  // Unfortunately, mbedtls does not provide a convenient API to write x509v3
-  // extensions for all supported Subject Alternative Name (SAN). Until they
-  // do, we have to write raw ASN1 ourselves.
-
-  // rfc5280 does not specify a maximum length for SAN,
-  // but rfc1035 specified that 255 bytes is enough for a DNS name
-  static constexpr auto max_san_length = 256;
-  static constexpr auto max_san_entries = 8;
-
-  // As per https://tools.ietf.org/html/rfc5280#section-4.2.1.6
-  enum san_type
-  {
-    other_name = 0,
-    rfc822_name = 1,
-    dns_name = 2,
-    x400_address = 3,
-    directory_name = 4,
-    edi_party_name = 5,
-    uniform_resource_identifier = 6,
-    ip_address = 7,
-    registeredID = 8
-  };
-
   Pem KeyPair_mbedTLS::sign_csr(
     const Pem& issuer_cert, const Pem& signing_request, bool ca) const
   {
