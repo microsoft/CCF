@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "crypto/csr.h"
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
 #include "crypto/key_wrap.h"
@@ -382,6 +383,22 @@ TEST_CASE("Extract public key from cert")
     auto pubk = public_key_der_from_cert(cert_der);
     REQUIRE(pk == pubk);
   }
+}
+
+template <typename T>
+void create_csr_and_extract_pubk()
+{
+  T kp(CurveID::SECP384R1);
+  auto pk = kp.public_key_pem();
+  auto csr = kp.create_csr({"CN=name"});
+  auto pubk = public_key_pem_from_csr(csr);
+  REQUIRE(pk == pubk);
+}
+
+TEST_CASE("Extract public key from csr")
+{
+  create_csr_and_extract_pubk<KeyPair_mbedTLS>();
+  create_csr_and_extract_pubk<KeyPair_OpenSSL>();
 }
 
 template <typename T, typename S>

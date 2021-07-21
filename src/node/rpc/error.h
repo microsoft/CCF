@@ -76,6 +76,7 @@ namespace ccf
     ERROR(InvalidNodeState)
     ERROR(NodeAlreadyExists)
     ERROR(StartupSnapshotIsOld)
+    ERROR(CSRPublicKeyInvalid)
 
 #undef ERROR
   }

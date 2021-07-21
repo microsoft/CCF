@@ -36,8 +36,10 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
-    /** Node certificate. Only set for 1.x releases. Further releases record
-     * node identity in `public_key` field */
+    /** Deprecated.
+     * Node certificate. Only set for 1.x releases. Further releases record
+     * node identity in `public_key` field. Service-endorsed certificate is
+     * recorded in "public:ccf.nodes.endorsed_certificates" table */
     crypto::Pem cert;
     /// Node enclave quote
     QuoteInfo quote_info;
@@ -57,7 +59,7 @@ namespace ccf
      *  Fields below are added in 2.x
      */
 
-    /// Node original certificate signing request
+    /// Node certificate signing request
     std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
 
     /// Public key

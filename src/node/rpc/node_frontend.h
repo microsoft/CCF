@@ -7,6 +7,7 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
+#include "crypto/csr.h"
 #include "crypto/hash.h"
 #include "frontend.h"
 #include "node/entities.h"
@@ -202,7 +203,22 @@ namespace ccf
           this->network.ledger_secrets->get_latest(tx).first;
       }
 
-      // TODO: Check that the public key in the CSR matches the TLS identity
+      // Note: All new nodes should specify a CSR from 2.x
+      // TODO: Should we enforce this?
+      auto client_public_key_pem = crypto::public_key_pem_from_cert(node_der);
+      if (in.certificate_signing_request.has_value())
+      {
+        // Verify that client's public key matches the one specified in the CSR)
+        auto csr_public_key_pem = crypto::public_key_pem_from_csr(
+          in.certificate_signing_request.value());
+        if (client_public_key_pem != csr_public_key_pem)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::CSRPublicKeyInvalid,
+            "Public key in CSR does not match TLS client identity.");
+        }
+      }
 
       nodes->put(
         joining_node_id,
@@ -214,7 +230,7 @@ namespace ccf
          ledger_secret_seqno,
          ds::to_hex(code_digest.data),
          in.certificate_signing_request,
-         crypto::public_key_pem_from_cert(node_der)});
+         client_public_key_pem});
 
       kv::NetworkConfiguration nc =
         get_latest_network_configuration(network, tx);
