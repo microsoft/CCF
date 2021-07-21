@@ -2108,9 +2108,9 @@ namespace aft
       }
       else
       {
-        // The end of this append entries was not a signature, but may be in a
-        // new term. If it's a new term, this term started immediately after the
-        // previous signature we saw
+        // The end of this append entries (r.idx) was not a signature, but may
+        // be in a new term. If it's a new term, this term started immediately
+        // after the previous signature we saw (lci, last committable index).
         if (r.idx > lci)
         {
           state->view_history.update(lci + 1, r.term_of_idx);
