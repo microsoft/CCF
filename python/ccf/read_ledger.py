@@ -14,7 +14,7 @@ def indent(n):
     return " " * n
 
 
-def fmt_unsigned_int_little(data):
+def fmt_uint_le(data):
     return (
         f'<u{8 * len(data)}: {int.from_bytes(data, byteorder="little", signed=False)}>'
     )
@@ -40,14 +40,14 @@ default_tables_format_rules = [
     (
         "^public:ccf\\.internal\\..*$",
         {
-            "key": fmt_unsigned_int_little,
+            "key": fmt_uint_le,
             "value": fmt_json,
         },
     ),
     (
         "^public:ccf\\.gov\\.(service|network|constitution).*$",
         {
-            "key": fmt_unsigned_int_little,
+            "key": fmt_uint_le,
             "value": fmt_json,
         },
     ),
