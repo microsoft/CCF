@@ -2111,7 +2111,7 @@ namespace aft
         // The end of this append entries was not a signature, but may be in a
         // new term. If it's a new term, this term started immediately after the
         // previous signature we saw
-        if (r.idx < lci)
+        if (r.idx > lci)
         {
           state->view_history.update(lci + 1, r.term_of_idx);
         }
