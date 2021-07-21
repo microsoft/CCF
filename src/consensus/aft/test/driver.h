@@ -366,7 +366,8 @@ public:
           auto ae = *(aft::AppendEntries*)data;
 
           auto& sender_raft = _nodes.at(node_id).raft;
-          const auto payload_opt = sender_raft->ledger->get_append_entries_payload(ae, sender_raft);
+          const auto payload_opt =
+            sender_raft->ledger->get_append_entries_payload(ae, sender_raft);
 
           if (!payload_opt.has_value())
           {
@@ -391,7 +392,8 @@ public:
           }
           else
           {
-            contents.insert(contents.end(), payload_opt->begin(), payload_opt->end());
+            contents.insert(
+              contents.end(), payload_opt->begin(), payload_opt->end());
           }
         }
 

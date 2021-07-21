@@ -56,7 +56,8 @@ namespace aft
     }
 
     template <typename T>
-    std::optional<std::vector<uint8_t>> get_append_entries_payload(const aft::AppendEntries& ae, T& term_getter)
+    std::optional<std::vector<uint8_t>> get_append_entries_payload(
+      const aft::AppendEntries& ae, T& term_getter)
     {
       std::vector<uint8_t> payload;
 
@@ -74,7 +75,9 @@ namespace aft
         // ledger entry as well as the View and Index that identify it. In
         // the real entries, they are nested in the payload and the IV. For
         // test purposes, we just prefix them manually (to mirror the
-        // deserialisation in LoggingStubStore::ExecutionWrapper). We also size-prefix, so in a buffer of multiple of these messages we can extract each with get_entry above
+        // deserialisation in LoggingStubStore::ExecutionWrapper). We also
+        // size-prefix, so in a buffer of multiple of these messages we can
+        // extract each with get_entry above
         const auto term_of_idx = term_getter->get_term(idx);
         const auto size_before = payload.size();
         auto additional_size =
@@ -90,8 +93,7 @@ namespace aft
           serialized::write(data, additional_size, term_of_idx);
           serialized::write(data, additional_size, idx);
         }
-        payload.insert(
-          payload.end(), entry.begin(), entry.end());
+        payload.insert(payload.end(), entry.begin(), entry.end());
       }
 
       return payload;

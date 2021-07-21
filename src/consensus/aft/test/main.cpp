@@ -25,12 +25,15 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
 std::vector<uint8_t> cert;
 
+const auto request_timeout = ms(10);
+
 aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
 {
   return (aft::ChannelStubProxy*)r.channels.get();
 }
 
-void receive_message(TRaft& sender, TRaft& receiver, std::vector<uint8_t> contents)
+void receive_message(
+  TRaft& sender, TRaft& receiver, std::vector<uint8_t> contents)
 {
   bool should_send = true;
 
@@ -85,7 +88,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     nullptr,
     nullptr,
     nullptr,
-    ms(10),
+    request_timeout,
     election_timeout,
     ms(1000));
 
@@ -130,7 +133,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     nullptr,
     nullptr,
     nullptr,
-    ms(10),
+    request_timeout,
     election_timeout,
     ms(1000));
 
@@ -495,7 +498,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("The other nodes are not told about this yet");
   DOCTEST_REQUIRE(r0c->messages.size() == 0);
 
-  r0.periodic(ms(10));
+  r0.periodic(request_timeout);
 
   DOCTEST_INFO("Now the other nodes are sent append_entries");
   DOCTEST_REQUIRE(
@@ -622,7 +625,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
-  r0.periodic(ms(10));
+  r0.periodic(request_timeout);
 
   DOCTEST_REQUIRE(
     1 ==
@@ -753,7 +756,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
-    r0.periodic(ms(10));
+    r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
     // Receive append entries (idx: 2, prev_idx: 0)
@@ -807,7 +810,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
-    r0.periodic(ms(10));
+    r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 4);
@@ -821,7 +824,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
-    r0.periodic(ms(10));
+    r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
     r0c->messages.pop_front();
 
@@ -975,6 +978,10 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
       r0.replicate(kv::BatchVector{{i, smaller_data, true, hooks}}, 1));
     dispatch_all(nodes, node_id0, r0c->messages);
   }
+
+  // Tick to allow any remaining entries to be sent
+  r0.periodic(request_timeout);
+  dispatch_all(nodes, node_id0, r0c->messages);
 
   {
     DOCTEST_INFO("Nodes 0 and 1 have the same complete ledger");
