@@ -2100,9 +2100,10 @@ namespace aft
       if (r.term_of_idx == aft::ViewHistory::InvalidView)
       {
         // If we don't yet have a term history, then this must be happening in
-        // the current term. Believe the only case this can happen in is before
-        // _any_ transactions have occurred, when processing a heartbeat at
-        // index 0
+        // the current term. This can only happen before _any_ transactions have
+        // occurred, when processing a heartbeat at index 0, which does not
+        // happen in a real node (due to the genesis transaction executing
+        // before ticks start), but may happen in tests.
         state->view_history.update(1, r.term);
       }
       else
