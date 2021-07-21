@@ -693,7 +693,6 @@ namespace ccf
       auto tx = store.create_tx();
       auto signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
       auto sig = signatures->get();
       if (!sig.has_value())
       {
@@ -711,15 +710,36 @@ namespace ccf
         *signature = sig_value;
       }
 
-      auto ni = nodes->get(sig_value.node);
-      if (!ni.has_value())
+      // Find node certificate from unique node ID recorded in signature table
+      crypto::Pem node_cert;
+      auto node_endorsed_certs = tx.template ro<ccf::NodeEndorsedCertificates>(
+        ccf::Tables::NODE_ENDORSED_CERTIFICATES);
+      auto node_endorsed_cert = node_endorsed_certs->get(sig_value.node);
+      if (!node_endorsed_cert.has_value())
       {
-        LOG_FAIL_FMT(
-          "No node info, and therefore no cert for node {}", sig_value.node);
-        return false;
+        // No endorsed certificate for node. Its (self-signed) certificate may
+        // be stored in the nodes table (1.x ledger only)
+
+        auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
+        auto node = nodes->get(sig_value.node);
+        if (!node.has_value())
+        {
+          LOG_FAIL_FMT(
+            "Signature cannot be verified: no certificate found for node {}",
+            sig_value.node);
+          return false;
+        }
+
+        node_cert = node->cert;
+      }
+      else
+      {
+        node_cert = node_endorsed_cert->endorsed_certificate;
       }
 
-      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
+      LOG_FAIL_FMT("Node cert: {}", node_cert.str());
+
+      crypto::VerifierPtr from_cert = crypto::make_verifier(node_cert);
       crypto::Sha256Hash root = get_replicated_state_root();
       log_hash(root, VERIFY);
       bool result =

@@ -31,6 +31,7 @@ LEDGER_HEADER_SIZE = 8
 # https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
+ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -289,8 +290,10 @@ class LedgerValidator:
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
                 node_info = json.loads(node_info)
-                # Add the node certificate
-                self.node_certificates[node_id] = node_info["cert"].encode()
+                # Add the self-signed node certificate (only available in 1.x,
+                # refer to node endorsed certificates table otherwise)
+                if node_info["cert"]:
+                    self.node_certificates[node_id] = node_info["cert"].encode()
                 # Update node trust status
                 # Also record the seqno at which the node status changed to
                 # track when a primary node should stop issuing signatures
@@ -298,6 +301,20 @@ class LedgerValidator:
                     node_info["status"],
                     transaction_public_domain.get_seqno(),
                 )
+
+        if ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables:
+            node_endorsed_certificates_tables = tables[
+                ENDORSED_NODE_CERTIFICATES_TABLE_NAME
+            ]
+            for node_id, node_cert in node_endorsed_certificates_tables.items():
+                node_id = node_id.decode()
+                node_cert = json.loads(node_cert)
+                assert (
+                    node_id not in self.node_certificates
+                ), "Only one of node self-signed certificate and endorsed certificate should be recorded"
+                self.node_certificates[node_id] = node_cert[
+                    "endorsed_certificate"
+                ].encode()
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:

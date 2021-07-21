@@ -168,7 +168,7 @@ TEST_CASE("Add a node to an opening service")
 
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::TRUSTED);
-    CHECK(caller == node_info->cert);
+    CHECK(kp->public_key_pem() == node_info->public_key);
   }
 
   INFO("Adding the same node should return the same result");
@@ -268,7 +268,7 @@ TEST_CASE("Add a node to an open service")
     node_info = nodes->get(node_id);
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::PENDING);
-    CHECK(caller == node_info->cert);
+    CHECK(kp->public_key_pem() == node_info->public_key);
   }
 
   INFO(

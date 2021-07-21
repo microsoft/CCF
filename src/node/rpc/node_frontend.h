@@ -80,23 +80,25 @@ namespace ccf
 
     std::optional<ExistingNodeInfo> check_node_exists(
       kv::Tx& tx,
-      const std::vector<uint8_t>& node_der,
+      const std::vector<uint8_t>& self_signed_node_der,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
+      // Check that a node exists by looking up its public key in the nodes
+      // table.
       auto nodes = tx.ro(network.nodes);
       auto endorsed_node_certificates =
         tx.ro(network.node_endorsed_certificates);
 
-      auto node_pem = crypto::cert_der_to_pem(node_der);
+      auto pk_pem = crypto::public_key_pem_from_cert(self_signed_node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
       nodes->foreach([&existing_node_info,
-                      &node_pem,
+                      &pk_pem,
                       &node_status,
                       &endorsed_node_certificates](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
-          ni.cert == node_pem &&
+          ni.public_key == pk_pem &&
           (!node_status.has_value() || ni.status == node_status.value()))
         {
           auto endorsed_node_certificate = endorsed_node_certificates->get(nid);
@@ -144,7 +146,7 @@ namespace ccf
       NodeStatus node_status,
       ServiceStatus service_status)
     {
-      LOG_FAIL_FMT("Service status: {}", service_status);
+      LOG_FAIL_FMT("Service status: {}", service_status); // TODO: Delete
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
@@ -223,7 +225,8 @@ namespace ccf
       nodes->put(
         joining_node_id,
         {in.node_info_network,
-         crypto::cert_der_to_pem(node_der),
+         Pem(), // This field was used in 1.x to record self-signed node
+                // certificate
          in.quote_info,
          in.public_encryption_key,
          node_status,
