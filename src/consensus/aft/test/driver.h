@@ -366,54 +366,32 @@ public:
           auto ae = *(aft::AppendEntries*)data;
 
           auto& sender_raft = _nodes.at(node_id).raft;
-          for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
-          {
-            const auto entry_opt = sender_raft->ledger->get_entry_by_idx(idx);
-            if (!entry_opt.has_value())
-            {
-              // While trying to construct an AppendEntries, we asked for an
-              // entry that doesn't exist. This is a valid situation - we queued
-              // the AppendEntries, but rolled back before it was dispatched!
-              // We abandon this operation here.
-              // We could log this in Mermaid with the line below, but since
-              // this does not occur in a real node it is silently ignored. In a
-              // real node, the AppendEntries and truncate messages are ordered
-              // and processed by the host in that order. All AppendEntries
-              // referencing a specific index will be processed before any
-              // truncation that removes that index.
-              // RAFT_DRIVER_OUT
-              //   << fmt::format(
-              //        "  Note right of {}: Abandoning AppendEntries"
-              //        "containing {} - no longer in ledger",
-              //        node_id,
-              //        idx)
-              //   << std::endl;
-              should_send = false;
-              break;
-            }
+          const auto payload_opt = sender_raft->ledger->get_append_entries_payload(ae, sender_raft);
 
-            // The payload that we eventually deserialise must include the
-            // ledger entry as well as the View and Index that identify it. In
-            // the real entries, they are nested in the payload and the IV. For
-            // our purposes, we just prefix them manually (to mirror the
-            // deserialisation in LoggingStubStore::ExecutionWrapper)
-            const auto term_of_idx = sender_raft->get_term(idx);
-            const auto size_before = contents.size();
-            auto additional_size =
-              sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
-            const auto size_after = size_before + additional_size;
-            contents.resize(size_after);
-            {
-              uint8_t* data = contents.data() + size_before;
-              serialized::write(
-                data,
-                additional_size,
-                (sizeof(term_of_idx) + sizeof(idx) + entry_opt->size()));
-              serialized::write(data, additional_size, term_of_idx);
-              serialized::write(data, additional_size, idx);
-            }
-            contents.insert(
-              contents.end(), entry_opt->begin(), entry_opt->end());
+          if (!payload_opt.has_value())
+          {
+            // While trying to construct an AppendEntries, we asked for an
+            // entry that doesn't exist. This is a valid situation - we queued
+            // the AppendEntries, but rolled back before it was dispatched!
+            // We abandon this operation here.
+            // We could log this in Mermaid with the line below, but since
+            // this does not occur in a real node it is silently ignored. In a
+            // real node, the AppendEntries and truncate messages are ordered
+            // and processed by the host in that order. All AppendEntries
+            // referencing a specific index will be processed before any
+            // truncation that removes that index.
+            // RAFT_DRIVER_OUT
+            //   << fmt::format(
+            //        "  Note right of {}: Abandoning AppendEntries"
+            //        "containing {} - no longer in ledger",
+            //        node_id,
+            //        idx)
+            //   << std::endl;
+            should_send = false;
+          }
+          else
+          {
+            contents.insert(contents.end(), payload_opt->begin(), payload_opt->end());
           }
         }
 

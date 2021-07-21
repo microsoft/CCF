@@ -32,7 +32,7 @@ namespace aft
 
     void skip_entry(const uint8_t*& data, size_t& size)
     {
-      skip_count++;
+      get_entry(data, size);
     }
 
     std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
@@ -52,6 +52,48 @@ namespace aft
       }
 
       return std::nullopt;
+    }
+
+    template <typename T>
+    std::optional<std::vector<uint8_t>> get_append_entries_payload(const aft::AppendEntries& ae, T& term_getter)
+    {
+      std::vector<uint8_t> payload;
+
+      for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
+      {
+        auto entry_opt = get_entry_by_idx(idx);
+        if (!entry_opt.has_value())
+        {
+          return std::nullopt;
+        }
+
+        const auto& entry = *entry_opt;
+
+        // The payload that we eventually deserialise must include the
+        // ledger entry as well as the View and Index that identify it. In
+        // the real entries, they are nested in the payload and the IV. For
+        // test purposes, we just prefix them manually (to mirror the
+        // deserialisation in LoggingStubStore::ExecutionWrapper). We also size-prefix, so in a buffer of multiple of these messages we can extract each with get_entry above
+        const auto term_of_idx = term_getter->get_term(idx);
+        const auto size_before = payload.size();
+        auto additional_size =
+          sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
+        const auto size_after = size_before + additional_size;
+        payload.resize(size_after);
+        {
+          uint8_t* data = payload.data() + size_before;
+          serialized::write(
+            data,
+            additional_size,
+            (sizeof(term_of_idx) + sizeof(idx) + entry.size()));
+          serialized::write(data, additional_size, term_of_idx);
+          serialized::write(data, additional_size, idx);
+        }
+        payload.insert(
+          payload.end(), entry.begin(), entry.end());
+      }
+
+      return payload;
     }
 
     virtual void truncate(Index idx)

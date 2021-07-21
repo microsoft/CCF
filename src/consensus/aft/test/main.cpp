@@ -296,25 +296,6 @@ DOCTEST_TEST_CASE(
   }
 }
 
-template <class NodeMap>
-static size_t dispatch_all(
-  NodeMap& nodes,
-  const ccf::NodeId& from,
-  aft::ChannelStubProxy::MessageList& messages)
-{
-  size_t count = 0;
-  while (messages.size())
-  {
-    auto message = messages.front();
-    messages.pop_front();
-    auto tgt_node_id = get<0>(message);
-    auto contents = get<1>(message);
-    nodes[tgt_node_id]->recv_message(from, contents.data(), contents.size());
-    count++;
-  }
-  return count;
-}
-
 template <typename AssertionArg, class NodeMap, class Assertion>
 static size_t dispatch_all_and_DOCTEST_CHECK(
   NodeMap& nodes,
@@ -325,16 +306,56 @@ static size_t dispatch_all_and_DOCTEST_CHECK(
   size_t count = 0;
   while (messages.size())
   {
-    auto message = messages.front();
+    auto [tgt_node_id, contents] = messages.front();
     messages.pop_front();
-    auto tgt_node_id = get<0>(message);
-    auto contents = get<1>(message);
-    AssertionArg arg = *(AssertionArg*)contents.data();
-    assertion(arg);
+
+    {
+      AssertionArg arg = *(AssertionArg*)contents.data();
+      assertion(arg);
+    }
+
+    {
+      // If this is AppendEntries, then append the serialised ledger entries to
+      // the message before transmitting
+      const uint8_t* data = contents.data();
+      auto size = contents.size();
+      auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+      if (msg_type == aft::raft_append_entries)
+      {
+        // Parse the indices to be sent to the recipient.
+        auto ae = *(aft::AppendEntries*)data;
+
+        auto& sender_raft = nodes[from];
+        const auto payload_opt =
+          sender_raft->ledger->get_append_entries_payload(ae, sender_raft);
+        if (payload_opt.has_value())
+        {
+          contents.insert(
+            contents.end(), payload_opt->begin(), payload_opt->end());
+        }
+        else
+        {
+          throw std::logic_error(
+            "Unexpected truncation means AppendEntries can no longer be sent");
+        }
+      }
+    }
     nodes[tgt_node_id]->recv_message(from, contents.data(), contents.size());
     count++;
   }
   return count;
+}
+
+template <class NodeMap>
+static size_t dispatch_all(
+  NodeMap& nodes,
+  const ccf::NodeId& from,
+  aft::ChannelStubProxy::MessageList& messages)
+{
+  return dispatch_all_and_DOCTEST_CHECK<bool>(
+    nodes, from, messages, [](const auto&) {
+      // Pass
+    });
 }
 
 DOCTEST_TEST_CASE(
@@ -942,6 +963,12 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     dispatch_all(nodes, node_id0, r0c->messages);
   }
 
+  {
+    DOCTEST_INFO("Nodes 0 and 1 have the same complete ledger");
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == individual_entries);
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == individual_entries);
+  }
+
   DOCTEST_INFO("Node 2 joins the ensemble");
 
   aft::Configuration::Nodes config1;
@@ -969,7 +996,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
       }));
 
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == 0);
-  DOCTEST_REQUIRE(r0.ledger->ledger.size() == individual_entries);
 
   DOCTEST_INFO("Node 2 asks for Node 0 to send all the data up to now");
   DOCTEST_REQUIRE(r2c->messages.size() == 1);
