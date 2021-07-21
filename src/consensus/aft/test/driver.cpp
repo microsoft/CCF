@@ -40,7 +40,8 @@ int main(int argc, char** argv)
 
   if (!fstream.is_open())
   {
-    throw std::runtime_error(fmt::format("File {} does not exist or could not be opened", filename));
+    throw std::runtime_error(
+      fmt::format("File {} does not exist or could not be opened", filename));
   }
 
   string line;

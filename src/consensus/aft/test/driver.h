@@ -156,20 +156,31 @@ public:
     }
   }
 
-  void log(ccf::NodeId first, ccf::NodeId second, const std::string& message, bool dropped = false)
+  void log(
+    ccf::NodeId first,
+    ccf::NodeId second,
+    const std::string& message,
+    bool dropped = false)
   {
-    RAFT_DRIVER_OUT << "  " << first << "-" << (dropped ? "X" : ">>") << second << ": " << message
-                    << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "-" << (dropped ? "X" : ">>") << second
+                    << ": " << message << std::endl;
   }
 
-  void rlog(ccf::NodeId first, ccf::NodeId second, const std::string& message, bool dropped = false)
+  void rlog(
+    ccf::NodeId first,
+    ccf::NodeId second,
+    const std::string& message,
+    bool dropped = false)
   {
-    RAFT_DRIVER_OUT << "  " << first << "--" << (dropped ? "X" : ">>") << second << ": " << message
-                    << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "--" << (dropped ? "X" : ">>") << second
+                    << ": " << message << std::endl;
   }
 
   void log_msg_details(
-    ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVote rv, bool dropped)
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::RequestVote rv,
+    bool dropped)
   {
     const auto s = fmt::format(
       "request_vote for term {}, at tx {}.{}",
@@ -180,7 +191,10 @@ public:
   }
 
   void log_msg_details(
-    ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVoteResponse rv, bool dropped)
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::RequestVoteResponse rv,
+    bool dropped)
   {
     const auto s = fmt::format(
       "request_vote_response for term {} = {}",
@@ -190,7 +204,10 @@ public:
   }
 
   void log_msg_details(
-    ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::AppendEntries ae, bool dropped)
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::AppendEntries ae,
+    bool dropped)
   {
     const auto s = fmt::format(
       "append_entries ({}.{}, {}.{}] (term {}, commit {})",
@@ -206,7 +223,8 @@ public:
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
-    aft::AppendEntriesResponse aer, bool dropped)
+    aft::AppendEntriesResponse aer,
+    bool dropped)
   {
     char const* success = "UNHANDLED";
     switch (aer.success)
@@ -238,7 +256,8 @@ public:
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
-    const std::vector<uint8_t>& contents, bool dropped=false)
+    const std::vector<uint8_t>& contents,
+    bool dropped = false)
   {
     const uint8_t* data = contents.data();
     size_t size = contents.size();
@@ -249,25 +268,25 @@ public:
       case (aft::RaftMsgType::raft_request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        log_msg_details(node_id, tgt_node_id, rv,dropped);
+        log_msg_details(node_id, tgt_node_id, rv, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        log_msg_details(node_id, tgt_node_id, rvr,dropped);
+        log_msg_details(node_id, tgt_node_id, rvr, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        log_msg_details(node_id, tgt_node_id, ae,dropped);
+        log_msg_details(node_id, tgt_node_id, ae, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        log_msg_details(node_id, tgt_node_id, aer,dropped);
+        log_msg_details(node_id, tgt_node_id, aer, dropped);
         break;
       }
       default:
@@ -308,7 +327,8 @@ public:
     RAFT_DRIVER_OUT << fmt::format(
                          "  Note right of {}: {} @{}.{} (committed {})",
                          node_id,
-                         raft->is_primary() ? "P" : (raft->is_follower() ? "F" : "C"),
+                         raft->is_primary() ? "P" :
+                                              (raft->is_follower() ? "F" : "C"),
                          raft->get_term(),
                          raft->get_last_idx(),
                          raft->get_commit_idx())
@@ -342,7 +362,10 @@ public:
   }
 
   template <class Messages>
-  size_t dispatch_one_queue(ccf::NodeId node_id, Messages& messages, const std::optional<size_t>& max_count = std::nullopt)
+  size_t dispatch_one_queue(
+    ccf::NodeId node_id,
+    Messages& messages,
+    const std::optional<size_t>& max_count = std::nullopt)
   {
     size_t count = 0;
 
@@ -411,7 +434,8 @@ public:
     return count;
   }
 
-  void dispatch_one(ccf::NodeId node_id, const std::optional<size_t>& max_count = std::nullopt)
+  void dispatch_one(
+    ccf::NodeId node_id, const std::optional<size_t>& max_count = std::nullopt)
   {
     auto raft = _nodes.at(node_id).raft;
     dispatch_one_queue(node_id, channel_stub_proxy(*raft)->messages, max_count);
@@ -419,11 +443,16 @@ public:
 
   void dispatch_all_once()
   {
-    // The intent is to dispatch all _current_ messages, but no new ones. If we simply iterated, then we may dispatch new messages that are produced on later nodes, in response to messages from earlier-processed nodes. To avoid that, we count how many messages are present initially, and cap to only processing that many
+    // The intent is to dispatch all _current_ messages, but no new ones. If we
+    // simply iterated, then we may dispatch new messages that are produced on
+    // later nodes, in response to messages from earlier-processed nodes. To
+    // avoid that, we count how many messages are present initially, and cap to
+    // only processing that many
     std::map<ccf::NodeId, size_t> initial_message_counts;
-    for (auto& [node_id, driver]: _nodes)
+    for (auto& [node_id, driver] : _nodes)
     {
-      initial_message_counts[node_id] = channel_stub_proxy(*driver.raft)->messages.size();
+      initial_message_counts[node_id] =
+        channel_stub_proxy(*driver.raft)->messages.size();
     }
 
     for (auto& node : _nodes)

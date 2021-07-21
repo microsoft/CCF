@@ -37,10 +37,6 @@ periodic_all,10
 drop_pending,0
 dispatch_all
 
-periodic_all,10
-drop_pending,0
-dispatch_all
-
 # Before either follower times out, the message eventually reaches Node 1 (though not Node 2)
 periodic_all,10
 drop_pending_to,0,2
@@ -87,6 +83,7 @@ drop_pending,2
 # TODO: Add more precise state assert? Currently 2 is @5.1, and is a Candidate
 
 # Eventually Node 1 stops hearing from Node 0, and calls an election
+state_all
 drop_pending,1
 periodic_one,1,100
 dispatch_all_once  #< Finally, everyone hears about this!
@@ -111,17 +108,18 @@ drop_pending,0
 dispatch_all_once
 
 # Node 1 is now primary, though it still doesn't know that 2 is committed
+state_all
 
 # Now we allow the network to heal and return to normal
 periodic_all,10
-dispatch_all_once
+dispatch_all_once  #< "Where are you?"
 
 periodic_all,10
-dispatch_all_once
+dispatch_all_once  #< "Out-of-date"
 
 periodic_all,10
-dispatch_all_once
+dispatch_all_once  #< "Here's latest"
+
 
 state_all
-
 assert_state_sync
