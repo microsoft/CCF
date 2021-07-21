@@ -33,6 +33,7 @@ namespace aft
     void skip_entry(const uint8_t*& data, size_t& size)
     {
       get_entry(data, size);
+      ++skip_count;
     }
 
     std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)

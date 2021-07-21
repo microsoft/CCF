@@ -30,6 +30,42 @@ aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
   return (aft::ChannelStubProxy*)r.channels.get();
 }
 
+void receive_message(TRaft& sender, TRaft& receiver, std::vector<uint8_t> contents)
+{
+  bool should_send = true;
+
+  {
+    // If this is AppendEntries, then append the serialised ledger entries to
+    // the message before transmitting
+    const uint8_t* data = contents.data();
+    auto size = contents.size();
+    auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    if (msg_type == aft::raft_append_entries)
+    {
+      // Parse the indices to be sent to the recipient.
+      auto ae = *(aft::AppendEntries*)data;
+
+      TRaft* ps = &sender;
+      const auto payload_opt =
+        sender.ledger->get_append_entries_payload(ae, ps);
+      if (payload_opt.has_value())
+      {
+        contents.insert(
+          contents.end(), payload_opt->begin(), payload_opt->end());
+      }
+      else
+      {
+        should_send = false;
+      }
+    }
+  }
+
+  if (should_send)
+  {
+    receiver.recv_message(sender.id(), contents.data(), contents.size());
+  }
+}
+
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = kv::test::PrimaryNodeId;
@@ -216,7 +252,7 @@ DOCTEST_TEST_CASE(
       rvc.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
   }
 
-  r1.recv_message(node_id0, rv_raw->data(), rv_raw->size());
+  receive_message(r0, r1, *rv_raw);
 
   DOCTEST_INFO("Node 2 receives the request");
 
@@ -230,7 +266,7 @@ DOCTEST_TEST_CASE(
       rvc.term_of_last_committable_idx == aft::ViewHistory::InvalidView);
   }
 
-  r2.recv_message(node_id0, rv_raw->data(), rv_raw->size());
+  receive_message(r0, r2, *rv_raw);
 
   DOCTEST_INFO("Node 1 votes for Node 0");
 
@@ -247,7 +283,7 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(rvrc.vote_granted);
   }
 
-  r0.recv_message(node_id1, rvr_raw->data(), rvr_raw->size());
+  receive_message(r1, r0, *rvr_raw);
 
   DOCTEST_INFO("Node 2 votes for Node 0");
 
@@ -264,7 +300,7 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(rvrc.vote_granted);
   }
 
-  r0.recv_message(node_id2, rvr_raw->data(), rvr_raw->size());
+  receive_message(r2, r0, *rvr_raw);
 
   DOCTEST_INFO(
     "Node 0 is now leader, and sends empty append entries to other nodes");
@@ -314,33 +350,8 @@ static size_t dispatch_all_and_DOCTEST_CHECK(
       assertion(arg);
     }
 
-    {
-      // If this is AppendEntries, then append the serialised ledger entries to
-      // the message before transmitting
-      const uint8_t* data = contents.data();
-      auto size = contents.size();
-      auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
-      if (msg_type == aft::raft_append_entries)
-      {
-        // Parse the indices to be sent to the recipient.
-        auto ae = *(aft::AppendEntries*)data;
+    receive_message(*nodes[from], *nodes[tgt_node_id], contents);
 
-        auto& sender_raft = nodes[from];
-        const auto payload_opt =
-          sender_raft->ledger->get_append_entries_payload(ae, sender_raft);
-        if (payload_opt.has_value())
-        {
-          contents.insert(
-            contents.end(), payload_opt->begin(), payload_opt->end());
-        }
-        else
-        {
-          throw std::logic_error(
-            "Unexpected truncation means AppendEntries can no longer be sent");
-        }
-      }
-    }
-    nodes[tgt_node_id]->recv_message(from, contents.data(), contents.size());
     count++;
   }
   return count;
@@ -747,7 +758,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 
     // Receive append entries (idx: 2, prev_idx: 0)
     ae_idx_2 = r0c->messages.front().second;
-    r1.recv_message(node_id0, ae_idx_2.data(), ae_idx_2.size());
+    receive_message(r0, r1, ae_idx_2);
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
   }
 
@@ -771,7 +782,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     r1c->messages.pop_front();
     auto aer = *(aft::AppendEntriesResponse*)aer_v.data();
     aer.success = aft::AppendEntriesResponseType::FAIL;
-    r0.recv_message(node_id1, reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
+    const auto p = reinterpret_cast<uint8_t*>(&aer);
+    receive_message(r1, r0, {p, p + sizeof(aer)});
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
     // Only the third entry is deserialised
@@ -784,7 +796,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 
   DOCTEST_INFO("Receiving stale append entries has no effect");
   {
-    r1.recv_message(node_id0, ae_idx_2.data(), ae_idx_2.size());
+    receive_message(r0, r1, ae_idx_2);
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
   }
 
@@ -819,7 +831,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     r1c->messages.pop_front();
     auto aer = *(aft::AppendEntriesResponse*)aer_v.data();
     aer.success = aft::AppendEntriesResponseType::FAIL;
-    r0.recv_message(node_id1, reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
+    const auto p = reinterpret_cast<uint8_t*>(&aer);
+    receive_message(r1, r0, {p, p + sizeof(aer)});
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
     // Receive append entries (idx: 5, prev_idx: 3)
@@ -1001,7 +1014,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   DOCTEST_REQUIRE(r2c->messages.size() == 1);
   auto aer = r2c->messages.front().second;
   r2c->messages.pop_front();
-  r0.recv_message(node_id2, aer.data(), aer.size());
+  receive_message(r2, r0, aer);
 
   DOCTEST_REQUIRE(r0c->messages.size() > num_small_entries_sent);
   DOCTEST_REQUIRE(
