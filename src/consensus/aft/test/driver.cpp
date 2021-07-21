@@ -33,8 +33,15 @@ int main(int argc, char** argv)
       "Too few arguments - first must be path to scenario");
   }
 
+  const std::string filename = argv[1];
+
   std::ifstream fstream;
-  fstream.open(argv[1]);
+  fstream.open(filename);
+
+  if (!fstream.is_open())
+  {
+    throw std::runtime_error(fmt::format("File {} does not exist or could not be opened", filename));
+  }
 
   string line;
   while (getline(fstream, line))
@@ -119,6 +126,14 @@ int main(int argc, char** argv)
       case shash("reconnect_node"):
         assert(items.size() == 2);
         driver->reconnect_node(items[1]);
+        break;
+      case shash("drop_pending"):
+        assert(items.size() == 2);
+        driver->drop_pending(items[1]);
+        break;
+      case shash("drop_pending_to"):
+        assert(items.size() == 3);
+        driver->drop_pending_to(items[1], items[2]);
         break;
       case shash("assert_state_sync"):
         assert(items.size() == 1);
