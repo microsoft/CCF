@@ -10,9 +10,6 @@
         name: openenclave
         tasks_from: binary_install.yml
     - import_role:
-        name: llvm_repo
-        tasks_from: install.yml
-    - import_role:
         name: nodejs
         tasks_from: install.yml
     - import_role:
