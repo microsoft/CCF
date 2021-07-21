@@ -15,7 +15,7 @@ def fully_connected_scenario(nodes, steps):
     }
 
     # Define the nodes
-    lines = ["nodes,{}".format(','.join(str(n) for n in range(nodes)))]
+    lines = ["nodes,{}".format(",".join(str(n) for n in range(nodes)))]
 
     for first, second in combinations(range(nodes), 2):
         lines.append("connect,{},{}".format(first, second))
