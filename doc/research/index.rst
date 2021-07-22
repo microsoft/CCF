@@ -2,7 +2,7 @@ Research
 ========
 
 :doc:`TLA+ model of CCF's Raft modifications <raft-tla>`
-  CCF implements some modifications of Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were signed by the primary can be committed. Any other entry that has not been globally committed is rolled back. Additionally, the CCF implementation introduced a variant of the reconfiguration that is different from the one proposed by the original Raft paper. In CCF CFT, reconfigurations are  done via one transaction (as described :doc:`here </overview/consensus>`).
+  CCF implements some modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were signed by the primary can be committed. Any other entry that has not been globally committed is rolled back. Additionally, the CCF implementation introduced a variant of the reconfiguration that is different from the one proposed by the original Raft paper. In CCF CFT, reconfigurations are  done via one transaction (as described :doc:`here </overview/consensus>`).
 
   The TLA+ model of CCF's Raft changes can be found in the `CCF GitHub repository <https://github.com/microsoft/CCF/tree/main/tla>`_.
 
