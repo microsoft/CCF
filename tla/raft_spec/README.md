@@ -13,26 +13,26 @@ below): `tlc MCraft.tla -deadlock`. See the Readme in the parent folder for a fu
 
 ## Implemented features
 
-| Feature | Description |
-| :------ | :---------- |
-| Signatures | In CCF, only entries signed by the primary can be committed (in contrast to all entries in normal Raft) |
+| Feature         | Description                                                                                                                                                       |
+| :-------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signatures      | In CCF, only entries signed by the primary can be committed (in contrast to all entries in normal Raft)                                                           |
 | Reconfiguration | CCF implements a one-transaction version of reconfiguration for Raft (read the description [here](https://microsoft.github.io/CCF/main/overview/consensus.html)). |
 
 ## Checked invariants
 
-| Name | Short description |
-| :--- | :---------------- |
-| LogInv | Committing an entry never changes the previous log indices, neither does it decrease the size of the committed log. |
-| CandidateTermNotInLogInv | Candidates that have a chance to win an election will not be elected to a term that already had a leader that appended entries. |
-| ElectionSafetyInv | A leader always has the greatest index for its current term. |
-| LogMatchingInv | Two logs with the same (index,term) entry have a log prefix up to that same point (this means that all logs are identical up to that point if they match at a given point). |
-| QuorumLogInv | All committed entries are contained in the log of at least one server in every quorum. |
-| MoreUpToDateCorrectInv | The "up-to-date" check performed by servers before issuing a vote implies that i receives a vote from j only if i has all of j's committed entries. |
-| SignatureInv | In CCF, only signature messages should ever be committed. |
+| Name                     | Short description                                                                                                                                                           |
+| :----------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LogInv                   | Committing an entry never changes the previous log indices, neither does it decrease the size of the committed log.                                                         |
+| CandidateTermNotInLogInv | Candidates that have a chance to win an election will not be elected to a term that already had a leader that appended entries.                                             |
+| ElectionSafetyInv        | A leader always has the greatest index for its current term.                                                                                                                |
+| LogMatchingInv           | Two logs with the same (index,term) entry have a log prefix up to that same point (this means that all logs are identical up to that point if they match at a given point). |
+| QuorumLogInv             | All committed entries are contained in the log of at least one server in every quorum.                                                                                      |
+| MoreUpToDateCorrectInv   | The "up-to-date" check performed by servers before issuing a vote implies that i receives a vote from j only if i has all of j's committed entries.                         |
+| SignatureInv             | In CCF, only signature messages should ever be committed.                                                                                                                   |
 
 ## Note on liveness
 
-This specification was created to verify certain *persistence* (i.e. safety) properties of the Raft protocol as it is
+This specification was created to verify certain _persistence_ (i.e. safety) properties of the Raft protocol as it is
 implemented in CCF. In doing so, this specification does not check any liveness guarantees. To allow model checking
 in a reasonable amount of time, the implementation focuses on the persistence guarantees and places certain limitations
 on the state space to be explored. Since these limitations can lead certain traces of the execution into a deadlock,
