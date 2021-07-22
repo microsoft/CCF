@@ -111,22 +111,15 @@ def test_isolate_and_reconnect_primary(network, args):
         new_primary, _ = network.wait_for_new_primary(
             primary, nodes=backups, timeout_multiplier=6
         )
-        new_tx = check_can_progress(new_primary)
+        new_tx_resp = check_can_progress(new_primary)
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
-        timeout = 5
-        r = c.get("/node/commit")
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_tx = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_tx.seqno >= new_tx.seqno:
-                return network
-            time.sleep(0.1)
-        details = c.get("/node/consensus").body.json()
-        assert False, f"Stuck at {r}: {pprint.pformat(details)}"
+        try:
+            c.wait_for_commit(new_tx_resp, timeout=5)
+        except TimeoutError:
+            details = c.get("/node/consensus").body.json()
+            assert False, f"Stuck at {r}: {pprint.pformat(details)}"
 
 
 def run(args):

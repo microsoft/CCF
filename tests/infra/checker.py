@@ -42,39 +42,24 @@ class Checker:
 def check_can_progress(node, timeout=3):
     # Check that a write transaction issued on one node is eventually
     # committed by the service
-    with node.client("user0") as uc:
-        submitted_seqno = uc.post(
-            "/app/log/private", {"id": 42, "msg": "Hello world"}
-        ).seqno
-
-    with node.client() as c:
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_commit_txid = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_commit_txid.seqno > submitted_seqno:
-                return current_commit_txid
-            time.sleep(0.1)
-        details = c.get("/node/consensus").body.json()
-        assert False, f"Stuck at {submitted_seqno}: {pprint.pformat(details)}"
+    with node.client("user0") as c:
+        r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+        try:
+            c.wait_for_commit(r, timeout=timeout)
+            return r
+        except TimeoutError:
+            details = c.get("/node/consensus").body.json()
+            assert False, f"Stuck at {r.seqno}: {pprint.pformat(details)}"
 
 
 def check_does_not_progress(node, timeout=3):
     # Check that a write transaction issued on one node is _not_
     # committed by the service
-    with node.client("user0") as uc:
-        submitted_seqno = uc.post(
-            "/app/log/private", {"id": 42, "msg": "Hello world"}
-        ).seqno
-
-    with node.client() as c:
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_commit_txid = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_commit_txid.seqno > submitted_seqno:
-                assert False, "Commit advanced when it shouldn't have"
-            time.sleep(0.1)
-        return True
+    with node.client("user0") as c:
+        r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+        try:
+            c.wait_for_commit(r, timeout=timeout)
+        except TimeoutError:
+            pass
+        else:
+            assert False, "Commit advanced when it shouldn't have"
