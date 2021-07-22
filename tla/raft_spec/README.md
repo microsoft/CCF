@@ -20,6 +20,8 @@ below): `tlc MCraft.tla -deadlock`. See the Readme in the parent folder for a fu
 
 ## Checked invariants
 
+These invariants are a modification of the invariants found [here](https://github.com/dricketts/raft.tla). The original Raft specification does not contain any invariants and reconfiguration introduces important differences to Raft. One example of this is that Raft with reconfigurations can result in two leaders in the same term. We accept this in CCF since we also get the guarantee that one of these leaders will never make progress. Thus, the invariants below are reformualed for CCF.
+
 | Name                     | Short description                                                                                                                                                           |
 | :----------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | LogInv                   | Committing an entry never changes the previous log indices, neither does it decrease the size of the committed log.                                                         |
