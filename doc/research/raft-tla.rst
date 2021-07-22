@@ -43,7 +43,7 @@ Below, we shortly describe some basic functionality of the Raft model. Note that
 Timeout
 ~~~~~~~
 
-Since TLA does not model time, any node can timeout at any moment as a next step. Since this may lead to an infinite state space, we limited the maximum term any node can reach. While this would be overly constraining in any actual program, the model checker will ensure to also explore those states that are feasible within these limits. Since interesting traces can already be generated with one or better two term changes, this approach is feasible to model reconfigurations and check persistence.
+Since TLA does not model time, any node can time out at any moment as a next step. Since this may lead to an infinite state space, we limited the maximum term any node can reach. While this would be overly constraining in any actual program, the model checker will ensure to also explore those states that are feasible within these limits. Since interesting traces can already be generated with one or better two term changes, this approach is feasible to model reconfigurations and check persistence.
 
 .. literalinclude:: ../../tla/raft_spec/ccfraft.tla
     :language: text
