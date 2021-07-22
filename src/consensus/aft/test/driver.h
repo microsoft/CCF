@@ -4,24 +4,59 @@
 
 #include "consensus/aft/raft.h"
 #include "ds/logger.h"
+#include "logging_stub.h"
 
 #include <chrono>
+#include <random>
 #include <set>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 
-#define STUB_LOG 1
-#include "logging_stub.h"
+#define RAFT_DRIVER_OUT std::cout << "<RaftDriver>"
+
+std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
+{
+  auto size = std::min(v.size(), max_size);
+  return fmt::format(
+    "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
+}
+
+struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
+{
+  using LedgerStubProxy::LedgerStubProxy;
+
+  void put_entry(
+    const std::vector<uint8_t>& data,
+    bool globally_committable,
+    bool force_chunk) override
+  {
+    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id
+                    << ": ledger put s: " << stringify(data) << std::endl;
+    aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
+  }
+
+  void truncate(aft::Index idx) override
+  {
+    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id << ": truncate i: " << idx
+                    << std::endl;
+    aft::LedgerStubProxy::truncate(idx);
+  }
+};
 
 using ms = std::chrono::milliseconds;
-using TRaft =
-  aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
-using Store = aft::LoggingStubStore;
+using TRaft = aft::
+  Aft<LedgerStubProxy_WithLogging, aft::ChannelStubProxy, aft::StubSnapshotter>;
+using Store = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store>;
 
 std::vector<uint8_t> cert;
+
+aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
+{
+  return (aft::ChannelStubProxy*)r.channels.get();
+}
 
 class RaftDriver
 {
@@ -36,19 +71,19 @@ private:
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
 public:
-  RaftDriver(size_t number_of_nodes)
+  RaftDriver(std::vector<std::string> node_ids)
   {
     kv::Configuration::Nodes configuration;
 
-    for (size_t i = 0; i < number_of_nodes; ++i)
+    for (const auto& node_id_s : node_ids)
     {
-      ccf::NodeId node_id = std::to_string(i);
+      ccf::NodeId node_id(node_id_s);
 
       auto kv = std::make_shared<Store>(node_id);
       auto raft = std::make_shared<TRaft>(
         ConsensusType::CFT,
         std::make_unique<Adaptor>(kv),
-        std::make_unique<aft::LedgerStubProxy>(node_id),
+        std::make_unique<LedgerStubProxy_WithLogging>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
         std::make_shared<aft::StubSnapshotter>(),
         nullptr,
@@ -59,8 +94,8 @@ public:
         std::make_shared<aft::RequestTracker>(),
         nullptr,
         ms(10),
-        ms(i * 100),
-        ms(i * 100));
+        ms(100),
+        ms(100));
 
       _nodes.emplace(node_id, NodeDriver{kv, raft});
       configuration.try_emplace(node_id);
@@ -74,41 +109,49 @@ public:
 
   void log(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    std::cout << "  Node" << first << "->>"
-              << "Node" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "->>" << second << ": " << message
+                    << std::endl;
   }
 
   void rlog(ccf::NodeId first, ccf::NodeId second, const std::string& message)
   {
-    std::cout << "  Node" << first << "-->>"
-              << "Node" << second << ": " << message << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "-->>" << second << ": " << message
+                    << std::endl;
   }
 
   void log_msg_details(
     ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVote rv)
   {
-    std::ostringstream s;
-    s << "request_vote t: " << rv.term << ", lci: " << rv.last_committable_idx
-      << ", tolci: " << rv.term_of_last_committable_idx;
-    log(node_id, tgt_node_id, s.str());
+    const auto s = fmt::format(
+      "request_vote for term {}, at tx {}.{}",
+      rv.term,
+      rv.term_of_last_committable_idx,
+      rv.last_committable_idx);
+    log(node_id, tgt_node_id, s);
   }
 
   void log_msg_details(
     ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVoteResponse rv)
   {
-    std::ostringstream s;
-    s << "request_vote_response t: " << rv.term << ", vg: " << rv.vote_granted;
-    rlog(node_id, tgt_node_id, s.str());
+    const auto s = fmt::format(
+      "request_vote_response for term {} = {}",
+      rv.term,
+      (rv.vote_granted ? "Y" : "N"));
+    rlog(node_id, tgt_node_id, s);
   }
 
   void log_msg_details(
     ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::AppendEntries ae)
   {
-    std::ostringstream s;
-    s << "append_entries i: " << ae.idx << ", t: " << ae.term
-      << ", pi: " << ae.prev_idx << ", pt: " << ae.prev_term
-      << ", lci: " << ae.leader_commit_idx;
-    log(node_id, tgt_node_id, s.str());
+    const auto s = fmt::format(
+      "append_entries ({}.{}, {}.{}] (term {}, commit {})",
+      ae.prev_term,
+      ae.prev_idx,
+      ae.term_of_idx,
+      ae.idx,
+      ae.term,
+      ae.leader_commit_idx);
+    log(node_id, tgt_node_id, s);
   }
 
   void log_msg_details(
@@ -116,17 +159,80 @@ public:
     ccf::NodeId tgt_node_id,
     aft::AppendEntriesResponse aer)
   {
-    std::ostringstream s;
-    s << "append_entries_response t: " << aer.term
-      << ", lli: " << aer.last_log_idx
-      << ", s: " << static_cast<uint8_t>(aer.success);
-    rlog(node_id, tgt_node_id, s.str());
+    char const* success = "UNHANDLED";
+    switch (aer.success)
+    {
+      case (aft::AppendEntriesResponseType::OK):
+      {
+        success = "ACK";
+        break;
+      }
+      case (aft::AppendEntriesResponseType::FAIL):
+      {
+        success = "NACK";
+        break;
+      }
+      case (aft::AppendEntriesResponseType::REQUIRE_EVIDENCE):
+      {
+        success = "REQUIRE EVIDENCE";
+        break;
+      }
+    }
+    const auto s = fmt::format(
+      "append_entries_response {} for {}.{}",
+      success,
+      aer.term,
+      aer.last_log_idx);
+    rlog(node_id, tgt_node_id, s);
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    const std::vector<uint8_t>& contents)
+  {
+    const uint8_t* data = contents.data();
+    size_t size = contents.size();
+
+    const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    switch (msg_type)
+    {
+      case (aft::RaftMsgType::raft_request_vote):
+      {
+        auto rv = *(aft::RequestVote*)data;
+        log_msg_details(node_id, tgt_node_id, rv);
+        break;
+      }
+      case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        auto rvr = *(aft::RequestVoteResponse*)data;
+        log_msg_details(node_id, tgt_node_id, rvr);
+        break;
+      }
+      case (aft::RaftMsgType::raft_append_entries):
+      {
+        auto ae = *(aft::AppendEntries*)data;
+        log_msg_details(node_id, tgt_node_id, ae);
+        break;
+      }
+      case (aft::RaftMsgType::raft_append_entries_response):
+      {
+        auto aer = *(aft::AppendEntriesResponse*)data;
+        log_msg_details(node_id, tgt_node_id, aer);
+        break;
+      }
+      default:
+      {
+        throw std::runtime_error(
+          fmt::format("Unhandled RaftMsgType: {}", msg_type));
+      }
+    }
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
   {
-    std::cout << "  Node" << first << "-->Node" << second << ": connect"
-              << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "-->" << second << ": connect"
+                    << std::endl;
     _connections.insert(std::make_pair(first, second));
     _connections.insert(std::make_pair(second, first));
   }
@@ -149,14 +255,14 @@ public:
 
   void state_one(ccf::NodeId node_id)
   {
-    std::cout << "  Note right of Node" << node_id << ": ";
     auto raft = _nodes.at(node_id).raft;
-
-    if (raft->is_primary())
-      std::cout << "L ";
-
-    std::cout << " t: " << raft->get_term() << ", li: " << raft->get_last_idx()
-              << ", ci: " << raft->get_commit_idx() << std::endl;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  Note right of {}: @{}.{} (committed {})",
+                         node_id,
+                         raft->get_term(),
+                         raft->get_last_idx(),
+                         raft->get_commit_idx())
+                    << std::endl;
   }
 
   void state_all()
@@ -167,6 +273,24 @@ public:
     }
   }
 
+  void shuffle_messages_one(ccf::NodeId node_id)
+  {
+    auto raft = _nodes.at(node_id).raft;
+    auto& messages = channel_stub_proxy(*raft)->messages;
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(messages.begin(), messages.end(), g);
+  }
+
+  void shuffle_messages_all()
+  {
+    for (auto& node : _nodes)
+    {
+      shuffle_messages_one(node.first);
+    }
+  }
+
   template <class Messages>
   size_t dispatch_one_queue(ccf::NodeId node_id, Messages& messages)
   {
@@ -174,19 +298,34 @@ public:
 
     while (messages.size())
     {
-      auto message = messages.front();
+      auto [tgt_node_id, contents] = messages.front();
       messages.pop_front();
-      auto tgt_node_id = std::get<0>(message);
 
       if (
         _connections.find(std::make_pair(node_id, tgt_node_id)) !=
         _connections.end())
       {
-        auto contents = std::get<1>(message);
+        // If this is an AppendEntries, then append the corresponding entry from
+        // the sender's ledger
+        const uint8_t* data = contents.data();
+        auto size = contents.size();
+        auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+        if (msg_type == aft::raft_append_entries)
+        {
+          // Parse the indices to be sent to the recipient.
+          auto ae = *(aft::AppendEntries*)data;
+
+          auto& sender_ledger = _nodes.at(node_id).raft->ledger;
+          for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
+          {
+            const auto entry = sender_ledger->get_entry_by_idx(idx);
+            contents.insert(contents.end(), entry.begin(), entry.end());
+          }
+        }
+
         log_msg_details(node_id, tgt_node_id, contents);
         _nodes.at(tgt_node_id)
-          .raft->recv_message(
-            node_id, reinterpret_cast<uint8_t*>(&contents), sizeof(contents));
+          .raft->recv_message(node_id, contents.data(), contents.size());
         count++;
       }
     }
@@ -197,20 +336,7 @@ public:
   void dispatch_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())->sent_request_vote);
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())
-        ->sent_request_vote_response);
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())->sent_append_entries);
-    dispatch_one_queue(
-      node_id,
-      ((aft::ChannelStubProxy*)raft->channels.get())
-        ->sent_append_entries_response);
+    dispatch_one_queue(node_id, channel_stub_proxy(*raft)->messages);
   }
 
   void dispatch_all_once()
@@ -229,8 +355,7 @@ public:
              _nodes.end(),
              0,
              [](int acc, auto& node) {
-               return ((aft::ChannelStubProxy*)node.second.raft->channels.get())
-                        ->sent_msg_count() +
+               return channel_stub_proxy(*node.second.raft)->messages.size() +
                  acc;
              }) &&
            iterations++ < 5)
@@ -239,16 +364,75 @@ public:
     }
   }
 
-  void replicate(
-    ccf::NodeId node_id,
-    aft::Index idx,
-    std::shared_ptr<std::vector<uint8_t>> data)
+  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
+    const std::string& term_s)
   {
-    std::cout << "  KV" << node_id << "->>Node" << node_id
-              << ": replicate idx: " << idx << std::endl;
+    std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
+    for (const auto& [node_id, node_driver] : _nodes)
+    {
+      if (node_driver.raft->is_primary())
+      {
+        primaries.emplace_back(node_driver.raft->get_term(), node_id);
+      }
+    }
+
+    if (term_s == "latest")
+    {
+      if (!primaries.empty())
+      {
+        std::sort(primaries.begin(), primaries.end());
+        return primaries.back();
+      }
+      else
+      {
+        // Having no 'latest' term is valid, and may result in scenario steps
+        // being ignored
+        return std::nullopt;
+      }
+    }
+    else
+    {
+      const auto desired_term = atoi(term_s.c_str());
+      for (const auto& pair : primaries)
+      {
+        if (pair.first == desired_term)
+        {
+          return pair;
+        }
+      }
+    }
+
+    throw std::runtime_error(
+      fmt::format("Found no primary in term {}", term_s));
+  }
+
+  void replicate(
+    const std::string& term_s, std::shared_ptr<std::vector<uint8_t>> data)
+  {
+    const auto opt = find_primary_in_term(term_s);
+    if (!opt.has_value())
+    {
+      RAFT_DRIVER_OUT << fmt::format(
+                           "  Note right of {}: No primary to replicate {}",
+                           _nodes.begin()->first,
+                           stringify(*data))
+                      << std::endl;
+      return;
+    }
+    const auto& [term, node_id] = *opt;
+    auto& raft = _nodes.at(node_id).raft;
+    const auto idx = raft->get_last_idx() + 1;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: replicate {}.{} = {}",
+                         node_id,
+                         node_id,
+                         term_s,
+                         idx,
+                         stringify(*data))
+                    << std::endl;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    _nodes.at(node_id).raft->replicate(
-      kv::BatchVector{{idx, data, true, hooks}}, 1);
+    // True means all these entries are committable
+    raft->replicate(kv::BatchVector{{idx, data, true, hooks}}, term);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
@@ -268,8 +452,8 @@ public:
     }
     if (!noop)
     {
-      std::cout << "  Node" << left << "-->Node" << right << ": disconnect"
-                << std::endl;
+      RAFT_DRIVER_OUT << "  " << left << "-->" << right << ": disconnect"
+                      << std::endl;
     }
   }
 
@@ -286,8 +470,8 @@ public:
 
   void reconnect(ccf::NodeId left, ccf::NodeId right)
   {
-    std::cout << "  Node" << left << "-->Node" << right << ": reconnect"
-              << std::endl;
+    RAFT_DRIVER_OUT << "  " << left << "-->" << right << ": reconnect"
+                    << std::endl;
     _connections.insert(std::make_pair(left, right));
     _connections.insert(std::make_pair(right, left));
   }
@@ -300,6 +484,90 @@ public:
       {
         reconnect(node_id, node.first);
       }
+    }
+  }
+
+  void assert_state_sync()
+  {
+    auto [target_id, nd] = *_nodes.begin();
+    auto& target_raft = nd.raft;
+    const auto target_term = target_raft->get_term();
+    const auto target_last_idx = target_raft->get_last_idx();
+    const auto target_commit_idx = target_raft->get_commit_idx();
+
+    const auto target_final_entry =
+      target_raft->ledger->get_entry_by_idx(target_last_idx);
+
+    bool all_match = true;
+    for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
+    {
+      const auto& node_id = it->first;
+      auto& raft = it->second.raft;
+
+      if (raft->get_term() != target_term)
+      {
+        RAFT_DRIVER_OUT
+          << fmt::format(
+               "  Note over {}: Term {} doesn't match term {} on {}",
+               node_id,
+               raft->get_term(),
+               target_term,
+               target_id)
+          << std::endl;
+        all_match = false;
+      }
+
+      if (raft->get_last_idx() != target_last_idx)
+      {
+        RAFT_DRIVER_OUT << fmt::format(
+                             "  Note over {}: Last index {} doesn't match "
+                             "last index {} on {}",
+                             node_id,
+                             raft->get_last_idx(),
+                             target_last_idx,
+                             target_id)
+                        << std::endl;
+        all_match = false;
+      }
+      else
+      {
+        // Check that the final entries are the same, assume prior entries also
+        // match
+        const auto final_entry =
+          raft->ledger->get_entry_by_idx(target_last_idx);
+
+        if (final_entry != target_final_entry)
+        {
+          RAFT_DRIVER_OUT << fmt::format(
+                               "  Note over {}: Final entry at index {} "
+                               "doesn't match entry on {}: {} != {}",
+                               node_id,
+                               target_last_idx,
+                               target_id,
+                               stringify(final_entry),
+                               stringify(target_final_entry))
+                          << std::endl;
+          all_match = false;
+        }
+      }
+
+      if (raft->get_commit_idx() != target_commit_idx)
+      {
+        RAFT_DRIVER_OUT << fmt::format(
+                             "  Note over {}: Commit index {} doesn't "
+                             "match commit index {} on {}",
+                             node_id,
+                             raft->get_commit_idx(),
+                             target_commit_idx,
+                             target_id)
+                        << std::endl;
+        all_match = false;
+      }
+    }
+
+    if (!all_match)
+    {
+      throw std::runtime_error("States not in sync");
     }
   }
 };
