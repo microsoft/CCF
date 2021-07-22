@@ -50,7 +50,7 @@ if [ ${#trusted_mrenclaves[@]} -eq 0 ]; then
     for code_id in $(curl -sS --fail -X GET "${node_address}"/node/code "${@}" | jq .versions | jq -c ".[]"); do
         code_status=$(echo "${code_id}" | jq -r .status)
         if [ "${code_status}" = "AllowedToJoin" ]; then
-            trusted_mrenclaves+=($(echo "${code_id}" | jq -r .digest))
+            trusted_mrenclaves+=("$(echo "${code_id}" | jq -r .digest)")
         fi
     done
     echo "Retrieved ${#trusted_mrenclaves[@]} accepted code versions from CCF service."
