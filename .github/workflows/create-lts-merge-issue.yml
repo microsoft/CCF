@@ -1,0 +1,16 @@
+name: "Create LTS Merge Issue"
+
+on:
+  pull_request:
+    types: [ closed ]
+
+jobs:
+  build:
+    if: ${{ github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'for_lts') }}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run a one-line script
+      run: echo Hello, world!
+
