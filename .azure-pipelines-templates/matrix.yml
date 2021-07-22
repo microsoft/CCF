@@ -5,7 +5,7 @@ parameters:
     Hosted:
       container: nosgx
       pool:
-        vmImage: ubuntu-18.04
+        vmImage: ubuntu-20.04
     NoSGX:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
