@@ -18,10 +18,10 @@ download_curl() {
 	local if_modified
 
 	if [ -e tla2tools.jar ]; then 
-		if_modified="-z tla2tools.jar"
+		if_modified=(-z tla2tools.jar)
 	fi
 
-	curl -f -Ss -R -O $if_modified "$1"
+	curl -f -Ss -R -O "${if_modified[@]}" "$1"
 
 	if [ $? -ne 0 ]; then
 		echo "Couldn't download tla2tools.jar"
