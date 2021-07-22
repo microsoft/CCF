@@ -12,9 +12,20 @@ The second purpose is achieved simply with the TLA+ code. However, it is importa
 
 ## Running the model checker
 
-The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with TLC in [version 1.7.1](https://github.com/tlaplus/tlaplus/releases/tag/v1.7.1). The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, some bindings for TLC may be helpful (such as these bindings [here](https://github.com/pmer/tla-bin/blob/66c09caa79d1427418e703cf07a5ad7edc72bb96/bin/tlc)).
+The specifications in this repository are implemented for and were checked with the TLC model checker, specifically with TLC in [version 1.7.1](https://github.com/tlaplus/tlaplus/releases/tag/v1.7.1). The model checking files are additionally meant to be run via the CLI and not through the toolbox. To make this easier, the scriptss in this folder allow to run TLC easily. These scripts are modified from [this repository](https://github.com/pmer/tla-bin/blob/66c09caa79d1427418e703cf07a5ad7edc72bb96/bin/tlc)).
 
-With a binding of TLC, the models in the subfolders can be run with `tlc MCraft.tla` (or in the case of the full spec that sacrifices liveness checking for a model that can be run with the model checker: `tlc MCraft.tla -deadlock` since deadlocks have to be disabled for that model).
+To download and then run TLC, simply execute:
+
+```bash
+./download_or_update_tla.sh
+./tlc.sh reduced_raft_spec/MCraft.tla
+```
+
+To run the full specification, disable deadlock checking like this:
+
+```bash
+./tlc.sh raft_spec/MCraft.tla -deadlock
+```
 
 Each model controls its limits in the MCraft.tla file where the constants can be modified to increase or decrease the size of the model checking.
 
