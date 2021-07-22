@@ -6,8 +6,6 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
-from ccf.tx_id import TxID
-import time
 from infra.checker import check_can_progress
 import pprint
 
@@ -119,7 +117,7 @@ def test_isolate_and_reconnect_primary(network, args):
             c.wait_for_commit(new_tx_resp, timeout=5)
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
-            assert False, f"Stuck at {r}: {pprint.pformat(details)}"
+            assert False, f"Stuck at {new_tx_resp.seqno}: {pprint.pformat(details)}"
 
 
 def run(args):

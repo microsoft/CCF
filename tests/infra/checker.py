@@ -2,8 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 from ccf.commit import wait_for_commit
-from ccf.tx_id import TxID
-import time
 import pprint
 
 
