@@ -39,7 +39,7 @@ class Checker:
 
 def check_can_progress(node, timeout=3):
     # Check that a write transaction issued on one node is eventually
-    # committed by the service
+    # committed by the service by a specified timeout
     with node.client("user0") as c:
         r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         try:
@@ -47,12 +47,12 @@ def check_can_progress(node, timeout=3):
             return r
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
-            assert False, f"Stuck at {r.seqno}: {pprint.pformat(details)}"
+            assert False, f"Stuck before {r.view}.{r.seqno}: {pprint.pformat(details)}"
 
 
 def check_does_not_progress(node, timeout=3):
     # Check that a write transaction issued on one node is _not_
-    # committed by the service
+    # committed by the service by a specified timeout
     with node.client("user0") as c:
         r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         try:
@@ -60,4 +60,4 @@ def check_does_not_progress(node, timeout=3):
         except TimeoutError:
             pass
         else:
-            assert False, "Commit advanced when it shouldn't have"
+            assert False, f"Commit unexpectedly advanced past {r.view}.{r.seqno}"
