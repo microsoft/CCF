@@ -17,7 +17,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed incorrect transaction view returned in `x-ms-ccf-transaction-id` HTTP response header after primary change (i.e. new view) (#2755).
 - Fixed Raft issue where commit could become stuck due to an incorrectly reconstructed term history (#2825).
 
-
 ## [1.0.7]
 
 ### Changed
