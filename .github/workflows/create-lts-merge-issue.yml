@@ -4,12 +4,13 @@ on:
   pull_request:
     types: [labeled]
 
+permissions:
+  issues: write
+
 jobs:
   create_issue:
     if: ${{ github.event.label.name == 'lts-candidate' }}
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
 
     steps:
       - name: Checkout
