@@ -13,7 +13,7 @@ namespace aft
 {
   class LedgerStubProxy
   {
-  private:
+  protected:
     ccf::NodeId _id;
 
   public:
@@ -22,16 +22,11 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
-    void put_entry(
+    virtual void put_entry(
       const std::vector<uint8_t>& data,
       bool globally_committable,
       bool force_chunk)
     {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>Ledger" << _id
-                << ": put s: " << data.size() << std::endl;
-#endif
-
       auto size = data.size();
       auto buffer = std::make_shared<std::vector<uint8_t>>(size);
       auto ptr = buffer->data();
@@ -51,13 +46,15 @@ namespace aft
       return {data, data + size};
     }
 
-    void truncate(Index idx)
+    std::vector<uint8_t> get_entry_by_idx(size_t idx)
+    {
+      // Ledger indices are 1-based, hence the -1
+      return *(ledger[idx - 1]);
+    }
+
+    virtual void truncate(Index idx)
     {
       ledger.resize(idx);
-#ifdef STUB_LOG
-      std::cout << "  KV" << _id << "->>Node" << _id << ": truncate i: " << idx
-                << std::endl;
-#endif
     }
 
     void reset_skip_count()
@@ -72,14 +69,51 @@ namespace aft
   {
   public:
     // Capture what is being sent out
-    std::list<std::pair<ccf::NodeId, RequestVote>> sent_request_vote;
-    std::list<std::pair<ccf::NodeId, AppendEntries>> sent_append_entries;
-    std::list<std::pair<ccf::NodeId, RequestVoteResponse>>
-      sent_request_vote_response;
-    std::list<std::pair<ccf::NodeId, AppendEntriesResponse>>
-      sent_append_entries_response;
+    // Using a deque so we can both pop from the front and shuffle
+    using MessageList =
+      std::deque<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
+    MessageList messages;
 
     ChannelStubProxy() {}
+
+    size_t count_messages_with_type(RaftMsgType type)
+    {
+      size_t count = 0;
+      for (const auto& [nid, m] : messages)
+      {
+        const uint8_t* data = m.data();
+        size_t size = m.size();
+
+        if (serialized::peek<RaftMsgType>(data, size) == type)
+        {
+          ++count;
+        }
+      }
+
+      return count;
+    }
+
+    std::optional<std::vector<uint8_t>> pop_first(
+      RaftMsgType type, ccf::NodeId target)
+    {
+      for (auto it = messages.begin(); it != messages.end(); ++it)
+      {
+        const auto [nid, m] = *it;
+        const uint8_t* data = m.data();
+        size_t size = m.size();
+
+        if (serialized::peek<RaftMsgType>(data, size) == type)
+        {
+          if (target == nid)
+          {
+            messages.erase(it);
+            return m;
+          }
+        }
+      }
+
+      return std::nullopt;
+    }
 
     void create_channel(
       const ccf::NodeId& peer_id,
@@ -100,35 +134,9 @@ namespace aft
       const uint8_t* data,
       size_t size) override
     {
-      switch (serialized::peek<RaftMsgType>(data, size))
-      {
-        case aft::RaftMsgType::raft_append_entries:
-          sent_append_entries.push_back(
-            std::make_pair(to, *(AppendEntries*)(data)));
-          break;
-        case aft::RaftMsgType::raft_request_vote:
-          sent_request_vote.push_back(
-            std::make_pair(to, *(RequestVote*)(data)));
-          break;
-        case aft::RaftMsgType::raft_request_vote_response:
-          sent_request_vote_response.push_back(
-            std::make_pair(to, *(RequestVoteResponse*)(data)));
-          break;
-        case aft::RaftMsgType::raft_append_entries_response:
-          sent_append_entries_response.push_back(
-            std::make_pair(to, *(AppendEntriesResponse*)(data)));
-          break;
-        default:
-          throw std::logic_error("unexpected response type");
-      }
-
+      std::vector<uint8_t> m(data, data + size);
+      messages.emplace_back(to, std::move(m));
       return true;
-    }
-
-    size_t sent_msg_count() const
-    {
-      return sent_request_vote.size() + sent_request_vote_response.size() +
-        sent_append_entries.size() + sent_append_entries_response.size();
     }
 
     bool recv_authenticated(
@@ -209,15 +217,6 @@ namespace aft
 #endif
     }
 
-    virtual kv::ApplyResult apply(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term = nullptr)
-    {
-      return kv::ApplyResult::PASS;
-    }
-
     kv::Version current_version()
     {
       return kv::NoVersion;
@@ -235,10 +234,11 @@ namespace aft
       return kv::ApplyResult::PASS;
     }
 
+    template <kv::ApplyResult AR>
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     private:
-      const std::vector<uint8_t>& data;
+      std::vector<uint8_t> data;
       kv::ConsensusHookPtrs hooks;
 
     public:
@@ -246,7 +246,7 @@ namespace aft
 
       kv::ApplyResult apply() override
       {
-        return kv::ApplyResult::PASS;
+        return AR;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -305,7 +305,7 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false)
     {
-      return std::make_unique<ExecutionWrapper>(data);
+      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(data);
     }
 
     std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
@@ -319,13 +319,13 @@ namespace aft
   public:
     LoggingStubStoreSig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    kv::ApplyResult apply(
+    std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      Term* term = nullptr) override
+      ConsensusType consensus_type,
+      bool public_only = false) override
     {
-      return kv::ApplyResult::PASS_SIGNATURE;
+      return std::make_unique<
+        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data);
     }
   };
 
