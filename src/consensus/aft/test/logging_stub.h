@@ -17,7 +17,7 @@ namespace aft
     ccf::NodeId _id;
 
   public:
-    std::vector<std::shared_ptr<std::vector<uint8_t>>> ledger;
+    std::vector<std::vector<uint8_t>> ledger;
     uint64_t skip_count = 0;
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
@@ -27,29 +27,76 @@ namespace aft
       bool globally_committable,
       bool force_chunk)
     {
-      auto size = data.size();
-      auto buffer = std::make_shared<std::vector<uint8_t>>(size);
-      auto ptr = buffer->data();
-
-      serialized::write(ptr, size, data.data(), data.size());
-
-      ledger.push_back(buffer);
+      ledger.push_back(data);
     }
 
     void skip_entry(const uint8_t*& data, size_t& size)
     {
-      skip_count++;
+      get_entry(data, size);
+      ++skip_count;
     }
 
     std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      return {data, data + size};
+      const auto entry_size = serialized::read<size_t>(data, size);
+      std::vector<uint8_t> entry(data, data + entry_size);
+      serialized::skip(data, size, entry_size);
+      return entry;
     }
 
-    std::vector<uint8_t> get_entry_by_idx(size_t idx)
+    std::optional<std::vector<uint8_t>> get_entry_by_idx(size_t idx)
     {
       // Ledger indices are 1-based, hence the -1
-      return *(ledger[idx - 1]);
+      if (idx > 0 && idx <= ledger.size())
+      {
+        return ledger[idx - 1];
+      }
+
+      return std::nullopt;
+    }
+
+    template <typename T>
+    std::optional<std::vector<uint8_t>> get_append_entries_payload(
+      const aft::AppendEntries& ae, T& term_getter)
+    {
+      std::vector<uint8_t> payload;
+
+      for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
+      {
+        auto entry_opt = get_entry_by_idx(idx);
+        if (!entry_opt.has_value())
+        {
+          return std::nullopt;
+        }
+
+        const auto& entry = *entry_opt;
+
+        // The payload that we eventually deserialise must include the
+        // ledger entry as well as the View and Index that identify it. In
+        // the real entries, they are nested in the payload and the IV. For
+        // test purposes, we just prefix them manually (to mirror the
+        // deserialisation in LoggingStubStore::ExecutionWrapper). We also
+        // size-prefix, so in a buffer of multiple of these messages we can
+        // extract each with get_entry above
+        const auto term_of_idx = term_getter->get_term(idx);
+        const auto size_before = payload.size();
+        auto additional_size =
+          sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
+        const auto size_after = size_before + additional_size;
+        payload.resize(size_after);
+        {
+          uint8_t* data = payload.data() + size_before;
+          serialized::write(
+            data,
+            additional_size,
+            (sizeof(term_of_idx) + sizeof(idx) + entry.size()));
+          serialized::write(data, additional_size, term_of_idx);
+          serialized::write(data, additional_size, idx);
+        }
+        payload.insert(payload.end(), entry.begin(), entry.end());
+      }
+
+      return payload;
     }
 
     virtual void truncate(Index idx)
@@ -183,63 +230,42 @@ namespace aft
 
   class LoggingStubStore
   {
-  private:
+  protected:
     ccf::NodeId _id;
 
   public:
     LoggingStubStore(ccf::NodeId id) : _id(id) {}
 
-    virtual void compact(Index i)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id << ": compact i: " << i
-                << std::endl;
-#endif
-    }
+    virtual void compact(Index i) {}
 
-    virtual void rollback(const kv::TxID& tx_id, Term t)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id
-                << ": rollback i: " << tx_id.version << " term: " << t;
-      std::cout << std::endl;
-#endif
-    }
+    virtual void rollback(const kv::TxID& tx_id, Term t) {}
 
-    virtual void initialise_term(Term t)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id
-                << ": initialise_term t: " << t << std::endl;
-#endif
-    }
+    virtual void initialise_term(Term t) {}
 
     kv::Version current_version()
     {
       return kv::NoVersion;
     }
 
-    virtual kv::ApplyResult deserialise_views(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      bool public_only = false,
-      kv::Term* term = nullptr,
-      kv::Version* index = nullptr,
-      kv::Tx* tx = nullptr,
-      ccf::PrimarySignature* sig = nullptr)
-    {
-      return kv::ApplyResult::PASS;
-    }
-
     template <kv::ApplyResult AR>
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     private:
-      std::vector<uint8_t> data;
       kv::ConsensusHookPtrs hooks;
+      aft::Term term;
+      kv::Version index;
+      std::vector<uint8_t> entry;
 
     public:
-      ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
+      ExecutionWrapper(const std::vector<uint8_t>& data_)
+      {
+        const uint8_t* data = data_.data();
+        auto size = data_.size();
+
+        term = serialized::read<aft::Term>(data, size);
+        index = serialized::read<kv::Version>(data, size);
+        entry = serialized::read(data, size, size);
+      }
 
       kv::ApplyResult apply() override
       {
@@ -253,17 +279,17 @@ namespace aft
 
       const std::vector<uint8_t>& get_entry() override
       {
-        return data;
+        return entry;
       }
 
       Term get_term() override
       {
-        return 0;
+        return term;
       }
 
       kv::Version get_index() override
       {
-        return 0;
+        return index;
       }
 
       kv::Version get_max_conflict_version() override
