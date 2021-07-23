@@ -1366,7 +1366,7 @@ namespace aft
         r.prev_idx,
         r.term_of_idx,
         r.idx,
-        from.trim(),
+        from,
         r.term);
 
       // Don't check that the sender node ID is valid. Accept anything that
@@ -2123,21 +2123,34 @@ namespace aft
     void send_append_entries_response(
       ccf::NodeId to, AppendEntriesResponseType answer)
     {
-      LOG_DEBUG_FMT(
-        "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
-        state->last_idx,
-        answer);
-
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
       }
 
+      // AppendEntriesResponse should contain the highest _matching_ index we
+      // hold - that is how the primary will treat it.
+      // If this is an affirmative response, then that index is the last entry
+      // in this log.
+      // But if this is NACKing what was just sent (because it could not be
+      // applied), then we want to ensure that the next thing they send begins
+      // with a match. This may result in resending a redundant chunk which
+      // agrees, but will eventually include the earliest mismatch, which will
+      // trigger a rollback and correct application on this node.
+      auto matching_idx = answer == AppendEntriesResponseType::FAIL ?
+        state->commit_idx :
+        state->last_idx;
+
+      LOG_DEBUG_FMT(
+        "Send append entries response from {} to {} for index {}: {}",
+        state->my_node_id.trim(),
+        to.trim(),
+        matching_idx,
+        answer);
+
       AppendEntriesResponse response = {{raft_append_entries_response},
                                         state->current_view,
-                                        state->last_idx,
+                                        matching_idx,
                                         answer};
 
       channels->send_authenticated(

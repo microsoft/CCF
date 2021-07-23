@@ -9,7 +9,7 @@ CMakeFiles/
 .vs/
 libuv/
 raft_tests.md
-tests/raft_scenarios
+tests/raft_scenarios/scenario-*
 *.pyc
 __pycache__/
 sphinx/build/
