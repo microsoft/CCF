@@ -530,8 +530,7 @@ DOCTEST_TEST_CASE(
       }));
 }
 
-DOCTEST_TEST_CASE("Multiple nodes late join" *
-doctest::test_suite("multiple"))
+DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
@@ -676,8 +675,7 @@ doctest::test_suite("multiple"))
       }));
 }
 
-DOCTEST_TEST_CASE("Recv append entries logic" *
-doctest::test_suite("multiple"))
+DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
@@ -756,9 +754,9 @@ doctest::test_suite("multiple"))
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}},
-    1)); DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true,
-    hooks}}, 1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
@@ -779,8 +777,8 @@ doctest::test_suite("multiple"))
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}},
-    1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
     // This ensures that r0 re-sends an AE with prev_idx = 0 next time
@@ -811,8 +809,8 @@ doctest::test_suite("multiple"))
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}},
-    1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
@@ -825,8 +823,8 @@ doctest::test_suite("multiple"))
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}},
-    1)); DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
     r0c->messages.pop_front();
@@ -942,10 +940,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   DOCTEST_REQUIRE(r0c->messages.size() == 0);
   DOCTEST_REQUIRE(r1c->messages.size() == 0);
 
-  // large entries of size (append_entries_size_limit / 2), so 2nd and 4th
-  entry
-  // will exceed append entries limit size which means that 2nd and 4th
-  entries
+  // large entries of size (append_entries_size_limit / 2), so 2nd and 4th entry
+  // will exceed append entries limit size which means that 2nd and 4th entries
   // will trigger send_append_entries()
   auto data = std::make_shared<std::vector<uint8_t>>(
     (r0.append_entries_size_limit / 2), 1);
@@ -960,8 +956,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}},
-    1)); DOCTEST_REQUIRE(
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}}, 1));
+    DOCTEST_REQUIRE(
       msg_response ==
       dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
         nodes, node_id0, r0c->messages, [&i](const auto& msg) {
@@ -1014,8 +1010,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   DOCTEST_REQUIRE(
     1 ==
     dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
-      nodes, node_id0, r0c->messages, [&individual_entries](const auto& msg)
-      {
+      nodes, node_id0, r0c->messages, [&individual_entries](const auto& msg) {
         DOCTEST_REQUIRE(msg.idx == individual_entries);
         DOCTEST_REQUIRE(msg.term == 1);
         DOCTEST_REQUIRE(msg.prev_idx == individual_entries);
@@ -1101,10 +1096,8 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
 
     DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 0));
 
-    // As the first execution did not support async it should have been
-    executed
-    // inline as no other transaction was pending. therefore is is safe to
-    run
+    // As the first execution did not support async it should have been executed
+    // inline as no other transaction was pending. therefore is is safe to run
     // the next transaction.
     DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 1));
   }
@@ -1452,7 +1445,8 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
     // AppendEntries to B is kept, all other AppendEntries are lost
     keep_first_for(node_idB, channelsC->messages);
 
-    // !!! We currently throw while processing this, but too late - we've already rolled back!
+    // !!! We currently throw while processing this, but too late - we've
+    // already rolled back!
     try
     {
       dispatch_all(nodes, node_idC, channelsC->messages);
