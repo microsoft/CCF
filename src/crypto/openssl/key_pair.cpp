@@ -271,7 +271,6 @@ namespace crypto
 
     X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
     X509_set_pubkey(crt, req_pubkey);
-    // EVP_PKEY_free(req_pubkey);
 
     // Extensions
     X509V3_CTX v3ctx;
