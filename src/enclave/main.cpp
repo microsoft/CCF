@@ -53,15 +53,6 @@ extern "C"
       return CreateNodeStatus::NodeAlreadyCreated;
     }
 
-#ifndef ENABLE_BFT
-    // As BFT consensus is currently experimental, disable it in release
-    // enclaves
-    if (consensus_type != ConsensusType::CFT)
-    {
-      return CreateNodeStatus::ConsensusNotAllowed;
-    }
-#endif
-
     // Report enclave version to host
     auto ccf_version_string = std::string(ccf::ccf_version);
     if (ccf_version_string.size() > enclave_version_size)
@@ -137,6 +128,15 @@ extern "C"
 
     CCFConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
+
+#ifndef ENABLE_BFT
+    // As BFT consensus is currently experimental, disable it in release
+    // enclaves
+    if (cc.consensus_config.consensus_type != ConsensusType::CFT)
+    {
+      return CreateNodeStatus::ConsensusNotAllowed;
+    }
+#endif
 
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];

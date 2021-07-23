@@ -55,7 +55,7 @@ if [ -f "${VERSION_FILE}" ]; then
         extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
         extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
     fi
-    if [ ! -z "${PYTHON_PACKAGE_PATH}" ]; then
+    if [ -n "${PYTHON_PACKAGE_PATH}" ]; then
         # With an install tree, the python package can be specified, e.g. when testing
         # an install just before it is released
         echo "Using python package: ${PYTHON_PACKAGE_PATH}"
