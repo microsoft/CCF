@@ -8,7 +8,7 @@ parameters:
         vmImage: ubuntu-20.04
     NoSGX:
       container: nosgx
-      pool: 1es-bionic-nosgx-ci
+      pool: 1es-focal-nosgx
     SGX:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
