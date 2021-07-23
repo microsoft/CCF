@@ -76,14 +76,8 @@ namespace ccf
     public_key);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
-
-  struct NodeEndorsedCertificate
-  {
-    crypto::Pem endorsed_certificate;
-  };
-  DECLARE_JSON_TYPE(NodeEndorsedCertificate);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeEndorsedCertificate, endorsed_certificate);
-  using NodeEndorsedCertificates = ServiceMap<NodeId, NodeEndorsedCertificate>;
+  using NodeEndorsedCertificates =
+    kv::RawCopySerialisedMap<NodeId, crypto::Pem>;
 }
 
 FMT_BEGIN_NAMESPACE

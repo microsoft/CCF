@@ -108,6 +108,13 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 .. doxygenenum:: ccf::QuoteFormat
    :project: CCF
 
+``nodes.endorsed_certificates``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
+
+**Value** Node service-endorsed certificate, represented as a PEM-encoded string.
+
 ``network.configurations``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

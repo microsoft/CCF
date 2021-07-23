@@ -101,14 +101,8 @@ namespace ccf
           ni.public_key == pk_pem &&
           (!node_status.has_value() || ni.status == node_status.value()))
         {
-          auto endorsed_node_certificate = endorsed_node_certificates->get(nid);
           existing_node_info = {
-            nid,
-            ni.ledger_secret_seqno,
-            endorsed_node_certificate.has_value() ?
-              std::make_optional(
-                endorsed_node_certificate->endorsed_certificate) :
-              std::nullopt};
+            nid, ni.ledger_secret_seqno, endorsed_node_certificates->get(nid)};
           return false;
         }
         return true;

@@ -306,15 +306,15 @@ class LedgerValidator:
             node_endorsed_certificates_tables = tables[
                 ENDORSED_NODE_CERTIFICATES_TABLE_NAME
             ]
-            for node_id, node_cert in node_endorsed_certificates_tables.items():
+            for (
+                node_id,
+                endorsed_node_cert,
+            ) in node_endorsed_certificates_tables.items():
                 node_id = node_id.decode()
-                node_cert = json.loads(node_cert)
                 assert (
                     node_id not in self.node_certificates
                 ), "Only one of node self-signed certificate and endorsed certificate should be recorded"
-                self.node_certificates[node_id] = node_cert[
-                    "endorsed_certificate"
-                ].encode()
+                self.node_certificates[node_id] = endorsed_node_cert
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:

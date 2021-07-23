@@ -411,6 +411,9 @@ namespace ccf::historical
         return false;
       }
 
+      // TODO: Fix this!
+      // 2.x onwards should use node endorsed certificate, or public key?
+      // Refactor with history verify
       const auto node_info = get_node_info(sig->node);
       if (!node_info.has_value())
       {

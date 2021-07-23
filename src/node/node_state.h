@@ -1907,7 +1907,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              node_cert = endorsed_certificate->endorsed_certificate;
+              node_cert = endorsed_certificate.value();
               accept_network_tls_connections();
             }
 

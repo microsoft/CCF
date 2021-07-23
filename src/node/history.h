@@ -734,7 +734,7 @@ namespace ccf
       }
       else
       {
-        node_cert = node_endorsed_cert->endorsed_certificate;
+        node_cert = node_endorsed_cert.value();
       }
 
       LOG_FAIL_FMT("Node cert: {}", node_cert.str());

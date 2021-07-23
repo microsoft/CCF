@@ -779,15 +779,13 @@ const actions = new Map([
 
           // Also endorse and record node certificate
           // TODO: For now, assume that node public key is always present, which isn't true for 1.x!
-          let node_cert = {};
-          node_cert.endorsed_certificate =
-            ccf.network.generateEndorsedCertificate(
-              nodeInfo.certificate_signing_request,
-              nodeInfo.certificate_subject_identity
-            );
+          const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
+            nodeInfo.certificate_signing_request,
+            nodeInfo.certificate_subject_identity
+          );
           ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
             ccf.strToBuf(args.node_id),
-            ccf.jsonCompatibleToBuf(node_cert)
+            ccf.strToBuf(endorsed_node_cert)
           );
         }
       }
