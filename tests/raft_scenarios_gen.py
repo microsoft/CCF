@@ -17,6 +17,7 @@ def fully_connected_scenario(nodes, steps):
 
     # Define the nodes
     lines = ["nodes,{}".format(','.join(str(n) for n in range(nodes)))]
+
     for first, second in combinations(range(nodes), 2):
         lines.append("connect,{},{}".format(first, second))
 
@@ -26,7 +27,6 @@ def fully_connected_scenario(nodes, steps):
     lines.append("periodic_all,30")
     lines.append("dispatch_all")
     lines.append("state_all")
-
     for _ in range(steps):
         lines.append(step_def[choice(list(step_def.keys()))]())
 
@@ -45,6 +45,7 @@ def fully_connected_scenario(nodes, steps):
         lines.append("periodic_all,10")
         lines.append("dispatch_all")
         lines.append("state_all")
+
     lines.append("assert_state_sync")
 
     return "\n".join(lines)

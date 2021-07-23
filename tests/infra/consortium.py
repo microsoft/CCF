@@ -364,7 +364,7 @@ class Consortium:
         when trying to use ccf.ledger to read ledger entries.
         """
         proposal, _ = self.make_proposal(
-            "set_user", self.user_cert_path("user0"), {"padding": " " * 4096 * 5}
+            "set_user", self.user_cert_path("user0"), {"padding": "x" * 4096 * 5}
         )
         m = self.get_any_active_member()
         p = m.propose(remote_node, proposal)
