@@ -81,6 +81,7 @@ all_tests_suite = [
     e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
+    e2e_logging.test_random_receipts,
     # membership:
     membership.test_set_recovery_threshold,
     membership.test_add_member,
@@ -107,14 +108,20 @@ all_tests_suite = [
     # code update:
     code_update.test_verify_quotes,
     code_update.test_add_node_with_bad_code,
-    governance_history.test_ledger_is_readable,
-    governance_history.test_tables_doc,
     # curve migration:
     reconfiguration.test_change_curve,
     recovery.test,
     # jwt
     jwt_test.test_refresh_jwt_issuer,
+    #
+    #
+    #
+    # Below tests should always stay last, so that they
+    # test the most complete ledgers
+    governance_history.test_ledger_is_readable,
+    governance_history.test_tables_doc,
 ]
+
 suites["all"] = all_tests_suite
 
 #

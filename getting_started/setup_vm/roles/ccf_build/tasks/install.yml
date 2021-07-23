@@ -1,24 +1,6 @@
 - name: Include vars
   include_vars: common.yml
 
-- name: Add Python PPA
-  apt_repository:
-    repo: ppa:deadsnakes/ppa
-  become: true
-
-- name: Add CMake repository key
-  apt_key:
-    url: "https://apt.kitware.com/keys/kitware-archive-latest.asc"
-    state: present
-  become: yes
-
-- name: Add CMake repository
-  apt_repository:
-    repo: "deb https://apt.kitware.com/ubuntu/ {{ ansible_distribution_release }} main"
-    state: present
-    update_cache: yes
-  become: yes
-
 - name: Install debs
   apt:
     name: "{{ debs }}"
@@ -51,7 +33,7 @@
 - name: Build mbedtls
   shell: |
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
-    make -j4
+    make
   args:
     chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
 
@@ -59,4 +41,28 @@
   command: make install
   args:
     chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
+  become: true
+
+- name: Remove doxygen debian package
+  apt:
+    name: doxygen
+    state: absent
+  become: yes
+
+- name: Download doxygen
+  get_url:
+    url: "{{ doxygen_url }}"
+    dest: "{{ workspace }}/{{ doxygen_bin }}"
+
+- name: Expand doxygen
+  unarchive:
+    src: "{{ workspace }}/{{ doxygen_bin }}"
+    dest: "{{ workspace }}"
+    copy: no
+    creates: "{{ workspace }}/doxygen-{{ doxygen_ver }}/Makefile"
+
+- name: Install doxygen
+  command: make install
+  args:
+    chdir: "{{ workspace }}/doxygen-{{ doxygen_ver }}"
   become: true

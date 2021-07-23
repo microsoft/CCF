@@ -1,6 +1,6 @@
-oe_ver: "0.17.0"
+oe_ver: "0.17.1"
 # Usually the same, except for rc, where ver is -rc and ver_ is _rc
-oe_ver_: "0.17.0"
+oe_ver_: "0.17.1"
 
 # Source install
 workspace: "/tmp/"
@@ -11,7 +11,7 @@ oe_playbook: scripts/ansible/oe-contributors-acc-setup-no-driver.yml
 oe_build_opts: ""
 
 # Binary install
-oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_1804_open-enclave_{{ oe_ver_ }}_amd64.deb"
+oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_2004_open-enclave_{{ oe_ver_ }}_amd64.deb"
 
 # LVI mitigations
 oe_lvi_scripts_dir: "{{ oe_prefix }}/bin/scripts/lvi-mitigation"
@@ -19,4 +19,4 @@ oe_lvi_clang_version: "clang-10"
 oe_lvi_clangpp_version: "clang++-10"
 oe_lvi_bin_dir: /opt/oe_lvi
 oe_lvi_toolset_name: "as.ld.objdump.gold.r3.tar.gz"
-oe_lvi_intel_bin_url: "https://download.01.org/intel-sgx/sgx-linux/2.13.3/{{ oe_lvi_toolset_name }}"
+oe_lvi_intel_bin_url: "https://download.01.org/intel-sgx/sgx-linux/2.14/{{ oe_lvi_toolset_name }}"

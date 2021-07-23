@@ -2,8 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 from ccf.commit import wait_for_commit
-from ccf.tx_id import TxID
-import time
 import pprint
 
 
@@ -40,35 +38,26 @@ class Checker:
 
 
 def check_can_progress(node, timeout=3):
-    with node.client() as c:
-        r = c.get("/node/commit")
-        original_tx = TxID.from_str(r.body.json()["transaction_id"])
-        with node.client("user0") as uc:
-            uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_tx = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_tx.seqno > original_tx.seqno:
-                return current_tx
-            time.sleep(0.1)
-        details = c.get("/node/consensus").body.json()
-        assert False, f"Stuck at {r}: {pprint.pformat(details)}"
+    # Check that a write transaction issued on one node is eventually
+    # committed by the service by a specified timeout
+    with node.client("user0") as c:
+        r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+        try:
+            c.wait_for_commit(r, timeout=timeout)
+            return r
+        except TimeoutError:
+            details = c.get("/node/consensus").body.json()
+            assert False, f"Stuck before {r.view}.{r.seqno}: {pprint.pformat(details)}"
 
 
 def check_does_not_progress(node, timeout=3):
-    with node.client() as c:
-        r = c.get("/node/commit")
-        original_tx = TxID.from_str(r.body.json()["transaction_id"])
-        with node.client("user0") as uc:
-            uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_tx = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_tx.seqno > original_tx.seqno:
-                assert False, "Commit advanced when it shouldn't have"
-            time.sleep(0.1)
-        return True
+    # Check that a write transaction issued on one node is _not_
+    # committed by the service by a specified timeout
+    with node.client("user0") as c:
+        r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+        try:
+            c.wait_for_commit(r, timeout=timeout)
+        except TimeoutError:
+            return r
+        else:
+            assert False, f"Commit unexpectedly advanced past {r.view}.{r.seqno}"
