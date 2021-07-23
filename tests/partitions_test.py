@@ -6,10 +6,9 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
-from ccf.tx_id import TxID
-import time
-from infra.checker import check_can_progress
+from infra.checker import check_can_progress, check_does_not_progress
 import pprint
+from ccf.tx_status import TxStatus
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -108,25 +107,27 @@ def test_isolate_primary_from_one_backup(network, args):
 def test_isolate_and_reconnect_primary(network, args):
     primary, backups = network.find_nodes()
     with network.partitioner.partition(backups):
+        lost_tx_resp = check_does_not_progress(primary)
+
         new_primary, _ = network.wait_for_new_primary(
             primary, nodes=backups, timeout_multiplier=6
         )
-        new_tx = check_can_progress(new_primary)
+        new_tx_resp = check_can_progress(new_primary)
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
-        timeout = 5
-        r = c.get("/node/commit")
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_tx = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_tx.seqno >= new_tx.seqno:
-                return network
-            time.sleep(0.1)
-        details = c.get("/node/consensus").body.json()
-        assert False, f"Stuck at {r}: {pprint.pformat(details)}"
+        try:
+            c.wait_for_commit(new_tx_resp, timeout=5)
+        except TimeoutError:
+            details = c.get("/node/consensus").body.json()
+            assert (
+                False
+            ), f"Stuck before {new_tx_resp.view}.{new_tx_resp.seqno}: {pprint.pformat(details)}"
+
+        # Check it has dropped anything submitted while partitioned
+        r = c.get(f"/node/tx?transaction_id={lost_tx_resp.view}.{lost_tx_resp.seqno}")
+        status = TxStatus(r.body.json()["status"])
+        assert status == TxStatus.Invalid, r
 
 
 def run(args):

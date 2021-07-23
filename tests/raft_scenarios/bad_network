@@ -1,0 +1,125 @@
+nodes,0,1,2
+connect,0,1
+connect,1,2
+connect,0,2
+
+# Node 0 starts first, and wins the first election
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+# An initial entry is written and successfully replicated
+replicate,1,helloworld
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync
+
+# An additional entry takes much longer to replicate, as it is lost on bad connection between nodes
+replicate,1,salutonmondo
+
+periodic_all,10
+drop_pending,0
+dispatch_all
+
+periodic_all,10
+drop_pending,0
+dispatch_all
+
+periodic_all,10
+drop_pending,0
+dispatch_all
+
+# Before either follower times out, the message eventually reaches Node 1 (though not Node 2)
+periodic_all,10
+drop_pending_to,0,2
+
+# N0->N1 "Are you up-to-date?"
+dispatch_all_once
+
+# N1->N0 "No, I'm not"
+dispatch_all_once
+
+# N0->N1 "Here's the bit you're missing"
+dispatch_all_once
+
+# N1->N0 "Ok, I've got it"
+drop_pending_to,1,0  #< This is dropped!
+dispatch_all_once
+
+# At this point, 1.2 is committed, but nobody knows that yet
+
+# Eventually Node 2 is partitioned for so long that it calls an election
+periodic_one,2,100
+
+# But this RequestVote is lost!
+periodic_all,10
+drop_pending,1  #< The ACKs from 1 are constantly dropped
+drop_pending,2
+dispatch_all_once
+
+periodic_all,10
+drop_pending,1  #< The ACKs from 1 are constantly dropped
+drop_pending,2
+dispatch_all_once
+
+# Eventually Node 2 is partitioned for so long that it calls many more elections, which nobody hears about
+periodic_one,2,100
+drop_pending,2
+
+periodic_one,2,100
+drop_pending,2
+
+periodic_one,2,100
+drop_pending,2
+
+# TODO: Add more precise state assert? Currently 2 is @5.1, and is a Candidate
+
+# Eventually Node 1 stops hearing from Node 0, and calls an election
+state_all
+drop_pending,1
+periodic_one,1,100
+dispatch_all_once  #< Finally, everyone hears about this!
+
+drop_pending,0  #< Node 0's response (in favour is dropped)
+dispatch_all_once  #< Node 2's response, denying and giving a higher term, is received
+
+# Node 2 tries yet again for an election, and this time is able to send that to Node 1
+periodic_one,2,100
+drop_pending_to,2,0
+dispatch_all_once
+
+# But Node 1 votes against, because it is further ahead than Node 2
+dispatch_all_once
+
+# Now Node 1 tries for an election
+periodic_one,1,100
+dispatch_all_once
+
+# It gets positive votes from both, but we only deliver the one from Node 2
+drop_pending,0
+dispatch_all_once
+
+# Node 1 is now primary, though it still doesn't know that 2 is committed
+state_all
+
+# Now we allow the network to heal and return to normal
+periodic_all,10
+dispatch_all_once  #< "Where are you?"
+
+periodic_all,10
+dispatch_all_once  #< "Out-of-date"
+
+periodic_all,10
+dispatch_all_once  #< "Here's latest"
+
+
+state_all
+assert_state_sync

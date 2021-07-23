@@ -76,7 +76,7 @@ CCF Documentation
 
     ---
 
-    :fa:`flask` :doc:`research`
+    :fa:`flask` :doc:`research/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     CCF-related research papers and technical reports.
@@ -93,5 +93,5 @@ CCF Documentation
     audit/index.rst
     contribute/index.rst
     glossary
-    research
+    research/index.rst
     GitHub Repository <https://github.com/microsoft/CCF>

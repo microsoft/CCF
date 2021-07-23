@@ -108,13 +108,18 @@ all_tests_suite = [
     # code update:
     code_update.test_verify_quotes,
     code_update.test_add_node_with_bad_code,
-    governance_history.test_ledger_is_readable,
-    governance_history.test_tables_doc,
     # curve migration:
     reconfiguration.test_change_curve,
     recovery.test,
     # jwt
     jwt_test.test_refresh_jwt_issuer,
+    #
+    #
+    #
+    # Below tests should always stay last, so that they
+    # test the most complete ledgers
+    governance_history.test_ledger_is_readable,
+    governance_history.test_tables_doc,
 ]
 
 suites["all"] = all_tests_suite
