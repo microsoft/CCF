@@ -1484,8 +1484,7 @@ namespace aft
             r.prev_term);
         }
 
-        send_append_entries_response(
-          from, AppendEntriesResponseType::FAIL);
+        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -2126,8 +2125,7 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to,
-      AppendEntriesResponseType answer)
+      ccf::NodeId to, AppendEntriesResponseType answer)
     {
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
