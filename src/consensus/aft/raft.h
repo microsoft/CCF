@@ -2123,13 +2123,6 @@ namespace aft
     void send_append_entries_response(
       ccf::NodeId to, AppendEntriesResponseType answer)
     {
-      LOG_DEBUG_FMT(
-        "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
-        state->last_idx,
-        answer);
-
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
@@ -2147,6 +2140,13 @@ namespace aft
       auto matching_idx = answer == AppendEntriesResponseType::FAIL ?
         state->commit_idx :
         state->last_idx;
+
+      LOG_DEBUG_FMT(
+        "Send append entries response from {} to {} for index {}: {}",
+        state->my_node_id.trim(),
+        to.trim(),
+        matching_idx,
+        answer);
 
       AppendEntriesResponse response = {{raft_append_entries_response},
                                         state->current_view,
