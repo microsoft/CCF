@@ -402,7 +402,7 @@ TEST_CASE("Extract public key from csr")
 }
 
 template <typename T, typename S>
-void run_csr()
+void run_csr(bool corrupt_csr = false)
 {
   T kpm(CurveID::SECP384R1);
 
@@ -420,8 +420,24 @@ void run_csr()
 
   auto csr = kpm.create_csr(subject_name, subject_alternative_names);
 
+  if (corrupt_csr)
+  {
+    auto& corrupt_byte = csr.data()[csr.size() - 100];
+    corrupt_byte++;
+  }
+
   auto icrt = kpm.self_sign("CN=issuer");
-  auto crt = kpm.sign_csr(icrt, csr);
+
+  crypto::Pem crt;
+  if (!corrupt_csr)
+  {
+    crt = kpm.sign_csr(icrt, csr);
+  }
+  else
+  {
+    REQUIRE_THROWS_AS(kpm.sign_csr(icrt, csr), std::runtime_error);
+    return;
+  }
 
   std::vector<uint8_t> content = {0, 1, 2, 3, 4};
   auto signature = kpm.sign(content);
@@ -430,12 +446,17 @@ void run_csr()
   REQUIRE(v.verify(content, signature));
 }
 
-TEST_CASE("Create, sign & verify certificates")
+TEST_CASE("Create sign and verify certificates")
 {
-  run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>();
-  run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>();
-  run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>();
-  run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>();
+  bool corrupt_csr = false;
+  do
+  {
+    // run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>(corrupt_csr);
+    // run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>(corrupt_csr);
+    // run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>(corrupt_csr);
+    run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>(corrupt_csr);
+    corrupt_csr = !corrupt_csr;
+  } while (corrupt_csr);
 }
 
 static const vector<uint8_t>& getRawKey()
