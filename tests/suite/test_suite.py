@@ -119,7 +119,6 @@ all_tests_suite = [
     # Below tests should always stay last
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
-    governance_history.test_read_ledger_utility,
 ]
 
 suites["all"] = all_tests_suite

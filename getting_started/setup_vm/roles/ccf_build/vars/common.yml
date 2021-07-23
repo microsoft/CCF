@@ -11,17 +11,20 @@ debs:
   - clang-8
   - clang-format-8
   - clang-tools-8
+  - build-essential
   - expect
   - git
   - ccache
-  - kmod
+  - kmod # modinfo for sgxinfo.sh
   - cmake
   - libssl-dev
-  - jq
+  - jq # operation scripts
   - sudo
-  - curl
-  - shellcheck
-  - iptables
+  - curl # client test infra
+  - shellcheck # bash lint
+  - iptables # partition test infra
+  - libclang1-9 # required by doxygen
+  - libclang-cpp9 # required by doxygen
   - flex # required to build doxygen
   - bison # required to build doxygen
 
@@ -29,6 +32,6 @@ mbedtls_ver: "2.16.10"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
 mbedtls_src: "{{ mbedtls_dir }}.tar.gz"
 
-doxygen_ver: "1_9_1"
-doxygen_dir: "Release_{{ doxygen_ver }}"
-doxygen_src: "{{ doxygen_ver }}.tar.gz"
+doxygen_ver: "1.9.1"
+doxygen_bin: "doxygen-{{ doxygen_ver }}.linux.bin.tar.gz"
+doxygen_url: "https://doxygen.nl/files/{{ doxygen_bin }}"
