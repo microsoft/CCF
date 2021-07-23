@@ -422,23 +422,20 @@ void run_csr(bool corrupt_csr = false)
 
   if (corrupt_csr)
   {
-    auto& corrupt_byte = csr.data()[csr.size() - 100];
+    constexpr size_t corrupt_byte_pos_from_end = 66;
+    auto& corrupt_byte = csr.data()[csr.size() - corrupt_byte_pos_from_end];
     corrupt_byte++;
   }
 
   auto icrt = kpm.self_sign("CN=issuer");
 
-  crypto::Pem crt;
-  if (!corrupt_csr)
+  if (corrupt_csr)
   {
-    crt = kpm.sign_csr(icrt, csr);
-  }
-  else
-  {
-    REQUIRE_THROWS_AS(kpm.sign_csr(icrt, csr), std::runtime_error);
+    REQUIRE_THROWS(kpm.sign_csr(icrt, csr));
     return;
   }
 
+  auto crt = kpm.sign_csr(icrt, csr);
   std::vector<uint8_t> content = {0, 1, 2, 3, 4};
   auto signature = kpm.sign(content);
 
@@ -451,9 +448,9 @@ TEST_CASE("Create sign and verify certificates")
   bool corrupt_csr = false;
   do
   {
-    // run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>(corrupt_csr);
-    // run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>(corrupt_csr);
-    // run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>(corrupt_csr);
+    run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>(corrupt_csr);
+    run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>(corrupt_csr);
+    run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>(corrupt_csr);
     run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>(corrupt_csr);
     corrupt_csr = !corrupt_csr;
   } while (corrupt_csr);
