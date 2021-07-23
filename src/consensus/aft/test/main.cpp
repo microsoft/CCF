@@ -1103,6 +1103,55 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
   }
 }
 
+/**
+  Summary of this test:
+
+  - Produce an initial state where A is primary in term 1 of a 5-node network,
+    has mixed success replicating its entries. Local commit index is marked by
+    []. True commit index is the highest of these, [1.2].
+    A:  1.1 [1.2] 1.3
+    B: [1.1] 1.2  1.3
+    C: [1.1] 1.2
+    D: [1.1]
+    E: [1.1]
+
+  - Intuitively, B and C are responsible for persisting 1.2, although they don't
+    know this locally.
+
+  - Node A dies. Node B becomes primary, and creates some tail junk that no-one
+    else sees. It makes no commit progress. Crucially this is committable (as
+    all of these indices are), so B is reluctant to discard the entries in term
+    2, and 1.3, though all _could_ be discarded.
+    A:  1.1 [1.2] 1.3 (DEAD)
+    B: [1.1] 1.2  1.3  2.4  2.5
+    C: [1.1] 1.2
+    D: [1.1]
+    E: [1.1]
+
+  - Node C doesn't hear from B for long enough, and becomes primary. Its
+    AppendEntries are regularly lost. Eventually a heartbeat ("I'm at 1.2")
+    reaches Node B, which responds with a NACK ("I don't accept that tail").
+    Node C responds to that NACK with a better AppendEntries, which _should_
+    bring Node B back to the committed level, and forward to wherever C is.
+    However, under the current implementation, this AppendEntries may
+    actually cause B to roll back further than is safe, losing the committed
+    state.
+    C->B: AE [1.2, 1.2)
+    B->C: AER NACK 1.1 (B's commit index)
+    C->B: AE [1.1, 1.1) (Large entries mean this is only a partial catchup)
+    B: Rolls back to 1.1
+
+    B: [1.1]
+    C: [1.1] 1.2
+    D: [1.1]
+    E: [1.1]
+
+  - At this point a committed index (1.2) is no longer present on a majority of
+    nodes. While C is unlikely to advertise it (fancy election rules mean
+    they're waiting for commit at 1.2) and will continue to share it, its
+    possible for C to die here and B, D, or E to win an election and proceed
+    without this committed suffix, forking/overwriting 1.2 with 4.2.
+ */
 DOCTEST_TEST_CASE("Committable suffix safe detection")
 {
   // Single configuration has all nodes, fully connected
