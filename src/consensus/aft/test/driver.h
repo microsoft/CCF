@@ -23,7 +23,17 @@ std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
     "[{} bytes] {}", v.size(), std::string(v.begin(), v.begin() + size));
 }
 
-struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
+std::string stringify(const std::optional<std::vector<uint8_t>>& o)
+{
+  if (o.has_value())
+  {
+    return stringify(*o);
+  }
+
+  return "MISSING";
+}
+
+struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
 {
   using LedgerStubProxy::LedgerStubProxy;
 
@@ -32,23 +42,62 @@ struct LedgerStubProxy_WithLogging : public aft::LedgerStubProxy
     bool globally_committable,
     bool force_chunk) override
   {
-    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id
-                    << ": ledger put s: " << stringify(data) << std::endl;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [ledger] appending: {}",
+                         _id,
+                         _id,
+                         stringify(data))
+                    << std::endl;
     aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
   }
 
   void truncate(aft::Index idx) override
   {
-    RAFT_DRIVER_OUT << "  " << _id << "->>" << _id << ": truncate i: " << idx
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [ledger] truncating to {}", _id, _id, idx)
                     << std::endl;
     aft::LedgerStubProxy::truncate(idx);
   }
 };
 
+struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
+{
+  using LoggingStubStoreSig::LoggingStubStoreSig;
+
+  void compact(aft::Index idx) override
+  {
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [KV] compacting to {}", _id, _id, idx)
+                    << std::endl;
+    aft::LoggingStubStoreSig::compact(idx);
+  }
+
+  void rollback(const kv::TxID& tx_id, aft::Term t) override
+  {
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [KV] rolling back to {}.{}, in term {}",
+                         _id,
+                         _id,
+                         tx_id.term,
+                         tx_id.version,
+                         t)
+                    << std::endl;
+    aft::LoggingStubStoreSig::rollback(tx_id, t);
+  }
+
+  void initialise_term(aft::Term t) override
+  {
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  {}->>{}: [KV] initialising in term {}", _id, _id, t)
+                    << std::endl;
+    aft::LoggingStubStoreSig::initialise_term(t);
+  }
+};
+
 using ms = std::chrono::milliseconds;
 using TRaft = aft::
-  Aft<LedgerStubProxy_WithLogging, aft::ChannelStubProxy, aft::StubSnapshotter>;
-using Store = aft::LoggingStubStoreSig;
+  Aft<LedgerStubProxy_Mermaid, aft::ChannelStubProxy, aft::StubSnapshotter>;
+using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
 std::vector<uint8_t> cert;
@@ -67,7 +116,7 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
-  std::unordered_map<ccf::NodeId, NodeDriver> _nodes;
+  std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
 public:
@@ -83,7 +132,7 @@ public:
       auto raft = std::make_shared<TRaft>(
         ConsensusType::CFT,
         std::make_unique<Adaptor>(kv),
-        std::make_unique<LedgerStubProxy_WithLogging>(node_id),
+        std::make_unique<LedgerStubProxy_Mermaid>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
         std::make_shared<aft::StubSnapshotter>(),
         nullptr,
@@ -107,41 +156,58 @@ public:
     }
   }
 
-  void log(ccf::NodeId first, ccf::NodeId second, const std::string& message)
+  void log(
+    ccf::NodeId first,
+    ccf::NodeId second,
+    const std::string& message,
+    bool dropped = false)
   {
-    RAFT_DRIVER_OUT << "  " << first << "->>" << second << ": " << message
-                    << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "-" << (dropped ? "X" : ">>") << second
+                    << ": " << message << std::endl;
   }
 
-  void rlog(ccf::NodeId first, ccf::NodeId second, const std::string& message)
+  void rlog(
+    ccf::NodeId first,
+    ccf::NodeId second,
+    const std::string& message,
+    bool dropped = false)
   {
-    RAFT_DRIVER_OUT << "  " << first << "-->>" << second << ": " << message
-                    << std::endl;
+    RAFT_DRIVER_OUT << "  " << first << "--" << (dropped ? "X" : ">>") << second
+                    << ": " << message << std::endl;
   }
 
   void log_msg_details(
-    ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVote rv)
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::RequestVote rv,
+    bool dropped)
   {
     const auto s = fmt::format(
       "request_vote for term {}, at tx {}.{}",
       rv.term,
       rv.term_of_last_committable_idx,
       rv.last_committable_idx);
-    log(node_id, tgt_node_id, s);
+    log(node_id, tgt_node_id, s, dropped);
   }
 
   void log_msg_details(
-    ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::RequestVoteResponse rv)
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::RequestVoteResponse rv,
+    bool dropped)
   {
     const auto s = fmt::format(
       "request_vote_response for term {} = {}",
       rv.term,
       (rv.vote_granted ? "Y" : "N"));
-    rlog(node_id, tgt_node_id, s);
+    rlog(node_id, tgt_node_id, s, dropped);
   }
 
   void log_msg_details(
-    ccf::NodeId node_id, ccf::NodeId tgt_node_id, aft::AppendEntries ae)
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    aft::AppendEntries ae,
+    bool dropped)
   {
     const auto s = fmt::format(
       "append_entries ({}.{}, {}.{}] (term {}, commit {})",
@@ -151,13 +217,14 @@ public:
       ae.idx,
       ae.term,
       ae.leader_commit_idx);
-    log(node_id, tgt_node_id, s);
+    log(node_id, tgt_node_id, s, dropped);
   }
 
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
-    aft::AppendEntriesResponse aer)
+    aft::AppendEntriesResponse aer,
+    bool dropped)
   {
     char const* success = "UNHANDLED";
     switch (aer.success)
@@ -183,13 +250,14 @@ public:
       success,
       aer.term,
       aer.last_log_idx);
-    rlog(node_id, tgt_node_id, s);
+    rlog(node_id, tgt_node_id, s, dropped);
   }
 
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
-    const std::vector<uint8_t>& contents)
+    const std::vector<uint8_t>& contents,
+    bool dropped = false)
   {
     const uint8_t* data = contents.data();
     size_t size = contents.size();
@@ -200,25 +268,25 @@ public:
       case (aft::RaftMsgType::raft_request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        log_msg_details(node_id, tgt_node_id, rv);
+        log_msg_details(node_id, tgt_node_id, rv, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        log_msg_details(node_id, tgt_node_id, rvr);
+        log_msg_details(node_id, tgt_node_id, rvr, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        log_msg_details(node_id, tgt_node_id, ae);
+        log_msg_details(node_id, tgt_node_id, ae, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        log_msg_details(node_id, tgt_node_id, aer);
+        log_msg_details(node_id, tgt_node_id, aer, dropped);
         break;
       }
       default:
@@ -257,8 +325,10 @@ public:
   {
     auto raft = _nodes.at(node_id).raft;
     RAFT_DRIVER_OUT << fmt::format(
-                         "  Note right of {}: @{}.{} (committed {})",
+                         "  Note right of {}: {} @{}.{} (committed {})",
                          node_id,
+                         raft->is_primary() ? "P" :
+                                              (raft->is_follower() ? "F" : "C"),
                          raft->get_term(),
                          raft->get_last_idx(),
                          raft->get_commit_idx())
@@ -292,11 +362,14 @@ public:
   }
 
   template <class Messages>
-  size_t dispatch_one_queue(ccf::NodeId node_id, Messages& messages)
+  size_t dispatch_one_queue(
+    ccf::NodeId node_id,
+    Messages& messages,
+    const std::optional<size_t>& max_count = std::nullopt)
   {
     size_t count = 0;
 
-    while (messages.size())
+    while (messages.size() && (!max_count.has_value() || count < *max_count))
     {
       auto [tgt_node_id, contents] = messages.front();
       messages.pop_front();
@@ -310,40 +383,81 @@ public:
         const uint8_t* data = contents.data();
         auto size = contents.size();
         auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+        bool should_send = true;
         if (msg_type == aft::raft_append_entries)
         {
           // Parse the indices to be sent to the recipient.
           auto ae = *(aft::AppendEntries*)data;
 
-          auto& sender_ledger = _nodes.at(node_id).raft->ledger;
-          for (auto idx = ae.prev_idx + 1; idx <= ae.idx; ++idx)
+          auto& sender_raft = _nodes.at(node_id).raft;
+          const auto payload_opt =
+            sender_raft->ledger->get_append_entries_payload(ae, sender_raft);
+
+          if (!payload_opt.has_value())
           {
-            const auto entry = sender_ledger->get_entry_by_idx(idx);
-            contents.insert(contents.end(), entry.begin(), entry.end());
+            // While trying to construct an AppendEntries, we asked for an
+            // entry that doesn't exist. This is a valid situation - we queued
+            // the AppendEntries, but rolled back before it was dispatched!
+            // We abandon this operation here.
+            // We could log this in Mermaid with the line below, but since
+            // this does not occur in a real node it is silently ignored. In a
+            // real node, the AppendEntries and truncate messages are ordered
+            // and processed by the host in that order. All AppendEntries
+            // referencing a specific index will be processed before any
+            // truncation that removes that index.
+            // RAFT_DRIVER_OUT
+            //   << fmt::format(
+            //        "  Note right of {}: Abandoning AppendEntries"
+            //        "containing {} - no longer in ledger",
+            //        node_id,
+            //        idx)
+            //   << std::endl;
+            should_send = false;
+          }
+          else
+          {
+            contents.insert(
+              contents.end(), payload_opt->begin(), payload_opt->end());
           }
         }
 
-        log_msg_details(node_id, tgt_node_id, contents);
-        _nodes.at(tgt_node_id)
-          .raft->recv_message(node_id, contents.data(), contents.size());
-        count++;
+        if (should_send)
+        {
+          log_msg_details(node_id, tgt_node_id, contents);
+          _nodes.at(tgt_node_id)
+            .raft->recv_message(node_id, contents.data(), contents.size());
+          count++;
+        }
       }
     }
 
     return count;
   }
 
-  void dispatch_one(ccf::NodeId node_id)
+  void dispatch_one(
+    ccf::NodeId node_id, const std::optional<size_t>& max_count = std::nullopt)
   {
     auto raft = _nodes.at(node_id).raft;
-    dispatch_one_queue(node_id, channel_stub_proxy(*raft)->messages);
+    dispatch_one_queue(node_id, channel_stub_proxy(*raft)->messages, max_count);
   }
 
   void dispatch_all_once()
   {
+    // The intent is to dispatch all _current_ messages, but no new ones. If we
+    // simply iterated, then we may dispatch new messages that are produced on
+    // later nodes, in response to messages from earlier-processed nodes. To
+    // avoid that, we count how many messages are present initially, and cap to
+    // only processing that many
+    std::map<ccf::NodeId, size_t> initial_message_counts;
+    for (auto& [node_id, driver] : _nodes)
+    {
+      initial_message_counts[node_id] =
+        channel_stub_proxy(*driver.raft)->messages.size();
+    }
+
     for (auto& node : _nodes)
     {
-      dispatch_one(node.first);
+      dispatch_one(node.first, initial_message_counts[node.first]);
     }
   }
 
@@ -413,7 +527,7 @@ public:
     if (!opt.has_value())
     {
       RAFT_DRIVER_OUT << fmt::format(
-                           "  Note right of {}: No primary to replicate {}",
+                           "  Note left of {}: No primary to replicate {}",
                            _nodes.begin()->first,
                            stringify(*data))
                       << std::endl;
@@ -484,6 +598,33 @@ public:
       {
         reconnect(node_id, node.first);
       }
+    }
+  }
+
+  void drop_pending_to(ccf::NodeId from, ccf::NodeId to)
+  {
+    auto from_raft = _nodes.at(from).raft;
+    auto& messages = channel_stub_proxy(*from_raft)->messages;
+    auto it = messages.begin();
+    while (it != messages.end())
+    {
+      if (it->first == to)
+      {
+        log_msg_details(from, to, it->second, true);
+        it = messages.erase(it);
+      }
+      else
+      {
+        ++it;
+      }
+    }
+  }
+
+  void drop_pending(ccf::NodeId from)
+  {
+    for (auto& [to, _] : _nodes)
+    {
+      drop_pending_to(from, to);
     }
   }
 

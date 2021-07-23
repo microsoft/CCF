@@ -1,0 +1,103 @@
+nodes,0,1,2
+connect,0,1
+connect,1,2
+connect,0,2
+
+# Node 0 starts first, and begins sending messages first
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+replicate,1,helloworld
+periodic_all,10
+dispatch_all
+
+replicate,1,salutonmondo
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+# Node 0 is idle/disconnected for too long, so Node 1 takes over
+periodic_one,1,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync
+
+# NB: Node 1 i now primary in term 2. There is no primary in term 1,
+# and attempting to replicate in it will produce an error
+replicate,2,my world now
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync
+
+replicate,2,im in charge
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync
+
+# Node 1 is partitioned for a while
+disconnect,0,1
+disconnect,1,2
+
+# While 1 was partitioned, it continued to receive transactions!
+replicate,2,i think i am still in charge
+replicate,2,i am going to continue like i am the primary
+replicate,2,until i am told otherwise
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+# The partition lasts long enough that Node 0 starts an election
+periodic_one,0,110
+
+# It passes the election
+periodic_all,10
+dispatch_all
+
+# The network heals
+connect,0,1
+connect,1,2
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+# Election has now succeeded, and new primary can replicate in term 3
+replicate,3,look at me i am the primary now
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+assert_state_sync

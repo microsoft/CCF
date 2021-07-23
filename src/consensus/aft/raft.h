@@ -2132,11 +2132,6 @@ namespace aft
         state->requested_evidence_from = to;
       }
 
-      if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
-      {
-        state->requested_evidence_from = to;
-      }
-
       // AppendEntriesResponse should contain the highest _matching_ index we
       // hold - that is how the primary will treat it.
       // If this is an affirmative response, then that index is the last entry

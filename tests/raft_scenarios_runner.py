@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     parser.add_argument("driver", type=str, help="Path to raft_driver binary")
     parser.add_argument("--gen-scenarios", action="store_true")
-    parser.add_argument("files", nargs="+", type=str, help="Path to scenario files")
+    parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
 
     args = parser.parse_args()
 
