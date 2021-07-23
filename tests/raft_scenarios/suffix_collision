@@ -59,9 +59,9 @@ state_all
 connect,0,1
 connect,0,2
 
-# Node 0 is brought up-to-date?
+# Node 0 is brought up-to-date
 periodic_all,10
-dispatch_all   #< This AppendEntries starts from a later point in Node 1's term, which Node 0 refuses!
+dispatch_all
 
 periodic_all,10
 dispatch_all
