@@ -11,12 +11,14 @@ def fully_connected_scenario(nodes, steps):
     step_def = {
         0: lambda: "dispatch_all",
         # Most of the time, advance by a small periodic amount. Occasionally time out long enough to trigger an election
-        1: lambda: "periodic_all,{}".format(choices([randrange(20), randrange(100, 500)], weights=[10, 1])[0]),
+        1: lambda: "periodic_all,{}".format(
+            choices([randrange(20), randrange(100, 500)], weights=[10, 1])[0]
+        ),
         2: lambda: "replicate,latest,{}".format(f"hello {next(index)}"),
     }
 
     # Define the nodes
-    lines = ["nodes,{}".format(','.join(str(n) for n in range(nodes)))]
+    lines = ["nodes,{}".format(",".join(str(n) for n in range(nodes)))]
 
     for first, second in combinations(range(nodes), 2):
         lines.append("connect,{},{}".format(first, second))
