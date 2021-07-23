@@ -895,7 +895,7 @@ class Network:
         error = TimeoutError
         logs = []
 
-        backup = self.find_any_backup()
+        backup = self.find_any_backup(old_primary)
         if backup.get_consensus() == "bft":
             try:
                 with backup.client("user0") as c:
