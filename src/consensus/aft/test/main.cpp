@@ -1232,7 +1232,8 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
   }
 
   DOCTEST_INFO(
-    "Entries at 1.2 and 1.3 are received by a majority, and become committed");
+    "Entries at 1.2, 1.3, and 1.4 are received by a majority, and become "
+    "committed");
   {
     auto entry = make_ledger_entry(1, 2);
     rA.replicate(kv::BatchVector{{2, entry, true, hooks}}, 1);
@@ -1244,6 +1245,13 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
     entry = make_ledger_entry(1, 3);
     rA.replicate(kv::BatchVector{{3, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(rA.get_last_idx() == 3);
+    DOCTEST_REQUIRE(rA.get_commit_idx() == 1);
+    // Size limit was reached, so periodic is not needed
+    // rA.periodic(request_timeout);
+
+    entry = make_ledger_entry(1, 4);
+    rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
+    DOCTEST_REQUIRE(rA.get_last_idx() == 4);
     DOCTEST_REQUIRE(rA.get_commit_idx() == 1);
     // Size limit was reached, so periodic is not needed
     // rA.periodic(request_timeout);
@@ -1265,19 +1273,19 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
       }
     }
 
-    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA, channelsA->messages));
+    DOCTEST_REQUIRE(6 == dispatch_all(nodes, node_idA, channelsA->messages));
 
-    // NB: AppendEntriesResponses are not dispatched yet. So 1.3 is technically
+    // NB: AppendEntriesResponses are not dispatched yet. So 1.4 is technically
     // committed, but nobody knows this yet
   }
 
   DOCTEST_INFO(
-    "Entry at 1.4 is received by only Node B, and is not "
+    "Entry at 1.5 is received by only Node B, and is not "
     "committed");
   {
-    auto entry = make_ledger_entry(1, 4);
-    rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
-    DOCTEST_REQUIRE(rA.get_last_idx() == 4);
+    auto entry = make_ledger_entry(1, 5);
+    rA.replicate(kv::BatchVector{{5, entry, true, hooks}}, 1);
+    DOCTEST_REQUIRE(rA.get_last_idx() == 5);
     // Size limit was reached, so periodic is not needed
     // rB.periodic(request_timeout);
 
@@ -1302,18 +1310,18 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
       1 ==
       dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
         nodes, node_idA, channelsA->messages, [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.prev_idx == 3);
-          DOCTEST_REQUIRE(msg.idx == 4);
+          DOCTEST_REQUIRE(msg.prev_idx == 4);
+          DOCTEST_REQUIRE(msg.idx == 5);
         }));
 
     // Dispatch AppendEntriesResponses (including those from earlier)
-    DOCTEST_REQUIRE(3 == dispatch_all(nodes, node_idB, channelsB->messages));
-    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idC, channelsC->messages));
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
+    DOCTEST_REQUIRE(3 == dispatch_all(nodes, node_idC, channelsC->messages));
     DOCTEST_REQUIRE(0 == dispatch_all(nodes, node_idD, channelsD->messages));
     DOCTEST_REQUIRE(0 == dispatch_all(nodes, node_idE, channelsE->messages));
 
-    // Node A now knows that 1.3 is committed
-    DOCTEST_REQUIRE(rA.get_commit_idx() == 3);
+    // Node A now knows that 1.4 is committed
+    DOCTEST_REQUIRE(rA.get_commit_idx() == 4);
 
     // Nodes B and C have this commit index, and are responsible for persisting
     // it
@@ -1342,24 +1350,23 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
 
   DOCTEST_INFO("Node B writes some entries, though they are lost");
   {
-    auto entry = make_ledger_entry(2, 5);
-    rB.replicate(kv::BatchVector{{5, entry, true, hooks}}, 2);
-    DOCTEST_REQUIRE(rB.get_last_idx() == 5);
-
-    entry = make_ledger_entry(2, 6);
+    auto entry = make_ledger_entry(2, 6);
     rB.replicate(kv::BatchVector{{6, entry, true, hooks}}, 2);
     DOCTEST_REQUIRE(rB.get_last_idx() == 6);
+
+    entry = make_ledger_entry(2, 7);
+    rB.replicate(kv::BatchVector{{7, entry, true, hooks}}, 2);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 7);
 
     // Size limit was reached, so periodic is not needed
     // rB.periodic(request_timeout);
 
     // All those AppendEntries (including the initial ones from winning an
-    // election) are lost - this is a dead suffix known only by B. That's not
-    // particularly important, the more important point is B is one of the
-    // quorum responsible for persistence of 1.3, but its commit index is not as
-    // high as 1.3
+    // election) are lost - this is a dead suffix known only by B.
     channelsB->messages.clear();
 
+    // The key features is that B is one of the quorum responsible for
+    // persistence of 1.4, despites its commit index not being as high as 1.4
     DOCTEST_REQUIRE(rB.get_commit_idx() < rA.get_commit_idx());
     DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_commit_idx());
   }
@@ -1386,24 +1393,24 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
     DOCTEST_REQUIRE(rC.is_primary());
     DOCTEST_REQUIRE(rC.get_term() == 3);
 
-    DOCTEST_REQUIRE(rB.get_last_idx() == 6);
-    DOCTEST_REQUIRE(rC.get_last_idx() == 3);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 7);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 4);
 
     // The early AppendEntries that C tries to send are lost
     rC.periodic(request_timeout);
     channelsC->messages.clear();
 
-    DOCTEST_REQUIRE(rB.get_last_idx() == 6);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 7);
 
     DOCTEST_REQUIRE(rB.get_commit_idx() < rA.get_commit_idx());
     DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_commit_idx());
   }
 
-  DOCTEST_REQUIRE("Node C produces 3.4");
+  DOCTEST_REQUIRE("Node C produces 3.5");
   {
-    auto entry = make_ledger_entry(3, 4);
-    rC.replicate(kv::BatchVector{{4, entry, true, hooks}}, 3);
-    DOCTEST_REQUIRE(rC.get_last_idx() == 4);
+    auto entry = make_ledger_entry(3, 5);
+    rC.replicate(kv::BatchVector{{5, entry, true, hooks}}, 3);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 5);
 
     // The early AppendEntries that describe this are lost
     rC.periodic(request_timeout);
@@ -1445,12 +1452,62 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
     // This produces a corrective AppendEntries from C. Only the first
     // AppendEntries to B is kept, all other AppendEntries are lost
     keep_first_for(node_idB, channelsC->messages);
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC, channelsC->messages));
+
+    // !!! We currently throw while processing this, but too late - we've already rolled back!
+    try
+    {
+      dispatch_all(nodes, node_idC, channelsC->messages);
+    }
+    catch (const std::exception& e)
+    {
+      std::cout << e.what() << std::endl;
+    }
 
     // !!! Error! B has rolled back too far, it was supposed to be
-    // persisting 1.3 !!!
-    DOCTEST_REQUIRE(rB.get_last_idx() == 2);
-    DOCTEST_REQUIRE(rB.get_commit_idx() < rA.get_commit_idx());
-    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_commit_idx());
+    // persisting 1.4 !!!
+    DOCTEST_CHECK(rB.get_last_idx() >= rA.get_commit_idx());
+  }
+
+  DOCTEST_INFO(
+    "!!! C dies, and B, D, or E can win an election despite not having the "
+    "last committed index");
+  {
+    channelsB->messages.clear();
+    rB.periodic(election_timeout);
+
+    // Dispatch RequestVotes
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
+
+    // Dispatch responses
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
+
+    DOCTEST_REQUIRE(rB.is_primary());
+    DOCTEST_REQUIRE(rB.get_term() == 4);
+
+    // Dispatch AppendEntries
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
+
+    // Dispatch AppendEntriesResponses
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
+
+    // Tick and bring everyone up-to-speed
+    rB.periodic(request_timeout);
+
+    // Dispatch AppendEntries
+    dispatch_all(nodes, node_idB, channelsB->messages);
+
+    // Dispatch AppendEntriesResponses
+    dispatch_all(nodes, node_idD, channelsD->messages);
+    dispatch_all(nodes, node_idE, channelsE->messages);
+
+    DOCTEST_REQUIRE(rB.is_primary());
+    DOCTEST_REQUIRE(rB.get_term() == 4);
+    DOCTEST_REQUIRE(rB.get_last_idx() == rB.get_commit_idx());
+
+    // !!! Error! B is now a primary, reporting a commit older than was
+    // previously reported by A, and having lost that entry entirely!
+    DOCTEST_CHECK(rB.get_commit_idx() >= rA.get_commit_idx());
   }
 }

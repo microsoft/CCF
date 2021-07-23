@@ -40,6 +40,8 @@ namespace aft
         const auto current_latest_index = views.back();
         if (idx < current_latest_index)
         {
+          // TODO: Can we keep this, or is it invalid?
+          // Seems funky in the presence of replayed AEs?
           throw std::logic_error(fmt::format(
             "version must not move backwards ({} < {})",
             idx,
