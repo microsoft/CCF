@@ -30,19 +30,19 @@ void keep_messages_for_multiple(
   std::optional<size_t> max_to_keep = std::nullopt)
 {
   auto it = messages.begin();
-  size_t kept = 0;
+  std::map<ccf::NodeId, size_t> kept;
   while (it != messages.end())
   {
     if (
       std::find(targets.begin(), targets.end(), it->first) == targets.end() ||
-      (max_to_keep.has_value() && kept >= *max_to_keep))
+      (max_to_keep.has_value() && kept[it->first] >= *max_to_keep))
     {
       it = messages.erase(it);
     }
     else
     {
       ++it;
-      ++kept;
+      ++kept[it->first];
     }
   }
 }
@@ -61,6 +61,42 @@ void keep_first_for(
   std::optional<size_t> max_to_keep = std::nullopt)
 {
   keep_messages_for(target, messages, 1);
+}
+
+void keep_earliest_append_entries_for_each_target(
+  aft::ChannelStubProxy::MessageList& messages)
+{
+  std::map<
+    ccf::NodeId,
+    std::pair<aft::Index, aft::ChannelStubProxy::MessageList::iterator>>
+    best;
+  for (auto it = messages.begin(); it != messages.end(); ++it)
+  {
+    const auto& [target, contents] = *it;
+
+    const uint8_t* data = contents.data();
+    auto size = contents.size();
+    auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    if (msg_type == aft::raft_append_entries)
+    {
+      const auto ae = *(aft::AppendEntries*)data;
+
+      const auto best_it = best.find(target);
+      if (best_it == best.end() || best_it->second.first > ae.prev_idx)
+      {
+        best[target] = std::make_pair(ae.prev_idx, it);
+      }
+    }
+  }
+
+  aft::ChannelStubProxy::MessageList best_only;
+  for (const auto& [node_id, pair] : best)
+  {
+    const auto& [idx, it] = pair;
+    best_only.push_back(*it);
+  }
+
+  messages = std::move(best_only);
 }
 
 #define TEST_DECLARE_NODE(N) \
@@ -458,6 +494,8 @@ DOCTEST_TEST_CASE("Multi-term divergence")
 {
   logger::config::level() = logger::INFO;
 
+  srand(time(NULL));
+
   // Single configuration has all nodes, fully connected
   aft::Configuration::Nodes initial_config;
 
@@ -692,56 +730,59 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     auto get_max_iterations = [&]() {
       // A safe upper-bound is the number of entries in the longest log. This
       // would be necessary if we were probing linearly backwards to find the
-      // matching suffix.
-      // return std::max(rA.get_last_idx(), rB.get_last_idx());
+      // matching suffix. This is actually doubled, since we need to count-down
+      // once to find the matching index, then count-up again to share each
+      // matching entry
+      return 2 * std::max(rA.get_last_idx(), rB.get_last_idx());
 
-      // Instead, we should be bounded in the worst case by the number of terms
-      // in the primary's log.
-      std::vector<aft::Index> term_history;
-      if (rA.is_primary())
-      {
-        term_history = rA.get_term_history(rA.get_last_idx());
-      }
-      else
-      {
-        term_history = rB.get_term_history(rB.get_last_idx());
-      }
-      return std::unique(term_history.begin(), term_history.end()) -
-        term_history.begin();
+      // // Instead, we should be bounded in the worst case by the number of
+      // terms
+      // // in the primary's log.
+      // std::vector<aft::Index> term_history;
+      // if (rA.is_primary())
+      // {
+      //   term_history = rA.get_term_history(rA.get_last_idx());
+      // }
+      // else
+      // {
+      //   term_history = rB.get_term_history(rB.get_last_idx());
+      // }
+      // return std::unique(term_history.begin(), term_history.end()) -
+      //   term_history.begin();
     };
 
     // Dispatch messages until coherence, bounded by expected max iterations
-    const auto max_messages_size = 2;
+    const auto max_messages_size = 6;
     auto iterations = 0;
     const auto max_iterations = get_max_iterations();
-    logger::config::level() = logger::TRACE;
+    logger::config::level() = logger::MOST_VERBOSE;
+
     for (; iterations < max_iterations; ++iterations)
     {
-      rA.periodic(request_timeout);
-      rB.periodic(request_timeout);
-
-      dispatch_all(nodes, node_idA);
-      dispatch_all(nodes, node_idB);
-      dispatch_all(nodes, node_idC);
-
       // Large entries and lots of NACKs means we may generate many messages.
-      // Cap the number we actually send, the first few should be sufficient
-      if (channelsA->messages.size() > max_messages_size)
+      // This is related to the inefficient Raft catch-up logic. Essentially
+      // each heartbeat we start a new catch-up process, and that may take many
+      // roundtrips to discover the matching index. As a simplification, we keep
+      // the single messages we believe is most useful, which is the
+      // AppendEntries that starts from the earliest.
+      if (rA.is_primary())
       {
-        channelsA->messages.erase(
-          channelsA->messages.begin() + max_messages_size,
-          channelsA->messages.end());
-      }
-      if (channelsB->messages.size() > max_messages_size)
-      {
-        channelsB->messages.erase(
-          channelsB->messages.begin() + max_messages_size,
-          channelsB->messages.end());
-      }
+        rA.periodic(request_timeout);
+        keep_earliest_append_entries_for_each_target(channelsA->messages);
+        dispatch_all(nodes, node_idA);
 
-      dispatch_all(nodes, node_idA);
-      dispatch_all(nodes, node_idB);
-      dispatch_all(nodes, node_idC);
+        dispatch_all(nodes, node_idB);
+        dispatch_all(nodes, node_idC);
+      }
+      else
+      {
+        rB.periodic(request_timeout);
+        keep_earliest_append_entries_for_each_target(channelsB->messages);
+        dispatch_all(nodes, node_idB);
+
+        dispatch_all(nodes, node_idA);
+        dispatch_all(nodes, node_idC);
+      }
 
       // Break early if we've already caught up
       if (
@@ -749,11 +790,15 @@ DOCTEST_TEST_CASE("Multi-term divergence")
         rA.get_last_idx() == rA.get_commit_idx() &&
         rA.get_commit_idx() == rB.get_commit_idx())
       {
+        std::cout << "Reached coherence after " << iterations << " roundtrips"
+                  << std::endl;
         break;
       }
     }
 
-    std::cout << "Attempted " << iterations << " roundtrips" << std::endl;
+    std::cout << fmt::format(
+                   "Attempted {}/{} roundtrips", iterations, max_iterations)
+              << std::endl;
 
     {
       DOCTEST_INFO("The final state is synced on all nodes");
