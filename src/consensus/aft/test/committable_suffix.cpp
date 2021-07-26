@@ -728,27 +728,43 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     dispatch_all(nodes, node_idC);
 
     auto get_max_iterations = [&]() {
-      // A safe upper-bound is the number of entries in the longest log. This
-      // would be necessary if we were probing linearly backwards to find the
-      // matching suffix. This is actually doubled, since we need to count-down
-      // once to find the matching index, then count-up again to share each
-      // matching entry
-      return 2 * std::max(rA.get_last_idx(), rB.get_last_idx());
+      // A safe upper-bound is derived from the number of entries in the
+      // primary's log. If we were probing linearly backwards to find the
+      // matching index, then we would need O(n) probes followed by (in the
+      // worst case, which we simulate by dropping most AEs) O(n) AEs from that
+      // index to get them caught up again.
+      size_t log_length;
+      if (rA.is_primary())
+      {
+        log_length = rA.get_last_idx();
+      }
+      else
+      {
+        log_length = rB.get_last_idx();
+      }
 
-      // // Instead, we should be bounded in the worst case by the number of
-      // terms
-      // // in the primary's log.
-      // std::vector<aft::Index> term_history;
-      // if (rA.is_primary())
-      // {
-      //   term_history = rA.get_term_history(rA.get_last_idx());
-      // }
-      // else
-      // {
-      //   term_history = rB.get_term_history(rB.get_last_idx());
-      // }
-      // return std::unique(term_history.begin(), term_history.end()) -
-      //   term_history.begin();
+      // return 2 * log_length;
+
+      // Instead, we should be bounded in the worst case by the number of terms
+      // in the primary's log.
+      size_t term_length;
+      {
+        std::vector<aft::Index> term_history;
+        if (rA.is_primary())
+        {
+          term_history = rA.get_term_history(rA.get_last_idx());
+        }
+        else
+        {
+          term_history = rB.get_term_history(rB.get_last_idx());
+        }
+        term_length = std::unique(term_history.begin(), term_history.end()) -
+          term_history.begin();
+      }
+
+      // For T terms and N entries in log, we need O(T) attempts to find the
+      // matching index, followed by O(N) to catch up from there.
+      return term_length + log_length;
     };
 
     // Dispatch messages until coherence, bounded by expected max iterations
