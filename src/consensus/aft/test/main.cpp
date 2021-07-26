@@ -1552,4 +1552,10 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
     // previously reported by A, and having lost that entry entirely!
     DOCTEST_CHECK(rB.get_commit_idx() >= rA.get_commit_idx());
   }
+
+  // TODO: What if both nodes have multiple terms after their agreement index?
+  // Think I can actually trigger this in a 3-node network, where the 3rd node
+  // is purely there to trigger elections (that it loses), and cause the other
+  // nodes to advance terms, but they never talk to each other and never make
+  // commit progress via the 3rd.
 }
