@@ -2135,10 +2135,22 @@ namespace aft
 
       if (answer == AppendEntriesResponseType::FAIL && rejected_index.has_value())
       {
-        // TODO: Probably not
-        // For an explanation of the reasoning behind this process, see the comment on the comparable section of etcd:
-        // https://github.com/etcd-io/etcd/blob/53d234f1fe2b4212bd8538cd694db8fedc375549/raft/raft.go#L1134-L1228
-        // TODO: Rough hack, try back-tracking by single transactions
+        // We're trying to find the highest index where we agree.
+        // By looking at our term history, we can work out what is the highest thing we hold which could possibly still match with the last thing they sent us.
+        // Specifically, if they sent us T.n, we're looking for the highest index we hold in term T or earlier.
+        auto term_of_disagreement = rejected_index->view;
+        const auto term_history = state->view_history.get_history_until();
+        auto t = std::min(term_of_disagreement, term_history.size() + 1);
+
+        // TODO: Can't write this bit correctly
+        if (t == term_history.size() + 1)
+        {
+          response_idx = state->last_idx;
+        }
+        else
+        {
+          response_idx = term_history[t + 1] - 1;
+        }
         response_idx = rejected_index->seqno - 1;
         response_term = get_term_internal(response_idx);
         LOG_DEBUG_FMT(
