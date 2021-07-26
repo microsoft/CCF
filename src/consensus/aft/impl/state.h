@@ -74,6 +74,13 @@ namespace aft
     {
       return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
     }
+
+    void rollback(kv::Version idx)
+    {
+      auto it = upper_bound(views.begin(), views.end(), idx);
+      views.erase(it, views.end());
+      LOG_DEBUG_FMT("Resulting views from rollback: {}", fmt::join(views, ", "));
+    }
   };
 
   class Replica

@@ -1480,7 +1480,8 @@ namespace aft
             prev_term,
             r.prev_term);
         }
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+        const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
+        send_append_entries_response(from, AppendEntriesResponseType::FAIL, rejected_tx);
         return;
       }
 
@@ -2121,36 +2122,38 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to, AppendEntriesResponseType answer)
+      ccf::NodeId to, AppendEntriesResponseType answer, const std::optional<ccf::TxID>& rejected_index = std::nullopt)
     {
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
       }
 
-      // AppendEntriesResponse should contain the highest _matching_ index we
-      // hold - that is how the primary will treat it.
-      // If this is an affirmative response, then that index is the last entry
-      // in this log.
-      // But if this is NACKing what was just sent (because it could not be
-      // applied), then we want to ensure that the next thing they send begins
-      // with a match. This may result in resending a redundant chunk which
-      // agrees, but will eventually include the earliest mismatch, which will
-      // trigger a rollback and correct application on this node.
-      auto matching_idx = answer == AppendEntriesResponseType::FAIL ?
-        state->commit_idx :
-        state->last_idx;
+      aft::Term response_term = state->current_view;
+      aft::Index response_idx = state->last_idx;
+
+      if (answer == AppendEntriesResponseType::FAIL && rejected_index.has_value())
+      {
+        // TODO: Probably not
+        // For an explanation of the reasoning behind this process, see the comment on the comparable section of etcd:
+        // https://github.com/etcd-io/etcd/blob/53d234f1fe2b4212bd8538cd694db8fedc375549/raft/raft.go#L1134-L1228
+        // TODO: Rough hack, try back-tracking by single transactions
+        response_idx = rejected_index->seqno - 1;
+        response_term = get_term_internal(response_idx);
+      }
 
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
         state->my_node_id.trim(),
         to.trim(),
-        matching_idx,
+        response_idx,
         answer);
 
+      // TODO: Do we need a separate `term_of_index` in this object? That would break protocol compatibility! Let's
+      // hope we can get way with reusing the existing term field, and its not needed for a NACK
       AppendEntriesResponse response = {{raft_append_entries_response},
-                                        state->current_view,
-                                        matching_idx,
+                                        response_term,
+                                        response_idx,
                                         answer};
 
       channels->send_authenticated(
@@ -2440,6 +2443,9 @@ namespace aft
           "Recv append entries response to {} from {}: stale idx",
           state->my_node_id,
           from);
+        // TODO: Surely we can discard this in any case? No point in resending
+        // if they've previously told us they match further, this must be a
+        // replay of an earlier NACK? (NB: This is true iff matching indices are monotonic)
         if (r.success == AppendEntriesResponseType::OK)
         {
           return;
@@ -3161,6 +3167,8 @@ namespace aft
       ledger->truncate(idx);
       state->last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
+
+      state->view_history.rollback(idx);
 
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {

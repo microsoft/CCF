@@ -1417,14 +1417,7 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
     rC.periodic(election_timeout);
 
     // Dispatch RequestVotes
-    DOCTEST_REQUIRE(
-      4 ==
-      dispatch_all_and_DOCTEST_CHECK<aft::RequestVote>(
-        nodes, node_idC, channelsC->messages, [](const auto& msg) {
-          std::cout << "Sending a Request Vote in term " << msg.term
-                    << " at TxID " << msg.term_of_last_committable_idx << "."
-                    << msg.last_committable_idx << std::endl;
-        }));
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idC, channelsC->messages));
 
     // Dispatch responses
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB, channelsB->messages));
@@ -1447,11 +1440,19 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
     DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_commit_idx());
   }
 
-  DOCTEST_REQUIRE("Node C produces 3.5");
+  DOCTEST_REQUIRE("Node C produces 3.5, 3.6, and 3.7");
   {
     auto entry = make_ledger_entry(3, 5);
     rC.replicate(kv::BatchVector{{5, entry, true, hooks}}, 3);
     DOCTEST_REQUIRE(rC.get_last_idx() == 5);
+
+    entry = make_ledger_entry(3, 6);
+    rC.replicate(kv::BatchVector{{6, entry, true, hooks}}, 3);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 6);
+
+    entry = make_ledger_entry(3, 7);
+    rC.replicate(kv::BatchVector{{7, entry, true, hooks}}, 3);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 7);
 
     // The early AppendEntries that describe this are lost
     rC.periodic(request_timeout);
@@ -1477,81 +1478,91 @@ DOCTEST_TEST_CASE("Committable suffix safe detection")
       }
     };
 
-    // Only the first AppendEntries to B is kept, all other
-    // AppendEntries are lost
-    keep_first_for(node_idB, channelsC->messages);
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC, channelsC->messages));
+    // Repeatedly send only the first AppendEntries to B, and process its
+    // response, until it has rolled back
+    const auto tail_of_b = rB.get_last_idx();
+    size_t iterations = 0;
+    const size_t max_iterations =
+      rC.get_last_idx(); // Don't repeat indefinitely
+    while (tail_of_b == rB.get_last_idx() && iterations++ < max_iterations)
+    {
+      // Only the first AppendEntries to B is kept, all other
+      // AppendEntries are lost
+      keep_first_for(node_idB, channelsC->messages);
+      DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC, channelsC->messages));
 
-    // B sends back a NACK
+      DOCTEST_REQUIRE(
+        1 ==
+        dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+          nodes, node_idB, channelsB->messages, [&](const auto& msg) {
+            // B NACKs, until it accepts a rollback
+            if (tail_of_b == rB.get_last_idx())
+            {
+              DOCTEST_REQUIRE(
+                msg.success == aft::AppendEntriesResponseType::FAIL);
+            }
+            else
+            {
+              DOCTEST_REQUIRE(
+                msg.success == aft::AppendEntriesResponseType::OK);
+            }
+          }));
+    }
+
+    DOCTEST_REQUIRE(rB.get_last_idx() != tail_of_b);
+
+    // B must still be holding the committed index it holds from A
+    DOCTEST_REQUIRE(rB.get_last_idx() >= rA.get_commit_idx());
+
+    // B's term history must match the current primary's
+    DOCTEST_REQUIRE(rB.get_last_idx() <= rC.get_last_idx());
     DOCTEST_REQUIRE(
-      1 ==
-      dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
-        nodes, node_idB, channelsB->messages, [](const auto& msg) {
-          DOCTEST_REQUIRE(msg.success == aft::AppendEntriesResponseType::FAIL);
-        }));
-
-    // This produces a corrective AppendEntries from C. Only the first
-    // AppendEntries to B is kept, all other AppendEntries are lost
-    keep_first_for(node_idB, channelsC->messages);
-
-    // !!! We currently throw while processing this, but too late - we've
-    // already rolled back!
-    try
-    {
-      dispatch_all(nodes, node_idC, channelsC->messages);
-    }
-    catch (const std::exception& e)
-    {
-      std::cout << e.what() << std::endl;
-    }
-
-    // !!! Error! B has rolled back too far, it was supposed to be
-    // persisting 1.4 !!!
-    DOCTEST_CHECK(rB.get_last_idx() >= rA.get_commit_idx());
+      rB.get_term_history(rB.get_last_idx()) ==
+      rC.get_term_history(rB.get_last_idx()));
   }
 
-  DOCTEST_INFO(
-    "!!! C dies, and B, D, or E can win an election despite not having the "
-    "last committed index");
-  {
-    channelsB->messages.clear();
-    rB.periodic(election_timeout);
+  // DOCTEST_INFO(
+  //   "!!! C dies, and B, D, or E can win an election despite not having the "
+  //   "last committed index");;-
+  // {
+  //   channelsB->messages.clear();
+  //   rB.periodic(election_timeout);
 
-    // Dispatch RequestVotes
-    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
+  //   // Dispatch RequestVotes
+  //   DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
 
-    // Dispatch responses
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
+  //   // Dispatch responses
+  //   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
+  //   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
-    DOCTEST_REQUIRE(rB.is_primary());
-    DOCTEST_REQUIRE(rB.get_term() == 4);
+  //   DOCTEST_REQUIRE(rB.is_primary());
+  //   DOCTEST_REQUIRE(rB.get_term() == 4);
 
-    // Dispatch AppendEntries
-    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
+  //   // Dispatch AppendEntries
+  //   DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idB, channelsB->messages));
 
-    // Dispatch AppendEntriesResponses
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
+  //   // Dispatch AppendEntriesResponses
+  //   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idD, channelsD->messages));
+  //   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idE, channelsE->messages));
 
-    // Tick and bring everyone up-to-speed
-    rB.periodic(request_timeout);
+  //   // Tick and bring everyone up-to-speed
+  //   rB.periodic(request_timeout);
 
-    // Dispatch AppendEntries
-    dispatch_all(nodes, node_idB, channelsB->messages);
+  //   // Dispatch AppendEntries
+  //   dispatch_all(nodes, node_idB, channelsB->messages);
 
-    // Dispatch AppendEntriesResponses
-    dispatch_all(nodes, node_idD, channelsD->messages);
-    dispatch_all(nodes, node_idE, channelsE->messages);
+  //   // Dispatch AppendEntriesResponses
+  //   dispatch_all(nodes, node_idD, channelsD->messages);
+  //   dispatch_all(nodes, node_idE, channelsE->messages);
 
-    DOCTEST_REQUIRE(rB.is_primary());
-    DOCTEST_REQUIRE(rB.get_term() == 4);
-    DOCTEST_REQUIRE(rB.get_last_idx() == rB.get_commit_idx());
+  //   DOCTEST_REQUIRE(rB.is_primary());
+  //   DOCTEST_REQUIRE(rB.get_term() == 4);
+  //   DOCTEST_REQUIRE(rB.get_last_idx() == rB.get_commit_idx());
 
-    // !!! Error! B is now a primary, reporting a commit older than was
-    // previously reported by A, and having lost that entry entirely!
-    DOCTEST_CHECK(rB.get_commit_idx() >= rA.get_commit_idx());
-  }
+  //   // !!! Error! B is now a primary, reporting a commit older than was
+  //   // previously reported by A, and having lost that entry entirely!
+  //   DOCTEST_CHECK(rB.get_commit_idx() >= rA.get_commit_idx());
+  // }
 
   // TODO: What if both nodes have multiple terms after their agreement index?
   // Think I can actually trigger this in a 3-node network, where the 3rd node
