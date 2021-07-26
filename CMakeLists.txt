@@ -302,6 +302,7 @@ if(BUILD_TESTS)
     add_unit_test(
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
     target_link_libraries(raft_test PRIVATE ccfcrypto.host)
 
