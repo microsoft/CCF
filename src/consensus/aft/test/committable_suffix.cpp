@@ -24,8 +24,8 @@ std::shared_ptr<std::vector<uint8_t>> make_ledger_entry(
   return e;
 }
 
-void keep_messages_for(
-  const ccf::NodeId& target,
+void keep_messages_for_multiple(
+  const std::set<ccf::NodeId>& targets,
   aft::ChannelStubProxy::MessageList& messages,
   std::optional<size_t> max_to_keep = std::nullopt)
 {
@@ -34,7 +34,8 @@ void keep_messages_for(
   while (it != messages.end())
   {
     if (
-      it->first != target || (max_to_keep.has_value() && kept >= *max_to_keep))
+      std::find(targets.begin(), targets.end(), it->first) == targets.end() ||
+      (max_to_keep.has_value() && kept >= *max_to_keep))
     {
       it = messages.erase(it);
     }
@@ -44,6 +45,14 @@ void keep_messages_for(
       ++kept;
     }
   }
+}
+
+void keep_messages_for(
+  const ccf::NodeId& target,
+  aft::ChannelStubProxy::MessageList& messages,
+  std::optional<size_t> max_to_keep = std::nullopt)
+{
+  keep_messages_for_multiple({target}, messages, max_to_keep);
 }
 
 void keep_first_for(
@@ -463,6 +472,9 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     rC.add_configuration(0, initial_config);
   }
 
+  std::vector<uint8_t> persisted_entry;
+  aft::Index persisted_idx;
+
   {
     DOCTEST_INFO(
       "Node A is the initial primary, and produces some entries that are "
@@ -536,6 +548,9 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     DOCTEST_REQUIRE(rA.get_commit_idx() == 2);
     DOCTEST_REQUIRE(rB.get_commit_idx() == 2);
     DOCTEST_REQUIRE(rC.get_commit_idx() == 2);
+
+    persisted_idx = 3;
+    persisted_entry = rB.ledger->ledger[persisted_idx - 1];
   }
 
   auto create_term_on = [&](bool primary_is_a, size_t num_entries) {
@@ -674,6 +689,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
 
     // Dispatch all until coherence, bounded by the length of the longest log
     const auto max_iterations = std::max(rA.get_last_idx(), rB.get_last_idx());
+    const auto max_messages_size = 6;
     for (size_t i = 0; i < max_iterations; ++i)
     {
       rA.periodic(request_timeout);
@@ -683,17 +699,62 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       dispatch_all(nodes, node_idB);
       dispatch_all(nodes, node_idC);
 
+      // Large entries and lots of NACKs means we may generate many messages.
+      // Cap the number we actually send, the first few should be sufficient
+      if (channelsA->messages.size() > max_messages_size)
+      {
+        channelsA->messages.erase(
+          channelsA->messages.begin() + max_messages_size,
+          channelsA->messages.end());
+      }
+      if (channelsB->messages.size() > max_messages_size)
+      {
+        channelsB->messages.erase(
+          channelsB->messages.begin() + max_messages_size,
+          channelsB->messages.end());
+      }
+
       dispatch_all(nodes, node_idA);
       dispatch_all(nodes, node_idB);
       dispatch_all(nodes, node_idC);
+
+      // Break early if we've already caught up
+      if (
+        rA.get_last_idx() == rB.get_last_idx() &&
+        rA.get_last_idx() == rA.get_commit_idx() &&
+        rA.get_commit_idx() == rB.get_commit_idx())
+      {
+        break;
+      }
     }
 
-    DOCTEST_REQUIRE(rA.get_last_idx() > 3);
-    DOCTEST_REQUIRE(rA.get_last_idx() == rB.get_last_idx());
-    DOCTEST_REQUIRE(rB.get_last_idx() == rC.get_last_idx());
+    {
+      DOCTEST_INFO("The final state is synced on all nodes");
 
-    DOCTEST_REQUIRE(rA.get_commit_idx() > 3);
-    DOCTEST_REQUIRE(rA.get_commit_idx() == rB.get_commit_idx());
-    DOCTEST_REQUIRE(rB.get_commit_idx() == rC.get_commit_idx());
+      DOCTEST_REQUIRE(rA.get_last_idx() > 3);
+      DOCTEST_REQUIRE(rA.get_last_idx() == rB.get_last_idx());
+      DOCTEST_REQUIRE(rB.get_last_idx() == rC.get_last_idx());
+
+      DOCTEST_REQUIRE(rA.get_commit_idx() > 3);
+      DOCTEST_REQUIRE(rA.get_commit_idx() == rB.get_commit_idx());
+      DOCTEST_REQUIRE(rB.get_commit_idx() == rC.get_commit_idx());
+
+      const auto term_history_on_A = rA.get_term_history(rA.get_last_idx());
+      const auto term_history_on_B = rB.get_term_history(rB.get_last_idx());
+      const auto term_history_on_C = rC.get_term_history(rC.get_last_idx());
+      DOCTEST_REQUIRE(term_history_on_A == term_history_on_B);
+      DOCTEST_REQUIRE(term_history_on_B == term_history_on_C);
+
+      const auto ledger_on_A = rA.ledger->ledger;
+      const auto ledger_on_B = rB.ledger->ledger;
+      const auto ledger_on_C = rC.ledger->ledger;
+      DOCTEST_REQUIRE(ledger_on_A == ledger_on_B);
+      DOCTEST_REQUIRE(ledger_on_B == ledger_on_C);
+
+      // And finally, that thing we said was persisted earlier (but wasn't known
+      // to be committed), is still present on all nodes
+      DOCTEST_REQUIRE(ledger_on_A.size() > persisted_idx);
+      DOCTEST_REQUIRE(ledger_on_A[persisted_idx - 1] == persisted_entry);
+    }
   }
 }
