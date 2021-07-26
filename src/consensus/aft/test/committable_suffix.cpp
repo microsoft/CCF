@@ -6,6 +6,54 @@
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <doctest/doctest.h>
 
+auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+
+using AllSigsStore = aft::LoggingStubStoreSig;
+using AllSigsAdaptor = aft::Adaptor<AllSigsStore>;
+
+std::shared_ptr<std::vector<uint8_t>> make_ledger_entry(
+  const aft::Term term, const aft::Index idx)
+{
+  const auto s = fmt::format("Ledger entry @{}.{}", term, idx);
+  auto e = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
+
+  // Each entry is so large that it produces a single AppendEntries, there are
+  // never multiple combined into a single AppendEntries
+  e->resize(TRaft::append_entries_size_limit);
+
+  return e;
+}
+
+void keep_messages_for(
+  const ccf::NodeId& target,
+  aft::ChannelStubProxy::MessageList& messages,
+  std::optional<size_t> max_to_keep = std::nullopt)
+{
+  auto it = messages.begin();
+  size_t kept = 0;
+  while (it != messages.end())
+  {
+    if (
+      it->first != target || (max_to_keep.has_value() && kept >= *max_to_keep))
+    {
+      it = messages.erase(it);
+    }
+    else
+    {
+      ++it;
+      ++kept;
+    }
+  }
+}
+
+void keep_first_for(
+  const ccf::NodeId& target,
+  aft::ChannelStubProxy::MessageList& messages,
+  std::optional<size_t> max_to_keep = std::nullopt)
+{
+  keep_messages_for(target, messages, 1);
+}
+
 #define TEST_DECLARE_NODE(N) \
   ccf::NodeId node_id##N(#N); \
   auto store##N = std::make_shared<AllSigsStore>(node_id##N); \
@@ -86,22 +134,6 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   aft::Configuration::Nodes initial_config;
 
   std::map<ccf::NodeId, TRaft*> nodes;
-
-  auto make_ledger_entry = [](const auto term, const auto idx) {
-    const auto s = fmt::format("Ledger entry @{}.{}", term, idx);
-    auto e = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
-
-    // Each entry is so large that it produces a single AppendEntries, there are
-    // never multiple combined into a single AppendEntries
-    e->resize(TRaft::append_entries_size_limit);
-
-    return e;
-  };
-
-  auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
-
-  using AllSigsStore = aft::LoggingStubStoreSig;
-  using AllSigsAdaptor = aft::Adaptor<AllSigsStore>;
 
   // Network contains 5 nodes
   TEST_DECLARE_NODE(A);
@@ -364,23 +396,6 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     // Heartbeat AppendEntries are eventually produced
     rC.periodic(request_timeout);
 
-    auto keep_first_for = [](const auto& target, auto& messages) {
-      auto it = messages.begin();
-      bool saved_first = false;
-      while (it != messages.end())
-      {
-        if (saved_first || it->first != target)
-        {
-          it = messages.erase(it);
-        }
-        else
-        {
-          ++it;
-          saved_first = true;
-        }
-      }
-    };
-
     // Repeatedly send only the first AppendEntries to B, and process its
     // response, until it has rolled back
     const auto tail_of_b = rB.get_last_idx();
@@ -430,3 +445,255 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 // is purely there to trigger elections (that it loses), and cause the other
 // nodes to advance terms, but they never talk to each other and never make
 // commit progress via the 3rd.
+DOCTEST_TEST_CASE("Multi-term divergence")
+{
+  // Single configuration has all nodes, fully connected
+  aft::Configuration::Nodes initial_config;
+
+  std::map<ccf::NodeId, TRaft*> nodes;
+
+  // Network contains 3 nodes
+  TEST_DECLARE_NODE(A);
+  TEST_DECLARE_NODE(B);
+  TEST_DECLARE_NODE(C);
+
+  {
+    rA.add_configuration(0, initial_config);
+    rB.add_configuration(0, initial_config);
+    rC.add_configuration(0, initial_config);
+  }
+
+  {
+    DOCTEST_INFO(
+      "Node A is the initial primary, and produces some entries that are "
+      "committed and universally known to be committed");
+    rA.periodic(election_timeout);
+
+    // Initial election
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
+
+    DOCTEST_REQUIRE(rA.is_primary());
+    DOCTEST_REQUIRE(rA.get_term() == 1);
+
+    // Election-triggered heartbeats
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
+
+    auto entry = make_ledger_entry(1, 1);
+    rA.replicate(kv::BatchVector{{1, entry, true, hooks}}, 1);
+    entry = make_ledger_entry(1, 2);
+    rA.replicate(kv::BatchVector{{2, entry, true, hooks}}, 1);
+    DOCTEST_REQUIRE(rA.get_last_idx() == 2);
+    DOCTEST_REQUIRE(rA.get_commit_idx() == 0);
+    // Size limit was reached, so periodic is not needed
+    // rA.periodic(request_timeout);
+
+    // Dispatch AppendEntries
+    DOCTEST_REQUIRE(4 == dispatch_all(nodes, node_idA));
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idB));
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idC));
+
+    // All nodes have this
+    DOCTEST_REQUIRE(rA.get_last_idx() == 2);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 2);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 2);
+
+    // And primary knows it is committed
+    DOCTEST_REQUIRE(rA.get_commit_idx() == 2);
+
+    // After a periodic heartbeat
+    rA.periodic(request_timeout);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idB));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
+
+    // All nodes know that this is committed
+    DOCTEST_REQUIRE(rA.get_commit_idx() == 2);
+    DOCTEST_REQUIRE(rB.get_commit_idx() == 2);
+    DOCTEST_REQUIRE(rC.get_commit_idx() == 2);
+
+    // Node A produces an additional entry that A and B have, and an additional
+    // entry that only A has
+    entry = make_ledger_entry(1, 3);
+    rA.replicate(kv::BatchVector{{3, entry, true, hooks}}, 1);
+    keep_messages_for(node_idB, channelsA->messages);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idA));
+
+    entry = make_ledger_entry(1, 4);
+    rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
+    channelsA->messages.clear();
+    channelsB->messages.clear();
+
+    DOCTEST_REQUIRE(rA.get_last_idx() == 4);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 3);
+    DOCTEST_REQUIRE(rC.get_last_idx() == 2);
+
+    // Commit did not advance, though 3 is technically committed and will be
+    // persisted from here
+    DOCTEST_REQUIRE(rA.get_commit_idx() == 2);
+    DOCTEST_REQUIRE(rB.get_commit_idx() == 2);
+    DOCTEST_REQUIRE(rC.get_commit_idx() == 2);
+  }
+
+  auto create_term_on = [&](bool primary_is_a, size_t num_entries) {
+    const auto& primary_id = primary_is_a ? node_idA : node_idB;
+    auto& primary = primary_is_a ? rA : rB;
+    auto& channels_primary = primary_is_a ? channelsA : channelsB;
+
+    // Drop anything old
+    channels_primary->messages.clear();
+    channelsC->messages.clear();
+
+    // If C is in an older term, it gets a heartbeat to join this primary's
+    // term, but nothing more
+    if (rC.get_term() < primary.get_term())
+    {
+      primary.periodic(request_timeout);
+      keep_messages_for(node_idC, channels_primary->messages);
+      DOCTEST_REQUIRE(1 == dispatch_all(nodes, primary_id));
+      channelsC->messages.clear();
+    }
+
+    DOCTEST_REQUIRE(rC.get_term() >= primary.get_term());
+
+    // Node C times out and starts election
+    rC.periodic(election_timeout);
+    const auto c_term = rC.get_term();
+
+    // Intended primary sees this and votes against, but advances to this term
+    keep_messages_for(primary_id, channelsC->messages);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC));
+    DOCTEST_REQUIRE(
+      1 ==
+      dispatch_all_and_DOCTEST_CHECK<aft::RequestVoteResponse>(
+        nodes, primary_id, [](const aft::RequestVoteResponse& rvr) {
+          DOCTEST_REQUIRE(rvr.vote_granted == false);
+        }));
+    DOCTEST_REQUIRE(primary.get_term() == c_term);
+
+    // Intended primary times out and starts election
+    primary.periodic(election_timeout);
+
+    // RequestVote is only sent to Node C
+    keep_messages_for(node_idC, channels_primary->messages);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, primary_id));
+
+    // Node C votes in favour
+    DOCTEST_REQUIRE(
+      1 ==
+      dispatch_all_and_DOCTEST_CHECK<aft::RequestVoteResponse>(
+        nodes, node_idC, [](const aft::RequestVoteResponse& rvr) {
+          DOCTEST_REQUIRE(rvr.vote_granted == true);
+        }));
+
+    // That's sufficient to win this election
+    DOCTEST_REQUIRE(primary.is_primary());
+
+    const auto start_idx = primary.get_last_idx();
+    for (auto idx = start_idx + 1; idx <= start_idx + num_entries; ++idx)
+    {
+      auto entry = make_ledger_entry(primary.get_term(), idx);
+      primary.replicate(
+        kv::BatchVector{{idx, entry, true, hooks}}, primary.get_term());
+    }
+
+    // All related AppendEntries are lost
+    channels_primary->messages.clear();
+  };
+
+  // For several terms, we randomly choose a primary and have them create an
+  // additional suffix term. This produces unique logs on each node, like the
+  // following:
+  //
+  // Index:   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+  // ------------------------------------------------------------------
+  // TermA:   1   1   1   1   3   3   3   3   3   9  13  15  15  15  15
+  // TermB:   1   1   1   5   5   5   7   7   7   7  11  17  17  17  17
+  // TermC:   1   1
+  const auto num_terms = 10;
+  for (size_t i = 0; i < num_terms; ++i)
+  {
+    create_term_on(rand() % 2 == 0, rand() % 5 + 1);
+  }
+
+  // Nodes A and B now have long, distinct, multi-term non-committed suffixes.
+  // Node C has not advanced its log at all
+  DOCTEST_REQUIRE(rA.get_commit_idx() == 2);
+  DOCTEST_REQUIRE(rB.get_commit_idx() == 2);
+  DOCTEST_REQUIRE(rC.get_commit_idx() == 2);
+
+  DOCTEST_REQUIRE(rA.get_last_idx() > 4);
+  DOCTEST_REQUIRE(rB.get_last_idx() > 3);
+  DOCTEST_REQUIRE(rC.get_last_idx() == 2);
+
+  DOCTEST_REQUIRE(rA.get_term() != rB.get_term());
+  DOCTEST_REQUIRE(
+    rA.get_term_history(rA.get_last_idx()) !=
+    rB.get_term_history(rB.get_last_idx()));
+
+  {
+    // Small sanity check - its not as simple as one is a prefix of the other
+    const auto common_last_idx = std::min(rA.get_last_idx(), rB.get_last_idx());
+    const auto history_on_A = rA.get_term_history(common_last_idx);
+    const auto history_on_B = rB.get_term_history(common_last_idx);
+    DOCTEST_REQUIRE(history_on_A != history_on_B);
+
+    // In fact they diverge almost immediately
+    DOCTEST_REQUIRE(history_on_A[1] != history_on_B[1]);
+  }
+
+  {
+    channelsA->messages.clear();
+    channelsB->messages.clear();
+    channelsC->messages.clear();
+
+    // Eventually, one of these nodes wins an election and does some
+    // AppendEntries roundtrips to bring the other back in-sync
+    DOCTEST_SUBCASE("")
+    {
+      DOCTEST_INFO("Node A wins");
+      rA.periodic(election_timeout);
+    }
+    else
+    {
+      DOCTEST_INFO("Node B wins");
+      rB.periodic(election_timeout);
+    }
+
+    // Election
+    dispatch_all(nodes, node_idA);
+    dispatch_all(nodes, node_idB);
+    dispatch_all(nodes, node_idC);
+
+    dispatch_all(nodes, node_idA);
+    dispatch_all(nodes, node_idB);
+    dispatch_all(nodes, node_idC);
+
+    // Dispatch all until coherence, bounded by the length of the longest log
+    const auto max_iterations = std::max(rA.get_last_idx(), rB.get_last_idx());
+    for (size_t i = 0; i < max_iterations; ++i)
+    {
+      rA.periodic(request_timeout);
+      rB.periodic(request_timeout);
+
+      dispatch_all(nodes, node_idA);
+      dispatch_all(nodes, node_idB);
+      dispatch_all(nodes, node_idC);
+
+      dispatch_all(nodes, node_idA);
+      dispatch_all(nodes, node_idB);
+      dispatch_all(nodes, node_idC);
+    }
+
+    DOCTEST_REQUIRE(rA.get_last_idx() > 3);
+    DOCTEST_REQUIRE(rA.get_last_idx() == rB.get_last_idx());
+    DOCTEST_REQUIRE(rB.get_last_idx() == rC.get_last_idx());
+
+    DOCTEST_REQUIRE(rA.get_commit_idx() > 3);
+    DOCTEST_REQUIRE(rA.get_commit_idx() == rB.get_commit_idx());
+    DOCTEST_REQUIRE(rB.get_commit_idx() == rC.get_commit_idx());
+  }
+}

@@ -85,6 +85,15 @@ static size_t dispatch_all_and_DOCTEST_CHECK(
   return count;
 }
 
+template <typename AssertionArg, class NodeMap, class Assertion>
+static size_t dispatch_all_and_DOCTEST_CHECK(
+  NodeMap& nodes, const ccf::NodeId& from, const Assertion& assertion)
+{
+  auto& messages = channel_stub_proxy(*nodes.at(from))->messages;
+  return dispatch_all_and_DOCTEST_CHECK<AssertionArg>(
+    nodes, from, messages, assertion);
+}
+
 template <class NodeMap>
 static size_t dispatch_all(
   NodeMap& nodes,
@@ -95,4 +104,11 @@ static size_t dispatch_all(
     nodes, from, messages, [](const auto&) {
       // Pass
     });
+}
+
+template <class NodeMap>
+static size_t dispatch_all(NodeMap& nodes, const ccf::NodeId& from)
+{
+  auto& messages = channel_stub_proxy(*nodes.at(from))->messages;
+  return dispatch_all(nodes, from, messages);
 }
