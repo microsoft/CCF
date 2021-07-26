@@ -907,8 +907,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   nodes[node_id2] = &r2;
 
-  logger::config::level() = logger::TRACE;
-
   auto r2c = channel_stub_proxy(r2);
 
   DOCTEST_INFO("Node 0 sends Node 2 what it's missed by joining late");

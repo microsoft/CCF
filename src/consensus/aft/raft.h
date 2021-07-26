@@ -1468,6 +1468,7 @@ namespace aft
             state->my_node_id,
             from,
             r.prev_idx);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         }
         else
         {
@@ -1479,9 +1480,9 @@ namespace aft
             r.prev_idx,
             prev_term,
             r.prev_term);
+          const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL, rejected_tx);
         }
-        const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL, rejected_tx);
         return;
       }
 
@@ -2140,6 +2141,8 @@ namespace aft
         // TODO: Rough hack, try back-tracking by single transactions
         response_idx = rejected_index->seqno - 1;
         response_term = get_term_internal(response_idx);
+        LOG_DEBUG_FMT(
+          "Modifying append entries response");
       }
 
       LOG_DEBUG_FMT(
