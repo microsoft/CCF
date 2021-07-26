@@ -456,6 +456,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 // commit progress via the 3rd.
 DOCTEST_TEST_CASE("Multi-term divergence")
 {
+  logger::config::level() = logger::INFO;
+
   // Single configuration has all nodes, fully connected
   aft::Configuration::Nodes initial_config;
 
@@ -628,7 +630,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   // TermA:   1   1   1   1   3   3   3   3   3   9  13  15  15  15  15
   // TermB:   1   1   1   5   5   5   7   7   7   7  11  17  17  17  17
   // TermC:   1   1
-  const auto num_terms = 10;
+  const auto num_terms = 16;
   for (size_t i = 0; i < num_terms; ++i)
   {
     create_term_on(rand() % 2 == 0, rand() % 5 + 1);
@@ -687,10 +689,33 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     dispatch_all(nodes, node_idB);
     dispatch_all(nodes, node_idC);
 
-    // Dispatch all until coherence, bounded by the length of the longest log
-    const auto max_iterations = std::max(rA.get_last_idx(), rB.get_last_idx());
-    const auto max_messages_size = 6;
-    for (size_t i = 0; i < max_iterations; ++i)
+    auto get_max_iterations = [&]() {
+      // A safe upper-bound is the number of entries in the longest log. This
+      // would be necessary if we were probing linearly backwards to find the
+      // matching suffix.
+      // return std::max(rA.get_last_idx(), rB.get_last_idx());
+
+      // Instead, we should be bounded in the worst case by the number of terms
+      // in the primary's log.
+      std::vector<aft::Index> term_history;
+      if (rA.is_primary())
+      {
+        term_history = rA.get_term_history(rA.get_last_idx());
+      }
+      else
+      {
+        term_history = rB.get_term_history(rB.get_last_idx());
+      }
+      return std::unique(term_history.begin(), term_history.end()) -
+        term_history.begin();
+    };
+
+    // Dispatch messages until coherence, bounded by expected max iterations
+    const auto max_messages_size = 2;
+    auto iterations = 0;
+    const auto max_iterations = get_max_iterations();
+    logger::config::level() = logger::TRACE;
+    for (; iterations < max_iterations; ++iterations)
     {
       rA.periodic(request_timeout);
       rB.periodic(request_timeout);
@@ -727,6 +752,8 @@ DOCTEST_TEST_CASE("Multi-term divergence")
         break;
       }
     }
+
+    std::cout << "Attempted " << iterations << " roundtrips" << std::endl;
 
     {
       DOCTEST_INFO("The final state is synced on all nodes");
