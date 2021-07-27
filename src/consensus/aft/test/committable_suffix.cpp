@@ -668,11 +668,15 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   // TermA:   1   1   1   1   3   3   3   3   3   9  13  15  15  15  15
   // TermB:   1   1   1   5   5   5   7   7   7   7  11  17  17  17  17
   // TermC:   1   1
-  const auto num_terms = 5;
+  const auto num_terms = 16;
   for (size_t i = 0; i < num_terms; ++i)
   {
     create_term_on(rand() % 2 == 0, rand() % 5 + 1);
   }
+
+  // Ensure at least one term on each
+  create_term_on(true, 3);
+  create_term_on(false, 3);
 
   // Nodes A and B now have long, distinct, multi-term non-committed suffixes.
   // Node C has not advanced its log at all
