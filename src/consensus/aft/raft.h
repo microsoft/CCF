@@ -2164,14 +2164,13 @@ namespace aft
       }
 
       aft::Index response_idx = state->last_idx;
+      aft::Term response_term = state->current_view;
 
       if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
       {
         response_idx = find_highest_possible_match(rejected.value());
+        response_term = get_term_internal(response_idx);
       }
-
-      // TODO: This seems like a big change, assume it has broken something
-      aft::Term response_term = get_term_internal(response_idx);
 
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
