@@ -119,6 +119,7 @@ namespace ccf
         // If this frontend is not allowed to forward or the command has already
         // been forwarded, redirect to the current primary
         ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
+        LOG_INFO_FMT("!!! Trying to redirect");
         if (consensus != nullptr)
         {
           auto primary_id = consensus->primary();
@@ -135,9 +136,15 @@ namespace ccf
 
           if (info)
           {
+            const auto v = fmt::format("{}:{}", info->pubhost, info->pubport);
             ctx->set_response_header(
               http::headers::LOCATION,
-              fmt::format("{}:{}", info->pubhost, info->pubport));
+              v);
+            LOG_INFO_FMT("!!! Set response header: {}", v);
+          }
+          else
+          {
+            LOG_INFO_FMT("!!! No primary info");
           }
         }
 

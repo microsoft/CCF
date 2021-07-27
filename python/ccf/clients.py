@@ -451,6 +451,7 @@ class RequestClient:
                 LOG.debug(f"{request}")
                 LOG.debug(f"https://{self.host}:{self.port}{request.path}")
                 LOG.debug(f"{request_body}")
+                LOG.debug(f"Redirecting?: {request.allow_redirects}")
             response = self.session.request(
                 request.http_verb,
                 url=f"https://{self.host}:{self.port}{request.path}",
