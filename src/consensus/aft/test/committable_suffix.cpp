@@ -743,7 +743,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
         log_length = rB.get_last_idx();
       }
 
-      // return 2 * log_length;
 
       // Instead, we should be bounded in the worst case by the number of terms
       // in the primary's log.
@@ -762,9 +761,12 @@ DOCTEST_TEST_CASE("Multi-term divergence")
           term_history.begin();
       }
 
+      // Safe baseline
+      return 2 * log_length;
+
       // For T terms and N entries in log, we need O(T) attempts to find the
       // matching index, followed by O(N) to catch up from there.
-      return term_length + log_length;
+      //return term_length + log_length;
     };
 
     // Dispatch messages until coherence, bounded by expected max iterations

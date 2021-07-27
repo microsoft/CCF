@@ -1143,6 +1143,16 @@ namespace aft
     }
 
   private:
+    Index find_highest_possible_match(const ccf::TxID& tx_id)
+    {
+      if (tx_id.seqno > state->last_idx)
+      {
+        throw std::runtime_error(fmt::format("{}.{} is too late (> {})", tx_id.view, tx_id.seqno, state->last_idx));
+      }
+
+      return tx_id.seqno - 1;
+    }
+
     inline void update_batch_size()
     {
       auto avg_entry_size = (entry_count == 0) ?
@@ -2123,39 +2133,22 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to, AppendEntriesResponseType answer, const std::optional<ccf::TxID>& rejected_index = std::nullopt)
+      ccf::NodeId to, AppendEntriesResponseType answer, const std::optional<ccf::TxID>& rejected = std::nullopt)
     {
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
       }
 
-      aft::Term response_term = state->current_view;
       aft::Index response_idx = state->last_idx;
 
-      if (answer == AppendEntriesResponseType::FAIL && rejected_index.has_value())
+      if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
       {
-        // We're trying to find the highest index where we agree.
-        // By looking at our term history, we can work out what is the highest thing we hold which could possibly still match with the last thing they sent us.
-        // Specifically, if they sent us T.n, we're looking for the highest index we hold in term T or earlier.
-        auto term_of_disagreement = rejected_index->view;
-        const auto term_history = state->view_history.get_history_until();
-        auto t = std::min(term_of_disagreement, term_history.size() + 1);
-
-        // TODO: Can't write this bit correctly
-        if (t == term_history.size() + 1)
-        {
-          response_idx = state->last_idx;
-        }
-        else
-        {
-          response_idx = term_history[t + 1] - 1;
-        }
-        response_idx = rejected_index->seqno - 1;
-        response_term = get_term_internal(response_idx);
-        LOG_DEBUG_FMT(
-          "Modifying append entries response");
+        response_idx = find_highest_possible_match(rejected.value());
       }
+
+      // TODO: This seems like a big change, assume it has broken something
+      aft::Term response_term = get_term_internal(response_idx);
 
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
@@ -2458,9 +2451,6 @@ namespace aft
           "Recv append entries response to {} from {}: stale idx",
           state->my_node_id,
           from);
-        // TODO: Surely we can discard this in any case? No point in resending
-        // if they've previously told us they match further, this must be a
-        // replay of an earlier NACK? (NB: This is true iff matching indices are monotonic)
         if (r.success == AppendEntriesResponseType::OK)
         {
           return;
@@ -2468,7 +2458,15 @@ namespace aft
       }
 
       // Update next and match for the responding node.
-      node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      // TODO: Temp disabled with false. Why doesn't this work?
+      if (false && r.success == AppendEntriesResponseType::FAIL)
+      {
+        node->second.match_idx = find_highest_possible_match({r.term, r.last_log_idx});
+      }
+      else
+      {
+        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      }
 
       if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
