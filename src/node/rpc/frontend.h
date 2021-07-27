@@ -136,7 +136,7 @@ namespace ccf
 
           if (info)
           {
-            const auto v = fmt::format("{}:{}", info->pubhost, info->pubport);
+            const auto v = fmt::format("https://{}:{}{}", info->pubhost, info->pubport, ctx->get_request_path());
             ctx->set_response_header(
               http::headers::LOCATION,
               v);
