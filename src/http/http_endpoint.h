@@ -60,6 +60,10 @@ namespace http
         }
 
         LOG_TRACE_FMT("Going to parse {} bytes", n_read);
+        LOG_INFO_FMT(
+          "!!! Going to parse {} bytes:\n{}",
+          n_read,
+          std::string(data, data + n_read));
 
         try
         {

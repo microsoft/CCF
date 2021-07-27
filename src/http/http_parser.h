@@ -360,7 +360,13 @@ namespace http
 
     void append_url(const char* at, size_t length)
     {
+      LOG_INFO_FMT(
+        "!!! Appending {} bytes of URL fragment: {}",
+        length,
+        std::string(at, length));
+      LOG_INFO_FMT("!!! URL before is: {}", url);
       url.append(at, length);
+      LOG_INFO_FMT("!!! URL after is: {}", url);
     }
 
     void new_message() override

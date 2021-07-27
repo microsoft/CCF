@@ -41,7 +41,7 @@ def check_can_progress(node, timeout=3):
     # Check that a write transaction issued on one node is eventually
     # committed by the service by a specified timeout
     with node.client("user0") as c:
-        r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+        r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"}, verbose=True)
         try:
             c.wait_for_commit(r, timeout=timeout)
             return r

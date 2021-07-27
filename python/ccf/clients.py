@@ -66,6 +66,8 @@ class Request:
     #: Whether redirect headers should be transparently followed
     allow_redirects: bool
 
+    verbose: bool
+
     def __str__(self):
         string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
         if self.headers:
@@ -445,6 +447,10 @@ class RequestClient:
                 extra_headers["content-type"] = content_type
 
         try:
+            if request.verbose:
+                LOG.debug(f"{request}")
+                LOG.debug(f"https://{self.host}:{self.port}{request.path}")
+                LOG.debug(f"{request_body}")
             response = self.session.request(
                 request.http_verb,
                 url=f"https://{self.host}:{self.port}{request.path}",
@@ -521,10 +527,11 @@ class CCFClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
         allow_redirects=True,
+        verbose=False,
     ) -> Response:
         if headers is None:
             headers = {}
-        r = Request(path, body, http_verb, headers, allow_redirects)
+        r = Request(path, body, http_verb, headers, allow_redirects, verbose)
 
         flush_info([f"{self.description} {r}"], log_capture, 3)
         response = self.client_impl.request(r, timeout)
@@ -540,6 +547,7 @@ class CCFClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
         allow_redirects: bool = True,
+        verbose: bool = False,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -562,7 +570,7 @@ class CCFClient:
 
         if self.is_connected:
             r = self._call(
-                path, body, http_verb, headers, timeout, logs, allow_redirects
+                path, body, http_verb, headers, timeout, logs, allow_redirects, verbose
             )
             flush_info(logs, log_capture, 2)
             return r
@@ -572,7 +580,14 @@ class CCFClient:
             try:
                 logs = []
                 response = self._call(
-                    path, body, http_verb, headers, timeout, logs, allow_redirects
+                    path,
+                    body,
+                    http_verb,
+                    headers,
+                    timeout,
+                    logs,
+                    allow_redirects,
+                    verbose,
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _call
