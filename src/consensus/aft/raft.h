@@ -1145,12 +1145,35 @@ namespace aft
   private:
     Index find_highest_possible_match(const ccf::TxID& tx_id)
     {
+      // TODO: Is this necessary? Think this deserves unit tests...
       if (tx_id.seqno > state->last_idx)
       {
         throw std::runtime_error(fmt::format("{}.{} is too late (> {})", tx_id.view, tx_id.seqno, state->last_idx));
       }
 
-      return tx_id.seqno - 1;
+      LOG_INFO_FMT("I'm {}, with a term history [{}]", state->my_node_id, fmt::join(state->view_history.get_history_until(), ", "));
+      LOG_INFO_FMT("Looking for match with {}.{}, when I'm at {}.{}", tx_id.view, tx_id.seqno,  state->view_history.view_at(state->current_view), state->last_idx);
+
+      // Find the highest TxID this node thinks exists, which is still compatible with the given tx_id.
+      // That is, given T.n, find largest n' such that n' <= n && term_of(n') == T' && T' <= T && (n != n' => T != T')
+      Index probe_index = std::min(tx_id.seqno, state->last_idx);
+      while (true)
+      {
+        Term term_of_probe = state->view_history.view_at(probe_index);
+        if (term_of_probe <= tx_id.view)
+        {
+          if (probe_index <= tx_id.seqno)
+          {
+            break;
+          }
+        }
+
+        // TODO: There must be a more efficient way to calculate this (checking only each end-of-term index), but this is called rarely and works
+        --probe_index;
+      }
+
+      LOG_INFO_FMT("Settled on {}", probe_index);
+      return probe_index;
     }
 
     inline void update_batch_size()
@@ -2459,7 +2482,7 @@ namespace aft
 
       // Update next and match for the responding node.
       // TODO: Temp disabled with false. Why doesn't this work?
-      if (false && r.success == AppendEntriesResponseType::FAIL)
+      if (r.success == AppendEntriesResponseType::FAIL)
       {
         node->second.match_idx = find_highest_possible_match({r.term, r.last_log_idx});
       }

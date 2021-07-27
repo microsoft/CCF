@@ -668,7 +668,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   // TermA:   1   1   1   1   3   3   3   3   3   9  13  15  15  15  15
   // TermB:   1   1   1   5   5   5   7   7   7   7  11  17  17  17  17
   // TermC:   1   1
-  const auto num_terms = 16;
+  const auto num_terms = 5;
   for (size_t i = 0; i < num_terms; ++i)
   {
     create_term_on(rand() % 2 == 0, rand() % 5 + 1);
@@ -726,6 +726,40 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     dispatch_all(nodes, node_idA);
     dispatch_all(nodes, node_idB);
     dispatch_all(nodes, node_idC);
+
+    // Catch C up
+    if (rA.is_primary())
+    {
+      while (rC.get_last_idx() < rA.get_last_idx())
+      {
+        rA.periodic(request_timeout);
+        dispatch_all(nodes, node_idA);
+        dispatch_all(nodes, node_idC);
+      }
+
+      // One last roundtrip to sync commit index
+      rA.periodic(request_timeout);
+      dispatch_all(nodes, node_idA);
+      dispatch_all(nodes, node_idC);
+
+      channelsA->messages.clear();
+    }
+    else
+    {
+      while (rC.get_last_idx() < rB.get_last_idx())
+      {
+        rB.periodic(request_timeout);
+        dispatch_all(nodes, node_idB);
+        dispatch_all(nodes, node_idC);
+      }
+
+      // One last roundtrip to sync commit index
+      rB.periodic(request_timeout);
+      dispatch_all(nodes, node_idB);
+      dispatch_all(nodes, node_idC);
+
+      channelsB->messages.clear();
+    }
 
     auto get_max_iterations = [&]() {
       // A safe upper-bound is derived from the number of entries in the
@@ -790,7 +824,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
         dispatch_all(nodes, node_idA);
 
         dispatch_all(nodes, node_idB);
-        dispatch_all(nodes, node_idC);
       }
       else
       {
@@ -799,7 +832,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
         dispatch_all(nodes, node_idB);
 
         dispatch_all(nodes, node_idA);
-        dispatch_all(nodes, node_idC);
       }
 
       // Break early if we've already caught up
