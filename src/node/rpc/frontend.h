@@ -136,9 +136,13 @@ namespace ccf
 
           if (info)
           {
-            ctx->set_response_header(
-              http::headers::LOCATION,
-              fmt::format("{}:{}", info->pubhost, info->pubport));
+            const auto location = fmt::format(
+              "https://{}:{}{}",
+              info->pubhost,
+              info->pubport,
+              ctx->get_request_path());
+            ctx->set_response_header(http::headers::LOCATION, location);
+            LOG_DEBUG_FMT("Redirecting to {}", location);
           }
         }
 
