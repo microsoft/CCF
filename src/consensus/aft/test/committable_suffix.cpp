@@ -485,11 +485,12 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   }
 }
 
-// TODO: What if both nodes have multiple terms after their agreement index?
-// Think I can actually trigger this in a 3-node network, where the 3rd node
-// is purely there to trigger elections (that it loses), and cause the other
-// nodes to advance terms, but they never talk to each other and never make
-// commit progress via the 3rd.
+// This tests the case where 2 nodes have multiple terms of disagreement. This
+// involves a 3-node network, where the 3rd node is purely there to trigger
+// elections and allow the other 2 to advance terms, but they never communicate
+// with each other and are unable to advance commit. Eventually their connection
+// is healed, and one of them efficiently brings the other back in line, without
+// losing any committed state.
 DOCTEST_TEST_CASE("Multi-term divergence")
 {
   logger::config::level() = logger::INFO;
@@ -671,7 +672,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
   const auto num_terms = 16;
   for (size_t i = 0; i < num_terms; ++i)
   {
-    create_term_on(rand() % 2 == 0, rand() % 5 + 1);
+    create_term_on(rand() % 2 == 0, rand() % 6);
   }
 
   // Ensure at least one term on each
@@ -732,38 +733,22 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     dispatch_all(nodes, node_idC);
 
     // Catch C up
-    if (rA.is_primary())
+    auto& rPrimary = rA.is_primary() ? rA : rB;
+    const auto id_primary = rA.is_primary() ? node_idA : node_idB;
+    auto& channelsPrimary = rA.is_primary() ? channelsA : channelsB;
+    while (rC.get_last_idx() < rPrimary.get_last_idx())
     {
-      while (rC.get_last_idx() < rA.get_last_idx())
-      {
-        rA.periodic(request_timeout);
-        dispatch_all(nodes, node_idA);
-        dispatch_all(nodes, node_idC);
-      }
-
-      // One last roundtrip to sync commit index
-      rA.periodic(request_timeout);
-      dispatch_all(nodes, node_idA);
+      rPrimary.periodic(request_timeout);
+      dispatch_all(nodes, id_primary);
       dispatch_all(nodes, node_idC);
-
-      channelsA->messages.clear();
     }
-    else
-    {
-      while (rC.get_last_idx() < rB.get_last_idx())
-      {
-        rB.periodic(request_timeout);
-        dispatch_all(nodes, node_idB);
-        dispatch_all(nodes, node_idC);
-      }
 
-      // One last roundtrip to sync commit index
-      rB.periodic(request_timeout);
-      dispatch_all(nodes, node_idB);
-      dispatch_all(nodes, node_idC);
+    // One last roundtrip to sync commit index
+    rPrimary.periodic(request_timeout);
+    dispatch_all(nodes, id_primary);
+    dispatch_all(nodes, node_idC);
 
-      channelsB->messages.clear();
-    }
+    channelsPrimary->messages.clear();
 
     auto get_max_iterations = [&]() {
       // A safe upper-bound is derived from the number of entries in the
@@ -771,47 +756,32 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       // matching index, then we would need O(n) probes followed by (in the
       // worst case, which we simulate by dropping most AEs) O(n) AEs from that
       // index to get them caught up again.
-      size_t log_length;
-      if (rA.is_primary())
-      {
-        log_length = rA.get_last_idx();
-      }
-      else
-      {
-        log_length = rB.get_last_idx();
-      }
+      size_t log_length = rPrimary.get_last_idx();
 
-
-      // Instead, we should be bounded in the worst case by the number of terms
-      // in the primary's log.
+      // Instead, we should be bounded in the worst case by
+      // the number of terms in the primary's log.
       size_t term_length;
       {
-        std::vector<aft::Index> term_history;
-        if (rA.is_primary())
-        {
-          term_history = rA.get_term_history(rA.get_last_idx());
-        }
-        else
-        {
-          term_history = rB.get_term_history(rB.get_last_idx());
-        }
+        std::vector<aft::Index> term_history =
+          rPrimary.get_term_history(rPrimary.get_last_idx());
         term_length = std::unique(term_history.begin(), term_history.end()) -
           term_history.begin();
       }
 
       // Safe baseline
-      return 2 * log_length;
+      //return 2 * log_length;
 
       // For T terms and N entries in log, we need O(T) attempts to find the
       // matching index, followed by O(N) to catch up from there.
-      //return term_length + log_length;
+      return term_length + log_length;
     };
 
     // Dispatch messages until coherence, bounded by expected max iterations
-    const auto max_messages_size = 6;
     auto iterations = 0;
     const auto max_iterations = get_max_iterations();
     logger::config::level() = logger::MOST_VERBOSE;
+
+    const auto id_other = rA.is_primary() ? node_idB : node_idA;
 
     for (; iterations < max_iterations; ++iterations)
     {
@@ -821,22 +791,11 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       // roundtrips to discover the matching index. As a simplification, we keep
       // the single messages we believe is most useful, which is the
       // AppendEntries that starts from the earliest.
-      if (rA.is_primary())
-      {
-        rA.periodic(request_timeout);
-        keep_earliest_append_entries_for_each_target(channelsA->messages);
-        dispatch_all(nodes, node_idA);
+      rPrimary.periodic(request_timeout);
+      keep_earliest_append_entries_for_each_target(channelsPrimary->messages);
+      dispatch_all(nodes, id_primary);
 
-        dispatch_all(nodes, node_idB);
-      }
-      else
-      {
-        rB.periodic(request_timeout);
-        keep_earliest_append_entries_for_each_target(channelsB->messages);
-        dispatch_all(nodes, node_idB);
-
-        dispatch_all(nodes, node_idA);
-      }
+      dispatch_all(nodes, id_other);
 
       // Break early if we've already caught up
       if (
