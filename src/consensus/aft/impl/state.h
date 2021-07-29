@@ -40,8 +40,6 @@ namespace aft
         const auto current_latest_index = views.back();
         if (idx < current_latest_index)
         {
-          // TODO: Can we keep this, or is it invalid?
-          // Seems funky in the presence of replayed AEs?
           throw std::logic_error(fmt::format(
             "version must not move backwards ({} < {})",
             idx,
@@ -69,6 +67,16 @@ namespace aft
       return (it - views.begin());
     }
 
+    kv::Version start_of_view(ccf::View view)
+    {
+      if (view > views.size() || view == InvalidView)
+      {
+        return kv::NoVersion;
+      }
+
+      return views[view - 1];
+    }
+
     std::vector<kv::Version> get_history_until(
       kv::Version idx = std::numeric_limits<kv::Version>::max())
     {
@@ -79,7 +87,8 @@ namespace aft
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
       views.erase(it, views.end());
-      LOG_DEBUG_FMT("Resulting views from rollback: {}", fmt::join(views, ", "));
+      LOG_DEBUG_FMT(
+        "Resulting views from rollback: {}", fmt::join(views, ", "));
     }
   };
 

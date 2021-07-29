@@ -1145,17 +1145,9 @@ namespace aft
   private:
     Index find_highest_possible_match(const ccf::TxID& tx_id)
     {
-      // TODO: Is this necessary? Think this deserves unit tests...
-      if (tx_id.seqno > state->last_idx)
-      {
-        throw std::runtime_error(fmt::format("{}.{} is too late (> {})", tx_id.view, tx_id.seqno, state->last_idx));
-      }
-
-      LOG_INFO_FMT("I'm {}, with a term history [{}]", state->my_node_id, fmt::join(state->view_history.get_history_until(), ", "));
-      LOG_INFO_FMT("Looking for match with {}.{}, when I'm at {}.{}", tx_id.view, tx_id.seqno,  state->view_history.view_at(state->current_view), state->last_idx);
-
-      // Find the highest TxID this node thinks exists, which is still compatible with the given tx_id.
-      // That is, given T.n, find largest n' such that n' <= n && term_of(n') == T' && T' <= T && (n != n' => T != T')
+      // Find the highest TxID this node thinks exists, which is still
+      // compatible with the given tx_id. That is, given T.n, find largest n'
+      // such that n' <= n && term_of(n') == T' && T' <= T
       Index probe_index = std::min(tx_id.seqno, state->last_idx);
       while (true)
       {
@@ -1168,11 +1160,23 @@ namespace aft
           }
         }
 
-        // TODO: There must be a more efficient way to calculate this (checking only each end-of-term index), but this is called rarely and works
-        --probe_index;
+        // Next possible match is the end of the previous term, which is
+        // 1-before the start of the currently considered term. Anything after
+        // that must have a term which is still too high.
+        probe_index = state->view_history.start_of_view(term_of_probe);
+        if (probe_index > 0)
+        {
+          --probe_index;
+        }
       }
 
-      LOG_INFO_FMT("Settled on {}", probe_index);
+      LOG_TRACE_FMT(
+        "Looking for match with {}.{}, from {}.{}, best answer is {}",
+        tx_id.view,
+        tx_id.seqno,
+        state->view_history.view_at(state->last_idx),
+        state->last_idx,
+        probe_index);
       return probe_index;
     }
 
@@ -1514,7 +1518,8 @@ namespace aft
             prev_term,
             r.prev_term);
           const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL, rejected_tx);
+          send_append_entries_response(
+            from, AppendEntriesResponseType::FAIL, rejected_tx);
         }
         return;
       }
@@ -2156,7 +2161,9 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to, AppendEntriesResponseType answer, const std::optional<ccf::TxID>& rejected = std::nullopt)
+      ccf::NodeId to,
+      AppendEntriesResponseType answer,
+      const std::optional<ccf::TxID>& rejected = std::nullopt)
     {
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
@@ -2179,12 +2186,8 @@ namespace aft
         response_idx,
         answer);
 
-      // TODO: Do we need a separate `term_of_index` in this object? That would break protocol compatibility! Let's
-      // hope we can get way with reusing the existing term field, and its not needed for a NACK
-      AppendEntriesResponse response = {{raft_append_entries_response},
-                                        response_term,
-                                        response_idx,
-                                        answer};
+      AppendEntriesResponse response = {
+        {raft_append_entries_response}, response_term, response_idx, answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -2480,10 +2483,10 @@ namespace aft
       }
 
       // Update next and match for the responding node.
-      // TODO: Temp disabled with false. Why doesn't this work?
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        node->second.match_idx = find_highest_possible_match({r.term, r.last_log_idx});
+        node->second.match_idx =
+          find_highest_possible_match({r.term, r.last_log_idx});
       }
       else
       {

@@ -732,24 +732,27 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     dispatch_all(nodes, node_idB);
     dispatch_all(nodes, node_idC);
 
-    // Catch C up
     auto& rPrimary = rA.is_primary() ? rA : rB;
     const auto id_primary = rA.is_primary() ? node_idA : node_idB;
     auto& channelsPrimary = rA.is_primary() ? channelsA : channelsB;
-    while (rC.get_last_idx() < rPrimary.get_last_idx())
     {
+      DOCTEST_INFO("Catch node C up");
+      while (rC.get_last_idx() < rPrimary.get_last_idx())
+      {
+        rPrimary.periodic(request_timeout);
+        dispatch_all(nodes, id_primary);
+        dispatch_all(nodes, node_idC);
+      }
+
+      // One last roundtrip to sync commit index
       rPrimary.periodic(request_timeout);
       dispatch_all(nodes, id_primary);
       dispatch_all(nodes, node_idC);
+
+      channelsPrimary->messages.clear();
     }
 
-    // One last roundtrip to sync commit index
-    rPrimary.periodic(request_timeout);
-    dispatch_all(nodes, id_primary);
-    dispatch_all(nodes, node_idC);
-
-    channelsPrimary->messages.clear();
-
+    DOCTEST_INFO("Bring other node in-sync");
     auto get_max_iterations = [&]() {
       // A safe upper-bound is derived from the number of entries in the
       // primary's log. If we were probing linearly backwards to find the
@@ -769,7 +772,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       }
 
       // Safe baseline
-      //return 2 * log_length;
+      // return 2 * log_length;
 
       // For T terms and N entries in log, we need O(T) attempts to find the
       // matching index, followed by O(N) to catch up from there.
@@ -793,9 +796,17 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       // AppendEntries that starts from the earliest.
       rPrimary.periodic(request_timeout);
       keep_earliest_append_entries_for_each_target(channelsPrimary->messages);
-      dispatch_all(nodes, id_primary);
 
-      dispatch_all(nodes, id_other);
+      // Assert that the advertised indices never step before the true commit
+      // index
+      dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
+        nodes, id_primary, [&](const auto& ae) {
+          DOCTEST_REQUIRE(ae.prev_idx >= persisted_idx);
+        });
+      dispatch_all_and_DOCTEST_CHECK<aft::AppendEntriesResponse>(
+        nodes, id_other, [&](const auto& aer) {
+          DOCTEST_REQUIRE(aer.last_log_idx >= persisted_idx);
+        });
 
       // Break early if we've already caught up
       if (
@@ -803,8 +814,6 @@ DOCTEST_TEST_CASE("Multi-term divergence")
         rA.get_last_idx() == rA.get_commit_idx() &&
         rA.get_commit_idx() == rB.get_commit_idx())
       {
-        std::cout << "Reached coherence after " << iterations << " roundtrips"
-                  << std::endl;
         break;
       }
     }
