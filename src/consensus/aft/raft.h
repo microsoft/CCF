@@ -2141,6 +2141,11 @@ namespace aft
         state->commit_idx :
         state->last_idx;
 
+      if (consensus_type == ConsensusType::BFT)
+      {
+        matching_idx = state->last_idx;
+      }
+
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
         state->my_node_id.trim(),
