@@ -32,7 +32,7 @@ file_name_regex="^[[:lower:]0-9_]+$"
 unformatted_files=""
 badly_named_files=""
 for file in $(git ls-files "$@" | grep -e '\.h$' -e '\.hpp$' -e '\.cpp$' -e '\.c$'); do
-  if clang-format-10 -n -style=file "$file"; then
+  if ! clang-format-10 -n -style=file "$file"; then
     if $fix ; then
       clang-format-10 -style=file -i "$file"
     fi
