@@ -143,8 +143,8 @@ namespace js
       }
       else
       {
-        std::vector<uint8_t> claim_value{claim.value,
-                                         claim.value + claim.value_size};
+        std::vector<uint8_t> claim_value{
+          claim.value, claim.value + claim.value_size};
         out_claims.emplace(std::move(claim_name), std::move(claim_value));
       }
     }
