@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/rsa_public_key.h"
-
 #include "hash.h"
 #include "key_pair.h"
 

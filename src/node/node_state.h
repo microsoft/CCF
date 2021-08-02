@@ -1583,8 +1583,9 @@ namespace ccf
         return config.subject_alternative_names;
       }
 
-      return {{config.node_info_network.rpchost,
-               ds::is_valid_ip(config.node_info_network.rpchost)}};
+      return {
+        {config.node_info_network.rpchost,
+         ds::is_valid_ip(config.node_info_network.rpchost)}};
     }
 
     Pem create_self_signed_node_cert()

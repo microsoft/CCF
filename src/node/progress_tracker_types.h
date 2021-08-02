@@ -315,7 +315,7 @@ namespace ccf
     T& messages, const kv::Configuration::Nodes& config)
   {
     uint32_t endorsements = 0;
-    for (const auto node : config)
+    for (const auto& node : config)
     {
       if (messages.find(node.first) != messages.end())
       {

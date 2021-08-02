@@ -74,10 +74,11 @@ namespace siphash
   void siphash_raw(
     const uint8_t* in, size_t in_len, const SipKey& key, uint8_t* out)
   {
-    SipState s{0x736f6d6570736575ULL,
-               0x646f72616e646f6dULL,
-               0x6c7967656e657261ULL,
-               0x7465646279746573ULL};
+    SipState s{
+      0x736f6d6570736575ULL,
+      0x646f72616e646f6dULL,
+      0x6c7967656e657261ULL,
+      0x7465646279746573ULL};
 
     SipKey k{key[0], key[1]};
 

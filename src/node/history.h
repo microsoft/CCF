@@ -198,9 +198,10 @@ namespace ccf
     std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
     get_replicated_state_txid_and_root() override
     {
-      return {{term_of_last_version, version},
-              crypto::Sha256Hash(std::to_string(version)),
-              term_of_next_version};
+      return {
+        {term_of_last_version, version},
+        crypto::Sha256Hash(std::to_string(version)),
+        term_of_next_version};
     }
 
     std::vector<uint8_t> get_proof(kv::Version) override
@@ -652,10 +653,11 @@ namespace ccf
     get_replicated_state_txid_and_root() override
     {
       std::lock_guard<std::mutex> guard(state_lock);
-      return {{term_of_last_version,
-               static_cast<kv::Version>(replicated_state_tree.end_index())},
-              replicated_state_tree.get_root(),
-              term_of_next_version};
+      return {
+        {term_of_last_version,
+         static_cast<kv::Version>(replicated_state_tree.end_index())},
+        replicated_state_tree.get_root(),
+        term_of_next_version};
     }
 
     kv::TxHistory::Result verify_and_sign(
