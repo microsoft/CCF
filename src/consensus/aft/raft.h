@@ -2173,15 +2173,16 @@ namespace aft
       aft::Index response_idx = state->last_idx;
       aft::Term response_term = state->current_view;
 
-      if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
+      // This matching-index-detection logic doesn't work on BFT, so is disabled
+      // and still uses the original behaviour:
+      // https://github.com/microsoft/CCF/issues/2853
+      if (consensus_type != ConsensusType::BFT)
       {
-        response_idx = find_highest_possible_match(rejected.value());
-        response_term = get_term_internal(response_idx);
-      }
-
-      if (consensus_type == ConsensusType::BFT)
-      {
-        matching_idx = state->last_idx;
+        if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
+        {
+          response_idx = find_highest_possible_match(rejected.value());
+          response_term = get_term_internal(response_idx);
+        }
       }
 
       LOG_DEBUG_FMT(
