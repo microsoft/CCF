@@ -2463,14 +2463,17 @@ namespace aft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale term ({} != {})",
-          state->my_node_id,
-          from,
-          r.term,
-          state->current_view);
+        // NB: In NACKs this may contain the TxID of an estimated matching index
+        // in the log, rather than the current term, so it is correct for it to
+        // be stale in this case.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale term ({} != {})",
+            state->my_node_id,
+            from,
+            r.term,
+            state->current_view);
           return;
         }
       }
@@ -2478,12 +2481,15 @@ namespace aft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale idx",
-          state->my_node_id,
-          from);
+        // NB: It is correct for this index to move backwards during NACKs
+        // which iteratively discover the last matching index of divergent logs
+        // after an election.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale idx",
+            state->my_node_id,
+            from);
           return;
         }
       }
