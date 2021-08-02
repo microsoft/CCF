@@ -416,11 +416,12 @@ namespace http
           md_type = crypto::MDType::SHA256;
         }
 
-        ccf::SignedReq ret = {sig_raw,
-                              signed_raw.value(),
-                              body,
-                              md_type,
-                              parsed_sign_params->key_id};
+        ccf::SignedReq ret = {
+          sig_raw,
+          signed_raw.value(),
+          body,
+          md_type,
+          parsed_sign_params->key_id};
         return ret;
       }
 
