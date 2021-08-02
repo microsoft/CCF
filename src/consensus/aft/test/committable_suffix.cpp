@@ -568,29 +568,35 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     DOCTEST_REQUIRE(rB.get_commit_idx() == 2);
     DOCTEST_REQUIRE(rC.get_commit_idx() == 2);
 
-    // Node A produces an additional entry that A and B have, and an additional
-    // entry that only A has
+    // Node A produces 2 additional entries that A and B have, and 2 additional
+    // entries that only A has
     entry = make_ledger_entry(1, 3);
     rA.replicate(kv::BatchVector{{3, entry, true, hooks}}, 1);
-    keep_messages_for(node_idB, channelsA->messages);
-    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idA));
 
     entry = make_ledger_entry(1, 4);
     rA.replicate(kv::BatchVector{{4, entry, true, hooks}}, 1);
+    keep_messages_for(node_idB, channelsA->messages);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_idA));
+
+    entry = make_ledger_entry(1, 5);
+    rA.replicate(kv::BatchVector{{5, entry, true, hooks}}, 1);
+
+    entry = make_ledger_entry(1, 6);
+    rA.replicate(kv::BatchVector{{6, entry, true, hooks}}, 1);
     channelsA->messages.clear();
     channelsB->messages.clear();
 
-    DOCTEST_REQUIRE(rA.get_last_idx() == 4);
-    DOCTEST_REQUIRE(rB.get_last_idx() == 3);
+    DOCTEST_REQUIRE(rA.get_last_idx() == 6);
+    DOCTEST_REQUIRE(rB.get_last_idx() == 4);
     DOCTEST_REQUIRE(rC.get_last_idx() == 2);
 
-    // Commit did not advance, though 3 is technically committed and will be
+    // Commit did not advance, though 4 is technically committed and will be
     // persisted from here
     DOCTEST_REQUIRE(rA.get_commit_idx() == 2);
     DOCTEST_REQUIRE(rB.get_commit_idx() == 2);
     DOCTEST_REQUIRE(rC.get_commit_idx() == 2);
 
-    persisted_idx = 3;
+    persisted_idx = 4;
     persisted_entry = rB.ledger->ledger[persisted_idx - 1];
   }
 

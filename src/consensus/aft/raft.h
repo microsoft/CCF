@@ -1147,19 +1147,14 @@ namespace aft
     {
       // Find the highest TxID this node thinks exists, which is still
       // compatible with the given tx_id. That is, given T.n, find largest n'
-      // such that n' <= n && term_of(n') == T' && T' <= T
+      // such that n' <= n && term_of(n') == T' && T' <= T. This may be T.n
+      // itself, if this node holds that index. Otherwise, examine the final
+      // entry in each term, counting backwards, until we find one which is
+      // still possible.
       Index probe_index = std::min(tx_id.seqno, state->last_idx);
-      while (true)
+      Term term_of_probe = state->view_history.view_at(probe_index);
+      while (term_of_probe > tx_id.view)
       {
-        Term term_of_probe = state->view_history.view_at(probe_index);
-        if (term_of_probe <= tx_id.view)
-        {
-          if (probe_index <= tx_id.seqno)
-          {
-            break;
-          }
-        }
-
         // Next possible match is the end of the previous term, which is
         // 1-before the start of the currently considered term. Anything after
         // that must have a term which is still too high.
@@ -1168,6 +1163,7 @@ namespace aft
         {
           --probe_index;
         }
+        term_of_probe = state->view_history.view_at(probe_index);
       }
 
       LOG_TRACE_FMT(
