@@ -2179,6 +2179,11 @@ namespace aft
         response_term = get_term_internal(response_idx);
       }
 
+      if (consensus_type == ConsensusType::BFT)
+      {
+        matching_idx = state->last_idx;
+      }
+
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
         state->my_node_id.trim(),
