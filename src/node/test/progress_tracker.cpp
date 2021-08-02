@@ -14,10 +14,11 @@
 #include <string>
 #include <trompeloeil/include/trompeloeil.hpp>
 
-std::vector<kv::NodeId> node_ids = {kv::test::PrimaryNodeId,
-                                    kv::test::FirstBackupNodeId,
-                                    kv::test::SecondBackupNodeId,
-                                    kv::test::ThirdBackupNodeId};
+std::vector<kv::NodeId> node_ids = {
+  kv::test::PrimaryNodeId,
+  kv::test::FirstBackupNodeId,
+  kv::test::SecondBackupNodeId,
+  kv::test::ThirdBackupNodeId};
 
 class StoreMock : public ccf::ProgressTrackerStore
 {
