@@ -11,7 +11,7 @@ parameters:
       pool: 1es-bionic-nosgx-ci
     SGX:
       container: sgx
-      pool: Ubuntu-1804-DC8_v2
+      pool: test-focal-sgx
     Perf:
       pool: CCF-Perf
 
