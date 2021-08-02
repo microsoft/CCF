@@ -348,6 +348,7 @@ static size_t dispatch_all_and_DOCTEST_CHECK(
     auto [tgt_node_id, contents] = messages.front();
     messages.pop_front();
 
+    if constexpr (!std::is_same_v<AssertionArg, void>)
     {
       AssertionArg arg = *(AssertionArg*)contents.data();
       assertion(arg);
@@ -366,7 +367,7 @@ static size_t dispatch_all(
   const ccf::NodeId& from,
   aft::ChannelStubProxy::MessageList& messages)
 {
-  return dispatch_all_and_DOCTEST_CHECK<bool>(
+  return dispatch_all_and_DOCTEST_CHECK<void>(
     nodes, from, messages, [](const auto&) {
       // Pass
     });
