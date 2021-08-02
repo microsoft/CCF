@@ -20,6 +20,8 @@ namespace ccf
 {
   struct GetCommit
   {
+    using In = void;
+
     struct Out
     {
       ccf::TxID transaction_id;
