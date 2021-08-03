@@ -40,7 +40,7 @@ fi
 
 # Setup env
 INSTALL_PREFIX="$1"
-if [ ! -z "$PYTHON_PACKAGE_PATH" ]; then
+if [ -n "$PYTHON_PACKAGE_PATH" ]; then
     PYTHON_PACKAGE_PATH=$(realpath -s "${PYTHON_PACKAGE_PATH}")
 fi
 working_dir="nested/run"

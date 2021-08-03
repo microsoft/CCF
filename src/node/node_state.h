@@ -10,6 +10,7 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "ds/net.h"
 #include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
@@ -88,7 +89,7 @@ namespace ccf
     std::mutex lock;
 
     CurveID curve_id;
-    crypto::KeyPairPtr node_sign_kp;
+    std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
     crypto::Pem node_cert;
@@ -256,7 +257,7 @@ namespace ccf
       CurveID curve_id_) :
       sm("NodeState", State::uninitialized),
       curve_id(curve_id_),
-      node_sign_kp(crypto::make_key_pair(curve_id_)),
+      node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
@@ -1419,11 +1420,13 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void recv_node_inbound(const uint8_t* payload_data, size_t payload_size)
+    void recv_node_inbound(const uint8_t* data, size_t size)
     {
-      NodeMsgType msg_type =
-        serialized::overlay<NodeMsgType>(payload_data, payload_size);
-      NodeId from = serialized::read<NodeId::Value>(payload_data, payload_size);
+      auto [msg_type, from, payload] =
+        ringbuffer::read_message<ccf::node_inbound>(data, size);
+
+      auto payload_data = payload.data;
+      auto payload_size = payload.size;
 
       if (msg_type == ccf::NodeMsgType::forwarded_msg)
       {
@@ -1597,6 +1600,9 @@ namespace ccf
 
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
+      // If no Subject Alternative Name (SAN) is passed in at node creation,
+      // default to using node's RPC address as single SAN. Otherwise, use
+      // specified SANs.
       if (!config.subject_alternative_names.empty())
       {
         return config.subject_alternative_names;
@@ -1624,9 +1630,9 @@ namespace ccf
     Pem create_endorsed_node_cert()
     {
       auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto csr = node_sign_kp->create_csr(config.subject_name);
       auto sans = get_subject_alternative_names();
-      return nw->sign_csr(network.identity->cert, csr, sans);
+      auto csr = node_sign_kp->create_csr(config.subject_name, sans);
+      return nw->sign_csr(network.identity->cert, csr);
     }
 
     void accept_node_tls_connections()

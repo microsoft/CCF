@@ -12,8 +12,8 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
-#include "node/session_metrics.h"
 #include "node/reconfig_id.h"
+#include "node/session_metrics.h"
 #include "node_interface.h"
 
 namespace ccf
@@ -547,7 +547,7 @@ namespace ccf
         GetQuotes::Out result;
 
         auto nodes = args.tx.ro(network.nodes);
-        nodes->foreach([& quotes = result.quotes](
+        nodes->foreach([&quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
           if (
             node_info.status == ccf::NodeStatus::TRUSTED ||
@@ -681,13 +681,14 @@ namespace ccf
           {
             is_primary = consensus->primary() == nid;
           }
-          out.nodes.push_back({nid,
-                               ni.status,
-                               pub_address.hostname,
-                               pub_address.port,
-                               primary_interface.rpc_address.hostname,
-                               primary_interface.rpc_address.port,
-                               is_primary});
+          out.nodes.push_back(
+            {nid,
+             ni.status,
+             pub_address.hostname,
+             pub_address.port,
+             primary_interface.rpc_address.hostname,
+             primary_interface.rpc_address.port,
+             is_primary});
           return true;
         });
 
@@ -744,14 +745,14 @@ namespace ccf
         }
         auto ni = info.value();
         const auto& primary_interface = ni.rpc_interfaces[0];
-        return make_success(
-          GetNode::Out{node_id,
-                       ni.status,
-                       primary_interface.public_rpc_address.hostname,
-                       primary_interface.public_rpc_address.port,
-                       primary_interface.rpc_address.hostname,
-                       primary_interface.rpc_address.port,
-                       is_primary});
+        return make_success(GetNode::Out{
+          node_id,
+          ni.status,
+          primary_interface.public_rpc_address.hostname,
+          primary_interface.public_rpc_address.port,
+          primary_interface.rpc_address.hostname,
+          primary_interface.rpc_address.port,
+          is_primary});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",

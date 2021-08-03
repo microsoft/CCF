@@ -117,8 +117,8 @@ namespace ccfapp
         set_no_content_status(ctx);
       };
 
-      const ccf::AuthnPolicies user_sig_or_cert = {user_signature_auth_policy,
-                                                   user_cert_auth_policy};
+      const ccf::AuthnPolicies user_sig_or_cert = {
+        user_signature_auth_policy, user_cert_auth_policy};
 
       make_endpoint("/tpcc_create", HTTP_POST, create, user_sig_or_cert)
         .install();

@@ -14,7 +14,8 @@ set(QUICKJS_SRC
     ${QUICKJS_PREFIX}/quickjs.c
 )
 set_source_files_properties(
-  quickjs.c PROPERTIES COMPILE_FLAGS -Wnoimplicit-int-float-conversion
+  ${QUICKJS_PREFIX}/quickjs.c PROPERTIES COMPILE_FLAGS
+                                         -Wno-implicit-int-float-conversion
 )
 
 execute_process(

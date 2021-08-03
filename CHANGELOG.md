@@ -5,11 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [Unreleased]
 
 ### Added
 
 - Added support for listening on multiple interfaces for incoming client RPCs, with individual session caps (#2628).
+
+### Changed
+
+- CCF is now built with Clang 10. It is recommended that C++ applications upgrade to Clang 10 as well.
+
+### Removed
+
+- Removed Forum sample app.
+
+## [2.0.0-dev3]
+
+### Changed
+
+- Upgrade OpenEnclave from 0.17.0 to 0.17.1.
+- `get_state_at()` now returns receipts for signature transactions (#2785), see [documentation](https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#transaction-receipts) for details.
+- Upgrade playbooks and base CI image to Ubuntu 20.04. CCF is now primarily developed and tested against Ubuntu 20.04.
+- Python `ccf.read_ledger` module now accepts custom formatting rules for the key and value based on the key-value store table name (#2791).
+
+### Removed
+
+- Remove long-deprecated `--domain` argument from `cchost`. Node certificate Subject Alternative Names should be passed in via existing `--san` argument (#2798).
 
 ## [2.0.0-dev2]
 

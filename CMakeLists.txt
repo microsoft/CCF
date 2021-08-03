@@ -436,8 +436,7 @@ if(BUILD_TESTS)
       NAME raft_scenario_test
       COMMAND
         ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
-        ${CMAKE_SOURCE_DIR}
+        --gen-scenarios ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
@@ -780,13 +779,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       -p liblogging --client-tutorial ${CMAKE_SOURCE_DIR}/python/tutorial.py
       --ledger-tutorial ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
-  )
-
-  add_e2e_sandbox_test(
-    NAME forum_app
-    SCRIPT ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
-    CONSENSUS cft
-    LABEL forum
   )
 
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version

@@ -24,12 +24,36 @@ constexpr auto shash = ds::fnv_1a<size_t>;
 int main(int argc, char** argv)
 {
   const regex delim{","};
-  string line;
   size_t lineno = 1;
   auto driver = shared_ptr<RaftDriver>(nullptr);
 
-  while (getline(cin, line))
+  if (argc < 2)
   {
+    throw std::runtime_error(
+      "Too few arguments - first must be path to scenario");
+  }
+
+  const std::string filename = argv[1];
+
+  std::ifstream fstream;
+  fstream.open(filename);
+
+  if (!fstream.is_open())
+  {
+    throw std::runtime_error(
+      fmt::format("File {} does not exist or could not be opened", filename));
+  }
+
+  string line;
+  while (getline(fstream, line))
+  {
+    // Strip off any comments (preceded with #)
+    const auto comment_start = line.find_first_of("#");
+    if (comment_start != std::string::npos)
+    {
+      line.erase(comment_start);
+    }
+    // Strip off any trailing whitespace
     line.erase(line.find_last_not_of(" \t\n\r\f\v") + 1);
     vector<string> items{
       sregex_token_iterator(line.begin(), line.end(), delim, -1),
@@ -38,8 +62,9 @@ int main(int argc, char** argv)
     switch (shash(items[0].c_str()))
     {
       case shash("nodes"):
-        assert(items.size() == 2);
-        driver = make_shared<RaftDriver>(stoi(items[1]));
+        assert(items.size() >= 2);
+        items.erase(items.begin());
+        driver = make_shared<RaftDriver>(items);
         break;
       case shash("connect"):
         assert(items.size() == 3);
@@ -57,6 +82,22 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->state_one(items[1]);
         break;
+      case shash("state_all"):
+        assert(items.size() == 1);
+        driver->state_all();
+        break;
+      case shash("shuffle_one"):
+        assert(items.size() == 2);
+        driver->shuffle_messages_one(items[1]);
+        break;
+      case shash("shuffle_all"):
+        assert(items.size() == 1);
+        driver->shuffle_messages_all();
+        break;
+      case shash("dispatch_one"):
+        assert(items.size() == 2);
+        driver->dispatch_one(items[1]);
+        break;
       case shash("dispatch_all"):
         assert(items.size() == 1);
         driver->dispatch_all();
@@ -65,15 +106,11 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->dispatch_all_once();
         break;
-      case shash("state_all"):
-        assert(items.size() == 1);
-        driver->state_all();
-        break;
       case shash("replicate"):
-        assert(items.size() == 4);
+        assert(items.size() == 3);
         data = std::make_shared<std::vector<uint8_t>>(
-          items[3].begin(), items[3].end());
-        driver->replicate(items[1], stoi(items[2]), data);
+          items[2].begin(), items[2].end());
+        driver->replicate(items[1], data);
         break;
       case shash("disconnect"):
         assert(items.size() == 3);
@@ -90,6 +127,21 @@ int main(int argc, char** argv)
       case shash("reconnect_node"):
         assert(items.size() == 2);
         driver->reconnect_node(items[1]);
+        break;
+      case shash("drop_pending"):
+        assert(items.size() == 2);
+        driver->drop_pending(items[1]);
+        break;
+      case shash("drop_pending_to"):
+        assert(items.size() == 3);
+        driver->drop_pending_to(items[1], items[2]);
+        break;
+      case shash("assert_state_sync"):
+        assert(items.size() == 1);
+        driver->assert_state_sync();
+        break;
+      case shash(""):
+        // Ignore empty lines
         break;
       default:
         cerr << "Unknown action '" << items[0] << "' at line " << lineno

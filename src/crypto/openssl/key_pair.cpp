@@ -8,6 +8,8 @@
 #include "hash.h"
 #include "openssl_wrappers.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <openssl/asn1.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
@@ -160,7 +162,8 @@ namespace crypto
     return 0;
   }
 
-  Pem KeyPair_OpenSSL::create_csr(const std::string& name) const
+  Pem KeyPair_OpenSSL::create_csr(
+    const std::string& name, const std::vector<SubjectAltName>& sans) const
   {
     Unique_X509_REQ req;
 
@@ -184,6 +187,21 @@ namespace crypto
     OpenSSL::CHECK1(X509_REQ_set_subject_name(req, subj_name));
     X509_NAME_free(subj_name);
 
+    if (!sans.empty())
+    {
+      Unique_STACK_OF_X509_EXTENSIONS exts;
+
+      X509_EXTENSION* ext = NULL;
+      OpenSSL::CHECKNULL(
+        ext = X509V3_EXT_conf_nid(
+          NULL,
+          NULL,
+          NID_subject_alt_name,
+          fmt::format("{}", fmt::join(sans, ", ")).c_str()));
+      sk_X509_EXTENSION_push(exts, ext);
+      X509_REQ_add_extensions(req, exts);
+    }
+
     if (key)
       OpenSSL::CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
 
@@ -198,16 +216,18 @@ namespace crypto
   }
 
   Pem KeyPair_OpenSSL::sign_csr(
-    const Pem& issuer_cert,
-    const Pem& signing_request,
-    const std::vector<SubjectAltName> subject_alt_names,
-    bool ca) const
+    const Pem& issuer_cert, const Pem& signing_request, bool ca) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
     Unique_X509_REQ csr(mem);
     Unique_X509 crt;
 
+    // First, verify self-signed CSR
+    EVP_PKEY* req_pubkey = X509_REQ_get0_pubkey(csr);
+    OpenSSL::CHECK1(X509_REQ_verify(csr, req_pubkey));
+
+    // Add version
     OpenSSL::CHECK1(X509_set_version(crt, 2));
 
     // Add serial number
@@ -250,9 +270,7 @@ namespace crypto
     ASN1_TIME_free(after);
 
     X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
-    EVP_PKEY* req_pubkey = X509_REQ_get_pubkey(csr);
     X509_set_pubkey(crt, req_pubkey);
-    EVP_PKEY_free(req_pubkey);
 
     // Extensions
     X509V3_CTX v3ctx;
@@ -281,35 +299,21 @@ namespace crypto
     OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 
-    // Subject alternative names (Necessary? Shouldn't they be in the CSR?)
-    if (!subject_alt_names.empty())
+    // Add subject alternative names (read from csr)
+    Unique_STACK_OF_X509_EXTENSIONS exts = X509_REQ_get_extensions(csr);
+    int extension_count = sk_X509_EXTENSION_num(exts);
+    if (extension_count > 0)
     {
-      std::string all_alt_names;
-      bool first = true;
-      for (auto san : subject_alt_names)
+      for (size_t i = 0; i < extension_count; i++)
       {
-        if (first)
+        X509_EXTENSION* ext = sk_X509_EXTENSION_value(exts, i);
+        ASN1_OBJECT* obj = X509_EXTENSION_get_object(ext);
+        auto nid = OBJ_obj2nid(obj);
+        if (nid == NID_subject_alt_name)
         {
-          first = !first;
+          OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
         }
-        else
-        {
-          all_alt_names += ", ";
-        }
-
-        if (san.is_ip)
-          all_alt_names += "IP:";
-        else
-          all_alt_names += "DNS:";
-
-        all_alt_names += san.san;
       }
-
-      OpenSSL::CHECKNULL(
-        ext = X509V3_EXT_conf_nid(
-          NULL, &v3ctx, NID_subject_alt_name, all_alt_names.c_str()));
-      OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
-      X509_EXTENSION_free(ext);
     }
 
     // Sign

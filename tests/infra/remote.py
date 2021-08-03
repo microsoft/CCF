@@ -81,7 +81,11 @@ def log_errors(out_path, err_path):
     fatal_error_lines = []
     try:
         with open(err_path, "r", errors="replace") as lines:
-            fatal_error_lines = lines.readlines()
+            fatal_error_lines = [
+                line
+                for line in lines.readlines()
+                if not line.startswith("[get_qpl_handle ")
+            ]
             if fatal_error_lines:
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
     except IOError:

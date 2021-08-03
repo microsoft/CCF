@@ -131,10 +131,17 @@ TEST_CASE("Variadic write" * doctest::test_suite("ringbuffer"))
   Reader r(buffer->bd);
   Writer w(r);
 
+  enum TEnum
+  {
+    Foo,
+    Bar = 42,
+    Baz
+  };
+
   const char v0 = 'h';
   const size_t v1 = 0xdeadbeef;
   const bool v2 = false;
-  const float v3 = 3.14f;
+  const TEnum v3 = Baz;
   const std::vector<uint8_t> v4 = {0xab, 0xac, 0xad, 0xae, 0xaf};
 
   const size_t v5_limit = 3;

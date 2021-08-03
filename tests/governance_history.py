@@ -13,6 +13,8 @@ import base64
 import json
 from loguru import logger as LOG
 import suite.test_requirements as reqs
+import ccf.read_ledger
+import infra.logging_app as app
 
 
 def check_operations(ledger, operations):
@@ -86,7 +88,7 @@ def test_tables_doc(network, args):
     return network
 
 
-@reqs.description("Test that all node's ledgers can be read")
+@reqs.description("Test that all nodes' ledgers can be read")
 def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
     for node in (primary, *backups):
@@ -99,12 +101,36 @@ def test_ledger_is_readable(network, args):
     return network
 
 
+@reqs.description("Test that all nodes' ledgers can be read using read_ledger.py")
+def test_read_ledger_utility(network, args):
+    def fmt_str(data: bytes) -> str:
+        return data.decode()
+
+    format_rule = [(".*records.*", {"key": fmt_str, "value": fmt_str})]
+
+    # Issue at least one transaction to see how it is read in the ledger
+    network.txs.issue(network, number_txs=1)
+    network.get_latest_ledger_public_state()
+
+    primary, backups = network.find_nodes()
+    for node in (primary, *backups):
+        ledger_dirs = node.remote.ledger_paths()
+        assert ccf.read_ledger.run(ledger_dirs, tables_format_rules=format_rule)
+    return network
+
+
 def run(args):
     # Keep track of governance operations that happened in the test
     governance_operations = set()
 
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
@@ -164,6 +190,7 @@ def run(args):
         check_operations(ledger, governance_operations)
 
         test_ledger_is_readable(network, args)
+        test_read_ledger_utility(network, args)
         test_tables_doc(network, args)
 
 

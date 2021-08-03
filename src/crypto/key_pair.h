@@ -45,12 +45,13 @@ namespace crypto
 
     virtual std::vector<uint8_t> sign(CBuffer d, MDType md_type = {}) const = 0;
 
-    virtual Pem create_csr(const std::string& name) const = 0;
+    virtual Pem create_csr(
+      const std::string& name,
+      const std::vector<SubjectAltName>& sans = {}) const = 0;
 
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
-      const std::vector<SubjectAltName> subject_alt_names,
       bool ca = false) const = 0;
 
     Pem self_sign(
@@ -61,8 +62,8 @@ namespace crypto
       std::vector<SubjectAltName> sans;
       if (subject_alt_name.has_value())
         sans.push_back(subject_alt_name.value());
-      auto csr = create_csr(name);
-      return sign_csr(Pem(0), csr, sans, ca);
+      auto csr = create_csr(name, sans);
+      return sign_csr(Pem(0), csr, ca);
     }
 
     Pem self_sign(
@@ -70,8 +71,8 @@ namespace crypto
       const std::vector<SubjectAltName> subject_alt_names,
       bool ca = true) const
     {
-      auto csr = create_csr(name);
-      return sign_csr(Pem(0), csr, subject_alt_names, ca);
+      auto csr = create_csr(name, subject_alt_names);
+      return sign_csr(Pem(0), csr, ca);
     }
   };
 
@@ -92,7 +93,7 @@ namespace crypto
    * @param der Sequence of bytes containing the key in DER format
    * @return Public key
    */
-  PublicKeyPtr make_public_key(const std::vector<uint8_t> der);
+  PublicKeyPtr make_public_key(const std::vector<uint8_t>& der);
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and

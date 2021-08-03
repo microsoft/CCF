@@ -203,12 +203,13 @@ namespace ccf
       {
         for (const auto& [verb, metric] : verb_metrics)
         {
-          out.metrics.push_back({path,
-                                 verb,
-                                 metric.calls,
-                                 metric.errors,
-                                 metric.failures,
-                                 metric.retries});
+          out.metrics.push_back(
+            {path,
+             verb,
+             metric.calls,
+             metric.errors,
+             metric.failures,
+             metric.retries});
         }
       }
       return make_success(out);
@@ -257,6 +258,7 @@ namespace ccf
           ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
         ccf::Receipt out;
+        assert(historical_state->receipt);
         historical_state->receipt->describe(out);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);

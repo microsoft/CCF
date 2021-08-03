@@ -24,7 +24,7 @@ Overview
 
     ---
 
-    :fa:`book` :doc:`consensus`
+    :fa:`book` :doc:`consensus/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Different consensus protocols can be used to replicate state in a CCF network.
@@ -58,7 +58,7 @@ Overview
     concepts
     release_policy
     governance
-    consensus
+    consensus/index
     cryptography
     performance
     threading

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "../public_key.h"
-
 #include "../san.h"
 #include "mbedtls_wrappers.h"
 

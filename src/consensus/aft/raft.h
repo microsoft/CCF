@@ -381,7 +381,7 @@ namespace aft
 
       std::lock_guard<std::mutex> guard(state->lock);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void force_become_leader(
@@ -405,7 +405,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void init_as_follower(
@@ -434,7 +434,7 @@ namespace aft
     Index get_commit_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      return state->commit_idx;
+      return get_commit_idx_unsafe();
     }
 
     Term get_term()
@@ -446,14 +446,17 @@ namespace aft
     std::pair<Term, Index> get_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      return {get_term_internal(state->commit_idx), state->commit_idx};
+      ccf::SeqNo commit_idx = get_commit_idx_unsafe();
+      return {get_term_internal(commit_idx), commit_idx};
     }
 
     std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      if (state->commit_idx >= election_index)
+      if (
+        consensus_type == ConsensusType::BFT ||
+        state->commit_idx >= election_index)
       {
         kv::Consensus::SignableTxIndices r;
         r.term = get_term_internal(state->commit_idx);
@@ -687,7 +690,7 @@ namespace aft
 
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
-          state->my_node_id.trim(),
+          state->my_node_id,
           index,
           (globally_committable ? " committable" : ""),
           hooks->size());
@@ -730,7 +733,7 @@ namespace aft
           entry_size_not_limited = 0;
           for (const auto& it : nodes)
           {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first.trim());
+            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
@@ -954,7 +957,10 @@ namespace aft
           vc->serialize(data, size);
           CCF_ASSERT_FMT(size == 0, "Did not write everything");
 
-          LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
+          LOG_INFO_FMT(
+            "Sending view change msg view:{}, primary_at_view:{}",
+            vcm.view,
+            get_primary(vcm.view));
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto to = it->first;
@@ -1015,6 +1021,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
+      LOG_DEBUG_FMT("Received evidence for view:{}, from:{}", r.view, from);
       auto node = nodes.find(from);
       if (node == nodes.end())
       {
@@ -1028,8 +1035,7 @@ namespace aft
 
       ccf::ViewChangeRequest v =
         ccf::ViewChangeRequest::deserialize(data, size);
-      LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", from.trim(), r.view);
+      LOG_INFO_FMT("Received view change from:{}, view:{}", from, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
       auto result =
@@ -1166,6 +1172,8 @@ namespace aft
 
     void append_new_view(ccf::View view)
     {
+      LOG_INFO_FMT(
+        "Writing view change to ledger as a new primay, view:{}", view);
       state->current_view = view;
       become_leader();
       state->new_view_idx =
@@ -1238,6 +1246,19 @@ namespace aft
       return state->view_history.view_at(idx);
     }
 
+    Index get_commit_idx_unsafe()
+    {
+      if (consensus_type == ConsensusType::CFT)
+      {
+        return state->commit_idx;
+      }
+      else
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        return progress_tracker->get_highest_committed_level();
+      }
+    }
+
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
       Index end_idx = (state->last_idx == 0) ?
@@ -1274,19 +1295,20 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         start_idx,
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {{raft_append_entries},
-                          {end_idx, prev_idx},
-                          state->current_view,
-                          prev_term,
-                          state->commit_idx,
-                          term_of_idx,
-                          contains_new_view};
+      AppendEntries ae = {
+        {raft_append_entries},
+        {end_idx, prev_idx},
+        state->current_view,
+        prev_term,
+        state->commit_idx,
+        term_of_idx,
+        contains_new_view};
 
       auto& node = nodes.at(to);
 
@@ -1344,7 +1366,7 @@ namespace aft
         r.prev_idx,
         r.term_of_idx,
         r.idx,
-        from.trim(),
+        from,
         r.term);
 
       // Don't check that the sender node ID is valid. Accept anything that
@@ -1512,8 +1534,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.idx,
         r.prev_idx);
 
@@ -1526,7 +1548,13 @@ namespace aft
             "rolling back from {} to {}",
             state->last_idx,
             r.prev_idx);
-          rollback(r.prev_idx);
+          auto rollback_level = r.prev_idx;
+          if (consensus_type == ConsensusType::BFT)
+          {
+            auto progress_tracker = store->get_progress_tracker();
+            rollback_level = progress_tracker->get_rollback_seqno();
+          }
+          rollback(rollback_level);
         }
         else
         {
@@ -1550,8 +1578,7 @@ namespace aft
           continue;
         }
 
-        LOG_DEBUG_FMT(
-          "Replicating on follower {}: {}", state->my_node_id.trim(), i);
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
         std::vector<uint8_t> entry;
         try
@@ -1819,8 +1846,18 @@ namespace aft
         // primary resends the append entries we will succeed as the map is
         // already there. This will only occur on BFT startup so not a perf
         // problem but still need to be resolved.
-        state->last_idx = i - 1;
-        ledger->truncate(state->last_idx);
+        // https://github.com/microsoft/CCF/issues/2799
+        if (ds->should_rollback_to_last_committed())
+        {
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          rollback(rollback_level);
+        }
+        else
+        {
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
+        }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return false;
       }
@@ -2061,11 +2098,22 @@ namespace aft
       auto lci = last_committable_index();
       if (r.term_of_idx == aft::ViewHistory::InvalidView)
       {
+        // If we don't yet have a term history, then this must be happening in
+        // the current term. This can only happen before _any_ transactions have
+        // occurred, when processing a heartbeat at index 0, which does not
+        // happen in a real node (due to the genesis transaction executing
+        // before ticks start), but may happen in tests.
         state->view_history.update(1, r.term);
       }
       else
       {
-        state->view_history.update(lci + 1, r.term_of_idx);
+        // The end of this append entries (r.idx) was not a signature, but may
+        // be in a new term. If it's a new term, this term started immediately
+        // after the previous signature we saw (lci, last committable index).
+        if (r.idx > lci)
+        {
+          state->view_history.update(lci + 1, r.term_of_idx);
+        }
       }
 
       send_append_entries_response(from, AppendEntriesResponseType::OK);
@@ -2074,22 +2122,41 @@ namespace aft
     void send_append_entries_response(
       ccf::NodeId to, AppendEntriesResponseType answer)
     {
-      LOG_DEBUG_FMT(
-        "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
-        state->last_idx,
-        answer);
-
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
       }
 
-      AppendEntriesResponse response = {{raft_append_entries_response},
-                                        state->current_view,
-                                        state->last_idx,
-                                        answer};
+      // AppendEntriesResponse should contain the highest _matching_ index we
+      // hold - that is how the primary will treat it.
+      // If this is an affirmative response, then that index is the last entry
+      // in this log.
+      // But if this is NACKing what was just sent (because it could not be
+      // applied), then we want to ensure that the next thing they send begins
+      // with a match. This may result in resending a redundant chunk which
+      // agrees, but will eventually include the earliest mismatch, which will
+      // trigger a rollback and correct application on this node.
+      auto matching_idx = answer == AppendEntriesResponseType::FAIL ?
+        state->commit_idx :
+        state->last_idx;
+
+      if (consensus_type == ConsensusType::BFT)
+      {
+        matching_idx = state->last_idx;
+      }
+
+      LOG_DEBUG_FMT(
+        "Send append entries response from {} to {} for index {}: {}",
+        state->my_node_id,
+        to,
+        matching_idx,
+        answer);
+
+      AppendEntriesResponse response = {
+        {raft_append_entries_response},
+        state->current_view,
+        matching_idx,
+        answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -2100,19 +2167,20 @@ namespace aft
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         state->last_idx);
 
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
 
-      SignedAppendEntriesResponse r = {{raft_append_entries_signed_response},
-                                       state->current_view,
-                                       state->last_idx,
-                                       {},
-                                       static_cast<uint32_t>(sig.sig.size()),
-                                       {}};
+      SignedAppendEntriesResponse r = {
+        {raft_append_entries_signed_response},
+        state->current_view,
+        state->last_idx,
+        {},
+        static_cast<uint32_t>(sig.sig.size()),
+        {}};
 
       std::optional<crypto::Sha256Hash> hashed_nonce;
       progress_tracker->get_node_hashed_nonce(
@@ -2233,7 +2301,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
 
@@ -2279,7 +2347,8 @@ namespace aft
             nonce.value(),
             state->my_node_id,
             get_last_configuration_nodes(),
-            is_primary());
+            is_primary(),
+            tx_id.seqno <= state->last_idx);
           break;
         }
         default:
@@ -2306,7 +2375,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing nonce_reveal, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
@@ -2314,7 +2383,8 @@ namespace aft
         r.nonce,
         from,
         get_last_configuration_nodes(),
-        is_primary());
+        is_primary(),
+        r.idx <= state->last_idx);
 
       update_commit();
     }
@@ -2390,8 +2460,8 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
-                                    state->current_view};
+        ViewChangeEvidenceMsg vw = {
+          {bft_view_change_evidence}, state->current_view};
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
@@ -2402,6 +2472,7 @@ namespace aft
           reinterpret_cast<uint8_t*>(&vw),
           reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
 
+        LOG_DEBUG_FMT("Sending evidence to:{}", from);
         channels->send_authenticated(
           from, ccf::NodeMsgType::consensus_msg, data);
       }
@@ -2419,8 +2490,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.last_log_idx);
       update_commit();
     }
@@ -2430,15 +2501,16 @@ namespace aft
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
         "Send request vote from {} to {} at {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {{raft_request_vote},
-                        state->current_view,
-                        last_committable_idx,
-                        get_term_internal(last_committable_idx)};
+      RequestVote rv = {
+        {raft_request_vote},
+        state->current_view,
+        last_committable_idx,
+        get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
@@ -2530,8 +2602,8 @@ namespace aft
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         answer);
 
       RequestVoteResponse response = {
@@ -2640,14 +2712,26 @@ namespace aft
       }
     }
 
-    void become_leader()
+    void become_leader(bool force_become_leader = false)
     {
       if (is_retired())
       {
         return;
       }
 
-      election_index = last_committable_index();
+      // When we force to become the primary we are going around the
+      // consensus protocol. This only happens when a node starts a new network
+      // and have a gensis or recovery tx as the last transaction, for BFT this
+      // transaction is not prepared and but must not be rolled back.
+      if (consensus_type == ConsensusType::BFT && !force_become_leader)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        election_index = progress_tracker->get_rollback_seqno();
+      }
+      else
+      {
+        election_index = last_committable_index();
+      }
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
@@ -2808,7 +2892,7 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
-        new_commit_bft_idx = progress_tracker->get_highest_committed_nonce();
+        new_commit_bft_idx = progress_tracker->get_highest_committed_level();
       }
 
       // Obtain CFT watermarks
@@ -2887,7 +2971,17 @@ namespace aft
         }
 
         if (can_commit)
-          commit(highest_committable);
+        {
+          if (consensus_type == ConsensusType::CFT)
+          {
+            commit(highest_committable);
+          }
+          else
+          {
+            auto progress_tracker = store->get_progress_tracker();
+            commit(progress_tracker->get_highest_committed_level());
+          }
+        }
       }
     }
 
@@ -2962,7 +3056,7 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
-      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
+      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
       // Examine all configurations that are followed by a globally committed
       // configuration.
@@ -3054,13 +3148,17 @@ namespace aft
 
     void rollback(Index idx)
     {
-      if (idx < state->commit_idx)
+      if (
+        (consensus_type == ConsensusType::CFT && idx < state->commit_idx) ||
+        (consensus_type == ConsensusType::BFT &&
+         idx < state->bft_watermark_idx))
       {
         LOG_FAIL_FMT(
-          "Asked to rollback to {} but committed to {} - ignoring rollback "
-          "request",
+          "Asked to rollback to idx:{} but committed to commit_idx:{}, "
+          "bft_watermark_idx:{} - ignoring rollback request",
           idx,
-          state->commit_idx);
+          state->commit_idx,
+          state->bft_watermark_idx);
         return;
       }
 
@@ -3117,12 +3215,6 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
-      }
-
-      if (consensus_type == ConsensusType::BFT)
-      {
-        auto progress_tracker = store->get_progress_tracker();
-        progress_tracker->rollback(idx, state->current_view);
       }
     }
 

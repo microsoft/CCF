@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "crypto/csr.h"
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
 #include "crypto/key_wrap.h"
@@ -47,8 +48,8 @@ void corrupt(T& buf)
   buf[buf.size() - 2]++;
 }
 
-static constexpr CurveID supported_curves[] = {CurveID::SECP384R1,
-                                               CurveID::SECP256R1};
+static constexpr CurveID supported_curves[] = {
+  CurveID::SECP384R1, CurveID::SECP256R1};
 
 static constexpr char const* labels[] = {"secp384r1", "secp256r1"};
 
@@ -384,23 +385,57 @@ TEST_CASE("Extract public key from cert")
   }
 }
 
+template <typename T>
+void create_csr_and_extract_pubk()
+{
+  T kp(CurveID::SECP384R1);
+  auto pk = kp.public_key_pem();
+  auto csr = kp.create_csr({"CN=name"});
+  auto pubk = public_key_pem_from_csr(csr);
+  REQUIRE(pk == pubk);
+}
+
+TEST_CASE("Extract public key from csr")
+{
+  create_csr_and_extract_pubk<KeyPair_mbedTLS>();
+  create_csr_and_extract_pubk<KeyPair_OpenSSL>();
+}
+
 template <typename T, typename S>
-void run_csr()
+void run_csr(bool corrupt_csr = false)
 {
   T kpm(CurveID::SECP384R1);
 
   const char* subject_name = "CN=myname";
 
-  auto csr = kpm.create_csr(subject_name);
-
   std::vector<SubjectAltName> subject_alternative_names;
-  subject_alternative_names.push_back({"email:my-other-name", false});
-  subject_alternative_names.push_back({"www.microsoft.com", false});
-  subject_alternative_names.push_back({"192.168.0.1", true});
+
+  // mbedtls doesn't support parsing SAN from CSR
+  if constexpr (std::is_same_v<T, KeyPair_OpenSSL>)
+  {
+    subject_alternative_names.push_back({"email:my-other-name", false});
+    subject_alternative_names.push_back({"www.microsoft.com", false});
+    subject_alternative_names.push_back({"192.168.0.1", true});
+  }
+
+  auto csr = kpm.create_csr(subject_name, subject_alternative_names);
+
+  if (corrupt_csr)
+  {
+    constexpr size_t corrupt_byte_pos_from_end = 66;
+    auto& corrupt_byte = csr.data()[csr.size() - corrupt_byte_pos_from_end];
+    corrupt_byte++;
+  }
 
   auto icrt = kpm.self_sign("CN=issuer");
-  auto crt = kpm.sign_csr(icrt, csr, subject_alternative_names);
 
+  if (corrupt_csr)
+  {
+    REQUIRE_THROWS(kpm.sign_csr(icrt, csr));
+    return;
+  }
+
+  auto crt = kpm.sign_csr(icrt, csr);
   std::vector<uint8_t> content = {0, 1, 2, 3, 4};
   auto signature = kpm.sign(content);
 
@@ -408,12 +443,17 @@ void run_csr()
   REQUIRE(v.verify(content, signature));
 }
 
-TEST_CASE("Create, sign & verify certificates")
+TEST_CASE("Create sign and verify certificates")
 {
-  run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>();
-  run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>();
-  run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>();
-  run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>();
+  bool corrupt_csr = false;
+  do
+  {
+    run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>(corrupt_csr);
+    run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>(corrupt_csr);
+    run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>(corrupt_csr);
+    run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>(corrupt_csr);
+    corrupt_csr = !corrupt_csr;
+  } while (corrupt_csr);
 }
 
 static const vector<uint8_t>& getRawKey()

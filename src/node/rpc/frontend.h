@@ -136,9 +136,13 @@ namespace ccf
           if (info)
           {
             const auto& address = info->rpc_interfaces[0].public_rpc_address;
-            ctx->set_response_header(
-              http::headers::LOCATION,
-              fmt::format("{}:{}", address.hostname, address.port));
+            const auto location = fmt::format(
+              "https://{}:{}{}",
+              address.hostname,
+              address.port,
+              ctx->get_request_path());
+            ctx->set_response_header(http::headers::LOCATION, location);
+            LOG_DEBUG_FMT("Redirecting to {}", location);
           }
         }
 
