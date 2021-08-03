@@ -11,7 +11,7 @@ parameters:
       pool: 1es-dcv2-focal
     SGX:
       container: sgx
-      pool: test-focal-sgx
+      pool: 1es-dcv2-focal
     Perf:
       pool: CCF-Perf
 
