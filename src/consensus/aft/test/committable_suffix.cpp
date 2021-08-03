@@ -157,9 +157,9 @@ void keep_earliest_append_entries_for_each_target(
     reaches Node B, which responds with a NACK ("I don't accept that tail").
     Node C responds to that NACK with a better AppendEntries, which _should_
     bring Node B back to the committed level, and forward to wherever C is.
-    However, under the current implementation, this AppendEntries may
-    actually cause B to roll back further than is safe, losing the committed
-    state.
+    However, if the AppendEntries returns an early-estimate of matching index
+    (as a previous implementation did), this AppendEntries may actually cause B
+    to roll back further than is safe, losing the committed state.
     C->B: AE [1.2, 1.2)
     B->C: AER NACK 1.1 (B's commit index)
     C->B: AE [1.1, 1.1) (Large entries mean this is only a partial catchup)
