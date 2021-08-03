@@ -653,17 +653,13 @@ namespace kv::untyped
       return replicated;
     }
 
-    bool operator==(const AbstractMap& that) const override
+    bool operator==(const Map& that) const
     {
-      auto p = dynamic_cast<const Map*>(&that);
-      if (p == nullptr)
-        return false;
-
-      if (name != p->name)
+      if (name != that.name)
         return false;
 
       auto state1 = roll.commits->get_tail();
-      auto state2 = p->roll.commits->get_tail();
+      auto state2 = that.roll.commits->get_tail();
 
       if (state1->version != state2->version)
         return false;
@@ -704,11 +700,6 @@ namespace kv::untyped
         ok = false;
 
       return ok;
-    }
-
-    bool operator!=(const AbstractMap& that) const override
-    {
-      return !(*this == that);
     }
 
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
