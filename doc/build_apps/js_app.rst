@@ -11,7 +11,6 @@ The following subpages demonstrate how to build JavaScript applications using mo
   :maxdepth: 1
 
   js_app_ts
-  js_app_tsoa
 
 The low-level deployment format for all JavaScript applications in CCF is called `bundle`.
 The specification of bundles can be found here:

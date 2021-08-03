@@ -1,9 +1,0 @@
-package-lock.json
-node_modules/
-dist/
-build/
-.venv_ccf_sandbox/
-.workspace_ccf/
-*_opinions.csv
-*.jwt
-*.pem
