@@ -702,6 +702,13 @@ namespace kv::untyped
       return ok;
     }
 
+#if __cplusplus <= 201703L
+     bool operator!=(const Map& that) const
+    {
+      return !(*this == that);
+    }
+#endif
+
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       // This takes a snapshot of the state of the map at the last entry
