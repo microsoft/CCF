@@ -129,8 +129,10 @@ void keep_earliest_append_entries_for_each_target(
 
   - Produce an initial state where A is primary in term 1 of a 5-node network,
     has mixed success replicating its entries. Each node's commit index is
-    marked by
-    []. True commit index is the highest of these, [1.2].
+    marked by []. The highest index known on f+1 nodes must be persisted, and
+    when enough ACKs are received this becomes the commit index on the primary.
+    In this case, that index _is_ known as the commit index on the, which is
+    [1.2].
     A:  1.1 [1.2] 1.3
     B: [1.1] 1.2  1.3
     C: [1.1] 1.2
@@ -169,10 +171,12 @@ void keep_earliest_append_entries_for_each_target(
     E: [1.1]
 
   - At this point a committed index (1.2) is no longer present on a majority of
-    nodes. While C is unlikely to advertise it (fancy election rules mean
-    they're waiting for commit at 1.2) and will continue to share it, its
-    possible for C to die here and B, D, or E to win an election and proceed
-    without this committed suffix, forking/overwriting 1.2 with 4.2.
+    nodes. While the service may be able to recover without making this loss
+    visible to users (while C survives, it will continue to share this index
+    with other nodes, and fancy election rules mean it will not report commit
+    until it reaches 1.2), it's possible for C to die here and B, D, or E to win
+    an election and proceed without this committed suffix,
+    forking/overwriting 1.2 with 4.2.
  */
 DOCTEST_TEST_CASE("Retention of dead leader's commit")
 {
@@ -297,8 +301,8 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 
     DOCTEST_REQUIRE(6 == dispatch_all(nodes, node_idA, channelsA->messages));
 
-    // NB: AppendEntriesResponses are not dispatched yet. So 1.4 is technically
-    // committed, but nobody knows this yet
+    // NB: AppendEntriesResponses are not dispatched yet. So 1.4 is present on
+    // f+1 nodes and should be persisted, but nobody knows this yet
   }
 
   DOCTEST_INFO(
@@ -591,7 +595,7 @@ DOCTEST_TEST_CASE("Multi-term divergence")
     DOCTEST_REQUIRE(rB.get_last_idx() == 4);
     DOCTEST_REQUIRE(rC.get_last_idx() == 2);
 
-    // Commit did not advance, though 4 is technically committed and will be
+    // Commit did not advance, though 4 is present on f+1 nodes and will be
     // persisted from here
     DOCTEST_REQUIRE(rA.get_commit_idx() == 2);
     DOCTEST_REQUIRE(rB.get_commit_idx() == 2);
@@ -799,13 +803,13 @@ DOCTEST_TEST_CASE("Multi-term divergence")
       // This is related to the inefficient Raft catch-up logic. Essentially
       // each heartbeat we start a new catch-up process, and that may take many
       // roundtrips to discover the matching index. As a simplification, we keep
-      // the single messages we believe is most useful, which is the
+      // the single message we believe is most useful, which is the
       // AppendEntries that starts from the earliest.
       rPrimary.periodic(request_timeout);
       keep_earliest_append_entries_for_each_target(channelsPrimary->messages);
 
-      // Assert that the advertised indices never step before the true commit
-      // index
+      // Assert that the advertised indices never step before the persisted
+      // index which was present on f+1 nodes.
       dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
         nodes, id_primary, [&](const auto& ae) {
           DOCTEST_REQUIRE(ae.prev_idx >= persisted_idx);
