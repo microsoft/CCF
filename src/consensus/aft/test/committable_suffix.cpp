@@ -128,7 +128,8 @@ void keep_earliest_append_entries_for_each_target(
   logical relationships are the same):
 
   - Produce an initial state where A is primary in term 1 of a 5-node network,
-    has mixed success replicating its entries. Each node's commit index is marked by
+    has mixed success replicating its entries. Each node's commit index is
+    marked by
     []. True commit index is the highest of these, [1.2].
     A:  1.1 [1.2] 1.3
     B: [1.1] 1.2  1.3

@@ -2188,10 +2188,7 @@ namespace aft
         answer);
 
       AppendEntriesResponse response = {
-        {raft_append_entries_response},
-        response_term,
-        response_idx,
-        answer};
+        {raft_append_entries_response}, response_term, response_idx, answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
