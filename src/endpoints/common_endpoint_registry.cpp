@@ -88,7 +88,7 @@ namespace ccf
       "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
-      .set_auto_schema<void, GetCommit::Out>()
+      .set_auto_schema<GetCommit>()
       .install();
 
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
