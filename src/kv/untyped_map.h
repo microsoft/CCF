@@ -702,7 +702,7 @@ namespace kv::untyped
       return ok;
     }
 
-#if __cplusplus <= 201703L
+#ifndef __cpp_impl_three_way_comparison
     bool operator!=(const Map& that) const
     {
       return !(*this == that);
