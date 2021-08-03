@@ -13,7 +13,7 @@ parameters:
       container: sgx
       pool: 1es-dcv2-focal
     Perf:
-      pool: CCF-Perf
+      pool: 1es-dcv2-focal
 
   build:
     common:
