@@ -307,15 +307,7 @@ def run_join_old_snapshot(args):
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "--ccf-version",
-            help="Expected CCF version",
-            type=str,
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 1
