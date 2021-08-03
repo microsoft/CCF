@@ -782,13 +782,6 @@ if(BUILD_TESTS)
       --ledger-tutorial ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
   )
 
-  add_e2e_sandbox_test(
-    NAME forum_app
-    SCRIPT ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
-    CONSENSUS cft
-    LABEL forum
-  )
-
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
        ${CCF_VERSION}
   )
