@@ -703,7 +703,7 @@ namespace kv::untyped
     }
 
 #if __cplusplus <= 201703L
-     bool operator!=(const Map& that) const
+    bool operator!=(const Map& that) const
     {
       return !(*this == that);
     }
