@@ -47,7 +47,9 @@ namespace ccf
           }
           case NodeStatus::LEARNER:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            cfg_delta.try_emplace(
+              node_id,
+              NodeAddr{ni.node_address.hostname, ni.node_address.port});
             learners.insert(node_id);
             break;
           }
