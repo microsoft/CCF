@@ -5,5 +5,5 @@
 set -ex
 
 sudo apt-get update
-sudo apt install ansible -y
+sudo apt install ansible-base -y
 ansible-playbook "$@"
