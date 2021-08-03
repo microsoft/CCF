@@ -2462,9 +2462,9 @@ namespace aft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        // NB: In NACKs this may contain the TxID of an estimated matching index
+        // NB: In NACKs the term may be that of an estimated matching index
         // in the log, rather than the current term, so it is correct for it to
-        // be stale in this case.
+        // be older in this case.
         if (r.success == AppendEntriesResponseType::OK)
         {
           LOG_DEBUG_FMT(
@@ -2478,7 +2478,7 @@ namespace aft
       }
       else if (r.last_log_idx < node->second.match_idx)
       {
-        // Stale response, discard if success.
+        // Response about past indices, discard if success.
         // Otherwise reset sent_idx and try again.
         // NB: It is correct for this index to move backwards during NACKs
         // which iteratively discover the last matching index of divergent logs
