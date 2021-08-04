@@ -74,4 +74,4 @@ function(add_warning_checks name)
   )
 endfunction()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
