@@ -12,7 +12,6 @@ intel_sgx_packages:
   - "libsgx-qe3-logic"
   - "libsgx-pce-logic"
 
-
 intel_dcap_packages:
   - "libsgx-dcap-ql"
   - "libsgx-urts"
