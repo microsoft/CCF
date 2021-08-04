@@ -11,15 +11,14 @@ This page documents the components of a bundle and the JavaScript API available 
     `Node.js <https://nodejs.org/>`_,
     `npm <https://www.npmjs.com/>`_, and
     `TypeScript <https://www.typescriptlang.org/>`_.
-    CCF provides multiple example apps built with these tools.
+    CCF provides an example app built with these tools.
     They involve a `build` step that generates an app bundle suitable for CCF.
-    See the following pages for more details:
+    See the following for more details:
 
     .. toctree::
       :maxdepth: 1
 
       js_app_ts
-      js_app_tsoa
 
 Folder Layout
 -------------
@@ -104,9 +103,6 @@ You can find an example metadata file at
 `tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle/app.json>`_
 in the CCF git repository.
 
-.. note::
-    See the :ref:`tsoa-based app example <build_apps/js_app_tsoa:TypeScript Application using tsoa>` on how to generate OpenAPI definitions with TypeScript.
-
 JavaScript API
 --------------
 
@@ -134,10 +130,6 @@ It validates the request body and returns the result of a mathematical operation
 
 .. literalinclude:: ../../tests/js-app-bundle/src/math.js
    :language: js
-
-.. note::
-    See the :ref:`tsoa-based app example <build_apps/js_app_tsoa:TypeScript Application using tsoa>` on how to automatically validate
-    JSON request data using TypeScript types.
 
 Deployment
 ----------
