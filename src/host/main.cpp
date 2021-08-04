@@ -759,15 +759,16 @@ int main(int argc, char** argv)
       bft_status_interval};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
 
-    ccf_config.node_info_network.node_address = {node_address.hostname,
-                                                 node_address.port};
+    ccf_config.node_info_network.node_address = {
+      node_address.hostname, node_address.port};
     for (const auto& interface : rpc_interfaces)
     {
       ccf::NodeInfoNetwork::RpcAddresses addr;
-      addr.rpc_address = {interface.rpc_address.hostname,
-                          interface.rpc_address.port};
-      addr.public_rpc_address = {interface.public_rpc_address.hostname,
-                                 interface.public_rpc_address.port};
+      addr.rpc_address = {
+        interface.rpc_address.hostname, interface.rpc_address.port};
+      addr.public_rpc_address = {
+        interface.public_rpc_address.hostname,
+        interface.public_rpc_address.port};
       addr.max_open_sessions_soft = interface.max_open_sessions;
       addr.max_open_sessions_hard = interface.max_open_sessions_hard;
       ccf_config.node_info_network.rpc_interfaces.push_back(addr);

@@ -1614,8 +1614,9 @@ namespace ccf
         std::vector<crypto::SubjectAltName> sans;
         for (const auto& interface : config.node_info_network.rpc_interfaces)
         {
-          sans.push_back({interface.rpc_address.hostname,
-                          is_ip(interface.rpc_address.hostname)});
+          sans.push_back(
+            {interface.rpc_address.hostname,
+             is_ip(interface.rpc_address.hostname)});
         }
         return sans;
       }

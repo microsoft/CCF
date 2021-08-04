@@ -169,10 +169,11 @@ namespace enclave
 
       for (const auto& [name, interface] : listening_interfaces)
       {
-        sm.interfaces[name] = {interface.open_sessions,
-                               interface.peak_sessions,
-                               interface.max_open_sessions_soft,
-                               interface.max_open_sessions_hard};
+        sm.interfaces[name] = {
+          interface.open_sessions,
+          interface.peak_sessions,
+          interface.max_open_sessions_soft,
+          interface.max_open_sessions_hard};
       }
 
       return sm;

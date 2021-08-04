@@ -85,7 +85,6 @@ namespace ccf
   // both, so can be read as (or from!) either
   inline void to_json(nlohmann::json& j, const NodeInfoNetwork& nin)
   {
-
     {
       NodeInfoNetwork_v1 v1;
       v1.nodehost = nin.node_address.hostname;
