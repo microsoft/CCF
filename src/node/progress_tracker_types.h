@@ -12,8 +12,6 @@
 #include "tls/tls.h"
 #include "view_change.h"
 
-#include <algorithm>
-
 namespace ccf
 {
   struct BftNodeSignature : public NodeSignature
@@ -307,7 +305,7 @@ namespace ccf
     for (; 3 * f + 1 < count; ++f)
       ;
 
-    return std::min(count, 2 * f + 1);
+    return 2 * f + 1;
   }
 
   // Counts the number of endorsements (backup signatures, nonces,
