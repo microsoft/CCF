@@ -809,6 +809,12 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
+  add_e2e_test(
+    NAME recovery_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    CONSENSUS ${CONSENSUS}
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
@@ -819,12 +825,6 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME recovery_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       CONSENSUS ${CONSENSUS}
     )
 
