@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe0.17.1-focal-driverless
+    container: ccfciteam/ccf-ci:oe0.17.1-focal-lite
     pool:
       vmImage: ubuntu-20.04
 
