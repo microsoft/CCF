@@ -31,10 +31,10 @@ Labelling LTS PRs
 
 To keep track of which changes should be merged to LTS branches and then confirm them before cutting LTS releases, the following policy should be used:
 
-    1. PRs targetting ``main`` which contain changes that should also reach the LTS should be labelled in Github with ``lts-candidate``
+    1. A PR targetting ``main`` which contains changes that should also reach the LTS should be labelled in Github with ``lts-candidate``
     2. Where possible ``lts-candidate`` PRs should contain the minimal set of changes with no dependencies on earlier PRs, so they can be more easily cherry-picked
-    3. PRs targetting an LTS branch (``release/N.x``) should be given labelled in Github with ``lts``, so they can be easily found
-    4. PRs targetting an LTS branch which are constructed primarily of a cherry-pick from ``main`` should be named consistently as ``Cherry-pick #<PR_ID> to N.x LTS``, so they can be easily correlated with the corresponding ``lts-candidate`` PRs
-    5. Once a corresponding cherry-pick has been merged to the LTS branch, the ``lts-candidate`` can be removed from the original PR
+    3. A PR targetting an LTS branch (``release/N.x``) should be labelled in Github with ``lts``, so it can be easily found with a filter
+    4. A PR targetting an LTS branch which is constructed primarily of a cherry-pick from ``main`` should be named consistently as ``Cherry-pick #<PR_ID> to N.x LTS``, so it can be easily correlated with the corresponding ``lts-candidate`` PR. If an LTS PR contains commits from multiple PRs to ``main``, each should be mentioned in the PR title, eg ``Port <foo> to N.x LTS (#PR1_ID, #PR2_ID, ...)```
+    5. Once a corresponding cherry-pick has been merged to the LTS branch, the ``lts-candidate`` label can be removed from the original PR
 
 Before creating an LTS release, the releaser should do a scan of PRs and ensure that there are none with ``lts-candidate`` label. If any exist, they should be merged to the LTS branch before releasing, and those candidate labels removed.
