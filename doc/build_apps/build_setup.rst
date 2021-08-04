@@ -11,7 +11,6 @@ Then, to quickly set up the dependencies necessary to build CCF itself and CCF a
 .. code-block:: bash
 
     $ cd <ccf_path>/getting_started/setup_vm
-    $ ./run.sh driver.yml # Only on SGX-enabled hardware
     $ ./run.sh ccf-dev.yml
 
 Once this is complete, you can proceed to :doc:`/build_apps/build_app`.
