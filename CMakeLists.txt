@@ -359,6 +359,10 @@ if(BUILD_TESTS)
     )
     target_link_libraries(snapshotter_test PRIVATE)
 
+    add_unit_test(
+      node_info_json_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
+    )
+
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
