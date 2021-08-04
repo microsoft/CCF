@@ -146,6 +146,12 @@ namespace aft
 
   struct AppendEntriesResponse : RaftHeader
   {
+    // This term and idx usually refer to the tail of the sender's log. The
+    // exception is in a rejection because of a mismatching suffix, in which
+    // case this describes the latest point that the local node believes may
+    // still match the leader's (which may be from an old term!). In either case
+    // this can be treated as the latest possible matching index for this
+    // follower.
     Term term;
     Index last_log_idx;
     AppendEntriesResponseType success;
