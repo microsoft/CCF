@@ -11,6 +11,7 @@
 #include "node_signature.h"
 #include "tls/tls.h"
 #include "view_change.h"
+#include <algorithm>
 
 namespace ccf
 {
@@ -305,7 +306,7 @@ namespace ccf
     for (; 3 * f + 1 < count; ++f)
       ;
 
-    return 2 * f + 1;
+    return std::min(count, 2 * f + 1);
   }
 
   // Counts the number of endorsements (backup signatures, nonces,
