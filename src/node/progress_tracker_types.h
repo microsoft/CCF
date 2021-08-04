@@ -11,6 +11,7 @@
 #include "node_signature.h"
 #include "tls/tls.h"
 #include "view_change.h"
+
 #include <algorithm>
 
 namespace ccf
