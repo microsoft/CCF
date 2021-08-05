@@ -61,8 +61,8 @@ namespace kv
 
     ApplyResult apply() override
     {
-      kv::Version max_conflict_version;
-      kv::Term view;
+      kv::Version max_conflict_version = 0;
+      kv::Term view = 0;
       if (!store->fill_maps(
             data,
             public_only,
