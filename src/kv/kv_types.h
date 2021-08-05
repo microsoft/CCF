@@ -580,8 +580,6 @@ namespace kv
 
     using NamedHandleMixin::NamedHandleMixin;
     virtual ~AbstractMap() {}
-    virtual bool operator==(const AbstractMap& that) const = 0;
-    virtual bool operator!=(const AbstractMap& that) const = 0;
 
     virtual std::unique_ptr<AbstractCommitter> create_committer(
       AbstractChangeSet* changes) = 0;

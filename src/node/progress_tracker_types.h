@@ -301,11 +301,7 @@ namespace ccf
 
   static constexpr uint32_t get_endorsement_threshold(uint32_t count)
   {
-    uint32_t f = 0;
-    for (; 3 * f + 1 < count; ++f)
-      ;
-
-    return 2 * f + 1;
+    return count * 2 / 3 + 1;
   }
 
   // Counts the number of endorsements (backup signatures, nonces,
@@ -315,7 +311,7 @@ namespace ccf
     T& messages, const kv::Configuration::Nodes& config)
   {
     uint32_t endorsements = 0;
-    for (const auto node : config)
+    for (const auto& node : config)
     {
       if (messages.find(node.first) != messages.end())
       {

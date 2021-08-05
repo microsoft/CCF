@@ -20,10 +20,9 @@ namespace crypto
     OpenSSL::Unique_X509_REQ csr(mem);
     OpenSSL::Unique_BIO buf;
 
-    EVP_PKEY* req_pubkey = X509_REQ_get_pubkey(csr);
+    EVP_PKEY* req_pubkey = X509_REQ_get0_pubkey(csr);
 
     OpenSSL::CHECK1(PEM_write_bio_PUBKEY(buf, req_pubkey));
-    EVP_PKEY_free(req_pubkey);
 
     BUF_MEM* bptr;
     BIO_get_mem_ptr(buf, &bptr);

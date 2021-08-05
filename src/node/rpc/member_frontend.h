@@ -416,13 +416,14 @@ namespace ccf
           }
         }
 
-        return jsgov::ProposalInfoSummary{proposal_id,
-                                          pi_->proposer_id,
-                                          pi_.value().state,
-                                          pi_.value().ballots.size(),
-                                          final_votes,
-                                          vote_failures,
-                                          failure};
+        return jsgov::ProposalInfoSummary{
+          proposal_id,
+          pi_->proposer_id,
+          pi_.value().state,
+          pi_.value().ballots.size(),
+          final_votes,
+          vote_failures,
+          failure};
       }
     }
 
@@ -521,8 +522,8 @@ namespace ccf
 
       const AuthnPolicies member_sig_only = {member_signature_auth_policy};
 
-      const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy,
-                                                member_signature_auth_policy};
+      const AuthnPolicies member_cert_or_sig = {
+        member_cert_auth_policy, member_signature_auth_policy};
 
       //! A member acknowledges state
       auto ack = [this](auto& ctx, nlohmann::json&& params) {
@@ -796,78 +797,6 @@ namespace ccf
         json_adapter(submit_recovery_share),
         member_cert_or_sig)
         .set_auto_schema<SubmitRecoveryShare>()
-        .install();
-
-      auto create = [this](auto& ctx, nlohmann::json&& params) {
-        LOG_DEBUG_FMT("Processing create RPC");
-        const auto in = params.get<CreateNetworkNodeToNode::In>();
-
-        GenesisGenerator g(this->network, ctx.tx);
-
-        // This endpoint can only be called once, directly from the starting
-        // node for the genesis transaction to initialise the service
-        if (g.is_service_created())
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Service is already created.");
-        }
-
-        g.init_values();
-        g.create_service(in.network_cert);
-
-        for (const auto& info : in.members_info)
-        {
-          g.add_member(info);
-        }
-
-        if (
-          in.configuration.consensus == ConsensusType::BFT &&
-          (!in.configuration.reconfiguration_type.has_value() ||
-           in.configuration.reconfiguration_type.value() !=
-             ReconfigurationType::TWO_TRANSACTION))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "BFT consensus requires two-transaction reconfiguration.");
-        }
-
-        // Note that it is acceptable to start a network without any member
-        // having a recovery share. The service will check that at least one
-        // recovery member is added before the service is opened.
-        g.init_configuration(in.configuration);
-
-        // TODO: Record CSR, public key and endorsed certificate
-        g.add_node(
-          in.node_id,
-          {in.node_info_network,
-           Pem(), // This field was used in 1.x to record self-signed node
-                  // certificate
-           {in.quote_info},
-           in.public_encryption_key,
-           NodeStatus::TRUSTED,
-           std::nullopt,
-           ds::to_hex(in.code_digest.data),
-           std::nullopt});
-
-        auto endorsed_certificates =
-          ctx.tx.rw(network.node_endorsed_certificates);
-        endorsed_certificates->put(in.node_id, {in.node_cert});
-
-#ifdef GET_QUOTE
-        g.trust_node_code_id(in.code_digest);
-#endif
-
-        g.set_constitution(in.constitution);
-
-        LOG_INFO_FMT("Created service");
-        return make_success(true);
-      };
-      make_endpoint(
-        "/create", HTTP_POST, json_adapter(create), no_auth_required)
-        .set_openapi_hidden(true)
         .install();
 
       // Only called from node. See node_state.h.

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/curve.h"
-
 #include "crypto/hash.h"
 
 #include <mbedtls/ecp.h>

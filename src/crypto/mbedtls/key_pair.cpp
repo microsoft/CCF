@@ -283,6 +283,14 @@ namespace crypto
     MCHK(mbedtls_x509_csr_parse(
       csr.get(), signing_request.data(), signing_request.size()));
 
+    // Verify self-signed CSR
+    const auto info = mbedtls_md_info_from_type(csr->sig_md);
+    const auto hash_size = mbedtls_md_get_size(info);
+    HashBytes h(hash_size);
+    MCHK(mbedtls_md(info, csr->cri.p, csr->cri.len, h.data()));
+    MCHK(mbedtls_pk_verify(
+      &csr->pk, csr->sig_md, h.data(), h.size(), csr->sig.p, csr->sig.len));
+
     char subject[512];
     mbedtls_x509_dn_gets(subject, sizeof(subject), &csr->subject);
 
