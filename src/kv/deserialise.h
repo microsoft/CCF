@@ -53,16 +53,13 @@ namespace kv
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_) :
-      store(store_),
-      history(history_),
-      data(data_),
-      public_only(public_only_)
+      store(store_), history(history_), data(data_), public_only(public_only_)
     {}
 
     ApplyResult apply() override
     {
-      kv::Term view;
-      kv::Version max_conflict_version;
+      kv::Version max_conflict_version = 0;
+      kv::Term view = 0;
       if (!store->fill_maps(
             data,
             public_only,

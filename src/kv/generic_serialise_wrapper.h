@@ -282,7 +282,7 @@ namespace kv
       }
 
       // If the kv store has no encryptor, assume that the serialised tx is
-      // public only with no header
+      // public only with no header (test only)
       if (!crypto_util)
       {
         public_reader.init(data_, size_);
@@ -303,6 +303,12 @@ namespace kv
         domain_restriction.has_value() &&
         domain_restriction.value() == SecurityDomain::PUBLIC)
       {
+        // Retrieve term from GCM header, even if the domain restriction is set
+        // to public and the decryption is skipped, so that the term for the
+        // deserialised entry can be reported
+        term =
+          crypto_util->get_term(gcm_hdr_data, crypto_util->get_header_length());
+
         return std::make_tuple(version, max_conflict_version);
       }
 
