@@ -357,7 +357,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
 
-          node_cert = create_endorsed_node_cert();
+          node_cert = create_self_signed_node_cert();
 
           network.ledger_secrets->init();
 
@@ -392,7 +392,7 @@ namespace ccf
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections();
+          accept_node_tls_connections();
           auto_refresh_jwt_keys();
 
           reset_data(quote_info.quote);
@@ -426,7 +426,7 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
-          node_cert = create_endorsed_node_cert();
+          node_cert = create_self_signed_node_cert();
 
           setup_history();
 
@@ -447,7 +447,7 @@ namespace ccf
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
 
-          accept_network_tls_connections();
+          accept_node_tls_connections();
 
           sm.advance(State::readingPublicLedger);
 
@@ -539,14 +539,14 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
             // Endorsed node certificate is included in join response from 2.x.
-            // When joining an existing 1.x service, self-sign own certificate
-            // and use it to endorse TLS connections
             if (resp.network_info.endorsed_certificate.has_value())
             {
               node_cert = resp.network_info.endorsed_certificate.value();
             }
             else
             {
+              // When joining an existing 1.x service, self-sign own certificate
+              // and use it to endorse TLS connections
               node_cert = create_endorsed_node_cert();
               accept_network_tls_connections();
             }
