@@ -321,8 +321,8 @@ namespace ccf
 
     bool is_service_created(const crypto::Pem& expected_service_cert)
     {
-      auto service = tx.ro(tables.service);
-      return service->get()->cert == expected_service_cert;
+      auto service = tx.ro(tables.service)->get();
+      return service.has_value() && service->cert == expected_service_cert;
     }
 
     bool open_service()
