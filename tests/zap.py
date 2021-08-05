@@ -15,6 +15,7 @@ def test(network, args):
     openapi_endpoint = f"https://{node.pubhost}:{node.pubport}/node/api"
 
     args = [
+        "sudo",
         "docker",
         "run",
         "--rm",
