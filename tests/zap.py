@@ -26,8 +26,6 @@ def test(network, args):
         "docker",
         "run",
         "--rm",
-        "--network",
-        "host",
         "-v",
         f"{vm_binary_dir}:/zap/wrk",
         "-t",
