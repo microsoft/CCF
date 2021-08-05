@@ -866,3 +866,17 @@ TEST_CASE("Sending evidence out of band")
     }
   }
 }
+
+TEST_CASE("Endorsement threshold")
+{
+  REQUIRE(ccf::get_endorsement_threshold(1) == 1);
+  REQUIRE(ccf::get_endorsement_threshold(2) == 2);
+  REQUIRE(ccf::get_endorsement_threshold(3) == 3);
+  REQUIRE(ccf::get_endorsement_threshold(4) == 3);
+  REQUIRE(ccf::get_endorsement_threshold(5) == 4);
+  REQUIRE(ccf::get_endorsement_threshold(6) == 5);
+  REQUIRE(ccf::get_endorsement_threshold(7) == 5);
+  REQUIRE(ccf::get_endorsement_threshold(8) == 6);
+  REQUIRE(ccf::get_endorsement_threshold(9) == 7);
+  REQUIRE(ccf::get_endorsement_threshold(10) == 7);
+}
