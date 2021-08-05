@@ -8,6 +8,7 @@ jobs:
     steps:
       - script: |
           sudo rm -rf build
+          env
         displayName: "Cleanup"
 
       - checkout: self
