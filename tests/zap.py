@@ -26,6 +26,8 @@ def test(network, args):
         "docker",
         "run",
         "--rm",
+        "--network",
+        "host",
         "-v",
         f"{vm_binary_dir}:/zap/wrk",
         "-t",
@@ -57,5 +59,5 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    args.nodes = ["local://127.0.0.1:45000"]
+    args.nodes = ["local://0.0.0.0:45000,127.0.0.1:45000"]
     run(args)
