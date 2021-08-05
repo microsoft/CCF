@@ -6,6 +6,7 @@ import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
 import subprocess
+import os
 
 
 @reqs.description("HTTP fuzzing with ZAP")
@@ -13,6 +14,12 @@ import subprocess
 def test(network, args):
     node = network.nodes[0]
     openapi_endpoint = f"https://{node.pubhost}:{node.pubport}/node/api"
+
+    vm_binary_dir = args.binary_dir
+    local_path = os.getenv("BUILD_REPOSITORY_LOCALPATH")
+    if local_path:
+        vm_path = local_path.replace("__w", "mnt/vss/_work")
+        vm_binary_dir = args.binary_dir.replace(local_path, vm_path)
 
     args = [
         "sudo",
@@ -22,7 +29,7 @@ def test(network, args):
         "--network",
         "host",
         "-v",
-        f"{args.binary_dir}:/zap/wrk",
+        f"{vm_binary_dir}:/zap/wrk",
         "-t",
         "owasp/zap2docker-stable",
         "zap-api-scan.py",
