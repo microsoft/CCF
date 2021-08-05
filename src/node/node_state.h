@@ -816,7 +816,7 @@ namespace ccf
         store->compact(ledger_idx);
         auto tx = store->create_tx();
         GenesisGenerator g(network, tx);
-        auto last_sig = g.get_last_signature();
+        auto last_sig = tx.ro(network.signatures)->get();
 
         if (!last_sig.has_value())
         {
@@ -1021,7 +1021,7 @@ namespace ccf
       if (!create_and_send_request(true))
       {
         throw std::runtime_error(
-          "End of recovery transaction could not be committed");
+          "End of public recovery transaction could not be committed");
       }
 
       open_frontend(ActorsType::members);
@@ -1606,7 +1606,6 @@ namespace ccf
     {
       CreateNetworkNodeToNode::In create_params;
 
-      // TODO: Use optional types in node interface instead!
       if (!recovery)
       {
         CreateNetworkNodeToNode::In::GenesisInfo genesis_info;

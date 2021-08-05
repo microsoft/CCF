@@ -409,12 +409,6 @@ namespace ccf
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
     }
 
-    auto get_last_signature()
-    {
-      auto signatures = tx.ro(tables.signatures);
-      return signatures->get();
-    }
-
     void set_constitution(const std::string& constitution)
     {
       tx.rw(tables.constitution)->put(0, constitution);
