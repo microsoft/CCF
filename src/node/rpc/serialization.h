@@ -52,19 +52,24 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
 
-  DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
+  DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In::GenesisInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    CreateNetworkNodeToNode::In,
+    CreateNetworkNodeToNode::In::GenesisInfo,
     members_info,
     constitution,
+    configuration)
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CreateNetworkNodeToNode::In)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    CreateNetworkNodeToNode::In,
     node_id,
     node_cert,
     network_cert,
     quote_info,
     public_encryption_key,
     code_digest,
-    node_info_network,
-    configuration)
+    node_info_network)
+  DECLARE_JSON_OPTIONAL_FIELDS(CreateNetworkNodeToNode::In, genesis_info)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)

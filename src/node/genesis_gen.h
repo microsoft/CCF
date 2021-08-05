@@ -319,10 +319,10 @@ namespace ccf
       service->put({network_cert, ServiceStatus::OPENING});
     }
 
-    bool is_service_created()
+    bool is_service_created(const crypto::Pem& expected_service_cert)
     {
-      auto service = tx.ro(tables.service);
-      return service->get().has_value();
+      auto service = tx.ro(tables.service)->get();
+      return service.has_value() && service->cert == expected_service_cert;
     }
 
     bool open_service()
@@ -407,12 +407,6 @@ namespace ccf
       add_new_network_reconfiguration(tables, tx, nc);
 
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
-    }
-
-    auto get_last_signature()
-    {
-      auto signatures = tx.ro(tables.signatures);
-      return signatures->get();
     }
 
     void set_constitution(const std::string& constitution)
