@@ -93,7 +93,7 @@ namespace crypto
    * @param der Sequence of bytes containing the key in DER format
    * @return Public key
    */
-  PublicKeyPtr make_public_key(const std::vector<uint8_t> der);
+  PublicKeyPtr make_public_key(const std::vector<uint8_t>& der);
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and

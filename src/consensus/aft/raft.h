@@ -690,7 +690,7 @@ namespace aft
 
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
-          state->my_node_id.trim(),
+          state->my_node_id,
           index,
           (globally_committable ? " committable" : ""),
           hooks->size());
@@ -733,7 +733,7 @@ namespace aft
           entry_size_not_limited = 0;
           for (const auto& it : nodes)
           {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first.trim());
+            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
@@ -1036,8 +1036,7 @@ namespace aft
 
       ccf::ViewChangeRequest v =
         ccf::ViewChangeRequest::deserialize(data, size);
-      LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", from.trim(), r.view);
+      LOG_INFO_FMT("Received view change from:{}, view:{}", from, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
       auto result =
@@ -1144,6 +1143,39 @@ namespace aft
     }
 
   private:
+    Index find_highest_possible_match(const ccf::TxID& tx_id)
+    {
+      // Find the highest TxID this node thinks exists, which is still
+      // compatible with the given tx_id. That is, given T.n, find largest n'
+      // such that n' <= n && term_of(n') == T' && T' <= T. This may be T.n
+      // itself, if this node holds that index. Otherwise, examine the final
+      // entry in each term, counting backwards, until we find one which is
+      // still possible.
+      Index probe_index = std::min(tx_id.seqno, state->last_idx);
+      Term term_of_probe = state->view_history.view_at(probe_index);
+      while (term_of_probe > tx_id.view)
+      {
+        // Next possible match is the end of the previous term, which is
+        // 1-before the start of the currently considered term. Anything after
+        // that must have a term which is still too high.
+        probe_index = state->view_history.start_of_view(term_of_probe);
+        if (probe_index > 0)
+        {
+          --probe_index;
+        }
+        term_of_probe = state->view_history.view_at(probe_index);
+      }
+
+      LOG_TRACE_FMT(
+        "Looking for match with {}.{}, from {}.{}, best answer is {}",
+        tx_id.view,
+        tx_id.seqno,
+        state->view_history.view_at(state->last_idx),
+        state->last_idx,
+        probe_index);
+      return probe_index;
+    }
+
     inline void update_batch_size()
     {
       auto avg_entry_size = (entry_count == 0) ?
@@ -1305,13 +1337,14 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {{raft_append_entries},
-                          {end_idx, prev_idx},
-                          state->current_view,
-                          prev_term,
-                          state->commit_idx,
-                          term_of_idx,
-                          contains_new_view};
+      AppendEntries ae = {
+        {raft_append_entries},
+        {end_idx, prev_idx},
+        state->current_view,
+        prev_term,
+        state->commit_idx,
+        term_of_idx,
+        contains_new_view};
 
       auto& node = nodes.at(to);
 
@@ -1471,6 +1504,7 @@ namespace aft
             state->my_node_id,
             from,
             r.prev_idx);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         }
         else
         {
@@ -1482,9 +1516,10 @@ namespace aft
             r.prev_idx,
             prev_term,
             r.prev_term);
+          const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
+          send_append_entries_response(
+            from, AppendEntriesResponseType::FAIL, rejected_tx);
         }
-
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -1538,8 +1573,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.idx,
         r.prev_idx);
 
@@ -1582,8 +1617,7 @@ namespace aft
           continue;
         }
 
-        LOG_DEBUG_FMT(
-          "Replicating on follower {}: {}", state->my_node_id.trim(), i);
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
         std::vector<uint8_t> entry;
         try
@@ -2125,37 +2159,39 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to, AppendEntriesResponseType answer)
+      ccf::NodeId to,
+      AppendEntriesResponseType answer,
+      const std::optional<ccf::TxID>& rejected = std::nullopt)
     {
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
       }
 
-      // AppendEntriesResponse should contain the highest _matching_ index we
-      // hold - that is how the primary will treat it.
-      // If this is an affirmative response, then that index is the last entry
-      // in this log.
-      // But if this is NACKing what was just sent (because it could not be
-      // applied), then we want to ensure that the next thing they send begins
-      // with a match. This may result in resending a redundant chunk which
-      // agrees, but will eventually include the earliest mismatch, which will
-      // trigger a rollback and correct application on this node.
-      auto matching_idx = answer == AppendEntriesResponseType::FAIL ?
-        state->commit_idx :
-        state->last_idx;
+      aft::Index response_idx = state->last_idx;
+      aft::Term response_term = state->current_view;
+
+      // This matching-index-detection logic doesn't work on BFT, so is disabled
+      // and still uses the original behaviour:
+      // https://github.com/microsoft/CCF/issues/2853
+      if (consensus_type != ConsensusType::BFT)
+      {
+        if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
+        {
+          response_idx = find_highest_possible_match(rejected.value());
+          response_term = get_term_internal(response_idx);
+        }
+      }
 
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
-        matching_idx,
+        state->my_node_id,
+        to,
+        response_idx,
         answer);
 
-      AppendEntriesResponse response = {{raft_append_entries_response},
-                                        state->current_view,
-                                        matching_idx,
-                                        answer};
+      AppendEntriesResponse response = {
+        {raft_append_entries_response}, response_term, response_idx, answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -2166,19 +2202,20 @@ namespace aft
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         state->last_idx);
 
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
 
-      SignedAppendEntriesResponse r = {{raft_append_entries_signed_response},
-                                       state->current_view,
-                                       state->last_idx,
-                                       {},
-                                       static_cast<uint32_t>(sig.sig.size()),
-                                       {}};
+      SignedAppendEntriesResponse r = {
+        {raft_append_entries_signed_response},
+        state->current_view,
+        state->last_idx,
+        {},
+        static_cast<uint32_t>(sig.sig.size()),
+        {}};
 
       std::optional<crypto::Sha256Hash> hashed_nonce;
       progress_tracker->get_node_hashed_nonce(
@@ -2299,7 +2336,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
 
@@ -2373,7 +2410,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing nonce_reveal, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
@@ -2425,41 +2462,55 @@ namespace aft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale term ({} != {})",
-          state->my_node_id,
-          from,
-          r.term,
-          state->current_view);
+        // NB: In NACKs the term may be that of an estimated matching index
+        // in the log, rather than the current term, so it is correct for it to
+        // be older in this case.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale term ({} != {})",
+            state->my_node_id,
+            from,
+            r.term,
+            state->current_view);
           return;
         }
       }
       else if (r.last_log_idx < node->second.match_idx)
       {
-        // Stale response, discard if success.
+        // Response about past indices, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale idx",
-          state->my_node_id,
-          from);
+        // NB: It is correct for this index to move backwards during NACKs
+        // which iteratively discover the last matching index of divergent logs
+        // after an election.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale idx",
+            state->my_node_id,
+            from);
           return;
         }
       }
 
       // Update next and match for the responding node.
-      node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      if (r.success == AppendEntriesResponseType::FAIL)
+      {
+        node->second.match_idx =
+          find_highest_possible_match({r.term, r.last_log_idx});
+      }
+      else
+      {
+        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      }
 
       if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
-                                    state->current_view};
+        ViewChangeEvidenceMsg vw = {
+          {bft_view_change_evidence}, state->current_view};
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
@@ -2488,8 +2539,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.last_log_idx);
       update_commit();
     }
@@ -2499,15 +2550,16 @@ namespace aft
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
         "Send request vote from {} to {} at {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {{raft_request_vote},
-                        state->current_view,
-                        last_committable_idx,
-                        get_term_internal(last_committable_idx)};
+      RequestVote rv = {
+        {raft_request_vote},
+        state->current_view,
+        last_committable_idx,
+        get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
@@ -2599,8 +2651,8 @@ namespace aft
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         answer);
 
       RequestVoteResponse response = {
@@ -3049,7 +3101,7 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
-      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
+      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
       // Examine all configurations that are followed by a globally committed
       // configuration.
@@ -3161,6 +3213,8 @@ namespace aft
       ledger->truncate(idx);
       state->last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
+
+      state->view_history.rollback(idx);
 
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {

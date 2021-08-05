@@ -37,7 +37,7 @@ namespace asynchost
       {
         LOG_DEBUG_FMT(
           "from node {} received {} bytes",
-          node.value_or(UnassociatedNode).trim(),
+          node.value_or(UnassociatedNode),
           len);
 
         pending.insert(pending.end(), incoming, incoming + len);
@@ -62,7 +62,7 @@ namespace asynchost
           {
             LOG_DEBUG_FMT(
               "from node {} have {}/{} bytes",
-              node.value_or(UnassociatedNode).trim(),
+              node.value_or(UnassociatedNode),
               size,
               msg_size.value());
             break;
@@ -83,7 +83,7 @@ namespace asynchost
 
           LOG_DEBUG_FMT(
             "node in: from node {}, size {}, type {}",
-            node->trim(),
+            node.value(),
             msg_size.value(),
             msg_type);
 
@@ -357,7 +357,7 @@ namespace asynchost
 
             LOG_DEBUG_FMT(
               "send AE to node {} [{}]: {}, {}",
-              to.trim(),
+              to,
               frame,
               ae.idx,
               ae.prev_idx);
@@ -367,7 +367,7 @@ namespace asynchost
             // Write as framed data to the recipient.
             uint32_t frame = (uint32_t)size_to_send;
 
-            LOG_DEBUG_FMT("node send to {} [{}]", to.trim(), frame);
+            LOG_DEBUG_FMT("node send to {} [{}]", to, frame);
 
             outbound_connection->write(sizeof(uint32_t), (uint8_t*)&frame);
             outbound_connection->write(size_to_send, data_to_send);

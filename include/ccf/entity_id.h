@@ -57,20 +57,6 @@ namespace ccf
       return id < other.id;
     }
 
-    std::string trim() const
-    {
-      // Some entities (typically NodeIds) are printed in many places when
-      // VERBOSE_LOGGING is activated so trim them explicitly whenever possible
-      // in this case. Otherwise, return the entire value.
-#ifdef VERBOSE_LOGGING
-      static constexpr size_t entity_id_truncation_max_char_count = 10;
-      return id.substr(
-        0, std::min(size(), entity_id_truncation_max_char_count));
-#else
-      return id;
-#endif
-    }
-
     Value& value()
     {
       return id;

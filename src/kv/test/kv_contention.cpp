@@ -68,10 +68,11 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
       std::vector<std::tuple<size_t, size_t, size_t, size_t>> writes;
       for (size_t j = 0u; j < tx_size; ++j)
       {
-        writes.push_back({rand() % args->maps.size(),
-                          rand() % max_k,
-                          rand() % args->maps.size(),
-                          rand() % max_k});
+        writes.push_back(
+          {rand() % args->maps.size(),
+           rand() % max_k,
+           rand() % args->maps.size(),
+           rand() % max_k});
       }
 
       // Keep trying until you're able to commit it
