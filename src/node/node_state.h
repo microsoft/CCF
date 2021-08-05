@@ -1652,6 +1652,7 @@ namespace ccf
 
       create_params.node_id = self;
       create_params.node_cert = node_cert;
+      create_params.public_key = node_sign_kp->public_key_pem();
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();

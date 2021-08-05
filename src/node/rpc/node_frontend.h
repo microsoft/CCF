@@ -1109,17 +1109,26 @@ namespace ccf
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
 
+        // TODO: Record CSR, public key and endorsed certificate
+
         g.add_node(
           in.node_id,
           {in.node_info_network,
-           in.node_cert,
+           Pem(), // This field was used in 1.x to record self-signed node
+                  // certificate
            {in.quote_info},
            in.public_encryption_key,
            NodeStatus::PENDING,
            std::nullopt,
-           ds::to_hex(in.code_digest.data)});
+           ds::to_hex(in.code_digest.data),
+           std::nullopt,
+           in.public_key});
         g.trust_node(
           in.node_id, network.ledger_secrets->get_latest(ctx.tx).first);
+
+        auto endorsed_certificates =
+          ctx.tx.rw(network.node_endorsed_certificates);
+        endorsed_certificates->put(in.node_id, {in.node_cert});
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);

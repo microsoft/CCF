@@ -61,6 +61,7 @@ namespace ccf
     {
       NodeId node_id;
       crypto::Pem node_cert;
+      crypto::Pem public_key;
       crypto::Pem network_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;

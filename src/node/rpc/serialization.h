@@ -69,6 +69,7 @@ namespace ccf
     CreateNetworkNodeToNode::In,
     node_id,
     node_cert,
+    public_key,
     network_cert,
     quote_info,
     public_encryption_key,
