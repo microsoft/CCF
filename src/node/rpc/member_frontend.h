@@ -806,8 +806,9 @@ namespace ccf
         GenesisGenerator g(this->network, ctx.tx);
 
         // This endpoint can only be called once, directly from the starting
-        // node for the genesis transaction to initialise the service
-        if (g.is_service_created())
+        // node for the genesis or end of public recovery transaction to
+        // initialise the service
+        if (g.is_service_created(in.network_cert))
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -815,30 +816,38 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.init_values();
         g.create_service(in.network_cert);
 
-        for (const auto& info : in.members_info)
+        if (in.genesis_info.has_value())
         {
-          g.add_member(info);
+          g.init_values();
+
+          // Note that it is acceptable to start a network without any member
+          // having a recovery share. The service will check that at least one
+          // recovery member is added before the service is opened.
+          for (const auto& info : in.genesis_info->members_info)
+          {
+            g.add_member(info);
+          }
+
+          if (
+            in.genesis_info->configuration.consensus == ConsensusType::BFT &&
+            (!in.genesis_info->configuration.reconfiguration_type.has_value() ||
+             in.genesis_info->configuration.reconfiguration_type.value() !=
+               ReconfigurationType::TWO_TRANSACTION))
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "BFT consensus requires two-transaction reconfiguration.");
+          }
+
+          g.init_configuration(in.genesis_info->configuration);
+          g.set_constitution(in.genesis_info->constitution);
         }
 
-        if (
-          in.configuration.consensus == ConsensusType::BFT &&
-          (!in.configuration.reconfiguration_type.has_value() ||
-           in.configuration.reconfiguration_type.value() !=
-             ReconfigurationType::TWO_TRANSACTION))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "BFT consensus requires two-transaction reconfiguration.");
-        }
-
-        // Note that it is acceptable to start a network without any member
-        // having a recovery share. The service will check that at least one
-        // recovery member is added before the service is opened.
-        g.init_configuration(in.configuration);
+        // Retire all nodes, in case there are any (i.e. post recovery)
+        g.retire_active_nodes();
 
         g.add_node(
           in.node_id,
@@ -853,8 +862,6 @@ namespace ccf
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);
 #endif
-
-        g.set_constitution(in.constitution);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);

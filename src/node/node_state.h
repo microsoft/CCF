@@ -384,7 +384,7 @@ namespace ccf
           // network
           open_frontend(ActorsType::members);
 
-          if (!create_and_send_request())
+          if (!create_and_send_request(false))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
@@ -959,11 +959,7 @@ namespace ccf
         last_recovered_term,
         last_recovered_signed_idx);
 
-      auto tx = network.tables->create_tx();
-      GenesisGenerator g(network, tx);
-      g.create_service(network.identity->cert);
-      auto network_config = g.retire_active_nodes();
-
+      auto tx = network.tables->create_read_only_tx();
       if (network.consensus_type == ConsensusType::BFT)
       {
         // BFT consensus requires a stable order of node IDs so that the
@@ -978,6 +974,10 @@ namespace ccf
         self = NodeId(fmt::format("{:#064}", id.value()));
       }
 
+      // GenesisGenerator g(network, tx);
+      // g.create_service(network.identity->cert);
+      // auto network_config = g.retire_active_nodes();
+
       CodeDigest code_digest;
 #ifdef GET_QUOTE
       auto code_id = enclave_attestation_provider.get_code_id(quote_info);
@@ -991,20 +991,27 @@ namespace ccf
       }
 #endif
 
-      g.add_node(
-        self,
-        {node_info_network,
-         node_cert,
-         quote_info,
-         node_encrypt_kp->public_key_pem().raw(),
-         NodeStatus::PENDING,
-         std::nullopt,
-         ds::to_hex(code_digest.data)});
+      if (!create_and_send_request(true))
+      {
+        throw std::runtime_error(
+          "End of recovery transaction could not be committed");
+      }
 
-      network_config.nodes.insert(self);
-      add_new_network_reconfiguration(network, tx, network_config);
+      // g.add_node(
+      //   self,
+      //   {node_info_network,
+      //    node_cert,
+      //    quote_info,
+      //    node_encrypt_kp->public_key_pem().raw(),
+      //    NodeStatus::PENDING,
+      //    std::nullopt,
+      //    ds::to_hex(code_digest.data)});
 
-      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+      // TODO: Not sure about this
+      // network_config.nodes.insert(self);
+      // add_new_network_reconfiguration(network, tx, network_config);
+
+      // LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
       setup_encryptor();
@@ -1017,7 +1024,8 @@ namespace ccf
       kv::Term view = 0;
       kv::Version global_commit = 0;
 
-      auto ls = g.get_last_signature();
+      // auto ls = g.get_last_signature();
+      auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
       {
         auto s = ls.value();
@@ -1049,19 +1057,20 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
+      // TODO: Pass ledger secrets seqno to create RPC
       // Sets itself as trusted
-      g.trust_node(self, network.ledger_secrets->get_latest(tx).first);
+      // g.trust_node(self, network.ledger_secrets->get_latest(tx).first);
 
-#ifdef GET_QUOTE
-      g.trust_node_code_id(node_code_id);
-#endif
+      // #ifdef GET_QUOTE
+      //       g.trust_node_code_id(node_code_id);
+      // #endif
 
-      if (tx.commit() != kv::CommitResult::SUCCESS)
-      {
-        throw std::logic_error(
-          "Could not commit transaction when starting recovered public "
-          "network");
-      }
+      // if (tx.commit() != kv::CommitResult::SUCCESS)
+      // {
+      //   throw std::logic_error(
+      //     "Could not commit transaction when starting recovered public "
+      //     "network");
+      // }
 
       open_frontend(ActorsType::members);
 
@@ -1641,16 +1650,30 @@ namespace ccf
       open_frontend(ccf::ActorsType::users, &network.identity->cert);
     }
 
-    std::vector<uint8_t> serialize_create_request(const QuoteInfo& quote_info)
+    std::vector<uint8_t> serialize_create_request(bool recovery = false)
     {
       CreateNetworkNodeToNode::In create_params;
 
-      for (const auto& m_info : config.genesis.members_info)
+      // TODO: Use optional types in node interface instead!
+      if (!recovery)
       {
-        create_params.members_info.push_back(m_info);
+        CreateNetworkNodeToNode::In::GenesisInfo genesis_info;
+        for (auto const& m_info : config.genesis.members_info)
+        {
+          genesis_info.members_info.push_back(m_info);
+        }
+        genesis_info.constitution = config.genesis.constitution;
+        auto reconf_type = network.consensus_type == ConsensusType::BFT ?
+          ReconfigurationType::TWO_TRANSACTION :
+          ReconfigurationType::ONE_TRANSACTION;
+
+        genesis_info.configuration = {
+          config.genesis.recovery_threshold,
+          network.consensus_type,
+          reconf_type};
+        create_params.genesis_info = genesis_info;
       }
 
-      create_params.constitution = config.genesis.constitution;
       create_params.node_id = self;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
@@ -1658,11 +1681,6 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
-      auto reconf_type = network.consensus_type == ConsensusType::BFT ?
-        ReconfigurationType::TWO_TRANSACTION :
-        ReconfigurationType::ONE_TRANSACTION;
-      create_params.configuration = {
-        config.genesis.recovery_threshold, network.consensus_type, reconf_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1750,10 +1768,10 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_request()
+    bool create_and_send_request(bool recovery = false)
     {
       const auto create_success =
-        send_create_request(serialize_create_request(quote_info));
+        send_create_request(serialize_create_request(recovery));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;

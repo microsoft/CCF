@@ -184,6 +184,8 @@ namespace http
         get_header_string(headers),
         body_view);
 
+      std::cout << "Request: " << request_string << std::endl;
+
       return std::vector<uint8_t>(request_string.begin(), request_string.end());
     }
   };

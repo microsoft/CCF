@@ -66,7 +66,7 @@ struct CCFConfig
     std::string constitution;
     size_t recovery_threshold;
   };
-  Genesis genesis = {};
+  Genesis genesis = {}; // TODO: Optional!
 
   struct Joining
   {

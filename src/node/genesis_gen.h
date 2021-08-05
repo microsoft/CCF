@@ -319,10 +319,10 @@ namespace ccf
       service->put({network_cert, ServiceStatus::OPENING});
     }
 
-    bool is_service_created()
+    bool is_service_created(const crypto::Pem& expected_service_cert)
     {
       auto service = tx.ro(tables.service);
-      return service->get().has_value();
+      return service->get()->cert == expected_service_cert;
     }
 
     bool open_service()
