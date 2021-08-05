@@ -30,8 +30,8 @@ resources:
       image: ccfciteam/ccf-ci:oe0.17.1-focal-clang10
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
-    - container: nosgx-passthru
-      image: ccfciteam/ccf-ci:oe0.17.1-focal-clang10
+    - container: nosgx-nested-docker
+      image: ccfciteam/ccf-ci:oe0.17.1-dockcker
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /var/run/docker.sock:/var/run/docker.sock
 
 jobs:

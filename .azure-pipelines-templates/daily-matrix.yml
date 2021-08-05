@@ -7,7 +7,7 @@ parameters:
       container: sgx
       pool: 1es-dcv2-focal
     Perf:
-      container: nosgx-passthru
+      container: nosgx-nested-docker
       pool: 1es-dv4-focal
 
   build:
