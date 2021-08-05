@@ -1023,6 +1023,7 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
+        // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {
           g.init_values();
@@ -1060,9 +1061,11 @@ namespace ccf
            in.node_cert,
            {in.quote_info},
            in.public_encryption_key,
-           NodeStatus::TRUSTED,
+           NodeStatus::PENDING,
            std::nullopt,
            ds::to_hex(in.code_digest.data)});
+        g.trust_node(
+          in.node_id, network.ledger_secrets->get_latest(ctx.tx).first);
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);

@@ -974,39 +974,6 @@ namespace ccf
         self = NodeId(fmt::format("{:#064}", id.value()));
       }
 
-      // GenesisGenerator g(network, tx);
-      // g.create_service(network.identity->cert);
-      // auto network_config = g.retire_active_nodes();
-
-      CodeDigest code_digest;
-#ifdef GET_QUOTE
-      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
-      if (code_id.has_value())
-      {
-        code_digest = code_id.value();
-      }
-      else
-      {
-        throw std::logic_error("Failed to extract code id from quote");
-      }
-#endif
-
-      // g.add_node(
-      //   self,
-      //   {node_info_network,
-      //    node_cert,
-      //    quote_info,
-      //    node_encrypt_kp->public_key_pem().raw(),
-      //    NodeStatus::PENDING,
-      //    std::nullopt,
-      //    ds::to_hex(code_digest.data)});
-
-      // TODO: Not sure about this
-      // network_config.nodes.insert(self);
-      // add_new_network_reconfiguration(network, tx, network_config);
-
-      // LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
-
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
       setup_encryptor();
 
@@ -1051,29 +1018,13 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      // TODO: Pass ledger secrets seqno to create RPC
-      // Sets itself as trusted
-      // g.trust_node(self, network.ledger_secrets->get_latest(tx).first);
-
-      // #ifdef GET_QUOTE
-      //       g.trust_node_code_id(node_code_id);
-      // #endif
-
-      // TODO: Move create endpoint to operator frontend
-      open_frontend(ActorsType::members);
-
       if (!create_and_send_request(true))
       {
         throw std::runtime_error(
           "End of recovery transaction could not be committed");
       }
 
-      // if (tx.commit() != kv::CommitResult::SUCCESS)
-      // {
-      //   throw std::logic_error(
-      //     "Could not commit transaction when starting recovered public "
-      //     "network");
-      // }
+      open_frontend(ActorsType::members);
 
       sm.advance(State::partOfPublicNetwork);
     }
