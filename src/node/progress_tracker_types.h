@@ -301,11 +301,7 @@ namespace ccf
 
   static constexpr uint32_t get_endorsement_threshold(uint32_t count)
   {
-    uint32_t f = 0;
-    for (; 3 * f + 1 < count; ++f)
-      ;
-
-    return 2 * f + 1;
+    return count * 2 / 3 + 1;
   }
 
   // Counts the number of endorsements (backup signatures, nonces,
