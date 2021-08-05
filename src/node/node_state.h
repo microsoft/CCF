@@ -991,12 +991,6 @@ namespace ccf
       }
 #endif
 
-      if (!create_and_send_request(true))
-      {
-        throw std::runtime_error(
-          "End of recovery transaction could not be committed");
-      }
-
       // g.add_node(
       //   self,
       //   {node_info_network,
@@ -1065,14 +1059,21 @@ namespace ccf
       //       g.trust_node_code_id(node_code_id);
       // #endif
 
+      // TODO: Move create endpoint to operator frontend
+      open_frontend(ActorsType::members);
+
+      if (!create_and_send_request(true))
+      {
+        throw std::runtime_error(
+          "End of recovery transaction could not be committed");
+      }
+
       // if (tx.commit() != kv::CommitResult::SUCCESS)
       // {
       //   throw std::logic_error(
       //     "Could not commit transaction when starting recovered public "
       //     "network");
       // }
-
-      open_frontend(ActorsType::members);
 
       sm.advance(State::partOfPublicNetwork);
     }
