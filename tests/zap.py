@@ -59,5 +59,5 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    args.nodes = ["local://localhost"]
+    args.nodes = ["local://localhost:45000"]
     run(args)
