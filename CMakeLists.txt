@@ -302,6 +302,7 @@ if(BUILD_TESTS)
     add_unit_test(
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
     target_link_libraries(raft_test PRIVATE ccfcrypto.host)
 
@@ -510,6 +511,12 @@ if(BUILD_TESTS)
       # Higher snapshot interval as snapshots trigger new ledger chunks, which
       # may result in latest chunk being partially written
       --snapshot-tx-interval 10000
+  )
+
+  add_e2e_test(
+    NAME recovery_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    CONSENSUS cft
   )
 
   add_e2e_test(
@@ -823,12 +830,6 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME recovery_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       CONSENSUS ${CONSENSUS}
     )
 
