@@ -384,7 +384,7 @@ namespace ccf
           // network
           open_frontend(ActorsType::members);
 
-          if (!create_and_send_request(false))
+          if (!create_and_send_create_request(true /* Create new consortium */))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
@@ -1018,7 +1018,8 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      if (!create_and_send_request(true))
+      if (!create_and_send_create_request(
+            false /* Restore consortium from ledger */))
       {
         throw std::runtime_error(
           "End of public recovery transaction could not be committed");
@@ -1602,11 +1603,13 @@ namespace ccf
       open_frontend(ccf::ActorsType::users, &network.identity->cert);
     }
 
-    std::vector<uint8_t> serialize_create_request(bool recovery = false)
+    std::vector<uint8_t> serialize_create_request(bool create_consortium = true)
     {
       CreateNetworkNodeToNode::In create_params;
 
-      if (!recovery)
+      // False on recovery where the consortium is read from the existing
+      // ledger
+      if (create_consortium)
       {
         CreateNetworkNodeToNode::In::GenesisInfo genesis_info;
         for (auto const& m_info : config.genesis.members_info)
@@ -1719,10 +1722,10 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_request(bool recovery = false)
+    bool create_and_send_create_request(bool create_consortium = true)
     {
       const auto create_success =
-        send_create_request(serialize_create_request(recovery));
+        send_create_request(serialize_create_request(create_consortium));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
