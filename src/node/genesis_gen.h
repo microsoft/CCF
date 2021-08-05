@@ -396,13 +396,12 @@ namespace ccf
         throw std::logic_error(fmt::format("Node {} is retired", node_id));
       }
 
-      kv::NetworkConfiguration nc =
-        get_latest_network_configuration(tables, tx);
-
       node_info->status = NodeStatus::TRUSTED;
       node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
       nodes->put(node_id, node_info.value());
 
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(tables, tx);
       nc.nodes.insert(node_id);
       add_new_network_reconfiguration(tables, tx, nc);
 

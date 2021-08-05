@@ -68,7 +68,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In,
     node_id,
-    node_cert,
+    certificate_signing_request,
     public_key,
     network_cert,
     quote_info,

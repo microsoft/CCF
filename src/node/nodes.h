@@ -40,6 +40,9 @@ namespace ccf
      * Node certificate. Only set for 1.x releases. Further releases record
      * node identity in `public_key` field. Service-endorsed certificate is
      * recorded in "public:ccf.nodes.endorsed_certificates" table */
+    // TODO: Could we change the `to_json` function here so that we don't
+    // serialise this for future ledger? Or make this optional with a default
+    // value of none??
     crypto::Pem cert;
     /// Node enclave quote
     QuoteInfo quote_info;

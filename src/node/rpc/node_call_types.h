@@ -60,7 +60,7 @@ namespace ccf
     struct In
     {
       NodeId node_id;
-      crypto::Pem node_cert;
+      crypto::Pem certificate_signing_request;
       crypto::Pem public_key;
       crypto::Pem network_cert;
       QuoteInfo quote_info;
