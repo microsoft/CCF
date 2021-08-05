@@ -13,7 +13,7 @@ import os
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     node = network.nodes[0]
-    openapi_endpoint = f"https://{node.pubhost}:{node.pubport}/node/api"
+    openapi_endpoint = f"https://127.0.0.1:{node.pubport}/node/api"
 
     vm_binary_dir = args.binary_dir
     local_path = os.getenv("BUILD_REPOSITORY_LOCALPATH")
@@ -59,5 +59,5 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    args.nodes = ["local://localhost:45000"]
+    args.nodes = ["local://127.0.0.1:45000"]
     run(args)
