@@ -1686,7 +1686,7 @@ namespace ccf
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
       http::Request request(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::members), "create"));
+        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "create"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
