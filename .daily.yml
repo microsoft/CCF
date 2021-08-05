@@ -32,7 +32,7 @@ resources:
 
     - container: nosgx-nested-docker
       image: ccfciteam/ccf-ci:oe0.17.1-dockcker
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /var/run/docker.sock:/var/run/docker.sock
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache --privileged -d docker:dind
 
 jobs:
   - template: .azure-pipelines-templates/daily-matrix.yml
