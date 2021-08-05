@@ -384,7 +384,7 @@ namespace ccf
           // network
           open_frontend(ActorsType::members);
 
-          if (!create_and_send_create_request(true /* Create new consortium */))
+          if (!create_and_send_boot_request(true /* Create new consortium */))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
@@ -1018,7 +1018,7 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      if (!create_and_send_create_request(
+      if (!create_and_send_boot_request(
             false /* Restore consortium from ledger */))
       {
         throw std::runtime_error(
@@ -1722,7 +1722,7 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_create_request(bool create_consortium = true)
+    bool create_and_send_boot_request(bool create_consortium = true)
     {
       const auto create_success =
         send_create_request(serialize_create_request(create_consortium));
