@@ -59,8 +59,6 @@ namespace ccf
   {
     struct In
     {
-      std::vector<NewMember> members_info;
-      std::string constitution;
       NodeId node_id;
       crypto::Pem node_cert;
       crypto::Pem network_cert;
@@ -68,7 +66,17 @@ namespace ccf
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
-      ServiceConfiguration configuration;
+
+      // Only set on genesis transaction, but not on recovery
+      struct GenesisInfo
+      {
+        std::vector<NewMember> members_info;
+        std::string constitution;
+        ServiceConfiguration configuration;
+
+        bool operator==(const GenesisInfo&) const = default;
+      };
+      std::optional<GenesisInfo> genesis_info = std::nullopt;
     };
   };
 
