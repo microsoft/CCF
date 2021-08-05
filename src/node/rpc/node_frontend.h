@@ -1003,6 +1003,81 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
+
+      auto create = [this](auto& ctx, nlohmann::json&& params) {
+        LOG_DEBUG_FMT("Processing create RPC");
+        const auto in = params.get<CreateNetworkNodeToNode::In>();
+
+        GenesisGenerator g(this->network, ctx.tx);
+
+        // This endpoint can only be called once, directly from the starting
+        // node for the genesis or end of public recovery transaction to
+        // initialise the service
+        if (g.is_service_created(in.network_cert))
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Service is already created.");
+        }
+
+        g.create_service(in.network_cert);
+
+        // Genesis transaction (i.e. not after recovery)
+        if (in.genesis_info.has_value())
+        {
+          g.init_values();
+
+          // Note that it is acceptable to start a network without any member
+          // having a recovery share. The service will check that at least one
+          // recovery member is added before the service is opened.
+          for (const auto& info : in.genesis_info->members_info)
+          {
+            g.add_member(info);
+          }
+
+          if (
+            in.genesis_info->configuration.consensus == ConsensusType::BFT &&
+            (!in.genesis_info->configuration.reconfiguration_type.has_value() ||
+             in.genesis_info->configuration.reconfiguration_type.value() !=
+               ReconfigurationType::TWO_TRANSACTION))
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "BFT consensus requires two-transaction reconfiguration.");
+          }
+
+          g.init_configuration(in.genesis_info->configuration);
+          g.set_constitution(in.genesis_info->constitution);
+        }
+
+        // Retire all nodes, in case there are any (i.e. post recovery)
+        g.retire_active_nodes();
+
+        g.add_node(
+          in.node_id,
+          {in.node_info_network,
+           in.node_cert,
+           {in.quote_info},
+           in.public_encryption_key,
+           NodeStatus::PENDING,
+           std::nullopt,
+           ds::to_hex(in.code_digest.data)});
+        g.trust_node(
+          in.node_id, network.ledger_secrets->get_latest(ctx.tx).first);
+
+#ifdef GET_QUOTE
+        g.trust_node_code_id(in.code_digest);
+#endif
+
+        LOG_INFO_FMT("Created service");
+        return make_success(true);
+      };
+      make_endpoint(
+        "/create", HTTP_POST, json_adapter(create), no_auth_required)
+        .set_openapi_hidden(true)
+        .install();
     }
   };
 
