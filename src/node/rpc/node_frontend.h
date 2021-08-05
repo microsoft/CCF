@@ -1230,7 +1230,7 @@ namespace ccf
       };
 
       make_endpoint(
-        "update-identity",
+        "update_identity",
         HTTP_POST,
         json_adapter(update_identity),
         // What type of auth do we require for nodes that aren't in the active
