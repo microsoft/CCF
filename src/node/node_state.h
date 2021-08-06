@@ -382,15 +382,15 @@ namespace ccf
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          // Open member frontend for members to configure and open the
-          // network
-          open_frontend(ActorsType::members);
-
           if (!create_and_send_boot_request(true /* Create new consortium */))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
           }
+
+          // Open member frontend for members to configure and open the
+          // network
+          open_frontend(ActorsType::members);
 
           accept_node_tls_connections();
           auto_refresh_jwt_keys();
@@ -1881,6 +1881,7 @@ namespace ccf
               }
 
               node_cert = endorsed_certificate.value();
+              n2n_channels->set_endorsed_node_cert(node_cert);
               accept_network_tls_connections();
             }
 
@@ -1953,6 +1954,7 @@ namespace ccf
 
     void setup_n2n_channels()
     {
+      // TODO: Endorsed node certificate should be passed in from join response
       n2n_channels->initialize(
         self, network.identity->cert, node_sign_kp, node_cert);
     }
