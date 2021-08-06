@@ -299,7 +299,7 @@ namespace ccf
     }
   };
 
-  static constexpr uint32_t get_message_threshold(uint32_t node_count)
+  static constexpr uint32_t get_message_threshold(uint32_t count)
   {
     return count * 2 / 3 + 1;
   }
