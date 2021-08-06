@@ -36,14 +36,6 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
-    /** Deprecated.
-     * Node certificate. Only set for 1.x releases. Further releases record
-     * node identity in `public_key` field. Service-endorsed certificate is
-     * recorded in "public:ccf.nodes.endorsed_certificates" table */
-    // TODO: Could we change the `to_json` function here so that we don't
-    // serialise this for future ledger? Or make this optional with a default
-    // value of none??
-    crypto::Pem cert;
     /// Node enclave quote
     QuoteInfo quote_info;
     /// Node encryption public key, used to distribute ledger re-keys.
@@ -67,12 +59,19 @@ namespace ccf
 
     /// Public key
     std::optional<crypto::Pem> public_key = std::nullopt;
+
+    /** Deprecated.
+     * Node certificate. Only set for 1.x releases. Further releases record
+     * node identity in `public_key` field. Service-endorsed certificate is
+     * recorded in "public:ccf.nodes.endorsed_certificates" table */
+    std::optional<crypto::Pem> cert = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, cert, quote_info, encryption_pub_key, status);
+    NodeInfo, quote_info, encryption_pub_key, status);
   DECLARE_JSON_OPTIONAL_FIELDS(
     NodeInfo,
+    cert,
     ledger_secret_seqno,
     code_digest,
     certificate_signing_request,

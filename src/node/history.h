@@ -11,6 +11,7 @@
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "node_signature_verify.h"
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
@@ -687,43 +688,6 @@ namespace ccf
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
 
       return result;
-    }
-
-    static bool verify_node_signature(
-      kv::ReadOnlyTx& tx,
-      const NodeId& node_id,
-      const std::vector<uint8_t>& expected_sig,
-      const crypto::Sha256Hash& expected_root)
-    {
-      crypto::Pem node_cert;
-      auto node_endorsed_certs = tx.template ro<ccf::NodeEndorsedCertificates>(
-        ccf::Tables::NODE_ENDORSED_CERTIFICATES);
-      auto node_endorsed_cert = node_endorsed_certs->get(node_id);
-      if (!node_endorsed_cert.has_value())
-      {
-        // No endorsed certificate for node. Its (self-signed) certificate may
-        // be stored in the nodes table (1.x ledger only)
-
-        auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
-        auto node = nodes->get(node_id);
-        if (!node.has_value())
-        {
-          LOG_FAIL_FMT(
-            "Signature cannot be verified: no certificate found for node {}",
-            node_id);
-          return false;
-        }
-
-        node_cert = node->cert;
-      }
-      else
-      {
-        node_cert = node_endorsed_cert.value();
-      }
-
-      crypto::VerifierPtr from_cert = crypto::make_verifier(node_cert);
-      return from_cert->verify_hash(
-        expected_root.h, expected_sig, crypto::MDType::SHA256);
     }
 
     bool verify(

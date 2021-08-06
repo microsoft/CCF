@@ -6,7 +6,6 @@
 #include "openssl_wrappers.h"
 #include "public_key.h"
 
-#include <optional>
 #include <stdexcept>
 #include <string>
 

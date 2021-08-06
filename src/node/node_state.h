@@ -375,9 +375,9 @@ namespace ccf
 
           setup_snapshotter();
           setup_encryptor();
-          setup_consensus(ServiceStatus::OPENING);
           setup_progress_tracker();
           setup_history();
+          setup_consensus(ServiceStatus::OPENING);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -1570,6 +1570,7 @@ namespace ccf
 
     Pem create_endorsed_node_cert()
     {
+      // 1.x only
       auto nw = crypto::make_key_pair(network.identity->priv_key);
       auto csr =
         node_sign_kp->create_csr(config.node_certificate_subject_identity);

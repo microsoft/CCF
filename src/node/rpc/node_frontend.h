@@ -219,8 +219,6 @@ namespace ccf
       nodes->put(
         joining_node_id,
         {in.node_info_network,
-         Pem(), // This field was used in 1.x to record self-signed node
-                // certificate
          in.quote_info,
          in.public_encryption_key,
          node_status,
@@ -1112,8 +1110,6 @@ namespace ccf
         g.add_node(
           in.node_id,
           {in.node_info_network,
-           Pem(), // This field was used in 1.x to record self-signed node
-                  // certificate
            {in.quote_info},
            in.public_encryption_key,
            NodeStatus::TRUSTED,

@@ -9,6 +9,7 @@
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
+#include "node/node_signature.h"
 #include "node/rpc/node_interface.h"
 
 #include <list>
@@ -405,8 +406,7 @@ namespace ccf::historical
       // makes no check that the signing node was active at the point it
       // produced this signature
       auto tx = source_store.create_read_only_tx();
-      if (!ccf::MerkleTxHistory::verify_node_signature(
-            tx, sig->node, sig->sig, real_root))
+      if (!verify_node_signature(tx, sig->node, sig->sig, real_root))
       {
         LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_seqno);
         return false;
