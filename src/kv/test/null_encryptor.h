@@ -40,6 +40,11 @@ namespace kv
       return 0;
     }
 
+    uint64_t get_term(const uint8_t* data, size_t size) override
+    {
+      return 0;
+    }
+
     void rollback(Version version) override {}
   };
 }

@@ -22,7 +22,6 @@ These dependencies can be conveniently installed using the ``ansible`` playbooks
 .. code-block:: bash
 
     $ cd <ccf_path>/getting_started/setup_vm/
-    $ ./run.sh driver.yml # Only on SGX-enabled hardware
     $ ./run.sh app-dev.yml
 
 Install
