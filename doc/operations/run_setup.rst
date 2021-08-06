@@ -11,7 +11,6 @@ Then, to quickly set up the dependencies necessary to start CCF applications, si
 .. code-block:: bash
 
     $ cd <ccf_path>/getting_started/setup_vm
-    $ ./run.sh driver.yml # Only on SGX-enabled hardware
     $ ./run.sh app-run.yml
 
 Runtime Container
