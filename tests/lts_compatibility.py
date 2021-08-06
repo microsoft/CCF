@@ -49,9 +49,18 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
     )
 
 
+def get_constitution_dir(install_path):
+    return os.path.join(
+        install_path,
+        "../src/runtime_config/default"
+        if install_path == LOCAL_CHECKOUT_DIRECTORY
+        else "bin",
+    )
+
+
 def set_js_args(args, from_install_path):
     # Use from_version's app and constitution as new JS features may not be available
-    # on older versions
+    # on older versions, but upgrade to the new constitution once the new network is ready
     js_app_directory = (
         "../samples/apps/logging/js"
         if from_install_path == LOCAL_CHECKOUT_DIRECTORY
@@ -59,12 +68,7 @@ def set_js_args(args, from_install_path):
     )
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
 
-    constitution_directory = os.path.join(
-        from_install_path,
-        "../src/runtime_config/default"
-        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
-        else "bin",
-    )
+    constitution_directory = get_constitution_dir(from_install_path)
 
     def replace_constitution_fragment(args, fragment_name):
         args.constitution[:] = [
@@ -201,6 +205,28 @@ def run_code_upgrade_from(
             for node in old_nodes:
                 network.retire_node(new_primary, node)
                 node.stop()
+
+            # From here onwards, service is only made of new nodes
+
+            LOG.info("Update constitution")
+            constitution_directory = get_constitution_dir(to_install_path)
+            network.consortium.set_constitution(
+                primary,
+                [
+                    os.path.join(constitution_directory, f)
+                    for f in os.listdir(constitution_directory)
+                ],
+            )
+
+            LOG.info("Add node to new service")
+            new_node = network.create_node(
+                "local://localhost",
+                binary_dir=to_binary_dir,
+                library_dir=to_library_dir,
+                version=to_major_version,
+            )
+            network.join_node(new_node, args.package, args)
+            network.trust_node(new_node, args)
 
             LOG.info("Apply transactions to new nodes only")
             issue_activity_on_live_service(network, args)
