@@ -40,29 +40,11 @@ def issue_activity_on_live_service(network, args):
     network.txs.issue(network, number_txs=1, repeat=True, log_capture=log_capture)
 
 
-# Local build and install bin/ and lib/ directories differ
-def get_bin_and_lib_dirs_for_install_path(install_path):
-    return (
-        [LOCAL_CHECKOUT_DIRECTORY] * 2
-        if install_path == LOCAL_CHECKOUT_DIRECTORY
-        else (os.path.join(install_path, "bin"), os.path.join(install_path, "lib"))
-    )
-
-
-def set_js_args(args, from_install_path):
-    # Use from_version's app and constitution as new JS features may not be available
-    # on older versions
-    js_app_directory = (
-        "../samples/apps/logging/js"
-        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
-        else "samples/logging/js"
-    )
-    args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
-
+def get_new_constitution_for_install(args, install_path):
     constitution_directory = os.path.join(
-        from_install_path,
+        install_path,
         "../src/runtime_config/default"
-        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
+        if install_path == LOCAL_CHECKOUT_DIRECTORY
         else "bin",
     )
 
@@ -79,6 +61,54 @@ def set_js_args(args, from_install_path):
     replace_constitution_fragment(args, "actions.js")
     replace_constitution_fragment(args, "apply.js")
     replace_constitution_fragment(args, "validate.js")
+
+    return args.constitution
+
+
+def test_new_service(
+    network, args, install_path, binary_dir, library_dir, major_version
+):
+    LOG.info("Update constitution")
+    primary, _ = network.find_primary()
+    new_constitution = get_new_constitution_for_install(args, install_path)
+    network.consortium.set_constitution(primary, new_constitution)
+
+    # Note: Changes to constitution between versions should be tested here
+
+    LOG.info("Add node to new service")
+    new_node = network.create_node(
+        "local://localhost",
+        binary_dir=binary_dir,
+        library_dir=library_dir,
+        version=major_version,
+    )
+    network.join_node(new_node, args.package, args)
+    network.trust_node(new_node, args)
+
+    LOG.info("Apply transactions to new nodes only")
+    issue_activity_on_live_service(network, args)
+
+
+# Local build and install bin/ and lib/ directories differ
+def get_bin_and_lib_dirs_for_install_path(install_path):
+    return (
+        [LOCAL_CHECKOUT_DIRECTORY] * 2
+        if install_path == LOCAL_CHECKOUT_DIRECTORY
+        else (os.path.join(install_path, "bin"), os.path.join(install_path, "lib"))
+    )
+
+
+def set_js_args(args, from_install_path):
+    # Use from_version's app and constitution as new JS features may not be available
+    # on older versions, but upgrade to the new constitution once the new network is ready
+    js_app_directory = (
+        "../samples/apps/logging/js"
+        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
+        else "samples/logging/js"
+    )
+    args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
+
+    get_new_constitution_for_install(args, from_install_path)
 
 
 def run_code_upgrade_from(
@@ -202,8 +232,15 @@ def run_code_upgrade_from(
                 network.retire_node(new_primary, node)
                 node.stop()
 
-            LOG.info("Apply transactions to new nodes only")
-            issue_activity_on_live_service(network, args)
+            # From here onwards, service is only made of new nodes
+            test_new_service(
+                network,
+                args,
+                to_install_path,
+                to_binary_dir,
+                to_library_dir,
+                to_major_version,
+            )
 
             # Check that the ledger can be parsed
             network.get_latest_ledger_public_state()
@@ -286,20 +323,19 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
-                version, lts_install_path = repo.install_release(lts_release)
+                version, install_path = repo.install_release(lts_release)
                 lts_versions.append(version)
-                binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
-                    lts_install_path
-                )
                 major_version = Version(version).release[0]
-                set_js_args(args, lts_install_path)
+                set_js_args(args, install_path)
             else:
                 version = args.ccf_version
-                binary_dir = LOCAL_CHECKOUT_DIRECTORY
-                library_dir = LOCAL_CHECKOUT_DIRECTORY
+                install_path = LOCAL_CHECKOUT_DIRECTORY
                 major_version = infra.github.get_major_version_from_branch_name(
                     local_branch
                 )
+            binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
+                install_path
+            )
 
             if not args.dry_run:
                 network_args = {
@@ -352,7 +388,14 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 else:
                     time.sleep(3)
 
-                issue_activity_on_live_service(network, args)
+                test_new_service(
+                    network,
+                    args,
+                    install_path,
+                    binary_dir,
+                    library_dir,
+                    major_version,
+                )
 
                 snapshot_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
