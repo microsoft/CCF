@@ -1008,42 +1008,6 @@ namespace ccf
         LOG_DEBUG_FMT("Processing create RPC");
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
-        // Authenticates and record signature
-        auto signed_request = parse_signed_request(ctx.rpc_ctx);
-        if (!signed_request.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Create request is not signed.");
-        }
-
-        auto key_id = signed_request->key_id;
-        auto node_id =
-          compute_node_id_from_cert_der(ctx.rpc_ctx->session->caller_cert);
-        if (key_id != node_id)
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "TLS identity does not match HTTP request signer.");
-        }
-
-        auto verifier =
-          crypto::make_verifier(ctx.rpc_ctx->session->caller_cert);
-        if (!verifier->verify(
-              signed_request->req, signed_request->sig, signed_request->md))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "TLS identity does not match HTTP request signer.");
-        }
-
-        // TODO: Governance history table can only accept node ids...
-        auto governance_history = ctx.tx.rw(network.governance_history);
-        // governance_history->put(node_id, signed_request.value());
-
         GenesisGenerator g(this->network, ctx.tx);
 
         // This endpoint can only be called once, directly from the starting
@@ -1139,7 +1103,7 @@ namespace ccf
         }
 
         const auto& sig_auth_ident =
-          ctx.template get_caller<ccf::NodeSignatureAuthnIdentity>();
+          ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
         if (primary_id.value() != sig_auth_ident.node_id)
         {
           LOG_FAIL_FMT(
@@ -1213,7 +1177,7 @@ namespace ccf
         "/jwt_keys/refresh",
         HTTP_POST,
         json_adapter(refresh_jwt_keys),
-        {std::make_shared<NodeSignatureAuthnPolicy>()})
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
     }
