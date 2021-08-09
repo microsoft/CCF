@@ -541,6 +541,7 @@ namespace ccf
             // Endorsed node certificate is included in join response from 2.x.
             if (resp.network_info.endorsed_certificate.has_value())
             {
+              // TODO: This should be picked up later on, on hook
               node_cert = resp.network_info.endorsed_certificate.value();
             }
             else
@@ -573,7 +574,9 @@ namespace ccf
             setup_snapshotter();
             setup_encryptor();
             setup_consensus(
-              resp.network_info.service_status, resp.network_info.public_only);
+              resp.network_info.service_status,
+              resp.network_info.public_only,
+              resp.network_info.endorsed_certificate);
             setup_progress_tracker();
             setup_history();
             auto_refresh_jwt_keys();
@@ -638,7 +641,7 @@ namespace ccf
                 sig->view);
             }
 
-            // TODO: Move later?
+            // TODO: Move later!
             open_frontend(ActorsType::members);
 
             if (resp.network_info.public_only)
@@ -1952,11 +1955,13 @@ namespace ccf
         network.encrypted_ledger_secrets.get_name());
     }
 
-    void setup_n2n_channels()
+    void setup_n2n_channels(
+      const std::optional<crypto::Pem>& endorsed_node_certificate_ =
+        std::nullopt)
     {
       // TODO: Endorsed node certificate should be passed in from join response
       n2n_channels->initialize(
-        self, network.identity->cert, node_sign_kp, node_cert);
+        self, network.identity->cert, node_sign_kp, endorsed_node_certificate_);
     }
 
     void setup_cmd_forwarder()
@@ -1985,9 +1990,13 @@ namespace ccf
       network.tables->set_encryptor(encryptor);
     }
 
-    void setup_consensus(ServiceStatus service_status, bool public_only = false)
+    void setup_consensus(
+      ServiceStatus service_status,
+      bool public_only = false,
+      const std::optional<crypto::Pem>& endorsed_node_certificate_ =
+        std::nullopt)
     {
-      setup_n2n_channels();
+      setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
       setup_tracker_store();
 

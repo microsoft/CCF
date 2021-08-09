@@ -100,7 +100,7 @@ namespace ccf
       const NodeId& self_id,
       const crypto::Pem& network_cert,
       crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) = 0;
+      const std::optional<crypto::Pem>& node_cert = std::nullopt) = 0;
 
     virtual void set_endorsed_node_cert(
       const crypto::Pem& endorsed_node_cert) = 0;
@@ -151,7 +151,7 @@ namespace ccf
       const NodeId& self_id,
       const crypto::Pem& network_cert,
       crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) override
+      const std::optional<crypto::Pem>& node_cert = std::nullopt) override
     {
       CCF_ASSERT_FMT(
         !self.has_value(),
