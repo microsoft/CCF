@@ -387,10 +387,6 @@ namespace ccf
               "Genesis transaction could not be committed");
           }
 
-          // Open member frontend for members to configure and open the
-          // network
-          open_frontend(ActorsType::members);
-
           auto_refresh_jwt_keys();
 
           reset_data(quote_info.quote);
@@ -568,8 +564,6 @@ namespace ccf
               resp.network_info.endorsed_certificate.value_or(node_cert));
             setup_progress_tracker();
             setup_history();
-
-            // TODO: Does this need the endorsed or self-signed cert?
             auto_refresh_jwt_keys();
 
             if (resp.network_info.public_only)
@@ -632,9 +626,6 @@ namespace ccf
                 sig->view);
             }
 
-            // TODO: Move later!
-            open_frontend(ActorsType::members);
-
             if (resp.network_info.public_only)
             {
               sm.advance(State::partOfPublicNetwork);
@@ -650,9 +641,6 @@ namespace ccf
               "Node has now joined the network as node {}: {}",
               self,
               (resp.network_info.public_only ? "public only" : "all domains"));
-
-            // TODO: Move later?
-            open_user_frontend();
           }
           else if (resp.node_status == NodeStatus::PENDING)
           {
@@ -1031,8 +1019,6 @@ namespace ccf
         throw std::runtime_error(
           "End of public recovery transaction could not be committed");
       }
-
-      open_frontend(ActorsType::members);
 
       sm.advance(State::partOfPublicNetwork);
     }
@@ -1878,6 +1864,9 @@ namespace ccf
               node_cert = endorsed_certificate.value();
               n2n_channels->set_endorsed_node_cert(node_cert);
               accept_network_tls_connections();
+
+              open_frontend(ActorsType::members);
+              open_user_frontend();
             }
 
             return kv::ConsensusHookPtr(nullptr);
