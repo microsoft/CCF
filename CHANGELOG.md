@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Bugfix
 
 - Fixed Raft issue where a partitioned node could fail to re-join a network successful on de-partitioning (#2835).
+- Fixed incorrect transaction view returned in `x-ms-ccf-transaction-id` HTTP response header by backups nodes during public recovery (#2879).
 
 ## [1.0.8]
 
