@@ -530,8 +530,19 @@ namespace ccf
             resp.node_status == NodeStatus::TRUSTED ||
             resp.node_status == NodeStatus::LEARNER)
           {
+            if (resp.network_info.consensus_type != network.consensus_type)
+            {
+              throw std::logic_error(fmt::format(
+                "Enclave initiated with consensus type {} but target node "
+                "responded with consensus {}",
+                network.consensus_type,
+                resp.network_info.consensus_type));
+            }
+
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
+            network.ledger_secrets->init_from_map(
+              std::move(resp.network_info.ledger_secrets));
 
             if (!resp.network_info.endorsed_certificate.has_value())
             {
@@ -540,18 +551,6 @@ namespace ccf
               // certificate and use it to endorse TLS connections.
               node_cert = create_endorsed_node_cert();
               accept_network_tls_connections();
-            }
-
-            network.ledger_secrets->init_from_map(
-              std::move(resp.network_info.ledger_secrets));
-
-            if (resp.network_info.consensus_type != network.consensus_type)
-            {
-              throw std::logic_error(fmt::format(
-                "Enclave initiated with consensus type {} but target node "
-                "responded with consensus {}",
-                network.consensus_type,
-                resp.network_info.consensus_type));
             }
 
             if (network.consensus_type == ConsensusType::BFT)
@@ -566,7 +565,7 @@ namespace ccf
             setup_consensus(
               resp.network_info.service_status,
               resp.network_info.public_only,
-              resp.network_info.endorsed_certificate);
+              resp.network_info.endorsed_certificate.value_or(node_cert));
             setup_progress_tracker();
             setup_history();
 
