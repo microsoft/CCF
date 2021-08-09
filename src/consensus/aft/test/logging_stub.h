@@ -175,6 +175,8 @@ namespace aft
 
     void close_all_outgoing() override {}
 
+    void set_endorsed_node_cert(const crypto::Pem&) override {}
+
     bool send_authenticated(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
@@ -203,7 +205,7 @@ namespace aft
       const ccf::NodeId& self_id,
       const crypto::Pem& network_cert,
       crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) override
+      const std::optional<crypto::Pem>& node_cert = std::nullopt) override
     {}
 
     bool send_encrypted(

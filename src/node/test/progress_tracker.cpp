@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/progress_tracker.h"
-
 #include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/nodes.h"
+#include "node/progress_tracker.h"
 #include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -33,7 +32,7 @@ public:
   MAKE_MOCK0(get_nonces, std::optional<aft::RevealedNonces>(), override);
   MAKE_MOCK4(
     verify_signature,
-    bool(const kv::NodeId&, crypto::Sha256Hash&, uint32_t, uint8_t*),
+    bool(const kv::NodeId&, crypto::Sha256Hash&, size_t, uint8_t*),
     override);
   MAKE_MOCK2(
     sign_view_change_request,
