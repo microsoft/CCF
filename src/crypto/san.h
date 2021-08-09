@@ -8,7 +8,6 @@
 #include <fmt/format.h>
 #include <string>
 
-// TODO: Rename file?
 namespace crypto
 {
   struct SubjectAltName

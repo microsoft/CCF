@@ -350,14 +350,13 @@ namespace ccf
       }
 #endif
 
+      node_cert = create_self_signed_node_cert();
       switch (start_type)
       {
         case StartType::New:
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
-
-          node_cert = create_self_signed_node_cert();
 
           network.ledger_secrets->init();
 
@@ -392,7 +391,6 @@ namespace ccf
           // network
           open_frontend(ActorsType::members);
 
-          accept_node_tls_connections();
           auto_refresh_jwt_keys();
 
           reset_data(quote_info.quote);
@@ -400,13 +398,11 @@ namespace ccf
           sm.advance(State::partOfNetwork);
 
           LOG_INFO_FMT("Created new node {}", self);
+          accept_node_tls_connections();
           return {node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
-          node_cert = create_self_signed_node_cert();
-          accept_node_tls_connections();
-
           if (!config.startup_snapshot.empty())
           {
             initialise_startup_snapshot();
@@ -418,6 +414,7 @@ namespace ccf
           }
 
           LOG_INFO_FMT("Created join node {}", self);
+          accept_node_tls_connections();
           return {node_cert, {}};
         }
         case StartType::Recover:
@@ -426,7 +423,6 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
-          node_cert = create_self_signed_node_cert();
 
           setup_history();
 
@@ -447,11 +443,10 @@ namespace ccf
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
 
-          accept_node_tls_connections();
-
           sm.advance(State::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
+          accept_node_tls_connections();
           return {node_cert, network.identity->cert};
         }
         default:
@@ -1573,14 +1568,14 @@ namespace ccf
 
     Pem create_endorsed_node_cert()
     {
-      // 1.x only
+      // Only used by a 2.x node joining an existing 1.x service which will not
+      // endorsed the identity of the new joiner.
       auto nw = crypto::make_key_pair(network.identity->priv_key);
       auto csr =
         node_sign_kp->create_csr(config.node_certificate_subject_identity);
       return nw->sign_csr(network.identity->cert, csr);
     }
 
-    // TODO: Rename
     crypto::Pem generate_endorsed_certificate(
       const crypto::Pem& subject_csr,
       const crypto::Pem& endorser_private_key,
@@ -1959,7 +1954,10 @@ namespace ccf
       const std::optional<crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
     {
-      // TODO: Endorsed node certificate should be passed in from join response
+      // If the endorsed node certificate is available at the time the
+      // consensus/node-to-node channels are initialised, use it (i.e. join).
+      // Otherwise, specify it later, on endorsed certificate table hook (i.e.
+      // start or recover).
       n2n_channels->initialize(
         self, network.identity->cert, node_sign_kp, endorsed_node_certificate_);
     }

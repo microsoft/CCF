@@ -246,7 +246,6 @@ namespace ccf
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
         if (in.certificate_signing_request.has_value())
         {
-          LOG_FAIL_FMT("Recording endorsed identity!"); // TODO: Remove!
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(
               in.certificate_signing_request.value(),

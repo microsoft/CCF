@@ -159,14 +159,13 @@ namespace ccf
         self.value(),
         self_id);
 
-      // TODO: Remove
-      // if (make_verifier(node_cert)->is_self_signed())
-      // {
-      //   LOG_INFO_FMT(
-      //     "Refusing to initialize node-to-node channels with self-signed node
-      //     " "certificate.");
-      //   return;
-      // }
+      if (node_cert.has_value() && make_verifier(node_cert)->is_self_signed())
+      {
+        LOG_FAIL_FMT(
+          "Refusing to initialize node-to-node channels with self-signed node "
+          "certificate");
+        return;
+      }
 
       self = self_id;
       channels = std::make_unique<ChannelManager>(
