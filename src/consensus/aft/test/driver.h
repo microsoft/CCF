@@ -100,8 +100,6 @@ using TRaft = aft::
 using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 
-std::vector<uint8_t> cert;
-
 aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
 {
   return (aft::ChannelStubProxy*)r.channels.get();
@@ -137,7 +135,6 @@ public:
         std::make_shared<aft::StubSnapshotter>(),
         nullptr,
         nullptr,
-        cert,
         std::make_shared<aft::State>(node_id),
         nullptr,
         std::make_shared<aft::RequestTracker>(),

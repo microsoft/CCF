@@ -187,7 +187,6 @@ namespace aft
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      const std::vector<uint8_t>& /*cert*/,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,

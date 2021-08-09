@@ -2004,7 +2004,6 @@ namespace ccf
         snapshotter,
         rpcsessions,
         rpc_map,
-        node_cert.raw(), // TODO: Delete?
         shared_state,
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
