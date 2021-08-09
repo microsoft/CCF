@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/progress_tracker.h"
-
 #include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/nodes.h"
+#include "node/progress_tracker.h"
 #include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -14,10 +13,11 @@
 #include <string>
 #include <trompeloeil/include/trompeloeil.hpp>
 
-std::vector<kv::NodeId> node_ids = {kv::test::PrimaryNodeId,
-                                    kv::test::FirstBackupNodeId,
-                                    kv::test::SecondBackupNodeId,
-                                    kv::test::ThirdBackupNodeId};
+std::vector<kv::NodeId> node_ids = {
+  kv::test::PrimaryNodeId,
+  kv::test::FirstBackupNodeId,
+  kv::test::SecondBackupNodeId,
+  kv::test::ThirdBackupNodeId};
 
 class StoreMock : public ccf::ProgressTrackerStore
 {
@@ -744,4 +744,18 @@ TEST_CASE("Sending evidence out of band")
       i++;
     }
   }
+}
+
+TEST_CASE("Endorsement threshold")
+{
+  REQUIRE(ccf::get_message_threshold(1) == 1);
+  REQUIRE(ccf::get_message_threshold(2) == 2);
+  REQUIRE(ccf::get_message_threshold(3) == 3);
+  REQUIRE(ccf::get_message_threshold(4) == 3);
+  REQUIRE(ccf::get_message_threshold(5) == 4);
+  REQUIRE(ccf::get_message_threshold(6) == 5);
+  REQUIRE(ccf::get_message_threshold(7) == 5);
+  REQUIRE(ccf::get_message_threshold(8) == 6);
+  REQUIRE(ccf::get_message_threshold(9) == 7);
+  REQUIRE(ccf::get_message_threshold(10) == 7);
 }
