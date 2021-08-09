@@ -115,31 +115,69 @@ int main(int argc, char** argv)
     "Interface on which to bind to for commands sent to other nodes. If "
     "unspecified (default), this is automatically assigned by the OS");
 
+  std::string rpc_address_file = {};
+  app.add_option(
+    "--rpc-address-file",
+    rpc_address_file,
+    "Path to which all node RPC addresses (including potentially "
+    "auto-assigned ports) will be written. If empty (default), write nothing");
+
   cli::ParsedAddress rpc_address;
-  cli::add_address_option(
+  auto rpc_address_option = cli::add_address_option(
     app,
     rpc_address,
     "--rpc-address",
     "Address on which to listen for TLS commands coming from clients. Port "
     "defaults to 443 if unspecified.",
-    "443")
-    ->required();
-
-  std::string rpc_address_file = {};
-  app.add_option(
-    "--rpc-address-file",
-    rpc_address_file,
-    "Path to which the node's RPC address (including potentially "
-    "auto-assigned port) will be written. If empty (default), write nothing");
+    "443");
 
   cli::ParsedAddress public_rpc_address;
-  auto public_rpc_address_option = cli::add_address_option(
+  auto public_rpc_address_option =
+    cli::add_address_option(
+      app,
+      public_rpc_address,
+      "--public-rpc-address",
+      "Address to advertise publicly to clients (defaults to same as "
+      "--rpc-address)",
+      "443")
+      ->needs(rpc_address_option);
+
+  size_t max_open_sessions = 1'000;
+  app
+    .add_option(
+      "--max-open-sessions",
+      max_open_sessions,
+      "Soft cap on number of TLS sessions which may be open at the same time. "
+      "Once this many connection are open, additional connections will receive "
+      "a 503 HTTP error (until the hard cap is reached)")
+    ->capture_default_str()
+    ->needs(rpc_address_option);
+
+  size_t max_open_sessions_hard = 0;
+  auto mosh_option =
+    app
+      .add_option(
+        "--max-open-sessions-hard",
+        max_open_sessions_hard,
+        fmt::format(
+          "Hard cap on number of TLS sessions which may be open at the same "
+          "time. "
+          "Once this many connections are open, additional connection attempts "
+          "will be closed before a TLS handshake is completed. Default is {} "
+          "more than --max-open-sessions",
+          cli::ParsedRpcInterface::default_mosh_diff))
+      ->needs(rpc_address_option);
+
+  std::vector<cli::ParsedRpcInterface> rpc_interfaces;
+  auto rpc_interfaces_option = cli::add_rpc_interface_option(
     app,
-    public_rpc_address,
-    "--public-rpc-address",
-    "Address to advertise publicly to clients (defaults to same as "
-    "--rpc-address)",
-    "443");
+    rpc_interfaces,
+    "--rpc-interface",
+    "Specify additional interfaces on which this node should listen for "
+    "incoming client commands. Each interface will have its own separate "
+    "session caps. Each interface should be specified as a comma-separated "
+    "list <rpc-address>,<public-rpc-address>,<max-open-sessions>,<max-"
+    "open-sessions-hard>, where all fields after <rpc-address> are optional");
 
   std::string ledger_dir("ledger");
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
@@ -173,29 +211,6 @@ int main(int argc, char** argv)
       snapshot_tx_interval,
       "Number of transactions between snapshots")
     ->capture_default_str();
-
-  size_t max_open_sessions = 1'000;
-  app
-    .add_option(
-      "--max-open-sessions",
-      max_open_sessions,
-      "Soft cap on number of TLS sessions which may be open at the same time. "
-      "Once this many connection are open, additional connections will receive "
-      "a 503 HTTP error (until the hard cap is reached)")
-    ->capture_default_str();
-
-  constexpr auto hard_session_cap_diff = 10;
-  size_t max_open_sessions_hard = 0;
-  app.add_option(
-    "--max-open-sessions-hard",
-    max_open_sessions_hard,
-    fmt::format(
-      "Hard cap on number of TLS sessions which may be open at the same "
-      "time. "
-      "Once this many connections are open, additional connection attempts "
-      "will be closed before a TLS handshake is completed. Default is {} "
-      "more than --max-open-sessions",
-      hard_session_cap_diff));
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -350,7 +365,8 @@ int main(int argc, char** argv)
     node_certificate_subject_identity.sans,
     "--san",
     "Subject Alternative Name in node certificate. Can be either "
-    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
+    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld. If not specified, "
+    "the address components from --rpc-interface will be used");
 
   size_t jwt_key_refresh_interval_s = 1800;
   app
@@ -469,11 +485,24 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-  CLI11_PARSE(app, argc, argv);
-
-  if (!(*public_rpc_address_option))
+  try
   {
-    public_rpc_address = rpc_address;
+    app.parse(argc, argv);
+
+    // Add an additional check not represented by existing ->needs, ->requires
+    // etc
+    if (!(*rpc_address_option || *rpc_interfaces_option))
+    {
+      const auto option_list = fmt::format(
+        "{}, {}",
+        rpc_address_option->get_name(),
+        rpc_interfaces_option->get_name());
+      throw CLI::RequiredError::Option(1, 0, 0, option_list);
+    }
+  }
+  catch (const CLI::ParseError& e)
+  {
+    return app.exit(e);
   }
 
   // set json log formatter to write to std::out
@@ -482,9 +511,28 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
-  if (max_open_sessions_hard == 0)
+  // Fill in derived default values
+  if (!(*public_rpc_address_option))
   {
-    max_open_sessions_hard = max_open_sessions + hard_session_cap_diff;
+    public_rpc_address = rpc_address;
+  }
+
+  if (!(*mosh_option))
+  {
+    max_open_sessions_hard =
+      max_open_sessions + cli::ParsedRpcInterface::default_mosh_diff;
+  }
+
+  // If --rpc-address etc were specified, they populate a single object at the
+  // start of the rpc_interfaces list
+  if (*rpc_address_option)
+  {
+    cli::ParsedRpcInterface first;
+    first.rpc_address = rpc_address;
+    first.public_rpc_address = public_rpc_address;
+    first.max_open_sessions = max_open_sessions;
+    first.max_open_sessions_hard = max_open_sessions_hard;
+    rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
   }
 
   const auto cli_config = app.config_to_str(true, false);
@@ -666,16 +714,22 @@ int main(int argc, char** argv)
 
     asynchost::RPCConnections rpc(writer_factory, client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
-    rpc.listen(0, rpc_address.hostname, rpc_address.port);
+
+    std::string rpc_addresses;
+    for (auto& interface : rpc_interfaces)
+    {
+      rpc.listen(0, interface.rpc_address.hostname, interface.rpc_address.port);
+      rpc_addresses += fmt::format(
+        "{}\n{}\n", interface.rpc_address.hostname, interface.rpc_address.port);
+
+      if (interface.public_rpc_address.port == "0")
+      {
+        interface.public_rpc_address.port = interface.rpc_address.port;
+      }
+    }
     if (!rpc_address_file.empty())
     {
-      files::dump(
-        fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
-        rpc_address_file);
-    }
-    if (public_rpc_address.port == "0")
-    {
-      public_rpc_address.port = rpc_address.port;
+      files::dump(rpc_addresses, rpc_address_file);
     }
 
     // Initialise the enclave and create a CCF node in it
@@ -706,16 +760,22 @@ int main(int argc, char** argv)
       bft_view_change_timeout,
       bft_status_interval};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
-    ccf_config.node_info_network = {
-      rpc_address.hostname,
-      public_rpc_address.hostname,
-      node_address.hostname,
-      node_address.port,
-      rpc_address.port,
-      public_rpc_address.port};
+
+    ccf_config.node_info_network.node_address = {
+      node_address.hostname, node_address.port};
+    for (const auto& interface : rpc_interfaces)
+    {
+      ccf::NodeInfoNetwork::RpcAddresses addr;
+      addr.rpc_address = {
+        interface.rpc_address.hostname, interface.rpc_address.port};
+      addr.public_rpc_address = {
+        interface.public_rpc_address.hostname,
+        interface.public_rpc_address.port};
+      addr.max_open_sessions_soft = interface.max_open_sessions;
+      addr.max_open_sessions_hard = interface.max_open_sessions_hard;
+      ccf_config.node_info_network.rpc_interfaces.push_back(addr);
+    }
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
-    ccf_config.max_open_sessions_soft = max_open_sessions;
-    ccf_config.max_open_sessions_hard = max_open_sessions_hard;
 
     ccf_config.node_certificate_subject_identity =
       node_certificate_subject_identity;
