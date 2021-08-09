@@ -3,7 +3,8 @@
 #pragma once
 
 #include "ccf/entity_id.h"
-#include "crypto/openssl/key_pair.h"
+#include "crypto/key_pair.h"
+#include "crypto/verifier.h"
 #include "entities.h"
 #include "kv/map.h"
 #include "node_info_network.h"
@@ -59,14 +60,22 @@ namespace ccf
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
 
-  inline NodeId compute_node_id(const std::vector<uint8_t>& node_pubk_der)
+  inline NodeId compute_node_id_from_pubk_der(
+    const std::vector<uint8_t>& node_pubk_der)
   {
     return crypto::Sha256Hash(node_pubk_der).hex_str();
   }
 
-  inline NodeId compute_node_id(const crypto::KeyPairPtr& node_sign_kp)
+  inline NodeId compute_node_id_from_cert_der(
+    const std::vector<uint8_t>& node_cert_der)
   {
-    return compute_node_id(node_sign_kp->public_key_der());
+    return compute_node_id_from_pubk_der(
+      crypto::public_key_der_from_cert(node_cert_der));
+  }
+
+  inline NodeId compute_node_id_from_kp(const crypto::KeyPairPtr& node_sign_kp)
+  {
+    return compute_node_id_from_pubk_der(node_sign_kp->public_key_der());
   }
 }
 

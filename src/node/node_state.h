@@ -267,7 +267,7 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::CFT)
       {
-        self = compute_node_id(node_sign_kp);
+        self = compute_node_id_from_kp(node_sign_kp);
       }
     }
 
@@ -1645,7 +1645,7 @@ namespace ccf
 
       request.set_body(&body);
 
-      const auto key_id = compute_node_id(node_sign_kp);
+      const auto key_id = compute_node_id_from_kp(node_sign_kp);
       http::sign_request(request, node_sign_kp, key_id);
 
       return request.build_request();

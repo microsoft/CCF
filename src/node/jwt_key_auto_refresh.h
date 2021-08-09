@@ -114,7 +114,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       request.set_body(&body);
 
-      const auto key_id = compute_node_id(node_sign_kp);
+      const auto key_id = compute_node_id_from_kp(node_sign_kp);
       http::sign_request(request, node_sign_kp, key_id);
       auto packed = request.build_request();
 

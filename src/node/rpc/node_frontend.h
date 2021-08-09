@@ -143,12 +143,12 @@ namespace ccf
             conflicting_node_id.value()));
       }
 
-      auto pk_der = crypto::public_key_der_from_cert(node_der);
+      auto pubk_der = crypto::public_key_der_from_cert(node_der);
 
       NodeId joining_node_id;
       if (network.consensus_type == ConsensusType::CFT)
       {
-        joining_node_id = compute_node_id(pk_der);
+        joining_node_id = compute_node_id_from_pubk_der(pubk_der);
       }
       else
       {
@@ -163,7 +163,7 @@ namespace ccf
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
         this->context.get_node_state().verify_quote(
-          tx, in.quote_info, pk_der, code_digest);
+          tx, in.quote_info, pubk_der, code_digest);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -1007,6 +1007,42 @@ namespace ccf
       auto create = [this](auto& ctx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
         const auto in = params.get<CreateNetworkNodeToNode::In>();
+
+        // Authenticates and record signature
+        auto signed_request = parse_signed_request(ctx.rpc_ctx);
+        if (!signed_request.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Create request is not signed.");
+        }
+
+        auto key_id = signed_request->key_id;
+        auto node_id =
+          compute_node_id_from_cert_der(ctx.rpc_ctx->session->caller_cert);
+        if (key_id != node_id)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "TLS identity does not match HTTP request signer.");
+        }
+
+        auto verifier =
+          crypto::make_verifier(ctx.rpc_ctx->session->caller_cert);
+        if (!verifier->verify(
+              signed_request->req, signed_request->sig, signed_request->md))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "TLS identity does not match HTTP request signer.");
+        }
+
+        // TODO: Governance history table can only accept node ids...
+        auto governance_history = ctx.tx.rw(network.governance_history);
+        // governance_history->put(node_id, signed_request.value());
 
         GenesisGenerator g(this->network, ctx.tx);
 
