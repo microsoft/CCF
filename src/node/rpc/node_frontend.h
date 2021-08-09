@@ -65,6 +65,15 @@ namespace ccf
   DECLARE_JSON_TYPE(JavaScriptMetrics)
   DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used)
 
+  struct SetJwtPublicSigningKeys
+  {
+    std::string issuer;
+    JsonWebKeySet jwks;
+  };
+
+  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -1006,17 +1015,26 @@ namespace ccf
 
       auto create = [this](auto& ctx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
-        const auto in = params.get<CreateNetworkNodeToNode::In>();
-
-        GenesisGenerator g(this->network, ctx.tx);
 
         // This endpoint can only be called once, directly from the starting
         // node for the genesis or end of public recovery transaction to
         // initialise the service
+        if (
+          !context.get_node_state().is_in_initialised_state() &&
+          !context.get_node_state().is_reading_public_ledger())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::InternalError,
+            "Node is not in initial state.");
+        }
+
+        const auto in = params.get<CreateNetworkNodeToNode::In>();
+        GenesisGenerator g(this->network, ctx.tx);
         if (g.is_service_created(in.network_cert))
         {
           return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_FORBIDDEN,
             ccf::errors::InternalError,
             "Service is already created.");
         }

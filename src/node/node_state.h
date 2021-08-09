@@ -1448,6 +1448,11 @@ namespace ccf
         consensus->can_replicate());
     }
 
+    bool is_in_initialised_state() const override
+    {
+      return sm.check(State::initialized);
+    }
+
     bool is_part_of_network() const override
     {
       return sm.check(State::partOfNetwork);

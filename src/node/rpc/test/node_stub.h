@@ -51,6 +51,11 @@ namespace ccf
       return true;
     }
 
+    bool is_in_initialised_state() const override
+    {
+      return false;
+    }
+
     bool is_reading_public_ledger() const override
     {
       return false;

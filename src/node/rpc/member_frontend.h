@@ -55,14 +55,6 @@ namespace ccf
   DECLARE_JSON_TYPE(JsBundle)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundle, metadata, modules)
 
-  struct SetJwtPublicSigningKeys
-  {
-    std::string issuer;
-    JsonWebKeySet jwks;
-  };
-  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
-  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
-
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:

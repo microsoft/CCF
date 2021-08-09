@@ -5,7 +5,7 @@
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "node/jwt.h"
-#include "node/rpc/member_frontend.h"
+#include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 
 #define FMT_HEADER_ONLY
