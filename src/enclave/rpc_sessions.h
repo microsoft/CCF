@@ -6,6 +6,8 @@
 #include "ds/serialized.h"
 #include "forwarder_types.h"
 #include "http/http_endpoint.h"
+#include "node/node_info_network.h"
+#include "node/session_metrics.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -23,8 +25,16 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    size_t max_open_sessions_soft = 1000;
-    size_t max_open_sessions_hard = 1100;
+    using ListenInterfaceID = std::string;
+
+    struct ListenInterface
+    {
+      size_t open_sessions;
+      size_t peak_sessions;
+      size_t max_open_sessions_soft;
+      size_t max_open_sessions_hard;
+    };
+    std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host = nullptr;
@@ -32,19 +42,21 @@ namespace enclave
     std::shared_ptr<tls::Cert> cert;
 
     std::mutex lock;
-    std::unordered_map<size_t, std::shared_ptr<Endpoint>> sessions;
+    std::unordered_map<
+      tls::ConnID,
+      std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
+      sessions;
     size_t sessions_peak;
 
-    // Upper half of sessions range is reserved for those originating from
+    // Negative sessions are reserved for those originating from
     // the enclave via create_client().
-    std::atomic<size_t> next_client_session_id =
-      std::numeric_limits<size_t>::max() / 2;
+    std::atomic<tls::ConnID> next_client_session_id = -1;
 
     class NoMoreSessionsEndpointImpl : public enclave::TLSEndpoint
     {
     public:
       NoMoreSessionsEndpointImpl(
-        size_t session_id,
+        tls::ConnID session_id,
         ringbuffer::AbstractWriterFactory& writer_factory,
         std::unique_ptr<tls::Context> ctx) :
         enclave::TLSEndpoint(session_id, writer_factory, std::move(ctx))
@@ -93,6 +105,31 @@ namespace enclave
       }
     };
 
+    tls::ConnID get_next_client_id()
+    {
+      auto id = next_client_session_id--;
+      const auto initial = id;
+
+      if (next_client_session_id > 0)
+        next_client_session_id = -1;
+
+      while (sessions.find(id) != sessions.end())
+      {
+        id--;
+
+        if (id > 0)
+          id = -1;
+
+        if (id == initial)
+        {
+          throw std::runtime_error(
+            "Exhausted all IDs for enclave client sessions");
+        }
+      }
+
+      return id;
+    }
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -103,23 +140,43 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
-    void set_max_open_sessions(size_t soft_cap, size_t hard_cap)
+    void update_listening_interface_caps(const ccf::NodeInfoNetwork& node_info)
     {
       std::lock_guard<std::mutex> guard(lock);
-      max_open_sessions_soft = soft_cap;
-      max_open_sessions_hard = hard_cap;
 
-      LOG_INFO_FMT("Setting max open sessions to [{}, {}]", soft_cap, hard_cap);
+      for (const auto& interface : node_info.rpc_interfaces)
+      {
+        const auto interface_name = fmt::format(
+          "{}:{}", interface.rpc_address.hostname, interface.rpc_address.port);
+        LOG_INFO_FMT(
+          "Setting max open sessions on interface {} to [{}, {}]",
+          interface_name,
+          interface.max_open_sessions_soft,
+          interface.max_open_sessions_hard);
+        auto& li = listening_interfaces[interface_name];
+        li.max_open_sessions_soft = interface.max_open_sessions_soft;
+        li.max_open_sessions_hard = interface.max_open_sessions_hard;
+      }
     }
 
-    void get_stats(
-      size_t& current, size_t& peak, size_t& soft_cap, size_t& hard_cap)
+    ccf::SessionMetrics get_session_metrics()
     {
+      ccf::SessionMetrics sm;
       std::lock_guard<std::mutex> guard(lock);
-      current = sessions.size();
-      peak = sessions_peak;
-      soft_cap = max_open_sessions_soft;
-      hard_cap = max_open_sessions_hard;
+
+      sm.active = sessions.size();
+      sm.peak = sessions_peak;
+
+      for (const auto& [name, interface] : listening_interfaces)
+      {
+        sm.interfaces[name] = {
+          interface.open_sessions,
+          interface.peak_sessions,
+          interface.max_open_sessions_soft,
+          interface.max_open_sessions_hard};
+      }
+
+      return sm;
     }
 
     void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
@@ -134,54 +191,89 @@ namespace enclave
         nullptr, cert_, pk, nullb, tls::auth_optional);
     }
 
-    void accept(size_t id)
+    void accept(tls::ConnID id, const ListenInterfaceID& listen_interface_id)
     {
       std::lock_guard<std::mutex> guard(lock);
 
       if (sessions.find(id) != sessions.end())
+      {
         throw std::logic_error(
-          "Duplicate conn ID received inside enclave: " + std::to_string(id));
+          fmt::format("Duplicate conn ID received inside enclave: {}", id));
+      }
 
-      if (sessions.size() >= max_open_sessions_hard)
+      auto it = listening_interfaces.find(listen_interface_id);
+      if (it == listening_interfaces.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Can't accept new RPC session {} - comes from unknown listening "
+          "interface {}",
+          id,
+          listen_interface_id));
+      }
+
+      auto& per_listen_interface = it->second;
+
+      if (
+        per_listen_interface.open_sessions >=
+        per_listen_interface.max_open_sessions_hard)
       {
         LOG_INFO_FMT(
-          "Refusing a session inside the enclave - already have {} sessions "
-          "and limit is {}: {}",
-          sessions.size(),
-          max_open_sessions_hard,
-          id);
+          "Refusing TLS session {} inside the enclave - already have {} "
+          "sessions "
+          "from interface {} and limit is {}",
+          id,
+          listen_interface_id,
+          per_listen_interface.open_sessions,
+          per_listen_interface.max_open_sessions_hard);
 
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_stop, to_host, id, std::string("Session refused"));
       }
-      else if (sessions.size() >= max_open_sessions_soft)
+      else if (
+        per_listen_interface.open_sessions >=
+        per_listen_interface.max_open_sessions_soft)
       {
         LOG_INFO_FMT(
-          "Soft refusing a session inside the enclave - already have {} "
-          "sessions and limit is {}: {}",
-          sessions.size(),
-          max_open_sessions_soft,
-          id);
+          "Soft refusing session {} (returning 503) inside the enclave - "
+          "already have {} "
+          "sessions from interface {} and limit is {}",
+          id,
+          listen_interface_id,
+          per_listen_interface.open_sessions,
+          per_listen_interface.max_open_sessions_soft);
 
         auto ctx = std::make_unique<tls::Server>(cert);
         auto capped_session = std::make_shared<NoMoreSessionsEndpointImpl>(
           id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, std::move(capped_session)));
+        sessions.insert(std::make_pair(
+          id, std::make_pair(listen_interface_id, std::move(capped_session))));
+        per_listen_interface.open_sessions++;
+        per_listen_interface.peak_sessions = std::max(
+          per_listen_interface.peak_sessions,
+          per_listen_interface.open_sessions);
       }
       else
       {
-        LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
+        LOG_DEBUG_FMT(
+          "Accepting a session {} inside the enclave from interface {}",
+          listen_interface_id,
+          id);
         auto ctx = std::make_unique<tls::Server>(cert);
 
         auto session = std::make_shared<ServerEndpointImpl>(
           rpc_map, id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, std::move(session)));
+        sessions.insert(std::make_pair(
+          id, std::make_pair(listen_interface_id, std::move(session))));
+        per_listen_interface.open_sessions++;
+        per_listen_interface.peak_sessions = std::max(
+          per_listen_interface.peak_sessions,
+          per_listen_interface.open_sessions);
       }
 
       sessions_peak = std::max(sessions_peak, sessions.size());
     }
 
-    bool reply_async(size_t id, std::vector<uint8_t>&& data) override
+    bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -194,15 +286,24 @@ namespace enclave
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second->send(std::move(data));
+      search->second.second->send(std::move(data));
       return true;
     }
 
-    void remove_session(size_t id)
+    void remove_session(tls::ConnID id)
     {
       std::lock_guard<std::mutex> guard(lock);
       LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
-      sessions.erase(id);
+      const auto search = sessions.find(id);
+      if (search != sessions.end())
+      {
+        auto it = listening_interfaces.find(search->second.first);
+        if (it != listening_interfaces.end())
+        {
+          it->second.open_sessions--;
+        }
+        sessions.erase(search);
+      }
     }
 
     std::shared_ptr<ClientEndpoint> create_client(
@@ -210,17 +311,17 @@ namespace enclave
     {
       std::lock_guard<std::mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
-      auto id = ++next_client_session_id;
+      auto id = get_next_client_id();
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
       auto session = std::make_shared<ClientEndpointImpl>(
         id, writer_factory, std::move(ctx));
 
-      // We do not check the open sessions limit here, because we expect
-      // this type of session to be rare and want it to succeed even when we are
-      // busy.
-      sessions.insert(std::make_pair(id, session));
+      // There are no limits on outbound client sessions (we do not check any
+      // session caps here). We expect this type of session to be rare and want
+      // it to succeed even when we are busy.
+      sessions.insert(std::make_pair(id, std::make_pair("", session)));
 
       sessions_peak = std::max(sessions_peak, sessions.size());
 
@@ -232,8 +333,9 @@ namespace enclave
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, tls::tls_start, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<tls::tls_start>(data, size);
-          accept(id);
+          auto [new_tls_id, listen_interface_name] =
+            ringbuffer::read_message<tls::tls_start>(data, size);
+          accept(new_tls_id, listen_interface_name);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -249,7 +351,7 @@ namespace enclave
             return;
           }
 
-          search->second->recv(body.data, body.size);
+          search->second.second->recv(body.data, body.size);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

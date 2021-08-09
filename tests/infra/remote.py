@@ -574,7 +574,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         constitution=None,
         ledger_dir=None,
-        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
+        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         log_format_json=None,
         binary_dir=".",
@@ -586,6 +586,7 @@ class CCFRemote(object):
         jwt_key_refresh_interval_s=None,
         curve_id=None,
         client_connection_timeout_ms=None,
+        additional_raw_node_args=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -701,6 +702,10 @@ class CCFRemote(object):
 
         if client_connection_timeout_ms:
             cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
+
+        if additional_raw_node_args:
+            for s in additional_raw_node_args:
+                cmd += [str(s)]
 
         if start_type == StartType.new:
             cmd += [

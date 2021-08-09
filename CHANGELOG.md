@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added support for listening on multiple interfaces for incoming client RPCs, with individual session caps (#2628).
+
 ### Changed
 
 - CCF is now built with Clang 10. It is recommended that C++ applications upgrade to Clang 10 as well.
