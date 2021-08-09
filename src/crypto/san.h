@@ -16,15 +16,8 @@ namespace crypto
     std::string san;
     bool is_ip;
 
-    bool operator==(const SubjectAltName& other) const
-    {
-      return san == other.san && is_ip == other.is_ip;
-    }
-
-    bool operator!=(const SubjectAltName& other) const
-    {
-      return !(*this == other);
-    }
+    bool operator==(const SubjectAltName& other) const = default;
+    bool operator!=(const SubjectAltName& other) const = default;
   };
   DECLARE_JSON_TYPE(SubjectAltName);
   DECLARE_JSON_REQUIRED_FIELDS(SubjectAltName, san, is_ip);
@@ -41,15 +34,8 @@ namespace crypto
       sans(sans)
     {}
 
-    bool operator==(const CertificateSubjectIdentity& other) const
-    {
-      return sans == other.sans && name == other.name;
-    }
-
-    bool operator!=(const CertificateSubjectIdentity& other) const
-    {
-      return !(*this == other);
-    }
+    bool operator==(const CertificateSubjectIdentity& other) const = default;
+    bool operator!=(const CertificateSubjectIdentity& other) const = default;
   };
   DECLARE_JSON_TYPE(CertificateSubjectIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(CertificateSubjectIdentity, sans, name);
