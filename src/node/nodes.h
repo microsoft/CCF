@@ -64,8 +64,7 @@ namespace ccf
     return crypto::Sha256Hash(node_pubk_der).hex_str();
   }
 
-  inline NodeId compute_node_id(
-    const std::shared_ptr<crypto::KeyPair_OpenSSL>& node_sign_kp)
+  inline NodeId compute_node_id(const crypto::KeyPairPtr& node_sign_kp)
   {
     return compute_node_id(node_sign_kp->public_key_der());
   }

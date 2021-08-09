@@ -1645,9 +1645,7 @@ namespace ccf
 
       request.set_body(&body);
 
-      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
-      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
-
+      const auto key_id = compute_node_id(node_sign_kp);
       http::sign_request(request, node_sign_kp, key_id);
 
       return request.build_request();
