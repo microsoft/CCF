@@ -19,10 +19,13 @@ sign_app_library(
 )
 
 if(BUILD_TESTS)
-
-  set(TPCC_ITERATIONS 200000)
-
   foreach(CONSENSUS ${CONSENSUSES})
+    if("bft" STREQUAL CONSENSUS)
+      set(TPCC_ITERATIONS 100000)
+    else()
+      set(TPCC_ITERATIONS 200000)
+    endif()
+
     add_perf_test(
       NAME tpcc
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc.py
