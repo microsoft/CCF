@@ -285,7 +285,7 @@
       "NodeMetrics": {
         "properties": {
           "sessions": {
-            "$ref": "#/components/schemas/ccf__SessionMetrics"
+            "$ref": "#/components/schemas/SessionMetrics"
           }
         },
         "required": [
@@ -397,27 +397,26 @@
         ],
         "type": "string"
       },
-      "TransactionId": {
-        "pattern": "^[0-9]+\\.[0-9]+$",
-        "type": "string"
-      },
-      "TxStatus": {
-        "enum": [
-          "Unknown",
-          "Pending",
-          "Committed",
-          "Invalid"
+      "SessionMetrics": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "interfaces": {
+            "$ref": "#/components/schemas/string_to_SessionMetrics__PerInterface"
+          },
+          "peak": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "active",
+          "peak",
+          "interfaces"
         ],
-        "type": "string"
+        "type": "object"
       },
-      "base64string": {
-        "format": "base64",
-        "type": "string"
-      },
-      "boolean": {
-        "type": "boolean"
-      },
-      "ccf__SessionMetrics": {
+      "SessionMetrics__PerInterface": {
         "properties": {
           "active": {
             "$ref": "#/components/schemas/uint64"
@@ -440,6 +439,26 @@
         ],
         "type": "object"
       },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
+      },
+      "TxStatus": {
+        "enum": [
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
+        ],
+        "type": "string"
+      },
+      "base64string": {
+        "format": "base64",
+        "type": "string"
+      },
+      "boolean": {
+        "type": "boolean"
+      },
       "ccf__State": {
         "enum": [
           "Uninitialized",
@@ -456,6 +475,12 @@
       "json": {},
       "string": {
         "type": "string"
+      },
+      "string_to_SessionMetrics__PerInterface": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SessionMetrics__PerInterface"
+        },
+        "type": "object"
       },
       "uint64": {
         "maximum": 18446744073709551615,
