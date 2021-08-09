@@ -108,7 +108,7 @@ namespace ccf
 
       http::Request request(fmt::format(
         "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::members),
+        ccf::get_actor_prefix(ccf::ActorsType::nodes),
         "jwt_keys/refresh"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);

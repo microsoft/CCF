@@ -1114,6 +1114,108 @@ namespace ccf
         "/create", HTTP_POST, json_adapter(create), no_auth_required)
         .set_openapi_hidden(true)
         .install();
+
+      // Only called from node. See node_state.h.
+      auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
+        // All errors are server errors since the client is the server.
+
+        if (!consensus)
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No consensus available.");
+        }
+
+        auto primary_id = consensus->primary();
+        if (!primary_id.has_value())
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary is unknown");
+        }
+
+        const auto& cert_auth_ident =
+          ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
+        if (primary_id.value() != cert_auth_ident.node_id)
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: request does not originate from primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Request does not originate from primary.");
+        }
+
+        SetJwtPublicSigningKeys parsed;
+        try
+        {
+          parsed = body.get<SetJwtPublicSigningKeys>();
+        }
+        catch (const JsonParseError& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to parse body.");
+        }
+
+        auto issuers = ctx.tx.rw(this->network.jwt_issuers);
+        auto issuer_metadata_ = issuers->get(parsed.issuer);
+        if (!issuer_metadata_.has_value())
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("{} is not a valid issuer.", parsed.issuer));
+        }
+        auto& issuer_metadata = issuer_metadata_.value();
+
+        if (!issuer_metadata.auto_refresh)
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: {} does not have auto_refresh enabled",
+            parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "{} does not have auto_refresh enabled.", parsed.issuer));
+        }
+
+        if (!set_jwt_public_signing_keys(
+              ctx.tx,
+              "<auto-refresh>",
+              parsed.issuer,
+              issuer_metadata,
+              parsed.jwks))
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: error while storing signing keys for issuer "
+            "{}",
+            parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Error while storing signing keys for issuer {}.",
+              parsed.issuer));
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "/jwt_keys/refresh",
+        HTTP_POST,
+        json_adapter(refresh_jwt_keys),
+        {std::make_shared<NodeSignAuthPolicy>()})
+        .set_openapi_hidden(true)
+        .install();
     }
   };
 
