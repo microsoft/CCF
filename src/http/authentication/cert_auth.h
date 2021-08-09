@@ -112,7 +112,7 @@ namespace ccf
       auto caller_public_key_der =
         crypto::make_unique_verifier(ctx->session->caller_cert)
           ->public_key_der();
-      auto node_caller_id = crypto::Sha256Hash(caller_public_key_der).hex_str();
+      auto node_caller_id = compute_node_id(caller_public_key_der);
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       auto node = nodes->get(node_caller_id);

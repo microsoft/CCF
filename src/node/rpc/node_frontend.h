@@ -148,7 +148,7 @@ namespace ccf
       NodeId joining_node_id;
       if (network.consensus_type == ConsensusType::CFT)
       {
-        joining_node_id = crypto::Sha256Hash(pk_der).hex_str();
+        joining_node_id = compute_node_id(pk_der);
       }
       else
       {

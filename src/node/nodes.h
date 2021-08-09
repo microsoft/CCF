@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/entity_id.h"
+#include "crypto/openssl/key_pair.h"
 #include "entities.h"
 #include "kv/map.h"
 #include "node_info_network.h"
@@ -57,6 +58,17 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno, code_digest);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
+
+  inline NodeId compute_node_id(const std::vector<uint8_t>& node_pubk_der)
+  {
+    return crypto::Sha256Hash(node_pubk_der).hex_str();
+  }
+
+  inline NodeId compute_node_id(
+    const std::shared_ptr<crypto::KeyPair_OpenSSL>& node_sign_kp)
+  {
+    return compute_node_id(node_sign_kp->public_key_der());
+  }
 }
 
 FMT_BEGIN_NAMESPACE

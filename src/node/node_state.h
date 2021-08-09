@@ -267,7 +267,7 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::CFT)
       {
-        self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
+        self = compute_node_id(node_sign_kp);
       }
     }
 
