@@ -243,4 +243,108 @@ namespace ccf
         {"description",
          "Request must be signed according to the HTTP Signature scheme. The "
          "signer must be a member identity registered with this service."}});
+
+  struct NodeSignatureAuthnIdentity : public AuthnIdentity
+  {
+    /** CCF Node ID */
+    NodeId node_id;
+
+    /** Node public key, used to sign this request, contains public key
+     * described by keyId */
+    crypto::Pem node_cert;
+
+    /** Canonicalised request and associated signature */
+    SignedReq signed_request;
+
+    /** Digest of request */
+    std::vector<uint8_t> request_digest;
+  };
+
+  class NodeSignatureAuthnPolicy : public AuthnPolicy
+  {
+  protected:
+    static const OpenAPISecuritySchema security_schema;
+    VerifierCache verifiers;
+
+  public:
+    static constexpr auto SECURITY_SCHEME_NAME = "node_signature";
+
+    std::unique_ptr<AuthnIdentity> authenticate(
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string& error_reason) override
+    {
+      const auto signed_request = parse_signed_request(ctx);
+      if (signed_request.has_value())
+      {
+        Nodes nodes_table(Tables::NODES);
+        auto nodes = tx.ro(nodes_table);
+        auto node = nodes->get(signed_request->key_id);
+        if (node.has_value())
+        {
+          std::vector<uint8_t> digest;
+          auto verifier = verifiers.get_verifier(node->cert);
+          if (verifier->verify(
+                signed_request->req,
+                signed_request->sig,
+                signed_request->md,
+                digest))
+          {
+            auto identity = std::make_unique<NodeSignatureAuthnIdentity>();
+            identity->node_id = signed_request->key_id;
+            identity->node_cert = node->cert;
+            identity->signed_request = signed_request.value();
+            identity->request_digest = std::move(digest);
+            return identity;
+          }
+          else
+          {
+            error_reason = "Signature is invalid";
+          }
+        }
+        else
+        {
+          error_reason = "Signer is not a known node";
+        }
+      }
+      else
+      {
+        error_reason = "Missing signature";
+      }
+
+      return nullptr;
+    }
+
+    void set_unauthenticated_error(
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string&& error_reason) override
+    {
+      ctx->set_error(
+        HTTP_STATUS_UNAUTHORIZED,
+        ccf::errors::InvalidAuthenticationInfo,
+        std::move(error_reason));
+      ctx->set_response_header(
+        http::headers::WWW_AUTHENTICATE,
+        fmt::format(
+          "Signature realm=\"Signed request access\", "
+          "headers=\"{}\"",
+          fmt::join(http::required_signature_headers, " ")));
+    }
+
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
+    {
+      return security_schema;
+    }
+  };
+
+  inline const OpenAPISecuritySchema NodeSignatureAuthnPolicy::security_schema =
+    std::make_pair(
+      NodeSignatureAuthnPolicy::SECURITY_SCHEME_NAME,
+      nlohmann::json{
+        {"type", "http"},
+        {"scheme", "signature"},
+        {"description",
+         "Request must be signed according to the HTTP Signature scheme. The "
+         "signer must be a node identity registered with this service."}});
 }
