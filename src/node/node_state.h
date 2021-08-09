@@ -533,16 +533,11 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
-            // Endorsed node certificate is included in join response from 2.x.
-            if (resp.network_info.endorsed_certificate.has_value())
+            if (!resp.network_info.endorsed_certificate.has_value())
             {
-              // TODO: This should be picked up later on, on hook
-              node_cert = resp.network_info.endorsed_certificate.value();
-            }
-            else
-            {
-              // When joining an existing 1.x service, self-sign own certificate
-              // and use it to endorse TLS connections
+              // Endorsed node certificate is included in join response
+              // from 2.x. When joining an existing 1.x service, self-sign own
+              // certificate and use it to endorse TLS connections.
               node_cert = create_endorsed_node_cert();
               accept_network_tls_connections();
             }
@@ -574,6 +569,8 @@ namespace ccf
               resp.network_info.endorsed_certificate);
             setup_progress_tracker();
             setup_history();
+
+            // TODO: Does this need the endorsed or self-signed cert?
             auto_refresh_jwt_keys();
 
             if (resp.network_info.public_only)
@@ -1878,6 +1875,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
+              LOG_FAIL_FMT("Picking up endorsed identity from hook");
               node_cert = endorsed_certificate.value();
               n2n_channels->set_endorsed_node_cert(node_cert);
               accept_network_tls_connections();
@@ -2018,7 +2016,7 @@ namespace ccf
         snapshotter,
         rpcsessions,
         rpc_map,
-        node_cert.raw(),
+        node_cert.raw(), // TODO: Delete?
         shared_state,
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,

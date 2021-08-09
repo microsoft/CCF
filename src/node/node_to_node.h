@@ -159,7 +159,9 @@ namespace ccf
         self.value(),
         self_id);
 
-      if (node_cert.has_value() && make_verifier(node_cert)->is_self_signed())
+      if (
+        node_cert.has_value() &&
+        make_verifier(node_cert.value())->is_self_signed())
       {
         LOG_FAIL_FMT(
           "Refusing to initialize node-to-node channels with self-signed node "

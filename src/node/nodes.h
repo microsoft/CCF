@@ -60,7 +60,11 @@ namespace ccf
     /// Public key
     std::optional<crypto::Pem> public_key = std::nullopt;
 
-    /** Deprecated.
+    /**
+     * Fields below are deprecated
+     */
+
+    /** Deprecated as of 2.x.
      * Node certificate. Only set for 1.x releases. Further releases record
      * node identity in `public_key` field. Service-endorsed certificate is
      * recorded in "public:ccf.nodes.endorsed_certificates" table */
