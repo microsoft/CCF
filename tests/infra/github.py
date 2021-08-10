@@ -4,7 +4,6 @@ import infra.proc
 
 import re
 import os
-from functools import cmp_to_key
 import git
 from github import Github  # TODO: remove
 import urllib
@@ -88,12 +87,6 @@ class Repository:
     """
 
     def __init__(self):
-        self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
-        self.repo = self.g.get_repo(REPOSITORY_NAME)
-        # self.branches = self.repo.get_branches()
-        self.releases = self.repo.get_releases()
-        # self.tags = self.repo.get_tags()
-        # self.repo = git.Repo("/data/git/CCF")  # TODO: Pass repo top directory here
         self.g = git.cmd.Git()
         self.tags = [
             tag.split("/")[-1]
@@ -110,10 +103,7 @@ class Repository:
         # Branches are ordered based on major version, with oldest first
         return sorted(
             self.release_branches,
-            key=cmp_to_key(
-                lambda b1, b2: get_major_version_from_release_branch_name(b2)
-                - get_major_version_from_release_branch_name(b1)
-            ),
+            key=get_major_version_from_release_branch_name,
         )
 
     def get_release_branch_name_before(self, release_branch_name):
@@ -140,21 +130,11 @@ class Repository:
         # Only consider tags that have releases as perhaps a release is in progress
         # (i.e. tag exists but hasn't got a release just yet)
         # TODO: This is too slow. We should select the latest tag instead, use that, and retry with the previous one if it fails
-        tags_with_release = [
+        return [
             t
             for t in self.tags
             if requests.get(f"{REMOTE_URL}/releases/tag/{t}").status_code == 200
         ]
-        LOG.error(f"Tags with release: {tags_with_release}")
-        return tags_with_release
-
-    def get_release_for_tag(self, tag):
-        releases = [r for r in self.releases if r.tag_name == tag]
-        if not releases:
-            raise ValueError(
-                f"No releases found for tag {tag}. Has the release for {tag} not been published yet?"
-            )
-        return releases[0]
 
     def get_tags_for_release_branch(self, branch_name):
         # Tags are ordered based on semver, with latest first
@@ -186,8 +166,6 @@ class Repository:
 
     def install_release(self, tag):
         stripped_tag = tag[len(TAG_RELEASE_PREFIX) :]
-        release = self.get_release_for_tag(tag)
-
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
         debian_package_url = get_debian_package_url_from_tag_name(tag)
 
