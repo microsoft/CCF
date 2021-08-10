@@ -11,6 +11,7 @@ steps:
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+      LTS_COMPATIBILITY_GH_TOKEN: $(LTS_COMPATIBILITY_GH_TOKEN)
     displayName: CTest
     workingDirectory: build
 
