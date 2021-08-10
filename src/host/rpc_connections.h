@@ -42,7 +42,7 @@ namespace asynchost
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_inbound,
           parent.to_enclave,
-          (size_t)id,
+          id,
           serializer::ByteRange{data, len});
       }
 
@@ -54,7 +54,7 @@ namespace asynchost
 
       void cleanup()
       {
-        RINGBUFFER_WRITE_MESSAGE(tls::tls_close, parent.to_enclave, (size_t)id);
+        RINGBUFFER_WRITE_MESSAGE(tls::tls_close, parent.to_enclave, id);
       }
     };
 
@@ -83,10 +83,11 @@ namespace asynchost
 
         parent.sockets.emplace(client_id, peer);
 
-        LOG_DEBUG_FMT("rpc accept {}", client_id);
+        const auto listen_address = parent.get_address(id);
+        LOG_DEBUG_FMT("rpc accept {} on {}", client_id, listen_address);
 
         RINGBUFFER_WRITE_MESSAGE(
-          tls::tls_start, parent.to_enclave, (size_t)client_id);
+          tls::tls_start, parent.to_enclave, client_id, listen_address);
       }
 
       void cleanup()
@@ -95,8 +96,8 @@ namespace asynchost
       }
     };
 
-    std::unordered_map<int64_t, TCP> sockets;
-    int64_t next_id = 1;
+    std::unordered_map<tls::ConnID, TCP> sockets;
+    tls::ConnID next_id = 1;
 
     size_t client_connection_timeout;
     ringbuffer::WriterPtr to_enclave;
@@ -109,7 +110,7 @@ namespace asynchost
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
-    bool listen(int64_t id, std::string& host, std::string& service)
+    bool listen(tls::ConnID id, std::string& host, std::string& service)
     {
       if (id == 0)
       {
@@ -188,7 +189,7 @@ namespace asynchost
       // Invalidating the TCP socket will result in the handle being closed. No
       // more messages will be read from or written to the TCP socket.
       sockets[id] = nullptr;
-      RINGBUFFER_WRITE_MESSAGE(tls::tls_close, to_enclave, (size_t)id);
+      RINGBUFFER_WRITE_MESSAGE(tls::tls_close, to_enclave, id);
 
       return true;
     }
@@ -223,11 +224,17 @@ namespace asynchost
           auto [id, host, service] =
             ringbuffer::read_message<tls::tls_connect>(data, size);
 
-          int64_t connect_id = (int64_t)id;
-          LOG_DEBUG_FMT("rpc connect request from enclave {}", connect_id);
+          LOG_DEBUG_FMT("rpc connect request from enclave {}", id);
 
-          if (check_enclave_side_id(connect_id))
-            connect(connect_id, host, service);
+          if (check_enclave_side_id(id))
+          {
+            connect(id, host, service);
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "rpc session id is not in dedicated from-enclave range ({})", id);
+          }
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -248,9 +255,10 @@ namespace asynchost
     }
 
   private:
-    int64_t get_next_id()
+    tls::ConnID get_next_id()
     {
       auto id = next_id++;
+      const auto initial = id;
 
       if (next_id < 0)
         next_id = 1;
@@ -261,21 +269,32 @@ namespace asynchost
 
         if (id < 0)
           id = 1;
+
+        if (id == initial)
+        {
+          throw std::runtime_error(
+            "Exhausted all IDs for host RPC connections");
+        }
       }
 
       return id;
     }
 
-    bool check_enclave_side_id(int64_t id)
+    bool check_enclave_side_id(tls::ConnID id)
     {
-      bool ok = id < 0;
+      return id < 0;
+    }
 
-      if (!ok)
+    std::string get_address(tls::ConnID id)
+    {
+      const auto it = sockets.find(id);
+      if (it == sockets.end())
       {
-        LOG_FAIL_FMT("rpc id is not in dedicated range ({})", id);
+        throw std::logic_error(fmt::format("No socket with id {}", id));
       }
 
-      return ok;
+      return fmt::format(
+        "{}:{}", it->second->get_host(), it->second->get_service());
     }
   };
 }

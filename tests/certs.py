@@ -30,39 +30,39 @@ def run(cert_test):
                 raise
 
     test(
-        ["--sn=CN=subject", "--san=iPAddress:1.2.3.4"],
-        "Subject: CN = subject\n",
+        ["--sn=CN=subject1", "--san=iPAddress:1.2.3.4"],
+        "Subject: CN = subject1\n",
         "X509v3 Subject Alternative Name: \n" + 16 * " ",
         "IP Address:1.2.3.4",
     )
 
     test(
         [
-            "--sn=CN=subject",
+            "--sn=CN=subject2",
             "--san=iPAddress:1.2.3.4",
             "--san=iPAddress:192.168.200.123",
         ],
-        "Subject: CN = subject\n",
+        "Subject: CN = subject2\n",
         "X509v3 Subject Alternative Name: \n" + 16 * " ",
         "IP Address:192.168.200.123",
         "IP Address:1.2.3.4",
     )
 
     test(
-        ["--sn=CN=subject", "--san=dNSName:sub.domain.tld"],
-        "Subject: CN = subject\n",
+        ["--sn=CN=subject3", "--san=dNSName:sub.domain.tld"],
+        "Subject: CN = subject3\n",
         "X509v3 Subject Alternative Name: \n" + 16 * " ",
         "DNS:sub.domain.tld",
     )
 
     test(
         [
-            "--sn=CN=subject",
+            "--sn=CN=subject4",
             "--san=iPAddress:1.2.3.4",
             "--san=dNSName:sub.domain.tld",
             "--san=iPAddress:192.168.200.123",
         ],
-        "Subject: CN = subject\n",
+        "Subject: CN = subject4\n",
         "X509v3 Subject Alternative Name: \n" + 16 * " ",
         "IP Address:192.168.200.123",
         "DNS:sub.domain.tld",
