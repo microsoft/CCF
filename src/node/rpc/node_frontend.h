@@ -136,7 +136,6 @@ namespace ccf
       NodeStatus node_status,
       ServiceStatus service_status)
     {
-      LOG_FAIL_FMT("Service status: {}", service_status); // TODO: Delete
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
@@ -273,7 +272,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.4.0"; // TODO: Bump up
+      openapi_info.document_version = "1.4.0";
     }
 
     void init_handlers() override

@@ -777,16 +777,18 @@ const actions = new Map([
             ccf.jsonCompatibleToBuf(nodeInfo)
           );
 
-          // Also endorse and record node certificate
-          // TODO: For now, assume that node public key is always present, which isn't true for 1.x!
-          const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
-            nodeInfo.certificate_signing_request,
-            nodeInfo.certificate_subject_identity
-          );
-          ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
-            ccf.strToBuf(args.node_id),
-            ccf.strToBuf(endorsed_node_cert)
-          );
+          // Also generate and record service-endorsed node certificate from node CSR
+          if (nodeInfo.certificate_signing_request !== undefined) {
+            // Note: CSR is only present from 2.x
+            const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
+              nodeInfo.certificate_signing_request,
+              nodeInfo.certificate_subject_identity
+            );
+            ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
+              ccf.strToBuf(args.node_id),
+              ccf.strToBuf(endorsed_node_cert)
+            );
+          }
         }
       }
     ),
