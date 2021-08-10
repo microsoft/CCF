@@ -5,7 +5,8 @@ import infra.proc
 import re
 import os
 from functools import cmp_to_key
-from github import Github
+import git
+from github import Github  # TODO: remove
 import urllib
 import shutil
 
@@ -20,6 +21,7 @@ from loguru import logger as LOG
 ENV_VAR_GITHUB_AUTH_TOKEN_NAME = "LTS_COMPATIBILITY_GH_TOKEN"
 
 REPOSITORY_NAME = "microsoft/CCF"
+REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"
 TAG_RELEASE_PREFIX = "ccf-"
 MAIN_BRANCH_NAME = "main"
@@ -87,14 +89,26 @@ class Repository:
     def __init__(self):
         self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
         self.repo = self.g.get_repo(REPOSITORY_NAME)
-        self.branches = self.repo.get_branches()
+        # self.branches = self.repo.get_branches()
         self.releases = self.repo.get_releases()
         self.tags = self.repo.get_tags()
+        # self.repo = git.Repo("/data/git/CCF")  # TODO: Pass repo top directory here
+        self.g = git.cmd.Git()
+        # self.tags = [
+        #     tag.split("/")[-1]
+        #     for tag in self.g.ls_remote(REMOTE_URL).split("\n")
+        #     if "tags" in tag
+        # ]
+        self.release_branches = [
+            branch.split("heads/")[-1]
+            for branch in self.g.ls_remote(REMOTE_URL).split("\n")
+            if "heads/release" in branch
+        ]
 
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
         return sorted(
-            [branch.name for branch in self.branches if is_release_branch(branch.name)],
+            self.release_branches,
             key=cmp_to_key(
                 lambda b1, b2: get_major_version_from_release_branch_name(b2)
                 - get_major_version_from_release_branch_name(b1)
