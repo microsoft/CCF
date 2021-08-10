@@ -9,6 +9,7 @@ import git
 from github import Github  # TODO: remove
 import urllib
 import shutil
+import requests
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -77,7 +78,7 @@ def get_major_version_from_branch_name(branch_name):
 
 
 def get_debian_package_url_from_tag_name(tag_name):
-    return f'https://github.com/{REPOSITORY_NAME}/releases/download/{tag_name}/{tag_name.replace("-", "_")}_amd64.deb'
+    return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
 
 class Repository:
@@ -91,14 +92,14 @@ class Repository:
         self.repo = self.g.get_repo(REPOSITORY_NAME)
         # self.branches = self.repo.get_branches()
         self.releases = self.repo.get_releases()
-        self.tags = self.repo.get_tags()
+        # self.tags = self.repo.get_tags()
         # self.repo = git.Repo("/data/git/CCF")  # TODO: Pass repo top directory here
         self.g = git.cmd.Git()
-        # self.tags = [
-        #     tag.split("/")[-1]
-        #     for tag in self.g.ls_remote(REMOTE_URL).split("\n")
-        #     if "tags" in tag
-        # ]
+        self.tags = [
+            tag.split("/")[-1]
+            for tag in self.g.ls_remote(REMOTE_URL).split("\n")
+            if f"tags/{TAG_RELEASE_PREFIX}1" in tag
+        ]  # TODO: Remove 1
         self.release_branches = [
             branch.split("heads/")[-1]
             for branch in self.g.ls_remote(REMOTE_URL).split("\n")
@@ -138,11 +139,17 @@ class Repository:
     def get_tags_with_releases(self):
         # Only consider tags that have releases as perhaps a release is in progress
         # (i.e. tag exists but hasn't got a release just yet)
-        all_released_tags = [r.tag_name for r in self.releases]
-        return [t for t in self.tags if t.name in all_released_tags]
+        # TODO: This is too slow. We should select the latest tag instead, use that, and retry with the previous one if it fails
+        tags_with_release = [
+            t
+            for t in self.tags
+            if requests.get(f"{REMOTE_URL}/releases/tag/{t}").status_code == 200
+        ]
+        LOG.error(f"Tags with release: {tags_with_release}")
+        return tags_with_release
 
     def get_release_for_tag(self, tag):
-        releases = [r for r in self.releases if r.tag_name == tag.name]
+        releases = [r for r in self.releases if r.tag_name == tag]
         if not releases:
             raise ValueError(
                 f"No releases found for tag {tag}. Has the release for {tag} not been published yet?"
@@ -160,15 +167,9 @@ class Repository:
             TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\\d+]+)")
         )
         return sorted(
-            [
-                tag
-                for tag in self.get_tags_with_releases()
-                if re.match(release_re, tag.name)
-            ],
-            key=cmp_to_key(
-                lambda t1, t2: get_version_from_tag_name(t1.name)
-                < get_version_from_tag_name(t2.name)
-            ),
+            [tag for tag in self.get_tags_with_releases() if re.match(release_re, tag)],
+            key=get_version_from_tag_name,
+            reverse=True,
         )
 
     def get_lts_releases(self):
@@ -184,16 +185,11 @@ class Repository:
         return releases
 
     def install_release(self, tag):
-        stripped_tag = tag.name[len(TAG_RELEASE_PREFIX) :]
+        stripped_tag = tag[len(TAG_RELEASE_PREFIX) :]
         release = self.get_release_for_tag(tag)
 
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        # debian_package_url = [
-        #     a.browser_download_url
-        #     for a in release.get_assets()
-        #     if re.match(f"ccf_{stripped_tag}{DEBIAN_PACKAGE_EXTENSION}", a.name)
-        # ][0]
-        debian_package_url = get_debian_package_url_from_tag_name(tag.name)
+        debian_package_url = get_debian_package_url_from_tag_name(tag)
 
         debian_package_name = debian_package_url.split("/")[-1]
         download_path = os.path.join(DOWNLOAD_FOLDER_NAME, debian_package_name)
@@ -271,7 +267,7 @@ class Repository:
 
         # Note: will currently fail if the tag is created but the release
         # not yet published
-        LOG.info(f"Latest release tag: {latest_tag.name}")
+        LOG.info(f"Latest release tag: {latest_tag}")
         return self.install_release(latest_tag)
 
     def install_next_lts_for_branch(self, branch):
@@ -280,5 +276,5 @@ class Repository:
             LOG.info(f"No next release tag found for {branch}")
             return None, None
 
-        LOG.info(f"Next release tag: {next_tag.name}")
+        LOG.info(f"Next release tag: {next_tag}")
         return self.install_release(next_tag)

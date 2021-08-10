@@ -310,7 +310,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     repo = infra.github.Repository()
     lts_releases = repo.get_lts_releases()
 
-    LOG.info(f"LTS releases: {[r[1].name for r in lts_releases.items()]}")
+    LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
     lts_versions = []
 
@@ -448,7 +448,7 @@ if __name__ == "__main__":
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+    latest_lts_version = run_live_compatibility_with_latest(args, repo, "release/1.x")
     following_lts_version = run_live_compatibility_with_following(
         args, repo, env.branch
     )
