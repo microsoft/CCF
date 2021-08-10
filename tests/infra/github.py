@@ -92,10 +92,10 @@ class Repository:
     def __init__(self):
         self.g = git.cmd.Git()
         self.tags = [
-            tag.split("/")[-1]
+            tag.split("tags/")[-1]
             for tag in self.g.ls_remote(REMOTE_URL).split("\n")
-            if f"tags/{TAG_RELEASE_PREFIX}1" in tag
-        ]  # TODO: Remove 1
+            if f"tags/{TAG_RELEASE_PREFIX}" in tag
+        ]
         self.release_branches = [
             branch.split("heads/")[-1]
             for branch in self.g.ls_remote(REMOTE_URL).split("\n")
