@@ -63,7 +63,22 @@ namespace ccf
     }
   };
 
-  class ByzantineIdentityTracker
+  class IdentityTracker
+  {
+  public:
+    virtual void add_network_configuration(
+      const kv::NetworkConfiguration& config) = 0;
+    virtual void add_identity(
+      ccf::SeqNo seqno, kv::ReconfigurationId rid, ccf::Identity id) = 0;
+    virtual bool have_identity_for(
+      kv::ReconfigurationId rid, ccf::SeqNo commit_idx) const = 0;
+    virtual Identity get_identity(kv::ReconfigurationId rid) const = 0;
+    virtual void reshare(const kv::NetworkConfiguration& config) = 0;
+    virtual kv::ReconfigurationId find_reconfiguration(
+      const kv::Configuration::Nodes& nodes) const = 0;
+  };
+
+  class ByzantineIdentityTracker : public IdentityTracker
   {
   public:
     enum class SessionState
@@ -94,12 +109,13 @@ namespace ccf
 
     virtual ~ByzantineIdentityTracker() {}
 
-    void add_network_configuration(const kv::NetworkConfiguration& config)
+    virtual void add_network_configuration(
+      const kv::NetworkConfiguration& config) override
     {
       network_configs[config.rid] = config;
     }
 
-    void reshare(const kv::NetworkConfiguration& config)
+    virtual void reshare(const kv::NetworkConfiguration& config) override
     {
       auto rid = config.rid;
       LOG_DEBUG_FMT("Identities: start resharing for configuration #{}", rid);
@@ -114,8 +130,8 @@ namespace ccf
         std::move(msg));
     }
 
-    kv::ReconfigurationId find_reconfiguration(
-      const kv::Configuration::Nodes& nodes) const
+    virtual kv::ReconfigurationId find_reconfiguration(
+      const kv::Configuration::Nodes& nodes) const override
     {
       // We're searching for a configuration with the same set of nodes as
       // `nodes`. We currently don't have an easy way to look up the
@@ -139,15 +155,15 @@ namespace ccf
       return -1;
     }
 
-    bool have_identity_for(
-      kv::ReconfigurationId rid, ccf::SeqNo commit_idx) const
+    virtual bool have_identity_for(
+      kv::ReconfigurationId rid, ccf::SeqNo commit_idx) const override
     {
       auto idt = identities.find(rid);
       return idt != identities.end() && idt->second.seqno <= commit_idx;
     }
 
-    void add_identity(
-      ccf::SeqNo seqno, kv::ReconfigurationId rid, ccf::Identity id)
+    virtual void add_identity(
+      ccf::SeqNo seqno, kv::ReconfigurationId rid, ccf::Identity id) override
     {
       LOG_DEBUG_FMT("Identities: adding identity for configuration #{}", rid);
 
@@ -171,7 +187,7 @@ namespace ccf
       }
     }
 
-    ByzantineIdentity get_identity(kv::ReconfigurationId rid) const
+    virtual Identity get_identity(kv::ReconfigurationId rid) const override
     {
       auto iit = identities.find(rid);
       if (iit == identities.end())

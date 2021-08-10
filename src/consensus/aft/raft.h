@@ -148,7 +148,7 @@ namespace aft
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
     bool use_two_tx_reconfig = false;
     bool require_identity_for_reconfig = false;
-    std::shared_ptr<ccf::ByzantineIdentityTracker> byzantine_identity_tracker;
+    std::shared_ptr<ccf::IdentityTracker> identity_tracker;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -195,8 +195,7 @@ namespace aft
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
-      std::shared_ptr<ccf::ByzantineIdentityTracker>
-        byzantine_identity_tracker_,
+      std::shared_ptr<ccf::IdentityTracker> identity_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -220,7 +219,7 @@ namespace aft
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
 
-      byzantine_identity_tracker(std::move(byzantine_identity_tracker_)),
+      identity_tracker(std::move(identity_tracker_)),
 
       public_only(public_only_),
 
@@ -261,7 +260,7 @@ namespace aft
 
       if (require_identity_for_reconfig)
       {
-        if (!byzantine_identity_tracker)
+        if (!identity_tracker)
         {
           throw std::logic_error("missing identity tracker");
         }
@@ -598,8 +597,8 @@ namespace aft
     {
       if (use_two_tx_reconfig && require_identity_for_reconfig)
       {
-        assert(byzantine_identity_tracker);
-        byzantine_identity_tracker->add_identity(seqno, rid, identity);
+        assert(identity_tracker);
+        identity_tracker->add_identity(seqno, rid, identity);
       }
     }
 
@@ -624,11 +623,11 @@ namespace aft
       if (require_identity_for_reconfig)
       {
         assert(use_two_tx_reconfig);
-        assert(byzantine_identity_tracker);
-        byzantine_identity_tracker->add_network_configuration(config);
+        assert(identity_tracker);
+        identity_tracker->add_network_configuration(config);
         if (is_primary())
         {
-          byzantine_identity_tracker->reshare(config);
+          identity_tracker->reshare(config);
         }
       }
     }
@@ -3166,10 +3165,9 @@ namespace aft
 
         if (require_identity_for_reconfig)
         {
-          assert(byzantine_identity_tracker);
-          auto rid =
-            byzantine_identity_tracker->find_reconfiguration(next->nodes);
-          if (!byzantine_identity_tracker->have_identity_for(rid, idx))
+          assert(identity_tracker);
+          auto rid = identity_tracker->find_reconfiguration(next->nodes);
+          if (!identity_tracker->have_identity_for(rid, idx))
           {
             LOG_TRACE_FMT(
               "Configurations: not switching to next configuration ({}), "

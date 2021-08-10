@@ -77,8 +77,8 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     nullptr,
     nullptr,
     nullptr,
-    request_timeout,
     nullptr,
+    request_timeout,
     election_timeout,
     ms(1000));
 
