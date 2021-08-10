@@ -81,7 +81,7 @@ class Repository:
     """
 
     def __init__(self):
-        self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
+        self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME, "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"))
         self.repo = self.g.get_repo(REPOSITORY_NAME)
         self.branches = self.repo.get_branches()
         self.releases = self.repo.get_releases()
