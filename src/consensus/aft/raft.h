@@ -32,11 +32,11 @@
 #include "impl/state.h"
 #include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
-#include "node/byzantine_identity.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
 #include "node/request_tracker.h"
+#include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
@@ -148,7 +148,7 @@ namespace aft
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
     bool use_two_tx_reconfig = false;
     bool require_identity_for_reconfig = false;
-    std::shared_ptr<ccf::IdentityTracker> identity_tracker;
+    std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -195,7 +195,7 @@ namespace aft
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
-      std::shared_ptr<ccf::IdentityTracker> identity_tracker_,
+      std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -219,7 +219,7 @@ namespace aft
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
 
-      identity_tracker(std::move(identity_tracker_)),
+      resharing_tracker(std::move(resharing_tracker_)),
 
       public_only(public_only_),
 
@@ -260,7 +260,7 @@ namespace aft
 
       if (require_identity_for_reconfig)
       {
-        if (!identity_tracker)
+        if (!resharing_tracker)
         {
           throw std::logic_error("missing identity tracker");
         }
@@ -590,15 +590,15 @@ namespace aft
       create_and_remove_node_state();
     }
 
-    void add_identity(
+    void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
-      const ccf::Identity& identity)
+      const ccf::ResharingResult& result)
     {
       if (use_two_tx_reconfig && require_identity_for_reconfig)
       {
-        assert(identity_tracker);
-        identity_tracker->add_identity(seqno, rid, identity);
+        assert(resharing_tracker);
+        resharing_tracker->add_resharing_result(seqno, rid, result);
       }
     }
 
@@ -623,11 +623,11 @@ namespace aft
       if (require_identity_for_reconfig)
       {
         assert(use_two_tx_reconfig);
-        assert(identity_tracker);
-        identity_tracker->add_network_configuration(config);
+        assert(resharing_tracker);
+        resharing_tracker->add_network_configuration(config);
         if (is_primary())
         {
-          identity_tracker->reshare(config);
+          resharing_tracker->reshare(config);
         }
       }
     }
@@ -3165,14 +3165,15 @@ namespace aft
 
         if (require_identity_for_reconfig)
         {
-          assert(identity_tracker);
-          auto rid = identity_tracker->find_reconfiguration(next->nodes);
-          if (!identity_tracker->have_identity_for(rid, idx))
+          assert(resharing_tracker);
+          auto rr = resharing_tracker->find_reconfiguration(next->nodes);
+          if (
+            !rr.has_value() ||
+            !resharing_tracker->have_resharing_result_for(rr.value(), idx))
           {
             LOG_TRACE_FMT(
-              "Configurations: not switching to next configuration ({}), "
-              "identity not committed yet.",
-              rid);
+              "Configurations: not switching to next configuration, resharing "
+              "not completed yet.");
             break;
           }
         }
@@ -3211,6 +3212,11 @@ namespace aft
             break;
           }
         }
+      }
+
+      if (resharing_tracker)
+      {
+        resharing_tracker->compact(idx);
       }
 
       if (changed)

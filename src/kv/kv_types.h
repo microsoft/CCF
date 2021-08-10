@@ -9,6 +9,7 @@
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "node/identity.h"
+#include "node/resharing_types.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -175,10 +176,10 @@ namespace kv
     virtual ConsensusDetails get_details() = 0;
     virtual void add_network_configuration(
       ccf::SeqNo seqno, const NetworkConfiguration& config) = 0;
-    virtual void add_identity(
+    virtual void add_resharing_result(
       ccf::SeqNo seqno,
       ReconfigurationId rid,
-      const ccf::Identity& identity) = 0;
+      const ccf::ResharingResult& result) = 0;
   };
 
   class ConsensusHook

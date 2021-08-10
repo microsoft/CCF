@@ -432,9 +432,7 @@ if(BUILD_TESTS)
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
-    target_link_libraries(
-      raft_driver PRIVATE ccfcrypto.host openenclave::oehost
-    )
+    target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(

@@ -145,7 +145,7 @@ namespace ccf
     };
   };
 
-  struct UpdateIdentity
+  struct UpdateResharing
   {
     struct In
     {

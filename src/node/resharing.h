@@ -9,76 +9,49 @@
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
 #include "node/identity.h"
+#include "node/resharing_tracker.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serdes.h"
 #include "node/rpc/serialization.h"
 #include "service_map.h"
 
+#include <optional>
 #include <vector>
 
 namespace ccf
 {
-  struct ByzantineIdentity : public Identity
-  {
-    ByzantineIdentity() : Identity()
-    {
-      type = IdentityType::BYZANTINE;
-    }
-  };
+  using Index = uint64_t;
+  using Resharings = ServiceMap<kv::ReconfigurationId, ResharingResult>;
 
-  DECLARE_JSON_TYPE(ByzantineIdentity);
-  DECLARE_JSON_REQUIRED_FIELDS(ByzantineIdentity, cert);
-
-  using ByzantineIdentities =
-    ServiceMap<kv::ReconfigurationId, ByzantineIdentity>;
-
-  class ByzantineIdentitiesHook : public kv::ConsensusHook
+  class ResharingsHook : public kv::ConsensusHook
   {
     kv::Version version;
-    std::unordered_map<kv::ReconfigurationId, ByzantineIdentity> byids;
+    std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
 
   public:
-    ByzantineIdentitiesHook(
-      kv::Version version_, const ByzantineIdentities::Write& w) :
+    ResharingsHook(kv::Version version_, const Resharings::Write& w) :
       version(version_)
     {
       for (const auto& [rid, opt_bid] : w)
       {
         if (opt_bid.has_value())
         {
-          LOG_DEBUG_FMT(
-            "New Byzantine network identity, valid for configuration #{}.",
-            rid);
-          byids.try_emplace(rid, opt_bid.value());
+          LOG_DEBUG_FMT("New resharing for configuration #{}.", rid);
+          results.try_emplace(rid, opt_bid.value());
         }
       }
     }
 
     void call(kv::ConfigurableConsensus* consensus) override
     {
-      for (auto& [rid, id] : byids)
+      for (auto& [rid, res] : results)
       {
-        consensus->add_identity(version, rid, id);
+        consensus->add_resharing_result(version, rid, res);
       }
     }
   };
 
-  class IdentityTracker
-  {
-  public:
-    virtual void add_network_configuration(
-      const kv::NetworkConfiguration& config) = 0;
-    virtual void add_identity(
-      ccf::SeqNo seqno, kv::ReconfigurationId rid, ccf::Identity id) = 0;
-    virtual bool have_identity_for(
-      kv::ReconfigurationId rid, ccf::SeqNo commit_idx) const = 0;
-    virtual Identity get_identity(kv::ReconfigurationId rid) const = 0;
-    virtual void reshare(const kv::NetworkConfiguration& config) = 0;
-    virtual kv::ReconfigurationId find_reconfiguration(
-      const kv::Configuration::Nodes& nodes) const = 0;
-  };
-
-  class ByzantineIdentityTracker : public IdentityTracker
+  class SplitIdentityResharingTracker : public ResharingTracker
   {
   public:
     enum class SessionState
@@ -87,16 +60,18 @@ namespace ccf
       FINISHED
     };
 
-    class Session
+    class ResharingSession
     {
     public:
       SessionState state = SessionState::STARTED;
       kv::NetworkConfiguration config;
 
-      Session(const kv::NetworkConfiguration& config_) : config(config_) {}
+      ResharingSession(const kv::NetworkConfiguration& config_) :
+        config(config_)
+      {}
     };
 
-    ByzantineIdentityTracker(
+    SplitIdentityResharingTracker(
       std::shared_ptr<aft::State> shared_state_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       crypto::KeyPairPtr node_sign_kp_,
@@ -107,22 +82,22 @@ namespace ccf
       node_cert(node_cert_)
     {}
 
-    virtual ~ByzantineIdentityTracker() {}
+    virtual ~SplitIdentityResharingTracker() {}
 
     virtual void add_network_configuration(
       const kv::NetworkConfiguration& config) override
     {
-      network_configs[config.rid] = config;
+      configs[config.rid] = config;
     }
 
     virtual void reshare(const kv::NetworkConfiguration& config) override
     {
       auto rid = config.rid;
-      LOG_DEBUG_FMT("Identities: start resharing for configuration #{}", rid);
-      sessions.emplace(rid, Session(config));
+      LOG_DEBUG_FMT("Resharings: start resharing for configuration #{}", rid);
+      sessions.emplace(rid, ResharingSession(config));
 
-      auto msg = std::make_unique<threading::Tmsg<UpdateIdentityTaskMsg>>(
-        update_identity_cb, rid, rpc_map, node_sign_kp, node_cert);
+      auto msg = std::make_unique<threading::Tmsg<UpdateResharingTaskMsg>>(
+        update_resharing_cb, rid, rpc_map, node_sign_kp, node_cert);
 
       threading::ThreadMessaging::thread_messaging.add_task(
         threading::ThreadMessaging::get_execution_thread(
@@ -130,13 +105,13 @@ namespace ccf
         std::move(msg));
     }
 
-    virtual kv::ReconfigurationId find_reconfiguration(
+    virtual std::optional<kv::ReconfigurationId> find_reconfiguration(
       const kv::Configuration::Nodes& nodes) const override
     {
       // We're searching for a configuration with the same set of nodes as
       // `nodes`. We currently don't have an easy way to look up the
       // reconfiguration ID, which would make this unnecessary.
-      for (auto& [rid, nc] : network_configs)
+      for (auto& [rid, nc] : configs)
       {
         bool have_all = true;
         for (auto& [nid, byid] : nodes)
@@ -152,31 +127,32 @@ namespace ccf
           return rid;
         }
       }
-      return -1;
+      return std::nullopt;
     }
 
-    virtual bool have_identity_for(
-      kv::ReconfigurationId rid, ccf::SeqNo commit_idx) const override
+    virtual bool have_resharing_result_for(
+      kv::ReconfigurationId rid, ccf::SeqNo idx) const override
     {
-      auto idt = identities.find(rid);
-      return idt != identities.end() && idt->second.seqno <= commit_idx;
+      auto idt = results.find(rid);
+      return idt != results.end() && idt->second.seqno <= idx;
     }
 
-    virtual void add_identity(
-      ccf::SeqNo seqno, kv::ReconfigurationId rid, ccf::Identity id) override
+    virtual void add_resharing_result(
+      ccf::SeqNo seqno,
+      kv::ReconfigurationId rid,
+      const ResharingResult& result) override
     {
-      LOG_DEBUG_FMT("Identities: adding identity for configuration #{}", rid);
-
-      assert(id.type == Identity::IdentityType::BYZANTINE);
-      SeqNoById entry = {seqno, *reinterpret_cast<ByzantineIdentity*>(&id)};
-      identities.emplace(rid, entry);
-
+      LOG_DEBUG_FMT(
+        "Resharings: adding resharing result for configuration #{}", rid);
+      results.emplace(rid, result);
       sessions.erase(rid);
+    }
 
-      // Delete old identities?
+    virtual void compact(Index idx) override
+    {
       for (auto it = sessions.begin(); it != sessions.end();)
       {
-        if (it->first <= rid)
+        if (it->first <= idx)
         {
           it = sessions.erase(it);
         }
@@ -187,24 +163,25 @@ namespace ccf
       }
     }
 
-    virtual Identity get_identity(kv::ReconfigurationId rid) const override
+    virtual ResharingResult get_resharing_result(
+      kv::ReconfigurationId rid) const override
     {
-      auto iit = identities.find(rid);
-      if (iit == identities.end())
+      auto iit = results.find(rid);
+      if (iit == results.end())
       {
-        throw std::runtime_error("missing identity");
+        throw std::runtime_error("missing resharing result");
       }
-      return iit->second.byid;
+      return iit->second;
     }
 
-    void rollback(SeqNo idx)
+    virtual void rollback(Index idx) override
     {
-      for (auto it = identities.begin(); it != identities.end();)
+      for (auto it = results.begin(); it != results.end();)
       {
         if (it->second.seqno > idx)
         {
           assert(sessions.find(it->first) == sessions.end());
-          it = identities.erase(it);
+          it = results.erase(it);
         }
         else
         {
@@ -213,9 +190,9 @@ namespace ccf
       }
     }
 
-    struct UpdateIdentityTaskMsg
+    struct UpdateResharingTaskMsg
     {
-      UpdateIdentityTaskMsg(
+      UpdateResharingTaskMsg(
         kv::ReconfigurationId rid_,
         std::shared_ptr<enclave::RPCMap> rpc_map_,
         crypto::KeyPairPtr node_sign_kp_,
@@ -240,15 +217,9 @@ namespace ccf
     std::shared_ptr<enclave::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
     const crypto::Pem& node_cert;
-    std::unordered_map<kv::ReconfigurationId, Session> sessions;
-    typedef struct
-    {
-      SeqNo seqno;
-      ByzantineIdentity byid;
-    } SeqNoById;
-    std::unordered_map<kv::ReconfigurationId, SeqNoById> identities;
-    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
-      network_configs;
+    std::unordered_map<kv::ReconfigurationId, ResharingSession> sessions;
+    std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
+    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration> configs;
 
     static inline bool make_request(
       http::Request& request,
@@ -294,19 +265,19 @@ namespace ccf
       return rs == HTTP_STATUS_OK;
     }
 
-    static inline bool request_update_identity(
+    static inline bool request_update_resharing(
       kv::ReconfigurationId rid,
       std::shared_ptr<enclave::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert)
     {
-      LOG_DEBUG_FMT("Submitting RPC call to update identity");
-      ccf::UpdateIdentity::In ps = {rid};
+      LOG_DEBUG_FMT("Submitting RPC call to update resharing");
+      ccf::UpdateResharing::In ps = {rid};
 
       http::Request request(fmt::format(
         "/{}/{}",
         ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "update_identity"));
+        "update_resharing"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
@@ -315,10 +286,10 @@ namespace ccf
       return make_request(request, rpc_map, node_sign_kp, node_cert);
     }
 
-    static void update_identity_cb(
-      std::unique_ptr<threading::Tmsg<UpdateIdentityTaskMsg>> msg)
+    static void update_resharing_cb(
+      std::unique_ptr<threading::Tmsg<UpdateResharingTaskMsg>> msg)
     {
-      if (!request_update_identity(
+      if (!request_update_resharing(
             msg->data.rid,
             msg->data.rpc_map,
             msg->data.node_sign_kp,

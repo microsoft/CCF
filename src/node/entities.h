@@ -119,9 +119,8 @@ namespace ccf
     static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
     static constexpr auto PROPOSALS_INFO = "public:ccf.gov.proposals_info";
 
-    // Byzantine network identities
-    static constexpr auto BYZANTINE_NETWORK_IDENTITIES =
-      "public:ccf.internal.byzantine_network_identities";
+    // Identity resharings
+    static constexpr auto RESHARINGS = "public:ccf.internal.resharings";
   };
 
 }

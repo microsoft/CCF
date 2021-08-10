@@ -156,12 +156,12 @@ namespace aft
       return aft->get_details();
     }
 
-    void add_identity(
+    void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
-      const ccf::Identity& identity) override
+      const ccf::ResharingResult& result) override
     {
-      return aft->add_identity(seqno, rid, identity);
+      return aft->add_resharing_result(seqno, rid, result);
     }
 
     void periodic(std::chrono::milliseconds elapsed) override

@@ -1198,13 +1198,13 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto update_identity = [this](auto& args, const nlohmann::json& params) {
-        const auto in = params.get<UpdateIdentity::In>();
-        auto ids = args.tx.rw(network.byzantine_network_identities);
+      auto update_resharing = [this](auto& args, const nlohmann::json& params) {
+        const auto in = params.get<UpdateResharing::In>();
+        auto resharings = args.tx.rw(network.resharings);
         bool exists = false;
-        ids->foreach(
+        resharings->foreach(
           [rid = in.rid, &exists](
-            const kv::ReconfigurationId& nid, const ByzantineIdentity& id) {
+            const kv::ReconfigurationId& nid, const ResharingResult& result) {
             if (nid == rid)
             {
               exists = true;
@@ -1221,18 +1221,19 @@ namespace ccf
             fmt::format("identity for configuration {} exists", in.rid));
         }
 
-        // For now, just pretend that we're done and that we have a shared
-        // identity.
-        ByzantineIdentity byid;
-        byid.cert = network.identity->cert;
-        ids->put(in.rid, byid);
+        // For now, just pretend that we're done.
+        assert(network.identity->type == IdentityType::SPLIT);
+        ResharingResult rr;
+        rr.reconfiguration_id = in.rid;
+        rr.seqno = consensus->get_committed_seqno();
+        resharings->put(in.rid, rr);
         return make_success(true);
       };
 
       make_endpoint(
-        "update_identity",
+        "update-resharing",
         HTTP_POST,
-        json_adapter(update_identity),
+        json_adapter(update_resharing),
         // What type of auth do we require for nodes that aren't in the active
         // config yet?
         no_auth_required)
