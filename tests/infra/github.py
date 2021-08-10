@@ -74,6 +74,10 @@ def get_major_version_from_branch_name(branch_name):
     )
 
 
+def get_debian_package_url_from_tag_name(tag_name):
+    return f'https://github.com/{REPOSITORY_NAME}/releases/download/{tag_name}/{tag_name.replace("-", "_")}_amd64.deb'
+
+
 class Repository:
     """
     Helper class to verify CCF operations compatibility described at
@@ -170,11 +174,12 @@ class Repository:
         release = self.get_release_for_tag(tag)
 
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        debian_package_url = [
-            a.browser_download_url
-            for a in release.get_assets()
-            if re.match(f"ccf_{stripped_tag}{DEBIAN_PACKAGE_EXTENSION}", a.name)
-        ][0]
+        # debian_package_url = [
+        #     a.browser_download_url
+        #     for a in release.get_assets()
+        #     if re.match(f"ccf_{stripped_tag}{DEBIAN_PACKAGE_EXTENSION}", a.name)
+        # ][0]
+        debian_package_url = get_debian_package_url_from_tag_name(tag.name)
 
         debian_package_name = debian_package_url.split("/")[-1]
         download_path = os.path.join(DOWNLOAD_FOLDER_NAME, debian_package_name)
