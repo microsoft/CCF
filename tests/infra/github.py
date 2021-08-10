@@ -5,7 +5,6 @@ import infra.proc
 import re
 import os
 import git
-from github import Github  # TODO: remove
 import urllib
 import shutil
 import requests
@@ -80,6 +79,10 @@ def get_debian_package_url_from_tag_name(tag_name):
     return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
 
+def has_release_for_tag_name(tag):
+    return requests.get(f"{REMOTE_URL}/releases/tag/{tag}").status_code == 200
+
+
 class Repository:
     """
     Helper class to verify CCF operations compatibility described at
@@ -126,16 +129,6 @@ class Repository:
             raise ValueError(f"No release branch after {release_branch_name}")
         return release_branches[after_index]
 
-    def get_tags_with_releases(self):
-        # Only consider tags that have releases as perhaps a release is in progress
-        # (i.e. tag exists but hasn't got a release just yet)
-        # TODO: This is too slow. We should select the latest tag instead, use that, and retry with the previous one if it fails
-        return [
-            t
-            for t in self.tags
-            if requests.get(f"{REMOTE_URL}/releases/tag/{t}").status_code == 200
-        ]
-
     def get_tags_for_release_branch(self, branch_name):
         # Tags are ordered based on semver, with latest first
         # Note: Assumes that N.a.b releases can only be cut from N.x branch,
@@ -146,11 +139,23 @@ class Repository:
         release_re = "^{}{}$".format(
             TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\\d+]+)")
         )
-        return sorted(
-            [tag for tag in self.get_tags_with_releases() if re.match(release_re, tag)],
+
+        tags_for_release = sorted(
+            [tag for tag in self.tags if re.match(release_re, tag)],
             key=get_version_from_tag_name,
             reverse=True,
         )
+
+        # Only consider tags that have releases as a release might be in progress
+        first_release_tag_idx = -1
+        for i, t in enumerate(tags_for_release):
+            if not has_release_for_tag_name(t):
+                LOG.debug(f"No release available for tag {t}")
+                first_release_tag_idx = i
+            else:
+                break
+
+        return tags_for_release[first_release_tag_idx + 1 :]
 
     def get_lts_releases(self):
         """
