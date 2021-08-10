@@ -1,5 +1,5 @@
 parameters:
-  target: ["NoSGX", "SGX"]
+  target: ["NoSGX", "SGX", "SGXIceLake"]
 
   env:
     Hosted:
@@ -12,6 +12,9 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-dcv2-focal
+    SGXIceLake:
+      container: sgx
+      pool: 1es-dcv3-focal-2
 
   build:
     common:
