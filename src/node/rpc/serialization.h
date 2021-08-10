@@ -47,7 +47,8 @@ namespace ccf
     last_recovered_signed_idx,
     consensus_type,
     ledger_secrets,
-    identity)
+    identity,
+    service_status)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
