@@ -14,10 +14,7 @@ import json
 from loguru import logger as LOG
 import suite.test_requirements as reqs
 import ccf.read_ledger
-<<<<<<< HEAD
-=======
 import infra.logging_app as app
->>>>>>> 38267cd76e333b964946e6ac02f27ba02b1e0e42
 
 
 def check_operations(ledger, operations):
