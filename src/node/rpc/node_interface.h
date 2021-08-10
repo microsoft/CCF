@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/entities.h"
+#include "node/session_metrics.h"
 #include "node_call_types.h"
 
 namespace ccf
@@ -19,14 +20,6 @@ namespace ccf
     State,
     std::optional<kv::Version> /* recovery_target_seqno */,
     std::optional<kv::Version> /* last_recovered_seqno */>;
-
-  struct SessionMetrics
-  {
-    size_t active;
-    size_t peak;
-    size_t soft_cap;
-    size_t hard_cap;
-  };
 
   class AbstractNodeState
   {

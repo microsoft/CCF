@@ -18,7 +18,7 @@ namespace enclave
   {
   protected:
     ringbuffer::WriterPtr to_host;
-    size_t session_id;
+    int64_t session_id;
     size_t execution_thread;
 
     enum Status
@@ -58,7 +58,7 @@ namespace enclave
 
   public:
     TLSEndpoint(
-      size_t session_id_,
+      int64_t session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory_,
       std::unique_ptr<tls::Context> ctx_) :
       to_host(writer_factory_.create_writer_to_outside()),
