@@ -546,6 +546,8 @@ namespace ccf
               // from 2.x. When joining an existing 1.x service, self-sign own
               // certificate and use it to endorse TLS connections.
               node_cert = create_endorsed_node_cert();
+              open_frontend(ActorsType::members);
+              open_user_frontend();
               accept_network_tls_connections();
             }
 
