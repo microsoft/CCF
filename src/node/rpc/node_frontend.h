@@ -203,13 +203,13 @@ namespace ccf
         node_status == NodeStatus::TRUSTED ||
         node_status == NodeStatus::LEARNER)
       {
-        rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
+        rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
-          service_status};
+          service_status);
       }
       return make_success(rep);
     }
@@ -300,14 +300,14 @@ namespace ccf
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
             rep.node_id = existing_node_info->first;
-            rep.network_info = {
+            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
               *this->network.identity.get(),
-              active_service->status};
+              active_service->status);
             return make_success(rep);
           }
 
@@ -372,14 +372,14 @@ namespace ccf
             node_status == NodeStatus::TRUSTED ||
             node_status == NodeStatus::LEARNER)
           {
-            rep.network_info = {
+            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
               *this->network.identity.get(),
-              active_service->status};
+              active_service->status);
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)

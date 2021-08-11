@@ -40,7 +40,8 @@ namespace ccf
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
 
-  DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
+    JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo,
     public_only,
@@ -48,6 +49,8 @@ namespace ccf
     consensus_type,
     ledger_secrets,
     identity)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JoinNetworkNodeToNode::Out::NetworkInfo, service_status)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
