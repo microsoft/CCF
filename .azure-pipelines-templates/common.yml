@@ -12,7 +12,6 @@ jobs:
 
       - checkout: self
         clean: true
-        fetchDepth: 10000
 
       - template: cmake.yml
         parameters:
