@@ -107,7 +107,7 @@ namespace ccf
 
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
-        ServiceStatus service_status; // TODO: This isn't serialised!
+        ServiceStatus service_status;
 
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
 
