@@ -116,7 +116,8 @@ all_tests_suite = [
     #
     #
     #
-    # Below tests should always stay last
+    # Below tests should always stay last, so that they
+    # test the most complete ledgers
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
 ]
