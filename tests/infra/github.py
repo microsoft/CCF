@@ -79,8 +79,13 @@ def get_debian_package_url_from_tag_name(tag_name):
     return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
 
-def has_release_for_tag_name(tag):
-    return requests.get(f"{REMOTE_URL}/releases/tag/{tag}").status_code == 200
+def has_release_for_tag_name(tag_name):
+    return (
+        requests.head(
+            get_debian_package_url_from_tag_name(tag_name), allow_redirects=True
+        ).status_code
+        == 200
+    )
 
 
 class Repository:
