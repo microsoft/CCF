@@ -1201,11 +1201,12 @@ namespace ccf
       auto update_resharing = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<UpdateResharing::In>();
         auto resharings = args.tx.rw(network.resharings);
+
         bool exists = false;
         resharings->foreach(
           [rid = in.rid, &exists](
-            const kv::ReconfigurationId& nid, const ResharingResult& result) {
-            if (nid == rid)
+            const kv::ReconfigurationId& trid, const ResharingResult& result) {
+            if (trid == rid)
             {
               exists = true;
               return false;
@@ -1217,26 +1218,24 @@ namespace ccf
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::IdentityAlreadyExists,
-            fmt::format("identity for configuration {} exists", in.rid));
+            ccf::errors::ResharingAlreadyCompleted,
+            fmt::format(
+              "resharing for configuration {} already completed", in.rid));
         }
 
         // For now, just pretend that we're done.
-        assert(network.identity->type == IdentityType::SPLIT);
         ResharingResult rr;
         rr.reconfiguration_id = in.rid;
-        rr.seqno = consensus->get_committed_seqno();
+        rr.seqno = 0;
         resharings->put(in.rid, rr);
         return make_success(true);
       };
 
       make_endpoint(
-        "update-resharing",
+        "/update-resharing",
         HTTP_POST,
         json_adapter(update_resharing),
-        // What type of auth do we require for nodes that aren't in the active
-        // config yet?
-        no_auth_required)
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
         .install();

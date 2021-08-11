@@ -69,7 +69,6 @@ namespace ccf
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)
     ERROR(NodeCannotHandleRequest)
-    ERROR(IdentityAlreadyExists)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)
@@ -77,6 +76,8 @@ namespace ccf
     ERROR(InvalidNodeState)
     ERROR(NodeAlreadyExists)
     ERROR(StartupSnapshotIsOld)
+
+    ERROR(ResharingAlreadyCompleted)
 
 #undef ERROR
   }

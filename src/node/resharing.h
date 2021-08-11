@@ -32,12 +32,12 @@ namespace ccf
     ResharingsHook(kv::Version version_, const Resharings::Write& w) :
       version(version_)
     {
-      for (const auto& [rid, opt_bid] : w)
+      for (const auto& [rid, opt_rr] : w)
       {
-        if (opt_bid.has_value())
+        if (opt_rr.has_value())
         {
-          LOG_DEBUG_FMT("New resharing for configuration #{}.", rid);
-          results.try_emplace(rid, opt_bid.value());
+          LOG_DEBUG_FMT("New resharing result for configuration #{}.", rid);
+          results.try_emplace(rid, opt_rr.value());
         }
       }
     }
@@ -271,13 +271,12 @@ namespace ccf
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert)
     {
-      LOG_DEBUG_FMT("Submitting RPC call to update resharing");
       ccf::UpdateResharing::In ps = {rid};
 
       http::Request request(fmt::format(
         "/{}/{}",
         ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "update_resharing"));
+        "update-resharing"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 

@@ -28,14 +28,14 @@ namespace ccf
         type == other.type;
     }
 
-    NetworkIdentity() = default;
+    NetworkIdentity() : type(IdentityType::REPLICATED) {}
     NetworkIdentity(IdentityType type) : type(type) {}
   };
 
   class ReplicatedNetworkIdentity : public NetworkIdentity
   {
   public:
-    ReplicatedNetworkIdentity() = default;
+    ReplicatedNetworkIdentity() : NetworkIdentity(IdentityType::REPLICATED) {}
 
     ReplicatedNetworkIdentity(
       const std::string& name, crypto::CurveID curve_id) :
@@ -47,7 +47,8 @@ namespace ccf
       priv_key = identity_key_pair->private_key_pem();
     }
 
-    ReplicatedNetworkIdentity(const NetworkIdentity& other)
+    ReplicatedNetworkIdentity(const NetworkIdentity& other) :
+      NetworkIdentity(IdentityType::REPLICATED)
     {
       if (type != other.type)
       {
@@ -55,7 +56,6 @@ namespace ccf
       }
       priv_key = other.priv_key;
       cert = other.cert;
-      type = IdentityType::REPLICATED;
     }
   };
 
@@ -64,7 +64,8 @@ namespace ccf
   public:
     SplitNetworkIdentity() : NetworkIdentity(IdentityType::SPLIT) {}
 
-    SplitNetworkIdentity(const NetworkIdentity& other)
+    SplitNetworkIdentity(const NetworkIdentity& other) :
+      NetworkIdentity(IdentityType::SPLIT)
     {
       if (type != other.type)
       {
@@ -72,7 +73,6 @@ namespace ccf
       }
       priv_key = {};
       cert = other.cert;
-      type = IdentityType::SPLIT;
     }
   };
 }
