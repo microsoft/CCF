@@ -61,7 +61,7 @@ The CCF install notably contains:
 
 - The ``cchost`` binary required to spin up a CCF application
 - The ``cmake`` files required to build CCF applications
-- The ``ansible`` playbooks required :doc:`build_setup` (under ``getting_started/``)
+- The ``ansible`` playbooks required for :doc:`build_setup` (under ``getting_started/``)
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing
 - Various utility scripts (see :doc:`/build_apps/demo`)
