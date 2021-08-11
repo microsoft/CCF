@@ -123,8 +123,20 @@ namespace ccf
           service_status(service_status)
         {}
 
-        bool operator==(const NetworkInfo& other) const = default;
-        bool operator!=(const NetworkInfo& other) const = default;
+        bool operator==(const NetworkInfo& other) const
+        {
+          return public_only == other.public_only &&
+            last_recovered_signed_idx == other.last_recovered_signed_idx &&
+            consensus_type == other.consensus_type &&
+            ledger_secrets == other.ledger_secrets &&
+            identity == other.identity &&
+            service_status == other.service_status;
+        }
+
+        bool operator!=(const NetworkInfo& other) const
+        {
+          return !(*this == other);
+        }
       };
 
       // Only set if the caller node is trusted
