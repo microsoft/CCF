@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "js/wrap.h"
+
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "ds/logger.h"
@@ -7,7 +9,6 @@
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
 #include "js/oe.cpp"
-#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"

@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "node/progress_tracker.h"
+
 #include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/nodes.h"
-#include "node/progress_tracker.h"
 #include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
