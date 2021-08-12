@@ -362,9 +362,6 @@ namespace ccf
 
           network.ledger_secrets->init();
 
-          setup_snapshotter();
-          setup_encryptor();
-
           if (network.consensus_type == ConsensusType::BFT)
           {
             // BFT consensus requires a stable order of node IDs so that the
@@ -381,6 +378,8 @@ namespace ccf
             open_frontend(ActorsType::members);
           }
 
+          setup_snapshotter();
+          setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
           setup_history();

@@ -128,7 +128,7 @@ The following diagram summarises the steps that operators and members should fol
             Node 0->>+Node 1: Ledger replication
         end
 
-        Node 1->>+Node 1: Endorse TLS with service private key
+        Node 1->>+Node 1: Observe own addition to store <br> Endorse TLS with service private key
 
         Note over Operators: Operators monitor progress of ledger replication
         Operators->>+Node 1: Poll /node/commit
