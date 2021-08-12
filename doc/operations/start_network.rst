@@ -76,7 +76,7 @@ Otherwise, if the network has already been opened to users, members need to trus
 
 The ``Pending`` joining node will automatically poll the service (interval configurable via ``--join-timer`` option) until the members have successfully transitioned the node to the ``Trusted`` state. It is only then that the joining node will transition to the ``PartOfNetwork`` state and start updating its ledger.
 
-.. tip:: After the node has been trusted by members, operators should poll the ``/node/state`` endpoint on the newly added node until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
+.. tip:: After the node has been trusted by members, operators should poll the ``/node/state`` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
 
 .. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operations/ledger_snapshot:Join/Recover From Snapshot>`.
 
@@ -103,19 +103,17 @@ The following diagram summarises the steps that operators and members should fol
             Node 0-->>-Node 1: "Pending" state
         end
 
-        Operators->>+Node 1: Poll /node/state for "PartOfNetwork"
+        Operators->>+Node 1: Poll /node/state for "PartOfNetwork" (using self-signed certificate as CA)
         Node 1-->>-Operators: "Pending" state
 
         Members->>+Node 0: transition_node_to_trusted proposal for Node 1 and votes
         Node 0-->>-Members: Proposal Accepted
 
-        Operators->>+Node 1: Poll /node/state for "PartOfNetwork"
+        Operators->>+Node 1: Poll /node/state for "PartOfNetwork" (using self-signed certificate as CA)
         Node 1-->>-Operators: "Pending" state
 
         Node 1->>+Node 0: Poll for "Trusted" state
         Node 0-->>-Node 1: "Trusted" state (includes ledger secrets and service private key)
-
-        Node 1->>+Node 1: Endorse TLS with service private key
 
         Note over Node 1: State: "PartOfNetwork" <br/> Ledger replication started <br/> Application open to users
 
@@ -123,12 +121,14 @@ The following diagram summarises the steps that operators and members should fol
             Node 0->>+Node 1: Ledger replication
         end
 
-        Operators->>+Node 1: Poll /node/state for "PartOfNetwork"
+        Operators->>+Node 1: Poll /node/state for "PartOfNetwork" (using self-signed certificate as CA)
         Node 1-->>-Operators: "PartOfNetwork" state
 
         loop Node 1 ledger replication
             Node 0->>+Node 1: Ledger replication
         end
+
+        Node 1->>+Node 1: Endorse TLS with service private key
 
         Note over Operators: Operators monitor progress of ledger replication
         Operators->>+Node 1: Poll /node/commit
