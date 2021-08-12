@@ -68,6 +68,9 @@ namespace ccf
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
 
+      // Only set if node does _not_ require endorsement by the service
+      std::optional<crypto::Pem> node_cert = std::nullopt;
+
       // Only set on genesis transaction, but not on recovery
       struct GenesisInfo
       {
@@ -75,7 +78,12 @@ namespace ccf
         std::string constitution;
         ServiceConfiguration configuration;
 
-        bool operator==(const GenesisInfo&) const = default;
+        bool operator==(const GenesisInfo& other) const
+        {
+          return members_info == other.members_info &&
+            constitution == other.constitution &&
+            configuration == other.configuration;
+        }
       };
       std::optional<GenesisInfo> genesis_info = std::nullopt;
     };

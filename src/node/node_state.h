@@ -350,7 +350,9 @@ namespace ccf
       }
 #endif
 
+      // TODO: Split self-signed from endorsed certificate
       node_cert = create_self_signed_node_cert();
+
       switch (start_type)
       {
         case StartType::New:
@@ -359,6 +361,9 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
 
           network.ledger_secrets->init();
+
+          setup_snapshotter();
+          setup_encryptor();
 
           if (network.consensus_type == ConsensusType::BFT)
           {
@@ -370,13 +375,15 @@ namespace ccf
             // Pad node id string to avoid memory alignment issues on
             // node-to-node messages
             self = NodeId(fmt::format("{:#064}", 0));
+
+            node_cert = create_endorsed_node_cert();
+            open_frontend(ActorsType::members);
           }
 
-          setup_snapshotter();
-          setup_encryptor();
+          // TODO: Do not pass node_cert if CFT!
+          setup_consensus(ServiceStatus::OPENING, false);
           setup_progress_tracker();
           setup_history();
-          setup_consensus(ServiceStatus::OPENING);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -969,6 +976,9 @@ namespace ccf
         auto values = tx.ro(network.values);
         auto id = values->get(0);
         self = NodeId(fmt::format("{:#064}", id.value()));
+
+        node_cert = create_endorsed_node_cert();
+        open_frontend(ActorsType::members);
       }
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
@@ -1660,10 +1670,16 @@ namespace ccf
           ReconfigurationType::TWO_TRANSACTION :
           ReconfigurationType::ONE_TRANSACTION;
 
+        // Because certificate signature scheme is not deterministic, endorsed
+        // node certificate is not recorded in BFT
+        auto node_endorsement_on_trust =
+          network.consensus_type != ConsensusType::BFT;
+
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
           network.consensus_type,
-          reconf_type};
+          reconf_type,
+          node_endorsement_on_trust};
         create_params.genesis_info = genesis_info;
       }
 
@@ -1676,6 +1692,14 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
+
+      // Record self-signed certificate in genesis if the node does not require
+      // endorsement by the service, so that node signatures can be verified
+      if (!create_params.genesis_info->configuration.node_endorsement_on_trust
+             .value())
+      {
+        create_params.node_cert = node_cert;
+      }
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1896,7 +1920,6 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              LOG_FAIL_FMT("Picking up endorsed identity from hook");
               node_cert = endorsed_certificate.value();
               n2n_channels->set_endorsed_node_cert(node_cert);
               accept_network_tls_connections();

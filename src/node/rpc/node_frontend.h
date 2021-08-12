@@ -139,6 +139,7 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
+      auto config = tx.rw(network.config)->get();
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -195,7 +196,6 @@ namespace ccf
       }
 
       // Note: All new nodes should specify a CSR from 2.x
-      // TODO: Should we enforce this?
       auto client_public_key_pem = crypto::public_key_pem_from_cert(node_der);
       if (in.certificate_signing_request.has_value())
       {
@@ -211,16 +211,26 @@ namespace ccf
         }
       }
 
-      nodes->put(
-        joining_node_id,
-        {in.node_info_network,
-         in.quote_info,
-         in.public_encryption_key,
-         node_status,
-         ledger_secret_seqno,
-         ds::to_hex(code_digest.data),
-         in.certificate_signing_request,
-         client_public_key_pem});
+      NodeInfo node_info = {
+        in.node_info_network,
+        in.quote_info,
+        in.public_encryption_key,
+        node_status,
+        ledger_secret_seqno,
+        ds::to_hex(code_digest.data),
+        in.certificate_signing_request,
+        client_public_key_pem};
+
+      // Only record self-signed node certificate if the node does not require
+      // endorsement by the service when it is trusted
+      if (
+        config->node_endorsement_on_trust.has_value() &&
+        !config->node_endorsement_on_trust.value())
+      {
+        node_info.cert = crypto::cert_der_to_pem(node_der);
+      }
+
+      nodes->put(joining_node_id, node_info);
 
       kv::NetworkConfiguration nc =
         get_latest_network_configuration(network, tx);
@@ -239,7 +249,10 @@ namespace ccf
       {
         // Joining node only submit a CSR from 2.x
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
-        if (in.certificate_signing_request.has_value())
+        if (
+          in.certificate_signing_request.has_value() &&
+          (!config->node_endorsement_on_trust.has_value() ||
+           config->node_endorsement_on_trust.value()))
         {
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(
@@ -1117,25 +1130,41 @@ namespace ccf
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
 
-        g.add_node(
-          in.node_id,
-          {in.node_info_network,
-           {in.quote_info},
-           in.public_encryption_key,
-           NodeStatus::TRUSTED,
-           std::nullopt,
-           ds::to_hex(in.code_digest.data),
-           in.certificate_signing_request,
-           in.public_key});
+        NodeInfo node_info = {
+          in.node_info_network,
+          {in.quote_info},
+          in.public_encryption_key,
+          NodeStatus::TRUSTED,
+          std::nullopt,
+          ds::to_hex(in.code_digest.data),
+          in.certificate_signing_request,
+          in.public_key};
 
-        auto endorsed_certificates =
-          ctx.tx.rw(network.node_endorsed_certificates);
-        endorsed_certificates->put(
-          in.node_id,
-          context.get_node_state().generate_endorsed_certificate(
-            in.certificate_signing_request,
-            this->network.identity->priv_key,
-            this->network.identity->cert));
+        CCF_ASSERT_FMT(
+          in.genesis_info->configuration.node_endorsement_on_trust.has_value(),
+          "Node endorsement configuration should always be set from 2.x");
+
+        if (in.genesis_info->configuration.node_endorsement_on_trust.value())
+        {
+          auto endorsed_certificates =
+            ctx.tx.rw(network.node_endorsed_certificates);
+          endorsed_certificates->put(
+            in.node_id,
+            context.get_node_state().generate_endorsed_certificate(
+              in.certificate_signing_request,
+              this->network.identity->priv_key,
+              this->network.identity->cert));
+        }
+        else
+        {
+          CCF_ASSERT_FMT(
+            in.node_cert.value(),
+            "Self-signed node certificate should be set if configuration does "
+            "not require endorsement");
+          node_info.cert = in.node_cert.value();
+        }
+
+        g.add_node(in.node_id, node_info);
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);
