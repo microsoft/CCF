@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added support for listening on multiple interfaces for incoming client RPCs, with individual session caps (#2628).
+- Service-endorsed node certificates are now recorded in a new `public:ccf.gov.nodes.endorsed_certificates` table, while existing `cert` field in the `public:ccf.gov.nodes.info` table is now deprecated (#2844).
+- Joining nodes now present service-endorsed certificate in client TLS sessions _after_ they have observed their own addition to the store, rathen than as soon as they have joined the service. Operators should monitor the initial progress of a new node using its self-signed certificate as TLS session certificate authority (#2844).
+- Updated `actions.js` constitution fragment (#2844).
 
 ### Changed
 
