@@ -10,7 +10,7 @@ namespace ccf
 {
   namespace
   {
-    static std::optional<SignedReq> parse_signed_request(
+    static SignedReq parse_signed_request(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       return http::HttpSignatureVerifier::parse(
@@ -72,37 +72,41 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto signed_request = parse_signed_request(ctx);
-      if (signed_request.has_value())
+      SignedReq signed_request;
+
+      try
       {
-        UserCerts users_certs_table(Tables::USER_CERTS);
-        auto users_certs = tx.ro(users_certs_table);
-        auto user_cert = users_certs->get(signed_request->key_id);
-        if (user_cert.has_value())
+        signed_request = parse_signed_request(ctx);
+      }
+      catch (const std::exception& e)
+      {
+        error_reason = e.what();
+        return nullptr;
+      }
+
+      UserCerts users_certs_table(Tables::USER_CERTS);
+      auto users_certs = tx.ro(users_certs_table);
+      auto user_cert = users_certs->get(signed_request.key_id);
+      if (user_cert.has_value())
+      {
+        auto verifier = verifiers.get_verifier(user_cert.value());
+        if (verifier->verify(
+              signed_request.req, signed_request.sig, signed_request.md))
         {
-          auto verifier = verifiers.get_verifier(user_cert.value());
-          if (verifier->verify(
-                signed_request->req, signed_request->sig, signed_request->md))
-          {
-            auto identity = std::make_unique<UserSignatureAuthnIdentity>();
-            identity->user_id = signed_request->key_id;
-            identity->user_cert = user_cert.value();
-            identity->signed_request = signed_request.value();
-            return identity;
-          }
-          else
-          {
-            error_reason = "Signature is invalid";
-          }
+          auto identity = std::make_unique<UserSignatureAuthnIdentity>();
+          identity->user_id = signed_request.key_id;
+          identity->user_cert = user_cert.value();
+          identity->signed_request = signed_request;
+          return identity;
         }
         else
         {
-          error_reason = "Signer is not a known user";
+          error_reason = "Signature is invalid";
         }
       }
       else
       {
-        error_reason = "Missing signature";
+        error_reason = "Signer is not a known user";
       }
 
       return nullptr;
@@ -170,42 +174,46 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto signed_request = parse_signed_request(ctx);
-      if (signed_request.has_value())
+      SignedReq signed_request;
+
+      try
       {
-        MemberCerts members_certs_table(Tables::MEMBER_CERTS);
-        auto member_certs = tx.ro(members_certs_table);
-        auto member_cert = member_certs->get(signed_request->key_id);
-        if (member_cert.has_value())
+        signed_request = parse_signed_request(ctx);
+      }
+      catch (const std::exception& e)
+      {
+        error_reason = e.what();
+        return nullptr;
+      }
+
+      MemberCerts members_certs_table(Tables::MEMBER_CERTS);
+      auto member_certs = tx.ro(members_certs_table);
+      auto member_cert = member_certs->get(signed_request.key_id);
+      if (member_cert.has_value())
+      {
+        std::vector<uint8_t> digest;
+        auto verifier = verifiers.get_verifier(member_cert.value());
+        if (verifier->verify(
+              signed_request.req,
+              signed_request.sig,
+              signed_request.md,
+              digest))
         {
-          std::vector<uint8_t> digest;
-          auto verifier = verifiers.get_verifier(member_cert.value());
-          if (verifier->verify(
-                signed_request->req,
-                signed_request->sig,
-                signed_request->md,
-                digest))
-          {
-            auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
-            identity->member_id = signed_request->key_id;
-            identity->member_cert = member_cert.value();
-            identity->signed_request = signed_request.value();
-            identity->request_digest = std::move(digest);
-            return identity;
-          }
-          else
-          {
-            error_reason = "Signature is invalid";
-          }
+          auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
+          identity->member_id = signed_request.key_id;
+          identity->member_cert = member_cert.value();
+          identity->signed_request = signed_request;
+          identity->request_digest = std::move(digest);
+          return identity;
         }
         else
         {
-          error_reason = "Signer is not a known member";
+          error_reason = "Signature is invalid";
         }
       }
       else
       {
-        error_reason = "Missing signature";
+        error_reason = "Signer is not a known member";
       }
 
       return nullptr;

@@ -629,11 +629,17 @@ TEST_CASE("process with signatures")
     INFO("Unsigned RPC");
     {
       const auto serialized_response = frontend.process(simple_rpc_ctx).value();
+      LOG_FAIL_FMT(
+        "{}",
+        std::string(serialized_response.begin(), serialized_response.end()));
       auto response = parse_response(serialized_response);
 
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("Missing signature") != std::string::npos);
+      CHECK(
+        error_msg.find(
+          "Signed request does not contain 'authorization' header") !=
+        std::string::npos);
     }
 
     INFO("Signed RPC");
