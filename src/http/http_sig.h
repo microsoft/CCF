@@ -139,14 +139,15 @@ namespace http
       auto next_space = auth_header_value.find(" ");
       if (next_space == std::string::npos)
       {
-        throw std::logic_error(
-          "'Authorization' header only contains one field");
+        throw std::logic_error(fmt::format(
+          "'{}' header only contains one field", headers::AUTHORIZATION));
       }
       auto auth_scheme = auth_header_value.substr(0, next_space);
       if (auth_scheme != auth::SIGN_AUTH_SCHEME)
       {
         throw std::logic_error(fmt::format(
-          "Authorizaiton scheme for signature should be {}",
+          "'{}' scheme for signature should be '{}'",
+          headers::AUTHORIZATION,
           auth::SIGN_AUTH_SCHEME));
       }
       auth_header_value = auth_header_value.substr(next_space + 1);
@@ -177,7 +178,9 @@ namespace http
       if (sha_key != auth::DIGEST_SHA256)
       {
         error_reason = fmt::format(
-          "Only {} for request digest is supported", auth::DIGEST_SHA256);
+          "'{}' for request digest is not supported, allowed: '{}'",
+          sha_key,
+          auth::DIGEST_SHA256);
         return false;
       }
 
@@ -257,7 +260,9 @@ namespace http
             if (!(begins_with_quote && ends_with_quote))
             {
               throw std::logic_error(fmt::format(
-                "Unbalanced quotes in 'Authorization' header: {}", p));
+                "Unbalanced quotes in '{}' header: {}",
+                headers::AUTHORIZATION,
+                p));
             }
 
             v = v.substr(1, v.size() - 2);
@@ -303,7 +308,7 @@ namespace http
         else
         {
           throw std::logic_error(fmt::format(
-            "Authorization parameter '{}' does not contain \"=\"", p));
+            "authorization parameter '{}' does not contain \"=\"", p));
         }
       }
 
@@ -371,7 +376,7 @@ namespace http
         if (!missing_required_headers.empty())
         {
           throw std::logic_error(fmt::format(
-            "HTTP signature does not cover required fields: {}",
+            "HTTP signature does not cover required fields: '{}'",
             fmt::join(missing_required_headers, ", ")));
         }
 

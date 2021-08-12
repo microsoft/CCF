@@ -13,6 +13,7 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
+import requests
 
 from loguru import logger as LOG
 
@@ -30,6 +31,10 @@ def test_consensus_status(network, args):
 @reqs.description("Test quotes")
 @reqs.supports_methods("quotes/self", "quotes")
 def test_quote(network, args):
+    if args.enclave_type == "virtual":
+        LOG.warning("Quote test can only run in real enclaves, skipping")
+        return network
+
     primary, _ = network.find_nodes()
     with primary.client() as c:
         oed = subprocess.run(
@@ -212,27 +217,65 @@ def test_ack_state_digest_update(network, args):
         network.consortium.get_any_active_member().update_ack_state_digest(node)
 
 
+@reqs.description("Test invalid client signatures")
+def test_invalid_client_signature(network, args):
+    primary, _ = network.find_primary()
+    member = network.consortium.get_any_active_member()
+
+    def post_proposal_request_raw(node, headers=None, expected_error_msg=None):
+        with node.client(*member.auth(write=True)) as c:
+            r = requests.post(
+                f"https://{node.pubhost}:{node.pubport}/gov/proposals",
+                headers=headers,
+                verify=os.path.join(node.common_dir, "networkcert.pem"),
+            ).json()
+            assert r["error"]["code"] == "InvalidAuthenticationInfo"
+            assert (
+                expected_error_msg in r["error"]["message"]
+            ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
+
+    # Verify that _some_ HTTP signature parsing errors are communicated back to the client
+    post_proposal_request_raw(
+        primary,
+        headers=None,
+        expected_error_msg="Signed request does not contain 'authorization' header",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "invalid"},
+        expected_error_msg="'authorization' header only contains one field",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "invalid invalid"},
+        expected_error_msg="'authorization' scheme for signature should be 'Signature",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "Signature invalid"},
+        expected_error_msg="Error verifying HTTP 'digest' header: Missing 'digest' header",
+    )
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
-        network = test_consensus_status(network, args)
-        network = test_node_ids(network, args)
-        network = test_member_data(network, args)
-        network = test_quote(network, args)
-        network = test_user(network, args)
-        network = test_no_quote(network, args)
-        network = test_service_principals(network, args)
-        network = test_ack_state_digest_update(network, args)
+        # network = test_consensus_status(network, args)
+        # network = test_node_ids(network, args)
+        # network = test_member_data(network, args)
+        # network = test_quote(network, args)
+        # network = test_user(network, args)
+        # network = test_no_quote(network, args)
+        # network = test_service_principals(network, args)
+        # network = test_ack_state_digest_update(network, args)
+        network = test_invalid_client_signature(network, args)
 
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    if args.enclave_type == "virtual":
-        LOG.warning("This test can only run in real enclaves, skipping")
-        sys.exit(0)
 
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
