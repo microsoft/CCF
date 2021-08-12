@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import sys
 import http
 import subprocess
 import infra.network
@@ -215,24 +214,23 @@ def test_service_principals(network, args):
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
         network.consortium.get_any_active_member().update_ack_state_digest(node)
+    return network
 
 
 @reqs.description("Test invalid client signatures")
 def test_invalid_client_signature(network, args):
     primary, _ = network.find_primary()
-    member = network.consortium.get_any_active_member()
 
     def post_proposal_request_raw(node, headers=None, expected_error_msg=None):
-        with node.client(*member.auth(write=True)) as c:
-            r = requests.post(
-                f"https://{node.pubhost}:{node.pubport}/gov/proposals",
-                headers=headers,
-                verify=os.path.join(node.common_dir, "networkcert.pem"),
-            ).json()
-            assert r["error"]["code"] == "InvalidAuthenticationInfo"
-            assert (
-                expected_error_msg in r["error"]["message"]
-            ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
+        r = requests.post(
+            f"https://{node.pubhost}:{node.pubport}/gov/proposals",
+            headers=headers,
+            verify=os.path.join(node.common_dir, "networkcert.pem"),
+        ).json()
+        assert r["error"]["code"] == "InvalidAuthenticationInfo"
+        assert (
+            expected_error_msg in r["error"]["message"]
+        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
 
     # Verify that _some_ HTTP signature parsing errors are communicated back to the client
     post_proposal_request_raw(
