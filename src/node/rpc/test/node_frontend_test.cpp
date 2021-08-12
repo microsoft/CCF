@@ -159,7 +159,8 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.network_info->identity == *network.identity.get());
     CHECK(response.network_info->public_only == false);
 
-    const NodeId node_id = response.node_id;
+    auto pk_der = kp->public_key_der();
+    const NodeId node_id = crypto::Sha256Hash(pk_der).hex_str();
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(node_id);
 
@@ -259,8 +260,8 @@ TEST_CASE("Add a node to an open service")
 
     CHECK(!response.network_info.has_value());
 
-    auto node_id = response.node_id;
-
+    auto pk_der = kp->public_key_der();
+    const NodeId node_id = crypto::Sha256Hash(pk_der).hex_str();
     auto nodes = tx.rw(network.nodes);
     node_info = nodes->get(node_id);
     CHECK(node_info.has_value());

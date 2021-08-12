@@ -266,15 +266,10 @@ class Node:
         self.remote.get_startup_files(self.common_dir)
         self.consensus = kwargs.get("consensus")
 
-        if self.consensus == "cft":
-            with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
-                self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
-                    f.read()
-                )
-        else:
-            # BFT consensus should deterministically compute the primary id from the
-            # consensus view, so node ids are monotonic in this case
-            self.node_id = "{:0>64}".format(self.local_node_id)
+        with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
+            self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                f.read()
+            )
 
         self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
