@@ -531,22 +531,22 @@ namespace ccf
             resp.node_status == NodeStatus::TRUSTED ||
             resp.node_status == NodeStatus::LEARNER)
           {
-            if (resp.network_info.consensus_type != network.consensus_type)
+            if (resp.network_info->consensus_type != network.consensus_type)
             {
               throw std::logic_error(fmt::format(
                 "Enclave initiated with consensus type {} but target node "
                 "responded with consensus {}",
                 network.consensus_type,
-                resp.network_info.consensus_type));
+                resp.network_info->consensus_type));
             }
 
             network.identity =
-              std::make_unique<NetworkIdentity>(resp.network_info.identity);
+              std::make_unique<NetworkIdentity>(resp.network_info->identity);
             network.ledger_secrets->init_from_map(
-              std::move(resp.network_info.ledger_secrets));
+              std::move(resp.network_info->ledger_secrets));
 
             crypto::Pem n2n_channels_cert;
-            if (!resp.network_info.endorsed_certificate.has_value())
+            if (!resp.network_info->endorsed_certificate.has_value())
             {
               // Endorsed node certificate is included in join response
               // from 2.x (CFT only). When joining an existing 1.x service,
@@ -561,7 +561,7 @@ namespace ccf
             else
             {
               n2n_channels_cert =
-                resp.network_info.endorsed_certificate.value();
+                resp.network_info->endorsed_certificate.value();
             }
 
             if (network.consensus_type == ConsensusType::BFT)
@@ -574,17 +574,18 @@ namespace ccf
             setup_snapshotter();
             setup_encryptor();
             setup_consensus(
-              resp.network_info.service_status,
-              resp.network_info.public_only,
+              resp.network_info->service_status.value_or(
+                ServiceStatus::OPENING),
+              resp.network_info->public_only,
               n2n_channels_cert);
             setup_progress_tracker();
             setup_history();
             auto_refresh_jwt_keys();
 
-            if (resp.network_info.public_only)
+            if (resp.network_info->public_only)
             {
               last_recovered_signed_idx =
-                resp.network_info.last_recovered_signed_idx;
+                resp.network_info->last_recovered_signed_idx;
               setup_recovery_hook();
               snapshotter->set_snapshot_generation(false);
             }
@@ -602,7 +603,7 @@ namespace ccf
                 startup_snapshot_info->raw,
                 hooks,
                 &view_history,
-                resp.network_info.public_only);
+                resp.network_info->public_only);
               if (rc != kv::ApplyResult::PASS)
               {
                 throw std::logic_error(
@@ -626,7 +627,7 @@ namespace ccf
               auto seqno = network.tables->current_version();
               consensus->init_as_backup(seqno, sig->view, view_history);
 
-              if (!resp.network_info.public_only)
+              if (!resp.network_info->public_only)
               {
                 // Only clear snapshot if not recovering. When joining the
                 // public network the snapshot is used later to initialise the
@@ -641,7 +642,7 @@ namespace ccf
                 sig->view);
             }
 
-            if (resp.network_info.public_only)
+            if (resp.network_info->public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -655,7 +656,7 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (resp.network_info.public_only ? "public only" : "all domains"));
+              (resp.network_info->public_only ? "public only" : "all domains"));
           }
           else if (resp.node_status == NodeStatus::PENDING)
           {

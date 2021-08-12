@@ -106,7 +106,6 @@ namespace ccf
       NodeStatus node_status;
       NodeId node_id; // Only used in BFT
 
-      // Only if the caller node is trusted
       struct NetworkInfo
       {
         bool public_only = false;
@@ -115,9 +114,28 @@ namespace ccf
 
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
-        ServiceStatus service_status;
+        std::optional<ServiceStatus> service_status = std::nullopt;
 
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+
+        NetworkInfo() {}
+
+        NetworkInfo(
+          bool public_only,
+          kv::Version last_recovered_signed_idx,
+          ConsensusType consensus_type,
+          const LedgerSecretsMap& ledger_secrets,
+          const NetworkIdentity& identity,
+          ServiceStatus service_status,
+          const std::optional<crypto::Pem>& endorsed_certificate) :
+          public_only(public_only),
+          last_recovered_signed_idx(last_recovered_signed_idx),
+          consensus_type(consensus_type),
+          ledger_secrets(ledger_secrets),
+          identity(identity),
+          service_status(service_status),
+          endorsed_certificate(endorsed_certificate)
+        {}
 
         bool operator==(const NetworkInfo& other) const
         {
@@ -125,8 +143,8 @@ namespace ccf
             last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
-            service_status == other.service_status &&
             identity == other.identity &&
+            service_status == other.service_status &&
             endorsed_certificate == other.endorsed_certificate;
         }
 
@@ -136,7 +154,8 @@ namespace ccf
         }
       };
 
-      NetworkInfo network_info;
+      // Only set if the caller node is trusted
+      std::optional<NetworkInfo> network_info = std::nullopt;
     };
   };
 

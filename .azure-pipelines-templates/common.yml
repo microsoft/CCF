@@ -12,7 +12,6 @@ jobs:
 
       - checkout: self
         clean: true
-        fetchDepth: 10000
 
       - template: cmake.yml
         parameters:
@@ -36,7 +35,7 @@ jobs:
           - template: push_perf_data.yml
           - template: metrics.yml
 
-      - ${{ if eq(parameters.suffix, 'Release') }}:
+      - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
           - template: publish_tls_report.yml
           - template: publish_compatibility_report.yml
           - template: install.yml

@@ -22,7 +22,12 @@ namespace ccf
     // records them in the store
     std::optional<bool> node_endorsement_on_trust = std::nullopt;
 
-    bool operator==(const ServiceConfiguration&) const = default;
+    bool operator==(const ServiceConfiguration& other) const
+    {
+      return recovery_threshold == other.recovery_threshold &&
+        consensus == other.consensus &&
+        reconfiguration_type == other.reconfiguration_type;
+    }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
   DECLARE_JSON_REQUIRED_FIELDS(

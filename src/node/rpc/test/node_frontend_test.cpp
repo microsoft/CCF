@@ -154,13 +154,12 @@ TEST_CASE("Add a node to an opening service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    require_ledger_secrets_equal(
-      response.network_info.ledger_secrets, network.ledger_secrets->get(tx));
-    CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
-    CHECK(response.network_info.public_only == false);
+    CHECK(response.network_info.has_value());
+    CHECK(response.network_info->identity == *network.identity.get());
+    CHECK(response.network_info->public_only == false);
     // No endorsed certificate since no CSR was passed in
-    CHECK(response.network_info.endorsed_certificate == std::nullopt);
+    CHECK(response.network_info->endorsed_certificate == std::nullopt);
 
     const NodeId node_id = response.node_id;
     auto nodes = tx.rw(network.nodes);
@@ -187,11 +186,12 @@ TEST_CASE("Add a node to an opening service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    require_ledger_secrets_equal(
-      response.network_info.ledger_secrets,
-      network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
-    CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
+    CHECK(response.network_info.has_value());
+    require_ledger_secrets_equal(
+      response.network_info->ledger_secrets,
+      network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
+    CHECK(response.network_info->identity == *network.identity.get());
   }
 
   INFO(
@@ -260,7 +260,7 @@ TEST_CASE("Add a node to an open service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    CHECK(response.network_info.identity.priv_key.empty());
+    CHECK(!response.network_info.has_value());
 
     auto node_id = response.node_id;
 
@@ -296,7 +296,7 @@ TEST_CASE("Add a node to an open service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     // The network secrets are still not available to the joining node
-    CHECK(response.network_info.identity.priv_key.empty());
+    CHECK(!response.network_info.has_value());
   }
 
   INFO("Trust node and attempt to join");
@@ -323,16 +323,18 @@ TEST_CASE("Add a node to an open service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     auto tx = network.tables->create_tx();
+    CHECK(response.node_status == NodeStatus::TRUSTED);
+    CHECK(response.network_info.has_value());
     require_ledger_secrets_equal(
-      response.network_info.ledger_secrets,
+      response.network_info->ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.node_id == joining_node_id);
-    CHECK(response.network_info.identity == *network.identity.get());
+    CHECK(response.network_info->identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
-    CHECK(response.network_info.public_only == true);
-    CHECK(response.network_info.endorsed_certificate.has_value());
+    CHECK(response.network_info->public_only == true);
+    CHECK(response.network_info->endorsed_certificate.has_value());
     CHECK(
-      response.network_info.endorsed_certificate.value() ==
+      response.network_info->endorsed_certificate.value() ==
       dummy_endorsed_certificate);
   }
 }

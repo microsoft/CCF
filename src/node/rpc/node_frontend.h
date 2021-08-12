@@ -330,7 +330,8 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSnapshotIsOld,
             fmt::format(
-              "Node requested to join from snapshot at seqno {} which is older "
+              "Node requested to join from snapshot at seqno {} which is "
+              "older "
               "than this node startup seqno {}",
               in.startup_seqno.value(),
               this_startup_seqno.value()));
@@ -361,7 +362,7 @@ namespace ccf
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
             rep.node_id = existing_node_info->node_id;
-            rep.network_info = {
+            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
@@ -369,7 +370,8 @@ namespace ccf
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
               active_service->status,
-              existing_node_info->endorsed_certificate};
+              existing_node_info->endorsed_certificate);
+
             return make_success(rep);
           }
 
@@ -434,7 +436,7 @@ namespace ccf
             node_status == NodeStatus::TRUSTED ||
             node_status == NodeStatus::LEARNER)
           {
-            rep.network_info = {
+            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
@@ -442,7 +444,8 @@ namespace ccf
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
               active_service->status,
-              existing_node_info->endorsed_certificate};
+              existing_node_info->endorsed_certificate);
+
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)

@@ -52,7 +52,9 @@ namespace ccf
     ledger_secrets,
     identity)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::Out::NetworkInfo, endorsed_certificate)
+    JoinNetworkNodeToNode::Out::NetworkInfo,
+    service_status,
+    endorsed_certificate)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
