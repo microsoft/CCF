@@ -265,10 +265,7 @@ namespace ccf
       rpcsessions(rpcsessions),
       share_manager(share_manager)
     {
-      if (network.consensus_type == ConsensusType::CFT)
-      {
-        self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
-      }
+      self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
     }
 
     QuoteVerificationResult verify_quote(
@@ -358,18 +355,6 @@ namespace ccf
           node_cert = create_endorsed_node_cert();
 
           network.ledger_secrets->init();
-
-          if (network.consensus_type == ConsensusType::BFT)
-          {
-            // BFT consensus requires a stable order of node IDs so that the
-            // primary node in a given view can be computed deterministically by
-            // all nodes in the network
-            // See https://github.com/microsoft/CCF/issues/1852
-
-            // Pad node id string to avoid memory alignment issues on
-            // node-to-node messages
-            self = NodeId(fmt::format("{:#064}", 0));
-          }
 
           setup_snapshotter();
           setup_encryptor();
@@ -550,13 +535,6 @@ namespace ccf
                 resp.network_info->consensus_type));
             }
 
-            if (network.consensus_type == ConsensusType::BFT)
-            {
-              // In CFT, the node id is computed at startup, as the hash of the
-              // node's public key
-              self = resp.node_id;
-            }
-
             setup_snapshotter();
             setup_encryptor();
             setup_consensus(
@@ -654,8 +632,7 @@ namespace ccf
           else if (resp.node_status == NodeStatus::PENDING)
           {
             LOG_INFO_FMT(
-              "Node {} is waiting for votes of members to be trusted",
-              resp.node_id);
+              "Node {} is waiting for votes of members to be trusted", self);
           }
 
           return true;
@@ -962,19 +939,6 @@ namespace ccf
         last_recovered_signed_idx);
 
       auto tx = network.tables->create_read_only_tx();
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        // BFT consensus requires a stable order of node IDs so that the
-        // primary node in a given view can be computed deterministically by
-        // all nodes in the network
-        // See https://github.com/microsoft/CCF/issues/1852
-
-        // Pad node id string to avoid memory alignment issues on
-        // node-to-node messages
-        auto values = tx.ro(network.values);
-        auto id = values->get(0);
-        self = NodeId(fmt::format("{:#064}", id.value()));
-      }
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
       setup_encryptor();

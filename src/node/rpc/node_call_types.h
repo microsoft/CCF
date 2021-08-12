@@ -94,7 +94,7 @@ namespace ccf
     struct Out
     {
       NodeStatus node_status;
-      NodeId node_id; // Only used in BFT
+      std::optional<NodeId> node_id;
 
       struct NetworkInfo
       {
