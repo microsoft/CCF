@@ -87,6 +87,7 @@ TEST_CASE("Add a node to an opening service")
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.init_configuration({0, ConsensusType::CFT, std::nullopt, true});
 
   ShareManager share_manager(network);
   StubNodeContext context;
