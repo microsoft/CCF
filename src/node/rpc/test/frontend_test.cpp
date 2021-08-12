@@ -629,9 +629,6 @@ TEST_CASE("process with signatures")
     INFO("Unsigned RPC");
     {
       const auto serialized_response = frontend.process(simple_rpc_ctx).value();
-      LOG_FAIL_FMT(
-        "{}",
-        std::string(serialized_response.begin(), serialized_response.end()));
       auto response = parse_response(serialized_response);
 
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
