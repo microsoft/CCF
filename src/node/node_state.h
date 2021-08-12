@@ -985,6 +985,7 @@ namespace ccf
         self = NodeId(fmt::format("{:#064}", id.value()));
 
         endorsed_node_cert = create_endorsed_node_cert();
+        accept_network_tls_connections();
         open_frontend(ActorsType::members);
       }
 
@@ -1664,6 +1665,11 @@ namespace ccf
     {
       CreateNetworkNodeToNode::In create_params;
 
+      // Because certificate signature scheme is not deterministic, endorsed
+      // node certificate is not recorded in BFT
+      auto node_endorsement_on_trust =
+        network.consensus_type != ConsensusType::BFT;
+
       // False on recovery where the consortium is read from the existing
       // ledger
       if (create_consortium)
@@ -1677,11 +1683,6 @@ namespace ccf
         auto reconf_type = network.consensus_type == ConsensusType::BFT ?
           ReconfigurationType::TWO_TRANSACTION :
           ReconfigurationType::ONE_TRANSACTION;
-
-        // Because certificate signature scheme is not deterministic, endorsed
-        // node certificate is not recorded in BFT
-        auto node_endorsement_on_trust =
-          network.consensus_type != ConsensusType::BFT;
 
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
@@ -1701,10 +1702,10 @@ namespace ccf
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
 
-      // Record self-signed certificate in genesis if the node does not require
-      // endorsement by the service, so that node signatures can be verified
-      if (!create_params.genesis_info->configuration.node_endorsement_on_trust
-             .value())
+      // Record self-signed certificate in create request if the node does not
+      // require endorsement by the service, so that node signatures can be
+      // verified
+      if (!node_endorsement_on_trust)
       {
         create_params.node_cert = self_signed_node_cert;
       }

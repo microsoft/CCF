@@ -1101,6 +1101,19 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
+        // Retire all nodes, in case there are any (i.e. post recovery)
+        g.retire_active_nodes();
+
+        NodeInfo node_info = {
+          in.node_info_network,
+          {in.quote_info},
+          in.public_encryption_key,
+          NodeStatus::TRUSTED,
+          std::nullopt,
+          ds::to_hex(in.code_digest.data),
+          in.certificate_signing_request,
+          in.public_key};
+
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {
@@ -1130,24 +1143,7 @@ namespace ccf
           g.set_constitution(in.genesis_info->constitution);
         }
 
-        // Retire all nodes, in case there are any (i.e. post recovery)
-        g.retire_active_nodes();
-
-        NodeInfo node_info = {
-          in.node_info_network,
-          {in.quote_info},
-          in.public_encryption_key,
-          NodeStatus::TRUSTED,
-          std::nullopt,
-          ds::to_hex(in.code_digest.data),
-          in.certificate_signing_request,
-          in.public_key};
-
-        CCF_ASSERT_FMT(
-          in.genesis_info->configuration.node_endorsement_on_trust.has_value(),
-          "Node endorsement configuration should always be set from 2.x");
-
-        if (in.genesis_info->configuration.node_endorsement_on_trust.value())
+        if (!in.node_cert.has_value())
         {
           auto endorsed_certificates =
             ctx.tx.rw(network.node_endorsed_certificates);
@@ -1160,10 +1156,6 @@ namespace ccf
         }
         else
         {
-          CCF_ASSERT_FMT(
-            in.node_cert.value(),
-            "Self-signed node certificate should be set if configuration does "
-            "not require endorsement");
           node_info.cert = in.node_cert.value();
         }
 
