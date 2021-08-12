@@ -1020,6 +1020,7 @@ namespace ccf
         // node for the genesis or end of public recovery transaction to
         // initialise the service
         if (
+          network.consensus_type == ConsensusType::CFT &&
           !context.get_node_state().is_in_initialised_state() &&
           !context.get_node_state().is_reading_public_ledger())
         {
@@ -1132,18 +1133,7 @@ namespace ccf
             "Request does not originate from primary.");
         }
 
-        SetJwtPublicSigningKeys parsed;
-        try
-        {
-          parsed = body.get<SetJwtPublicSigningKeys>();
-        }
-        catch (const JsonParseError& e)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Unable to parse body.");
-        }
+        const auto parsed = body.get<SetJwtPublicSigningKeys>();
 
         auto issuers = ctx.tx.rw(this->network.jwt_issuers);
         auto issuer_metadata_ = issuers->get(parsed.issuer);
