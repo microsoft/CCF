@@ -1145,7 +1145,18 @@ namespace ccf
             "Request does not originate from primary.");
         }
 
-        const auto parsed = body.get<SetJwtPublicSigningKeys>();
+        SetJwtPublicSigningKeys parsed;
+        try
+        {
+          parsed = body.get<SetJwtPublicSigningKeys>();
+        }
+        catch (const JsonParseError& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to parse body.");
+        }
 
         auto issuers = ctx.tx.rw(this->network.jwt_issuers);
         auto issuer_metadata_ = issuers->get(parsed.issuer);
