@@ -69,7 +69,7 @@ namespace ccf
 
   struct NodeCreateInfo
   {
-    crypto::Pem node_cert;
+    crypto::Pem self_signed_node_cert;
     crypto::Pem network_cert;
   };
 
@@ -92,7 +92,8 @@ namespace ccf
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
-    crypto::Pem node_cert;
+    crypto::Pem self_signed_node_cert;
+    std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     CCFConfig config;
@@ -334,6 +335,8 @@ namespace ccf
         get_subject_alternative_names();
 
       js::register_class_ids();
+      self_signed_node_cert = create_self_signed_node_cert();
+      accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
@@ -349,9 +352,6 @@ namespace ccf
         throw std::logic_error("Failed to extract code id from quote");
       }
 #endif
-
-      // TODO: Split self-signed from endorsed certificate
-      node_cert = create_self_signed_node_cert();
 
       switch (start_type)
       {
@@ -376,12 +376,12 @@ namespace ccf
             // node-to-node messages
             self = NodeId(fmt::format("{:#064}", 0));
 
-            node_cert = create_endorsed_node_cert();
+            endorsed_node_cert = create_endorsed_node_cert();
+            accept_network_tls_connections();
             open_frontend(ActorsType::members);
           }
 
-          // TODO: Do not pass node_cert if CFT!
-          setup_consensus(ServiceStatus::OPENING, false);
+          setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
           setup_history();
 
@@ -401,8 +401,8 @@ namespace ccf
           sm.advance(State::partOfNetwork);
 
           LOG_INFO_FMT("Created new node {}", self);
-          accept_node_tls_connections();
-          return {node_cert, network.identity->cert};
+
+          return {self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
@@ -417,8 +417,7 @@ namespace ccf
           }
 
           LOG_INFO_FMT("Created join node {}", self);
-          accept_node_tls_connections();
-          return {node_cert, {}};
+          return {self_signed_node_cert, {}};
         }
         case StartType::Recover:
         {
@@ -449,8 +448,7 @@ namespace ccf
           sm.advance(State::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
-          accept_node_tls_connections();
-          return {node_cert, network.identity->cert};
+          return {self_signed_node_cert, network.identity->cert};
         }
         default:
         {
@@ -467,7 +465,7 @@ namespace ccf
     {
       auto network_ca = std::make_shared<tls::CA>(config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        network_ca, node_cert, node_sign_kp->private_key_pem());
+        network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -547,15 +545,23 @@ namespace ccf
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info.ledger_secrets));
 
+            crypto::Pem n2n_channels_cert;
             if (!resp.network_info.endorsed_certificate.has_value())
             {
               // Endorsed node certificate is included in join response
-              // from 2.x. When joining an existing 1.x service, self-sign own
-              // certificate and use it to endorse TLS connections.
-              node_cert = create_endorsed_node_cert();
+              // from 2.x (CFT only). When joining an existing 1.x service,
+              // self-sign own certificate and use it to endorse TLS
+              // connections.
+              endorsed_node_cert = create_endorsed_node_cert();
+              n2n_channels_cert = endorsed_node_cert.value();
               open_frontend(ActorsType::members);
               open_user_frontend();
               accept_network_tls_connections();
+            }
+            else
+            {
+              n2n_channels_cert =
+                resp.network_info.endorsed_certificate.value();
             }
 
             if (network.consensus_type == ConsensusType::BFT)
@@ -570,7 +576,7 @@ namespace ccf
             setup_consensus(
               resp.network_info.service_status,
               resp.network_info.public_only,
-              resp.network_info.endorsed_certificate.value_or(node_cert));
+              n2n_channels_cert);
             setup_progress_tracker();
             setup_history();
             auto_refresh_jwt_keys();
@@ -741,7 +747,7 @@ namespace ccf
         rpcsessions,
         rpc_map,
         node_sign_kp,
-        node_cert);
+        self_signed_node_cert);
       jwt_key_auto_refresh->start();
 
       network.tables->set_map_hook(
@@ -977,7 +983,7 @@ namespace ccf
         auto id = values->get(0);
         self = NodeId(fmt::format("{:#064}", id.value()));
 
-        node_cert = create_endorsed_node_cert();
+        endorsed_node_cert = create_endorsed_node_cert();
         open_frontend(ActorsType::members);
       }
 
@@ -1616,11 +1622,9 @@ namespace ccf
     void accept_node_tls_connections()
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
-      // node certificate. Once the node is part of the network, this
-      // certificate should be replaced with network-endorsed counterpart
-
-      assert(!node_cert.empty());
-      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
+      // node certificate.
+      rpcsessions->set_cert(
+        self_signed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
@@ -1628,9 +1632,12 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-
-      assert(!node_cert.empty() && !make_verifier(node_cert)->is_self_signed());
-      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
+      CCF_ASSERT_FMT(
+        endorsed_node_cert.has_value(),
+        "Node certificate should be endorsed before accepting endorsed client "
+        "connections");
+      rpcsessions->set_cert(
+        endorsed_node_cert.value(), node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
@@ -1698,7 +1705,7 @@ namespace ccf
       if (!create_params.genesis_info->configuration.node_endorsement_on_trust
              .value())
       {
-        create_params.node_cert = node_cert;
+        create_params.node_cert = self_signed_node_cert;
       }
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
@@ -1710,7 +1717,7 @@ namespace ccf
 
       request.set_body(&body);
 
-      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
+      auto node_cert_der = crypto::cert_pem_to_der(self_signed_node_cert);
       const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
 
       http::sign_request(request, node_sign_kp, key_id);
@@ -1758,7 +1765,7 @@ namespace ccf
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
       auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
+        enclave::InvalidSessionId, self_signed_node_cert.raw());
       auto ctx = enclave::make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
@@ -1920,8 +1927,8 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              node_cert = endorsed_certificate.value();
-              n2n_channels->set_endorsed_node_cert(node_cert);
+              endorsed_node_cert = endorsed_certificate.value();
+              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
               open_frontend(ActorsType::members);
