@@ -534,20 +534,20 @@ namespace ccf
             resp.node_status == NodeStatus::LEARNER)
           {
             network.identity =
-              std::make_unique<NetworkIdentity>(resp.network_info.identity);
+              std::make_unique<NetworkIdentity>(resp.network_info->identity);
 
             node_cert = create_endorsed_node_cert();
 
             network.ledger_secrets->init_from_map(
-              std::move(resp.network_info.ledger_secrets));
+              std::move(resp.network_info->ledger_secrets));
 
-            if (resp.network_info.consensus_type != network.consensus_type)
+            if (resp.network_info->consensus_type != network.consensus_type)
             {
               throw std::logic_error(fmt::format(
                 "Enclave initiated with consensus type {} but target node "
                 "responded with consensus {}",
                 network.consensus_type,
-                resp.network_info.consensus_type));
+                resp.network_info->consensus_type));
             }
 
             if (network.consensus_type == ConsensusType::BFT)
@@ -560,15 +560,17 @@ namespace ccf
             setup_snapshotter();
             setup_encryptor();
             setup_consensus(
-              resp.network_info.service_status, resp.network_info.public_only);
+              resp.network_info->service_status.value_or(
+                ServiceStatus::OPENING),
+              resp.network_info->public_only);
             setup_progress_tracker();
             setup_history();
             auto_refresh_jwt_keys();
 
-            if (resp.network_info.public_only)
+            if (resp.network_info->public_only)
             {
               last_recovered_signed_idx =
-                resp.network_info.last_recovered_signed_idx;
+                resp.network_info->last_recovered_signed_idx;
               setup_recovery_hook();
               snapshotter->set_snapshot_generation(false);
             }
@@ -586,7 +588,7 @@ namespace ccf
                 startup_snapshot_info->raw,
                 hooks,
                 &view_history,
-                resp.network_info.public_only);
+                resp.network_info->public_only);
               if (rc != kv::ApplyResult::PASS)
               {
                 throw std::logic_error(
@@ -610,7 +612,7 @@ namespace ccf
               auto seqno = network.tables->current_version();
               consensus->init_as_backup(seqno, sig->view, view_history);
 
-              if (!resp.network_info.public_only)
+              if (!resp.network_info->public_only)
               {
                 // Only clear snapshot if not recovering. When joining the
                 // public network the snapshot is used later to initialise the
@@ -629,7 +631,7 @@ namespace ccf
 
             accept_network_tls_connections();
 
-            if (resp.network_info.public_only)
+            if (resp.network_info->public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -643,7 +645,7 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (resp.network_info.public_only ? "public only" : "all domains"));
+              (resp.network_info->public_only ? "public only" : "all domains"));
 
             // The network identity is now known, the user frontend can be
             // opened once the KV state catches up
@@ -1534,12 +1536,37 @@ namespace ccf
 
     SessionMetrics get_session_metrics() override
     {
-      SessionMetrics sm;
-      rpcsessions->get_stats(sm.active, sm.peak, sm.soft_cap, sm.hard_cap);
-      return sm;
+      return rpcsessions->get_session_metrics();
     }
 
   private:
+    bool is_ip(const std::string& hostname)
+    {
+      // IP address components are purely numeric. DNS names may be largely
+      // numeric, but at least the final component (TLD) must not be
+      // all-numeric. So this distinguishes "1.2.3.4" (and IP address) from
+      // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
+      // throw. Attempts to handle IPv6 by also splitting on ':', but this is
+      // untested.
+      const auto final_component =
+        nonstd::split(nonstd::split(hostname, ".").back(), ":").back();
+      if (final_component.empty())
+      {
+        throw std::runtime_error(fmt::format(
+          "{} has a trailing period, is not a valid hostname",
+          final_component));
+      }
+      for (const auto c : final_component)
+      {
+        if (c < '0' || c > '9')
+        {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
       // If no Subject Alternative Name (SAN) is passed in at node creation,
@@ -1549,10 +1576,19 @@ namespace ccf
       {
         return config.subject_alternative_names;
       }
-
-      return {
-        {config.node_info_network.rpchost,
-         ds::is_valid_ip(config.node_info_network.rpchost)}};
+      else
+      {
+        // Construct SANs from RPC interfaces, manually detecting whether each
+        // is a domain name or IP
+        std::vector<crypto::SubjectAltName> sans;
+        for (const auto& interface : config.node_info_network.rpc_interfaces)
+        {
+          sans.push_back(
+            {interface.rpc_address.hostname,
+             is_ip(interface.rpc_address.hostname)});
+        }
+        return sans;
+      }
     }
 
     Pem create_self_signed_node_cert()

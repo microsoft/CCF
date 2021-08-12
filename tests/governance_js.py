@@ -631,6 +631,6 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
 
     args.package = "liblogging"
-    args.nodes = ["local://localhost"]
+    args.nodes = infra.e2e_args.nodes(args, 1)
     args.initial_user_count = 2
     run(args)
