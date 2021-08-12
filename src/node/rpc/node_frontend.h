@@ -598,8 +598,6 @@ namespace ccf
             if (primary_id.has_value() && !consensus->view_change_in_progress())
             {
               out.primary_id = primary_id.value();
-              LOG_DEBUG_FMT(
-                "primary reported to frontend: {}", out.primary_id.value());
             }
           }
           return make_success(out);
