@@ -341,6 +341,7 @@ namespace aft
         consensus_type == ConsensusType::BFT,
         "Computing primary id from view is only supported with BFT consensus");
 
+      assert(configurations.size() > 0);
       const auto& config = configurations.back();
       return get_primary_at_config(view, config.bft_offset, config.nodes);
     }
@@ -1197,6 +1198,7 @@ namespace aft
         consensus_type == ConsensusType::BFT,
         "Computing primary id from view is only supported with BFT consensus");
 
+      assert(conf.size() > 0);
       auto it = conf.begin();
       std::advance(it, (view - starting_view_change + offset) % conf.size());
       return it->first;

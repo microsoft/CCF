@@ -5,7 +5,7 @@
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "node/jwt.h"
-#include "node/rpc/member_frontend.h"
+#include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 
 #define FMT_HEADER_ONLY
@@ -108,15 +108,12 @@ namespace ccf
 
       http::Request request(fmt::format(
         "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::members),
+        ccf::get_actor_prefix(ccf::ActorsType::nodes),
         "jwt_keys/refresh"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       request.set_body(&body);
 
-      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
-      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
-      http::sign_request(request, node_sign_kp, key_id);
       auto packed = request.build_request();
 
       auto node_session = std::make_shared<enclave::SessionContext>(

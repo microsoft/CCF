@@ -162,7 +162,8 @@ TEST_CASE("Add a node to an opening service")
     // No endorsed certificate since no CSR was passed in
     CHECK(response.network_info->endorsed_certificate == std::nullopt);
 
-    const NodeId node_id = response.node_id;
+    auto pk_der = kp->public_key_der();
+    const NodeId node_id = crypto::Sha256Hash(pk_der).hex_str();
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(node_id);
 
@@ -263,8 +264,8 @@ TEST_CASE("Add a node to an open service")
 
     CHECK(!response.network_info.has_value());
 
-    auto node_id = response.node_id;
-
+    auto pk_der = kp->public_key_der();
+    const NodeId node_id = crypto::Sha256Hash(pk_der).hex_str();
     auto nodes = tx.rw(network.nodes);
     node_info = nodes->get(node_id);
     CHECK(node_info.has_value());

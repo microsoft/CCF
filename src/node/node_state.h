@@ -259,18 +259,14 @@ namespace ccf
       sm("NodeState", State::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
+      self(compute_node_id_from_kp(node_sign_kp)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
       share_manager(share_manager)
-    {
-      if (network.consensus_type == ConsensusType::CFT)
-      {
-        self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
-      }
-    }
+    {}
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
@@ -364,15 +360,6 @@ namespace ccf
 
           if (network.consensus_type == ConsensusType::BFT)
           {
-            // BFT consensus requires a stable order of node IDs so that the
-            // primary node in a given view can be computed deterministically by
-            // all nodes in the network
-            // See https://github.com/microsoft/CCF/issues/1852
-
-            // Pad node id string to avoid memory alignment issues on
-            // node-to-node messages
-            self = NodeId(fmt::format("{:#064}", 0));
-
             endorsed_node_cert = create_endorsed_node_cert();
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
@@ -563,13 +550,6 @@ namespace ccf
                 resp.network_info->endorsed_certificate.value();
             }
 
-            if (network.consensus_type == ConsensusType::BFT)
-            {
-              // In CFT, the node id is computed at startup, as the hash of the
-              // node's public key
-              self = resp.node_id;
-            }
-
             setup_snapshotter();
             setup_encryptor();
             setup_consensus(
@@ -660,8 +640,7 @@ namespace ccf
           else if (resp.node_status == NodeStatus::PENDING)
           {
             LOG_INFO_FMT(
-              "Node {} is waiting for votes of members to be trusted",
-              resp.node_id);
+              "Node {} is waiting for votes of members to be trusted", self);
           }
 
           return true;
@@ -972,17 +951,6 @@ namespace ccf
       auto tx = network.tables->create_read_only_tx();
       if (network.consensus_type == ConsensusType::BFT)
       {
-        // BFT consensus requires a stable order of node IDs so that the
-        // primary node in a given view can be computed deterministically by
-        // all nodes in the network
-        // See https://github.com/microsoft/CCF/issues/1852
-
-        // Pad node id string to avoid memory alignment issues on
-        // node-to-node messages
-        auto values = tx.ro(network.values);
-        auto id = values->get(0);
-        self = NodeId(fmt::format("{:#064}", id.value()));
-
         endorsed_node_cert = create_endorsed_node_cert();
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
@@ -1460,6 +1428,11 @@ namespace ccf
         consensus->can_replicate());
     }
 
+    bool is_in_initialised_state() const override
+    {
+      return sm.check(State::initialized);
+    }
+
     bool is_part_of_network() const override
     {
       return sm.check(State::partOfNetwork);
@@ -1717,11 +1690,6 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
       request.set_body(&body);
-
-      auto node_cert_der = crypto::cert_pem_to_der(self_signed_node_cert);
-      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
-
-      http::sign_request(request, node_sign_kp, key_id);
 
       return request.build_request();
     }

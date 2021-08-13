@@ -63,6 +63,15 @@ namespace ccf
   DECLARE_JSON_TYPE(JavaScriptMetrics)
   DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used)
 
+  struct SetJwtPublicSigningKeys
+  {
+    std::string issuer;
+    JsonWebKeySet jwks;
+  };
+
+  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -156,27 +165,15 @@ namespace ccf
             conflicting_node_id.value()));
       }
 
-      auto pk_der = crypto::public_key_der_from_cert(node_der);
-
-      NodeId joining_node_id;
-      if (network.consensus_type == ConsensusType::CFT)
-      {
-        joining_node_id = crypto::Sha256Hash(pk_der).hex_str();
-      }
-      else
-      {
-        // Pad node id string to avoid memory alignment issues on
-        // node-to-node messages
-        joining_node_id = fmt::format(
-          "{:#064}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
-      }
+      auto pubk_der = crypto::public_key_der_from_cert(node_der);
+      NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
 
       CodeDigest code_digest;
 
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
         this->context.get_node_state().verify_quote(
-          tx, in.quote_info, pk_der, code_digest);
+          tx, in.quote_info, pubk_der, code_digest);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -361,7 +358,6 @@ namespace ccf
           {
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
-            rep.node_id = existing_node_info->node_id;
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
@@ -426,7 +422,6 @@ namespace ccf
         if (existing_node_info.has_value())
         {
           JoinNetworkNodeToNode::Out rep;
-          rep.node_id = existing_node_info->node_id;
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
@@ -1084,17 +1079,27 @@ namespace ccf
 
       auto create = [this](auto& ctx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
-        const auto in = params.get<CreateNetworkNodeToNode::In>();
-
-        GenesisGenerator g(this->network, ctx.tx);
 
         // This endpoint can only be called once, directly from the starting
         // node for the genesis or end of public recovery transaction to
         // initialise the service
+        if (
+          network.consensus_type == ConsensusType::CFT &&
+          !context.get_node_state().is_in_initialised_state() &&
+          !context.get_node_state().is_reading_public_ledger())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::InternalError,
+            "Node is not in initial state.");
+        }
+
+        const auto in = params.get<CreateNetworkNodeToNode::In>();
+        GenesisGenerator g(this->network, ctx.tx);
         if (g.is_service_created(in.network_cert))
         {
           return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            HTTP_STATUS_FORBIDDEN,
             ccf::errors::InternalError,
             "Service is already created.");
         }
@@ -1170,6 +1175,108 @@ namespace ccf
       };
       make_endpoint(
         "/create", HTTP_POST, json_adapter(create), no_auth_required)
+        .set_openapi_hidden(true)
+        .install();
+
+      // Only called from node. See node_state.h.
+      auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
+        // All errors are server errors since the client is the server.
+
+        if (!consensus)
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No consensus available.");
+        }
+
+        auto primary_id = consensus->primary();
+        if (!primary_id.has_value())
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary is unknown");
+        }
+
+        const auto& sig_auth_ident =
+          ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
+        if (primary_id.value() != sig_auth_ident.node_id)
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: request does not originate from primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Request does not originate from primary.");
+        }
+
+        SetJwtPublicSigningKeys parsed;
+        try
+        {
+          parsed = body.get<SetJwtPublicSigningKeys>();
+        }
+        catch (const JsonParseError& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to parse body.");
+        }
+
+        auto issuers = ctx.tx.rw(this->network.jwt_issuers);
+        auto issuer_metadata_ = issuers->get(parsed.issuer);
+        if (!issuer_metadata_.has_value())
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("{} is not a valid issuer.", parsed.issuer));
+        }
+        auto& issuer_metadata = issuer_metadata_.value();
+
+        if (!issuer_metadata.auto_refresh)
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: {} does not have auto_refresh enabled",
+            parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "{} does not have auto_refresh enabled.", parsed.issuer));
+        }
+
+        if (!set_jwt_public_signing_keys(
+              ctx.tx,
+              "<auto-refresh>",
+              parsed.issuer,
+              issuer_metadata,
+              parsed.jwks))
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: error while storing signing keys for issuer "
+            "{}",
+            parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Error while storing signing keys for issuer {}.",
+              parsed.issuer));
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "/jwt_keys/refresh",
+        HTTP_POST,
+        json_adapter(refresh_jwt_keys),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
     }
