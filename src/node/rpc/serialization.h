@@ -41,10 +41,10 @@ namespace ccf
     ccf::IdentityType,
     {{ccf::IdentityType::REPLICATED, "Replicated"},
      {ccf::IdentityType::SPLIT, "Split"}})
-  DECLARE_JSON_TYPE(NetworkIdentity)
-  DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key, type)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkIdentity)
+  DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
+  DECLARE_JSON_OPTIONAL_FIELDS(NetworkIdentity, type)
   DECLARE_JSON_TYPE_WITH_BASE(ReplicatedNetworkIdentity, NetworkIdentity)
-  DECLARE_JSON_REQUIRED_FIELDS(ReplicatedNetworkIdentity, cert, priv_key, type)
   DECLARE_JSON_TYPE_WITH_BASE(SplitNetworkIdentity, NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(SplitNetworkIdentity, cert, type)
 

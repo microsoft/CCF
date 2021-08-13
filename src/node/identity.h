@@ -20,7 +20,7 @@ namespace ccf
   {
     crypto::Pem priv_key;
     crypto::Pem cert;
-    IdentityType type;
+    std::optional<IdentityType> type;
 
     bool operator==(const NetworkIdentity& other) const
     {
