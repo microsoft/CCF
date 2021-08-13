@@ -1,0 +1,12 @@
+- name: Include vars
+  include_vars:
+    file: common.yml
+
+# Required for Linux kernel 5.11 for in-process quote generation
+# Note: This may require a VM reboot
+- name: Add current user to sgx_prv group
+  user:
+    name: "{{ lookup('env', 'USER') }}"
+    groups: "{{ sgx_group_name }}"
+    append: true
+  become: true
