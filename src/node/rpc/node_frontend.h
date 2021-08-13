@@ -149,19 +149,7 @@ namespace ccf
       }
 
       auto pubk_der = crypto::public_key_der_from_cert(node_der);
-
-      NodeId joining_node_id;
-      if (network.consensus_type == ConsensusType::CFT)
-      {
-        joining_node_id = compute_node_id_from_pubk_der(pubk_der);
-      }
-      else
-      {
-        // Pad node id string to avoid memory alignment issues on
-        // node-to-node messages
-        joining_node_id = fmt::format(
-          "{:#064}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
-      }
+      NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
 
       CodeDigest code_digest;
 
@@ -308,7 +296,6 @@ namespace ccf
           {
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
-            rep.node_id = existing_node_info->first;
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
@@ -371,7 +358,6 @@ namespace ccf
         if (existing_node_info.has_value())
         {
           JoinNetworkNodeToNode::Out rep;
-          rep.node_id = existing_node_info->first;
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
