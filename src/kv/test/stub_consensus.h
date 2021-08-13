@@ -5,6 +5,7 @@
 #include "consensus/aft/impl/state.h"
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
+#include "node/resharing_types.h"
 
 #include <algorithm>
 #include <iostream>
@@ -169,6 +170,12 @@ namespace kv::test
     {
       return ConsensusDetails{{}, {}, ReplicaState::Candidate};
     }
+
+    void add_resharing_result(
+      ccf::SeqNo seqno,
+      ReconfigurationId rid,
+      const ccf::ResharingResult& result) override
+    {}
 
     void emit_signature() override
     {

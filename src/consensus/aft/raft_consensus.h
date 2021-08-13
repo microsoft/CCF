@@ -156,6 +156,14 @@ namespace aft
       return aft->get_details();
     }
 
+    void add_resharing_result(
+      ccf::SeqNo seqno,
+      kv::ReconfigurationId rid,
+      const ccf::ResharingResult& result) override
+    {
+      return aft->add_resharing_result(seqno, rid, result);
+    }
+
     void periodic(std::chrono::milliseconds elapsed) override
     {
       aft->periodic(elapsed);
