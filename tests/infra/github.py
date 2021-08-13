@@ -4,10 +4,10 @@ import infra.proc
 
 import re
 import os
-from functools import cmp_to_key
-from github import Github
+import git
 import urllib
 import shutil
+import requests
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -20,6 +20,7 @@ from loguru import logger as LOG
 ENV_VAR_GITHUB_AUTH_TOKEN_NAME = "GITHUB_COMPATIBILITY_TOKEN"
 
 REPOSITORY_NAME = "microsoft/CCF"
+REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"
 TAG_RELEASE_PREFIX = "ccf-"
 MAIN_BRANCH_NAME = "main"
@@ -74,6 +75,19 @@ def get_major_version_from_branch_name(branch_name):
     )
 
 
+def get_debian_package_url_from_tag_name(tag_name):
+    return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
+
+
+def has_release_for_tag_name(tag_name):
+    return (
+        requests.head(
+            get_debian_package_url_from_tag_name(tag_name), allow_redirects=True
+        ).status_code
+        == 200
+    )
+
+
 class Repository:
     """
     Helper class to verify CCF operations compatibility described at
@@ -81,21 +95,23 @@ class Repository:
     """
 
     def __init__(self):
-        self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
-        self.repo = self.g.get_repo(REPOSITORY_NAME)
+        self.g = git.cmd.Git()
+        self.tags = [
+            tag.split("tags/")[-1]
+            for tag in self.g.ls_remote(REMOTE_URL).split("\n")
+            if f"tags/{TAG_RELEASE_PREFIX}" in tag
+        ]
+        self.release_branches = [
+            branch.split("heads/")[-1]
+            for branch in self.g.ls_remote(REMOTE_URL).split("\n")
+            if "heads/release" in branch
+        ]
 
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
         return sorted(
-            [
-                branch.name
-                for branch in self.repo.get_branches()
-                if is_release_branch(branch.name)
-            ],
-            key=cmp_to_key(
-                lambda b1, b2: get_major_version_from_release_branch_name(b2)
-                - get_major_version_from_release_branch_name(b1)
-            ),
+            self.release_branches,
+            key=get_major_version_from_release_branch_name,
         )
 
     def get_release_branch_name_before(self, release_branch_name):
@@ -118,20 +134,6 @@ class Repository:
             raise ValueError(f"No release branch after {release_branch_name}")
         return release_branches[after_index]
 
-    def get_tags_with_releases(self):
-        # Only consider tags that have releases as perhaps a release is in progress
-        # (i.e. tag exists but hasn't got a release just yet)
-        all_released_tags = [r.tag_name for r in self.repo.get_releases()]
-        return [t for t in self.repo.get_tags() if t.name in all_released_tags]
-
-    def get_release_for_tag(self, tag):
-        releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
-        if not releases:
-            raise ValueError(
-                f"No releases found for tag {tag}. Has the release for {tag} not been published yet?"
-            )
-        return releases[0]
-
     def get_tags_for_release_branch(self, branch_name):
         # Tags are ordered based on semver, with latest first
         # Note: Assumes that N.a.b releases can only be cut from N.x branch,
@@ -142,17 +144,23 @@ class Repository:
         release_re = "^{}{}$".format(
             TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\\d+]+)")
         )
-        return sorted(
-            [
-                tag
-                for tag in self.get_tags_with_releases()
-                if re.match(release_re, tag.name)
-            ],
-            key=cmp_to_key(
-                lambda t1, t2: get_version_from_tag_name(t1.name)
-                < get_version_from_tag_name(t2.name)
-            ),
+
+        tags_for_release = sorted(
+            [tag for tag in self.tags if re.match(release_re, tag)],
+            key=get_version_from_tag_name,
+            reverse=True,
         )
+
+        # Only consider tags that have releases as a release might be in progress
+        first_release_tag_idx = -1
+        for i, t in enumerate(tags_for_release):
+            if not has_release_for_tag_name(t):
+                LOG.debug(f"No release available for tag {t}")
+                first_release_tag_idx = i
+            else:
+                break
+
+        return tags_for_release[first_release_tag_idx + 1 :]
 
     def get_lts_releases(self):
         """
@@ -167,15 +175,9 @@ class Repository:
         return releases
 
     def install_release(self, tag):
-        stripped_tag = tag.name[len(TAG_RELEASE_PREFIX) :]
-        release = self.get_release_for_tag(tag)
-
+        stripped_tag = tag[len(TAG_RELEASE_PREFIX) :]
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        debian_package_url = [
-            a.browser_download_url
-            for a in release.get_assets()
-            if re.match(f"ccf_{stripped_tag}{DEBIAN_PACKAGE_EXTENSION}", a.name)
-        ][0]
+        debian_package_url = get_debian_package_url_from_tag_name(tag)
 
         debian_package_name = debian_package_url.split("/")[-1]
         download_path = os.path.join(DOWNLOAD_FOLDER_NAME, debian_package_name)
@@ -253,7 +255,7 @@ class Repository:
 
         # Note: will currently fail if the tag is created but the release
         # not yet published
-        LOG.info(f"Latest release tag: {latest_tag.name}")
+        LOG.info(f"Latest release tag: {latest_tag}")
         return self.install_release(latest_tag)
 
     def install_next_lts_for_branch(self, branch):
@@ -262,5 +264,5 @@ class Repository:
             LOG.info(f"No next release tag found for {branch}")
             return None, None
 
-        LOG.info(f"Next release tag: {next_tag.name}")
+        LOG.info(f"Next release tag: {next_tag}")
         return self.install_release(next_tag)

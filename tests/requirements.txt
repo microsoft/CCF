@@ -7,4 +7,4 @@ pynacl
 openapi-spec-validator
 PyJWT
 docutils
-PyGithub
+GitPython

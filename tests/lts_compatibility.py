@@ -241,7 +241,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     repo = infra.github.Repository()
     lts_releases = repo.get_lts_releases()
 
-    LOG.info(f"LTS releases: {[r[1].name for r in lts_releases.items()]}")
+    LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
     lts_versions = []
 
