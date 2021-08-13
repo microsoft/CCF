@@ -694,8 +694,7 @@ int main(int argc, char** argv)
     // This includes DNS resolution and potentially dynamic port assignment (if
     // requesting port 0). The hostname and port may be modified - after calling
     // it holds the final assigned values.
-    asynchost::NodeConnectionsTickingReconnect node(
-      20ms, //< Flush reconnections every 20ms
+    asynchost::NodeConnections node(
       bp.get_dispatcher(),
       ledger,
       writer_factory,

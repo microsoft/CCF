@@ -91,8 +91,9 @@ namespace ccf
         {
           auto primary_id = consensus->primary();
 
-          if (
-            primary_id.has_value() &&
+          if (primary_id.has_value())
+          {
+            // Ignore return value - false only means it is pending
             cmd_forwarder->forward_command(
               ctx,
               primary_id.value(),
@@ -100,8 +101,8 @@ namespace ccf
                   endpoints::ExecuteOutsideConsensus::Never ?
                 consensus->active_nodes() :
                 std::set<NodeId>(),
-              ctx->session->caller_cert))
-          {
+              ctx->session->caller_cert);
+
             // Indicate that the RPC has been forwarded to primary
             LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
             return std::nullopt;

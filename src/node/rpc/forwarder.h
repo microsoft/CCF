@@ -128,6 +128,9 @@ namespace ccf
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
+        LOG_TRACE_FMT("Receiving forwarded command of {} bytes", size);
+        LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
+
         r = n2n_channels->template recv_encrypted<ForwardedHeader>(
           from, data, size);
       }
@@ -195,6 +198,9 @@ namespace ccf
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
+        LOG_TRACE_FMT("Receiving response of {} bytes", size);
+        LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
+
         r = n2n_channels->template recv_encrypted<ForwardedHeader>(
           from, data, size);
       }
@@ -233,11 +239,16 @@ namespace ccf
       return m;
     }
 
-    void recv_message(const NodeId& from, const uint8_t* data, size_t size)
+    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
       try
       {
         auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
+        LOG_TRACE_FMT(
+          "recv_message({}, {} bytes) (type={})",
+          from,
+          size,
+          (size_t)forwarded_msg);
 
         switch (forwarded_msg)
         {
@@ -285,17 +296,12 @@ namespace ccf
                 return;
               }
 
-              if (!send_forwarded_response(
-                    ctx->session->client_session_id,
-                    from,
-                    fwd_handler->process_forwarded(ctx)))
-              {
-                LOG_FAIL_FMT("Could not send forwarded response to {}", from);
-              }
-              else
-              {
-                LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-              }
+              // Ignore return value - false only means it is pending
+              send_forwarded_response(
+                ctx->session->client_session_id,
+                from,
+                fwd_handler->process_forwarded(ctx));
+              LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             }
             break;
           }
