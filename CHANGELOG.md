@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - CCF is now built with Clang 10. It is recommended that C++ applications upgrade to Clang 10 as well.
+- Internal `/gov/jwt_keys/refresh` endpoint has been moved to `/node/jwt_keys/refresh` (#2885).
 
 ### Removed
 

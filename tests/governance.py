@@ -17,12 +17,22 @@ import requests
 from loguru import logger as LOG
 
 
+@reqs.description("Test create endpoint is not available")
+def test_create_endpoint(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client() as c:
+        r = c.post("/node/create")
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
+        assert r.body.json()["error"]["message"] == "Node is not in initial state."
+    return network
+
+
 @reqs.description("Test consensus status")
 def test_consensus_status(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as c:
         r = c.get("/node/consensus")
-        assert r.status_code == 200
+        assert r.status_code == http.HTTPStatus.OK.value
         assert r.body.json()["details"]["state"] == "Leader"
     return network
 
@@ -261,15 +271,16 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test_consensus_status(network, args)
-        network = test_node_ids(network, args)
-        network = test_member_data(network, args)
-        network = test_quote(network, args)
-        network = test_user(network, args)
-        network = test_no_quote(network, args)
-        network = test_service_principals(network, args)
-        network = test_ack_state_digest_update(network, args)
-        network = test_invalid_client_signature(network, args)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_node_ids(network, args)
+        test_member_data(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_no_quote(network, args)
+        test_service_principals(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
 
 
 if __name__ == "__main__":
