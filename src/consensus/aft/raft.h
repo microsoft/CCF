@@ -39,7 +39,7 @@
 #include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
-#include "orc.h"
+#include "orc_rpc_request_context_base.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -150,7 +150,7 @@ namespace aft
     bool use_two_tx_reconfig = false;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
-    std::shared_ptr<aft::RPCRequestContext> rpc_request_context;
+    std::shared_ptr<aft::RPCRequestContextBase> rpc_request_context;
     std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
       network_configurations;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<NodeId>>
@@ -201,7 +201,7 @@ namespace aft
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
-      std::shared_ptr<aft::RPCRequestContext> rpc_request_context_,
+      std::shared_ptr<aft::RPCRequestContextBase> rpc_request_context_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -3276,14 +3276,8 @@ namespace aft
                 "Configurations: not enough trusted nodes for configuration "
                 "#{}; submitting ORC",
                 next->rid);
-
-              auto msg = std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
-                orc_cb, rpc_request_context, state->my_node_id, next->rid);
-
-              threading::ThreadMessaging::thread_messaging.add_task(
-                threading::ThreadMessaging::get_execution_thread(
-                  threading::MAIN_THREAD_ID),
-                std::move(msg));
+              rpc_request_context->schedule_submit_orc(
+                state->my_node_id, next->rid);
             }
             break;
           }

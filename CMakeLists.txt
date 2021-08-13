@@ -301,7 +301,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto.host http_parser.host)
+    target_link_libraries(raft_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       raft_enclave_test
@@ -432,9 +432,7 @@ if(BUILD_TESTS)
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
-    target_link_libraries(
-      raft_driver PRIVATE ccfcrypto.host openenclave::oehost http_parser.host
-    )
+    target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(
