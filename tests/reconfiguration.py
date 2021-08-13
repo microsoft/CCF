@@ -236,7 +236,7 @@ def test_version(network, args):
 
 
 @reqs.description("Replace a node on the same addresses")
-@reqs.at_least_n_nodes(3)  # Should be at_least_f_failures(1)
+@reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
     primary, backups = network.find_nodes()
 
