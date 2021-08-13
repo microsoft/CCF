@@ -293,7 +293,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
 def get_jwt_refresh_endpoint_metrics(network) -> dict:
     primary, _ = network.find_nodes()
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/api/metrics")
+        r = c.get("/node/api/metrics")
         m = next(
             v
             for v in r.body.json()["metrics"]
