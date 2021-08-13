@@ -121,7 +121,7 @@ class Network:
         if existing_network is None:
             self.consortium = None
             self.users = []
-            self.node_offset = 0
+            self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
         else:
@@ -131,8 +131,8 @@ class Network:
             # the node id of the nodes of the new network should start from the node
             # id of the existing network, so that new nodes id match the ones in the
             # nodes KV table
-            self.node_offset = (
-                len(existing_network.nodes) + existing_network.node_offset
+            self.next_node_id = (
+                len(existing_network.nodes) + existing_network.next_node_id
             )
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
@@ -169,9 +169,9 @@ class Network:
             self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
-        if len(self.nodes):
-            return self.nodes[-1].local_node_id + 1
-        return self.node_offset
+        next_node_id = self.next_node_id
+        self.next_node_id += 1
+        return next_node_id
 
     def create_node(
         self, host, binary_dir=None, library_dir=None, node_port=None, version=None

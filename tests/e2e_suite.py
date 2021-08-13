@@ -39,6 +39,9 @@ def mem_stats(network):
 def run(args):
     chosen_suite = []
 
+    if args.dry_run:
+        LOG.warning("--dry-run set. Test execution will be skipped")
+
     if not args.test_suite:
         args.test_suite = ["all"]
 
@@ -63,7 +66,10 @@ def run(args):
         LOG.warning("Test requirements will be ignored")
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
-    jwt_server = jwt_issuer.start_openid_server()
+
+    if not args.dry_run:
+        jwt_server = jwt_issuer.start_openid_server()
+
     txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
     network = infra.network.Network(
         args.nodes,
@@ -73,7 +79,9 @@ def run(args):
         txs=txs,
         jwt_issuer=jwt_issuer,
     )
-    network.start_and_join(args)
+
+    if not args.dry_run:
+        network.start_and_join(args)
 
     LOG.info(f"Running {len(chosen_suite)} tests for {args.test_duration} seconds")
 
@@ -100,11 +108,15 @@ def run(args):
             break
 
         try:
-            LOG.debug(f"Running {s.test_name(test)}...")
+            if not args.dry_run:
+                LOG.debug(f"Running {s.test_name(test)}...")
             test_time_before = time.time()
 
             # Actually run the test
-            new_network = test(network, args)
+            if not args.dry_run:
+                new_network = test(network, args)
+            else:
+                new_network = network
             status = TestStatus.success
 
         except reqs.TestRequirementsNotMet as ce:
@@ -121,12 +133,16 @@ def run(args):
         test_elapsed = time.time() - test_time_before
 
         # Construct test report
-        run_tests[i] = {
-            "name": s.test_name(test),
-            "status": status.name,
-            "elapsed (s)": round(test_elapsed, 2),
-            "memory": mem_stats(new_network),
-        }
+        run_tests[i] = {"name": s.test_name(test)}
+
+        if not args.dry_run:
+            run_tests[i].update(
+                {
+                    "status": status.name,
+                    "elapsed (s)": round(test_elapsed, 2),
+                    "memory": mem_stats(new_network),
+                }
+            )
 
         if reason is not None:
             run_tests[i]["reason"] = reason
@@ -139,7 +155,8 @@ def run(args):
         if new_network != network:
             network = new_network
 
-        LOG.debug(f"Test {s.test_name(test)} took {test_elapsed:.2f} secs")
+        if not args.dry_run:
+            LOG.debug(f"Test {s.test_name(test)} took {test_elapsed:.2f} secs")
 
         # For now, if a test fails, the entire test suite if stopped
         if status is TestStatus.failure:
@@ -148,8 +165,9 @@ def run(args):
 
         elapsed -= test_elapsed
 
-    network.stop_all_nodes(verbose_verification=False)
-    jwt_server.stop()
+    if not args.dry_run:
+        network.stop_all_nodes(verbose_verification=False)
+        jwt_server.stop()
 
     if success:
         LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
@@ -160,13 +178,16 @@ def run(args):
         LOG.info(f"Full suite was shuffled with seed: {seed}")
 
     for idx, test in run_tests.items():
-        status = test["status"]
-        if status == TestStatus.success.name:
-            log_fn = LOG.success
-        elif status == TestStatus.skipped.name:
-            log_fn = LOG.warning
+        if "status" not in test:
+            log_fn = LOG.info
         else:
-            log_fn = LOG.error
+            status = test["status"]
+            if status == TestStatus.success.name:
+                log_fn = LOG.success
+            elif status == TestStatus.skipped.name:
+                log_fn = LOG.warning
+            else:
+                log_fn = LOG.error
         log_fn(f"Test #{idx}:\n{json.dumps(test, indent=4)}")
 
     if not success:
@@ -190,6 +211,12 @@ if __name__ == "__main__":
             help="Regular expression specifying which tests of a test suite to run",
             type=str,
             default=None,
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="If set, tests execution is skipped",
+            default=False,
         )
 
     args = infra.e2e_args.cli_args(add)
