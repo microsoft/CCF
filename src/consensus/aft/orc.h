@@ -2,9 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/raft_types.h"
-#include "crypto/pem.h"
-#include "enclave/rpc_sessions.h"
+#include "consensus/aft/orc_rpc_request_context_base.h"
 #include "node/rpc/node_call_types.h"
 #include "node/rpc/serdes.h"
 #include "node/rpc/serialization.h"
@@ -13,21 +11,14 @@ using namespace ccf;
 
 namespace aft
 {
-  class RPCRequestContext
+  class RPCRequestContext : public RPCRequestContextBase
   {
-  protected:
-    std::shared_ptr<enclave::RPCMap> rpc_map;
-    crypto::KeyPairPtr node_sign_kp;
-    const crypto::Pem& node_cert;
-
   public:
     RPCRequestContext(
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
-      crypto::KeyPairPtr node_sign_kp_,
-      const crypto::Pem& node_cert_) :
-      rpc_map(rpc_map_),
-      node_sign_kp(node_sign_kp_),
-      node_cert(node_cert_)
+      std::shared_ptr<enclave::RPCMap> rpc_map,
+      crypto::KeyPairPtr node_sign_kp,
+      const crypto::Pem& node_cert) :
+      RPCRequestContextBase(rpc_map, node_sign_kp, node_cert)
     {}
 
     virtual ~RPCRequestContext() {}
@@ -74,62 +65,71 @@ namespace aft
 
       return rs == HTTP_STATUS_OK;
     }
-  };
 
-  inline bool submit_orc(
-    std::shared_ptr<RPCRequestContext> context,
-    const NodeId& from,
-    kv::ReconfigurationId rid)
-  {
-    LOG_DEBUG_FMT("Configurations: submit ORC for #{} from {}", rid, from);
-
-    ORC::In ps = {from, rid};
-
-    http::Request request(fmt::format(
-      "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "orc"));
-    request.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-    auto body = serdes::pack(ps, serdes::Pack::Text);
-    request.set_body(&body);
-    return context->make_request(request);
-  }
-
-  struct AsyncORCTaskMsg
-  {
-    AsyncORCTaskMsg(
-      std::shared_ptr<RPCRequestContext> context_,
-      const NodeId& from_,
-      kv::ReconfigurationId rid_,
-      size_t retries_ = 10) :
-      context(context_),
-      from(from_),
-      rid(rid_),
-      retries(retries_)
-    {}
-
-    std::shared_ptr<RPCRequestContext> context;
-    NodeId from;
-    kv::ReconfigurationId rid;
-    size_t retries;
-  };
-
-  static void orc_cb(std::unique_ptr<threading::Tmsg<AsyncORCTaskMsg>> msg)
-  {
-    if (!submit_orc(msg->data.context, msg->data.from, msg->data.rid))
+    bool submit_orc(const NodeId& from, kv::ReconfigurationId rid)
     {
-      if (--msg->data.retries > 0)
+      LOG_DEBUG_FMT("Configurations: submit ORC for #{} from {}", rid, from);
+
+      ORC::In ps = {from, rid};
+
+      http::Request request(fmt::format(
+        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "orc"));
+      request.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+      auto body = serdes::pack(ps, serdes::Pack::Text);
+      request.set_body(&body);
+      return make_request(request);
+    }
+
+    struct AsyncORCTaskMsg
+    {
+      AsyncORCTaskMsg(
+        RPCRequestContext* context_,
+        const NodeId& from_,
+        kv::ReconfigurationId rid_,
+        size_t retries_ = 10) :
+        context(context_),
+        from(from_),
+        rid(rid_),
+        retries(retries_)
+      {}
+
+      RPCRequestContext* context;
+      NodeId from;
+      kv::ReconfigurationId rid;
+      size_t retries;
+    };
+
+    static void orc_cb(std::unique_ptr<threading::Tmsg<AsyncORCTaskMsg>> msg)
+    {
+      if (!msg->data.context->submit_orc(msg->data.from, msg->data.rid))
       {
-        threading::ThreadMessaging::thread_messaging.add_task(
-          threading::ThreadMessaging::get_execution_thread(
-            threading::MAIN_THREAD_ID),
-          std::move(msg));
-      }
-      else
-      {
-        LOG_DEBUG_FMT(
-          "Failed request; giving up as there are no more retries left");
+        if (--msg->data.retries > 0)
+        {
+          threading::ThreadMessaging::thread_messaging.add_task(
+            threading::ThreadMessaging::get_execution_thread(
+              threading::MAIN_THREAD_ID),
+            std::move(msg));
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "Failed request; giving up as there are no more retries left");
+        }
       }
     }
-  }
+
+    virtual void schedule_submit_orc(
+      const NodeId& from, kv::ReconfigurationId rid) override
+    {
+      auto msg = std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
+        orc_cb, this, from, rid);
+
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::ThreadMessaging::get_execution_thread(
+          threading::MAIN_THREAD_ID),
+        std::move(msg));
+    }
+  };
 }
