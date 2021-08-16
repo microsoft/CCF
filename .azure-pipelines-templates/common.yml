@@ -13,6 +13,11 @@ jobs:
       - checkout: self
         clean: true
 
+      # Delete please
+      - script: |
+          docker run hello-world
+        displayName: Run docker hello-world
+
       - template: cmake.yml
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
