@@ -6,7 +6,7 @@
   getent:
     database: group
 
-# Required for Linux kernel 5.11 for in-process quote generation
+# Required from Linux kernel 5.11 for in-process quote generation
 # Note: This may require a VM reboot
 - name: Add current user to sgx_prv group
   user:
@@ -17,4 +17,4 @@
   when:
     - item in ansible_facts.getent_group
   with_items:
-      - "{{ sgx_group_name }}"
+    - "{{ sgx_group_name }}"
