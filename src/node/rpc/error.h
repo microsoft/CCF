@@ -77,6 +77,8 @@ namespace ccf
     ERROR(NodeAlreadyExists)
     ERROR(StartupSnapshotIsOld)
 
+    ERROR(ResharingAlreadyCompleted)
+
 #undef ERROR
   }
 }

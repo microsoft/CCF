@@ -1,0 +1,20 @@
+- name: Include vars
+  include_vars:
+    file: common.yml
+
+- name: Determine available groups
+  getent:
+    database: group
+
+# Required from Linux kernel 5.11 for in-process quote generation
+# Note: This may require a VM reboot
+- name: Add current user to sgx_prv group
+  user:
+    name: "{{ lookup('env', 'USER') }}"
+    groups: "{{ sgx_group_name }}"
+    append: true
+  become: true
+  when:
+    - item in ansible_facts.getent_group
+  with_items:
+    - "{{ sgx_group_name }}"
