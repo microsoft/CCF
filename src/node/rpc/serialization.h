@@ -37,8 +37,16 @@ namespace ccf
     consensus_type,
     startup_seqno)
 
-  DECLARE_JSON_TYPE(NetworkIdentity)
+  DECLARE_JSON_ENUM(
+    ccf::IdentityType,
+    {{ccf::IdentityType::REPLICATED, "Replicated"},
+     {ccf::IdentityType::SPLIT, "Split"}})
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
+  DECLARE_JSON_OPTIONAL_FIELDS(NetworkIdentity, type)
+  DECLARE_JSON_TYPE_WITH_BASE(ReplicatedNetworkIdentity, NetworkIdentity)
+  DECLARE_JSON_TYPE_WITH_BASE(SplitNetworkIdentity, NetworkIdentity)
+  DECLARE_JSON_REQUIRED_FIELDS(SplitNetworkIdentity, cert, type)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo)
@@ -133,4 +141,7 @@ namespace ccf
     max_total_heap_size,
     current_allocated_heap_size,
     peak_allocated_heap_size)
+
+  DECLARE_JSON_TYPE(UpdateResharing::In)
+  DECLARE_JSON_REQUIRED_FIELDS(UpdateResharing::In, rid)
 }

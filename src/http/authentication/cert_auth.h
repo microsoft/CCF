@@ -122,6 +122,17 @@ namespace ccf
         return identity;
       }
 
+      std::vector<ccf::NodeId> known_nids;
+      nodes->foreach([&known_nids](const NodeId& nid, const NodeInfo& ni) {
+        known_nids.push_back(nid);
+        return true;
+      });
+      LOG_DEBUG_FMT(
+        "Could not find matching node certificate for node {}; we have "
+        "certificates for the following node ids: {}",
+        node_caller_id,
+        fmt::join(known_nids, ", "));
+
       error_reason = "Could not find matching node certificate";
       return nullptr;
     }
