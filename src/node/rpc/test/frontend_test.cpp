@@ -633,10 +633,7 @@ TEST_CASE("process with signatures")
 
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(
-        error_msg.find(
-          "Signed request does not contain 'authorization' header") !=
-        std::string::npos);
+      CHECK(error_msg.find("Missing signature") != std::string::npos);
     }
 
     INFO("Signed RPC");

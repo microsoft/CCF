@@ -246,7 +246,7 @@ def test_invalid_client_signature(network, args):
     post_proposal_request_raw(
         primary,
         headers=None,
-        expected_error_msg="Signed request does not contain 'authorization' header",
+        expected_error_msg="Missing signature",
     )
     post_proposal_request_raw(
         primary,

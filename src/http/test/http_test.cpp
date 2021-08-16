@@ -543,7 +543,10 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     const auto signed_req = http::HttpSignatureVerifier::parse(
       llhttp_method_name(method), url, headers, body);
 
-    signed_reqs.push(signed_req);
+    if (signed_req.has_value())
+    {
+      signed_reqs.push(signed_req.value());
+    }
 
     http::SimpleRequestProcessor::handle_request(
       method, url, std::move(headers), std::move(body));

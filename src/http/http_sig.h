@@ -337,7 +337,7 @@ namespace http
       return sig_params;
     }
 
-    static ccf::SignedReq parse(
+    static std::optional<ccf::SignedReq> parse(
       const std::string& verb,
       const std::string_view& url,
       const http::HeaderMap& headers,
@@ -393,11 +393,12 @@ namespace http
           md_type = crypto::MDType::SHA256;
         }
 
-        return {sig_raw, signed_raw, body, md_type, parsed_sign_params.key_id};
+        return ccf::SignedReq{
+          sig_raw, signed_raw, body, md_type, parsed_sign_params.key_id};
       }
 
-      throw std::logic_error(fmt::format(
-        "Signed request does not contain '{}' header", headers::AUTHORIZATION));
+      // Request does not contain authorization header
+      return std::nullopt;
     }
   };
 }
