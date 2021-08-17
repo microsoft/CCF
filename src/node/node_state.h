@@ -25,6 +25,7 @@
 #include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
+#include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -348,8 +349,8 @@ namespace ccf
       {
         case StartType::New:
         {
-          network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
+          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            "CN=CCF Network", curve_id);
 
           node_cert = create_endorsed_node_cert();
 
@@ -406,8 +407,8 @@ namespace ccf
         {
           node_info_network = config.node_info_network;
 
-          network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
+          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            "CN=CCF Network", curve_id);
           node_cert = create_endorsed_node_cert();
 
           setup_history();
@@ -517,8 +518,8 @@ namespace ccf
             resp.node_status == NodeStatus::TRUSTED ||
             resp.node_status == NodeStatus::LEARNER)
           {
-            network.identity =
-              std::make_unique<NetworkIdentity>(resp.network_info->identity);
+            network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+              resp.network_info->identity);
 
             node_cert = create_endorsed_node_cert();
 
@@ -1921,6 +1922,9 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+      auto resharing_tracker =
+        std::make_shared<ccf::SplitIdentityResharingTracker>(
+          shared_state, rpc_map, node_sign_kp, node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
@@ -1941,6 +1945,7 @@ namespace ccf
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
         std::move(view_change_tracker),
+        std::move(resharing_tracker),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
@@ -1970,6 +1975,14 @@ namespace ccf
           [](kv::Version version, const NetworkConfigurations::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<NetworkConfigurationsHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.resharings.get_name(),
+        network.resharings.wrap_map_hook(
+          [](kv::Version version, const Resharings::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<ResharingsHook>(version, w);
           }));
 
       setup_basic_hooks();
