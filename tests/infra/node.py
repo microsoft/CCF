@@ -5,6 +5,7 @@ from contextlib import contextmanager, closing
 from enum import Enum, auto
 import infra.crypto
 import infra.remote
+import infra.remote_shim
 import infra.net
 import infra.path
 import ccf.clients
@@ -108,9 +109,13 @@ class Node:
 
         host_ = host.rpchost
         self.host, *port = host_.split(":")
-        self.rpc_port = int(port[0]) if port else None
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
+        self.rpc_port = (
+            int(port[0]) if port else infra.net.probably_free_local_port(self.host)
+        )
+        LOG.error(self.host)
+        LOG.success(self.rpc_port)
 
         pubhost_ = host.public_rpchost
         if pubhost_:
@@ -119,7 +124,7 @@ class Node:
         else:
             self.pubhost = self.host
             self.pubport = self.rpc_port
-        self.node_port = node_port
+        self.node_port = infra.net.probably_free_local_port(self.host)
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
@@ -219,20 +224,20 @@ class Node:
         if self.max_open_sessions_hard:
             kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
-        self.remote = infra.remote.CCFRemote(
+        self.remote = infra.remote_shim.DockerShim(
             start_type,
             lib_path,
             self.local_node_id,
-            self.host,
-            self.pubhost,
-            self.node_port,
-            self.rpc_port,
-            self.node_client_host,
-            self.remote_impl,
-            enclave_type,
-            workspace,
-            label,
-            common_dir,
+            host=self.host,
+            pubhost=self.pubhost,
+            node_port=self.node_port,
+            rpc_port=self.rpc_port,
+            node_client_host=self.node_client_host,
+            remote_class=self.remote_impl,
+            enclave_type=enclave_type,
+            workspace=workspace,
+            label=label,
+            common_dir=common_dir,
             target_rpc_address=target_rpc_address,
             members_info=members_info,
             snapshot_dir=snapshot_dir,
@@ -271,8 +276,9 @@ class Node:
                 f.read()
             )
 
-        self._read_ports()
+        # self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
+        # input("")
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
@@ -405,9 +411,7 @@ class Node:
         }
 
     def signing_auth(self, name=None):
-        return {
-            "signing_auth": self.identity(name),
-        }
+        return {"signing_auth": self.identity(name)}
 
     def client(
         self, identity=None, signing_identity=None, interface_idx=None, **kwargs
@@ -423,7 +427,9 @@ class Node:
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
         if interface_idx is None:
-            return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
+            return ccf.clients.client(
+                self.remote.get_host(), self.remote.get_rpc_port(), **akwargs
+            )
         else:
             try:
                 host, port = self.interfaces[interface_idx]

@@ -14,6 +14,7 @@ import re
 import stat
 import shutil
 from collections import deque
+import docker
 
 from loguru import logger as LOG
 
@@ -134,7 +135,6 @@ class SSHRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        log_format_json=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -238,8 +238,7 @@ class SSHRemote(CmdMixin):
                             )
                         for f in session.listdir(src_dir):
                             session.get(
-                                os.path.join(src_dir, f),
-                                os.path.join(dst_dir, f),
+                                os.path.join(src_dir, f), os.path.join(dst_dir, f)
                             )
                     else:
                         session.get(
@@ -278,9 +277,7 @@ class SSHRemote(CmdMixin):
             for filepath in (self.err, self.out):
                 try:
                     local_file_name = "{}_{}_{}".format(
-                        self.hostname,
-                        self.name,
-                        os.path.basename(filepath),
+                        self.hostname, self.name, os.path.basename(filepath)
                     )
                     dst_path = os.path.join(self.common_dir, local_file_name)
                     session.get(filepath, dst_path)
@@ -399,7 +396,6 @@ class LocalRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        log_format_json=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -550,16 +546,16 @@ class CCFRemote(object):
         start_type,
         lib_path,
         local_node_id,
-        host,
-        pubhost,
-        node_port,
-        rpc_port,
-        node_client_host,
-        remote_class,
-        enclave_type,
-        workspace,
-        label,
-        common_dir,
+        host=None,
+        pubhost=None,
+        node_port=0,
+        rpc_port=0,
+        node_client_host=None,
+        remote_class=LocalRemote,
+        enclave_type="debug",
+        workspace=".",
+        label="",
+        common_dir=".",
         target_rpc_address=None,
         members_info=None,
         snapshot_dir=None,
@@ -708,10 +704,7 @@ class CCFRemote(object):
                 cmd += [str(s)]
 
         if start_type == StartType.new:
-            cmd += [
-                "start",
-                "--network-cert-file=networkcert.pem",
-            ]
+            cmd += ["start", "--network-cert-file=networkcert.pem"]
             for fragment in constitution:
                 cmd.append(f"--constitution={os.path.basename(fragment)}")
                 data_files += [
@@ -773,7 +766,6 @@ class CCFRemote(object):
             label,
             common_dir,
             env,
-            log_format_json,
         )
 
     def setup(self):
@@ -822,9 +814,7 @@ class CCFRemote(object):
     # suite, this argument will probably default to True (or be deleted entirely)
     def get_ledger(self, ledger_dir_name, include_read_only_dirs=False):
         self.remote.get(
-            self.ledger_dir_name,
-            self.common_dir,
-            target_name=ledger_dir_name,
+            self.ledger_dir_name, self.common_dir, target_name=ledger_dir_name
         )
         read_only_ledger_dirs = []
         if include_read_only_dirs and self.read_only_ledger_dir is not None:
@@ -841,10 +831,7 @@ class CCFRemote(object):
             read_only_ledger_dirs.append(
                 os.path.join(self.common_dir, read_only_ledger_dir_name)
             )
-        return (
-            os.path.join(self.common_dir, ledger_dir_name),
-            read_only_ledger_dirs,
-        )
+        return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
     def get_snapshots(self):
         self.remote.get(self.snapshot_dir_name, self.common_dir)
