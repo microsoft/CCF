@@ -25,7 +25,7 @@ class DockerShim(infra.remote.CCFRemote):
 
         super().__init__(*args, **kwargs)
 
-        LOG.error(self.remote.get_cmd())
+        LOG.error(self.remote.get_cmd(include_dir=False))
         cwd = str(pathlib.Path().resolve())
 
         running_as_user = f"{os.getuid()}:{os.getgid()}"
@@ -34,10 +34,11 @@ class DockerShim(infra.remote.CCFRemote):
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
-            command=f'bash -c "{self.remote.get_cmd()}"',
+            command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             network_mode="host",
             name=self.name,
             user=running_as_user,
+            working_dir=self.remote.root,
             detach=True,
         )
 

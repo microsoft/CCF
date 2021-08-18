@@ -501,9 +501,11 @@ class LocalRemote(CmdMixin):
         """
         self._setup_files()
 
-    def get_cmd(self):
-        cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {cmd} 1> {self.out} 2> {self.err}"
+    def get_cmd(self, include_dir=True):
+        # cmd = " ".join(self.cmd)
+        cmd = f"cd {self.root} && " if include_dir else ""
+        cmd += f'{" ".join(self.cmd)} 1> {self.out} 2> {self.err}'
+        return cmd
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
