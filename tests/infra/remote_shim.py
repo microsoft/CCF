@@ -20,9 +20,11 @@ class DockerShim(infra.remote.CCFRemote):
 
         super().__init__(*args, **kwargs)
 
-        # Stop and delete existing container
+        # Stop and delete existing container, if it exists
         try:
-            self.docker_client.containers.get(self.name).stop()
+            c = self.docker_client.containers.get(self.name)
+            c.stop()
+            c.remove()
         except docker.errors.NotFound:
             pass
 
@@ -36,7 +38,7 @@ class DockerShim(infra.remote.CCFRemote):
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            network_mode="host",
+            network_mode="host",  # Share network with host, to avoid port mapping
             name=self.name,
             user=running_as_user,
             working_dir=self.remote.root,
@@ -47,7 +49,6 @@ class DockerShim(infra.remote.CCFRemote):
     def start(self):
         self.container.start()
 
-    # TODO: This doesn't seem to work, as SIGTERM isn't sent down to cchost
     def stop(self):
         LOG.error(f"Stopping container {self.name}...")
         self.container.stop()
