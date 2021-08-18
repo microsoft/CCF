@@ -275,13 +275,7 @@ class CurlClient:
 
             url = f"https://{self.host}:{self.port}{request.path}"
 
-            cmd += [
-                url,
-                "-X",
-                request.http_verb,
-                "-i",
-                f"-m {timeout}",
-            ]
+            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
             if request.allow_redirects:
                 cmd.append("-L")
@@ -379,10 +373,12 @@ class RequestClient:
         self.session_auth = session_auth
         self.signing_auth = signing_auth
         self.key_id = None
-        self.session = requests.Session()
-        self.session.verify = self.ca
-        if self.session_auth:
-            self.session.cert = (self.session_auth.cert, self.session_auth.key)
+        self.verify = self.ca
+        self.client_cert = (
+            (self.session_auth.cert, self.session_auth.key)
+            if self.session_auth
+            else None
+        )
         if self.signing_auth:
             with open(self.signing_auth.cert) as cert_file:
                 self.key_id = (
@@ -393,11 +389,7 @@ class RequestClient:
                     .hex()
                 )
 
-    def request(
-        self,
-        request: Request,
-        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
-    ):
+    def request(self, request: Request, timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC):
         extra_headers = {}
         extra_headers.update(request.headers)
 
@@ -445,7 +437,7 @@ class RequestClient:
                 extra_headers["content-type"] = content_type
 
         try:
-            response = self.session.request(
+            response = requests.request(
                 request.http_verb,
                 url=f"https://{self.host}:{self.port}{request.path}",
                 auth=auth_value,
@@ -453,6 +445,8 @@ class RequestClient:
                 allow_redirects=request.allow_redirects,
                 timeout=timeout,
                 data=request_body,
+                verify=self.verify,
+                cert=self.client_cert,
             )
         except requests.exceptions.ReadTimeout as exc:
             raise TimeoutError from exc
