@@ -18,13 +18,13 @@ class PassThroughShim(infra.remote.CCFRemote):
 
 
 class DockerShim(infra.remote.CCFRemote):
-    docker_network = None
-
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
-        if DockerShim.docker_network is None:
-            LOG.error("Creating docker network")
-            self.docker_network = self.docker_client.networks.create("ccf_network")
+
+        label = kwargs.get("label", None)
+        local_node_id = kwargs.get("local_node_id", None)
+        LOG.success(f"Local node id: {local_node_id}")
+        LOG.error(f"Label is: {label}")
 
         # LOG.error(f"DockerShim: rpc_port: {self.rpc_port}")
 
@@ -46,6 +46,7 @@ class DockerShim(infra.remote.CCFRemote):
             },
             command=f'bash -c "{self.remote.get_cmd()}"',
             network_mode="host",
+            name=self.name,
             detach=True,
         )
 

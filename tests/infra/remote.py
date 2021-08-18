@@ -132,7 +132,6 @@ class SSHRemote(CmdMixin):
         data_files,
         cmd,
         workspace,
-        label,
         common_dir,
         env=None,
     ):
@@ -142,7 +141,7 @@ class SSHRemote(CmdMixin):
         run out of that directory.
 
         Note that the name matters, since the temporary directory that will be first
-        deleted, then created and populated is workspace/label_name. There is deliberately no
+        deleted, then created and populated is workspace/name. There is deliberately no
         cleanup on shutdown, to make debugging/inspection possible.
 
         setup() connects, creates the directory and ships over the files
@@ -159,7 +158,7 @@ class SSHRemote(CmdMixin):
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.common_dir = common_dir
-        self.root = os.path.join(workspace, f"{label}_{name}")
+        self.root = os.path.join(workspace, name)
         self.name = name
         self.env = env or {}
         self.out = os.path.join(self.root, "out")
@@ -393,7 +392,6 @@ class LocalRemote(CmdMixin):
         data_files,
         cmd,
         workspace,
-        label,
         common_dir,
         env=None,
     ):
@@ -404,7 +402,7 @@ class LocalRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
-        self.root = os.path.join(workspace, f"{label}_{name}")
+        self.root = os.path.join(workspace, name)
         self.common_dir = common_dir
         self.proc = None
         self.stdout = None
@@ -546,16 +544,16 @@ class CCFRemote(object):
         start_type,
         lib_path,
         local_node_id,
-        host=None,
-        pubhost=None,
-        node_port=0,
-        rpc_port=0,
-        node_client_host=None,
-        remote_class=LocalRemote,
-        enclave_type="debug",
-        workspace=".",
-        label="",
-        common_dir=".",
+        host,
+        pubhost,
+        node_port,
+        rpc_port,
+        node_client_host,
+        remote_class,
+        enclave_type,
+        workspace,
+        label,
+        common_dir,
         target_rpc_address=None,
         members_info=None,
         snapshot_dir=None,
@@ -587,6 +585,7 @@ class CCFRemote(object):
         """
         Run a ccf binary on a remote host.
         """
+        self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
@@ -757,15 +756,7 @@ class CCFRemote(object):
             env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
-            local_node_id,
-            host,
-            exe_files,
-            data_files,
-            cmd,
-            workspace,
-            label,
-            common_dir,
-            env,
+            self.name, host, exe_files, data_files, cmd, workspace, common_dir, env
         )
 
     def setup(self):

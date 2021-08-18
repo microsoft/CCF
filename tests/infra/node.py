@@ -192,9 +192,6 @@ class Node:
     def get_consensus(self):
         return self.consensus
 
-    def get_target_host(self):
-        return self.remote.get_local_host()
-
     def _start(
         self,
         start_type,
@@ -227,16 +224,16 @@ class Node:
             start_type,
             lib_path,
             self.local_node_id,
-            host=self.host,
-            pubhost=self.pubhost,
-            node_port=self.node_port,
-            rpc_port=self.rpc_port,
-            node_client_host=self.node_client_host,
-            remote_class=self.remote_impl,
-            enclave_type=enclave_type,
-            workspace=workspace,
-            label=label,
-            common_dir=common_dir,
+            self.host,
+            self.pubhost,
+            self.node_port,
+            self.rpc_port,
+            self.node_client_host,
+            self.remote_impl,
+            enclave_type,
+            workspace,
+            label,
+            common_dir,
             target_rpc_address=target_rpc_address,
             members_info=members_info,
             snapshot_dir=snapshot_dir,
