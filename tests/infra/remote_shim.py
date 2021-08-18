@@ -23,19 +23,13 @@ class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
 
-        # LOG.error(f"DockerShim: rpc_port: {self.rpc_port}")
-
-        # self.host = kwargs.get("host", None)
-        # LOG.error(f"Host: {self.host}")
-
-        # kwargs["host"] = "0.0.0.0"
         super().__init__(*args, **kwargs)
 
         LOG.error(self.remote.get_cmd())
         cwd = str(pathlib.Path().resolve())
 
-        self.uid = os.getuid()
-        LOG.success(f"User id: {self.uid}")
+        running_as_user = f"{os.getuid()}:{os.getgid()}"
+        LOG.info(f"Running as user: {running_as_user}")
 
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
@@ -43,7 +37,7 @@ class DockerShim(infra.remote.CCFRemote):
             command=f'bash -c "{self.remote.get_cmd()}"',
             network_mode="host",
             name=self.name,
-            user=self.uid,
+            user=running_as_user,
             detach=True,
         )
 
