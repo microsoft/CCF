@@ -109,13 +109,9 @@ class Node:
 
         host_ = host.rpchost
         self.host, *port = host_.split(":")
+        self.rpc_port = int(port[0]) if port else None
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
-        self.rpc_port = (
-            int(port[0]) if port else infra.net.probably_free_local_port(self.host)
-        )
-        LOG.error(self.host)
-        LOG.success(self.rpc_port)
 
         pubhost_ = host.public_rpchost
         if pubhost_:
@@ -124,7 +120,7 @@ class Node:
         else:
             self.pubhost = self.host
             self.pubport = self.rpc_port
-        self.node_port = infra.net.probably_free_local_port(self.host)
+        self.node_port = node_port
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
@@ -279,7 +275,7 @@ class Node:
                 f.read()
             )
 
-        # self._read_ports()
+        self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
         # input("")
 
@@ -430,9 +426,7 @@ class Node:
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
         if interface_idx is None:
-            return ccf.clients.client(
-                self.remote.get_host(), self.remote.get_rpc_port(), **akwargs
-            )
+            return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
         else:
             try:
                 host, port = self.interfaces[interface_idx]

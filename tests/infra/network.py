@@ -254,14 +254,14 @@ class Network:
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
-            target_rpc_address=f"{target_node.get_target_host()}:{target_node.rpc_port}",
+            target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dir=committed_ledger_dir,
             **forwarded_args,
         )
 
-        input("")
+        # input("")
 
         # If the network is opening, node are trusted without consortium approval
         if self.status == ServiceStatus.OPENING:
