@@ -24,12 +24,18 @@ class PassThroughShim(infra.remote.CCFRemote):
 # TODO: This class should handle:
 # 1. Volume mapping with permissions
 # 2. IP address and port mapping
-# 3.
 
 
 class DockerShim(infra.remote.CCFRemote):
+    docker_network = None
+
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
+        if DockerShim.docker_network is None:
+            LOG.error("Creating docker network")
+            self.docker_network = self.docker_client.networks.create("ccf_network")
+
+        self.local_host = None  # Set on start()
         self.node_port = kwargs.get("node_port", None)
         self.rpc_port = kwargs.get("rpc_port", None)
 
@@ -61,14 +67,10 @@ class DockerShim(infra.remote.CCFRemote):
 
     def start(self):
         self.container.start()
-        self.docker_client.api.inspect_container(self.container.id)["NetworkSettings"][
-            "IPAddress"
-        ]
-        LOG.error(
-            self.docker_client.api.inspect_container(self.container.id)[
-                "NetworkSettings"
-            ]["Ports"]
-        )
+        self.local_host = self.docker_client.api.inspect_container(self.container.id)[
+            "NetworkSettings"
+        ]["IPAddress"]
+        LOG.error(f"Local address: {self.local_host}")
 
     # TODO: This doesn't seem to work, as SIGTERM isn't sent down to cchost
     def stop(self):
@@ -82,4 +84,7 @@ class DockerShim(infra.remote.CCFRemote):
 
     def get_rpc_port(self):
         return self.rpc_port
+
+    def get_local_host(self):
+        return self.local_host
 

@@ -196,6 +196,9 @@ class Node:
     def get_consensus(self):
         return self.consensus
 
+    def get_target_host(self):
+        return self.remote.get_local_host()
+
     def _start(
         self,
         start_type,
