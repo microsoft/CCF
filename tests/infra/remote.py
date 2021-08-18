@@ -480,6 +480,9 @@ class LocalRemote(CmdMixin):
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
 
+    def get_logs(self):
+        return log_errors(self.out, self.err)
+
     def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -492,7 +495,7 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            return log_errors(self.out, self.err)
+            return self.get_logs()
 
     def setup(self):
         """

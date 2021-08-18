@@ -53,6 +53,5 @@ class DockerShim(infra.remote.CCFRemote):
         LOG.error(f"Stopping container {self.name}...")
         self.container.stop()
         LOG.success("Container stopped")
-        # TODO: Logs
-        return None, None
+        return self.remote.get_logs()
 
