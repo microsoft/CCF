@@ -8,15 +8,10 @@ import os
 
 from loguru import logger as LOG
 
-# TODO: Host and RPC port should be stored somewhere else!
+
 class PassThroughShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-
-# TODO: This class should handle:
-# 1. Volume mapping with permissions
-# 2. IP address and port mapping: Done with network_mode="host" (no need for port mapping)
 
 
 class DockerShim(infra.remote.CCFRemote):
@@ -24,6 +19,12 @@ class DockerShim(infra.remote.CCFRemote):
         self.docker_client = docker.from_env()
 
         super().__init__(*args, **kwargs)
+
+        # Stop and delete existing container
+        try:
+            self.docker_client.containers.get(self.name).stop()
+        except docker.errors.NotFound:
+            pass
 
         LOG.error(self.remote.get_cmd(include_dir=False))
         cwd = str(pathlib.Path().resolve())
@@ -40,13 +41,11 @@ class DockerShim(infra.remote.CCFRemote):
             user=running_as_user,
             working_dir=self.remote.root,
             detach=True,
+            auto_remove=True,  # Container is automatically removed on stop
         )
 
     def start(self):
         self.container.start()
-        self.docker_client.api.inspect_container(self.container.id)["NetworkSettings"][
-            "IPAddress"
-        ]
 
     # TODO: This doesn't seem to work, as SIGTERM isn't sent down to cchost
     def stop(self):
