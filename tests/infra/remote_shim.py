@@ -4,6 +4,7 @@
 import infra.remote
 import docker
 import pathlib
+import os
 
 from loguru import logger as LOG
 
@@ -33,7 +34,8 @@ class DockerShim(infra.remote.CCFRemote):
         LOG.error(self.remote.get_cmd())
         cwd = str(pathlib.Path().resolve())
 
-        LOG.error(f"Current path: {type(pathlib.Path().resolve())}")
+        self.uid = os.getuid()
+        LOG.success(f"User id: {self.uid}")
 
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
@@ -41,6 +43,7 @@ class DockerShim(infra.remote.CCFRemote):
             command=f'bash -c "{self.remote.get_cmd()}"',
             network_mode="host",
             name=self.name,
+            user=self.uid,
             detach=True,
         )
 
