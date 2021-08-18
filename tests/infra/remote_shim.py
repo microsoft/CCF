@@ -50,9 +50,16 @@ class DockerShim(infra.remote.CCFRemote):
             detach=True,
             auto_remove=True,  # Container is automatically removed on stop
         )
+        LOG.error(f"Container: {self.container}")
+        LOG.error(f"Container id: {self.container.name}")
+        for line in self.container.logs():
+            LOG.error(line)
 
     def start(self):
+        LOG.warning("Container start")
         self.container.start()
+        LOG.success(self.container.status)
+        LOG.success(self.container.top())
 
     def stop(self):
         LOG.error(f"Stopping container {self.container_name}...")
