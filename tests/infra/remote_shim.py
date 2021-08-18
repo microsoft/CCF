@@ -3,8 +3,9 @@
 
 import infra.remote
 import docker
-import pathlib
+import re
 import os
+import pathlib
 
 from loguru import logger as LOG
 
@@ -20,9 +21,13 @@ class DockerShim(infra.remote.CCFRemote):
 
         super().__init__(*args, **kwargs)
 
+        # Sanitise container name from remote name, replacing illegal
+        # characters with underscores
+        self.container_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", self.name)
+
         # Stop and delete existing container, if it exists
         try:
-            c = self.docker_client.containers.get(self.name)
+            c = self.docker_client.containers.get(self.container_name)
             c.stop()
             c.remove()
         except docker.errors.NotFound:
@@ -39,7 +44,7 @@ class DockerShim(infra.remote.CCFRemote):
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             network_mode="host",  # Share network with host, to avoid port mapping
-            name=self.name,
+            name=self.container_name,
             user=running_as_user,
             working_dir=self.remote.root,
             detach=True,
@@ -50,7 +55,7 @@ class DockerShim(infra.remote.CCFRemote):
         self.container.start()
 
     def stop(self):
-        LOG.error(f"Stopping container {self.name}...")
+        LOG.error(f"Stopping container {self.container_name}...")
         self.container.stop()
         LOG.success("Container stopped")
         return self.remote.get_logs()

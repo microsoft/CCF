@@ -264,7 +264,14 @@ class Node:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
-        self.remote.get_startup_files(self.common_dir)
+
+        try:
+            self.remote.get_startup_files(self.common_dir)
+        except Exception as e:
+            LOG.exception(e)
+            self.remote.get_logs(tail_lines_len=None)
+            raise
+
         self.consensus = kwargs.get("consensus")
 
         with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
@@ -274,7 +281,6 @@ class Node:
 
         self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
-        # input("")
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)

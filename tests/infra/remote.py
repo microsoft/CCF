@@ -58,11 +58,14 @@ def sftp_session(hostname):
         client.close()
 
 
-def log_errors(out_path, err_path):
+DEFAULT_TAIL_LINES_LEN = 10
+
+
+def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
     error_filter = ["[fail ]", "[fatal]"]
     error_lines = []
     try:
-        tail_lines = deque(maxlen=10)
+        tail_lines = deque(maxlen=tail_lines_len)
         with open(out_path, "r", errors="replace") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
@@ -271,7 +274,7 @@ class SSHRemote(CmdMixin):
                 raise ValueError(self.root)
         return files
 
-    def get_logs(self):
+    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
         with sftp_session(self.hostname) as session:
             for filepath in (self.err, self.out):
                 try:
@@ -287,6 +290,11 @@ class SSHRemote(CmdMixin):
                             filepath, dst_path, self.hostname
                         )
                     )
+        return log_errors(
+            os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
+            os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
+            tail_lines_len=tail_lines_len,
+        )
 
     def start(self):
         """
@@ -331,11 +339,7 @@ class SSHRemote(CmdMixin):
         Disconnect the client, and therefore shut down the command as well.
         """
         LOG.info("[{}] closing".format(self.hostname))
-        self.get_logs()
-        errors, fatal_errors = log_errors(
-            os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
-            os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
-        )
+        errors, fatal_errors, = self.get_logs()
         self.client.close()
         self.proc_client.close()
         return errors, fatal_errors
@@ -480,8 +484,8 @@ class LocalRemote(CmdMixin):
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
 
-    def get_logs(self):
-        return log_errors(self.out, self.err)
+    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+        return log_errors(self.out, self.err, tail_lines_len=tail_lines_len)
 
     def stop(self):
         """
@@ -849,6 +853,9 @@ class CCFRemote(object):
         if self.read_only_ledger_dir_name is not None:
             paths += [os.path.join(self.remote.root, self.read_only_ledger_dir_name)]
         return paths
+
+    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+        return self.remote.get_logs(tail_lines_len=tail_lines_len)
 
 
 class StartType(Enum):
