@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import docker
 import infra.remote
+import docker
+import pathlib
 
 from loguru import logger as LOG
 
@@ -21,11 +22,6 @@ class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
 
-        label = kwargs.get("label", None)
-        local_node_id = kwargs.get("local_node_id", None)
-        LOG.success(f"Local node id: {local_node_id}")
-        LOG.error(f"Label is: {label}")
-
         # LOG.error(f"DockerShim: rpc_port: {self.rpc_port}")
 
         # self.host = kwargs.get("host", None)
@@ -35,15 +31,13 @@ class DockerShim(infra.remote.CCFRemote):
         super().__init__(*args, **kwargs)
 
         LOG.error(self.remote.get_cmd())
+        cwd = str(pathlib.Path().resolve())
+
+        LOG.error(f"Current path: {type(pathlib.Path().resolve())}")
 
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
-            volumes={
-                "/home/jumaffre/git/CCF/build/": {
-                    "bind": "/home/jumaffre/git/CCF/build",
-                    "mode": "rw",
-                }
-            },
+            volumes={cwd: {"bind": cwd, "mode": "rw"}},
             command=f'bash -c "{self.remote.get_cmd()}"',
             network_mode="host",
             name=self.name,
@@ -58,8 +52,9 @@ class DockerShim(infra.remote.CCFRemote):
 
     # TODO: This doesn't seem to work, as SIGTERM isn't sent down to cchost
     def stop(self):
-        LOG.error("Stopping container...")
+        LOG.error(f"Stopping container {self.name}...")
         self.container.stop()
         LOG.success("Container stopped")
+        # TODO: Logs
         return None, None
 
