@@ -62,12 +62,11 @@ class DockerShim(infra.remote.CCFRemote):
         )
         LOG.error(f"Container: {self.container}")
         LOG.error(f"Container id: {self.container.name}")
-        for line in self.container.logs():
-            LOG.error(line)
 
     def start(self):
         LOG.warning("Container start")
         self.container.start()
+        LOG.success(self.container.attrs)
         LOG.success(self.container.status)
         LOG.success(self.container.top())
 
