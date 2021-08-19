@@ -39,17 +39,18 @@ class DockerShim(infra.remote.CCFRemote):
         LOG.error(f"cwd: {cwd}")
 
         # TODO: Cheeky to get real enclave working on 5.11, at the cost of having all files created in sgx_prv group
-        try:
-            sgx_prv_group = grp.getgrnam("sgx_prv")
-            # >= 5.11 kernel
-            gid = sgx_prv_group.gr_gid
-            devices = ["/dev/sgx/enclave", "/dev/sgx/provision"]
-        except KeyError:
-            # < 5.11 kernel
-            gid = os.getgid()
-            devices = ["/dev/sgx"]
+        # try:
+        #     sgx_prv_group = grp.getgrnam("sgx_prv")  # TODO: Doesn't work
+        #     # >= 5.11 kernel
+        #     gid = sgx_prv_group.gr_gid
+        #     devices = ["/dev/sgx/enclave", "/dev/sgx/provision"]
+        # except KeyError:
+        #     # # < 5.11 kernel
+        #     # gid = os.getgid()
+        #     # devices = ["/dev/sgx"]
+        devices = None
 
-        running_as_user = f"{os.getuid()}:{gid}"
+        running_as_user = f"{os.getuid()}:{119}"
         LOG.info(f"Running as user: {running_as_user}")
 
         self.container = self.docker_client.containers.create(
@@ -70,6 +71,8 @@ class DockerShim(infra.remote.CCFRemote):
     def start(self):
         LOG.warning("Container start")
         self.container.start()
+        # self.ip_address = self.docker_client.api.inspect_container(self.container.id)
+        # LOG.warning(f"Container IP: {self.ip_address}")
         LOG.success(self.container.attrs)
         LOG.success(self.container.status)
         LOG.success(self.container.top())
