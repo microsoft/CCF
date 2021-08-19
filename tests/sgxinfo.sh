@@ -14,7 +14,7 @@ if [ ${major_version} -gt 5 ] || [[ ${major_version} -eq 5 && ${minor_version} -
 else
     # Pre 5.11 kernel
     echo "DRIVER INFO:"
-    modinfo intel_sgx 2>/dev/null
+    modinfo intel_sgx
     echo ""
     echo ""
     echo "DRIVER LOADED:"
