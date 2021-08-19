@@ -41,9 +41,13 @@ class DockerShim(infra.remote.CCFRemote):
         # TODO: Cheeky to get real enclave working on 5.11, at the cost of having all files created in sgx_prv group
         try:
             sgx_prv_group = grp.getgrnam("sgx_prv")
+            # >= 5.11 kernel
             gid = sgx_prv_group.gr_gid
+            devices = ["/dev/sgx/enclave", "/dev/sgx/provision"]
         except KeyError:
+            # < 5.11 kernel
             gid = os.getgid()
+            devices = ["/dev/sgx"]
 
         running_as_user = f"{os.getuid()}:{gid}"
         LOG.info(f"Running as user: {running_as_user}")
@@ -51,7 +55,7 @@ class DockerShim(infra.remote.CCFRemote):
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
-            devices=["/dev/sgx/enclave", "/dev/sgx/provision"],
+            devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             network_mode="host",  # Share network with host, to avoid port mapping
             name=self.container_name,
@@ -69,6 +73,7 @@ class DockerShim(infra.remote.CCFRemote):
         LOG.success(self.container.attrs)
         LOG.success(self.container.status)
         LOG.success(self.container.top())
+        # input("")
 
     def stop(self):
         LOG.error(f"Stopping container {self.container_name}...")
