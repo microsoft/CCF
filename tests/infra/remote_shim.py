@@ -6,6 +6,7 @@ import docker
 import re
 import os
 import pathlib
+import grp
 
 from loguru import logger as LOG
 
@@ -35,13 +36,22 @@ class DockerShim(infra.remote.CCFRemote):
 
         LOG.error(self.remote.get_cmd(include_dir=False))
         cwd = str(pathlib.Path().resolve())
+        LOG.error(f"cwd: {cwd}")
 
-        running_as_user = f"{os.getuid()}:{os.getgid()}"
+        # TODO: Cheeky to get real enclave working on 5.11, at the cost of having all files created in sgx_prv group
+        try:
+            sgx_prv_group = grp.getgrnam("sgx_prv")
+            gid = sgx_prv_group.gr_gid
+        except KeyError:
+            gid = os.getgid()
+
+        running_as_user = f"{os.getuid()}:{gid}"
         LOG.info(f"Running as user: {running_as_user}")
 
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
+            devices=["/dev/sgx/enclave", "/dev/sgx/provision"],
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             network_mode="host",  # Share network with host, to avoid port mapping
             name=self.container_name,
