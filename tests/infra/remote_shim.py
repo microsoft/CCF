@@ -116,12 +116,14 @@ class DockerShim(infra.remote.CCFRemote):
             else None
         )
 
+        LOG.error(f"Root: {self.remote.root}")
+
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
             # devices=devices,
             # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            command='bash -c "./cchost.virtual --version"',
+            command='bash -c "pwd && ls && ./cchost.virtual --version"',
             # ports=ports,
             name=self.container_name,
             user=running_as_user,
