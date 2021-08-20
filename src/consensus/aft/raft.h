@@ -36,6 +36,7 @@
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
 #include "node/request_tracker.h"
+#include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
@@ -146,6 +147,8 @@ namespace aft
     std::unordered_map<ccf::NodeId, NodeState> nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
     bool use_two_tx_reconfig = false;
+    bool require_identity_for_reconfig = false;
+    std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -191,6 +194,7 @@ namespace aft
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
+      std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -213,6 +217,9 @@ namespace aft
       election_timeout(election_timeout_),
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
+
+      resharing_tracker(std::move(resharing_tracker_)),
+
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -247,6 +254,15 @@ namespace aft
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
         use_two_tx_reconfig = true;
+        require_identity_for_reconfig = true;
+      }
+
+      if (require_identity_for_reconfig)
+      {
+        if (!resharing_tracker)
+        {
+          throw std::logic_error("missing identity tracker");
+        }
       }
     }
 
@@ -315,22 +331,22 @@ namespace aft
         !retirement_committable_idx.has_value();
     }
 
-    bool is_follower()
+    bool is_follower() const
     {
       return replica_state == kv::ReplicaState::Follower;
     }
 
-    bool is_learner()
+    bool is_learner() const
     {
       return replica_state == kv::ReplicaState::Learner;
     }
 
-    bool is_retired()
+    bool is_retired() const
     {
       return replica_state == kv::ReplicaState::Retired;
     }
 
-    bool is_retiring()
+    bool is_retiring() const
     {
       return replica_state == kv::ReplicaState::Retiring;
     }
@@ -546,6 +562,7 @@ namespace aft
         }
       }
       configurations.push_back({idx, std::move(conf), offset});
+
       if (use_two_tx_reconfig)
       {
         if (!new_learners.empty())
@@ -567,8 +584,21 @@ namespace aft
         throw std::runtime_error(
           "learner requires two-transaction reconfiguration");
       }
+
       backup_nodes.clear();
       create_and_remove_node_state();
+    }
+
+    void add_resharing_result(
+      ccf::SeqNo seqno,
+      kv::ReconfigurationId rid,
+      const ccf::ResharingResult& result)
+    {
+      if (use_two_tx_reconfig && require_identity_for_reconfig)
+      {
+        assert(resharing_tracker);
+        resharing_tracker->add_resharing_result(seqno, rid, result);
+      }
     }
 
     void add_network_configuration(
@@ -582,14 +612,22 @@ namespace aft
         guard.lock();
       }
 
-      // Hooks may be reordered, so the node info in `configurations` and
-      // `nodes` may not be available yet.
-
       if (
         use_two_tx_reconfig && !is_learner() && !is_retired() &&
         config.nodes.find(state->my_node_id) != config.nodes.end())
       {
         // Send/schedule ORCs
+      }
+
+      if (require_identity_for_reconfig)
+      {
+        assert(use_two_tx_reconfig);
+        assert(resharing_tracker);
+        resharing_tracker->add_network_configuration(config);
+        if (is_primary())
+        {
+          resharing_tracker->reshare(config);
+        }
       }
     }
 
@@ -3038,7 +3076,9 @@ namespace aft
       for (const auto& [id, _] : c.nodes)
       {
         if (
-          nodes.find(id) != nodes.end() && learners.find(id) == learners.end())
+          (nodes.find(id) != nodes.end() &&
+           learners.find(id) == learners.end()) ||
+          (id == state->my_node_id && !is_learner()))
         {
           r++;
         }
@@ -3122,6 +3162,21 @@ namespace aft
         if (idx < next->idx)
           break;
 
+        if (require_identity_for_reconfig)
+        {
+          assert(resharing_tracker);
+          auto rr = resharing_tracker->find_reconfiguration(next->nodes);
+          if (
+            !rr.has_value() ||
+            !resharing_tracker->have_resharing_result_for(rr.value(), idx))
+          {
+            LOG_TRACE_FMT(
+              "Configurations: not switching to next configuration, resharing "
+              "not completed yet.");
+            break;
+          }
+        }
+
         if (!use_two_tx_reconfig)
         {
           configurations.pop_front();
@@ -3130,24 +3185,13 @@ namespace aft
         }
         else
         {
-          if (is_primary())
-          {
-            if (!enough_trusted(*next))
-            {
-              LOG_TRACE_FMT(
-                "Configurations: not enough trusted nodes for next "
-                "configuration");
-              break;
-            }
-          }
-
           if (num_trusted(*next) == next->nodes.size())
           {
             LOG_TRACE_FMT(
               "Configurations: all nodes trusted, switching to next "
               "configuration");
 
-            if (!is_retiring())
+            if (!is_retiring() && !is_retired())
             {
               if (
                 conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
@@ -3161,9 +3205,17 @@ namespace aft
           }
           else
           {
+            LOG_TRACE_FMT(
+              "Configurations: not enough trusted nodes for next "
+              "configuration");
             break;
           }
         }
+      }
+
+      if (resharing_tracker)
+      {
+        resharing_tracker->compact(idx);
       }
 
       if (changed)
@@ -3245,19 +3297,18 @@ namespace aft
         changed = true;
       }
 
-      if (use_two_tx_reconfig && changed)
+      if (use_two_tx_reconfig)
       {
-        std::unordered_set<ccf::NodeId> to_erase;
-        for (auto& [id, seqno] : learners)
+        for (auto it = learners.begin(); it != learners.end();)
         {
-          if (seqno > idx)
+          if (it->second > idx)
           {
-            to_erase.insert(id);
+            it = learners.erase(it);
           }
-        }
-        for (auto& id : to_erase)
-        {
-          learners.erase(id);
+          else
+          {
+            it++;
+          }
         }
       }
 

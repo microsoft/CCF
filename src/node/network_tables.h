@@ -19,6 +19,7 @@
 #include "network_configurations.h"
 #include "nodes.h"
 #include "proposals.h"
+#include "resharing.h"
 #include "scripts.h"
 #include "secrets.h"
 #include "service.h"
@@ -104,6 +105,7 @@ namespace ccf
     BackupSignaturesMap backup_signatures_map;
     aft::RevealedNoncesMap revealed_nonces_map;
     NewViewsMap new_views_map;
+    Resharings resharings;
 
     // JS Constitution
     Constitution constitution;
@@ -130,7 +132,7 @@ namespace ccf
       user_certs(Tables::USER_CERTS),
       user_info(Tables::USER_INFO),
       nodes(Tables::NODES),
-      network_configurations(Tables::NETWORK_CONFIGURATIONS),
+      network_configurations(Tables::NODES_CONFIGURATIONS),
       node_endorsed_certificates(Tables::NODE_ENDORSED_CERTIFICATES),
       service(Tables::SERVICE),
       values(Tables::VALUES),
@@ -142,6 +144,7 @@ namespace ccf
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
       revealed_nonces_map(Tables::NONCES),
       new_views_map(Tables::NEW_VIEWS),
+      resharings(Tables::RESHARINGS),
       constitution(Tables::CONSTITUTION)
     {}
   };

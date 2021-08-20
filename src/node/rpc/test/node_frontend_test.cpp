@@ -94,7 +94,7 @@ TEST_CASE("Add a node to an opening service")
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
-  network.identity = std::make_unique<NetworkIdentity>();
+  network.identity = std::make_unique<ReplicatedNetworkIdentity>();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
@@ -227,7 +227,7 @@ TEST_CASE("Add a node to an open service")
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
-  network.identity = std::make_unique<NetworkIdentity>();
+  network.identity = std::make_unique<ReplicatedNetworkIdentity>();
 
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();

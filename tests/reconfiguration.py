@@ -236,7 +236,7 @@ def test_version(network, args):
 
 
 @reqs.description("Replace a node on the same addresses")
-@reqs.at_least_n_nodes(3)  # Should be at_least_f_failures(1)
+@reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
     primary, backups = network.find_nodes()
 
@@ -355,6 +355,7 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
 
 @reqs.description("Adding a learner without snapshot")
 def test_learner_catches_up(network, args):
+    num_nodes_before = len(network.nodes)
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args, ccf.ledger.NodeStatus.LEARNER)
@@ -376,8 +377,17 @@ def test_learner_catches_up(network, args):
     primary, _ = network.find_primary()
     with primary.client() as c:
         s = c.get("/node/consensus")
-        print(s.body.json())
-        assert new_node.node_id in s.body.json()["details"]["learners"]
+        rj = s.body.json()
+        assert new_node.node_id in rj["details"]["learners"]
+
+        # At this point, there should be two configurations. The active one
+        # without the learner and the following one, which cannot be
+        # activated without promoting the node.
+        assert len(rj["details"]["configs"]) == 2
+        c0 = rj["details"]["configs"][0]["nodes"]
+        c1 = rj["details"]["configs"][1]["nodes"]
+        assert len(c0) == num_nodes_before and new_node.node_id not in c0
+        assert len(c1) == num_nodes_before + 1 and new_node.node_id in c1
     return network
 
 

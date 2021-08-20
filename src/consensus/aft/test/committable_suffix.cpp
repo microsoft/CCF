@@ -114,6 +114,7 @@ void keep_earliest_append_entries_for_each_target(
     nullptr, \
     nullptr, \
     nullptr, \
+    nullptr, \
     request_timeout, \
     election_timeout, \
     election_timeout); \
