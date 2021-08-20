@@ -17,8 +17,8 @@ class PassThroughShim(infra.remote.CCFRemote):
         super().__init__(*args, **kwargs)
 
 
-# TODO: Detect based on envvar
-DOCKER_IN_DOCKER = True
+def is_env_docker_in_docker():
+    return "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
 
 
 class DockerShim(infra.remote.CCFRemote):
@@ -38,7 +38,7 @@ class DockerShim(infra.remote.CCFRemote):
         LOG.warning(f"Using network: vsts_network")
 
         # First IP address is reserved for parent container
-        ip_address_offset = 2 if DOCKER_IN_DOCKER else 1
+        ip_address_offset = 2 if is_env_docker_in_docker() else 1
         self.container_ip = str(
             ipaddress.ip_address(self.network.attrs["IPAM"]["Config"][0]["Gateway"])
             + self.local_node_id
@@ -49,7 +49,7 @@ class DockerShim(infra.remote.CCFRemote):
 
         kwargs["rpc_host"] = "0.0.0.0"
 
-        if DOCKER_IN_DOCKER:
+        if is_env_docker_in_docker():
             kwargs["pub_host"] = self.container_ip
 
         kwargs["node_host"] = self.container_ip
@@ -89,7 +89,7 @@ class DockerShim(infra.remote.CCFRemote):
         # Expose port to clients running on host if not already in a container
         ports = (
             {f"{self.rpc_port}/tcp": (rpc_host, self.rpc_port)}
-            if not DOCKER_IN_DOCKER
+            if not is_env_docker_in_docker()
             else None
         )
 
@@ -127,7 +127,7 @@ class DockerShim(infra.remote.CCFRemote):
         return self.remote.get_logs()
 
     def get_rpc_host(self):
-        return self.container_ip if DOCKER_IN_DOCKER else self.pub_host
+        return self.container_ip if is_env_docker_in_docker() else self.pub_host
 
     def get_target_rpc_host(self):
         return self.container_ip
