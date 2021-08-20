@@ -53,8 +53,10 @@ class DockerShim(infra.remote.CCFRemote):
         if self.network is None:
             raise ValueError("No network configured to start containers")
 
+        LOG.debug(f"Using network {self.network.name}")
+
         # First IP address is reserved for parent container
-        # TODO: Flaky
+        # Find IP of container to be created
         ip_address_offset = 2 if is_env_docker_in_docker() else 1
         self.container_ip = str(
             ipaddress.ip_address(self.network.attrs["IPAM"]["Config"][0]["Gateway"])
