@@ -8,6 +8,7 @@ import os
 import pathlib
 import grp
 import ipaddress
+import json
 
 from loguru import logger as LOG
 
@@ -54,6 +55,7 @@ class DockerShim(infra.remote.CCFRemote):
             raise ValueError("No network configured to start containers")
 
         LOG.debug(f"Using network {self.network.name}")
+        LOG.error(json.dumps(self.network.attrs, indent=2))
 
         # First IP address is reserved for parent container
         # Find IP of container to be created
