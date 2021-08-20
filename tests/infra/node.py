@@ -98,29 +98,34 @@ class Node:
 
         if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
-            if not version or version > 1:
-                self.node_client_host = str(
-                    ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
-                )
+            # TODO: Docker isn't happy with this for n2n connections
+            # if not version or version > 1:
+            #     self.node_client_host = str(
+            #         ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+            #     )
         elif host.protocol == "ssh":
             self.remote_impl = infra.remote.SSHRemote
         else:
             assert False, f"{host} does not start with 'local://' or 'ssh://'"
 
         host_ = host.rpchost
-        self.host, *port = host_.split(":")
-        self.rpc_port = int(port[0]) if port else None
-        if self.host == "localhost":
-            self.host = infra.net.expand_localhost()
+        self.rpc_host, *port = host_.split(":")
+        self.rpc_port = (
+            int(port[0]) if port else infra.net.probably_free_local_port(self.rpc_host)
+        )
+        if self.rpc_host == "localhost":
+            self.rpc_host = infra.net.expand_localhost()
 
         pubhost_ = host.public_rpchost
         if pubhost_:
             self.pubhost, *pubport = pubhost_[0].split(":")
             self.pubport = int(pubport[0]) if pubport else self.rpc_port
         else:
-            self.pubhost = self.host
+            self.pubhost = self.rpc_host
             self.pubport = self.rpc_port
-        self.node_port = node_port
+
+        self.node_host = self.rpc_host
+        self.node_port = node_port or infra.net.probably_free_local_port(self.node_host)
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
@@ -223,17 +228,18 @@ class Node:
         self.remote = infra.remote_shim.DockerShim(
             start_type,
             lib_path,
-            self.local_node_id,
-            self.host,
-            self.pubhost,
-            self.node_port,
-            self.rpc_port,
-            self.node_client_host,
-            self.remote_impl,
             enclave_type,
+            self.remote_impl,
             workspace,
             label,
             common_dir,
+            local_node_id=self.local_node_id,
+            rpc_host=self.rpc_host,
+            node_host=self.node_host,
+            pub_host=self.pubhost,
+            node_port=self.node_port,
+            rpc_port=self.rpc_port,
+            node_client_host=self.node_client_host,
             target_rpc_address=target_rpc_address,
             members_info=members_info,
             snapshot_dir=snapshot_dir,
@@ -253,7 +259,7 @@ class Node:
             print("")
             print(
                 "================= Please run the below command on "
-                + self.host
+                + self.rpc_host
                 + " and press enter to continue ================="
             )
             print("")
@@ -287,9 +293,9 @@ class Node:
         with open(node_address_path, "r") as f:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
-            assert (
-                node_host == self.host
-            ), f"Unexpected change in node address from {self.host} to {node_host}"
+            # assert (
+            #     node_host == self.host
+            # ), f"Unexpected change in node address from {self.host} to {node_host}"
             if self.node_port is not None:
                 assert (
                     node_port == self.node_port
@@ -303,9 +309,9 @@ class Node:
             for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
                 rpc_port = int(rpc_port)
                 if i == 0:
-                    assert (
-                        rpc_host == self.host
-                    ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
+                    # assert (
+                    #     rpc_host == self.host
+                    # ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
                     if self.rpc_port is not None:
                         assert (
                             rpc_port == self.rpc_port

@@ -7,6 +7,7 @@ import re
 import os
 import pathlib
 import grp
+import ipaddress
 
 from loguru import logger as LOG
 
@@ -19,6 +20,30 @@ class PassThroughShim(infra.remote.CCFRemote):
 class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
+
+        rpc_host = kwargs.get("rpc_host")
+        self.rpc_port = kwargs.get("rpc_port")
+        self.node_port = kwargs.get("node_port")
+        self.local_node_id = kwargs.get("local_node_id")
+
+        LOG.warning(f"Local node id: {self.local_node_id}")
+        # LOG.warning(f"Host: {self.host}")
+        LOG.warning(f"Rpc port: {self.rpc_port}")
+        LOG.warning(f"Node port: {self.node_port}")
+
+        # TODO: Do we really need to port in advance? I think so, because of node-to-node connections
+        self.container_ip = str(
+            ipaddress.ip_address(
+                self.docker_client.api.inspect_network("vsts_network")["IPAM"][
+                    "Config"
+                ][0]["Gateway"]
+            )
+            + self.local_node_id
+            + 1
+        )
+
+        kwargs["rpc_host"] = "0.0.0.0"
+        kwargs["node_host"] = self.container_ip
 
         super().__init__(*args, **kwargs)
 
@@ -58,29 +83,43 @@ class DockerShim(infra.remote.CCFRemote):
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
             devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            network_mode="host",  # Share network with host, to avoid port mapping
+            ports={f"{self.rpc_port}/tcp": (rpc_host, self.rpc_port)},
             name=self.container_name,
             user=running_as_user,
             working_dir=self.remote.root,
             detach=True,
-            auto_remove=True,  # Container is automatically removed on stop
+            # auto_remove=True,  # Container is automatically removed on stop
         )
+
+        self.docker_client.networks.get("vsts_network").connect(
+            self.container
+        )  # , ipv4_address=self.container_ip
+        # )
+
+        LOG.error(f"IP: {self.container_ip}")
+
         LOG.error(f"Container: {self.container}")
         LOG.error(f"Container id: {self.container.name}")
 
     def start(self):
         LOG.warning("Container start")
         self.container.start()
-        # self.ip_address = self.docker_client.api.inspect_container(self.container.id)
-        # LOG.warning(f"Container IP: {self.ip_address}")
-        LOG.success(self.container.attrs)
-        LOG.success(self.container.status)
-        LOG.success(self.container.top())
+        self.container_ip = self.docker_client.api.inspect_container(self.container.id)[
+            "NetworkSettings"
+        ]["Networks"]["vsts_network"]["IPAddress"]
+        LOG.warning(f"Container IP: {self.container_ip}")
         # input("")
+        # LOG.success(self.container.attrs)
+        # LOG.success(self.container.status)
+        # LOG.success(self.container.top())
+        # input("Lala")
 
     def stop(self):
         LOG.error(f"Stopping container {self.container_name}...")
         self.container.stop()
         LOG.success("Container stopped")
         return self.remote.get_logs()
+
+    def get_rpc_host(self):
+        return self.container_ip
 

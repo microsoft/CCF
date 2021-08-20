@@ -538,10 +538,7 @@ CCF_TO_OE_LOG_LEVEL = {
 
 
 def make_address(host, port=None):
-    if port is not None:
-        return f"{host}:{port}"
-    else:
-        return f"{host}:0"
+    return f"{host}:{port or 0}"
 
 
 class CCFRemote(object):
@@ -552,17 +549,18 @@ class CCFRemote(object):
         self,
         start_type,
         lib_path,
-        local_node_id,
-        host,
-        pubhost,
-        node_port,
-        rpc_port,
-        node_client_host,
-        remote_class,
         enclave_type,
+        remote_class,
         workspace,
         label,
         common_dir,
+        local_node_id=None,
+        rpc_host=None,
+        node_host=None,
+        pub_host=None,
+        node_port=0,
+        rpc_port=0,
+        node_client_host=None,
         target_rpc_address=None,
         members_info=None,
         snapshot_dir=None,
@@ -647,11 +645,11 @@ class CCFRemote(object):
             bin_path,
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
-            f"--node-address={make_address(host, node_port)}",
+            f"--node-address={make_address(node_host, node_port)}",
             f"--node-address-file={self.node_address_path}",
-            f"--rpc-address={make_address(host, rpc_port)}",
+            f"--rpc-address={make_address(rpc_host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
-            f"--public-rpc-address={make_address(pubhost, rpc_port)}",
+            f"--public-rpc-address={make_address(pub_host, rpc_port)}",
             f"--ledger-dir={self.ledger_dir_name}",
             f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
@@ -765,7 +763,7 @@ class CCFRemote(object):
             env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
-            self.name, host, exe_files, data_files, cmd, workspace, common_dir, env
+            self.name, rpc_host, exe_files, data_files, cmd, workspace, common_dir, env
         )
 
     def setup(self):
