@@ -114,16 +114,16 @@ class DockerShim(infra.remote.CCFRemote):
         )
 
         self.container = self.docker_client.containers.create(
-            "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
-            volumes={cwd: {"bind": cwd, "mode": "rw"}},
+            "hello-world",  # TODO: Make configurable
+            # volumes={cwd: {"bind": cwd, "mode": "rw"}},
             devices=devices,
-            command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
+            # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             ports=ports,
             name=self.container_name,
-            user=running_as_user,
-            working_dir=self.remote.root,
-            detach=True,
-            auto_remove=True,  # Container is automatically removed on stop
+            # user=running_as_user,
+            # working_dir=self.remote.root,
+            # detach=True,
+            # auto_remove=True,  # Container is automatically removed on stop
         )
 
         self.network.connect(self.container)
@@ -132,11 +132,13 @@ class DockerShim(infra.remote.CCFRemote):
     def start(self):
         LOG.info(self.remote.get_cmd())
         self.container.start()
+        for l in self.container.logs(stream=True):
+            LOG.debug(l.strip())
         LOG.debug(f"Started container {self.container_name}")
 
     def stop(self):
-        # self.container.stop()
-        # LOG.debug(f"Stopped container {self.container_name}")
+        self.container.stop()
+        LOG.debug(f"Stopped container {self.container_name}")
 
         # Deletings networks by label doesn't seem to work (see https://github.com/docker/docker-py/issues/2611).
         # So prune all unusued networks instead.
