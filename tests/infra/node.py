@@ -271,12 +271,6 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
-        # input("")
-
-        LOG.success(
-            f"Started node {self.local_node_id} on {self.rpc_host}:{self.rpc_port}"
-        )
-
         try:
             self.remote.get_startup_files(self.common_dir)
         except Exception as e:

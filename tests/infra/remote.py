@@ -339,7 +339,10 @@ class SSHRemote(CmdMixin):
         Disconnect the client, and therefore shut down the command as well.
         """
         LOG.info("[{}] closing".format(self.hostname))
-        errors, fatal_errors, = self.get_logs()
+        (
+            errors,
+            fatal_errors,
+        ) = self.get_logs()
         self.client.close()
         self.proc_client.close()
         return errors, fatal_errors
@@ -602,6 +605,7 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
+        self.pub_host = pub_host
 
         self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
@@ -854,6 +858,12 @@ class CCFRemote(object):
 
     def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
         return self.remote.get_logs(tail_lines_len=tail_lines_len)
+
+    def get_rpc_host(self):
+        return self.pub_host
+
+    def get_target_rpc_host(self):
+        return self.pub_host
 
 
 class StartType(Enum):

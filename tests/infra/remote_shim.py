@@ -33,12 +33,9 @@ class DockerShim(infra.remote.CCFRemote):
         self.pub_host = kwargs.get("pub_host")
 
         # Create network shared by all containers in the same test
-        try:
-            self.network = self.docker_client.networks.get("vsts_network")
-            LOG.warning(f"Using network: vsts_network")
-        except docker.errors.NotFound:
-            self.network = self.docker_client.networks.create(self.label)
-            LOG.debug(f"Created network {self.label}")
+        # TODO: Detect network name!
+        self.network = self.docker_client.networks.get("vsts_network")
+        LOG.warning(f"Using network: vsts_network")
 
         # First IP address is reserved for parent container
         ip_address_offset = 2 if DOCKER_IN_DOCKER else 1
@@ -65,6 +62,7 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Stop and delete existing container, if it exists
         try:
+            # TODO: If local_node_id is 0, also stop all other containers with that label!
             c = self.docker_client.containers.get(self.container_name)
             c.stop()
             c.remove()  # TODO: Delete
@@ -105,7 +103,7 @@ class DockerShim(infra.remote.CCFRemote):
             user=running_as_user,
             working_dir=self.remote.root,
             detach=True,
-            # auto_remove=True,  # Container is automatically removed on stop
+            auto_remove=True,  # Container is automatically removed on stop
         )
 
         self.network.connect(self.container)
@@ -130,3 +128,6 @@ class DockerShim(infra.remote.CCFRemote):
 
     def get_rpc_host(self):
         return self.container_ip if DOCKER_IN_DOCKER else self.pub_host
+
+    def get_target_rpc_host(self):
+        return self.container_ip
