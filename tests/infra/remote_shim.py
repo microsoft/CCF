@@ -32,7 +32,9 @@ class PassThroughShim(infra.remote.CCFRemote):
 
 class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
-        self.docker_client = docker.from_env()
+        self.docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
+
+        LOG.error(json.dumps(self.docker_client.info(), indent=2))
 
         self.label = kwargs.get("label")
         rpc_host = kwargs.get("rpc_host")
