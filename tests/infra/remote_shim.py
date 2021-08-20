@@ -121,7 +121,7 @@ class DockerShim(infra.remote.CCFRemote):
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
             # devices=devices,
             # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            command='bash -c "echo hello there"',
+            command='bash -c "./cchost.virtual --version"',
             # ports=ports,
             name=self.container_name,
             user=running_as_user,
