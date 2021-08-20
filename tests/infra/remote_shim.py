@@ -113,6 +113,7 @@ class DockerShim(infra.remote.CCFRemote):
             else None
         )
 
+        self.docker_client.images.pull("hello-world")
         self.container = self.docker_client.containers.create(
             "hello-world",  # TODO: Make configurable
             # volumes={cwd: {"bind": cwd, "mode": "rw"}},
@@ -120,10 +121,10 @@ class DockerShim(infra.remote.CCFRemote):
             # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             ports=ports,
             name=self.container_name,
-            # user=running_as_user,
-            # working_dir=self.remote.root,
-            # detach=True,
-            # auto_remove=True,  # Container is automatically removed on stop
+            user=running_as_user,
+            working_dir=self.remote.root,
+            detach=True,
+            auto_remove=True,  # Container is automatically removed on stop
         )
 
         self.network.connect(self.container)
@@ -137,8 +138,11 @@ class DockerShim(infra.remote.CCFRemote):
         LOG.debug(f"Started container {self.container_name}")
 
     def stop(self):
-        self.container.stop()
-        LOG.debug(f"Stopped container {self.container_name}")
+        try:
+            self.container.stop()
+            LOG.debug(f"Stopped container {self.container_name}")
+        except docker.errors.NotFound:
+            pass
 
         # Deletings networks by label doesn't seem to work (see https://github.com/docker/docker-py/issues/2611).
         # So prune all unusued networks instead.
