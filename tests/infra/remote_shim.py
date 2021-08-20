@@ -21,23 +21,21 @@ class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.from_env()
 
+        self.label = kwargs.get("label")
         rpc_host = kwargs.get("rpc_host")
         self.rpc_port = kwargs.get("rpc_port")
         self.node_port = kwargs.get("node_port")
         self.local_node_id = kwargs.get("local_node_id")
 
-        LOG.warning(f"Local node id: {self.local_node_id}")
-        # LOG.warning(f"Host: {self.host}")
-        LOG.warning(f"Rpc port: {self.rpc_port}")
-        LOG.warning(f"Node port: {self.node_port}")
+        # Create network shared by all containers in the same test
+        try:
+            self.network = self.docker_client.networks.get(self.label)
+        except docker.errors.NotFound:
+            self.network = self.docker_client.networks.create(self.label)
+            LOG.debug(f"Created network {self.label}")
 
-        # TODO: Do we really need to port in advance? I think so, because of node-to-node connections
         self.container_ip = str(
-            ipaddress.ip_address(
-                self.docker_client.api.inspect_network("vsts_network")["IPAM"][
-                    "Config"
-                ][0]["Gateway"]
-            )
+            ipaddress.ip_address(self.network.attrs["IPAM"]["Config"][0]["Gateway"])
             + self.local_node_id
             + 1
         )
@@ -55,13 +53,10 @@ class DockerShim(infra.remote.CCFRemote):
         try:
             c = self.docker_client.containers.get(self.container_name)
             c.stop()
-            c.remove()
+            c.remove()  # TODO: Delete
+            LOG.debug(f"Stopped container {self.container_name}")
         except docker.errors.NotFound:
             pass
-
-        LOG.error(self.remote.get_cmd(include_dir=False))
-        cwd = str(pathlib.Path().resolve())
-        LOG.error(f"cwd: {cwd}")
 
         # TODO: Cheeky to get real enclave working on 5.11, at the cost of having all files created in sgx_prv group
         # try:
@@ -73,53 +68,46 @@ class DockerShim(infra.remote.CCFRemote):
         #     # # < 5.11 kernel
         #     # gid = os.getgid()
         #     # devices = ["/dev/sgx"]
-        devices = None
 
+        devices = None
         running_as_user = f"{os.getuid()}:{119}"
-        LOG.info(f"Running as user: {running_as_user}")
+        cwd = str(pathlib.Path().resolve())
+        LOG.debug(f"Running as user: {running_as_user}")
 
         self.container = self.docker_client.containers.create(
-            "ccfciteam/ccf-ci:oe0.17.1-focal-docker",
+            "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
             devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            ports={f"{self.rpc_port}/tcp": (rpc_host, self.rpc_port)},
+            ports={
+                f"{self.rpc_port}/tcp": (rpc_host, self.rpc_port)
+            },  # Expose port to clients running on host
             name=self.container_name,
             user=running_as_user,
             working_dir=self.remote.root,
             detach=True,
-            # auto_remove=True,  # Container is automatically removed on stop
+            auto_remove=True,  # Container is automatically removed on stop
         )
 
-        self.docker_client.networks.get("vsts_network").connect(
-            self.container
-        )  # , ipv4_address=self.container_ip
-        # )
-
-        LOG.error(f"IP: {self.container_ip}")
-
-        LOG.error(f"Container: {self.container}")
-        LOG.error(f"Container id: {self.container.name}")
+        self.network.connect(self.container)
+        LOG.debug(f"Created container {self.container_name}")
 
     def start(self):
-        LOG.warning("Container start")
+        LOG.info(self.remote.get_cmd())
         self.container.start()
-        self.container_ip = self.docker_client.api.inspect_container(self.container.id)[
-            "NetworkSettings"
-        ]["Networks"]["vsts_network"]["IPAddress"]
-        LOG.warning(f"Container IP: {self.container_ip}")
-        # input("")
-        # LOG.success(self.container.attrs)
-        # LOG.success(self.container.status)
-        # LOG.success(self.container.top())
-        # input("Lala")
+        LOG.debug(f"Started container {self.container_name}")
 
     def stop(self):
-        LOG.error(f"Stopping container {self.container_name}...")
         self.container.stop()
-        LOG.success("Container stopped")
+        LOG.debug(f"Stopped container {self.container_name}")
+
+        # Deletings networks by label doesn't seem to work (see https://github.com/docker/docker-py/issues/2611).
+        # So prune all unusued networks instead.
+        if (
+            deleted_networks := self.docker_client.networks.prune()["NetworksDeleted"]
+        ) is not None:
+            LOG.debug(f"Deleted network {deleted_networks}")
         return self.remote.get_logs()
 
     def get_rpc_host(self):
         return self.container_ip
-
