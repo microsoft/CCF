@@ -271,6 +271,12 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
+        # input("")
+
+        LOG.success(
+            f"Started node {self.local_node_id} on {self.rpc_host}:{self.rpc_port}"
+        )
+
         try:
             self.remote.get_startup_files(self.common_dir)
         except Exception as e:
@@ -435,7 +441,9 @@ class Node:
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
         if interface_idx is None:
-            return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
+            return ccf.clients.client(
+                self.remote.get_rpc_host(), self.pubport, **akwargs
+            )
         else:
             try:
                 host, port = self.interfaces[interface_idx]

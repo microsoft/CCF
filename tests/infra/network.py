@@ -261,8 +261,6 @@ class Network:
             **forwarded_args,
         )
 
-        # input("")
-
         # If the network is opening, node are trusted without consortium approval
         if self.status == ServiceStatus.OPENING:
             try:
