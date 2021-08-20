@@ -106,6 +106,7 @@ class DockerShim(infra.remote.CCFRemote):
         devices = None
         running_as_user = f"{os.getuid()}:{os.getgid()}"
         cwd = str(pathlib.Path().resolve())
+        LOG.error(f"cwd: {cwd}")
         LOG.debug(f"Running as user: {running_as_user}")
 
         # Expose port to clients running on host if not already in a container
