@@ -119,14 +119,14 @@ class DockerShim(infra.remote.CCFRemote):
         self.container = self.docker_client.containers.create(
             "hello-world",  # TODO: Make configurable
             # volumes={cwd: {"bind": cwd, "mode": "rw"}},
-            devices=devices,
+            # devices=devices,
             # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            ports=ports,
+            # ports=ports,
             name=self.container_name,
-            user=running_as_user,
-            working_dir=self.remote.root,
-            detach=True,
-            auto_remove=True,  # Container is automatically removed on stop
+            # user=running_as_user,
+            # working_dir=self.remote.root,
+            # detach=True,
+            # auto_remove=True,  # Container is automatically removed on stop
         )
 
         self.network.connect(self.container)
