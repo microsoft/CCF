@@ -11,14 +11,22 @@ import ipaddress
 
 from loguru import logger as LOG
 
+# Azure Pipelines specific
+def is_env_docker_in_docker():
+    return "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
+
+
+DOCKER_NETWORK_PREFIX_ADO = "vsts_network"
+
+
+######
+
+DOCKER_NETWORK_NAME_LOCAL = "ccf_test_docker_network"
+
 
 class PassThroughShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-
-def is_env_docker_in_docker():
-    return "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
 
 
 class DockerShim(infra.remote.CCFRemote):
@@ -33,11 +41,20 @@ class DockerShim(infra.remote.CCFRemote):
         self.pub_host = kwargs.get("pub_host")
 
         # Create network shared by all containers in the same test
-        # TODO: Detect network name!
-        self.network = self.docker_client.networks.get("vsts_network")
-        LOG.warning(f"Using network: vsts_network")
+        # or in a ADO environment, use existing network
+        if is_env_docker_in_docker():
+            for network in self.docker_client.networks.list():
+                if network.name.startswith(DOCKER_NETWORK_PREFIX_ADO):
+                    self.network = network
+                    break
+        else:
+            self.network = self.docker_client.networks.create(DOCKER_NETWORK_NAME_LOCAL)
+
+        if self.network is None:
+            raise ValueError("No network configured to start containers")
 
         # First IP address is reserved for parent container
+        # TODO: Flaky
         ip_address_offset = 2 if is_env_docker_in_docker() else 1
         self.container_ip = str(
             ipaddress.ip_address(self.network.attrs["IPAM"]["Config"][0]["Gateway"])
@@ -51,7 +68,6 @@ class DockerShim(infra.remote.CCFRemote):
 
         if is_env_docker_in_docker():
             kwargs["pub_host"] = self.container_ip
-
         kwargs["node_host"] = self.container_ip
 
         super().__init__(*args, **kwargs)
@@ -82,7 +98,7 @@ class DockerShim(infra.remote.CCFRemote):
         #     # devices = ["/dev/sgx"]
 
         devices = None
-        running_as_user = f"{os.getuid()}:{119}"
+        running_as_user = f"{os.getuid()}:{os.getgid()}"
         cwd = str(pathlib.Path().resolve())
         LOG.debug(f"Running as user: {running_as_user}")
 
