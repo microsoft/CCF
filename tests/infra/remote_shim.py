@@ -123,7 +123,7 @@ class DockerShim(infra.remote.CCFRemote):
             # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             # ports=ports,
             name=self.container_name,
-            # user=running_as_user,
+            user=running_as_user,
             working_dir=self.remote.root,
             detach=True,
             # auto_remove=True,  # Container is automatically removed on stop
