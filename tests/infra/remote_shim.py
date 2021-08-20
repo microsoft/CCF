@@ -116,12 +116,12 @@ class DockerShim(infra.remote.CCFRemote):
             else None
         )
 
-        self.docker_client.images.pull("hello-world")
         self.container = self.docker_client.containers.create(
-            "hello-world",  # TODO: Make configurable
+            "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
             volumes={cwd: {"bind": cwd, "mode": "rw"}},
             # devices=devices,
             # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
+            command='bash -c "echo hello there"',
             # ports=ports,
             name=self.container_name,
             user=running_as_user,
