@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     for filename, specs in benchmark_specs.items():
         if os.path.exists(filename):
-            with open(filename, newline="") as f:
+            with open(filename, newline="", encoding="utf-8") as f:
                 LOG.debug(f"Examining {filename}")
                 reader = csv.DictReader(f)
                 for i, entry in enumerate(reader):

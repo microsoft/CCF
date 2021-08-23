@@ -46,7 +46,7 @@ def run(args):
         except KeyError:
             pass
 
-        with open(openapi_target_file, "a+") as f:
+        with open(openapi_target_file, "a+", encoding="utf-8") as f:
             f.seek(0)
             previous = f.read()
             if previous != formatted_schema:
@@ -67,7 +67,7 @@ def run(args):
                         args.schema_dir, f"{prefix}_{fetched_version}_openapi.json"
                     )
                     LOG.error(f"Writing to {alt_file} for comparison")
-                    with open(alt_file, "w") as f2:
+                    with open(alt_file, "w", encoding="utf-8") as f2:
                         f2.write(formatted_schema)
                 changed_files.append(openapi_target_file)
             else:
