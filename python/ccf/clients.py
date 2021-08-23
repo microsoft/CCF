@@ -239,7 +239,7 @@ class CCFConnectionException(Exception):
 
 def get_curve(ca_file):
     # Auto detect EC curve to use based on server CA
-    ca_bytes = open(ca_file, "rb", encoding="utf-8").read()
+    ca_bytes = open(ca_file, "rb").read()
     return (
         x509.load_pem_x509_certificate(ca_bytes, default_backend()).public_key().curve
     )
