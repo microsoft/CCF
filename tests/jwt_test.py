@@ -136,7 +136,7 @@ def test_jwt_with_sgx_key_policy(network, args):
     primary, _ = network.find_nodes()
     oe_cert_path = make_attested_cert(network, args)
 
-    with open(oe_cert_path) as f:
+    with open(oe_cert_path, encoding="utf-8") as f:
         oe_cert_pem = f.read()
 
     kid = "my_kid"
@@ -237,7 +237,7 @@ def test_jwt_with_sgx_key_filter(network, args):
     primary, _ = network.find_nodes()
 
     oe_cert_path = make_attested_cert(network, args)
-    with open(oe_cert_path) as f:
+    with open(oe_cert_path, encoding="utf-8") as f:
         oe_cert_pem = f.read()
 
     oe_issuer = infra.jwt_issuer.JwtIssuer("oe_issuer", oe_cert_pem)

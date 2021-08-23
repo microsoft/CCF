@@ -384,7 +384,7 @@ class RequestClient:
         if self.session_auth:
             self.session.cert = (self.session_auth.cert, self.session_auth.key)
         if self.signing_auth:
-            with open(self.signing_auth.cert) as cert_file:
+            with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
                     x509.load_pem_x509_certificate(
                         cert_file.read().encode(), default_backend()
