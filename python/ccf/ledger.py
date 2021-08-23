@@ -285,7 +285,7 @@ class LedgerValidator:
         tables = transaction_public_domain.get_tables()
 
         # Add contributing nodes certs and update nodes network trust status for verification
-        node_cert = None
+        node_certs = {}
         if NODES_TABLE_NAME in tables:
             node_table = tables[NODES_TABLE_NAME]
             for node_id, node_info in node_table.items():
@@ -294,8 +294,8 @@ class LedgerValidator:
                 # Add the self-signed node certificate (only available in 1.x,
                 # refer to node endorsed certificates table otherwise)
                 if "cert" in node_info:
-                    node_cert = node_info["cert"].encode()
-                    self.node_certificates[node_id] = node_cert
+                    node_certs[node_id] = node_info["cert"].encode()
+                    self.node_certificates[node_id] = node_certs[node_id]
                 # Update node trust status
                 # Also record the seqno at which the node status changed to
                 # track when a primary node should stop issuing signatures
@@ -314,8 +314,8 @@ class LedgerValidator:
             ) in node_endorsed_certificates_tables.items():
                 node_id = node_id.decode()
                 assert (
-                    node_cert is None
-                ), "Only one of node self-signed certificate and endorsed certificate should be recorded"
+                    node_id not in node_certs
+                ), f"Only one of node self-signed certificate and endorsed certificate should be recorded for node {node_id}"
                 node_cert = endorsed_node_cert
                 self.node_certificates[node_id] = node_cert
 
