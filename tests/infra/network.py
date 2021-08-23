@@ -635,14 +635,13 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args, expected_status=NodeStatus.TRUSTED):
+    def trust_node(self, node, args):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
-                    expected_status,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node

@@ -168,7 +168,7 @@ namespace ccf
     struct In
     {
       NodeId from;
-      kv::ReconfigurationId rid;
+      kv::ReconfigurationId reconfiguration_id;
     };
 
     using Out = void;
