@@ -5,12 +5,10 @@
 set +e
 
 kernel_version=$(uname -r)
-major_version=$(echo ${kernel_version} | cut -d '.' -f 1)
-minor_version=$(echo ${kernel_version} | cut -d '.' -f 2)
 
-if [ ${major_version} -gt 5 ] || [[ ${major_version} -eq 5 && ${minor_version} -ge 11 ]]; then
-    echo "LINUX KERNEL WITH SGX SUPPORT (5.11+):"
-    echo "${kernel_version}"
+if cat /proc/cpuinfo | grep -q "^flags.*sgx.*"; then
+    echo "LINUX KERNEL WITH BUILT-IN SGX SUPPORT (5.11+):"
+    uname -r
 else
     # Pre 5.11 kernel
     echo "DRIVER INFO:"
@@ -20,6 +18,11 @@ else
     echo "DRIVER LOADED:"
     lsmod | grep intel_sgx || echo "Not loaded"
 fi
+echo ""
+echo ""
+
+echo "AESM DAEMON:"
+systemctl --no-pager status aesmd 2>/dev/null || echo "Not running"
 echo ""
 echo ""
 
