@@ -49,7 +49,7 @@ class TxRates:
         return "\n".join(out_list)
 
     def save_results(self, output_file):
-        with open(output_file, "w") as mfile:
+        with open(output_file, "w", encoding="utf-8") as mfile:
             json.dump(self.all_metrics, mfile)
 
     def process_next(self):

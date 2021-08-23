@@ -36,7 +36,7 @@ def run(args, additional_attack_args):
         primary_hostname = f"{primary.pubhost}:{primary.pubport}"
 
         vegeta_targets = "vegeta_targets"
-        with open(vegeta_targets, "w") as f:
+        with open(vegeta_targets, "w", encoding="utf-8") as f:
             for i in range(10):
                 TargetGenerator.write_vegeta_target_line(
                     f,

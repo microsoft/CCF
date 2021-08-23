@@ -62,7 +62,7 @@ def log_errors(out_path, err_path):
     error_lines = []
     try:
         tail_lines = deque(maxlen=10)
-        with open(out_path, "r", errors="replace") as lines:
+        with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
@@ -80,7 +80,7 @@ def log_errors(out_path, err_path):
 
     fatal_error_lines = []
     try:
-        with open(err_path, "r", errors="replace") as lines:
+        with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
             fatal_error_lines = [
                 line
                 for line in lines.readlines()

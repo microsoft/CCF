@@ -75,7 +75,7 @@ if __name__ == "__main__":
     for scenario in files:
         ostream.write("## {}\n\n".format(os.path.basename(scenario)))
         with block(ostream, "steps", 3):
-            with open(scenario, "r") as scen:
+            with open(scenario, "r", encoding="utf-8") as scen:
                 ostream.write(scen.read())
         proc = Popen(
             [args.driver, os.path.realpath(scenario)],
