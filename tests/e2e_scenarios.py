@@ -14,7 +14,7 @@ from loguru import logger as LOG
 
 def run(args):
     # SNIPPET_START: parsing
-    with open(args.scenario) as f:
+    with open(args.scenario, encoding="utf-8") as f:
         scenario = json.load(f)
 
     hosts = scenario.get("hosts", infra.e2e_args.max_nodes(args, f=0))
@@ -46,7 +46,9 @@ def run(args):
                     txs = connection.get("transactions", [])
 
                     for include_file in connection.get("include", []):
-                        with open(os.path.join(scenario_dir, include_file)) as f:
+                        with open(
+                            os.path.join(scenario_dir, include_file), encoding="utf-8"
+                        ) as f:
                             txs += json.load(f)
 
                     for tx in txs:

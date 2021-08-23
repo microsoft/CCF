@@ -63,7 +63,7 @@ def check_operations(ledger, operations):
 
 
 def check_all_tables_are_documented(ledger, doc_path):
-    with open(doc_path) as doc:
+    with open(doc_path, encoding="utf-8") as doc:
         parsed_doc = infra.doc.parse(doc.read())
         table_names = infra.doc.extract_table_names(parsed_doc)
 

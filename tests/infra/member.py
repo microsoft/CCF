@@ -94,12 +94,15 @@ class Member:
 
         if self.member_data is not None:
             with open(
-                os.path.join(self.common_dir, self.member_info.member_data_file), "w"
+                os.path.join(self.common_dir, self.member_info.member_data_file),
+                "w",
+                encoding="utf-8",
             ) as md:
                 json.dump(member_data, md)
 
         with open(
-            os.path.join(self.common_dir, self.member_info.certificate_file)
+            os.path.join(self.common_dir, self.member_info.certificate_file),
+            encoding="utf-8",
         ) as c:
             self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
 
@@ -188,6 +191,7 @@ class Member:
             with open(
                 os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
                 "r",
+                encoding="utf-8",
             ) as priv_enc_key:
                 return infra.crypto.unwrap_key_rsa_oaep(
                     base64.b64decode(r.body.json()["encrypted_share"]),

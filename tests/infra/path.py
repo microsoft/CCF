@@ -10,7 +10,7 @@ from loguru import logger as LOG
 
 def mk(name, contents):
     LOG.info('echo "<{} bytes>" > {}'.format(len(contents), name))
-    with open(name, "w") as dst:
+    with open(name, "w", encoding="utf-8") as dst:
         dst.write(contents)
 
 
