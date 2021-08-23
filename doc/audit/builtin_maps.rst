@@ -395,6 +395,6 @@ Used to persist submitted shares during a recovery.
 While the contents themselves are encrypted, the table is public so as to be accessible by nodes bootstrapping a recovery service.
 
 ``resharings``
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 Internal information for identity resharing during 2-transaction reconfiguration.
