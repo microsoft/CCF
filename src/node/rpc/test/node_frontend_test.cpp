@@ -305,7 +305,7 @@ TEST_CASE("Add a node to an open service")
   {
     // In a real scenario, nodes are trusted via member governance.
     GenesisGenerator g(network, tx);
-    auto joining_node_id = crypto::Sha256Hash(kp->public_key_der()).hex_str();
+    auto joining_node_id = ccf::compute_node_id_from_kp(kp);
     g.trust_node(joining_node_id, network.ledger_secrets->get_latest(tx).first);
     const auto dummy_endorsed_certificate =
       crypto::make_key_pair()->self_sign("CN=dummy endorsed certificate");
@@ -330,7 +330,6 @@ TEST_CASE("Add a node to an open service")
     require_ledger_secrets_equal(
       response.network_info->ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
-    CHECK(response.node_id == joining_node_id);
     CHECK(response.network_info->identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info->public_only == true);

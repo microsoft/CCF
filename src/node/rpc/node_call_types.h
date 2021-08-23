@@ -104,7 +104,9 @@ namespace ccf
     struct Out
     {
       NodeStatus node_status;
-      std::optional<NodeId> node_id;
+
+      // Deprecated in 2.x
+      std::optional<NodeId> node_id = std::nullopt;
 
       struct NetworkInfo
       {
