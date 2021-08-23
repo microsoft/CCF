@@ -60,7 +60,11 @@ def generate_scenarios(tgt_dir="."):
 
     scenario_paths = []
     for scen_index in range(SCENARIOS):
-        with open(os.path.join(tgt_dir, "scenario-{}".format(scen_index)), "w") as scen:
+        with open(
+            os.path.join(tgt_dir, "scenario-{}".format(scen_index)),
+            "w",
+            encoding="utf-8",
+        ) as scen:
             scen.write(fully_connected_scenario(NODES, STEPS) + "\n")
             scenario_paths.append(os.path.realpath(scen.name))
 

@@ -456,7 +456,7 @@ def run(args):
             test_add_node_from_snapshot(network, args, from_backup=True)
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
             latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
-            with open(latest_node_log, "r+") as log:
+            with open(latest_node_log, "r+", encoding="utf-8") as log:
                 assert any(
                     "No snapshot found: Node will replay all historical transactions"
                     in l
