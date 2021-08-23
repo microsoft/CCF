@@ -521,6 +521,13 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def renew_node_certificate(self, remote_node, node_id):
+        proposal_body, careful_vote = self.make_proposal(
+            "renew_node_certificate", node_id
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def check_for_service(self, remote_node, status):
         """
         Check the certificate associated with current CCF service signing key has been recorded in

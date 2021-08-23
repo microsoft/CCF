@@ -325,6 +325,11 @@ def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
     return build_proposal("set_jwt_public_signing_keys", args, **kwargs)
 
 
+@cli_proposal
+def renew_node_certificate(node_id: str, **kwargs):
+    return build_proposal("renew_node_certificate", {"node_id": node_id}, **kwargs)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 

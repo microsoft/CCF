@@ -867,8 +867,7 @@ const actions = new Map([
 
         // Note: CSR is only present from 2.x
         const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
-          nodeInfo.certificate_signing_request,
-          nodeInfo.certificate_subject_identity
+          nodeInfo.certificate_signing_request
         );
         ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
           ccf.strToBuf(args.node_id),
