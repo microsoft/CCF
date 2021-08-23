@@ -132,7 +132,7 @@ def test_governance(network, args):
             primary, unkwown_proposal
         )
         assert False, "Unknown proposal should fail on validation"
-    except infra.proposal.ProposalNotCreated as e:
+    except infra.proposal.ProposalNotCreated:
         pass
 
     LOG.info("Proposal to add a new member (with different curve)")

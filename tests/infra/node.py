@@ -243,7 +243,7 @@ class Node:
         self.remote.setup()
         self.network_state = NodeNetworkState.started
         if self.debug:
-            with open("/tmp/vscode-gdb.sh", "a") as f:
+            with open("/tmp/vscode-gdb.sh", "a", encoding="utf-8") as f:
                 f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
                 f.write(f"cd {self.remote.remote.root}\n")
                 f.write(f"{' '.join(self.remote.remote.cmd)}\n")
@@ -266,7 +266,9 @@ class Node:
         self.remote.get_startup_files(self.common_dir)
         self.consensus = kwargs.get("consensus")
 
-        with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
+        with open(
+            os.path.join(self.common_dir, f"{self.local_node_id}.pem"), encoding="utf-8"
+        ) as f:
             self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
                 f.read()
             )
@@ -276,7 +278,7 @@ class Node:
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
-        with open(node_address_path, "r") as f:
+        with open(node_address_path, "r", encoding="utf-8") as f:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
             assert (
@@ -289,7 +291,7 @@ class Node:
             self.node_port = node_port
 
         rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
-        with open(rpc_address_path, "r") as f:
+        with open(rpc_address_path, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
             it = [iter(lines)] * 2
             for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
@@ -481,6 +483,7 @@ def node(
         if pdb:
             import pdb
 
+            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise
