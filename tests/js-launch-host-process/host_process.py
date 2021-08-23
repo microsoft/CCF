@@ -33,7 +33,7 @@ def test_host_process_launch(network, args):
                 break
             time.sleep(0.1)
         assert os.path.exists(out_path), f"host process did not run within {timeout}s"
-        with open(out_path) as f:
+        with open(out_path, encoding="utf-8") as f:
             content = f.read()
         assert expected_content == content, content
 

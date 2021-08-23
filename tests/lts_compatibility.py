@@ -474,7 +474,7 @@ if __name__ == "__main__":
         )
 
     if not args.dry_run:
-        with open(args.compatibility_report_file, "w") as f:
+        with open(args.compatibility_report_file, "w", encoding="utf-8") as f:
             json.dump(compatibility_report, f, indent=2)
             LOG.info(
                 f"Compatibility report written to {args.compatibility_report_file}"
