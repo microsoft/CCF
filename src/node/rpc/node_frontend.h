@@ -1321,7 +1321,8 @@ namespace ccf
 
       auto orc_handler = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<ORC::In>();
-        LOG_DEBUG_FMT("ORC for #{} from {}", in.rid, in.from);
+        LOG_DEBUG_FMT(
+          "ORC for configuration #{} from {}", in.reconfiguration_id, in.from);
 
         if (consensus == nullptr)
         {
@@ -1357,30 +1358,35 @@ namespace ccf
           return make_success();
         }
 
-        if (consensus->orc(in.rid, in.from))
+        if (consensus->orc(in.reconfiguration_id, in.from))
         {
           LOG_DEBUG_FMT(
             "Configurations: sufficient number of ORCs, updating nodes in "
             "configuration #{}",
-            in.rid);
+            in.reconfiguration_id);
           auto ncfgs = args.tx.ro(network.network_configurations);
           auto nodes = args.tx.rw(network.nodes);
-          auto nc = ncfgs->get(in.rid);
+          auto nc = ncfgs->get(in.reconfiguration_id);
           for (auto nid : nc->nodes)
           {
             auto node_info = nodes->get(nid);
             if (!node_info.has_value())
             {
-              if (node_info->status == NodeStatus::LEARNER)
-              {
-                node_info->status = NodeStatus::TRUSTED;
-                nodes->put(nid, *node_info);
-              }
-              else if (node_info->status == NodeStatus::RETIRING)
-              {
-                node_info->status = NodeStatus::RETIRED;
-                nodes->put(nid, *node_info);
-              }
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("Missing node information for {}", nid));
+            }
+
+            if (node_info->status == NodeStatus::LEARNER)
+            {
+              node_info->status = NodeStatus::TRUSTED;
+              nodes->put(nid, *node_info);
+            }
+            else if (node_info->status == NodeStatus::RETIRING)
+            {
+              node_info->status = NodeStatus::RETIRED;
+              nodes->put(nid, *node_info);
             }
           }
         }

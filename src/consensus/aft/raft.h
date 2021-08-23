@@ -616,9 +616,10 @@ namespace aft
       }
 
       assert(!configurations.empty());
-      LOG_DEBUG_FMT("Configurations: back rid = {}", configurations.back().rid);
       if (configurations.back().rid == 0)
+      {
         configurations.back().rid = netconfig.rid;
+      }
 
       if (resharing_tracker)
       {
@@ -3138,7 +3139,7 @@ namespace aft
         case CFT:
           return (n / 2) + 1;
         case BFT:
-          return (n / 3) + 1;
+          return ((2 * n) / 3) + 1;
         default:
           return -1;
       }
