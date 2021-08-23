@@ -4,9 +4,7 @@
 
 set +e
 
-kernel_version=$(uname -r)
-
-if cat /proc/cpuinfo | grep -q "^flags.*sgx.*"; then
+if grep -q "^flags.*sgx.*" < /proc/cpuinfo ; then
     echo "LINUX KERNEL WITH BUILT-IN SGX SUPPORT (5.11+):"
     uname -r
 else
