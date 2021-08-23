@@ -266,7 +266,6 @@ def test_invalid_client_signature(network, args):
     )
 
 
-# TODO: Add to suite
 @reqs.description("Update certificates of all nodes")
 def test_node_cert_renewal(network, args):
     def get_node_cert_tls(node):
@@ -302,7 +301,7 @@ def test_node_cert_renewal(network, args):
                 == node.node_id
             )
 
-        # TODO: Extract public key and check that validity period changed too
+        # TODO: Validty period
 
 
 def run(args):
@@ -311,16 +310,16 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_create_endpoint(network, args)
-        # test_consensus_status(network, args)
-        # test_node_ids(network, args)
-        # test_member_data(network, args)
-        # test_quote(network, args)
-        # test_user(network, args)
-        # test_no_quote(network, args)
-        # test_service_principals(network, args)
-        # test_ack_state_digest_update(network, args)
-        # test_invalid_client_signature(network, args)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_node_ids(network, args)
+        test_member_data(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_no_quote(network, args)
+        test_service_principals(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
         test_node_cert_renewal(network, args)
 
 
