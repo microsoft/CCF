@@ -841,4 +841,41 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "renew_node_certificate",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node === undefined) {
+          throw new Error(`No such node: ${args.node_id}`);
+        }
+        const nodeInfo = ccf.bufToJsonCompatible(node);
+        if (nodeInfo.status !== "Trusted") {
+          throw new Error(`Node ${args.node_id} is not trusted`);
+        }
+
+        // Note: CSR is only present from 2.x
+        if (nodeInfo.certificate_signing_request === undefined) {
+          throw new Error(
+            `Node ${args.node_id} has no certificate signing request`
+          );
+        }
+
+        // Note: CSR is only present from 2.x
+        const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
+          nodeInfo.certificate_signing_request,
+          nodeInfo.certificate_subject_identity
+        );
+        ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
+          ccf.strToBuf(args.node_id),
+          ccf.strToBuf(endorsed_node_cert)
+        );
+      }
+    ),
+  ],
 ]);
