@@ -20,7 +20,7 @@ import re
 from typing import Union, Optional, List, Any
 from ccf.tx_id import TxID
 
-import requests
+import httpx
 from loguru import logger as LOG  # type: ignore
 from requests_http_signature import HTTPSignatureAuth  # type: ignore
 
@@ -125,7 +125,7 @@ class ResponseBody(abc.ABC):
 
 
 class RequestsResponseBody(ResponseBody):
-    def __init__(self, response: requests.Response):
+    def __init__(self, response: httpx.Response):
         self._response = response
 
     def data(self):
@@ -379,7 +379,7 @@ class RequestClient:
         self.session_auth = session_auth
         self.signing_auth = signing_auth
         self.key_id = None
-        self.session = requests.Session()
+        self.session = httpx.Client()
         self.session.verify = self.ca
         if self.session_auth:
             self.session.cert = (self.session_auth.cert, self.session_auth.key)
@@ -454,10 +454,10 @@ class RequestClient:
                 timeout=timeout,
                 data=request_body,
             )
-        except requests.exceptions.ReadTimeout as exc:
+        except httpx.ReadTimeout as exc:
             raise TimeoutError from exc
-        except requests.exceptions.SSLError as exc:
-            raise CCFConnectionException from exc
+        #except httpx.NetworkError as exc:
+        #    raise CCFConnectionException from exc
         except Exception as exc:
             raise RuntimeError("Request client failed with unexpected error") from exc
 
