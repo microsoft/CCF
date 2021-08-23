@@ -495,9 +495,9 @@ namespace js
     int argc,
     [[maybe_unused]] JSValueConst* argv)
   {
-    if (argc != 2)
+    if (argc != 1)
     {
-      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
     }
 
     auto network =
@@ -529,20 +529,6 @@ namespace js
       throw JS_ThrowTypeError(ctx, "csr argument is not a string");
     }
     auto csr = crypto::Pem(csr_cstr);
-
-    JSValue certificate_subject_identity_val =
-      JS_JSONStringify(ctx, argv[1], JS_NULL, JS_NULL);
-    if (JS_IsException(certificate_subject_identity_val))
-    {
-      return JS_ThrowTypeError(
-        ctx, "certificate subject identity argument is not a JSON object");
-    }
-    auto certificate_subject_identity_cstr =
-      JS_ToCString(ctx, certificate_subject_identity_val);
-    std::string certificate_subject_identity_json(
-      certificate_subject_identity_cstr);
-    JS_FreeCString(ctx, certificate_subject_identity_cstr);
-    JS_FreeValue(ctx, certificate_subject_identity_val);
 
     auto endorsed_cert = node->generate_endorsed_certificate(
       csr, network->identity->priv_key, network->identity->cert);
