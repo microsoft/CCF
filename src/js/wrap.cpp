@@ -529,6 +529,7 @@ namespace js
       throw JS_ThrowTypeError(ctx, "csr argument is not a string");
     }
     auto csr = crypto::Pem(csr_cstr);
+    JS_FreeCString(ctx, csr_cstr);
 
     auto endorsed_cert = node->generate_endorsed_certificate(
       csr, network->identity->priv_key, network->identity->cert);
