@@ -507,9 +507,11 @@ namespace js
       return JS_ThrowInternalError(ctx, "Network state is not set");
     }
 
-    auto global_obj = JS_GetGlobalObject(ctx);
-    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
-    auto node_ = JS_GetPropertyStr(ctx, ccf, "node");
+    auto global_obj = Context::JSWrappedValue(ctx, JS_GetGlobalObject(ctx));
+    auto ccf =
+      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
+    auto node_ =
+      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, ccf, "node"));
 
     auto node =
       static_cast<ccf::AbstractNodeState*>(JS_GetOpaque(node_, node_class_id));
@@ -518,10 +520,6 @@ namespace js
     {
       return JS_ThrowInternalError(ctx, "Node state is not set");
     }
-
-    JS_FreeValue(ctx, node_);
-    JS_FreeValue(ctx, ccf);
-    JS_FreeValue(ctx, global_obj);
 
     auto csr_cstr = JS_ToCString(ctx, argv[0]);
     if (csr_cstr == nullptr)
