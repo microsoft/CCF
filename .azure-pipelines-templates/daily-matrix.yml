@@ -8,7 +8,7 @@ parameters:
       pool: 1es-dcv2-focal
     SGXIceLake:
       container: sgx
-      pool: 1es-dcv3-focal-2
+      pool: 1es-dcv3-focal
 
   build:
     common:
@@ -58,7 +58,7 @@ jobs:
   - template: common.yml
     parameters:
       target: SGXIceLake
-      env: "${{ parameters.env.SGX }}"
+      env: "${{ parameters.env.SGXIceLake }}"
       cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON -DENABLE_BFT=OFF"
       suffix: "Release"
       artifact_name: "SGX_IceLake_Release"
