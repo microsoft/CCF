@@ -72,7 +72,18 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto signed_request = parse_signed_request(ctx);
+      std::optional<SignedReq> signed_request = std::nullopt;
+
+      try
+      {
+        signed_request = parse_signed_request(ctx);
+      }
+      catch (const std::exception& e)
+      {
+        error_reason = e.what();
+        return nullptr;
+      }
+
       if (signed_request.has_value())
       {
         UserCerts users_certs_table(Tables::USER_CERTS);
@@ -170,7 +181,18 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto signed_request = parse_signed_request(ctx);
+      std::optional<SignedReq> signed_request = std::nullopt;
+
+      try
+      {
+        signed_request = parse_signed_request(ctx);
+      }
+      catch (const std::exception& e)
+      {
+        error_reason = e.what();
+        return nullptr;
+      }
+
       if (signed_request.has_value())
       {
         MemberCerts members_certs_table(Tables::MEMBER_CERTS);

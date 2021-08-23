@@ -666,10 +666,8 @@ DOCTEST_TEST_CASE("Signatures")
 
         SignedRequestProcessor sp;
         http::RequestParser p(sp);
-        p.execute(serial_request.data(), serial_request.size());
-        DOCTEST_REQUIRE(
-          sp.signed_reqs
-            .empty()); // Invalid headers mean no signed request is parsed
+        DOCTEST_REQUIRE_THROWS(
+          p.execute(serial_request.data(), serial_request.size()));
       }
 
       std::string missing_second_quote = original;
@@ -683,8 +681,8 @@ DOCTEST_TEST_CASE("Signatures")
 
         SignedRequestProcessor sp;
         http::RequestParser p(sp);
-        p.execute(serial_request.data(), serial_request.size());
-        DOCTEST_REQUIRE(sp.signed_reqs.empty());
+        DOCTEST_REQUIRE_THROWS(
+          p.execute(serial_request.data(), serial_request.size()));
       }
     }
 
