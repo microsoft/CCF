@@ -285,8 +285,11 @@ def test_node_cert_renewal(network, args):
                 )
                 == node.node_id
             )
-            network.consortium.renew_node_certificate(node, node.node_id)
+            network.consortium.renew_node_certificate(
+                node, node.node_id, valid_from="fdsfsd", valid_to="fdsfsd"
+            )
             node_cert_tls_after = get_node_cert_tls(node)
+            LOG.error(node_cert_tls_after)
             assert (
                 node_cert_tls_before != node_cert_tls_after
             ), "Node TLS certificate should be updated after renewal"
@@ -301,7 +304,7 @@ def test_node_cert_renewal(network, args):
                 == node.node_id
             )
 
-        # TODO: Validty period
+        # TODO: Validity period
 
 
 def run(args):
@@ -310,16 +313,16 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_create_endpoint(network, args)
-        test_consensus_status(network, args)
-        test_node_ids(network, args)
-        test_member_data(network, args)
-        test_quote(network, args)
-        test_user(network, args)
-        test_no_quote(network, args)
-        test_service_principals(network, args)
-        test_ack_state_digest_update(network, args)
-        test_invalid_client_signature(network, args)
+        # test_create_endpoint(network, args)
+        # test_consensus_status(network, args)
+        # test_node_ids(network, args)
+        # test_member_data(network, args)
+        # test_quote(network, args)
+        # test_user(network, args)
+        # test_no_quote(network, args)
+        # test_service_principals(network, args)
+        # test_ack_state_digest_update(network, args)
+        # test_invalid_client_signature(network, args)
         test_node_cert_renewal(network, args)
 
 
