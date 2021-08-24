@@ -588,8 +588,30 @@ namespace aft
             }
           }
         }
+
+        if (!configurations.empty())
+        {
+          for (const auto& [nid, _] : conf)
+          {
+            if (
+              nodes.find(nid) != nodes.end() &&
+              learners.find(nid) != learners.end() &&
+              new_learners.find(nid) == new_learners.end())
+            {
+              // Promotion of known learner
+              learners.erase(nid);
+            }
+            if (is_learner() && nid == state->my_node_id)
+            {
+              LOG_DEBUG_FMT(
+                "Configurations: observing own promotion, becoming a follower");
+              replica_state = kv::ReplicaState::Follower;
+            }
+          }
+        }
       }
 
+      LOG_DEBUG_FMT("Configurations: pushing: idx={} rid=0", idx);
       uint32_t offset = get_bft_offset(conf);
       configurations.push_back({idx, std::move(conf), offset, 0});
 
@@ -601,11 +623,22 @@ namespace aft
       ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig)
     {
       LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
-      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
 
+      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       if (is_bft_reexecution() && threading::ThreadMessaging::thread_count > 1)
       {
         guard.lock();
+      }
+
+      assert(!configurations.empty());
+
+      for (const auto& nid : netconfig.nodes)
+      {
+        if (nid != state->my_node_id && nodes.find(nid) == nodes.end())
+        {
+          LOG_FAIL_FMT("Configurations: node {} is unknown", nid);
+          return;
+        }
       }
 
       network_configurations[netconfig.rid] = netconfig;
@@ -615,7 +648,6 @@ namespace aft
         orc_sets[netconfig.rid] = {};
       }
 
-      assert(!configurations.empty());
       if (configurations.back().rid == 0)
       {
         configurations.back().rid = netconfig.rid;
@@ -3275,8 +3307,10 @@ namespace aft
             {
               LOG_TRACE_FMT(
                 "Configurations: not enough trusted nodes for configuration "
-                "#{}; submitting ORC",
-                next->rid);
+                "#{} ({} out of {}); submitting ORC",
+                next->rid,
+                num_trusted(*next),
+                next->nodes.size());
               rpc_request_context->schedule_submit_orc(
                 state->my_node_id, next->rid);
             }

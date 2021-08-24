@@ -812,7 +812,7 @@ const actions = new Map([
             }
             const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
 
-            latest_config.node += ccf.strToBuf(args.node_id);
+            latest_config.nodes.push(args.node_id);
             latest_config.rid++;
             new DataView(rid_buf).setUint32(0, latest_config.rid, true);
             ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
@@ -888,7 +888,10 @@ const actions = new Map([
               throw new Error("Network configuration could not be found");
             }
             const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
-            latest_config.node -= ccf.strToBuf(args.node_id);
+            const idx = latest_config.nodes.indexOf(args.node_id);
+            if (idx > -1) {
+              latest_config.nodes.splice(idx, 1);
+            }
             latest_config.rid++;
             new DataView(rid_buf).setUint32(0, latest_config.rid, true);
             ccf.kv["public:ccf.gov.nodes.network.configurations"].set(

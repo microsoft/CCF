@@ -230,7 +230,13 @@ namespace ccf
       kv::NetworkConfiguration nc =
         get_latest_network_configuration(network, tx);
       nc.nodes.insert(joining_node_id);
-      add_new_network_reconfiguration(network, tx, nc);
+
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
+      {
+        add_new_network_reconfiguration(network, tx, nc);
+      }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -1351,12 +1357,6 @@ namespace ccf
               "Only the primary accepts ORCs");
           }
         }
-        else if (
-          consensus->type() == ConsensusType::BFT && consensus->is_backup())
-        {
-          // Do not re-execute any node/config promotions on backups
-          return make_success();
-        }
 
         if (consensus->orc(in.reconfiguration_id, in.from))
         {
@@ -1398,8 +1398,7 @@ namespace ccf
         "/orc",
         HTTP_POST,
         json_adapter(orc_handler),
-        // {std::make_shared<NodeCertAuthnPolicy>()}
-        no_auth_required)
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
         .install();
