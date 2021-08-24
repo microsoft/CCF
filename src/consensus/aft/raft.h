@@ -611,7 +611,6 @@ namespace aft
         }
       }
 
-      LOG_DEBUG_FMT("Configurations: pushing: idx={} rid=0", idx);
       uint32_t offset = get_bft_offset(conf);
       configurations.push_back({idx, std::move(conf), offset, 0});
 
