@@ -77,6 +77,7 @@ def run_tls_san_checks(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start_and_join(args)
 
         LOG.info("Check SAN value in TLS certificate")
