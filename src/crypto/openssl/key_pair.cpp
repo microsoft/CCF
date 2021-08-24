@@ -260,34 +260,11 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
-    ASN1_TIME *before = NULL, *after = NULL;
-    OpenSSL::CHECKNULL(before = ASN1_TIME_new());
-    OpenSSL::CHECKNULL(after = ASN1_TIME_new());
+    Unique_ASN1_TIME before(valid_from.value_or("20210311000000Z"));
+    Unique_ASN1_TIME after(valid_to.value_or("20230611235959Z"));
 
-    // TODO: Fix!
-    if (valid_from.has_value())
-    {
-      OpenSSL::CHECK1(ASN1_TIME_set_string(before, valid_from->c_str()));
-    }
-    else
-    {
-      OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20210311000000Z"));
-    }
-
-    if (valid_to.has_value())
-    {
-      OpenSSL::CHECK1(ASN1_TIME_set_string(after, valid_to->c_str()));
-    }
-    else
-    {
-      OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20230611235959Z"));
-    }
-    OpenSSL::CHECK1(ASN1_TIME_normalize(before));
-    OpenSSL::CHECK1(ASN1_TIME_normalize(after));
     OpenSSL::CHECK1(X509_set1_notBefore(crt, before));
     OpenSSL::CHECK1(X509_set1_notAfter(crt, after));
-    ASN1_TIME_free(before);
-    ASN1_TIME_free(after);
 
     X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
     X509_set_pubkey(crt, req_pubkey);

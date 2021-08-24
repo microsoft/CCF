@@ -845,6 +845,7 @@ const actions = new Map([
     new Action(
       function (args) {
         checkEntityId(args.node_id, "node_id");
+        // TODO: Check format of valid_from and valid_to
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(

@@ -286,7 +286,10 @@ def test_node_cert_renewal(network, args):
                 == node.node_id
             )
             network.consortium.renew_node_certificate(
-                node, node.node_id, valid_from="fdsfsd", valid_to="fdsfsd"
+                node,
+                node.node_id,
+                valid_from="210311000000Z",
+                valid_to="220311000000Z",
             )
             node_cert_tls_after = get_node_cert_tls(node)
             LOG.error(node_cert_tls_after)
