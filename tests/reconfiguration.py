@@ -6,7 +6,6 @@ import infra.proc
 import infra.logging_app as app
 import suite.test_requirements as reqs
 import tempfile
-import time
 from shutil import copy
 import os
 from infra.checker import check_can_progress, check_does_not_progress
@@ -377,7 +376,7 @@ def test_learner_catches_up(network, args):
     with primary.client() as c:
         s = c.get("/node/consensus")
         rj = s.body.json()
-        assert new_node.node_id in rj["details"]["learners"]
+        assert len(rj["details"]["learners"]) == 0
 
         # At this point, there should be exactly one configuration, which includes the new node.
         print(rj)
