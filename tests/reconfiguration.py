@@ -355,6 +355,8 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
 
 @reqs.description("Adding a learner without snapshot")
 def test_learner_catches_up(network, args):
+    args.join_timer = args.join_timer * 2
+
     num_nodes_before = len(network.nodes)
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
