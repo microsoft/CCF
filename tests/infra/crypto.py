@@ -258,6 +258,10 @@ def compute_cert_der_hash_hex_from_pem(pem: str):
     return cert.fingerprint(hashes.SHA256()).hex()
 
 
+def get_san_from_pem_cert(pem: str):
+    cert = load_pem_x509_certificate(pem.encode(), default_backend())
+    return cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+
 def check_key_pair_pem(private: str, public: str, password=None) -> bool:
     prv = load_pem_private_key(private.encode(), password=password)
     pub = load_pem_public_key(public.encode())
