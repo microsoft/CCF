@@ -4,6 +4,7 @@
 
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
+#include "crypto/openssl/x509_time.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
@@ -1302,15 +1303,18 @@ namespace js
       "refreshAppBytecodeCache",
       JS_NewCFunction(
         ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "validateCertificateValidityPeriod",
+      JS_NewCFunction(
+        ctx,
+        js_validate_certificate_validity_period,
+        "validateCertificateValidityPeriod",
+        0));
 
     auto crypto = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
-
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
-      "verifySignature",
-      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
 
     if (txctx != nullptr)
     {

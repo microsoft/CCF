@@ -14,6 +14,7 @@
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
+#include "crypto/openssl/x509_time.h"
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
@@ -21,7 +22,9 @@
 
 #include <chrono>
 #include <cstring>
+#include <ctime>
 #include <doctest/doctest.h>
+#include <optional>
 
 using namespace std;
 using namespace tls;
@@ -629,4 +632,49 @@ TEST_CASE("AES-GCM convenience functions")
   auto encrypted = aes_gcm_encrypt(key, contents);
   auto decrypted = aes_gcm_decrypt(key, encrypted);
   REQUIRE(decrypted == contents);
+}
+
+TEST_CASE("ASN1 time")
+{
+  struct TimeTest
+  {
+    struct Input
+    {
+      std::tm from;
+      std::tm to;
+      std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
+    };
+    Input input;
+
+    bool expected_verification_result;
+  };
+
+  auto current_time_t =
+    std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  auto time = *std::localtime(&current_time_t);
+
+  auto next_day_time = time;
+  next_day_time.tm_mday++;
+  auto next_year_time = time;
+  next_year_time.tm_year++;
+
+  std::vector<TimeTest> test_vector{
+    {{time, next_day_time}, true}, // Valid: Next day
+    {{time, time}, false}, // Invalid: Same date
+    {{next_day_time, time}, false}, // Invalid: to is before from
+    {{time, next_day_time, 100}, true}, // Valid: Next day within 100 days
+    {{time, next_year_time, 100}, false}, // Valid: Next day not within 100 days
+  };
+
+  for (auto& data : test_vector)
+  {
+    auto* from = &data.input.from;
+    auto* to = &data.input.to;
+    REQUIRE(
+      crypto::OpenSSL::validate_chronological_times(
+        crypto::OpenSSL::from_time_t(std::mktime(from)),
+        crypto::OpenSSL::from_time_t(std::mktime(to)),
+        data.input.maximum_validity_period_days) ==
+      data.expected_verification_result);
+  }
 }

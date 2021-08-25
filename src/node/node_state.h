@@ -1663,8 +1663,12 @@ namespace ccf
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
           network.consensus_type,
-          reconf_type,
-          node_endorsement_on_trust};
+          reconf_type};
+
+        ServiceConfiguration::Nodes nodes;
+        nodes.node_endorsement_on_trust = node_endorsement_on_trust;
+
+        genesis_info.configuration.nodes = nodes;
         create_params.genesis_info = genesis_info;
       }
 

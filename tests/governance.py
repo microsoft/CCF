@@ -307,8 +307,6 @@ def test_node_cert_renewal(network, args):
                 == node.node_id
             )
 
-        # TODO: Validity period
-
 
 def run(args):
     with infra.network.network(

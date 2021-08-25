@@ -221,8 +221,7 @@ namespace ccf
       // Only record self-signed node certificate if the node does not require
       // endorsement by the service when it is trusted
       if (
-        config->node_endorsement_on_trust.has_value() &&
-        !config->node_endorsement_on_trust.value())
+        config->nodes.has_value() && !config->nodes->node_endorsement_on_trust)
       {
         node_info.cert = crypto::cert_der_to_pem(node_der);
       }
@@ -248,8 +247,8 @@ namespace ccf
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
         if (
           in.certificate_signing_request.has_value() &&
-          (!config->node_endorsement_on_trust.has_value() ||
-           config->node_endorsement_on_trust.value()))
+          (!config->nodes.has_value() ||
+           config->nodes->node_endorsement_on_trust))
         {
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(

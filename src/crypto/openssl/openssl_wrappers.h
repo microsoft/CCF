@@ -276,7 +276,8 @@ namespace crypto
         CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
         CHECK1(ASN1_TIME_normalize(*this));
       }
-      operator ASN1_TIME*()
+      Unique_ASN1_TIME(ASN1_TIME* t) : p(t, ASN1_TIME_free) {}
+      operator ASN1_TIME*() const
       {
         return p.get();
       }
