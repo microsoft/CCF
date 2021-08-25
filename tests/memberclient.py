@@ -47,31 +47,31 @@ def make_signature_corrupter(fn):
     return SignatureCorrupter
 
 
-signature_regex = 'signature="([^"]*)",'
+signature_regex = 'signature="([^"]*)"'
 
 
 def missing_signature(request):
-    original = request.headers["Authorization"]
-    request.headers["Authorization"] = re.sub(signature_regex, "", original)
+    original = request.headers["authorization"]
+    request.headers["authorization"] = re.sub(signature_regex, "", original)
     return request
 
 
 def empty_signature(request):
-    original = request.headers["Authorization"]
-    request.headers["Authorization"] = re.sub(
+    original = request.headers["authorization"]
+    request.headers["authorization"] = re.sub(
         signature_regex, 'signature="",', original
     )
     return request
 
 
 def modified_signature(request):
-    original = request.headers["Authorization"]
+    original = request.headers["authorization"]
     s = re.search(signature_regex, original).group(1)
     index = len(s) // 3
     char = s[index]
     new_char = "B" if char == "A" else "A"
     new_s = s[:index] + new_char + s[index + 1 :]
-    request.headers["Authorization"] = re.sub(
+    request.headers["authorization"] = re.sub(
         signature_regex, f'signature="{new_s}",', original
     )
     return request
@@ -89,6 +89,10 @@ def test_corrupted_signature(network, args):
             node,
             curve=curve,
         )
+
+        r = member.ack(node)
+        with node.client() as nc:
+            nc.wait_for_commit(r)
 
         with node.client(*member.auth(write=True)) as mc:
             # pylint: disable=protected-access

@@ -432,7 +432,9 @@ class RequestClient:
                     )
                 else:
                     extra_headers["Content-Length"] = "0"
-            auth = self._auth_provider(self.key_id, open(self.signing_auth.key, "rb").read())
+            auth = self._auth_provider(
+                self.key_id, open(self.signing_auth.key, "rb").read()
+            )
 
         request_body = None
         if request.body is not None:
