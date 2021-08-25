@@ -40,10 +40,10 @@ def test_missing_signature_header(network, args):
 
 
 def make_signature_corrupter(fn):
-    class SignatureCorrupter(ccf.clients.HTTPSignatureAuth_AlwaysDigest):
-        def __call__(self, request):
-            r = super(SignatureCorrupter, self).__call__(request)
-            return fn(r)
+    class SignatureCorrupter(ccf.clients.HttpSig):
+        def auth_flow(self, request):
+            r = super(SignatureCorrupter, self).auth_flow(request)
+            yield fn(r)
 
     return SignatureCorrupter
 
