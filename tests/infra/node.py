@@ -13,6 +13,7 @@ import os
 import socket
 import re
 import ipaddress
+import ssl
 
 from loguru import logger as LOG
 
@@ -114,7 +115,7 @@ class Node:
 
         pubhost_ = host.public_rpchost
         if pubhost_:
-            self.pubhost, *pubport = pubhost_[0].split(":")
+            self.pubhost, *pubport = pubhost_.split(":")
             self.pubport = int(pubport[0]) if pubport else self.rpc_port
         else:
             self.pubhost = self.host
@@ -284,7 +285,8 @@ class Node:
             assert (
                 node_host == self.host
             ), f"Unexpected change in node address from {self.host} to {node_host}"
-            if self.node_port is not None:
+            if self.node_port is None and self.node_port != 0:
+                self.node_port = node_port
                 assert (
                     node_port == self.node_port
                 ), f"Unexpected change in node port from {self.node_port} to {node_port}"
@@ -300,7 +302,7 @@ class Node:
                     assert (
                         rpc_host == self.host
                     ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
-                    if self.rpc_port is not None:
+                    if self.rpc_port is not None and self.rpc_port != 0:
                         assert (
                             rpc_port == self.rpc_port
                         ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
@@ -435,6 +437,9 @@ class Node:
                 )
                 raise
             return ccf.clients.client(host, port, **akwargs)
+
+    def get_tls_certificate_pem(self):
+        return ssl.get_server_certificate((self.host, self.rpc_port))
 
     def suspend(self):
         assert not self.suspended
