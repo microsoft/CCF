@@ -513,8 +513,6 @@ namespace js
     auto valid_to = std::string(valid_to_cstr);
     JS_FreeCString(ctx, valid_to_cstr);
 
-    LOG_FAIL_FMT("argc: {}", argc);
-
     std::optional<uint32_t> allowed_validity_period_days = std::nullopt;
     if (argc > 2 && !JS_IsUndefined(argv[2]))
     {

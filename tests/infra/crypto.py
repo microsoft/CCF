@@ -7,6 +7,8 @@ from enum import IntEnum
 import secrets
 import datetime
 import hashlib
+from datetime import datetime
+from pyasn1.type.useful import UTCTime
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -271,3 +273,7 @@ def check_key_pair_pem(private: str, public: str, password=None) -> bool:
     )
     pub_der = pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     return prv_pub_der == pub_der
+
+def datetime_as_UTCtime(datetime):
+    return UTCTime.fromDateTime(datetime)
+

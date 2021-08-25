@@ -14,6 +14,7 @@ import infra.logging_app as app
 import json
 import requests
 import infra.crypto
+from datetime import datetime, timedelta
 
 from loguru import logger as LOG
 
@@ -268,31 +269,32 @@ def test_invalid_client_signature(network, args):
 
 @reqs.description("Update certificates of all nodes")
 def test_node_cert_renewal(network, args):
-    def get_node_cert_tls(node):
-        import ssl
-
-        return ssl.get_server_certificate((node.host, node.rpc_port))
 
     for node in network.get_joined_nodes():
-
         with node.client() as c:
             c.get("/node/network/nodes")
 
-            node_cert_tls_before = get_node_cert_tls(node)
+            node_cert_tls_before = node.get_tls_certificate_pem()
             assert (
                 infra.crypto.compute_public_key_der_hash_hex_from_pem(
                     node_cert_tls_before
                 )
                 == node.node_id
             )
+            now = datetime.now()
+            six_months_from_now = now + timedelta(days=180)
+            utc_now = infra.crypto.datetime_as_UTCtime(now)
+            utc_six_months_from_now_utc = infra.crypto.datetime_as_UTCtime(
+                six_months_from_now
+            )
+
             network.consortium.renew_node_certificate(
                 node,
                 node.node_id,
-                valid_from="210311000000Z",
-                valid_to="220311000000Z",
+                valid_from=str(utc_now),
+                valid_to=str(utc_six_months_from_now_utc),
             )
-            node_cert_tls_after = get_node_cert_tls(node)
-            LOG.error(node_cert_tls_after)
+            node_cert_tls_after = node.get_tls_certificate_pem()
             assert (
                 node_cert_tls_before != node_cert_tls_after
             ), "Node TLS certificate should be updated after renewal"
