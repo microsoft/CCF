@@ -934,6 +934,24 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
+
+  add_perf_test(
+    NAME ls_js_templated
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS cft
+    CLIENT_BIN ./scenario_perf_client
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_templated
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_templated_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      50
+      --msg-ser-fmt
+      text
+  )
 endif()
 
 # Generate and install CMake export file for consumers using CMake
