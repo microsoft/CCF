@@ -910,6 +910,39 @@ namespace aft
     }
 
   private:
+    Index find_highest_possible_match(const ccf::TxID& tx_id)
+    {
+      // Find the highest TxID this node thinks exists, which is still
+      // compatible with the given tx_id. That is, given T.n, find largest n'
+      // such that n' <= n && term_of(n') == T' && T' <= T. This may be T.n
+      // itself, if this node holds that index. Otherwise, examine the final
+      // entry in each term, counting backwards, until we find one which is
+      // still possible.
+      Index probe_index = std::min(tx_id.seqno, state->last_idx);
+      Term term_of_probe = state->view_history.view_at(probe_index);
+      while (term_of_probe > tx_id.view)
+      {
+        // Next possible match is the end of the previous term, which is
+        // 1-before the start of the currently considered term. Anything after
+        // that must have a term which is still too high.
+        probe_index = state->view_history.start_of_view(term_of_probe);
+        if (probe_index > 0)
+        {
+          --probe_index;
+        }
+        term_of_probe = state->view_history.view_at(probe_index);
+      }
+
+      LOG_TRACE_FMT(
+        "Looking for match with {}.{}, from {}.{}, best answer is {}",
+        tx_id.view,
+        tx_id.seqno,
+        state->view_history.view_at(state->last_idx),
+        state->last_idx,
+        probe_index);
+      return probe_index;
+    }
+
     inline void update_batch_size()
     {
       auto avg_entry_size = (entry_count == 0) ?
@@ -1194,6 +1227,7 @@ namespace aft
             state->my_node_id,
             from,
             r.prev_idx);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         }
         else
         {
@@ -1205,8 +1239,10 @@ namespace aft
             r.prev_idx,
             prev_term,
             r.prev_term);
+          const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
+          send_append_entries_response(
+            from, AppendEntriesResponseType::FAIL, rejected_tx);
         }
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -1796,32 +1832,34 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to, AppendEntriesResponseType answer)
+      ccf::NodeId to,
+      AppendEntriesResponseType answer,
+      const std::optional<ccf::TxID>& rejected = std::nullopt)
     {
+      aft::Index response_idx = state->last_idx;
+      aft::Term response_term = state->current_view;
+
+      // This matching-index-detection logic doesn't work on BFT, so is disabled
+      // and still uses the original behaviour:
+      // https://github.com/microsoft/CCF/issues/2853
+      if (consensus_type != ConsensusType::BFT)
+      {
+        if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
+        {
+          response_idx = find_highest_possible_match(rejected.value());
+          response_term = get_term_internal(response_idx);
+        }
+      }
+
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
-        state->last_idx,
+        state->my_node_id,
+        to,
+        response_idx,
         answer);
 
-      // AppendEntriesResponse should contain the highest _matching_ index we
-      // hold - that is how the primary will treat it.
-      // If this is an affirmative response, then that index is the last entry
-      // in this log.
-      // But if this is NACKing what was just sent (because it could not be
-      // applied), then we want to ensure that the next thing they send begins
-      // with a match. This may result in resending a redundant chunk which
-      // agrees, but will eventually include the earliest mismatch, which will
-      // trigger a rollback and correct application on this node.
-      auto matching_idx = answer == AppendEntriesResponseType::FAIL ?
-        state->commit_idx :
-        state->last_idx;
-
-      AppendEntriesResponse response = {{raft_append_entries_response},
-                                        state->current_view,
-                                        matching_idx,
-                                        answer};
+      AppendEntriesResponse response = {
+        {raft_append_entries_response}, response_term, response_idx, answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -2067,33 +2105,47 @@ namespace aft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale term ({} != {})",
-          state->my_node_id,
-          from,
-          r.term,
-          state->current_view);
+        // NB: In NACKs the term may be that of an estimated matching index
+        // in the log, rather than the current term, so it is correct for it to
+        // be older in this case.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale term ({} != {})",
+            state->my_node_id,
+            from,
+            r.term,
+            state->current_view);
           return;
         }
       }
       else if (r.last_log_idx < node->second.match_idx)
       {
-        // Stale response, discard if success.
+        // Response about past indices, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale idx",
-          state->my_node_id,
-          from);
+        // NB: It is correct for this index to move backwards during NACKs
+        // which iteratively discover the last matching index of divergent logs
+        // after an election.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale idx",
+            state->my_node_id,
+            from);
           return;
         }
       }
 
       // Update next and match for the responding node.
-      node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      if (r.success == AppendEntriesResponseType::FAIL)
+      {
+        node->second.match_idx =
+          find_highest_possible_match({r.term, r.last_log_idx});
+      }
+      else
+      {
+        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      }
 
       if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
@@ -2622,6 +2674,8 @@ namespace aft
       ledger->truncate(idx);
       state->last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
+
+      state->view_history.rollback(idx);
 
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {

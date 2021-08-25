@@ -68,10 +68,28 @@ namespace aft
       return (it - views.begin());
     }
 
+    kv::Version start_of_view(ccf::View view)
+    {
+      if (view > views.size() || view == InvalidView)
+      {
+        return kv::NoVersion;
+      }
+
+      return views[view - 1];
+    }
+
     std::vector<kv::Version> get_history_until(
       kv::Version idx = std::numeric_limits<kv::Version>::max())
     {
       return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
+    }
+
+    void rollback(kv::Version idx)
+    {
+      auto it = upper_bound(views.begin(), views.end(), idx);
+      views.erase(it, views.end());
+      LOG_DEBUG_FMT(
+        "Resulting views from rollback: {}", fmt::join(views, ", "));
     }
   };
 
