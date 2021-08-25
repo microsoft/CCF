@@ -5,10 +5,7 @@
         "js_module": "logging.js",
         "js_function": "get_private",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {}
       },
@@ -16,10 +13,7 @@
         "js_module": "logging.js",
         "js_function": "post_private",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -29,10 +23,7 @@
         "js_module": "logging.js",
         "js_function": "get_private_at",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {}
       },
@@ -40,10 +31,7 @@
         "js_module": "logging.js",
         "js_function": "post_private_at",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -53,10 +41,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -64,10 +49,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -77,10 +59,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -88,10 +67,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -101,10 +77,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -112,10 +85,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -125,10 +95,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -136,10 +103,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -149,10 +113,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -160,10 +121,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -173,10 +131,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -184,10 +139,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -197,10 +149,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -208,10 +157,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -221,10 +167,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -232,10 +175,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -245,10 +185,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -256,10 +193,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -269,10 +203,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -280,10 +211,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -293,10 +221,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -304,10 +229,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -317,10 +239,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -328,10 +247,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -341,10 +257,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -352,10 +265,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -365,10 +275,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -376,10 +283,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -389,10 +293,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -400,10 +301,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -413,10 +311,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -424,10 +319,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -437,10 +329,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -448,10 +337,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -461,10 +347,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -472,10 +355,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -485,10 +365,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -496,10 +373,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -509,10 +383,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -520,10 +391,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -533,10 +401,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -544,10 +409,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -557,10 +419,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -568,10 +427,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -581,10 +437,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -592,10 +445,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -605,10 +455,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -616,10 +463,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -629,10 +473,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -640,10 +481,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -653,10 +491,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -664,10 +499,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -677,10 +509,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -688,10 +517,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -701,10 +527,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -712,10 +535,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -725,10 +545,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -736,10 +553,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -749,10 +563,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -760,10 +571,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -773,10 +581,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -784,10 +589,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -797,10 +599,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -808,10 +607,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -821,10 +617,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -832,10 +625,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -845,10 +635,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -856,10 +643,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -869,10 +653,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -880,10 +661,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -893,10 +671,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -904,10 +679,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -917,10 +689,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -928,10 +697,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -941,10 +707,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -952,10 +715,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -965,10 +725,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -976,10 +733,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -989,10 +743,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1000,10 +751,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1013,10 +761,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1024,10 +769,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1037,10 +779,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1048,10 +787,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1061,10 +797,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1072,10 +805,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1085,10 +815,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1096,10 +823,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1109,10 +833,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1120,10 +841,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1133,10 +851,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1144,10 +859,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1157,10 +869,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1168,10 +877,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1181,10 +887,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1192,10 +895,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1205,10 +905,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1216,10 +913,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1229,10 +923,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1240,10 +931,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1253,10 +941,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1264,10 +949,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1277,10 +959,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1288,10 +967,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1301,10 +977,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1312,10 +985,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1325,10 +995,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1336,10 +1003,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1349,10 +1013,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1360,10 +1021,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1373,10 +1031,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1384,10 +1039,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1397,10 +1049,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1408,10 +1057,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1421,10 +1067,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1432,10 +1075,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1445,10 +1085,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1456,10 +1093,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1469,10 +1103,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1480,10 +1111,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1493,10 +1121,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1504,10 +1129,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1517,10 +1139,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1528,10 +1147,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1541,10 +1157,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1552,10 +1165,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1565,10 +1175,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1576,10 +1183,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1589,10 +1193,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1600,10 +1201,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1613,10 +1211,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1624,10 +1219,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1637,10 +1229,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1648,10 +1237,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1661,10 +1247,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1672,10 +1255,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1685,10 +1265,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1696,10 +1273,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1709,10 +1283,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1720,10 +1291,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1733,10 +1301,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1744,10 +1309,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1757,10 +1319,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1768,10 +1327,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1781,10 +1337,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1792,10 +1345,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1805,10 +1355,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1816,10 +1363,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1829,10 +1373,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1840,10 +1381,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1853,10 +1391,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1864,10 +1399,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1877,10 +1409,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1888,10 +1417,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1901,10 +1427,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1912,10 +1435,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1925,10 +1445,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1936,10 +1453,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1949,10 +1463,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1960,10 +1471,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1973,10 +1481,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -1984,10 +1489,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -1997,10 +1499,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2008,10 +1507,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2021,10 +1517,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2032,10 +1525,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2045,10 +1535,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2056,10 +1543,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2069,10 +1553,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2080,10 +1561,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2093,10 +1571,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2104,10 +1579,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2117,10 +1589,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2128,10 +1597,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2141,10 +1607,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2152,10 +1615,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2165,10 +1625,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2176,10 +1633,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2189,10 +1643,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2200,10 +1651,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2213,10 +1661,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2224,10 +1669,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2237,10 +1679,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2248,10 +1687,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2261,10 +1697,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2272,10 +1705,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2285,10 +1715,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2296,10 +1723,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2309,10 +1733,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2320,10 +1741,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2333,10 +1751,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2344,10 +1759,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2357,10 +1769,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2368,10 +1777,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2381,10 +1787,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2392,10 +1795,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2405,10 +1805,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2416,10 +1813,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2429,10 +1823,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2440,10 +1831,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2453,10 +1841,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2464,10 +1849,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2477,10 +1859,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2488,10 +1867,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2501,10 +1877,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2512,10 +1885,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2525,10 +1895,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2536,10 +1903,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2549,10 +1913,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2560,10 +1921,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2573,10 +1931,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2584,10 +1939,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2597,10 +1949,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2608,10 +1957,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2621,10 +1967,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2632,10 +1975,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2645,10 +1985,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2656,10 +1993,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2669,10 +2003,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2680,10 +2011,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2693,10 +2021,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2704,10 +2029,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2717,10 +2039,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2728,10 +2047,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2741,10 +2057,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2752,10 +2065,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2765,10 +2075,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2776,10 +2083,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2789,10 +2093,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2800,10 +2101,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2813,10 +2111,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2824,10 +2119,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2837,10 +2129,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2848,10 +2137,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2861,10 +2147,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2872,10 +2155,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2885,10 +2165,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2896,10 +2173,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2909,10 +2183,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2920,10 +2191,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2933,10 +2201,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2944,10 +2209,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2957,10 +2219,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2968,10 +2227,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -2981,10 +2237,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -2992,10 +2245,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3005,10 +2255,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3016,10 +2263,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3029,10 +2273,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3040,10 +2281,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3053,10 +2291,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3064,10 +2299,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3077,10 +2309,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3088,10 +2317,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3101,10 +2327,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3112,10 +2335,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3125,10 +2345,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3136,10 +2353,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3149,10 +2363,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3160,10 +2371,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3173,10 +2381,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3184,10 +2389,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3197,10 +2399,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3208,10 +2407,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3221,10 +2417,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3232,10 +2425,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3245,10 +2435,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3256,10 +2443,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3269,10 +2453,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3280,10 +2461,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3293,10 +2471,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3304,10 +2479,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3317,10 +2489,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3328,10 +2497,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3341,10 +2507,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3352,10 +2515,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3365,10 +2525,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3376,10 +2533,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3389,10 +2543,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3400,10 +2551,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3413,10 +2561,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3424,10 +2569,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3437,10 +2579,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3448,10 +2587,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3461,10 +2597,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3472,10 +2605,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3485,10 +2615,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3496,10 +2623,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3509,10 +2633,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3520,10 +2641,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3533,10 +2651,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3544,10 +2659,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3557,10 +2669,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3568,10 +2677,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3581,10 +2687,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3592,10 +2695,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3605,10 +2705,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3616,10 +2713,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3629,10 +2723,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3640,10 +2731,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3653,10 +2741,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3664,10 +2749,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3677,10 +2759,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3688,10 +2767,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3701,10 +2777,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3712,10 +2785,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3725,10 +2795,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3736,10 +2803,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3749,10 +2813,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3760,10 +2821,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3773,10 +2831,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3784,10 +2839,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3797,10 +2849,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3808,10 +2857,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3821,10 +2867,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3832,10 +2875,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3845,10 +2885,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3856,10 +2893,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3869,10 +2903,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3880,10 +2911,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3893,10 +2921,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3904,10 +2929,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3917,10 +2939,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3928,10 +2947,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3941,10 +2957,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3952,10 +2965,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3965,10 +2975,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -3976,10 +2983,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -3989,10 +2993,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4000,10 +3001,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4013,10 +3011,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4024,10 +3019,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4037,10 +3029,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4048,10 +3037,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4061,10 +3047,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4072,10 +3055,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4085,10 +3065,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4096,10 +3073,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4109,10 +3083,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4120,10 +3091,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4133,10 +3101,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4144,10 +3109,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4157,10 +3119,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4168,10 +3127,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4181,10 +3137,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4192,10 +3145,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4205,10 +3155,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4216,10 +3163,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4229,10 +3173,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4240,10 +3181,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4253,10 +3191,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4264,10 +3199,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4277,10 +3209,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4288,10 +3217,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4301,10 +3227,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4312,10 +3235,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4325,10 +3245,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4336,10 +3253,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4349,10 +3263,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4360,10 +3271,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4373,10 +3281,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4384,10 +3289,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4397,10 +3299,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4408,10 +3307,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4421,10 +3317,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4432,10 +3325,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4445,10 +3335,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4456,10 +3343,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4469,10 +3353,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4480,10 +3361,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4493,10 +3371,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4504,10 +3379,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4517,10 +3389,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4528,10 +3397,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4541,10 +3407,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4552,10 +3415,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4565,10 +3425,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4576,10 +3433,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4589,10 +3443,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4600,10 +3451,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4613,10 +3461,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4624,10 +3469,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4637,10 +3479,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4648,10 +3487,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4661,10 +3497,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4672,10 +3505,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4685,10 +3515,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4696,10 +3523,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4709,10 +3533,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4720,10 +3541,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4733,10 +3551,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4744,10 +3559,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4757,10 +3569,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4768,10 +3577,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4781,10 +3587,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4792,10 +3595,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4805,10 +3605,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4816,10 +3613,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -4829,10 +3623,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       },
@@ -4840,10 +3631,7 @@
         "js_module": "logging.js",
         "js_function": "nop",
         "forwarding_required": "always",
-        "authn_policies": [
-          "jwt",
-          "user_cert"
-        ],
+        "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
       }
