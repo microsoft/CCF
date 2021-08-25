@@ -52,12 +52,12 @@ class HttpSig(httpx.Auth):
             ]
         ).encode("utf-8")
         signature = self.private_key.sign(
-            signature_algorithm=ec.ECDSA(algorithm=hashes.SHA256()), data=string_to_sign
+            signature_algorithm=ec.ECDSA(algorithm=hashes.SHA384()), data=string_to_sign
         )
         b64signature = base64.b64encode(signature).decode("ascii")
         request.headers[
             "authorization"
-        ] = f'Signature keyId="{self.key_id}",algorithm="ecdsa-sha256",headers="(request-target) digest content-length",signature="{b64signature}"'
+        ] = f'Signature keyId="{self.key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
         print(request.headers["authorization"])
         yield request
 
@@ -397,10 +397,10 @@ class RequestClient:
         self.session_auth = session_auth
         self.signing_auth = signing_auth
         self.key_id = None
-        client_args = {"verify": self.ca}
+        cert = None
         if self.session_auth:
-            client_args["cert"] = (self.session_auth.cert, self.session_auth.key)
-        self.session = httpx.Client(**client_args)
+            cert = (self.session_auth.cert, self.session_auth.key)
+        self.session = httpx.Client(verify=self.ca, cert=cert)
         if self.signing_auth:
             with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
@@ -467,7 +467,7 @@ class RequestClient:
                 headers=extra_headers,
                 allow_redirects=request.allow_redirects,
                 timeout=timeout,
-                data=request_body,
+                content=request_body,
             )
         except httpx.ReadTimeout as exc:
             raise TimeoutError from exc
