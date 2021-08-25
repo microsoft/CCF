@@ -42,8 +42,7 @@ def test_missing_signature_header(network, args):
 def make_signature_corrupter(fn):
     class SignatureCorrupter(ccf.clients.HttpSig):
         def auth_flow(self, request):
-            r = super(SignatureCorrupter, self).auth_flow(request)
-            yield fn(r)
+            yield fn(next(super(SignatureCorrupter, self).auth_flow(request)))
 
     return SignatureCorrupter
 

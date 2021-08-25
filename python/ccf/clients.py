@@ -381,6 +381,8 @@ class RequestClient:
     CCF default client and wrapper around Python Requests, handling HTTP signatures.
     """
 
+    _auth_provider = HttpSig
+
     def __init__(
         self,
         host: str,
@@ -430,7 +432,7 @@ class RequestClient:
                     )
                 else:
                     extra_headers["Content-Length"] = "0"
-            auth = HttpSig(self.key_id, open(self.signing_auth.key, "rb").read())
+            auth = self._auth_provider(self.key_id, open(self.signing_auth.key, "rb").read())
 
         request_body = None
         if request.body is not None:
