@@ -281,10 +281,12 @@ def test_node_cert_renewal(network, args):
                 )
                 == node.node_id
             )
-            now = datetime.now()
+            now = datetime.now().replace(
+                microsecond=0
+            )  # Truncate microseconds which are not reflected in RFC5280 UTCTime
             six_months_from_now = now + timedelta(days=180)
             utc_now = infra.crypto.datetime_as_UTCtime(now)
-            utc_six_months_from_now_utc = infra.crypto.datetime_as_UTCtime(
+            utc_six_months_from_now = infra.crypto.datetime_as_UTCtime(
                 six_months_from_now
             )
 
@@ -292,15 +294,18 @@ def test_node_cert_renewal(network, args):
                 node,
                 node.node_id,
                 valid_from=str(utc_now),
-                valid_to=str(utc_six_months_from_now_utc),
+                valid_to=str(utc_six_months_from_now),
             )
+
             node_cert_tls_after = node.get_tls_certificate_pem()
             assert (
                 node_cert_tls_before != node_cert_tls_after
             ), "Node TLS certificate should be updated after renewal"
-
-            # Long-connected client is still connected after certificate renewal
-            c.get("/node/network/nodes")
+            valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                node_cert_tls_after
+            )
+            assert valid_from == now
+            assert valid_to == six_months_from_now
 
             assert (
                 infra.crypto.compute_public_key_der_hash_hex_from_pem(
@@ -308,6 +313,9 @@ def test_node_cert_renewal(network, args):
                 )
                 == node.node_id
             )
+
+            # Long-connected client is still connected after certificate renewal
+            c.get("/node/network/nodes")
 
 
 def run(args):
