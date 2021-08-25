@@ -446,6 +446,15 @@ int main(int argc, char** argv)
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
+  size_t node_cert_maximum_validity_period_days = 365;
+  start
+    ->add_option(
+      "--node-cert-max-validity-days",
+      node_cert_maximum_validity_period_days,
+      "Maximum number of days node certificates should be valid for.")
+    ->check(CLI::PositiveNumber)
+    ->type_name("UINT");
+
   auto join = app.add_subcommand("join", "Join existing network");
   join->configurable();
 
@@ -821,6 +830,8 @@ int main(int argc, char** argv)
           files::slurp_string(constitution_path);
       }
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
+      ccf_config.genesis.node_cert_maximum_validity_period_days =
+        node_cert_maximum_validity_period_days;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",

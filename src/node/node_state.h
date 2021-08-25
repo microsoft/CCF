@@ -1667,6 +1667,8 @@ namespace ccf
 
         ServiceConfiguration::Nodes nodes;
         nodes.node_endorsement_on_trust = node_endorsement_on_trust;
+        nodes.cert_maximum_validity_period_days =
+          config.genesis.node_cert_maximum_validity_period_days;
 
         genesis_info.configuration.nodes = nodes;
         create_params.genesis_info = genesis_info;
