@@ -4,13 +4,23 @@
 
 set +e
 
-echo "DRIVER INFO:"
-modinfo intel_sgx
+if grep -q "^flags.*sgx.*" < /proc/cpuinfo ; then
+    echo "LINUX KERNEL WITH BUILT-IN SGX SUPPORT (5.11+):"
+    uname -r
+else
+    # Pre 5.11 kernel
+    echo "DRIVER INFO:"
+    modinfo intel_sgx
+    echo ""
+    echo ""
+    echo "DRIVER LOADED:"
+    lsmod | grep intel_sgx || echo "Not loaded"
+fi
 echo ""
 echo ""
 
-echo "DRIVER LOADED:"
-lsmod | grep intel_sgx || echo "Not loaded"
+echo "AESM DAEMON:"
+systemctl --no-pager status aesmd 2>/dev/null || echo "Not running"
 echo ""
 echo ""
 
