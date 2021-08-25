@@ -726,8 +726,8 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME ledger_operation
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ledger_operation.py
+    NAME e2e_operations
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_operations.py
     CONSENSUS cft
   )
 
