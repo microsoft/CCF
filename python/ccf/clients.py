@@ -48,18 +48,22 @@ from typing import Callable, DefaultDict, FrozenSet, List, Tuple
 
 
 def sign_headers(
-        key_id: str, sign: Callable[[bytes], bytes], method: str, path: str,
-        headers_to_sign: Tuple[Tuple[str, str], ...],
-        headers_to_ignore: FrozenSet[str] = frozenset(('keep-alive',
-                                                       'transfer-encoding', 'connection'))) \
-        -> Tuple[Tuple[str, str], ...]:
+    key_id: str,
+    sign: Callable[[bytes], bytes],
+    method: str,
+    path: str,
+    headers_to_sign: Tuple[Tuple[str, str], ...],
+    headers_to_ignore: FrozenSet[str] = frozenset(
+        ("keep-alive", "transfer-encoding", "connection")
+    ),
+) -> Tuple[Tuple[str, str], ...]:
     created = str(int(datetime.now().timestamp()))
 
     def _signature_input() -> Tuple[Tuple[str, str], ...]:
         method_lower = method.lower()
         headers_with_pseudo_headers = (
-            ('(created)', created),
-            ('(request-target)', f'{method_lower} {path}'),
+            ("(created)", created),
+            ("(request-target)", f"{method_lower} {path}"),
         ) + headers_to_sign
 
         headers_lists: DefaultDict[str, List[str]] = defaultdict(list)
@@ -67,19 +71,23 @@ def sign_headers(
             key_lower = key.lower()
             if key_lower not in headers_to_ignore:
                 headers_lists[key_lower].append(value.strip())
-        return tuple((key, ', '.join(values)) for key, values in headers_lists.items())
+        return tuple((key, ", ".join(values)) for key, values in headers_lists.items())
 
     signature_input = _signature_input()
 
-    signature = b64encode(sign('\n'.join(
-        f'{key}: {value}' for key, value in signature_input
-    ).encode('ascii'))).decode('ascii')
+    signature = b64encode(
+        sign(
+            "\n".join(f"{key}: {value}" for key, value in signature_input).encode(
+                "ascii"
+            )
+        )
+    ).decode("ascii")
 
-    headers = ' '.join(key for key, _ in signature_input)
-    signature = \
-        f'keyId="{key_id}", created={created}, headers="{headers}", signature="{signature}"'
+    headers = " ".join(key for key, _ in signature_input)
+    signature = f'keyId="{key_id}", created={created}, headers="{headers}", signature="{signature}"'
 
-    return (('signature', signature),) + headers_to_sign
+    return (("signature", signature),) + headers_to_sign
+
 
 class HttpSignature(httpx.Auth):
     requires_request_body = True
@@ -87,15 +95,27 @@ class HttpSignature(httpx.Auth):
     def __init__(self, key_id, pem_private_key):
         self.key_id = key_id
         self.private_key = load_pem_private_key(
-            pem_private_key, password=None, backend=default_backend())
+            pem_private_key, password=None, backend=default_backend()
+        )
 
     def auth_flow(self, request):
-        body_digest = b64encode(hashlib.sha256(request.content).digest()).decode('ascii')
-        headers_to_sign = tuple(request.headers.items()) + (('digest', f'SHA256={body_digest}'),)
-        request.headers = httpx.Headers(sign_headers(
-            self.key_id, self.private_key.sign, str(request.method),
-            request.url.raw_path, headers_to_sign))
+        body_digest = b64encode(hashlib.sha256(request.content).digest()).decode(
+            "ascii"
+        )
+        headers_to_sign = tuple(request.headers.items()) + (
+            ("digest", f"SHA256={body_digest}"),
+        )
+        request.headers = httpx.Headers(
+            sign_headers(
+                self.key_id,
+                self.private_key.sign,
+                str(request.method),
+                request.url.raw_path,
+                headers_to_sign,
+            )
+        )
         yield request
+
 
 class HttpSig(httpx.Auth):
     requires_request_body = True
@@ -103,20 +123,31 @@ class HttpSig(httpx.Auth):
     def __init__(self, key_id, pem_private_key):
         self.key_id = key_id
         self.private_key = load_pem_private_key(
-            pem_private_key, password=None, backend=default_backend())
+            pem_private_key, password=None, backend=default_backend()
+        )
 
     def auth_flow(self, request):
-        body_digest = b64encode(hashlib.sha256(request.content).digest()).decode('ascii')
+        body_digest = b64encode(hashlib.sha256(request.content).digest()).decode(
+            "ascii"
+        )
         request.headers["digest"] = f"SHA-256={body_digest}"
-        string_to_sign = "\n".join([
-            f"(request-target): {request.method} {request.url}",
-            f"digest: SHA-256={body_digest}"
-            f"content-length: {len(request.content)}"
-        ]).encode('utf-8')
+        string_to_sign = "\n".join(
+            [
+                f"(request-target): {request.method.lower()} {request.url.raw_path.decode('utf-8')}",
+                f"digest: SHA-256={body_digest}",
+                f"content-length: {len(request.content)}",
+            ]
+        ).encode("utf-8")
+        print("YYYYYYYYYY")
         print(string_to_sign)
-        signature = self.private_key.sign(signature_algorithm=ec.ECDSA(algorithm=hashes.SHA256()), data=string_to_sign)
-        b64signature = b64encode(signature).decode('ascii')
-        request.headers["authorization"] = f'Signature keyId={self.key_id},algorithm=hs2019,headers="(request-target) digest content-length",signature="{b64signature}"'
+        print("YYYYYYYYYY")
+        signature = self.private_key.sign(
+            signature_algorithm=ec.ECDSA(algorithm=hashes.SHA256()), data=string_to_sign
+        )
+        b64signature = b64encode(signature).decode("ascii")
+        request.headers[
+            "authorization"
+        ] = f'Signature keyId="{self.key_id}",algorithm="ecdsa-sha256",headers="(request-target) digest content-length",signature="{b64signature}"'
         print(request.headers["authorization"])
         yield request
 
@@ -193,7 +224,7 @@ class HTTPSignatureAuth(requests.auth.AuthBase):
         headers=None,
         passphrase=None,
         expires_in=None,
-        spy=None
+        spy=None,
     ):
         """
         :param typing.Union[bytes, string] passphrase: The passphrase for an encrypted RSA private key
@@ -258,7 +289,11 @@ class HTTPSignatureAuth(requests.auth.AuthBase):
                 else:
                     value = request.headers[header]
                 sts.append("{k}: {v}".format(k=header.lower(), v=value))
-        return "\n".join(sts).encode()
+        ss = "\n".join(sts).encode()
+        print("XXXXX")
+        print(ss)
+        print("XXXXX")
+        return ss
 
     def create_signature_string(self, request):
         created_timestamp = int(time.time())
@@ -287,15 +322,17 @@ class HTTPSignatureAuth(requests.auth.AuthBase):
         return ",".join('{}="{}"'.format(k, v) for k, v in sig_struct)
 
     def __call__(self, request):
-        r = copy.deepcopy(request)
         request.headers["Authorization"] = "Signature " + self.create_signature_string(
             request
         )
         print(request.headers)
         print(request.headers["authorization"])
-        self.spy.auth_flow(r)
-        print(r.headers)
-        print(r.headers["authorization"])
+        print("SPYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
+        r = copy.deepcopy(request)
+        rs = self.spy.auth_flow(r)
+        rs = next(rs)
+        print(rs.headers)
+        print(rs.headers["authorization"])
         sys.exit(0)
         return request
 
@@ -742,10 +779,10 @@ class RequestClient:
                 key=open(self.signing_auth.key, "rb").read(),
                 key_id=self.key_id,
                 headers=["(request-target)", "Digest", "Content-Length"],
-                spy=HttpSig(self.key_id, open(self.signing_auth.key, "rb").read())
+                spy=HttpSig(self.key_id, open(self.signing_auth.key, "rb").read()),
             )
-            #auth = HttpSig(self.key_id, open(self.signing_auth.key, "rb").read())
-            auth=auth_value
+            auth = HttpSig(self.key_id, open(self.signing_auth.key, "rb").read())
+            # auth=auth_value
 
         request_body = None
         if request.body is not None:
