@@ -539,7 +539,8 @@ namespace ccf
       const bool is_bft =
         consensus != nullptr && consensus->type() == ConsensusType::BFT;
 
-      // Avoid calling find_endpoint (or doing any of this work) in non-BFT situations
+      // Avoid calling find_endpoint (or doing any of this work) in non-BFT
+      // situations
       if (is_bft)
       {
         auto endpoint = endpoints.find_endpoint(tx, *ctx);
