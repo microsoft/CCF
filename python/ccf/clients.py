@@ -374,6 +374,9 @@ class CurlClient:
 
             return Response.from_raw(rc.stdout)
 
+    def close(self):
+        pass
+
 
 class RequestClient:
     """
@@ -476,6 +479,9 @@ class RequestClient:
             raise RuntimeError("Request client failed with unexpected error") from exc
 
         return Response.from_requests_response(response)
+
+    def close(self):
+        self.session.close()
 
 
 class CCFClient:
@@ -687,7 +693,12 @@ class CCFClient:
 
         ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
+    def close(self):
+        self.client_impl.close()
+
 
 @contextlib.contextmanager
 def client(*args, **kwargs):
-    yield CCFClient(*args, **kwargs)
+    c = CCFClient(*args, **kwargs)
+    yield c
+    c.close()
