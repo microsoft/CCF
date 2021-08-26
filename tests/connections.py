@@ -110,7 +110,11 @@ def run(args):
                                     # Long enough to make sure that the connection
                                     # we then re-use to query node metrics after we've
                                     # hit the cap stays alive while we ramp up
-                                    limits=httpx.Limits(keepalive_expiry=30),
+                                    limits=httpx.Limits(
+                                        max_connections=1,
+                                        max_keepalive_connections=1,
+                                        keepalive_expiry=30,
+                                    ),
                                 )
                             )
                         )
@@ -140,6 +144,7 @@ def run(args):
                     except (CCFConnectionException, RuntimeError) as e:
                         flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}/{target}: {e}")
+                        clients[-1].close()
                         clients.pop(-1)
                         if consecutive_failures < 5:
                             # Maybe got unlucky and tried to create a session while many files were open - keep trying
@@ -157,8 +162,8 @@ def run(args):
                 LOG.success(
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
-                print(clients[-1].client_impl.session._transport._pool.__dict__)
-                r = clients[-1].get("/node/metrics")
+                print(clients[-2].client_impl.session._transport._pool.__dict__)
+                r = clients[-2].get("/node/metrics")
                 assert r.status_code == http.HTTPStatus.OK, r.status_code
                 peak_metrics = r.body.json()["sessions"]
                 assert peak_metrics["active"] <= peak_metrics["peak"], peak_metrics
