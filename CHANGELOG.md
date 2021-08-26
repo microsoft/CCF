@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added a new `/node/version` endpoint to return the CCF version of a node (#2582).
 - Added `get_untrusted_host_time_v1` to the C++ API for CCF endpoints to call (#2915).
 
+### Changed
+
+- Errors in HTTP signature parsing are now reported to the client (#2911).
+
 ### Bugfix
 
 - Fixed Raft issue where a partitioned node could fail to re-join a network successful on de-partitioning (#2835).
