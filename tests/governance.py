@@ -276,13 +276,13 @@ def test_node_cert_renewal(network, args):
     future_allowed = now + timedelta(days=args.node_cert_max_validity_days - 1)
     future_forbidden = now + timedelta(days=args.node_cert_max_validity_days + 1)
 
-    test_vector = [
+    test_vectors = [
         (now, future_allowed, None),
         (now, future_forbidden, infra.proposal.ProposalNotAccepted),
         (future_allowed, now, infra.proposal.ProposalNotCreated),
     ]
 
-    for (before_date, after_date, expected_exception) in test_vector:
+    for (before_date, after_date, expected_exception) in test_vectors:
         for node in network.get_joined_nodes():
             with node.client() as c:
                 c.get("/node/network/nodes")

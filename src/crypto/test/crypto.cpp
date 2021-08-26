@@ -658,7 +658,7 @@ TEST_CASE("ASN1 time")
   auto next_year_time = time;
   next_year_time.tm_year++;
 
-  std::vector<TimeTest> test_vector{
+  std::vector<TimeTest> test_vectors{
     {{time, next_day_time}, true}, // Valid: Next day
     {{time, time}, false}, // Invalid: Same date
     {{next_day_time, time}, false}, // Invalid: to is before from
@@ -666,7 +666,7 @@ TEST_CASE("ASN1 time")
     {{time, next_year_time, 100}, false}, // Valid: Next day not within 100 days
   };
 
-  for (auto& data : test_vector)
+  for (auto& data : test_vectors)
   {
     auto* from = &data.input.from;
     auto* to = &data.input.to;
