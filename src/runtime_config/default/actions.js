@@ -776,6 +776,21 @@ const actions = new Map([
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(nodeInfo)
           );
+
+          // Also generate and record service-endorsed node certificate from node CSR
+          if (
+            nodeInfo.certificate_signing_request !== undefined &&
+            serviceConfig.consensus !== "BFT"
+          ) {
+            // Note: CSR is only present from 2.x
+            const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
+              nodeInfo.certificate_signing_request
+            );
+            ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
+              ccf.strToBuf(args.node_id),
+              ccf.strToBuf(endorsed_node_cert)
+            );
+          }
         }
       }
     ),

@@ -110,7 +110,6 @@ void keep_earliest_append_entries_for_each_target(
     std::make_shared<aft::StubSnapshotter>(), \
     nullptr, \
     nullptr, \
-    cert, \
     std::make_shared<aft::State>(node_id##N), \
     nullptr, \
     nullptr, \
