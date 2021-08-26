@@ -16,6 +16,7 @@
 #include <chrono>
 #include <functional>
 #include <limits>
+#include <list>
 #include <memory>
 #include <set>
 #include <string>
@@ -79,6 +80,8 @@ namespace kv
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
+  using ReconfigurationId = uint64_t;
+
   struct Configuration
   {
     struct NodeInfo
@@ -99,6 +102,7 @@ namespace kv
     ccf::SeqNo idx;
     Nodes nodes;
     uint32_t bft_offset;
+    ReconfigurationId rid;
   };
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
@@ -134,7 +138,7 @@ namespace kv
      {ReplicaState::Retiring, "Retiring"}});
 
   DECLARE_JSON_TYPE(Configuration);
-  DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);
+  DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, bft_offset, rid);
 
   struct ConsensusDetails
   {
@@ -147,8 +151,6 @@ namespace kv
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
   DECLARE_JSON_OPTIONAL_FIELDS(ConsensusDetails, learners);
-
-  using ReconfigurationId = uint64_t;
 
   struct NetworkConfiguration
   {
@@ -174,12 +176,13 @@ namespace kv
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
-    virtual void add_network_configuration(
+    virtual void reconfigure(
       ccf::SeqNo seqno, const NetworkConfiguration& config) = 0;
     virtual void add_resharing_result(
       ccf::SeqNo seqno,
       ReconfigurationId rid,
       const ccf::ResharingResult& result) = 0;
+    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) = 0;
   };
 
   class ConsensusHook
@@ -707,6 +710,29 @@ namespace kv
 }
 
 FMT_BEGIN_NAMESPACE
+
+template <>
+struct formatter<kv::Configuration::Nodes>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::Configuration::Nodes& nodes, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    std::set<ccf::NodeId> node_ids;
+    for (auto& [nid, _] : nodes)
+    {
+      node_ids.insert(nid);
+    }
+    return format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
+  }
+};
+
 template <>
 struct formatter<kv::NetworkConfiguration>
 {
@@ -724,4 +750,5 @@ struct formatter<kv::NetworkConfiguration>
       ctx.out(), "{}:{{{}}}", config.rid, fmt::join(config.nodes, " "));
   }
 };
+
 FMT_END_NAMESPACE

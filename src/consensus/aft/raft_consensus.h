@@ -135,10 +135,15 @@ namespace aft
       aft->add_configuration(seqno, conf, learners);
     }
 
-    void add_network_configuration(
+    bool orc(kv::ReconfigurationId rid, const NodeId& node_id) override
+    {
+      return aft->orc(rid, node_id);
+    }
+
+    void reconfigure(
       ccf::SeqNo seqno, const kv::NetworkConfiguration& config) override
     {
-      return aft->add_network_configuration(seqno, config);
+      return aft->reconfigure(seqno, config);
     }
 
     Configuration::Nodes get_latest_configuration() override

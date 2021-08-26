@@ -36,7 +36,8 @@ namespace ccf
       {
         if (opt_rr.has_value())
         {
-          LOG_DEBUG_FMT("New resharing result for configuration #{}.", rid);
+          LOG_DEBUG_FMT(
+            "Resharings: new resharing result for configuration #{}.", rid);
           results.try_emplace(rid, opt_rr.value());
         }
       }

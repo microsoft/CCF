@@ -175,6 +175,11 @@ namespace aft
 
     void close_all_outgoing() override {}
 
+    bool have_channel(const NodeId& nid) const override
+    {
+      return true;
+    }
+
     bool send_authenticated(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
