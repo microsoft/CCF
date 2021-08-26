@@ -11,24 +11,25 @@ namespace asynchost
 {
   class TimeUpdaterImpl
   {
-    using TClock = std::chrono::steady_clock;
-    TClock::time_point creation_time;
+    using TClock = std::chrono::system_clock;
 
-    std::atomic<std::chrono::microseconds> us_since_creation;
+    std::atomic<std::chrono::microseconds> time_now;
 
   public:
-    TimeUpdaterImpl() : creation_time(TClock::now()) {}
+    TimeUpdaterImpl()
+    {
+      on_timer();
+    }
 
     std::atomic<std::chrono::microseconds>* get_value()
     {
-      return &us_since_creation;
+      return &time_now;
     }
 
     void on_timer()
     {
-      const auto now = TClock::now();
-      us_since_creation = std::chrono::duration_cast<std::chrono::microseconds>(
-        now - creation_time);
+      time_now = std::chrono::duration_cast<std::chrono::microseconds>(
+        TClock::now().time_since_epoch());
     }
   };
 
