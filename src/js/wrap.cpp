@@ -489,6 +489,52 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_network_generate_endorsed_certificate(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    auto network =
+      static_cast<ccf::NetworkState*>(JS_GetOpaque(this_val, network_class_id));
+    if (network == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Network state is not set");
+    }
+
+    auto global_obj = Context::JSWrappedValue(ctx, JS_GetGlobalObject(ctx));
+    auto ccf =
+      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
+    auto node_ =
+      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, ccf, "node"));
+
+    auto node =
+      static_cast<ccf::AbstractNodeState*>(JS_GetOpaque(node_, node_class_id));
+
+    if (node == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Node state is not set");
+    }
+
+    auto csr_cstr = JS_ToCString(ctx, argv[0]);
+    if (csr_cstr == nullptr)
+    {
+      throw JS_ThrowTypeError(ctx, "csr argument is not a string");
+    }
+    auto csr = crypto::Pem(csr_cstr);
+    JS_FreeCString(ctx, csr_cstr);
+
+    auto endorsed_cert = node->generate_endorsed_certificate(
+      csr, network->identity->priv_key, network->identity->cert);
+
+    return JS_NewString(ctx, endorsed_cert.str().c_str());
+  }
+
   JSValue js_network_latest_ledger_secret_seqno(
     JSContext* ctx,
     JSValueConst this_val,
@@ -1392,6 +1438,19 @@ namespace js
           js_network_latest_ledger_secret_seqno,
           "getLatestLedgerSecretSeqno",
           0));
+
+      if (node_state != nullptr)
+      {
+        JS_SetPropertyStr(
+          ctx,
+          network,
+          "generateEndorsedCertificate",
+          JS_NewCFunction(
+            ctx,
+            js_network_generate_endorsed_certificate,
+            "generateEndorsedCertificate",
+            0));
+      }
     }
 
     if (rpc_ctx != nullptr)

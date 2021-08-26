@@ -75,8 +75,7 @@ struct CCFConfig
   };
   Joining joining = {};
 
-  std::string subject_name;
-  std::vector<crypto::SubjectAltName> subject_alternative_names;
+  crypto::CertificateSubjectIdentity node_certificate_subject_identity;
 
   size_t jwt_key_refresh_interval_s;
 
@@ -106,8 +105,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   signature_intervals,
   genesis,
   joining,
-  subject_name,
-  subject_alternative_names,
+  node_certificate_subject_identity,
   jwt_key_refresh_interval_s,
   curve_id);
 

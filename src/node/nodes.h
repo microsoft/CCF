@@ -4,6 +4,7 @@
 
 #include "ccf/entity_id.h"
 #include "crypto/key_pair.h"
+#include "crypto/san.h"
 #include "crypto/verifier.h"
 #include "entities.h"
 #include "kv/map.h"
@@ -37,8 +38,6 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
-    /// Node certificate
-    crypto::Pem cert;
     /// Node enclave quote
     QuoteInfo quote_info;
     /// Node encryption public key, used to distribute ledger re-keys.
@@ -50,15 +49,43 @@ namespace ccf
         trusted */
     std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
 
-    /** Code identity for the node **/
-    std::optional<std::string> code_digest;
+    /// Code identity for the node
+    std::optional<std::string> code_digest = std::nullopt;
+
+    /**
+     *  Fields below are added in 2.x
+     */
+
+    /// Node certificate signing request
+    std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
+
+    /// Public key
+    std::optional<crypto::Pem> public_key = std::nullopt;
+
+    /**
+     * Fields below are deprecated
+     */
+
+    /** Deprecated as of 2.x.
+     * Node certificate. Only set for 1.x releases. Further releases record
+     * node identity in `public_key` field. Service-endorsed certificate is
+     * recorded in "public:ccf.nodes.endorsed_certificates" table */
+    std::optional<crypto::Pem> cert = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, cert, quote_info, encryption_pub_key, status);
-  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno, code_digest);
+    NodeInfo, quote_info, encryption_pub_key, status);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NodeInfo,
+    cert,
+    ledger_secret_seqno,
+    code_digest,
+    certificate_signing_request,
+    public_key);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
+  using NodeEndorsedCertificates =
+    kv::RawCopySerialisedMap<NodeId, crypto::Pem>;
 
   inline NodeId compute_node_id_from_pubk_der(
     const std::vector<uint8_t>& node_pubk_der)
