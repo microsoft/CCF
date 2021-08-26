@@ -58,7 +58,6 @@ class HttpSig(httpx.Auth):
         request.headers[
             "authorization"
         ] = f'Signature keyId="{self.key_id}",algorithm="ecdsa-sha256",headers="(request-target) digest content-length",signature="{b64signature}"'
-        print(request.headers["authorization"])
         yield request
 
 
