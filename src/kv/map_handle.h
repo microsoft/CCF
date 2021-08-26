@@ -148,6 +148,27 @@ namespace kv
       read_handle.foreach(g);
     }
 
+    /** Iterate over all keys in the map.
+     *
+     * Similar to @c foreach but the functor takes a single key argument rather
+     * than a key and value. Avoids deserialisation of values.
+     *
+     * @tparam F Functor type. Should usually be derived implicitly from f
+     * @param f Functor instance, taking (const K& k) and returning
+     * a bool. Return value determines whether the iteration should continue
+     * (true) or stop (false)
+     */
+    template <class F>
+    void foreach_key(F&& f)
+    {
+      auto g = [&](
+                 const kv::serialisers::SerialisedEntry& k_rep,
+                 const kv::serialisers::SerialisedEntry&) {
+        return f(KSerialiser::from_serialised(k_rep));
+      };
+      read_handle.foreach(g);
+    }
+
     /** Returns number of entries in this map.
      *
      * This is the count of all currently present keys, including both those

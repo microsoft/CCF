@@ -515,8 +515,8 @@ namespace ccfapp
       {
         std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
 
-        endpoints->foreach([this, &matches, &key, &rpc_ctx](
-                             const auto& other_key, const auto& properties) {
+        endpoints->foreach_key([this, &endpoints, &matches, &key, &rpc_ctx](
+                             const auto& other_key) {
           if (key.verb == other_key.verb)
           {
             const auto opt_spec =
@@ -549,7 +549,7 @@ namespace ccfapp
 
                 auto endpoint = std::make_shared<JSDynamicEndpoint>();
                 endpoint->dispatch = other_key;
-                endpoint->properties = properties;
+                endpoint->properties = endpoints->get(other_key).value();
                 instantiate_authn_policies(*endpoint);
                 matches.push_back(endpoint);
               }
