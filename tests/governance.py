@@ -169,57 +169,6 @@ def test_node_ids(network, args):
         return network
 
 
-@reqs.description("Checking service principals proposals")
-def test_service_principals(network, args):
-    node = network.find_node_by_role()
-
-    principal_id = "0xdeadbeef"
-
-    # Initially, there is nothing in this table
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert "public:ccf.gov.service_principals" not in latest_public_tables
-
-    # Create and accept a proposal which populates an entry in this table
-    principal_data = {"name": "Bob", "roles": ["Fireman", "Zookeeper"]}
-    proposal = {
-        "actions": [
-            {
-                "name": "set_service_principal",
-                "args": {"id": principal_id, "data": principal_data},
-            }
-        ]
-    }
-    ballot = {"ballot": "export function vote(proposal, proposer_id) { return true; }"}
-    proposal = network.consortium.get_any_active_member().propose(node, proposal)
-    network.consortium.vote_using_majority(node, proposal, ballot)
-
-    # Confirm it can be read
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert (
-        json.loads(
-            latest_public_tables["public:ccf.gov.service_principals"][
-                principal_id.encode()
-            ]
-        )
-        == principal_data
-    )
-
-    # Create and accept a proposal which removes an entry from this table
-    proposal = {
-        "actions": [{"name": "remove_service_principal", "args": {"id": principal_id}}]
-    }
-    proposal = network.consortium.get_any_active_member().propose(node, proposal)
-    network.consortium.vote_using_majority(node, proposal, ballot)
-
-    # Confirm it is gone
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert (
-        principal_id.encode()
-        not in latest_public_tables["public:ccf.gov.service_principals"]
-    )
-    return network
-
-
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
@@ -271,16 +220,17 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_create_endpoint(network, args)
-        test_consensus_status(network, args)
-        test_node_ids(network, args)
-        test_member_data(network, args)
-        test_quote(network, args)
-        test_user(network, args)
-        test_no_quote(network, args)
-        test_service_principals(network, args)
-        test_ack_state_digest_update(network, args)
-        test_invalid_client_signature(network, args)
+        for authenticate_session in (True, False):
+            network.consortium.set_authenticate_session(authenticate_session)
+            test_create_endpoint(network, args)
+            test_consensus_status(network, args)
+            test_node_ids(network, args)
+            test_member_data(network, args)
+            test_quote(network, args)
+            test_user(network, args)
+            test_no_quote(network, args)
+            test_ack_state_digest_update(network, args)
+            test_invalid_client_signature(network, args)
 
 
 if __name__ == "__main__":
