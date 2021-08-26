@@ -10,16 +10,17 @@ namespace crypto
 {
   namespace OpenSSL
   {
-    /** Validates that @time_before is not after @time_after.
-     * If @allowed_diff_days is set, the time difference (in days) between
-     * @time_before and @time_after should be less than or equal to its value.
+    /** Checks that two times are in chronological order, and optionally within
+     * a certain time range.
      *
-     * @param time_before The time to check.
-     * @param time_after The time to check against.
+     * @param time_before The time to check
+     * @param time_after The time to check against, which should be later than
+     * \p time_before
      * @param allowed_diff_days The maximum allowed difference in days
-     * (optional).
+     * (optional)
      *
-     * @return True if @time_before is not after @time_after @allowed_diff_days.
+     * @return True if \p time_before is chronologically before \p time_after,
+     * and within \p allowed_diff_days days.
      */
     static inline bool validate_chronological_times(
       const Unique_ASN1_TIME& time_before,
