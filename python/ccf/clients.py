@@ -531,7 +531,9 @@ class CCFClient:
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
         else:
-            self.client_impl = RequestClient(host, port, ca, session_auth, signing_auth)
+            self.client_impl = RequestClient(
+                host, port, ca, session_auth, signing_auth, **kwargs
+            )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)
