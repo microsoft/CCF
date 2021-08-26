@@ -271,18 +271,16 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        for authenticate_session in (True, False):
-            network.consortium.set_authenticate_session(authenticate_session)
-            test_create_endpoint(network, args)
-            test_consensus_status(network, args)
-            test_node_ids(network, args)
-            test_member_data(network, args)
-            test_quote(network, args)
-            test_user(network, args)
-            test_no_quote(network, args)
-            test_service_principals(network, args)
-            test_ack_state_digest_update(network, args)
-            test_invalid_client_signature(network, args)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_node_ids(network, args)
+        test_member_data(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_no_quote(network, args)
+        test_service_principals(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
 
 
 if __name__ == "__main__":
