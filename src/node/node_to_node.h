@@ -100,7 +100,10 @@ namespace ccf
       const NodeId& self_id,
       const crypto::Pem& network_cert,
       crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) = 0;
+      const std::optional<crypto::Pem>& node_cert = std::nullopt) = 0;
+
+    virtual void set_endorsed_node_cert(
+      const crypto::Pem& endorsed_node_cert) = 0;
 
     virtual bool send_encrypted(
       const NodeId& to,
@@ -148,7 +151,7 @@ namespace ccf
       const NodeId& self_id,
       const crypto::Pem& network_cert,
       crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) override
+      const std::optional<crypto::Pem>& node_cert = std::nullopt) override
     {
       CCF_ASSERT_FMT(
         !self.has_value(),
@@ -156,17 +159,24 @@ namespace ccf
         self.value(),
         self_id);
 
-      if (make_verifier(node_cert)->is_self_signed())
+      if (
+        node_cert.has_value() &&
+        make_verifier(node_cert.value())->is_self_signed())
       {
-        LOG_INFO_FMT(
+        LOG_FAIL_FMT(
           "Refusing to initialize node-to-node channels with self-signed node "
-          "certificate.");
+          "certificate");
         return;
       }
 
       self = self_id;
       channels = std::make_unique<ChannelManager>(
-        writer_factory, network_cert, node_kp, node_cert, self.value());
+        writer_factory, network_cert, node_kp, self.value(), node_cert);
+    }
+
+    void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert) override
+    {
+      channels->set_endorsed_node_cert(endorsed_node_cert);
     }
 
     void create_channel(
