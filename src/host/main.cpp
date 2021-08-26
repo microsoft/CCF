@@ -451,7 +451,7 @@ int main(int argc, char** argv)
     ->add_option(
       "--node-cert-max-validity-days",
       node_cert_maximum_validity_period_days,
-      "Maximum number of days node certificates should be valid for.")
+      "Maximum number of days node certificates must be valid for.")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 

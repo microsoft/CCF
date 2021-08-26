@@ -10,6 +10,9 @@ namespace crypto
 {
   namespace OpenSSL
   {
+    /** Set of utilites functions for working with x509 time, as defined in RFC
+    5280 (https://datatracker.ietf.org/doc/html/rfc5280#section-4.1.2.5.1) */
+
     /** Checks that two times are in chronological order, and optionally within
      * a certain time range.
      *
