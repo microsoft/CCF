@@ -18,10 +18,6 @@ namespace ccf
 
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
-    // If true, the service endorses the certificate of new trusted nodes, and
-    // records them in the store
-    std::optional<bool> node_endorsement_on_trust = std::nullopt;
-
     bool operator==(const ServiceConfiguration& other) const
     {
       return recovery_threshold == other.recovery_threshold &&
@@ -32,8 +28,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
   DECLARE_JSON_REQUIRED_FIELDS(
     ServiceConfiguration, recovery_threshold, consensus)
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    ServiceConfiguration, reconfiguration_type, node_endorsement_on_trust)
+  DECLARE_JSON_OPTIONAL_FIELDS(ServiceConfiguration, reconfiguration_type)
 
   // The there is always only one active configuration, so this is a single
   // Value

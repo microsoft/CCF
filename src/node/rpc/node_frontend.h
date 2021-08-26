@@ -148,7 +148,6 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
-      auto config = tx.rw(network.config)->get();
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -218,11 +217,9 @@ namespace ccf
         in.certificate_signing_request,
         client_public_key_pem};
 
-      // Only record self-signed node certificate if the node does not require
-      // endorsement by the service when it is trusted
-      if (
-        config->node_endorsement_on_trust.has_value() &&
-        !config->node_endorsement_on_trust.value())
+      // Because the certificate signature scheme is non-deterministic, only
+      // self-signed node certificate is recorded in the node info table
+      if (this->network.consensus_type == ConsensusType::BFT)
       {
         node_info.cert = crypto::cert_der_to_pem(node_der);
       }
@@ -248,8 +245,7 @@ namespace ccf
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
         if (
           in.certificate_signing_request.has_value() &&
-          (!config->node_endorsement_on_trust.has_value() ||
-           config->node_endorsement_on_trust.value()))
+          this->network.consensus_type == ConsensusType::CFT)
         {
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(

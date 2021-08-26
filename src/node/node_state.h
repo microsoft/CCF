@@ -1638,11 +1638,6 @@ namespace ccf
     {
       CreateNetworkNodeToNode::In create_params;
 
-      // Because certificate signature scheme is not deterministic, endorsed
-      // node certificate is not recorded in BFT
-      auto node_endorsement_on_trust =
-        network.consensus_type != ConsensusType::BFT;
-
       // False on recovery where the consortium is read from the existing
       // ledger
       if (create_consortium)
@@ -1660,8 +1655,7 @@ namespace ccf
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
           network.consensus_type,
-          reconf_type,
-          node_endorsement_on_trust};
+          reconf_type};
         create_params.genesis_info = genesis_info;
       }
 
@@ -1676,9 +1670,8 @@ namespace ccf
       create_params.node_info_network = config.node_info_network;
 
       // Record self-signed certificate in create request if the node does not
-      // require endorsement by the service, so that node signatures can be
-      // verified
-      if (!node_endorsement_on_trust)
+      // require endorsement by the service (i.e. BFT)
+      if (network.consensus_type == ConsensusType::BFT)
       {
         create_params.node_cert = self_signed_node_cert;
       }
