@@ -13,6 +13,7 @@ from ccf.clients import CCFConnectionException
 import random
 import http
 import functools
+import httpx
 
 from loguru import logger as LOG
 
@@ -103,7 +104,11 @@ def run(args):
                     try:
                         clients.append(
                             es.enter_context(
-                                client_fn(identity="user0", connection_timeout=1)
+                                client_fn(
+                                    identity="user0",
+                                    connection_timeout=1,
+                                    limits=httpx.Limits(keepalive_expiry=10),
+                                )
                             )
                         )
                         r = clients[-1].post(

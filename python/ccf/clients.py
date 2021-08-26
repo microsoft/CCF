@@ -291,7 +291,9 @@ class CurlClient:
     These commands could also be run manually, or used by another client tool.
     """
 
-    def __init__(self, host, port, ca=None, session_auth=None, signing_auth=None):
+    def __init__(
+        self, host, port, ca=None, session_auth=None, signing_auth=None, **kwargs
+    ):
         self.host = host
         self.port = port
         self.ca = ca
@@ -392,6 +394,7 @@ class RequestClient:
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -402,7 +405,7 @@ class RequestClient:
         cert = None
         if self.session_auth:
             cert = (self.session_auth.cert, self.session_auth.key)
-        self.session = httpx.Client(verify=self.ca, cert=cert)
+        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
         if self.signing_auth:
             with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
@@ -500,6 +503,7 @@ class CCFClient:
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
+    :param dict kwargs: Keyword args to be forwarded to the client implementation .
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
@@ -515,6 +519,7 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
+        **kwargs,
     ):
         self.connection_timeout = connection_timeout
         self.name = f"[{host}:{port}]"

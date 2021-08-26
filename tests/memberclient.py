@@ -103,7 +103,7 @@ def test_corrupted_signature(network, args):
             # Override the auth provider with invalid ones
             for fn in (missing_signature, empty_signature, modified_signature):
                 ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
-                r = mc.post("/gov/proposals")
+                r = mc.post("/gov/proposals", '{"actions": []}')
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
 
             # Restore original auth provider for future calls!
