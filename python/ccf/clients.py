@@ -52,12 +52,12 @@ class HttpSig(httpx.Auth):
             ]
         ).encode("utf-8")
         signature = self.private_key.sign(
-            signature_algorithm=ec.ECDSA(algorithm=hashes.SHA384()), data=string_to_sign
+            signature_algorithm=ec.ECDSA(algorithm=hashes.SHA256()), data=string_to_sign
         )
         b64signature = base64.b64encode(signature).decode("ascii")
         request.headers[
             "authorization"
-        ] = f'Signature keyId="{self.key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+        ] = f'Signature keyId="{self.key_id}",algorithm="ecdsa-sha256",headers="(request-target) digest content-length",signature="{b64signature}"'
         print(request.headers["authorization"])
         yield request
 
