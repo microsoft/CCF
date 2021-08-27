@@ -1,0 +1,632 @@
+<!doctype html>
+<html class="default no-js">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>converters | @microsoft/ccf-app</title>
+	<meta name="description" content="Documentation for @microsoft/ccf-app">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../assets/css/main.css">
+	<script async src="../assets/js/search.js" id="search-script"></script>
+</head>
+<body>
+<header>
+	<div class="tsd-page-toolbar">
+		<div class="container">
+			<div class="table-wrap">
+				<div class="table-cell" id="tsd-search" data-index="../assets/js/search.json" data-base="..">
+					<div class="field">
+						<label for="tsd-search-field" class="tsd-widget search no-caption">Search</label>
+						<input id="tsd-search-field" type="text" />
+					</div>
+					<ul class="results">
+						<li class="state loading">Preparing search index...</li>
+						<li class="state failure">The search index is not available</li>
+					</ul>
+					<a href="../index.html" class="title">@microsoft/ccf-app</a>
+				</div>
+				<div class="table-cell" id="tsd-widgets">
+					<div id="tsd-filter">
+						<a href="#" class="tsd-widget options no-caption" data-toggle="options">Options</a>
+						<div class="tsd-filter-group">
+							<div class="tsd-select" id="tsd-filter-visibility">
+								<span class="tsd-select-label">All</span>
+								<ul class="tsd-select-list">
+									<li data-value="public">Public</li>
+									<li data-value="protected">Public/Protected</li>
+									<li data-value="private" class="selected">All</li>
+								</ul>
+							</div>
+							<input type="checkbox" id="tsd-filter-inherited" checked />
+							<label class="tsd-widget" for="tsd-filter-inherited">Inherited</label>
+							<input type="checkbox" id="tsd-filter-externals" checked />
+							<label class="tsd-widget" for="tsd-filter-externals">Externals</label>
+						</div>
+					</div>
+					<a href="#" class="tsd-widget menu no-caption" data-toggle="menu">Menu</a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="tsd-page-title">
+		<div class="container">
+			<ul class="tsd-breadcrumb">
+				<li>
+					<a href="../modules.html">@microsoft/ccf-app</a>
+				</li>
+				<li>
+					<a href="converters.html">converters</a>
+				</li>
+			</ul>
+			<h1>Module converters</h1>
+		</div>
+	</div>
+</header>
+<div class="container container-main">
+	<div class="row">
+		<div class="col-8 col-content">
+			<section class="tsd-panel tsd-comment">
+				<div class="tsd-comment tsd-typography">
+					<div class="lead">
+						<p>This module provides converters to and from <code>ArrayBuffer</code> objects.</p>
+					</div>
+					<p>Converters are commonly used as <a href="kv.html#typedkv"><code>kv.typedKv</code></a> arguments.
+						Another use case is <a href="crypto.html#wrapkey"><code>crypto.wrapKey</code></a> to convert
+					PEM-encoded keys to <code>ArrayBuffer</code>.</p>
+					<p>Example:</p>
+					<pre><code><span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #0000FF">*</span><span style="color: #000000"> </span><span style="color: #AF00DB">as</span><span style="color: #000000"> </span><span style="color: #001080">ccfapp</span><span style="color: #000000"> </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@microsoft/ccf-app&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #A31515">&#039;my-string&#039;</span><span style="color: #000000">;</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">string</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #001080">val</span><span style="color: #000000">);  </span><span style="color: #008000">// ArrayBuffer</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val2</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">string</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">); </span><span style="color: #008000">// string, val == val2</span>
+</code></pre>
+				</div>
+			</section>
+			<section class="tsd-panel-group tsd-index-group">
+				<h2>Index</h2>
+				<section class="tsd-panel tsd-index-panel">
+					<div class="tsd-index-content">
+						<section class="tsd-index-section ">
+							<h3>Interfaces</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-interface tsd-parent-kind-module tsd-has-type-parameter"><a href="../interfaces/converters.dataconverter.html" class="tsd-kind-icon">Data<wbr>Converter</a></li>
+							</ul>
+						</section>
+						<section class="tsd-index-section ">
+							<h3>Type aliases</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter"><a href="converters.html#jsoncompatible" class="tsd-kind-icon">Json<wbr>Compatible</a></li>
+							</ul>
+						</section>
+						<section class="tsd-index-section ">
+							<h3>Variables</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#arraybuffer" class="tsd-kind-icon">array<wbr>Buffer</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#bool" class="tsd-kind-icon">bool</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#float32" class="tsd-kind-icon">float32</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#float64" class="tsd-kind-icon">float64</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#int16" class="tsd-kind-icon">int16</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#int32" class="tsd-kind-icon">int32</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#int64" class="tsd-kind-icon">int64</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#int8" class="tsd-kind-icon">int8</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#string" class="tsd-kind-icon">string</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#uint16" class="tsd-kind-icon">uint16</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#uint32" class="tsd-kind-icon">uint32</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#uint64" class="tsd-kind-icon">uint64</a></li>
+								<li class="tsd-kind-variable tsd-parent-kind-module"><a href="converters.html#uint8" class="tsd-kind-icon">uint8</a></li>
+							</ul>
+						</section>
+						<section class="tsd-index-section ">
+							<h3>Functions</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter"><a href="converters.html#json" class="tsd-kind-icon">json</a></li>
+								<li class="tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter"><a href="converters.html#typedarray" class="tsd-kind-icon">typed<wbr>Array</a></li>
+							</ul>
+						</section>
+					</div>
+				</section>
+			</section>
+			<section class="tsd-panel-group tsd-member-group ">
+				<h2>Type aliases</h2>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+					<a name="jsoncompatible" class="tsd-anchor"></a>
+					<h3>Json<wbr>Compatible</h3>
+					<div class="tsd-signature tsd-kind-icon">Json<wbr>Compatible&lt;T&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">any</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:28</li>
+						</ul>
+					</aside>
+					<h4 class="tsd-type-parameters-title">Type parameters</h4>
+					<ul class="tsd-type-parameters">
+						<li>
+							<h4>T</h4>
+						</li>
+					</ul>
+				</section>
+			</section>
+			<section class="tsd-panel-group tsd-member-group ">
+				<h2>Variables</h2>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="arraybuffer" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> array<wbr>Buffer</h3>
+					<div class="tsd-signature tsd-kind-icon">array<wbr>Buffer<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">ArrayBuffer</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:403</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Identity converter.
+								<a href="../interfaces/converters.dataconverter.html#encode"><code>encode</code></a> / <a href="../interfaces/converters.dataconverter.html#decode"><code>decode</code></a>
+							return the input <code>ArrayBuffer</code> unchanged. No copy is made.</p>
+						</div>
+						<p>This converter can be used with <a href="kv.html#typedkv"><code>kv.typedKv</code></a> when the key or value
+						type is <code>ArrayBuffer</code>, in which case no conversion is applied.</p>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="bool" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> bool</h3>
+					<div class="tsd-signature tsd-kind-icon">bool<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:217</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>boolean</code> values.</p>
+						</div>
+						<p>A <code>boolean</code> is represented as <code>uint8</code> where <code>true</code> is <code>1</code>
+						and <code>false</code> is <code>0</code>.</p>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">bool</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #0000FF">true</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 1</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">bool</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);  </span><span style="color: #008000">// boolean</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="float32" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> float32</h3>
+					<div class="tsd-signature tsd-kind-icon">float32<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:318</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>float32</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">float32</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #098658">3.141</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 4</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">float32</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);   </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="float64" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> float64</h3>
+					<div class="tsd-signature tsd-kind-icon">float64<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:329</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>float64</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">float64</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #098658">3.141</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 8</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">float64</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);   </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="int16" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> int16</h3>
+					<div class="tsd-signature tsd-kind-icon">int16<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:250</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>int16</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int16</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(-</span><span style="color: #098658">1000</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 2</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int16</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);   </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="int32" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> int32</h3>
+					<div class="tsd-signature tsd-kind-icon">int32<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:272</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>int32</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int32</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(-</span><span style="color: #098658">50000</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 4</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int32</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);    </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="int64" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> int64</h3>
+					<div class="tsd-signature tsd-kind-icon">int64<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">bigint</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:295</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>bigint</code> values, encoded as <code>int64</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">n</span><span style="color: #000000"> = </span><span style="color: #098658">2</span><span style="color: #0000FF">n</span><span style="color: #000000"> ** </span><span style="color: #098658">53</span><span style="color: #0000FF">n</span><span style="color: #000000"> + </span><span style="color: #098658">1</span><span style="color: #0000FF">n</span><span style="color: #000000">; </span><span style="color: #008000">// larger than Number.MAX_SAFE_INTEGER</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int64</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #001080">n</span><span style="color: #000000">);   </span><span style="color: #008000">// ArrayBuffer of size 8</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int64</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">); </span><span style="color: #008000">// bigint</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="int8" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> int8</h3>
+					<div class="tsd-signature tsd-kind-icon">int8<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:228</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>int8</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int8</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(-</span><span style="color: #098658">50</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 1</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">int8</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">); </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="string" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> string</h3>
+					<div class="tsd-signature tsd-kind-icon">string<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:340</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>string</code> values, encoded as UTF-8.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">string</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;my-string&#039;</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">string</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);         </span><span style="color: #008000">// string</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="uint16" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> uint16</h3>
+					<div class="tsd-signature tsd-kind-icon">uint16<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:261</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>uint16</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint16</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #098658">50000</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 2</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint16</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);   </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="uint32" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> uint32</h3>
+					<div class="tsd-signature tsd-kind-icon">uint32<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:283</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>uint32</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint32</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #098658">50000</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 4</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint32</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">);   </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="uint64" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> uint64</h3>
+					<div class="tsd-signature tsd-kind-icon">uint64<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">bigint</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:307</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>bigint</code> values, encoded as <code>uint64</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">n</span><span style="color: #000000"> = </span><span style="color: #098658">2</span><span style="color: #0000FF">n</span><span style="color: #000000"> ** </span><span style="color: #098658">53</span><span style="color: #0000FF">n</span><span style="color: #000000"> + </span><span style="color: #098658">1</span><span style="color: #0000FF">n</span><span style="color: #000000">; </span><span style="color: #008000">// larger than Number.MAX_SAFE_INTEGER</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint64</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #001080">n</span><span style="color: #000000">);   </span><span style="color: #008000">// ArrayBuffer of size 8</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint64</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">); </span><span style="color: #008000">// bigint</span>
+</code></pre>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-variable tsd-parent-kind-module">
+					<a name="uint8" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> uint8</h3>
+					<div class="tsd-signature tsd-kind-icon">uint8<span class="tsd-signature-symbol">:</span> <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol"> = ...</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in converters.ts:239</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Converter for <code>number</code> values, encoded as <code>uint8</code>.</p>
+						</div>
+						<p>Example:</p>
+						<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buf</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint8</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #098658">255</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size 1</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">val</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #001080">uint8</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buf</span><span style="color: #000000">); </span><span style="color: #008000">// number</span>
+</code></pre>
+					</div>
+				</section>
+			</section>
+			<section class="tsd-panel-group tsd-member-group ">
+				<h2>Functions</h2>
+				<section class="tsd-panel tsd-member tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter">
+					<a name="json" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> json</h3>
+					<ul class="tsd-signatures tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter">
+						<li class="tsd-signature tsd-kind-icon">json&lt;T&gt;<span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></li>
+					</ul>
+					<ul class="tsd-descriptions">
+						<li class="tsd-description">
+							<aside class="tsd-sources">
+								<ul>
+									<li>Defined in converters.ts:366</li>
+								</ul>
+							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>Returns a converter for JSON-compatible objects or values.</p>
+								</div>
+								<p><a href="../interfaces/converters.dataconverter.html#encode"><code>encode</code></a> first serializes the object
+									or value to JSON and then converts the resulting string to an <code>ArrayBuffer</code>.
+									JSON serialization uses <code>JSON.stringify()</code> without <code>replacer</code> or
+								<code>space</code> parameters.</p>
+								<p><a href="../interfaces/converters.dataconverter.html#decode"><code>decode</code></a> converts the <code>ArrayBuffer</code>
+									to a string and parses it using <code>JSON.parse()</code> without <code>reviver</code>
+								parameter.</p>
+								<p>Example:</p>
+								<pre><code><span style="color: #0000FF">interface</span><span style="color: #000000"> </span><span style="color: #267F99">Person</span><span style="color: #000000"> {</span>
+<span style="color: #000000">  </span><span style="color: #001080">name</span><span style="color: #000000">: </span><span style="color: #267F99">string</span>
+<span style="color: #000000">  </span><span style="color: #001080">age</span><span style="color: #000000">: </span><span style="color: #267F99">number</span>
+<span style="color: #000000">}</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">person</span><span style="color: #000000">: </span><span style="color: #267F99">Person</span><span style="color: #000000"> = { </span><span style="color: #001080">name:</span><span style="color: #000000"> </span><span style="color: #A31515">&quot;John&quot;</span><span style="color: #000000">, </span><span style="color: #001080">age:</span><span style="color: #000000"> </span><span style="color: #098658">42</span><span style="color: #000000"> };</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">conv</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #795E26">json</span><span style="color: #000000">&lt;</span><span style="color: #267F99">Person</span><span style="color: #000000">&gt;();</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buffer</span><span style="color: #000000"> = </span><span style="color: #001080">conv</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #001080">person</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">person2</span><span style="color: #000000"> = </span><span style="color: #001080">conv</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buffer</span><span style="color: #000000">); </span><span style="color: #008000">// Person</span>
+</code></pre>
+							</div>
+							<h4 class="tsd-type-parameters-title">Type parameters</h4>
+							<ul class="tsd-type-parameters">
+								<li>
+									<h4>T<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">unknown</span></h4>
+								</li>
+							</ul>
+							<h4 class="tsd-returns-title">Returns <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
+						</li>
+					</ul>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter">
+					<a name="typedarray" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagConst">Const</span> typed<wbr>Array</h3>
+					<ul class="tsd-signatures tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter">
+						<li class="tsd-signature tsd-kind-icon">typed<wbr>Array&lt;T&gt;<span class="tsd-signature-symbol">(</span>clazz<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">TypedArrayConstructor</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></li>
+					</ul>
+					<ul class="tsd-descriptions">
+						<li class="tsd-description">
+							<aside class="tsd-sources">
+								<ul>
+									<li>Defined in converters.ts:389</li>
+								</ul>
+							</aside>
+							<div class="tsd-comment tsd-typography">
+								<div class="lead">
+									<p>Returns a converter for <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray">TypedArray</a> objects.</p>
+								</div>
+								<p>Note that a <code>TypedArray</code> is a view into an underlying <code>ArrayBuffer</code>.
+									This view allows to cover a subset of the <code>ArrayBuffer</code>, for example
+									when using <code>TypedArray.prototype.subarray()</code>.
+									For views which are subsets, a roundtrip from <code>TypedArray</code> to <code>ArrayBuffer</code>
+								and back will yield a <code>TypedArray</code> that is not a subset anymore.</p>
+								<p>Example:</p>
+								<pre><code><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">arr</span><span style="color: #000000"> = </span><span style="color: #0000FF">new</span><span style="color: #000000"> </span><span style="color: #267F99">Uint8Array</span><span style="color: #000000">([</span><span style="color: #098658">42</span><span style="color: #000000">]);</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">conv</span><span style="color: #000000"> = </span><span style="color: #001080">ccfapp</span><span style="color: #000000">.</span><span style="color: #795E26">typedArray</span><span style="color: #000000">(</span><span style="color: #267F99">Uint8Array</span><span style="color: #000000">);</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">buffer</span><span style="color: #000000"> = </span><span style="color: #001080">conv</span><span style="color: #000000">.</span><span style="color: #795E26">encode</span><span style="color: #000000">(</span><span style="color: #001080">arr</span><span style="color: #000000">); </span><span style="color: #008000">// ArrayBuffer of size arr.byteLength</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">arr2</span><span style="color: #000000"> = </span><span style="color: #001080">conv</span><span style="color: #000000">.</span><span style="color: #795E26">decode</span><span style="color: #000000">(</span><span style="color: #001080">buffer</span><span style="color: #000000">); </span><span style="color: #008000">// Uint8Array</span>
+</code></pre>
+							</div>
+							<h4 class="tsd-type-parameters-title">Type parameters</h4>
+							<ul class="tsd-type-parameters">
+								<li>
+									<h4>T<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">ArrayBufferView</span></h4>
+								</li>
+							</ul>
+							<h4 class="tsd-parameters-title">Parameters</h4>
+							<ul class="tsd-parameters">
+								<li>
+									<h5>clazz: <span class="tsd-signature-type">TypedArrayConstructor</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></h5>
+									<div class="tsd-comment tsd-typography">
+										<p>The TypedArray class, for example <code>Uint8Array</code>.</p>
+									</div>
+								</li>
+							</ul>
+							<h4 class="tsd-returns-title">Returns <a href="../interfaces/converters.dataconverter.html" class="tsd-signature-type" data-tsd-kind="Interface">DataConverter</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
+						</li>
+					</ul>
+				</section>
+			</section>
+		</div>
+		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
+			<nav class="tsd-navigation primary">
+				<ul>
+					<li class=" ">
+						<a href="../modules.html">Modules</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="root.html">ROOT</a>
+					</li>
+					<li class="current tsd-kind-module">
+						<a href="converters.html">converters</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="crypto.html">crypto</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="endpoints.html">endpoints</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="global.html">global</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="historical.html">historical</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="kv.html">kv</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="polyfill.html">polyfill</a>
+					</li>
+				</ul>
+			</nav>
+			<nav class="tsd-navigation secondary menu-sticky">
+				<ul class="before-current">
+					<li class=" tsd-kind-interface tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="../interfaces/converters.dataconverter.html" class="tsd-kind-icon">Data<wbr>Converter</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="converters.html#jsoncompatible" class="tsd-kind-icon">Json<wbr>Compatible</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#arraybuffer" class="tsd-kind-icon">array<wbr>Buffer</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#bool" class="tsd-kind-icon">bool</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#float32" class="tsd-kind-icon">float32</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#float64" class="tsd-kind-icon">float64</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#int16" class="tsd-kind-icon">int16</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#int32" class="tsd-kind-icon">int32</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#int64" class="tsd-kind-icon">int64</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#int8" class="tsd-kind-icon">int8</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#string" class="tsd-kind-icon">string</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#uint16" class="tsd-kind-icon">uint16</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#uint32" class="tsd-kind-icon">uint32</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#uint64" class="tsd-kind-icon">uint64</a>
+					</li>
+					<li class=" tsd-kind-variable tsd-parent-kind-module">
+						<a href="converters.html#uint8" class="tsd-kind-icon">uint8</a>
+					</li>
+					<li class=" tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="converters.html#json" class="tsd-kind-icon">json</a>
+					</li>
+					<li class=" tsd-kind-function tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="converters.html#typedarray" class="tsd-kind-icon">typed<wbr>Array</a>
+					</li>
+				</ul>
+			</nav>
+		</div>
+	</div>
+</div>
+<footer class="with-border-bottom">
+	<div class="container">
+		<h2>Legend</h2>
+		<div class="tsd-legend-group">
+			<ul class="tsd-legend">
+				<li class="tsd-kind-variable"><span class="tsd-kind-icon">Variable</span></li>
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
+				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-interface tsd-has-type-parameter"><span class="tsd-kind-icon">Interface with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+		</div>
+	</div>
+</footer>
+<div class="container tsd-generator">
+	<p>Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p>
+</div>
+<div class="overlay"></div>
+<script src="../assets/js/main.js"></script>
+<style>
+/* We are not interested in type hierarchies. */
+.tsd-hierarchy {
+    display: none;
+}
+</style>
+<script>
+window.addEventListener("DOMContentLoaded",function(){
+    const backToCcfEl = document.getElementById("link-ccf-docs");
+    const titleEl = document.querySelector('.tsd-page-title>.container');
+    titleEl.prepend(backToCcfEl);
+});
+</script>
+<h4 id="link-ccf-docs">
+	<a href="../../../build_apps">⮨ CCF Documentation</a>
+</h4>
+</body>
+</html>

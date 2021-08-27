@@ -1,0 +1,623 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Ledger and Snapshots" href="ledger_snapshot.html" /><link rel="prev" title="Setup CCF Runtime Environment" href="run_setup.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>Running a CCF Service - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../main/operations/start_network.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/operations/start_network.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/operations/start_network.html">ccf-2.0.0-dev2 </option>
+    <option value="start_network.html">ccf-2.0.0-dev1 </option>
+    <option value="../../ccf-2.0.0-dev0/operations/start_network.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/operations/start_network.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/operations/start_network.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/operations/start_network.html">ccf-1.0.7 </option>
+    <option value="../../ccf-1.0.6/operations/start_network.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/operations/start_network.html">ccf-1.0.5 </option>
+    <option value="../../ccf-1.0.4/operations/start_network.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/operations/start_network.html">ccf-1.0.3 </option>
+    <option value="../../ccf-1.0.2/operations/start_network.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/operations/start_network.html">ccf-1.0.1 </option>
+    <option value="../../ccf-1.0.0/operations/start_network.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/consensus.html">Consensus Protocols</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt_ms_example.html">JWT Authentication example using Microsoft Identity Platform</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/upgrading_app.html">Upgrade Your Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Operations</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/design/index.html">Design</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../research.html">Research</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/microsoft/CCF">GitHub Repository</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="running-a-ccf-service">
+<h1>Running a CCF Service<a class="headerlink" href="#running-a-ccf-service" title="Permalink to this headline">¶</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Before creating a new network:</p>
+<ul class="simple">
+<li><p>The <a class="reference internal" href="../governance/adding_member.html#generating-member-keys-and-certificates"><span class="std std-ref">identity of the initial members of the consortium must be created</span></a>.</p></li>
+<li><p>The <a class="reference internal" href="../overview/governance.html#governance"><span class="std std-ref">constitution should have been agreed by the initial members</span></a>.</p></li>
+</ul>
+</div>
+<section id="starting-the-first-node">
+<h2>Starting the First Node<a class="headerlink" href="#starting-the-first-node" title="Permalink to this headline">¶</a></h2>
+<p>To create a new CCF network, the first node of the network should be started with the <code class="docutils literal notranslate"><span class="pre">start</span></code> option:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cchost
+--enclave-file /path/to/enclave_library
+--rpc-address &lt;ccf-node-address&gt;
+--node-address &lt;ccf-node-to-node-address&gt;
+--public-rpc-address &lt;ccf-node-public-address&gt;
+<span class="o">[</span>--domain domain<span class="o">]</span>
+--ledger-dir /path/to/ledger/dir
+--node-cert-file /path/to/node_certificate
+start
+--network-cert-file /path/to/network_certificate
+--member-info /path/to/member1_cert<span class="o">[</span>,/path/to/member1_enc_pubk<span class="o">[</span>,/path/to/member1_data<span class="o">]]</span>
+<span class="o">[</span>--member-info /path/to/member2_cert<span class="o">[</span>,/path/to/member2_enc_pubk<span class="o">[</span>,/path/to/member2_data<span class="o">]]</span> ...<span class="o">]</span>
+--constitution /path/to/javascript/constitution_module.js
+</pre></div>
+</div>
+<p>CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then <code class="docutils literal notranslate"><span class="pre">--san</span> <span class="pre">dNSName:&lt;sub.domain.tld&gt;</span></code> should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node’s domain name.</p>
+<p>When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by <code class="docutils literal notranslate"><span class="pre">--node-cert-file</span></code>. The certificate of the freshly-created CCF network is also output at the location specified by <code class="docutils literal notranslate"><span class="pre">--network-cert-file</span></code>.</p>
+<p>The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest the public key contained in its identity certificate (e.g. <code class="docutils literal notranslate"><span class="pre">50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007</span></code>). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when <a class="reference internal" href="../governance/common_member_operations.html#trusting-a-new-node"><span class="std std-ref">Trusting a New Node</span></a>).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using <code class="docutils literal notranslate"><span class="pre">curl</span></code>, this is passed as the <code class="docutils literal notranslate"><span class="pre">--cacert</span></code> argument.</p>
+</div>
+<p>The certificates, encryption public keys and member data of initial members of the consortium are specified via <code class="docutils literal notranslate"><span class="pre">--member-info</span></code>. For example:</p>
+<ul class="simple">
+<li><p>A recovery member with member data: <code class="docutils literal notranslate"><span class="pre">--member-info</span> <span class="pre">member_cert.pem,member_enc_pubk.pem,member_data.json</span></code></p></li>
+<li><p>A recovery member with no member data: <code class="docutils literal notranslate"><span class="pre">--member-info</span> <span class="pre">member_cert.pem,member_enc_pubk.pem</span></code></p></li>
+<li><p>A non-recovery member with member data: <code class="docutils literal notranslate"><span class="pre">--member-info</span> <span class="pre">member_cert.pem,,member_data.json</span></code> (note the empty public encryption key path “<code class="docutils literal notranslate"><span class="pre">,,</span></code>”)</p></li>
+<li><p>A non-recovery member with no member data: <code class="docutils literal notranslate"><span class="pre">--member-info</span> <span class="pre">member_cert.pem</span></code></p></li>
+</ul>
+<p>The <a class="reference internal" href="../glossary.html#term-Constitution"><span class="xref std std-term">Constitution</span></a>, as defined by the initial members, should be passed via one or multiple <code class="docutils literal notranslate"><span class="pre">--constitution</span></code> option(s).</p>
+<p>Once the first node is started, the network will be in its opening state and new nodes can join the network.</p>
+</section>
+<section id="adding-a-new-node-to-the-network">
+<h2>Adding a New Node to the Network<a class="headerlink" href="#adding-a-new-node-to-the-network" title="Permalink to this headline">¶</a></h2>
+<p>To add a new node to an existing opening network, other nodes should be started with the <code class="docutils literal notranslate"><span class="pre">join</span></code> option:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cchost
+--enclave-file /path/to/enclave_library
+--rpc-address &lt;ccf-node-address&gt;
+--node-address &lt;ccf-node-to-node-address&gt;
+--public-rpc-address &lt;ccf-node-public-address&gt;
+--ledger-dir /path/to/ledger/dir
+--node-cert-file /path/to/node_certificate
+<span class="o">[</span>--snapshot-dir /path/to/ledger/dir<span class="o">]</span>
+<span class="o">[</span>--read-only-ledger-dir /path/to/read/only/ledger/dir<span class="o">]</span>
+join
+--network-cert-file /path/to/existing/network_certificate
+--target-rpc-address &lt;another-ccf-node-address&gt;
+<span class="o">[</span>--join-timer &lt;join-retry-interval-ms&gt;<span class="o">]</span>
+</pre></div>
+</div>
+<p>The joining node takes the certificate of the existing network to join via <code class="docutils literal notranslate"><span class="pre">--network-cert-file</span></code> and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by <code class="docutils literal notranslate"><span class="pre">--target-rpc-address</span></code>.</p>
+<p>A new node can only join an existing CCF network if its SGX quote is valid  <a class="footnote-reference brackets" href="#remote-attestation" id="id1">1</a>. and runs an enclave application that is <a class="reference internal" href="../governance/common_member_operations.html#updating-code-version"><span class="std std-ref">trusted by the consortium</span></a>.</p>
+<p>If the network has not yet been opened by members (see <a class="reference internal" href="../governance/open_network.html#opening-the-network"><span class="std std-ref">Opening the Network</span></a>), the joining node becomes part of the network immediately.</p>
+<p>Otherwise, if the network has already been opened to users, members need to trust the joining node before it can become part of the network and participate in the consensus (see <a class="reference internal" href="../governance/common_member_operations.html#trusting-a-new-node"><span class="std std-ref">Trusting a New Node</span></a>).</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">Pending</span></code> joining node will automatically poll the service (interval configurable via <code class="docutils literal notranslate"><span class="pre">--join-timer</span></code> option) until the members have successfully transitioned the node to the <code class="docutils literal notranslate"><span class="pre">Trusted</span></code> state. It is only then that the joining node will transition to the <code class="docutils literal notranslate"><span class="pre">PartOfNetwork</span></code> state and start updating its ledger.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>After the node has been trusted by members, operators should poll the <code class="docutils literal notranslate"><span class="pre">/node/state</span></code> endpoint on the newly added node until the <code class="docutils literal notranslate"><span class="pre">{"state":</span> <span class="pre">"PartOfNetwork"}</span></code> is reported. This status confirms that the replication of the ledger has started on this node.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots <a class="reference internal" href="ledger_snapshot.html#join-recover-from-snapshot"><span class="std std-ref">here</span></a>.</p>
+</div>
+<p>The following diagram summarises the steps that operators and members should follow to add a new node to an open CCF service, and wait for it to be trusted by the consortium and in state <code class="docutils literal notranslate"><span class="pre">PartOfNetwork</span></code>:</p>
+<div class="mermaid">
+            sequenceDiagram
+    participant Operators
+    participant Members
+    participant Node 0
+    participant Node 1
+
+    Note over Node 0: Already "PartOfNetwork" (rpc-address=ip0:port0)
+
+    Operators-&gt;&gt;+Node 1: cchost join --network-cert-file=Network Certificate --target-rpc-address=ip0:port0
+
+    Node 1-&gt;&gt;+Node 0: Join request (includes quote)
+    Node 0-&gt;&gt;+Node 0: Verify Node 1 attestation
+    Node 0--&gt;&gt;Node 1: "Pending" state
+
+    loop Node 1 polls Node 0 (as per --join-timer option)
+        Node 1-&gt;&gt;+Node 0: Poll for "Trusted" state
+        Node 0--&gt;&gt;-Node 1: "Pending" state
+    end
+
+    Operators-&gt;&gt;+Node 1: Poll /node/state for "PartOfNetwork"
+    Node 1--&gt;&gt;-Operators: "Pending" state
+
+    Members-&gt;&gt;+Node 0: transition_node_to_trusted proposal for Node 1 and votes
+    Node 0--&gt;&gt;-Members: Proposal Accepted
+
+    Operators-&gt;&gt;+Node 1: Poll /node/state for "PartOfNetwork"
+    Node 1--&gt;&gt;-Operators: "Pending" state
+
+    Node 1-&gt;&gt;+Node 0: Poll for "Trusted" state
+    Node 0--&gt;&gt;-Node 1: "Trusted" state (includes ledger secrets and service private key)
+
+    Node 1-&gt;&gt;+Node 1: Endorse TLS with service private key
+
+    Note over Node 1: State: "PartOfNetwork" &lt;br/&gt; Ledger replication started &lt;br/&gt; Application open to users
+
+    loop Node 1 ledger replication
+        Node 0-&gt;&gt;+Node 1: Ledger replication
+    end
+
+    Operators-&gt;&gt;+Node 1: Poll /node/state for "PartOfNetwork"
+    Node 1--&gt;&gt;-Operators: "PartOfNetwork" state
+
+    loop Node 1 ledger replication
+        Node 0-&gt;&gt;+Node 1: Ledger replication
+    end
+
+    Note over Operators: Operators monitor progress of ledger replication
+    Operators-&gt;&gt;+Node 1: Poll /node/commit
+    Node 1--&gt;&gt;-Operators: "commit": ...
+        </div></section>
+<section id="opening-a-network-to-users">
+<h2>Opening a Network to Users<a class="headerlink" href="#opening-a-network-to-users" title="Permalink to this headline">¶</a></h2>
+<p>Once a CCF network is successfully started and an acceptable number of nodes have joined, <a class="reference internal" href="../governance/open_network.html#opening-a-network"><span class="std std-ref">members should vote to open the network</span></a> to <a class="reference internal" href="../glossary.html#term-Users"><span class="xref std std-term">Users</span></a> via governance.</p>
+</section>
+<section id="using-a-configuration-file">
+<h2>Using a Configuration File<a class="headerlink" href="#using-a-configuration-file" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">cchost</span></code> can be started using a configuration file in TOML or INI format.</p>
+<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="c1"># config.toml</span>
+<span class="na">enclave-file</span> <span class="o">=</span> <span class="s">&lt;enclave-file&gt;</span>
+<span class="na">enclave-type</span> <span class="o">=</span> <span class="s">debug</span>
+<span class="na">consensus</span> <span class="o">=</span> <span class="s">raft</span>
+<span class="na">rpc-address</span> <span class="o">=</span> <span class="s">&lt;node-address&gt;</span>
+<span class="na">public-rpc-address</span> <span class="o">=</span> <span class="s">&lt;node-public-address&gt;</span>
+<span class="na">node-address</span> <span class="o">=</span> <span class="s">&lt;ccf-node-to-node-address&gt;</span>
+
+<span class="k">[&lt;subcommand, one of [start, join, recover]&gt;]</span>
+<span class="na">network-cert-file</span> <span class="o">=</span> <span class="s">&lt;network-cert-file-name&gt;</span>
+<span class="na">member-info</span> <span class="o">=</span> <span class="s">"&lt;member_cert.pem&gt;,&lt;member_enc_pubk.pem&gt;[,&lt;member_data.json&gt;]"</span>
+<span class="na">gov-script</span> <span class="o">=</span> <span class="s">&lt;gov-script-name&gt;</span>
+</pre></div>
+</div>
+<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="c1">; config.ini</span>
+<span class="na">enclave-file</span> <span class="o">=</span> <span class="s">&lt;enclave-file&gt;</span>
+<span class="na">enclave-type</span> <span class="o">=</span> <span class="s">debug</span>
+<span class="na">consensus</span> <span class="o">=</span> <span class="s">raft</span>
+<span class="na">rpc-address</span> <span class="o">=</span> <span class="s">&lt;node-address&gt;</span>
+<span class="na">public-rpc-address</span> <span class="o">=</span> <span class="s">&lt;node-public-address&gt;</span>
+<span class="na">node-address</span> <span class="o">=</span> <span class="s">&lt;node-to-node-address&gt;</span>
+
+<span class="k">[&lt;subcommand, one of [start, join, recover]&gt;]</span>
+<span class="na">network-cert-file</span> <span class="o">=</span> <span class="s">&lt;network-cert-file-name&gt;</span>
+<span class="na">member-info</span> <span class="o">=</span> <span class="s">"&lt;member_cert.pem&gt;,&lt;member_enc_pubk.pem&gt;[,&lt;member_data.json&gt;]"</span>
+<span class="na">gov-script</span> <span class="o">=</span> <span class="s">&lt;gov-script-name&gt;</span>
+</pre></div>
+</div>
+<p>To pass configuration files, use the <code class="docutils literal notranslate"><span class="pre">--config</span></code> option: <code class="docutils literal notranslate"><span class="pre">./cchost</span> <span class="pre">--config=config.ini</span></code>. An error will be generated if the configuration file contains extra fields. Options in the configuration file will be read along with normal command line arguments. Additional information for configuration files in CLI11 can be found <a class="reference external" href="https://cliutils.github.io/CLI11/book/chapters/config.html">here</a>.</p>
+</section>
+<section id="virtual-mode">
+<h2>Virtual Mode<a class="headerlink" href="#virtual-mode" title="Permalink to this headline">¶</a></h2>
+<p>To start a CCF node in <cite>virtual</cite> mode, operators should use the <cite>virtual</cite> variants of the <code class="docutils literal notranslate"><span class="pre">cchost</span></code> binary and enclave application:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cchost.virtual --enclave-file /path/to/virtual_enclave_library <span class="o">[</span>args<span class="o">]</span>
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.</p>
+</div>
+</section>
+<section id="signature-interval">
+<h2>Signature Interval<a class="headerlink" href="#signature-interval" title="Permalink to this headline">¶</a></h2>
+<p>Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.</p>
+<p>Two options are provided to that end:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--sig-tx-interval</span></code>: number of transactions between two signatures</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--sig-ms-interval</span></code>: time in milliseconds between two signatures</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>These options specify the intervals at which the generation of signature transactions is <cite>triggered</cite>. However, because of the parallel execution of transactions, the actual intervals between signature transactions may be slightly larger.</p>
+</div>
+<p class="rubric">Footnotes</p>
+<dl class="footnote brackets">
+<dt class="label" id="remote-attestation"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node’s quote. It also checks that the version of the code running by the joining node is trusted by the consortium.</p>
+</dd>
+</dl>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="ledger_snapshot.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Ledger and Snapshots</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="run_setup.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Setup CCF Runtime Environment</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/operations/start_network.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Running a CCF Service</a><ul>
+<li><a class="reference internal" href="#starting-the-first-node">Starting the First Node</a></li>
+<li><a class="reference internal" href="#adding-a-new-node-to-the-network">Adding a New Node to the Network</a></li>
+<li><a class="reference internal" href="#opening-a-network-to-users">Opening a Network to Users</a></li>
+<li><a class="reference internal" href="#using-a-configuration-file">Using a Configuration File</a></li>
+<li><a class="reference internal" href="#virtual-mode">Virtual Mode</a></li>
+<li><a class="reference internal" href="#signature-interval">Signature Interval</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

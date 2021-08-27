@@ -1,0 +1,937 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Logging RPC API" href="logging_rpc_api.html" /><link rel="prev" title="C++ Application" href="example.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>Logging (C++) - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="logging_cpp.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/build_apps/logging_cpp.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/build_apps/logging_cpp.html">ccf-2.0.0-dev2 </option>
+    <option value="../../ccf-2.0.0-dev1/build_apps/logging_cpp.html">ccf-2.0.0-dev1 </option>
+    <option value="../../ccf-2.0.0-dev0/build_apps/logging_cpp.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/build_apps/logging_cpp.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/build_apps/logging_cpp.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/build_apps/logging_cpp.html">ccf-1.0.7 </option>
+    <option value="../../ccf-1.0.6/build_apps/logging_cpp.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/build_apps/logging_cpp.html">ccf-1.0.5 </option>
+    <option value="../../ccf-1.0.4/build_apps/logging_cpp.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/build_apps/logging_cpp.html">ccf-1.0.3 </option>
+    <option value="../../ccf-1.0.2/build_apps/logging_cpp.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/build_apps/logging_cpp.html">ccf-1.0.1 </option>
+    <option value="../../ccf-1.0.0/build_apps/logging_cpp.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../overview/consensus/index.html">Consensus Protocols</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../overview/consensus/cft.html">Crash Fault Tolerance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/consensus/bft.html">Byzantine Fault Tolerance</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Build Apps</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 current has-children"><a class="reference internal" href="example.html">C++ Application</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l3 current current-page"><a class="current reference internal" href="#">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="js_app_ts.html">TypeScript Application</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/design/index.html">Design</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../research/index.html">Research</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../research/raft-tla.html">TLA+ model of CCF’s Raft modifications</a></li>
+<li class="toctree-l2"><a class="reference external" href="https://arxiv.org/abs/2105.13116">PAC: Practical Accountability for CCF</a></li>
+<li class="toctree-l2"><a class="reference external" href="https://github.com/microsoft/CCF/blob/main/CCF-TECHNICAL-REPORT.pdf">CCF whitepaper</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/microsoft/CCF">GitHub Repository</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="logging-c">
+<h1>Logging (C++)<a class="headerlink" href="#logging-c" title="Permalink to this headline">¶</a></h1>
+<p>A C++ application exposes itself to CCF by implementing:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cm">/** To be implemented by the application to be registered by CCF.</span>
+<span class="cm"> *</span>
+<span class="cm"> * @param network Access to the network's replicated tables</span>
+<span class="cm"> * @param context Access to node and host services</span>
+<span class="cm"> *</span>
+<span class="cm"> * @return Shared pointer to the application handler instance</span>
+<span class="cm"> */</span><span class="w"></span>
+<span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">ccf</span><span class="o">::</span><span class="n">RpcFrontend</span><span class="o">&gt;</span><span class="w"> </span><span class="n">get_rpc_handler</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="n">ccf</span><span class="o">::</span><span class="n">NetworkTables</span><span class="o">&amp;</span><span class="w"> </span><span class="n">network</span><span class="p">,</span><span class="w"> </span><span class="n">AbstractNodeContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">context</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<p>The Logging application simply has:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">ccf</span><span class="o">::</span><span class="n">RpcFrontend</span><span class="o">&gt;</span><span class="w"> </span><span class="n">get_rpc_handler</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="n">ccf</span><span class="o">::</span><span class="n">NetworkTables</span><span class="o">&amp;</span><span class="w"> </span><span class="n">nwt</span><span class="p">,</span><span class="w"> </span><span class="n">ccfapp</span><span class="o">::</span><span class="n">AbstractNodeContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">context</span><span class="p">)</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">loggingapp</span><span class="o">::</span><span class="n">Logger</span><span class="o">&gt;</span><span class="p">(</span><span class="n">nwt</span><span class="p">,</span><span class="w"> </span><span class="n">context</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="kv/api.html#_CPPv4N2kv5StoreE" title="kv::Store"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">kv::Store</span></code></a> tables are essentially the only interface between CCF
+and the application, and the sole mechanism for it to have state.</p>
+<p>The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">using</span><span class="w"> </span><span class="n">RecordsMap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kv</span><span class="o">::</span><span class="n">Map</span><span class="o">&lt;</span><span class="kt">size_t</span><span class="p">,</span><span class="w"> </span><span class="n">string</span><span class="o">&gt;</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<p>These tables are then accessed by type and name:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">records_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">rw</span><span class="o">&lt;</span><span class="n">RecordsMap</span><span class="o">&gt;</span><span class="p">(</span><span class="n">PUBLIC_RECORDS</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">records_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">rw</span><span class="o">&lt;</span><span class="n">RecordsMap</span><span class="o">&gt;</span><span class="p">(</span><span class="n">PRIVATE_RECORDS</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+</div>
+<section id="rpc-handler">
+<h2>RPC Handler<a class="headerlink" href="#rpc-handler" title="Permalink to this headline">¶</a></h2>
+<p>The type returned by <a class="reference internal" href="api.html#_CPPv4N6ccfapp15get_rpc_handlerERN3ccf13NetworkTablesER19AbstractNodeContext" title="ccfapp::get_rpc_handler"><code class="xref cpp cpp-func docutils literal notranslate"><span class="pre">ccfapp::get_rpc_handler()</span></code></a> should subclass <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">ccf::RpcFrontend</span></code>, passing the base constructor a reference to an implementation of <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">ccf::EndpointRegistry</span></code>:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">LoggerHandlers</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">UserEndpointRegistry</span><span class="w"></span>
+</pre></div>
+</div>
+<p>The logging app defines <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">ccfapp::LoggerHandlers</span></code>, which creates and installs handler functions or lambdas for several different HTTP endpoints. Each of these functions takes as input the details of the current request (such as the URI which was called, the query string, the request body), interacts with the KV tables using the given <a class="reference internal" href="kv/api.html#_CPPv4N2kv2TxE" title="kv::Tx"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">kv::Tx</span></code></a> object, and returns a result:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">record</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="c1">// SNIPPET_START: macro_validation_record</span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">params</span><span class="p">.</span><span class="n">get</span><span class="o">&lt;</span><span class="n">LoggingRecord</span><span class="o">::</span><span class="n">In</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="c1">// SNIPPET_END: macro_validation_record</span>
+
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">in</span><span class="p">.</span><span class="n">msg</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">make_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">HTTP_STATUS_BAD_REQUEST</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InvalidInput</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="s">"Cannot record an empty log message."</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="c1">// SNIPPET: private_table_access</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">records_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">rw</span><span class="o">&lt;</span><span class="n">RecordsMap</span><span class="o">&gt;</span><span class="p">(</span><span class="n">PRIVATE_RECORDS</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">records_handle</span><span class="o">-&gt;</span><span class="n">put</span><span class="p">(</span><span class="n">in</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">msg</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">update_first_write</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">,</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">make_success</span><span class="p">(</span><span class="nb">true</span><span class="p">);</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This example uses the <code class="docutils literal notranslate"><span class="pre">json_adapter</span></code> wrapper function, which handles parsing of a JSON params object from the HTTP request body.</p>
+<p>Each function is installed as the handler for a specific HTTP resource, defined by a verb and URI:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">make_endpoint</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="s">"/log/private"</span><span class="p">,</span><span class="w"> </span><span class="n">HTTP_POST</span><span class="p">,</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">json_adapter</span><span class="p">(</span><span class="n">record</span><span class="p">),</span><span class="w"> </span><span class="n">auth_policies</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_auto_schema</span><span class="o">&lt;</span><span class="n">LoggingRecord</span><span class="o">::</span><span class="n">In</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">install</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This example installs at <code class="docutils literal notranslate"><span class="pre">"log/private",</span> <span class="pre">HTTP_POST</span></code>, so will be invoked for HTTP requests beginning <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/app/log/private</span></code>.</p>
+<p>The return value from <code class="docutils literal notranslate"><span class="pre">make_endpoint</span></code> is an <code class="docutils literal notranslate"><span class="pre">Endpoint&amp;</span></code> object which can be used to alter how the handler is executed. For example, the handler for <code class="docutils literal notranslate"><span class="pre">/log/private</span></code> shown above sets a <cite>schema</cite> declaring the types of its request and response bodies. These will be used in calls to the <code class="docutils literal notranslate"><span class="pre">/api</span></code> endpoint to populate the relevant parts of the OpenAPI document. There are other endpoints installed for the URI path <code class="docutils literal notranslate"><span class="pre">/log/private</span></code> with different verbs, to handle <code class="docutils literal notranslate"><span class="pre">GET</span></code> and <code class="docutils literal notranslate"><span class="pre">DELETE</span></code> requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a <code class="docutils literal notranslate"><span class="pre">405</span> <span class="pre">Method</span> <span class="pre">Not</span> <span class="pre">Allowed</span></code> response.</p>
+<p>To process the raw body directly, a handler should use the general lambda signature which takes a single <code class="docutils literal notranslate"><span class="pre">EndpointContext&amp;</span></code> parameter. Examples of this are also included in the logging sample app. For instance the <code class="docutils literal notranslate"><span class="pre">log_record_text</span></code> handler takes a raw string as the request body:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">log_record_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">expected</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">http</span><span class="o">::</span><span class="n">headervalues</span><span class="o">::</span><span class="n">contenttype</span><span class="o">::</span><span class="n">TEXT</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">actual</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">get_request_header</span><span class="p">(</span><span class="n">http</span><span class="o">::</span><span class="n">headers</span><span class="o">::</span><span class="n">CONTENT_TYPE</span><span class="p">)</span><span class="w"></span>
+<span class="w">      </span><span class="p">.</span><span class="n">value_or</span><span class="p">(</span><span class="s">""</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">expected</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">actual</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InvalidHeaderValue</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="w"></span>
+<span class="w">        </span><span class="s">"Expected content-type '{}'. Got '{}'."</span><span class="p">,</span><span class="w"> </span><span class="n">expected</span><span class="p">,</span><span class="w"> </span><span class="n">actual</span><span class="p">));</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">path_params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">get_request_path_params</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">id_it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">path_params</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="s">"id"</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">id_it</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">path_params</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">HTTP_STATUS_BAD_REQUEST</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InvalidInput</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="s">"Missing ID component in request path"</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strtoul</span><span class="p">(</span><span class="n">id_it</span><span class="o">-&gt;</span><span class="n">second</span><span class="p">.</span><span class="n">c_str</span><span class="p">(),</span><span class="w"> </span><span class="k">nullptr</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">uint8_t</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">content</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">get_request_body</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="nf">log_line</span><span class="p">(</span><span class="n">content</span><span class="p">.</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">content</span><span class="p">.</span><span class="n">end</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">records_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">rw</span><span class="o">&lt;</span><span class="n">RecordsMap</span><span class="o">&gt;</span><span class="p">(</span><span class="n">PRIVATE_RECORDS</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">records_handle</span><span class="o">-&gt;</span><span class="n">put</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">log_line</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">update_first_write</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_status</span><span class="p">(</span><span class="n">HTTP_STATUS_OK</span><span class="p">);</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+<span class="n">make_endpoint</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="s">"/log/private/raw_text/{id}"</span><span class="p">,</span><span class="w"> </span><span class="n">HTTP_POST</span><span class="p">,</span><span class="w"> </span><span class="n">log_record_text</span><span class="p">,</span><span class="w"> </span><span class="n">auth_policies</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">install</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Rather than parsing the request body as JSON and extracting the message from it, in this case <cite>the entire body</cite> is the message to be logged, and the ID to associate it with is passed as a request header. This requires some additional code in the handler, but provides complete control of the request and response formats.</p>
+<p>This general signature also allows a handler to see additional caller context. An example of this is the <code class="docutils literal notranslate"><span class="pre">log_record_prefix_cert</span></code> handler:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">log_record_prefix_cert</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="w"> </span><span class="n">body_j</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">    </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="o">::</span><span class="n">parse</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">get_request_body</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">body_j</span><span class="p">.</span><span class="n">get</span><span class="o">&lt;</span><span class="n">LoggingRecord</span><span class="o">::</span><span class="n">In</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">in</span><span class="p">.</span><span class="n">msg</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">HTTP_STATUS_BAD_REQUEST</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InvalidInput</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="s">"Cannot record an empty log message"</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">cert</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mbedtls</span><span class="o">::</span><span class="n">make_unique</span><span class="o">&lt;</span><span class="n">mbedtls</span><span class="o">::</span><span class="n">X509Crt</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">cert_data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">session</span><span class="o">-&gt;</span><span class="n">caller_cert</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">ret</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mbedtls_x509_crt_parse</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">cert</span><span class="p">.</span><span class="n">get</span><span class="p">(),</span><span class="w"> </span><span class="n">cert_data</span><span class="p">.</span><span class="n">data</span><span class="p">(),</span><span class="w"> </span><span class="n">cert_data</span><span class="p">.</span><span class="n">size</span><span class="p">());</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ret</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">HTTP_STATUS_INTERNAL_SERVER_ERROR</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InternalError</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="s">"Cannot parse x509 caller certificate"</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">log_line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="s">"{}: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">cert</span><span class="o">-&gt;</span><span class="n">subject</span><span class="p">,</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">msg</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">records_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">rw</span><span class="o">&lt;</span><span class="n">RecordsMap</span><span class="o">&gt;</span><span class="p">(</span><span class="n">PRIVATE_RECORDS</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">records_handle</span><span class="o">-&gt;</span><span class="n">put</span><span class="p">(</span><span class="n">in</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">log_line</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">update_first_write</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">,</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_status</span><span class="p">(</span><span class="n">HTTP_STATUS_OK</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_header</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">http</span><span class="o">::</span><span class="n">headers</span><span class="o">::</span><span class="n">CONTENT_TYPE</span><span class="p">,</span><span class="w"> </span><span class="n">http</span><span class="o">::</span><span class="n">headervalues</span><span class="o">::</span><span class="n">contenttype</span><span class="o">::</span><span class="n">JSON</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_body</span><span class="p">(</span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="p">(</span><span class="nb">true</span><span class="p">).</span><span class="n">dump</span><span class="p">());</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+<span class="n">make_endpoint</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="s">"/log/private/prefix_cert"</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">HTTP_POST</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">log_record_prefix_cert</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">auth_policies</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_auto_schema</span><span class="o">&lt;</span><span class="n">LoggingRecord</span><span class="o">::</span><span class="n">In</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">install</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This uses mbedTLS to parse the caller’s TLS certificate, and prefixes the logged message with the <code class="docutils literal notranslate"><span class="pre">Subject</span></code> field extracted from this certificate.</p>
+<p>If a handler makes no writes to the KV, it may be installed as read-only:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">make_read_only_endpoint</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="s">"/log/private"</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">HTTP_GET</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">ccf</span><span class="o">::</span><span class="n">json_read_only_adapter</span><span class="p">(</span><span class="n">get</span><span class="p">),</span><span class="w"></span>
+<span class="w">  </span><span class="n">auth_policies</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_auto_schema</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">,</span><span class="w"> </span><span class="n">LoggingGet</span><span class="o">::</span><span class="n">Out</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">add_query_parameter</span><span class="o">&lt;</span><span class="kt">size_t</span><span class="o">&gt;</span><span class="p">(</span><span class="s">"id"</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">install</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This offers some additional type safety (accidental <cite>put</cite>s or <cite>remove</cite>s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.</p>
+<section id="api-schema">
+<h3>API Schema<a class="headerlink" href="#api-schema" title="Permalink to this headline">¶</a></h3>
+<p>Instead of taking and returning <cite>nlohmann::json</cite> objects directly, the endpoint handlers use a macro-generated schema and parser converting compliant requests into a PoD C++ object:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span> <span class="nc">LoggingRecord</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">struct</span> <span class="nc">In</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">size_t</span><span class="w"> </span><span class="n">id</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+
+<span class="k">struct</span> <span class="nc">LoggingGet</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">struct</span> <span class="nc">Out</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+
+<span class="k">struct</span> <span class="nc">LoggingRemove</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">Out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">bool</span><span class="p">;</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+
+<span class="k">struct</span> <span class="nc">LoggingGetReceipt</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">struct</span> <span class="nc">In</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">size_t</span><span class="w"> </span><span class="n">id</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">struct</span> <span class="nc">Out</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">ccf</span><span class="o">::</span><span class="n">Receipt</span><span class="w"> </span><span class="n">receipt</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+
+<span class="n">DECLARE_JSON_TYPE</span><span class="p">(</span><span class="n">LoggingRecord</span><span class="o">::</span><span class="n">In</span><span class="p">);</span><span class="w"></span>
+<span class="n">DECLARE_JSON_REQUIRED_FIELDS</span><span class="p">(</span><span class="n">LoggingRecord</span><span class="o">::</span><span class="n">In</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">);</span><span class="w"></span>
+
+<span class="n">DECLARE_JSON_TYPE</span><span class="p">(</span><span class="n">LoggingGet</span><span class="o">::</span><span class="n">Out</span><span class="p">);</span><span class="w"></span>
+<span class="n">DECLARE_JSON_REQUIRED_FIELDS</span><span class="p">(</span><span class="n">LoggingGet</span><span class="o">::</span><span class="n">Out</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">);</span><span class="w"></span>
+
+<span class="n">DECLARE_JSON_TYPE</span><span class="p">(</span><span class="n">LoggingGetReceipt</span><span class="o">::</span><span class="n">In</span><span class="p">);</span><span class="w"></span>
+<span class="n">DECLARE_JSON_REQUIRED_FIELDS</span><span class="p">(</span><span class="n">LoggingGetReceipt</span><span class="o">::</span><span class="n">In</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+<span class="n">DECLARE_JSON_TYPE</span><span class="p">(</span><span class="n">LoggingGetReceipt</span><span class="o">::</span><span class="n">Out</span><span class="p">);</span><span class="w"></span>
+<span class="n">DECLARE_JSON_REQUIRED_FIELDS</span><span class="p">(</span><span class="n">LoggingGetReceipt</span><span class="o">::</span><span class="n">Out</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="n">receipt</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">params</span><span class="p">.</span><span class="n">get</span><span class="o">&lt;</span><span class="n">LoggingRecord</span><span class="o">::</span><span class="n">In</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This produces validation error messages with a low performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema - an object with some required and some optional fields, each of a supported type.</p>
+</section>
+<section id="authentication">
+<h3>Authentication<a class="headerlink" href="#authentication" title="Permalink to this headline">¶</a></h3>
+<p>Each endpoint must provide a list of associated authentication policies in the call to <code class="docutils literal notranslate"><span class="pre">make_endpoint</span></code>. Inside the handler, the caller identity that was constructed by the accepting policy check can be retrieved with <code class="docutils literal notranslate"><span class="pre">get_caller</span></code> or <code class="docutils literal notranslate"><span class="pre">try_get_caller</span></code> - the latter should be used when multiple policies are present, to detect which policy accepted the request.</p>
+<p>For example in the <code class="docutils literal notranslate"><span class="pre">/log/private</span></code> endpoint above there is a single policy stating that requests must come from a known user cert, over mutually authenticated TLS. This is one of several built-in policies provided by CCF. These built-in policies will check that the caller’s TLS cert is a known user or member identity, or that the request is HTTP signed by a known user or member identity, or that the request contains a JWT signed by a known issuer. Additionally, there is an empty policy which accepts all requests, which should be used as the final policy to declare that the endpoint is optionally authenticated (either an earlier-listed policy passes providing a real caller identity, or the empty policy passes and the endpoint is invoked with no caller identity). To declare that an endpoint has no authentication requirements and should be accessible by any caller, use the special value <code class="docutils literal notranslate"><span class="pre">no_auth_required</span></code>.</p>
+<p>Applications can extend this system by writing their own authentication policies. There is an example of this in the C++ logging app. First it defines a type describing the identity details it aims to find in an acceptable request:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span> <span class="nc">CustomIdentity</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">AuthnIdentity</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">name</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">size_t</span><span class="w"> </span><span class="n">age</span><span class="p">;</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Next it defines the policy itself. The core functionality is the implementation of the <code class="docutils literal notranslate"><span class="pre">authenticate()</span></code> method, which looks at each request and returns either a valid new identity if it accepts the request, or <code class="docutils literal notranslate"><span class="pre">nullptr</span></code> if it doesn’t. In this demo case it is looking for a pair of headers and doing some validation of their values:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomAuthPolicy</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">AuthnPolicy</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="k">public</span><span class="o">:</span><span class="w"></span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">unique_ptr</span><span class="o">&lt;</span><span class="n">ccf</span><span class="o">::</span><span class="n">AuthnIdentity</span><span class="o">&gt;</span><span class="w"> </span><span class="n">authenticate</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">kv</span><span class="o">::</span><span class="n">ReadOnlyTx</span><span class="o">&amp;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">enclave</span><span class="o">::</span><span class="n">RpcContext</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">error_reason</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">headers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="o">-&gt;</span><span class="n">get_request_headers</span><span class="p">();</span><span class="w"></span>
+
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="c1">// If a specific header is present, throw an exception to simulate a</span>
+<span class="w">      </span><span class="c1">// dangerously implemented auth policy</span>
+<span class="w">      </span><span class="k">constexpr</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">explode_header_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"x-custom-auth-explode"</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">explode_header_it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">headers</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">explode_header_key</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">explode_header_it</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">headers</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"></span>
+<span class="w">      </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="k">throw</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">logic_error</span><span class="p">(</span><span class="n">explode_header_it</span><span class="o">-&gt;</span><span class="n">second</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">constexpr</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">name_header_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"x-custom-auth-name"</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">name_header_it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">headers</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">name_header_key</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">name_header_it</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">headers</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">error_reason</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">        </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="s">"Missing required header {}"</span><span class="p">,</span><span class="w"> </span><span class="n">name_header_key</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">name_header_it</span><span class="o">-&gt;</span><span class="n">second</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">name</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">error_reason</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"Name must not be empty"</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">constexpr</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">age_header_key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"x-custom-auth-age"</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">age_header_it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">headers</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">age_header_key</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">name_header_it</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">headers</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">error_reason</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">        </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="s">"Missing required header {}"</span><span class="p">,</span><span class="w"> </span><span class="n">age_header_key</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">age_s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">age_header_it</span><span class="o">-&gt;</span><span class="n">second</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kt">size_t</span><span class="w"> </span><span class="n">age</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="p">[</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">ec</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">from_chars</span><span class="p">(</span><span class="n">age_s</span><span class="p">.</span><span class="n">data</span><span class="p">(),</span><span class="w"> </span><span class="n">age_s</span><span class="p">.</span><span class="n">data</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">age_s</span><span class="p">.</span><span class="n">size</span><span class="p">(),</span><span class="w"> </span><span class="n">age</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ec</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">errc</span><span class="p">())</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">error_reason</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">        </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="s">"Unable to parse age header as a number: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">age_s</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">constexpr</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">min_age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">16</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">age</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">min_age</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">error_reason</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="s">"Caller age must be at least {}"</span><span class="p">,</span><span class="w"> </span><span class="n">min_age</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">ident</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_unique</span><span class="o">&lt;</span><span class="n">CustomIdentity</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">ident</span><span class="o">-&gt;</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">name</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">ident</span><span class="o">-&gt;</span><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">age</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ident</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">optional</span><span class="o">&lt;</span><span class="n">ccf</span><span class="o">::</span><span class="n">OpenAPISecuritySchema</span><span class="o">&gt;</span><span class="w"> </span><span class="n">get_openapi_security_schema</span><span class="p">()</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">override</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="c1">// There is no OpenAPI-compliant way to describe this auth scheme, so we</span>
+<span class="w">    </span><span class="c1">// return nullopt</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">nullopt</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">authenticate()</span></code> is also passed a <code class="docutils literal notranslate"><span class="pre">ReadOnlyTx</span></code> object, so more complex authentication decisions can depend on the current state of the KV. For instance the built-in TLS cert auth policies are looking up the currently known user/member certs stored in the KV, which will change over the life of the service.</p>
+<p>The final piece is the definition of the endpoint itself, which uses an instance of this new policy when it is constructed and then retrieves the custom identity inside the handler:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">custom_auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[](</span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">caller_identity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">get_caller</span><span class="o">&lt;</span><span class="n">CustomIdentity</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="w"> </span><span class="n">response</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">response</span><span class="p">[</span><span class="s">"name"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">caller_identity</span><span class="p">.</span><span class="n">name</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">response</span><span class="p">[</span><span class="s">"age"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">caller_identity</span><span class="p">.</span><span class="n">age</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">response</span><span class="p">[</span><span class="s">"description"</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="s">"Your name is {} and you are {}"</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">caller_identity</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">caller_identity</span><span class="p">.</span><span class="n">age</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_status</span><span class="p">(</span><span class="n">HTTP_STATUS_OK</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_body</span><span class="p">(</span><span class="n">response</span><span class="p">.</span><span class="n">dump</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+<span class="k">auto</span><span class="w"> </span><span class="n">custom_policy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">CustomAuthPolicy</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+<span class="n">make_endpoint</span><span class="p">(</span><span class="s">"/custom_auth"</span><span class="p">,</span><span class="w"> </span><span class="n">HTTP_GET</span><span class="p">,</span><span class="w"> </span><span class="n">custom_auth</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="n">custom_policy</span><span class="p">})</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_auto_schema</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">,</span><span class="w"> </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">  </span><span class="c1">// To test that custom auth works on both the receiving node and a</span>
+<span class="w">  </span><span class="c1">// forwardee, we always forward it</span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_forwarding_required</span><span class="p">(</span><span class="n">ccf</span><span class="o">::</span><span class="n">endpoints</span><span class="o">::</span><span class="n">ForwardingRequired</span><span class="o">::</span><span class="n">Always</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">install</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="default-endpoints">
+<h3>Default Endpoints<a class="headerlink" href="#default-endpoints" title="Permalink to this headline">¶</a></h3>
+<p>The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as <code class="docutils literal notranslate"><span class="pre">/app/tx</span></code>, <code class="docutils literal notranslate"><span class="pre">/app/commit</span></code>, and <code class="docutils literal notranslate"><span class="pre">/app/user_id</span></code>. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in <code class="docutils literal notranslate"><span class="pre">samples/apps/nobuiltins</span></code>. Whereas the logging app declares a registry inheriting from <a class="reference internal" href="api.html#_CPPv4N3ccf22CommonEndpointRegistryE" title="ccf::CommonEndpointRegistry"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">ccf::CommonEndpointRegistry</span></code></a>, this app inherits from <a class="reference internal" href="api.html#_CPPv4N3ccf20BaseEndpointRegistryE" title="ccf::BaseEndpointRegistry"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">ccf::BaseEndpointRegistry</span></code></a> which does not install any default endpoints:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">NoBuiltinsRegistry</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">BaseEndpointRegistry</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This app can then define its own endpoints from a blank slate. If it wants to provide similar functionality to the default endpoints, it does so using the APIs provided by <a class="reference internal" href="api.html#_CPPv4N3ccf20BaseEndpointRegistryE" title="ccf::BaseEndpointRegistry"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">ccf::BaseEndpointRegistry</span></code></a>. For instance to retrieve the hardware quote of the executing node:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">ccf</span><span class="o">::</span><span class="n">QuoteInfo</span><span class="w"> </span><span class="n">quote_info</span><span class="p">;</span><span class="w"></span>
+<span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get_quote_for_this_node_v1</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">tx</span><span class="p">,</span><span class="w"> </span><span class="n">quote_info</span><span class="p">);</span><span class="w"></span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">result</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">ApiResult</span><span class="o">::</span><span class="n">OK</span><span class="p">)</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">HTTP_STATUS_INTERNAL_SERVER_ERROR</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InternalError</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">fmt</span><span class="o">::</span><span class="n">format</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="s">"Failed to get quote: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">api_result_to_str</span><span class="p">(</span><span class="n">result</span><span class="p">)));</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+
+<span class="n">summary</span><span class="p">.</span><span class="n">quote_format</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">quote_info</span><span class="p">.</span><span class="n">format</span><span class="p">;</span><span class="w"></span>
+<span class="n">summary</span><span class="p">.</span><span class="n">quote</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">quote_info</span><span class="p">.</span><span class="n">quote</span><span class="p">;</span><span class="w"></span>
+<span class="n">summary</span><span class="p">.</span><span class="n">endorsements</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">quote_info</span><span class="p">.</span><span class="n">endorsements</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="historical-queries">
+<h3>Historical Queries<a class="headerlink" href="#historical-queries" title="Permalink to this headline">¶</a></h3>
+<p>This sample demonstrates how to define a historical query endpoint with the help of <a class="reference internal" href="api.html#_CPPv4N3ccf10historical7adapterERK21HandleHistoricalQueryR18AbstractStateCacheRK17CheckAvailabilityRK13TxIDExtractor" title="ccf::historical::adapter"><code class="xref cpp cpp-func docutils literal notranslate"><span class="pre">ccf::historical::adapter()</span></code></a>.</p>
+<p>The handler passed to the adapter is very similar to a read-only endpoint definition, but receives a read-only <a class="reference internal" href="api.html#_CPPv4N3ccf10historical5StateE" title="ccf::historical::State"><code class="xref cpp cpp-struct docutils literal notranslate"><span class="pre">ccf::historical::State</span></code></a> rather than a transaction.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">get_historical</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="w"></span>
+<span class="w">                        </span><span class="n">ccf</span><span class="o">::</span><span class="n">endpoints</span><span class="o">::</span><span class="n">EndpointContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">,</span><span class="w"></span>
+<span class="w">                        </span><span class="n">ccf</span><span class="o">::</span><span class="n">historical</span><span class="o">::</span><span class="n">StatePtr</span><span class="w"> </span><span class="n">historical_state</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">pack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">jsonhandler</span><span class="o">::</span><span class="n">detect_json_pack</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">  </span><span class="c1">// Parse id from query</span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">parsed_query</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">    </span><span class="n">http</span><span class="o">::</span><span class="n">parse_query</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">get_request_query</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">error_reason</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">size_t</span><span class="w"> </span><span class="n">id</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">http</span><span class="o">::</span><span class="n">get_query_value</span><span class="p">(</span><span class="n">parsed_query</span><span class="p">,</span><span class="w"> </span><span class="s">"id"</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">error_reason</span><span class="p">))</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">HTTP_STATUS_BAD_REQUEST</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InvalidQueryParameterValue</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">error_reason</span><span class="p">));</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">historical_tx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">historical_state</span><span class="o">-&gt;</span><span class="n">store</span><span class="o">-&gt;</span><span class="n">create_read_only_tx</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">records_handle</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">    </span><span class="n">historical_tx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">ro</span><span class="o">&lt;</span><span class="n">RecordsMap</span><span class="o">&gt;</span><span class="p">(</span><span class="n">PRIVATE_RECORDS</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">records_handle</span><span class="o">-&gt;</span><span class="n">get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="p">.</span><span class="n">has_value</span><span class="p">())</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">LoggingGetHistorical</span><span class="o">::</span><span class="n">Out</span><span class="w"> </span><span class="n">out</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">out</span><span class="p">.</span><span class="n">msg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">value</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">out</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">ccf</span><span class="o">::</span><span class="n">jsonhandler</span><span class="o">::</span><span class="n">set_response</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">j</span><span class="p">),</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="p">,</span><span class="w"> </span><span class="n">pack</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">else</span><span class="w"></span>
+<span class="w">  </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_status</span><span class="p">(</span><span class="n">HTTP_STATUS_NO_CONTENT</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+
+<span class="k">auto</span><span class="w"> </span><span class="n">is_tx_committed</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">  </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="n">ccf</span><span class="o">::</span><span class="n">View</span><span class="w"> </span><span class="n">view</span><span class="p">,</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">SeqNo</span><span class="w"> </span><span class="n">seqno</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">error_reason</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">historical</span><span class="o">::</span><span class="n">is_tx_committed</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">consensus</span><span class="p">,</span><span class="w"> </span><span class="n">view</span><span class="p">,</span><span class="w"> </span><span class="n">seqno</span><span class="p">,</span><span class="w"> </span><span class="n">error_reason</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+<span class="n">make_endpoint</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="s">"/log/private/historical"</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">HTTP_GET</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">ccf</span><span class="o">::</span><span class="n">historical</span><span class="o">::</span><span class="n">adapter</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">get_historical</span><span class="p">,</span><span class="w"> </span><span class="n">context</span><span class="p">.</span><span class="n">get_historical_state</span><span class="p">(),</span><span class="w"> </span><span class="n">is_tx_committed</span><span class="p">),</span><span class="w"></span>
+<span class="w">  </span><span class="n">auth_policies</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_auto_schema</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">,</span><span class="w"> </span><span class="n">LoggingGetHistorical</span><span class="o">::</span><span class="n">Out</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">add_query_parameter</span><span class="o">&lt;</span><span class="kt">size_t</span><span class="o">&gt;</span><span class="p">(</span><span class="s">"id"</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_forwarding_required</span><span class="p">(</span><span class="n">ccf</span><span class="o">::</span><span class="n">endpoints</span><span class="o">::</span><span class="n">ForwardingRequired</span><span class="o">::</span><span class="n">Never</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_execute_outside_consensus</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">ccf</span><span class="o">::</span><span class="n">endpoints</span><span class="o">::</span><span class="n">ExecuteOutsideConsensus</span><span class="o">::</span><span class="n">Locally</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">install</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="receipts">
+<h3>Receipts<a class="headerlink" href="#receipts" title="Permalink to this headline">¶</a></h3>
+<p>Historical state always contains a receipt. Users wishing to implement a receipt endpoint may return it directly, or include it along with other historical state in the response.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">get_historical_with_receipt</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">  </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="w"></span>
+<span class="w">    </span><span class="n">ccf</span><span class="o">::</span><span class="n">endpoints</span><span class="o">::</span><span class="n">EndpointContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">ccf</span><span class="o">::</span><span class="n">historical</span><span class="o">::</span><span class="n">StatePtr</span><span class="w"> </span><span class="n">historical_state</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">pack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ccf</span><span class="o">::</span><span class="n">jsonhandler</span><span class="o">::</span><span class="n">detect_json_pack</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// Parse id from query</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">parsed_query</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">      </span><span class="n">http</span><span class="o">::</span><span class="n">parse_query</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">get_request_query</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">error_reason</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kt">size_t</span><span class="w"> </span><span class="n">id</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">http</span><span class="o">::</span><span class="n">get_query_value</span><span class="p">(</span><span class="n">parsed_query</span><span class="p">,</span><span class="w"> </span><span class="s">"id"</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">error_reason</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_error</span><span class="p">(</span><span class="w"></span>
+<span class="w">        </span><span class="n">HTTP_STATUS_BAD_REQUEST</span><span class="p">,</span><span class="w"></span>
+<span class="w">        </span><span class="n">ccf</span><span class="o">::</span><span class="n">errors</span><span class="o">::</span><span class="n">InvalidQueryParameterValue</span><span class="p">,</span><span class="w"></span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">error_reason</span><span class="p">));</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">historical_tx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">historical_state</span><span class="o">-&gt;</span><span class="n">store</span><span class="o">-&gt;</span><span class="n">create_read_only_tx</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">records_handle</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">      </span><span class="n">historical_tx</span><span class="p">.</span><span class="k">template</span><span class="w"> </span><span class="n">ro</span><span class="o">&lt;</span><span class="n">RecordsMap</span><span class="o">&gt;</span><span class="p">(</span><span class="n">PRIVATE_RECORDS</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">records_handle</span><span class="o">-&gt;</span><span class="n">get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">v</span><span class="p">.</span><span class="n">has_value</span><span class="p">())</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">LoggingGetReceipt</span><span class="o">::</span><span class="n">Out</span><span class="w"> </span><span class="n">out</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">out</span><span class="p">.</span><span class="n">msg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">value</span><span class="p">();</span><span class="w"></span>
+<span class="w">      </span><span class="n">assert</span><span class="p">(</span><span class="n">historical_state</span><span class="o">-&gt;</span><span class="n">receipt</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">historical_state</span><span class="o">-&gt;</span><span class="n">receipt</span><span class="o">-&gt;</span><span class="n">describe</span><span class="p">(</span><span class="n">out</span><span class="p">.</span><span class="n">receipt</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">ccf</span><span class="o">::</span><span class="n">jsonhandler</span><span class="o">::</span><span class="n">set_response</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">out</span><span class="p">),</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="p">,</span><span class="w"> </span><span class="n">pack</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="k">else</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">ctx</span><span class="p">.</span><span class="n">rpc_ctx</span><span class="o">-&gt;</span><span class="n">set_response_status</span><span class="p">(</span><span class="n">HTTP_STATUS_NO_CONTENT</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+<span class="n">make_endpoint</span><span class="p">(</span><span class="w"></span>
+<span class="w">  </span><span class="s">"/log/private/historical_receipt"</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">HTTP_GET</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="n">ccf</span><span class="o">::</span><span class="n">historical</span><span class="o">::</span><span class="n">adapter</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">get_historical_with_receipt</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">context</span><span class="p">.</span><span class="n">get_historical_state</span><span class="p">(),</span><span class="w"></span>
+<span class="w">    </span><span class="n">is_tx_committed</span><span class="p">),</span><span class="w"></span>
+<span class="w">  </span><span class="n">auth_policies</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_auto_schema</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">,</span><span class="w"> </span><span class="n">LoggingGetReceipt</span><span class="o">::</span><span class="n">Out</span><span class="o">&gt;</span><span class="p">()</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">add_query_parameter</span><span class="o">&lt;</span><span class="kt">size_t</span><span class="o">&gt;</span><span class="p">(</span><span class="s">"id"</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_forwarding_required</span><span class="p">(</span><span class="n">ccf</span><span class="o">::</span><span class="n">endpoints</span><span class="o">::</span><span class="n">ForwardingRequired</span><span class="o">::</span><span class="n">Never</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">set_execute_outside_consensus</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">ccf</span><span class="o">::</span><span class="n">endpoints</span><span class="o">::</span><span class="n">ExecuteOutsideConsensus</span><span class="o">::</span><span class="n">Locally</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">.</span><span class="n">install</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="logging_rpc_api.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Logging RPC API</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="example.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">C++ Application</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/build_apps/logging_cpp.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Logging (C++)</a><ul>
+<li><a class="reference internal" href="#rpc-handler">RPC Handler</a><ul>
+<li><a class="reference internal" href="#api-schema">API Schema</a></li>
+<li><a class="reference internal" href="#authentication">Authentication</a></li>
+<li><a class="reference internal" href="#default-endpoints">Default Endpoints</a></li>
+<li><a class="reference internal" href="#historical-queries">Historical Queries</a></li>
+<li><a class="reference internal" href="#receipts">Receipts</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

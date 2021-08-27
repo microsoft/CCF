@@ -1,0 +1,665 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Contribute" href="../contribute/index.html" /><link rel="prev" title="Ledger" href="ledger.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>Python Library - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../main/audit/python_library.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/audit/python_library.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/audit/python_library.html">ccf-2.0.0-dev2 </option>
+    <option value="../../ccf-2.0.0-dev1/audit/python_library.html">ccf-2.0.0-dev1 </option>
+    <option value="../../ccf-2.0.0-dev0/audit/python_library.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/audit/python_library.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/audit/python_library.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/audit/python_library.html">ccf-1.0.7 </option>
+    <option value="python_library.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/audit/python_library.html">ccf-1.0.5 </option>
+    <option value="../../ccf-1.0.4/audit/python_library.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/audit/python_library.html">ccf-1.0.3 </option>
+    <option value="../../ccf-1.0.2/audit/python_library.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/audit/python_library.html">ccf-1.0.1 </option>
+    <option value="../../ccf-1.0.0/audit/python_library.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/consensus.html">Consensus Protocols</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt_ms_example.html">JWT Authentication example using Microsoft Identity Platform</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/upgrading_app.html">Upgrade Your Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/js_gov.html">JavaScript Governance</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Audit</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ledger.html">Ledger</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="python-library">
+<h1>Python Library<a class="headerlink" href="#python-library" title="Permalink to this headline">¶</a></h1>
+<p>This page describes the Python API of the <code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger</span></code> module which can be used by auditors to parse a CCF ledger. To install the <code class="docutils literal notranslate"><span class="pre">ccf</span></code> Python package, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ pip install ccf
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Use the <a class="reference internal" href="#read-ledger-py"><span class="std std-ref">read_ledger.py command line utility</span></a> to display the content of a CCF ledger from the command line.</p>
+</div>
+<section id="tutorial">
+<h2>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h2>
+<p>This tutorial demonstrates how to parse the ledger produced by a CCF node. It shows a very basic example which loops through all transactions in the ledger and displays the content of all updates to a well-known built-in table.</p>
+<p>First, the paths to the ledger directories should be set:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ledger_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"&lt;/path/to/ledger/dir&gt;"</span><span class="p">]</span> <span class="c1"># List of a single ledger directory</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>By default, ledger directories are created under the node directory.</p>
+</div>
+<p>Then, import the ledger module and instantiate a <code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger</span></code> object:</p>
+<div class="highlight-py notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">ccf.ledger</span>
+
+<span class="n">ledger</span> <span class="o">=</span> <span class="n">ccf</span><span class="o">.</span><span class="n">ledger</span><span class="o">.</span><span class="n">Ledger</span><span class="p">(</span><span class="n">ledger_dirs</span><span class="p">,</span> <span class="n">committed_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>By default, non-committed ledger files are ignored, unless the <code class="docutils literal notranslate"><span class="pre">committed_only</span></code> argument is set to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+<p>In this particular example, a target table is set. This is a public table that can be read and audited from the ledger directly. In this example, the target table is the well-known <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.nodes.info</span></code> table that keeps track of all nodes in the network.</p>
+<div class="highlight-py notranslate"><div class="highlight"><pre><span></span><span class="n">target_table</span> <span class="o">=</span> <span class="s2">"public:ccf.gov.nodes.info"</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In practice, it is likely that auditors will want to run more elaborate logic when parsing the ledger. For example, this might involve auditing governance operations and looping over multiple tables.</p>
+</div>
+<p>Finally, the ledger can be iterated over. For each transaction in the ledger, the public tables changed within that transaction are observed. If the target table is included, we loop through all keys and values modified in that transaction.</p>
+<div class="highlight-py notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">ledger</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">transaction</span> <span class="ow">in</span> <span class="n">chunk</span><span class="p">:</span>
+        <span class="c1"># Retrieve all public tables changed in transaction</span>
+        <span class="n">public_tables</span> <span class="o">=</span> <span class="n">transaction</span><span class="o">.</span><span class="n">get_public_domain</span><span class="p">()</span><span class="o">.</span><span class="n">get_tables</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">target_table</span> <span class="ow">in</span> <span class="n">public_tables</span><span class="p">:</span>
+            <span class="c1"># Ledger verification is happening implicitly in ccf.ledger.Ledger()</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">public_tables</span><span class="p">[</span><span class="n">target_table</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="c1"># Note: `key` and `value` are raw bytes here.</span>
+                <span class="c1"># This code needs to have knowledge of the serialisation format for each table.</span>
+                <span class="c1"># In this case, the target table 'public:ccf.gov.nodes.info' is raw bytes to JSON.</span>
+                <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">key</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="si">}</span><span class="s2"> : </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The integrity of the ledger is automatically verified when iterating over transactions.</p>
+</div>
+</section>
+<section id="read-ledger-py-command-line-utility">
+<span id="read-ledger-py"></span><h2><code class="docutils literal notranslate"><span class="pre">read_ledger.py</span></code> command line utility<a class="headerlink" href="#read-ledger-py-command-line-utility" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">read_ledger.py</span></code> command line utility can be used to parse, verify the integrity and display the public content of the ledger directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ read_ledger.py /path/to/ledger/dir
+Reading ledger from <span class="o">[</span><span class="s1">'/path/to/ledger/dir'</span><span class="o">]</span>
+Contains <span class="m">9</span> chunks
+chunk /path/to/first/ledger/chunk <span class="o">(</span>committed<span class="o">)</span>
+  seqno <span class="m">1</span> <span class="o">(</span><span class="m">9</span> public tables<span class="o">)</span> <span class="c1"># Number of tables written at seqno 1</span>
+    table <span class="s2">"public:ccf.gov.constitution"</span> <span class="o">(</span><span class="m">1</span> write<span class="o">)</span>: <span class="c1"># 1 write to this table at seqno 1</span>
+      &lt;u64: <span class="m">0</span>&gt;: <span class="c1"># key</span>
+        <span class="s2">"class Action ..."</span> <span class="c1"># value</span>
+    table <span class="s2">"public:ccf.gov.members.acks"</span> <span class="o">(</span><span class="m">2</span> writes<span class="o">)</span>: <span class="c1"># 2 writes to this table at seqno 1</span>
+        ...
+  seqno <span class="m">31</span> <span class="o">(</span><span class="m">0</span> public tables<span class="o">)</span> <span class="c1"># transaction at seqno 31 is private only</span>
+  -- private: <span class="m">94</span> bytes <span class="c1"># size of private entry</span>
+...
+Ledger verification complete. Found <span class="m">15</span> signatures, and verified <span class="k">until</span> <span class="m">2</span>.52 <span class="c1"># Ledger integrity verified up to seqno 2.52</span>
+</pre></div>
+</div>
+<p>By default, non-committed ledger files are ignored, unless the <code class="docutils literal notranslate"><span class="pre">--uncommitted</span></code> command line argument is specified.</p>
+<p>Alternatively, <code class="docutils literal notranslate"><span class="pre">read_ledger.py</span></code> can parse the content of a snapshot file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ read_ledger.py --snapshot /path/to/snapshot/file
+Reading snapshot from /path/to/snapshot/file <span class="o">(</span>committed<span class="o">)</span>
+  seqno <span class="m">12</span> <span class="o">(</span><span class="m">15</span> public tables<span class="o">)</span>
+...
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The output of the <code class="docutils literal notranslate"><span class="pre">read_ledger.py</span></code> utility can be filtered by key-value store <span class="xref std std-ref">table</span> using the <code class="docutils literal notranslate"><span class="pre">--tables</span> <span class="pre">&lt;regex&gt;</span></code> arguments, e.g.:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ read_ledger.py /path/to/ledger/dir --tables <span class="s2">".*ccf.gov.proposals.*"</span>
+<span class="c1"># Only displays governance proposal related tables</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h2>
+<p>An example of how to read and verify entries on the ledger can be found in <a class="reference external" href="https://github.com/microsoft/CCF/blob/main/tests/governance_history.py">governance_history.py</a>, which verifies the member voting history for a short-lived service.</p>
+<p>Since every vote request is signed by the voting member, verified by the primary node and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Read and store the member certificates</p></li>
+<li><p>Read an entry from the <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.history</span></code> table (each entry in the table contains the member id of the voting member, along with their latest signed request)</p></li>
+<li><p>Create a public key using the certificate of the voting member (which was stored on step 1)</p></li>
+<li><p>Verify the signature using the public key and the raw request</p></li>
+<li><p>Repeat steps 2 - 4 until all voting history entries have been read</p></li>
+</ol>
+</div></blockquote>
+</section>
+<section id="api">
+<h2>API<a class="headerlink" href="#api" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="ccf.ledger.Ledger">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">ccf.ledger.</span></span><span class="sig-name descname"><span class="pre">Ledger</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directories</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">committed_only</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">bool</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ccf/ledger.html#Ledger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.Ledger" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class used to iterate over all <a class="reference internal" href="#ccf.ledger.LedgerChunk" title="ccf.ledger.LedgerChunk"><code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger.LedgerChunk</span></code></a> stored in a CCF ledger folder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – Ledger directory for a single CCF node.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.Ledger.get_transaction">
+<span class="sig-name descname"><span class="pre">get_transaction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seqno</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><a class="reference internal" href="#ccf.ledger.Transaction" title="ccf.ledger.Transaction"><span class="pre">ccf.ledger.Transaction</span></a></span></span><a class="reference internal" href="../_modules/ccf/ledger.html#Ledger.get_transaction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.Ledger.get_transaction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the <code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.Ledger.Transaction</span></code> recorded in the ledger at the given sequence number.</p>
+<p>Note that the transaction returned may not yet be verified by a
+signature transaction nor committed by the service.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>seqno</strong> (<em>int</em>) – Sequence number of the transaction to fetch.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.Ledger.Transaction</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.Ledger.get_latest_public_state">
+<span class="sig-name descname"><span class="pre">get_latest_public_state</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">,</span> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/ccf/ledger.html#Ledger.get_latest_public_state"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.Ledger.get_latest_public_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the current public state of the service.</p>
+<p>Note that the public state returned may not yet be verified by a
+signature transaction nor committed by the service.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Tuple[Dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.</p>
+</dd>
+</dl>
+</dd></dl>
+</dd></dl>
+<dl class="py class">
+<dt class="sig sig-object py" id="ccf.ledger.LedgerChunk">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">ccf.ledger.</span></span><span class="sig-name descname"><span class="pre">LedgerChunk</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ledger_validator</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">ccf.ledger.LedgerValidator</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ccf/ledger.html#LedgerChunk"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.LedgerChunk" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class used to parse and iterate over <a class="reference internal" href="#ccf.ledger.Transaction" title="ccf.ledger.Transaction"><code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger.Transaction</span></code></a> in a CCF ledger chunk.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name for a single ledger chunk.</p></li>
+<li><p><strong>ledger_validator</strong> (<em>LedgerValidator</em>) – <code class="xref py py-class docutils literal notranslate"><span class="pre">LedgerValidator</span></code> instance used to verify ledger integrity.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py class">
+<dt class="sig sig-object py" id="ccf.ledger.Transaction">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">ccf.ledger.</span></span><span class="sig-name descname"><span class="pre">Transaction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ledger_validator</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">ccf.ledger.LedgerValidator</span><span class="p"><span class="pre">]</span></span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ccf/ledger.html#Transaction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.Transaction" title="Permalink to this definition">¶</a></dt>
+<dd><p>A transaction represents one entry in the CCF ledger.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.Transaction.get_raw_tx">
+<span class="sig-name descname"><span class="pre">get_raw_tx</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">bytes</span></span></span><a class="reference internal" href="../_modules/ccf/ledger.html#Transaction.get_raw_tx"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.Transaction.get_raw_tx" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return raw transaction bytes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Raw transaction bytes.</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.Transaction.get_private_domain_size">
+<span class="sig-name descname"><span class="pre">get_private_domain_size</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="headerlink" href="#ccf.ledger.Transaction.get_private_domain_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve the size of the private (i.e. encrypted) domain for that transaction.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.Transaction.get_public_domain">
+<span class="sig-name descname"><span class="pre">get_public_domain</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#ccf.ledger.PublicDomain" title="ccf.ledger.PublicDomain"><span class="pre">ccf.ledger.PublicDomain</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#ccf.ledger.Transaction.get_public_domain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve the public (i.e. non-encrypted) domain for that entry.</p>
+<p>Note: If the entry is private-only, nothing is returned.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ccf.ledger.PublicDomain" title="ccf.ledger.PublicDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger.PublicDomain</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+</dd></dl>
+<dl class="py class">
+<dt class="sig sig-object py" id="ccf.ledger.Snapshot">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">ccf.ledger.</span></span><span class="sig-name descname"><span class="pre">Snapshot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ccf/ledger.html#Snapshot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.Snapshot" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility used to parse the content of a snapshot file.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.Snapshot.get_private_domain_size">
+<span class="sig-name descname"><span class="pre">get_private_domain_size</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="headerlink" href="#ccf.ledger.Snapshot.get_private_domain_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve the size of the private (i.e. encrypted) domain for that transaction.</p>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.Snapshot.get_public_domain">
+<span class="sig-name descname"><span class="pre">get_public_domain</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#ccf.ledger.PublicDomain" title="ccf.ledger.PublicDomain"><span class="pre">ccf.ledger.PublicDomain</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#ccf.ledger.Snapshot.get_public_domain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve the public (i.e. non-encrypted) domain for that entry.</p>
+<p>Note: If the entry is private-only, nothing is returned.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ccf.ledger.PublicDomain" title="ccf.ledger.PublicDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger.PublicDomain</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+</dd></dl>
+<dl class="py class">
+<dt class="sig sig-object py" id="ccf.ledger.PublicDomain">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">ccf.ledger.</span></span><span class="sig-name descname"><span class="pre">PublicDomain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buffer</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">_io.BytesIO</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ccf/ledger.html#PublicDomain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.PublicDomain" title="Permalink to this definition">¶</a></dt>
+<dd><p>All public tables within a <a class="reference internal" href="#ccf.ledger.Transaction" title="ccf.ledger.Transaction"><code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger.Transaction</span></code></a>.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.PublicDomain.get_tables">
+<span class="sig-name descname"><span class="pre">get_tables</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="reference internal" href="../_modules/ccf/ledger.html#PublicDomain.get_tables"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.PublicDomain.get_tables" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a dictionary of all public tables (with their content) in a <a class="reference internal" href="#ccf.ledger.Transaction" title="ccf.ledger.Transaction"><code class="xref py py-class docutils literal notranslate"><span class="pre">ccf.ledger.Transaction</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Dictionary of public tables with their content.</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ccf.ledger.PublicDomain.get_seqno">
+<span class="sig-name descname"><span class="pre">get_seqno</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference internal" href="../_modules/ccf/ledger.html#PublicDomain.get_seqno"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.ledger.PublicDomain.get_seqno" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the sequence number at which the transaction was recorded in the ledger.</p>
+</dd></dl>
+</dd></dl>
+<span class="target" id="module-ccf.receipt"></span><dl class="py function">
+<dt class="sig sig-object py" id="ccf.receipt.root">
+<span class="sig-prename descclassname"><span class="pre">ccf.receipt.</span></span><span class="sig-name descname"><span class="pre">root</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">leaf</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">proof</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ccf/receipt.html#root"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.receipt.root" title="Permalink to this definition">¶</a></dt>
+<dd><p>Recompute root of Merkle tree from a leaf and a proof of the form:
+[{“left”: digest}, {“right”: digest}, …]</p>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="ccf.receipt.verify">
+<span class="sig-prename descclassname"><span class="pre">ccf.receipt.</span></span><span class="sig-name descname"><span class="pre">verify</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">signature</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cert</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">cryptography.x509.base.Certificate</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/ccf/receipt.html#verify"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#ccf.receipt.verify" title="Permalink to this definition">¶</a></dt>
+<dd><p>Verify signature over root of Merkle Tree</p>
+</dd></dl>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../contribute/index.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Contribute</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="ledger.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Ledger</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/audit/python_library.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Python Library</a><ul>
+<li><a class="reference internal" href="#tutorial">Tutorial</a></li>
+<li><a class="reference internal" href="#read-ledger-py-command-line-utility"><code class="docutils literal notranslate"><span class="pre">read_ledger.py</span></code> command line utility</a></li>
+<li><a class="reference internal" href="#example">Example</a></li>
+<li><a class="reference internal" href="#api">API</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

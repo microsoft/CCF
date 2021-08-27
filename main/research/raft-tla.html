@@ -1,0 +1,614 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="prev" title="Research" href="index.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>TLA+ model of CCF’s Raft modifications - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="raft-tla.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/research/raft-tla.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/index.html">ccf-2.0.0-dev2 </option>
+    <option value="../../ccf-2.0.0-dev1/index.html">ccf-2.0.0-dev1 </option>
+    <option value="../../ccf-2.0.0-dev0/index.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/index.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/index.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/index.html">ccf-1.0.7 </option>
+    <option value="../../ccf-1.0.6/index.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/index.html">ccf-1.0.5 </option>
+    <option value="../../ccf-1.0.4/index.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/index.html">ccf-1.0.3 </option>
+    <option value="../../ccf-1.0.2/index.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/index.html">ccf-1.0.1 </option>
+    <option value="../../ccf-1.0.0/index.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../overview/consensus/index.html">Consensus Protocols</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../overview/consensus/cft.html">Crash Fault Tolerance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/consensus/bft.html">Byzantine Fault Tolerance</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/design/index.html">Design</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Research</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">TLA+ model of CCF’s Raft modifications</a></li>
+<li class="toctree-l2"><a class="reference external" href="https://arxiv.org/abs/2105.13116">PAC: Practical Accountability for CCF</a></li>
+<li class="toctree-l2"><a class="reference external" href="https://github.com/microsoft/CCF/blob/main/CCF-TECHNICAL-REPORT.pdf">CCF whitepaper</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/microsoft/CCF">GitHub Repository</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="tla-model-of-ccf-s-raft-modifications">
+<h1>TLA+ model of CCF’s Raft modifications<a class="headerlink" href="#tla-model-of-ccf-s-raft-modifications" title="Permalink to this headline">¶</a></h1>
+<p>The TLA+ specification models the intended behavior of Raft as it is modified for CCF. Below, we explain several core parts of the specification in more detail.</p>
+<p>You can find the full specification in the <a class="reference external" href="https://github.com/microsoft/CCF/tree/main/tla">CCF GitHub repository</a> and more information on TLA+ <a class="reference external" href="http://lamport.azurewebsites.net/tla/tla.html">here</a>. Several good resources exist online, one good example is <a class="reference external" href="https://www.learntla.com/introduction/about-this-guide/">this guide</a>.</p>
+<section id="building-blocks-of-the-tla-spec">
+<h2>Building blocks of the TLA+ spec<a class="headerlink" href="#building-blocks-of-the-tla-spec" title="Permalink to this headline">¶</a></h2>
+<p>The core model is maintained in the file <a class="reference external" href="https://github.com/microsoft/CCF/tree/main/tla/raft_spec/ccfraft.tla">ccfraft.tla</a> , however the constants defined in this file are controlled through the model check file <a class="reference external" href="https://github.com/microsoft/CCF/tree/main/tla/raft_spec/MCraft.tla">MCraft.tla</a> .</p>
+<p>This file controls the constants as seen below. In addition to basic settings of how many nodes are to be model checked and their initial configuration, the model allows to place additional limitations on the state space of the program.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>\* Limit the terms that can be reached. Needs to be set to at least 3 to
+\* evaluate all relevant states. If set to only 2, the candidate_quorum
+\* constraint below is too restrictive.
+TermLimit_mc == 4
+
+\* Limit number of requests (new entries) that can be made
+RequestLimit_mc == 2
+
+\* Limit on number of request votes that can be sent to each other node
+RequestVoteLimit_mc == 1
+
+\* Limit number of reconfigurations
+ReconfigurationLimit_mc == 1
+
+\* Limit number of duplicate messages sent to the same server
+MessagesLimit_mc == 1
+
+\* Limit number of times a RetiredLeader server sends commit notifications
+CommitNotificationLimit_mc == 1
+
+\* We made several restrictions to the state space of Raft. However since we
+\* made these restrictions, Deadlocks can occur at places that Raft would in
+\* real-world deployments handle graciously. 
+\* One example of this is if a Quorum of nodes becomes Candidate but can not
+\* timeout anymore since we constrained the terms. Then, an artificial Deadlock
+\* is reached. We solve this below. If TermLimit is set to any number &gt;2, this is
+\* not an issue since breadth-first search will make sure that a similar
+\* situation is simulated at term==1 which results in a term increase to 2.
+MaxSimultaneousCandidates_mc == 1
+</pre></div>
+</div>
+</section>
+<section id="possible-state-transitions-in-the-model">
+<h2>Possible state transitions in the model<a class="headerlink" href="#possible-state-transitions-in-the-model" title="Permalink to this headline">¶</a></h2>
+<p>During the model check, the model checker will exhaustively search through all possible state transitions. The below snippet defines the possible state transitions at each step. Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step. For example, <code class="docutils literal notranslate"><span class="pre">BecomeLeader</span></code> is only a possible step if the selected node has enough votes to do so.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>\* Defines how the variables may transition.
+Next == \/ \E i \in PossibleServer : Timeout(i)
+        \/ \E i, j \in PossibleServer : RequestVote(i, j)
+        \/ \E i \in PossibleServer : BecomeLeader(i)
+        \/ \E i \in PossibleServer : ClientRequest(i)
+        \/ \E i \in PossibleServer : SignCommittableMessages(i)
+        \/ \E i \in PossibleServer : \E c \in SUBSET(PossibleServer) : ChangeConfiguration(i, c)
+        \/ \E i,j \in PossibleServer : NotifyCommit(i,j)
+        \/ \E i \in PossibleServer : AdvanceCommitIndex(i)
+        \/ \E i,j \in PossibleServer : AppendEntries(i, j)
+        \/ \E m \in messages : Receive(m)
+</pre></div>
+</div>
+</section>
+<section id="variables-and-their-initial-state">
+<h2>Variables and their initial state<a class="headerlink" href="#variables-and-their-initial-state" title="Permalink to this headline">¶</a></h2>
+<p>The model uses multiple variables that are initialized as seen below. Most variables are used as a TLA function which behaves similiar to a Map as known from Python or other programming languages. These variables then map each node to a given value, for example the state variable which maps each node to either <code class="docutils literal notranslate"><span class="pre">Follower</span></code>, <code class="docutils literal notranslate"><span class="pre">Leader</span></code>, <code class="docutils literal notranslate"><span class="pre">Retired</span></code>, or <code class="docutils literal notranslate"><span class="pre">Pending</span></code>. In the initial state shown below, all nodes states are set to the <code class="docutils literal notranslate"><span class="pre">InitialConfig</span></code> that is set in <code class="docutils literal notranslate"><span class="pre">MCraft.tla</span></code>.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>\* Define initial values for all variables
+InitReconfigurationVars == /\ ReconfigurationCount = 0
+                           /\ Configurations = [i \in PossibleServer |-&gt; &lt;&lt; &lt;&lt; 0, InitialServer &gt;&gt; &gt;&gt; ]
+InitMessagesVars == /\ messages = {}
+                    /\ messagesSent = [i \in PossibleServer |-&gt; [j \in PossibleServer |-&gt; &lt;&lt; &gt;&gt;] ]
+                    /\ commitsNotified = [i \in PossibleServer |-&gt; &lt;&lt;0,0&gt;&gt;] \* i.e., &lt;&lt;index, times of notification&gt;&gt;
+InitServerVars == /\ currentTerm = [i \in PossibleServer |-&gt; 1]
+                  /\ state       = [i \in PossibleServer |-&gt; InitialConfig[i]]
+                  /\ votedFor    = [i \in PossibleServer |-&gt; Nil]
+InitCandidateVars == /\ votesSent = [i \in PossibleServer |-&gt; FALSE ]
+                     /\ votesGranted   = [i \in PossibleServer |-&gt; {}]
+                     /\ votesRequested = [i \in PossibleServer |-&gt; [j \in PossibleServer |-&gt; 0]]
+\* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
+\* leader does not send itself messages. It's still easier to include these
+\* in the functions.
+InitLeaderVars == /\ nextIndex  = [i \in PossibleServer |-&gt; [j \in PossibleServer |-&gt; 1]]
+                  /\ matchIndex = [i \in PossibleServer |-&gt; [j \in PossibleServer |-&gt; 0]]
+InitLogVars == /\ log          = [i \in PossibleServer |-&gt; &lt;&lt; &gt;&gt;]
+               /\ commitIndex  = [i \in PossibleServer |-&gt; 0]
+               /\ clientRequests = 1
+               /\ committedLog = &lt;&lt; &gt;&gt;
+               /\ committedLogDecrease = FALSE
+Init == /\ InitReconfigurationVars
+        /\ InitMessagesVars
+        /\ InitServerVars
+        /\ InitCandidateVars
+        /\ InitLeaderVars
+        /\ InitLogVars
+</pre></div>
+</div>
+</section>
+<section id="basic-functions-and-log-changes">
+<h2>Basic functions and log changes<a class="headerlink" href="#basic-functions-and-log-changes" title="Permalink to this headline">¶</a></h2>
+<p>Below, we shortly describe some basic functionality of the Raft model. Note that this is only a selection of the model, please refer to the full model for a full picture.</p>
+<section id="timeout">
+<h3>Timeout<a class="headerlink" href="#timeout" title="Permalink to this headline">¶</a></h3>
+<p>Since TLA does not model time, any node can time out at any moment as a next step. Since this may lead to an infinite state space, we limited the maximum term any node can reach. While this would be overly constraining in any actual program, the model checker will ensure to also explore those states that are feasible within these limits. Since interesting traces can already be generated with one or better two term changes, this approach is feasible to model reconfigurations and check persistence.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>\* Server i times out and starts a new election.
+Timeout(i) == \* Limit the term of each server to reduce state space
+              /\ currentTerm[i] &lt; TermLimit
+              \* Limit number of candidates in our relevant server set 
+              \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
+              /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) &lt; MaxSimultaneousCandidates
+              \* Only servers that are not already leaders can become candidates  
+              /\ state[i] \in {Follower, Candidate}
+              /\ state' = [state EXCEPT ![i] = Candidate]
+              /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
+              \* Most implementations would probably just set the local vote
+              \* atomically, but messaging localhost for it is weaker.
+              \*   CCF change: We do this atomically to reduce state space
+              /\ votedFor' = [votedFor EXCEPT ![i] = i]
+              /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in PossibleServer |-&gt; 0]]
+              /\ votesSent' = [votesSent EXCEPT ![i] = TRUE ]
+              /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
+              /\ UNCHANGED &lt;&lt;reconfigurationVars, messageVars, leaderVars, logVars&gt;&gt;
+</pre></div>
+</div>
+</section>
+<section id="signing-of-log-entries">
+<h3>Signing of log entries<a class="headerlink" href="#signing-of-log-entries" title="Permalink to this headline">¶</a></h3>
+<p>In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF. We model this via special <code class="docutils literal notranslate"><span class="pre">TypeSignature</span></code> log entries and ensure that the commitIndex can only be moved to these special entries.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>\* CCF extension: Signed commits
+\* Leader i signs the previous messages in its log to make them committable
+\* This is done as a separate entry in the log that has a different
+\* message contentType than messages entered by the client.
+SignCommittableMessages(i) ==
+    /\ LET 
+        log_len == Len(log[i])
+       IN
+        \* Only applicable to Leaders with a log that contains at least one message
+        /\ state[i] = Leader
+        /\ log_len &gt; 0
+        \* Make sure the leader does not create two signatures in a row
+        /\ log[i][log_len].contentType /= TypeSignature
+        /\ LET
+            \* Create a new entry in the log that has the contentType Signature and append it
+            entry == [term  |-&gt; currentTerm[i],
+                      value |-&gt; clientRequests-1,
+               contentType  |-&gt; TypeSignature]
+            newLog == Append(log[i], entry)
+            IN log' = [log EXCEPT ![i] = newLog]
+        /\ UNCHANGED &lt;&lt;reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
+                    leaderVars, commitIndex, committedLog, committedLogDecrease&gt;&gt;
+</pre></div>
+</div>
+</section>
+</section>
+<section id="reconfiguration-steps">
+<h2>Reconfiguration steps<a class="headerlink" href="#reconfiguration-steps" title="Permalink to this headline">¶</a></h2>
+<p>The one transaction reconfiguration is already described <span class="xref std std-doc">here</span>. In the TLA model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log. This also triggers a change in the <code class="docutils literal notranslate"><span class="pre">Configurations</span></code> variable which keeps track of all running configurations.</p>
+<p>In the following, this <code class="docutils literal notranslate"><span class="pre">Configurations</span></code> variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>\* CCF extension: Reconfiguration of servers
+\* Leader can propose a change in the current configuration.
+\* This will switch the current set of servers to the proposed set, ONCE BOTH
+\* sets of servers have committed this message (in the adjusted configuration
+\* this means waiting for the signature to be committed)
+ChangeConfiguration(i, newConfiguration) == 
+    \* Limit reconfigurations
+    /\ ReconfigurationCount &lt; ReconfigurationLimit
+    \* Only leader can propose changes
+    /\ state[i] = Leader
+    \* Configuration is non empty
+    /\ newConfiguration /= {}
+    \* Configuration is a proper subset ob the Possible Servers
+    /\ newConfiguration \subseteq PossibleServer
+    \* Configuration is not equal to current configuration
+    /\ newConfiguration /= Configurations[i][1][2]
+    \* Keep track of running reconfigurations to limit state space
+    /\ ReconfigurationCount' = ReconfigurationCount + 1
+    /\ LET
+           entry == [term |-&gt; currentTerm[i],
+                    value |-&gt; newConfiguration,
+                    contentType |-&gt; TypeReconfiguration]
+           newLog == Append(log[i], entry)
+           \* Note: New configuration gets the index of its entry. I.e.,
+            \* configurations are valid immediately on their own index
+           newConf== Append(Configurations[i], &lt;&lt; Len(log[i]) + 1, newConfiguration &gt;&gt;)
+           IN 
+           /\ log' = [log EXCEPT ![i] = newLog]
+           /\ Configurations' = [Configurations EXCEPT ![i] = newConf]
+    /\ UNCHANGED &lt;&lt;messageVars, serverVars, candidateVars, clientRequests,
+                    leaderVars, commitIndex, committedLog, committedLogDecrease&gt;&gt;
+</pre></div>
+</div>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          
+          <a class="prev-page" href="index.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Research</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/research/raft-tla.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">TLA+ model of CCF’s Raft modifications</a><ul>
+<li><a class="reference internal" href="#building-blocks-of-the-tla-spec">Building blocks of the TLA+ spec</a></li>
+<li><a class="reference internal" href="#possible-state-transitions-in-the-model">Possible state transitions in the model</a></li>
+<li><a class="reference internal" href="#variables-and-their-initial-state">Variables and their initial state</a></li>
+<li><a class="reference internal" href="#basic-functions-and-log-changes">Basic functions and log changes</a><ul>
+<li><a class="reference internal" href="#timeout">Timeout</a></li>
+<li><a class="reference internal" href="#signing-of-log-entries">Signing of log entries</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#reconfiguration-steps">Reconfiguration steps</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

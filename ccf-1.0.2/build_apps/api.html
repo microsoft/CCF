@@ -1,0 +1,969 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Cryptography API" href="crypto.html" /><link rel="prev" title="Upgrade Your Application" href="upgrading_app.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>Developer API - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../main/build_apps/api.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/build_apps/api.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/build_apps/api.html">ccf-2.0.0-dev2 </option>
+    <option value="../../ccf-2.0.0-dev1/build_apps/api.html">ccf-2.0.0-dev1 </option>
+    <option value="../../ccf-2.0.0-dev0/build_apps/api.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/build_apps/api.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/build_apps/api.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/build_apps/api.html">ccf-1.0.7 </option>
+    <option value="../../ccf-1.0.6/build_apps/api.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/build_apps/api.html">ccf-1.0.5 </option>
+    <option value="../../ccf-1.0.4/build_apps/api.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/build_apps/api.html">ccf-1.0.3 </option>
+    <option value="api.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/build_apps/api.html">ccf-1.0.1 </option>
+    <option value="../../ccf-1.0.0/build_apps/api.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/consensus.html">Consensus Protocols</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Build Apps</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3"><a class="reference internal" href="js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l4"><a class="reference internal" href="js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="auth/cert.html">Certificate Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="auth/jwt_ms_example.html">JWT Authentication example using Microsoft Identity Platform</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="upgrading_app.html">Upgrade Your Application</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/js_gov.html">JavaScript Governance</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="developer-api">
+<h1>Developer API<a class="headerlink" href="#developer-api" title="Permalink to this headline">¶</a></h1>
+<p>A CCF application is composed of the following:</p>
+<ul class="simple">
+<li><p>The <a class="reference internal" href="#application-entry-point"><span class="std std-ref">Application Entry Point</span></a> which registers the application in CCF.</p></li>
+<li><p>A collection of <a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">endpoints</span></code></a> handling HTTP requests and grouped in a single <a class="reference internal" href="#_CPPv4N3ccf9endpoints16EndpointRegistryE" title="ccf::endpoints::EndpointRegistry"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">registry</span></code></a>. An <a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">endpoint</span></code></a> reads and writes to the key-value store via the <a class="reference internal" href="kv/api.html#key-value-store-api"><span class="std std-ref">Key-Value Store API</span></a>.</p></li>
+</ul>
+<section id="application-entry-point">
+<h2>Application Entry Point<a class="headerlink" href="#application-entry-point" title="Permalink to this headline">¶</a></h2>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6ccfapp15get_rpc_handlerERN3ccf13NetworkTablesER19AbstractNodeContext">
+<span id="_CPPv3N6ccfapp15get_rpc_handlerERN3ccf13NetworkTablesER19AbstractNodeContext"></span><span id="_CPPv2N6ccfapp15get_rpc_handlerERN3ccf13NetworkTablesER19AbstractNodeContext"></span><span id="ccfapp::get_rpc_handler__ccf::NetworkTablesR.AbstractNodeContextR"></span><span class="target" id="app__interface_8h_1acf822a1265f73d7c0126bf63f95c7e1d"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">RpcFrontend</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccfapp</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">get_rpc_handler</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NetworkTables</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">network</span></span>, <span class="n"><span class="pre">AbstractNodeContext</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">context</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6ccfapp15get_rpc_handlerERN3ccf13NetworkTablesER19AbstractNodeContext" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>To be implemented by the application to be registered by CCF.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>network</strong> – Access to the network’s replicated tables </p></li>
+<li><p><strong>context</strong> – Access to node and host services</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Shared pointer to the application handler instance </p>
+</dd>
+</dl>
+</dd></dl>
+</section>
+<section id="application-endpoint-registration">
+<h2>Application Endpoint Registration<a class="headerlink" href="#application-endpoint-registration" title="Permalink to this headline">¶</a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints8EndpointE">
+<span id="_CPPv3N3ccf9endpoints8EndpointE"></span><span id="_CPPv2N3ccf9endpoints8EndpointE"></span><span id="ccf::endpoints::Endpoint"></span><span class="target" id="structccf_1_1endpoints_1_1Endpoint"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">endpoints</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">Endpoint</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">endpoints</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">EndpointDefinition</span></span><a class="headerlink" href="#_CPPv4N3ccf9endpoints8EndpointE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>An <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> represents a user-defined resource that can be invoked by authorised users via HTTP requests, over TLS. An <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> is accessible at a specific verb and URI, e.g. POST /app/accounts or GET /app/records.</p>
+<p>Endpoints can read from and mutate the state of the replicated key-value store.</p>
+<p>A CCF application is a collection of Endpoints recorded in the application’s <a class="reference internal" href="#classccf_1_1endpoints_1_1EndpointRegistry"><span class="std std-ref">EndpointRegistry</span></a>. </p>
+<p>Subclassed by ccf::endpoints::PathTemplatedEndpoint</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints8Endpoint18set_openapi_hiddenEb">
+<span id="_CPPv3N3ccf9endpoints8Endpoint18set_openapi_hiddenEb"></span><span id="_CPPv2N3ccf9endpoints8Endpoint18set_openapi_hiddenEb"></span><span id="ccf::endpoints::Endpoint::set_openapi_hidden__b"></span><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1a35482634994f90c953e747830c52943c"></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">set_openapi_hidden</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">hidden</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf9endpoints8Endpoint18set_openapi_hiddenEb" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Whether the endpoint should be omitted from the OpenAPI document.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints8Endpoint17set_params_schemaERKN8nlohmann4jsonE">
+<span id="_CPPv3N3ccf9endpoints8Endpoint17set_params_schemaERKN8nlohmann4jsonE"></span><span id="_CPPv2N3ccf9endpoints8Endpoint17set_params_schemaERKN8nlohmann4jsonE"></span><span id="ccf::endpoints::Endpoint::set_params_schema__nlohmann::jsonCR"></span><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1a626c94ad716d244127dc6860717e58b2"></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">set_params_schema</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">nlohmann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">json</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">j</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf9endpoints8Endpoint17set_params_schemaERKN8nlohmann4jsonE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Sets the JSON schema that the request parameters must comply with.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>j</strong> – Request parameters JSON schema </p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints8Endpoint17set_result_schemaERKN8nlohmann4jsonENSt8optionalI11http_statusEE">
+<span id="_CPPv3N3ccf9endpoints8Endpoint17set_result_schemaERKN8nlohmann4jsonENSt8optionalI11http_statusEE"></span><span id="_CPPv2N3ccf9endpoints8Endpoint17set_result_schemaERKN8nlohmann4jsonENSt8optionalI11http_statusEE"></span><span id="ccf::endpoints::Endpoint::set_result_schema__nlohmann::jsonCR.std::optional:http_status:"></span><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1a57e4366ac796080a9222ecec3a0e9011"></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">set_result_schema</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">nlohmann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">json</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">j</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">http_status</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">status</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">nullopt</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf9endpoints8Endpoint17set_result_schemaERKN8nlohmann4jsonENSt8optionalI11http_statusEE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Sets the JSON schema that the request response must comply with.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>j</strong> – Request response JSON schema </p></li>
+<li><p><strong>status</strong> – Request response status code </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I00EN3ccf9endpoints8Endpoint15set_auto_schemaER8EndpointNSt8optionalI11http_statusEE">
+<span id="_CPPv3I00EN3ccf9endpoints8Endpoint15set_auto_schemaENSt8optionalI11http_statusEE"></span><span id="_CPPv2I00EN3ccf9endpoints8Endpoint15set_auto_schemaENSt8optionalI11http_statusEE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">In</span></span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Out</span></span></span><span class="p"><span class="pre">&gt;</span></span><br/><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1ae7fdaa4eb802fb15ba0b34a7d9fe253a"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">set_auto_schema</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">http_status</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">status</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">nullopt</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4I00EN3ccf9endpoints8Endpoint15set_auto_schemaER8EndpointNSt8optionalI11http_statusEE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Sets the schema that the request and response bodies should comply with. These are used to populate the generated OpenAPI document, but do not introduce any constraints on the actual types that are parsed or produced by the handling functor.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">DECLARE_JSON_</span></code> serialisation macros for serialising
+user-defined data structures.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Template Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>In</strong> – Request body JSON-serialisable data structure </p></li>
+<li><p><strong>Out</strong> – Response body JSON-serialisable data structure </p></li>
+</ul>
+</dd>
+<dt class="field-even">Parameters</dt>
+<dd class="field-even"><p><strong>status</strong> – Response status code </p>
+</dd>
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0EN3ccf9endpoints8Endpoint15set_auto_schemaER8EndpointNSt8optionalI11http_statusEE">
+<span id="_CPPv3I0EN3ccf9endpoints8Endpoint15set_auto_schemaENSt8optionalI11http_statusEE"></span><span id="_CPPv2I0EN3ccf9endpoints8Endpoint15set_auto_schemaENSt8optionalI11http_statusEE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">&gt;</span></span><br/><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1a8c8a59cd6a263aee898b7807a82fce0e"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">set_auto_schema</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">http_status</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">status</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">nullopt</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4I0EN3ccf9endpoints8Endpoint15set_auto_schemaER8EndpointNSt8optionalI11http_statusEE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Sets schemas for request and response bodies using typedefs within T. <p></p>
+<dl class="simple">
+<dt><strong>See</strong></dt><dd><p><a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint_1ae7fdaa4eb802fb15ba0b34a7d9fe253a"><span class="std std-ref">set_auto_schema</span></a></p>
+</dd>
+</dl>
+</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">T</span></code> data structure should contain two nested <code class="docutils literal notranslate"><span class="pre">In</span></code> and <code class="docutils literal notranslate"><span class="pre">Out</span></code>
+structures for request parameters and response format, respectively.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Template Parameters</dt>
+<dd class="field-odd"><p><strong>T</strong> – Type containing <code class="docutils literal notranslate"><span class="pre">In</span></code> and <code class="docutils literal notranslate"><span class="pre">Out</span></code> typedefs with JSON-schema description specialisations </p>
+</dd>
+<dt class="field-even">Parameters</dt>
+<dd class="field-even"><p><strong>status</strong> – Request response status code </p>
+</dd>
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0EN3ccf9endpoints8Endpoint19add_query_parameterER8EndpointRKNSt6stringE18QueryParamPresence">
+<span id="_CPPv3I0EN3ccf9endpoints8Endpoint19add_query_parameterERKNSt6stringE18QueryParamPresence"></span><span id="_CPPv2I0EN3ccf9endpoints8Endpoint19add_query_parameterERKNSt6stringE18QueryParamPresence"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">&gt;</span></span><br/><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1afbd770c9dcb16a56334198cc1d705449"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">add_query_parameter</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">param_name</span></span>, <span class="n"><span class="pre">QueryParamPresence</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">presence</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">RequiredParameter</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4I0EN3ccf9endpoints8Endpoint19add_query_parameterER8EndpointRKNSt6stringE18QueryParamPresence" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Add OpenAPI documentation for a query parameter which can be passed to this endpoint.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Template Parameters</dt>
+<dd class="field-odd"><p><strong>T</strong> – Type with appropriate <code class="docutils literal notranslate"><span class="pre">ds::json</span></code> specialisations to generate a JSON schema description </p>
+</dd>
+<dt class="field-even">Parameters</dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>param_name</strong> – Name to be used for the query parameter to this <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> </p></li>
+<li><p><strong>presence</strong> – Enum value indicating whether this parameter is required or optional </p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints8Endpoint23set_forwarding_requiredE18ForwardingRequired">
+<span id="_CPPv3N3ccf9endpoints8Endpoint23set_forwarding_requiredE18ForwardingRequired"></span><span id="_CPPv2N3ccf9endpoints8Endpoint23set_forwarding_requiredE18ForwardingRequired"></span><span id="ccf::endpoints::Endpoint::set_forwarding_required__ForwardingRequired"></span><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1a8ecb5059455068c21b37be292c75c59e"></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">set_forwarding_required</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="../audit/builtin_maps.html#_CPPv4N3ccf9endpoints18ForwardingRequiredE" title="ccf::endpoints::ForwardingRequired"><span class="n"><span class="pre">ForwardingRequired</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">fr</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf9endpoints8Endpoint23set_forwarding_requiredE18ForwardingRequired" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Overrides whether a <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> is always forwarded, or whether it is safe to sometimes execute on followers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>fr</strong> – Enum value with desired status </p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints8Endpoint29set_execute_outside_consensusE23ExecuteOutsideConsensus">
+<span id="_CPPv3N3ccf9endpoints8Endpoint29set_execute_outside_consensusE23ExecuteOutsideConsensus"></span><span id="_CPPv2N3ccf9endpoints8Endpoint29set_execute_outside_consensusE23ExecuteOutsideConsensus"></span><span id="ccf::endpoints::Endpoint::set_execute_outside_consensus__ExecuteOutsideConsensus"></span><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1ac17354fc44b7e2d631ea1fc5c48a067e"></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">set_execute_outside_consensus</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="../audit/builtin_maps.html#_CPPv4N3ccf9endpoints23ExecuteOutsideConsensusE" title="ccf::endpoints::ExecuteOutsideConsensus"><span class="n"><span class="pre">ExecuteOutsideConsensus</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">v</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf9endpoints8Endpoint29set_execute_outside_consensusE23ExecuteOutsideConsensus" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Indicates that the execution of the <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> does not require consensus from other nodes in the network.</p>
+<p>By default, endpoints are not executed locally.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Use with caution. This should only be used for non-critical endpoints
+that do not read or mutate the state of the key-value store.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>v</strong> – Enum indicating whether the <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> is executed locally, on the node receiving the request, locally on the primary or via the consensus. </p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>This <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> for further modification </p>
+</dd>
+</dl>
+</dd></dl>
+</div>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints8Endpoint9InstallerE">
+<span id="_CPPv3N3ccf9endpoints8Endpoint9InstallerE"></span><span id="_CPPv2N3ccf9endpoints8Endpoint9InstallerE"></span><span id="ccf::endpoints::Endpoint::Installer"></span><span class="target" id="structccf_1_1endpoints_1_1Endpoint_1_1Installer"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Installer</span></span></span><a class="headerlink" href="#_CPPv4N3ccf9endpoints8Endpoint9InstallerE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Subclassed by <a class="reference internal" href="#classccf_1_1endpoints_1_1EndpointRegistry"><span class="std std-ref">ccf::endpoints::EndpointRegistry</span></a></p>
+</dd></dl>
+</dd></dl>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints16EndpointRegistryE">
+<span id="_CPPv3N3ccf9endpoints16EndpointRegistryE"></span><span id="_CPPv2N3ccf9endpoints16EndpointRegistryE"></span><span id="ccf::endpoints::EndpointRegistry"></span><span class="target" id="classccf_1_1endpoints_1_1EndpointRegistry"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">endpoints</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">EndpointRegistry</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">endpoints</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8Endpoint9InstallerE" title="ccf::endpoints::Endpoint::Installer"><span class="n"><span class="pre">Installer</span></span></a><a class="headerlink" href="#_CPPv4N3ccf9endpoints16EndpointRegistryE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>The <a class="reference internal" href="#classccf_1_1endpoints_1_1EndpointRegistry"><span class="std std-ref">EndpointRegistry</span></a> records the user-defined endpoints for a given CCF application.</p>
+<p>This is the abstract base for several more complete registrys. For a versioned API wrapping access to common CCF properties, see <code class="docutils literal notranslate"><a class="reference internal" href="#classccf_1_1BaseEndpointRegistry"><span class="std std-ref"><span class="pre">BaseEndpointRegistry</span></span></a></code>. For implementation of several common endpoints see <code class="docutils literal notranslate"><a class="reference internal" href="#classccf_1_1CommonEndpointRegistry"><span class="std std-ref"><span class="pre">CommonEndpointRegistry</span></span></a></code>. </p>
+<p>Subclassed by <a class="reference internal" href="#classccf_1_1BaseEndpointRegistry"><span class="std std-ref">ccf::BaseEndpointRegistry</span></a></p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints16EndpointRegistry7installER8Endpoint">
+<span id="_CPPv3N3ccf9endpoints16EndpointRegistry7installER8Endpoint"></span><span id="_CPPv2N3ccf9endpoints16EndpointRegistry7installER8Endpoint"></span><span id="ccf::endpoints::EndpointRegistry::install__EndpointR"></span><span class="target" id="classccf_1_1endpoints_1_1EndpointRegistry_1ae9ea64e0fec8b64602af083d431ac16b"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">install</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N3ccf9endpoints8EndpointE" title="ccf::endpoints::Endpoint"><span class="n"><span class="pre">Endpoint</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">endpoint</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">override</span></span><a class="headerlink" href="#_CPPv4N3ccf9endpoints16EndpointRegistry7installER8Endpoint" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Install the given endpoint, using its method and verb</p>
+<p>If an implementation is already installed for this method and verb, it will be replaced. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>endpoint</strong> – <a class="reference internal" href="#structccf_1_1endpoints_1_1Endpoint"><span class="std std-ref">Endpoint</span></a> object describing the new resource to install </p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9endpoints16EndpointRegistry11set_defaultE16EndpointFunctionRK13AuthnPolicies">
+<span id="_CPPv3N3ccf9endpoints16EndpointRegistry11set_defaultE16EndpointFunctionRK13AuthnPolicies"></span><span id="_CPPv2N3ccf9endpoints16EndpointRegistry11set_defaultE16EndpointFunctionRK13AuthnPolicies"></span><span id="ccf::endpoints::EndpointRegistry::set_default__EndpointFunction.AuthnPoliciesCR"></span><span class="target" id="classccf_1_1endpoints_1_1EndpointRegistry_1a7152a39e2998705f8c40c53b9ffcb8f0"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">set_default</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">EndpointFunction</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">f</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">AuthnPolicies</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">ap</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf9endpoints16EndpointRegistry11set_defaultE16EndpointFunctionRK13AuthnPolicies" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Set a default EndpointFunction</p>
+<p>The default EndpointFunction is only invoked if no specific EndpointFunction was found.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>f</strong> – Method implementation </p></li>
+<li><p><strong>ap</strong> – Authentication policy </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+</div>
+</dd></dl>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf22CommonEndpointRegistryE">
+<span id="_CPPv3N3ccf22CommonEndpointRegistryE"></span><span id="_CPPv2N3ccf22CommonEndpointRegistryE"></span><span id="ccf::CommonEndpointRegistry"></span><span class="target" id="classccf_1_1CommonEndpointRegistry"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">CommonEndpointRegistry</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf20BaseEndpointRegistryE" title="ccf::BaseEndpointRegistry"><span class="n"><span class="pre">BaseEndpointRegistry</span></span></a><a class="headerlink" href="#_CPPv4N3ccf22CommonEndpointRegistryE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Subclassed by ccf::MemberEndpoints, ccf::NodeEndpoints, ccf::UserEndpointRegistry</p>
+</dd></dl>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistryE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistryE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistryE"></span><span id="ccf::BaseEndpointRegistry"></span><span class="target" id="classccf_1_1BaseEndpointRegistry"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">BaseEndpointRegistry</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">endpoints</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf9endpoints16EndpointRegistryE" title="ccf::endpoints::EndpointRegistry"><span class="n"><span class="pre">EndpointRegistry</span></span></a><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistryE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Extends the basic EndpointRegistry with helper API methods for retrieving core CCF properties.</p>
+<p>The API methods are versioned with a <code class="docutils literal notranslate"><span class="pre">_vN</span></code> suffix. App developers should use the latest version which provides the values they need. Note that the <code class="docutils literal notranslate"><span class="pre">N</span></code> in these versions is specific to each method name, and is not related to a specific CCF release version. These APIs will be stable and supported for several CCF releases.</p>
+<p>The methods have a consistent calling pattern, taking their arguments first and setting results to the later out-parameters, passed by reference. All return an ApiResult, with value OK if the call succeeded. </p>
+<p>Subclassed by <a class="reference internal" href="#classccf_1_1CommonEndpointRegistry"><span class="std std-ref">ccf::CommonEndpointRegistry</span></a></p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry22get_status_for_txid_v1EN3ccf4ViewEN3ccf5SeqNoERN3ccf8TxStatusE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry22get_status_for_txid_v1EN3ccf4ViewEN3ccf5SeqNoERN3ccf8TxStatusE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry22get_status_for_txid_v1EN3ccf4ViewEN3ccf5SeqNoERN3ccf8TxStatusE"></span><span id="ccf::BaseEndpointRegistry::get_status_for_txid_v1__ccf::View.ccf::SeqNo.ccf::TxStatusR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a3603591f0d27feac22095360e44190fb"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_status_for_txid_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf4ViewE" title="ccf::View"><span class="n"><span class="pre">View</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">view</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">seqno</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf8TxStatusE" title="ccf::TxStatus"><span class="n"><span class="pre">TxStatus</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">tx_status</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry22get_status_for_txid_v1EN3ccf4ViewEN3ccf5SeqNoERN3ccf8TxStatusE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the status of a transaction by ID, provided as a view+seqno pair. This is a node-local property - while it will converge on all nodes in a healthy network, it is derived from distributed state rather than distributed itself. <dl class="simple">
+<dt><strong>See</strong></dt><dd><p>ccf::TxStatus </p>
+</dd>
+</dl>
+</p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry26get_last_committed_txid_v1ERN3ccf4ViewERN3ccf5SeqNoE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry26get_last_committed_txid_v1ERN3ccf4ViewERN3ccf5SeqNoE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry26get_last_committed_txid_v1ERN3ccf4ViewERN3ccf5SeqNoE"></span><span id="ccf::BaseEndpointRegistry::get_last_committed_txid_v1__ccf::ViewR.ccf::SeqNoR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a552446e8554a540c17ab4ef3c555af94"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_last_committed_txid_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf4ViewE" title="ccf::View"><span class="n"><span class="pre">View</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">view</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">seqno</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry26get_last_committed_txid_v1ERN3ccf4ViewERN3ccf5SeqNoE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the ID of latest transaction known to be committed. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry28generate_openapi_document_v1ERN2kv10ReadOnlyTxERKNSt6stringERKNSt6stringERKNSt6stringERN8nlohmann4jsonE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry28generate_openapi_document_v1ERN2kv10ReadOnlyTxERKNSt6stringERKNSt6stringERKNSt6stringERN8nlohmann4jsonE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry28generate_openapi_document_v1ERN2kv10ReadOnlyTxERKNSt6stringERKNSt6stringERKNSt6stringERN8nlohmann4jsonE"></span><span id="ccf::BaseEndpointRegistry::generate_openapi_document_v1__kv::ReadOnlyTxR.ssCR.ssCR.ssCR.nlohmann::jsonR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a63bf1a7b111b9a9110b42c96ce8a6163"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">generate_openapi_document_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">kv</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="kv/api.html#_CPPv4N2kv10ReadOnlyTxE" title="kv::ReadOnlyTx"><span class="n"><span class="pre">ReadOnlyTx</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">tx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">title</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">description</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">document_version</span></span>, <span class="n"><span class="pre">nlohmann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">json</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">document</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry28generate_openapi_document_v1ERN2kv10ReadOnlyTxERKNSt6stringERKNSt6stringERKNSt6stringERN8nlohmann4jsonE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Generate an OpenAPI document describing the currently installed endpoints.</p>
+<p>The document is compatible with OpenAPI version 3.0.0 - the _v1 suffix describes the version of this API, not the returned document format. Similarly, the document_version argument should be used to version the returned document itself as the set of endpoints or their APIs change, it does not affect the OpenAPI version of the format of the document. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry26get_quote_for_this_node_v1ERN2kv10ReadOnlyTxER9QuoteInfo">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry26get_quote_for_this_node_v1ERN2kv10ReadOnlyTxER9QuoteInfo"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry26get_quote_for_this_node_v1ERN2kv10ReadOnlyTxER9QuoteInfo"></span><span id="ccf::BaseEndpointRegistry::get_quote_for_this_node_v1__kv::ReadOnlyTxR.QuoteInfoR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a127119b1e21ec33347f1e9c7aef89f97"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_quote_for_this_node_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">kv</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="kv/api.html#_CPPv4N2kv10ReadOnlyTxE" title="kv::ReadOnlyTx"><span class="n"><span class="pre">ReadOnlyTx</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">tx</span></span>, <a class="reference internal" href="../audit/builtin_maps.html#_CPPv4N3ccf9QuoteInfoE" title="ccf::QuoteInfo"><span class="n"><span class="pre">QuoteInfo</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">quote_info</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry26get_quote_for_this_node_v1ERN2kv10ReadOnlyTxER9QuoteInfo" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get a quote attesting to the hardware this node is running on. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry23get_id_for_this_node_v1ER6NodeId">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry23get_id_for_this_node_v1ER6NodeId"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry23get_id_for_this_node_v1ER6NodeId"></span><span id="ccf::BaseEndpointRegistry::get_id_for_this_node_v1__NodeIdR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1aeeb4718a97af51b3d5a55d59272073ea"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_id_for_this_node_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">NodeId</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">node_id</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry23get_id_for_this_node_v1ER6NodeId" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the id of the currently executing node. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry21get_view_for_seqno_v1EN3ccf5SeqNoERN3ccf4ViewE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry21get_view_for_seqno_v1EN3ccf5SeqNoERN3ccf4ViewE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry21get_view_for_seqno_v1EN3ccf5SeqNoERN3ccf4ViewE"></span><span id="ccf::BaseEndpointRegistry::get_view_for_seqno_v1__ccf::SeqNo.ccf::ViewR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a3998e2a97d004a2803719f2c2942ae24"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_view_for_seqno_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">seqno</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf4ViewE" title="ccf::View"><span class="n"><span class="pre">View</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">view</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry21get_view_for_seqno_v1EN3ccf5SeqNoERN3ccf4ViewE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the view associated with a given seqno, to construct a valid <a class="reference internal" href="#structccf_1_1TxID"><span class="std std-ref">TxID</span></a>. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry16get_user_data_v1ERN2kv10ReadOnlyTxERK6UserIdRN8nlohmann4jsonE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry16get_user_data_v1ERN2kv10ReadOnlyTxERK6UserIdRN8nlohmann4jsonE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry16get_user_data_v1ERN2kv10ReadOnlyTxERK6UserIdRN8nlohmann4jsonE"></span><span id="ccf::BaseEndpointRegistry::get_user_data_v1__kv::ReadOnlyTxR.UserIdCR.nlohmann::jsonR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a67fdca162c7c8c5709c176622155bcd1"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_user_data_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">kv</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="kv/api.html#_CPPv4N2kv10ReadOnlyTxE" title="kv::ReadOnlyTx"><span class="n"><span class="pre">ReadOnlyTx</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">tx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">UserId</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">user_id</span></span>, <span class="n"><span class="pre">nlohmann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">json</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">user_data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry16get_user_data_v1ERN2kv10ReadOnlyTxERK6UserIdRN8nlohmann4jsonE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the user data associated with a given user id. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry18get_member_data_v1ERN2kv10ReadOnlyTxERK8MemberIdRN8nlohmann4jsonE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry18get_member_data_v1ERN2kv10ReadOnlyTxERK8MemberIdRN8nlohmann4jsonE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry18get_member_data_v1ERN2kv10ReadOnlyTxERK8MemberIdRN8nlohmann4jsonE"></span><span id="ccf::BaseEndpointRegistry::get_member_data_v1__kv::ReadOnlyTxR.MemberIdCR.nlohmann::jsonR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a7f7ce33184efc40f82b855a5cdbc6269"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_member_data_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">kv</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="kv/api.html#_CPPv4N2kv10ReadOnlyTxE" title="kv::ReadOnlyTx"><span class="n"><span class="pre">ReadOnlyTx</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">tx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">MemberId</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">member_id</span></span>, <span class="n"><span class="pre">nlohmann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">json</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">member_data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry18get_member_data_v1ERN2kv10ReadOnlyTxERK8MemberIdRN8nlohmann4jsonE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the member data associated with a given member id. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry16get_user_cert_v1ERN2kv10ReadOnlyTxERK6UserIdRN6crypto3PemE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry16get_user_cert_v1ERN2kv10ReadOnlyTxERK6UserIdRN6crypto3PemE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry16get_user_cert_v1ERN2kv10ReadOnlyTxERK6UserIdRN6crypto3PemE"></span><span id="ccf::BaseEndpointRegistry::get_user_cert_v1__kv::ReadOnlyTxR.UserIdCR.crypto::PemR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1ac511db65b8349b1d025e0b1d08bef95f"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_user_cert_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">kv</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="kv/api.html#_CPPv4N2kv10ReadOnlyTxE" title="kv::ReadOnlyTx"><span class="n"><span class="pre">ReadOnlyTx</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">tx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">UserId</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">user_id</span></span>, <span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">user_cert_pem</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry16get_user_cert_v1ERN2kv10ReadOnlyTxERK6UserIdRN6crypto3PemE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the certificate (PEM) of a given user id. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf20BaseEndpointRegistry18get_member_cert_v1ERN2kv10ReadOnlyTxERK8MemberIdRN6crypto3PemE">
+<span id="_CPPv3N3ccf20BaseEndpointRegistry18get_member_cert_v1ERN2kv10ReadOnlyTxERK8MemberIdRN6crypto3PemE"></span><span id="_CPPv2N3ccf20BaseEndpointRegistry18get_member_cert_v1ERN2kv10ReadOnlyTxERK8MemberIdRN6crypto3PemE"></span><span id="ccf::BaseEndpointRegistry::get_member_cert_v1__kv::ReadOnlyTxR.MemberIdCR.crypto::PemR"></span><span class="target" id="classccf_1_1BaseEndpointRegistry_1a8dce564dc80dbf1b56b18a84c933fb32"></span><a class="reference internal" href="#_CPPv4N3ccf9ApiResultE" title="ccf::ApiResult"><span class="n"><span class="pre">ApiResult</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_member_cert_v1</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">kv</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="kv/api.html#_CPPv4N2kv10ReadOnlyTxE" title="kv::ReadOnlyTx"><span class="n"><span class="pre">ReadOnlyTx</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">tx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">MemberId</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">member_id</span></span>, <span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">member_cert_pem</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf20BaseEndpointRegistry18get_member_cert_v1ERN2kv10ReadOnlyTxERK8MemberIdRN6crypto3PemE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Get the certificate (PEM) of a given member id. </p>
+</dd></dl>
+</div>
+</dd></dl>
+</section>
+<section id="authentication">
+<h2>Authentication<a class="headerlink" href="#authentication" title="Permalink to this headline">¶</a></h2>
+<section id="policies">
+<h3>Policies<a class="headerlink" href="#policies" title="Permalink to this headline">¶</a></h3>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf17empty_auth_policyE">
+<span id="_CPPv3N3ccf17empty_auth_policyE"></span><span id="_CPPv2N3ccf17empty_auth_policyE"></span><span id="ccf::empty_auth_policy__std::shared_ptr:EmptyAuthnPolicy:"></span><span class="target" id="common__auth__policies_8h_1aca5d9984fe1d1ed1be40de5c73571205"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">EmptyAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">empty_auth_policy</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">make_shared</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">EmptyAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">(</span></span><span class="p"><span class="pre">)</span></span><a class="headerlink" href="#_CPPv4N3ccf17empty_auth_policyE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Perform no authentication </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf21user_cert_auth_policyE">
+<span id="_CPPv3N3ccf21user_cert_auth_policyE"></span><span id="_CPPv2N3ccf21user_cert_auth_policyE"></span><span id="ccf::user_cert_auth_policy__std::shared_ptr:UserCertAuthnPolicy:"></span><span class="target" id="common__auth__policies_8h_1aba9fd8392ffa1e16e41cf7e3c29159bb"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">UserCertAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">user_cert_auth_policy</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">make_shared</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">UserCertAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">(</span></span><span class="p"><span class="pre">)</span></span><a class="headerlink" href="#_CPPv4N3ccf21user_cert_auth_policyE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Authenticate using TLS session identity, and <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.users.certs</span></code> table </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf26user_signature_auth_policyE">
+<span id="_CPPv3N3ccf26user_signature_auth_policyE"></span><span id="_CPPv2N3ccf26user_signature_auth_policyE"></span><span id="ccf::user_signature_auth_policy__std::shared_ptr:UserSignatureAuthnPolicy:"></span><span class="target" id="common__auth__policies_8h_1a8af8e450a2bbeeceac3757a737727695"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">UserSignatureAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">user_signature_auth_policy</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">make_shared</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">UserSignatureAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">(</span></span><span class="p"><span class="pre">)</span></span><a class="headerlink" href="#_CPPv4N3ccf26user_signature_auth_policyE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Authenticate using HTTP request signature, and <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.users.certs</span></code> table </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf15jwt_auth_policyE">
+<span id="_CPPv3N3ccf15jwt_auth_policyE"></span><span id="_CPPv2N3ccf15jwt_auth_policyE"></span><span id="ccf::jwt_auth_policy__std::shared_ptr:JwtAuthnPolicy:"></span><span class="target" id="common__auth__policies_8h_1a977b7ca422a86ebd34d8a95f5f91e02d"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">JwtAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">jwt_auth_policy</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">make_shared</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">JwtAuthnPolicy</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">(</span></span><span class="p"><span class="pre">)</span></span><a class="headerlink" href="#_CPPv4N3ccf15jwt_auth_policyE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Authenticate using JWT, validating the token using the <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.jwt.public_signing_key_issuer</span></code> and <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.jwt.public_signing_keys</span></code> tables </p>
+</dd></dl>
+</section>
+<section id="identities">
+<h3>Identities<a class="headerlink" href="#identities" title="Permalink to this headline">¶</a></h3>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf21UserCertAuthnIdentityE">
+<span id="_CPPv3N3ccf21UserCertAuthnIdentityE"></span><span id="_CPPv2N3ccf21UserCertAuthnIdentityE"></span><span id="ccf::UserCertAuthnIdentity"></span><span class="target" id="structccf_1_1UserCertAuthnIdentity"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">UserCertAuthnIdentity</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">AuthnIdentity</span></span><a class="headerlink" href="#_CPPv4N3ccf21UserCertAuthnIdentityE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf21UserCertAuthnIdentity7user_idE">
+<span id="_CPPv3N3ccf21UserCertAuthnIdentity7user_idE"></span><span id="_CPPv2N3ccf21UserCertAuthnIdentity7user_idE"></span><span id="ccf::UserCertAuthnIdentity::user_id__UserId"></span><span class="target" id="structccf_1_1UserCertAuthnIdentity_1a825c96e1bbf9795a4214656659d32033"></span><span class="n"><span class="pre">UserId</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">user_id</span></span></span><a class="headerlink" href="#_CPPv4N3ccf21UserCertAuthnIdentity7user_idE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>CCF user ID </p>
+</dd></dl>
+</div>
+</dd></dl>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf16JwtAuthnIdentityE">
+<span id="_CPPv3N3ccf16JwtAuthnIdentityE"></span><span id="_CPPv2N3ccf16JwtAuthnIdentityE"></span><span id="ccf::JwtAuthnIdentity"></span><span class="target" id="structccf_1_1JwtAuthnIdentity"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">JwtAuthnIdentity</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">AuthnIdentity</span></span><a class="headerlink" href="#_CPPv4N3ccf16JwtAuthnIdentityE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf16JwtAuthnIdentity10key_issuerE">
+<span id="_CPPv3N3ccf16JwtAuthnIdentity10key_issuerE"></span><span id="_CPPv2N3ccf16JwtAuthnIdentity10key_issuerE"></span><span id="ccf::JwtAuthnIdentity::key_issuer__ss"></span><span class="target" id="structccf_1_1JwtAuthnIdentity_1a33de9aa34771350bb89ad6b7c29536c7"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">key_issuer</span></span></span><a class="headerlink" href="#_CPPv4N3ccf16JwtAuthnIdentity10key_issuerE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>JWT key issuer, as defined in <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.jwt_public_signing_key_issuer</span></code> </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf16JwtAuthnIdentity6headerE">
+<span id="_CPPv3N3ccf16JwtAuthnIdentity6headerE"></span><span id="_CPPv2N3ccf16JwtAuthnIdentity6headerE"></span><span id="ccf::JwtAuthnIdentity::header__nlohmann::json"></span><span class="target" id="structccf_1_1JwtAuthnIdentity_1aad375bb2c505f10039ad6d1dce79ebfd"></span><span class="n"><span class="pre">nlohmann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">json</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">header</span></span></span><a class="headerlink" href="#_CPPv4N3ccf16JwtAuthnIdentity6headerE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>JWT header </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf16JwtAuthnIdentity7payloadE">
+<span id="_CPPv3N3ccf16JwtAuthnIdentity7payloadE"></span><span id="_CPPv2N3ccf16JwtAuthnIdentity7payloadE"></span><span id="ccf::JwtAuthnIdentity::payload__nlohmann::json"></span><span class="target" id="structccf_1_1JwtAuthnIdentity_1ad93a01b594e860c1d0969333469715a5"></span><span class="n"><span class="pre">nlohmann</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">json</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">payload</span></span></span><a class="headerlink" href="#_CPPv4N3ccf16JwtAuthnIdentity7payloadE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>JWT payload </p>
+</dd></dl>
+</div>
+</dd></dl>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf26UserSignatureAuthnIdentityE">
+<span id="_CPPv3N3ccf26UserSignatureAuthnIdentityE"></span><span id="_CPPv2N3ccf26UserSignatureAuthnIdentityE"></span><span id="ccf::UserSignatureAuthnIdentity"></span><span class="target" id="structccf_1_1UserSignatureAuthnIdentity"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">UserSignatureAuthnIdentity</span></span></span><span class="w"> </span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="k"><span class="pre">public</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">AuthnIdentity</span></span><a class="headerlink" href="#_CPPv4N3ccf26UserSignatureAuthnIdentityE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf26UserSignatureAuthnIdentity7user_idE">
+<span id="_CPPv3N3ccf26UserSignatureAuthnIdentity7user_idE"></span><span id="_CPPv2N3ccf26UserSignatureAuthnIdentity7user_idE"></span><span id="ccf::UserSignatureAuthnIdentity::user_id__UserId"></span><span class="target" id="structccf_1_1UserSignatureAuthnIdentity_1aa9195a1912a63e3e7ade144c06383a64"></span><span class="n"><span class="pre">UserId</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">user_id</span></span></span><a class="headerlink" href="#_CPPv4N3ccf26UserSignatureAuthnIdentity7user_idE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>CCF user ID </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf26UserSignatureAuthnIdentity9user_certE">
+<span id="_CPPv3N3ccf26UserSignatureAuthnIdentity9user_certE"></span><span id="_CPPv2N3ccf26UserSignatureAuthnIdentity9user_certE"></span><span id="ccf::UserSignatureAuthnIdentity::user_cert__crypto::Pem"></span><span class="target" id="structccf_1_1UserSignatureAuthnIdentity_1aeb3e7f8ffdcb15f93f37fb44a8226c14"></span><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">user_cert</span></span></span><a class="headerlink" href="#_CPPv4N3ccf26UserSignatureAuthnIdentity9user_certE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>User certificate, used to sign this request, described by keyId </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf26UserSignatureAuthnIdentity14signed_requestE">
+<span id="_CPPv3N3ccf26UserSignatureAuthnIdentity14signed_requestE"></span><span id="_CPPv2N3ccf26UserSignatureAuthnIdentity14signed_requestE"></span><span id="ccf::UserSignatureAuthnIdentity::signed_request__SignedReq"></span><span class="target" id="structccf_1_1UserSignatureAuthnIdentity_1ab58b00db0391c7d25ab3975401ada45b"></span><a class="reference internal" href="../audit/builtin_maps.html#_CPPv4N3ccf9SignedReqE" title="ccf::SignedReq"><span class="n"><span class="pre">SignedReq</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">signed_request</span></span></span><a class="headerlink" href="#_CPPv4N3ccf26UserSignatureAuthnIdentity14signed_requestE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Canonicalised request and associated signature </p>
+</dd></dl>
+</div>
+</dd></dl>
+</section>
+</section>
+<section id="supporting-types">
+<h2>Supporting Types<a class="headerlink" href="#supporting-types" title="Permalink to this headline">¶</a></h2>
+<dl class="cpp enum">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf8TxStatusE">
+<span id="_CPPv3N3ccf8TxStatusE"></span><span id="_CPPv2N3ccf8TxStatusE"></span><span class="target" id="tx__status_8h_1aa8e2135f8c64ce434fc5b461e994ff1a"></span><span class="k"><span class="pre">enum</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">TxStatus</span></span></span><a class="headerlink" href="#_CPPv4N3ccf8TxStatusE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Describes the status of a transaction, as seen by this node. </p>
+<p><em>Values:</em></p>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf8TxStatus7UnknownE">
+<span id="_CPPv3N3ccf8TxStatus7UnknownE"></span><span id="_CPPv2N3ccf8TxStatus7UnknownE"></span><span class="target" id="tx__status_8h_1aa8e2135f8c64ce434fc5b461e994ff1aa88183b946cc5f0e8c96b2e66e1c74a7e"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Unknown</span></span></span><a class="headerlink" href="#_CPPv4N3ccf8TxStatus7UnknownE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>This node has not received this transaction, and knows nothing about it </p>
+</dd></dl>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf8TxStatus7PendingE">
+<span id="_CPPv3N3ccf8TxStatus7PendingE"></span><span id="_CPPv2N3ccf8TxStatus7PendingE"></span><span class="target" id="tx__status_8h_1aa8e2135f8c64ce434fc5b461e994ff1aa2d13df6f8b5e4c5af9f87e0dc39df69d"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Pending</span></span></span><a class="headerlink" href="#_CPPv4N3ccf8TxStatus7PendingE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>This node has this transaction locally, but has not yet heard that the transaction has been committed by the distributed consensus </p>
+</dd></dl>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf8TxStatus9CommittedE">
+<span id="_CPPv3N3ccf8TxStatus9CommittedE"></span><span id="_CPPv2N3ccf8TxStatus9CommittedE"></span><span class="target" id="tx__status_8h_1aa8e2135f8c64ce434fc5b461e994ff1aafd8f656590df4b2d2b217b060b7204d3"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Committed</span></span></span><a class="headerlink" href="#_CPPv4N3ccf8TxStatus9CommittedE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>This node has seen that this transaction is committed, it is an irrevocable and durable part of the service’s transaction history </p>
+</dd></dl>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf8TxStatus7InvalidE">
+<span id="_CPPv3N3ccf8TxStatus7InvalidE"></span><span id="_CPPv2N3ccf8TxStatus7InvalidE"></span><span class="target" id="tx__status_8h_1aa8e2135f8c64ce434fc5b461e994ff1aa4bbb8f967da6d1a610596d7257179c2b"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Invalid</span></span></span><a class="headerlink" href="#_CPPv4N3ccf8TxStatus7InvalidE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>This node knows that the given transaction cannot be committed. This may mean there has been a view change, and a previously pending transaction has been lost (the original request should be resubmitted and will be given a new Transaction ID). This also describes IDs which are known to be impossible given the currently committed IDs </p>
+</dd></dl>
+</dd></dl>
+<dl class="cpp type">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf4ViewE">
+<span id="_CPPv3N3ccf4ViewE"></span><span id="_CPPv2N3ccf4ViewE"></span><span class="target" id="tx__id_8h_1ac9128d833545e1dfa00ece43764818a3"></span><span class="k"><span class="pre">using</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">View</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">uint64_t</span></span><a class="headerlink" href="#_CPPv4N3ccf4ViewE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Transactions occur within a fixed View. Each View generally spans a range of transactions, though empty Views are also possible. The View is advanced by the consensus protocol during election of a new leader, and a single leader is assigned in each View. </p>
+</dd></dl>
+<dl class="cpp type">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf5SeqNoE">
+<span id="_CPPv3N3ccf5SeqNoE"></span><span id="_CPPv2N3ccf5SeqNoE"></span><span class="target" id="tx__id_8h_1af9f6af59ae5905821c03e38b620fcd80"></span><span class="k"><span class="pre">using</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">SeqNo</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">uint64_t</span></span><a class="headerlink" href="#_CPPv4N3ccf5SeqNoE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Each transaction is assigned a unique incrementing SeqNo, maintained across View transitions. This matches the order in which transactions are applied, where a higher SeqNo means that a transaction executed later. SeqNos are unique during normal operation, but around elections it is possible for distinct transactions in separate Views to have the same SeqNo. Only one of these transactions will ever commit, and the others are ephemeral. </p>
+</dd></dl>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf4TxIDE">
+<span id="_CPPv3N3ccf4TxIDE"></span><span id="_CPPv2N3ccf4TxIDE"></span><span id="ccf::TxID"></span><span class="target" id="structccf_1_1TxID"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">TxID</span></span></span><a class="headerlink" href="#_CPPv4N3ccf4TxIDE" title="Permalink to this definition">¶</a><br/></dt>
+<dd></dd></dl>
+<dl class="cpp enum">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9ApiResultE">
+<span id="_CPPv3N3ccf9ApiResultE"></span><span id="_CPPv2N3ccf9ApiResultE"></span><span class="target" id="base__endpoint__registry_8h_1ae90094f75e005f424f1a4d68488dd048"></span><span class="k"><span class="pre">enum</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ApiResult</span></span></span><a class="headerlink" href="#_CPPv4N3ccf9ApiResultE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Lists the possible return codes from the versioned APIs in <code class="docutils literal notranslate"><a class="reference internal" href="#classccf_1_1BaseEndpointRegistry"><span class="std std-ref"><span class="pre">ccf::BaseEndpointRegistry</span></span></a></code> </p>
+<p><em>Values:</em></p>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9ApiResult2OKE">
+<span id="_CPPv3N3ccf9ApiResult2OKE"></span><span id="_CPPv2N3ccf9ApiResult2OKE"></span><span class="target" id="base__endpoint__registry_8h_1ae90094f75e005f424f1a4d68488dd048ae0aa021e21dddbd6d8cecec71e9cf564"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">OK</span></span></span><a class="headerlink" href="#_CPPv4N3ccf9ApiResult2OKE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Call was successful, results can be used </p>
+</dd></dl>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9ApiResult13UninitialisedE">
+<span id="_CPPv3N3ccf9ApiResult13UninitialisedE"></span><span id="_CPPv2N3ccf9ApiResult13UninitialisedE"></span><span class="target" id="base__endpoint__registry_8h_1ae90094f75e005f424f1a4d68488dd048a962074a9de1cf3d6d7b6f955a0a94820"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Uninitialised</span></span></span><a class="headerlink" href="#_CPPv4N3ccf9ApiResult13UninitialisedE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>The node is not yet initialised, and doesn’t have access to the service needed to answer this call. Should only be returned if the API is called too early, during node construction. </p>
+</dd></dl>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9ApiResult11InvalidArgsE">
+<span id="_CPPv3N3ccf9ApiResult11InvalidArgsE"></span><span id="_CPPv2N3ccf9ApiResult11InvalidArgsE"></span><span class="target" id="base__endpoint__registry_8h_1ae90094f75e005f424f1a4d68488dd048a63ea70cf1d6c6267f905653924dad440"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">InvalidArgs</span></span></span><a class="headerlink" href="#_CPPv4N3ccf9ApiResult11InvalidArgsE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>One of the arguments passed to the function is invalid. It may be outside the range of known values, or not be in the expected format. </p>
+</dd></dl>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9ApiResult8NotFoundE">
+<span id="_CPPv3N3ccf9ApiResult8NotFoundE"></span><span id="_CPPv2N3ccf9ApiResult8NotFoundE"></span><span class="target" id="base__endpoint__registry_8h_1ae90094f75e005f424f1a4d68488dd048a38c300f4fc9ce8a77aad4a30de05cad8"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">NotFound</span></span></span><a class="headerlink" href="#_CPPv4N3ccf9ApiResult8NotFoundE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>The requsted value was not found. </p>
+</dd></dl>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf9ApiResult13InternalErrorE">
+<span id="_CPPv3N3ccf9ApiResult13InternalErrorE"></span><span id="_CPPv2N3ccf9ApiResult13InternalErrorE"></span><span class="target" id="base__endpoint__registry_8h_1ae90094f75e005f424f1a4d68488dd048a8462b58246e70e5c83e5b939a9332cb5"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">InternalError</span></span></span><a class="headerlink" href="#_CPPv4N3ccf9ApiResult13InternalErrorE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>General error not covered by the cases above. Generally means that an unexpected exception was thrown during execution. </p>
+</dd></dl>
+</dd></dl>
+</section>
+<section id="historical-queries">
+<h2>Historical Queries<a class="headerlink" href="#historical-queries" title="Permalink to this headline">¶</a></h2>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical7adapterERK21HandleHistoricalQueryR18AbstractStateCacheRK17CheckAvailabilityRK13TxIDExtractor">
+<span id="_CPPv3N3ccf10historical7adapterERK21HandleHistoricalQueryR18AbstractStateCacheRK17CheckAvailabilityRK13TxIDExtractor"></span><span id="_CPPv2N3ccf10historical7adapterERK21HandleHistoricalQueryR18AbstractStateCacheRK17CheckAvailabilityRK13TxIDExtractor"></span><span id="ccf::historical::adapter__HandleHistoricalQueryCR.AbstractStateCacheR.CheckAvailabilityCR.TxIDExtractorCR"></span><span class="target" id="historical__queries__adapter_8h_1a803eb591bfb96a3d47dd2254c842f279"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">endpoints</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">EndpointFunction</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">historical</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">adapter</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">HandleHistoricalQuery</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">f</span></span>, <a class="reference internal" href="#_CPPv4N3ccf10historical18AbstractStateCacheE" title="ccf::historical::AbstractStateCache"><span class="n"><span class="pre">AbstractStateCache</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">state_cache</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">CheckAvailability</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">available</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">TxIDExtractor</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">extractor</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">txid_from_header</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N3ccf10historical7adapterERK21HandleHistoricalQueryR18AbstractStateCacheRK17CheckAvailabilityRK13TxIDExtractor" title="Permalink to this definition">¶</a><br/></dt>
+<dd></dd></dl>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCacheE">
+<span id="_CPPv3N3ccf10historical18AbstractStateCacheE"></span><span id="_CPPv2N3ccf10historical18AbstractStateCacheE"></span><span id="ccf::historical::AbstractStateCache"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">historical</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">AbstractStateCache</span></span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCacheE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Stores the progress of historical query requests.</p>
+<p>A request will generally need to be made multiple times (with the same handle and range) before the response is available, as the historical state is asynchronously retrieved from the ledger and then validated. If the same handle is used for a new range, the state for the old range will be discarded. <a class="reference internal" href="#structccf_1_1historical_1_1State"><span class="std std-ref">State</span></a> is also discarded after the handle’s expiry duration, or when drop_request is called for a given handle. The management of requests (how many unique handles are concurrently active, how they are correlated across HTTP requests, how the active quota is divided between callers) is left to the calling system. </p>
+<p>Subclassed by ccf::StubNodeStateCache, ccf::historical::StateCache</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCache27set_default_expiry_durationE14ExpiryDuration">
+<span id="_CPPv3N3ccf10historical18AbstractStateCache27set_default_expiry_durationE14ExpiryDuration"></span><span id="_CPPv2N3ccf10historical18AbstractStateCache27set_default_expiry_durationE14ExpiryDuration"></span><span id="ccf::historical::AbstractStateCache::set_default_expiry_duration__ExpiryDuration"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache_1a6bd31a6e725fc6cccd6d467b921824d6"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">set_default_expiry_duration</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">ExpiryDuration</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">seconds_until_expiry</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCache27set_default_expiry_durationE14ExpiryDuration" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Set the default time after which a request’s state will be deleted, and will not be accessible without retrieving it again from the ledger. Any call to get_store_XXX which doesn’t pass an explicit seconds_until_expiry will reset the timer to this default duration. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE14ExpiryDuration">
+<span id="_CPPv3N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE14ExpiryDuration"></span><span id="_CPPv2N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE14ExpiryDuration"></span><span id="ccf::historical::AbstractStateCache::get_store_at__RequestHandle.ccf::SeqNo.ExpiryDuration"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache_1a47cf6d76aa203ec370f6f2e851bb88ad"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">StorePtr</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_store_at</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RequestHandle</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">handle</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">seqno</span></span>, <span class="n"><span class="pre">ExpiryDuration</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">seconds_until_expiry</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE14ExpiryDuration" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Retrieve a Store containing the state written at the given seqno.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">get_store_range</span></code> for a description of the caching behaviour. This is equivalent to get_store_at(handle, seqno, seqno), but returns nullptr if the state is currently unavailable. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE">
+<span id="_CPPv3N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE"></span><span id="_CPPv2N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE"></span><span id="ccf::historical::AbstractStateCache::get_store_at__RequestHandle.ccf::SeqNo"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache_1a4bb96b9a8809bffbd3e7b123ace65eee"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">StorePtr</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_store_at</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RequestHandle</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">handle</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">seqno</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCache12get_store_atE13RequestHandleN3ccf5SeqNoE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Same as <code class="docutils literal notranslate"><span class="pre">get_store_at</span></code> but uses default expiry value. <dl class="simple">
+<dt><strong>See</strong></dt><dd><p><a class="reference internal" href="#classccf_1_1historical_1_1AbstractStateCache_1a47cf6d76aa203ec370f6f2e851bb88ad"><span class="std std-ref">get_store_at</span></a> </p>
+</dd>
+</dl>
+</p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCache12get_state_atE13RequestHandleN3ccf5SeqNoE">
+<span id="_CPPv3N3ccf10historical18AbstractStateCache12get_state_atE13RequestHandleN3ccf5SeqNoE"></span><span id="_CPPv2N3ccf10historical18AbstractStateCache12get_state_atE13RequestHandleN3ccf5SeqNoE"></span><span id="ccf::historical::AbstractStateCache::get_state_at__RequestHandle.ccf::SeqNo"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache_1a9e128b56644c4bd0032aa69a5b2b9749"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">StatePtr</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_state_at</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RequestHandle</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">handle</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">seqno</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCache12get_state_atE13RequestHandleN3ccf5SeqNoE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Retrieve a full state at a given seqno, including the Store, the <a class="reference internal" href="#structccf_1_1TxID"><span class="std std-ref">TxID</span></a> assigned by consensus, and an offline-verifiable receipt for the Tx. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE14ExpiryDuration">
+<span id="_CPPv3N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE14ExpiryDuration"></span><span id="_CPPv2N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE14ExpiryDuration"></span><span id="ccf::historical::AbstractStateCache::get_store_range__RequestHandle.ccf::SeqNo.ccf::SeqNo.ExpiryDuration"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache_1a6b68ee243b8875f34395956ea3e6df9d"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">StorePtr</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_store_range</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RequestHandle</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">handle</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">start_seqno</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">end_seqno</span></span>, <span class="n"><span class="pre">ExpiryDuration</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">seconds_until_expiry</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE14ExpiryDuration" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Retrieve a range of Stores containing the state written at the given indices.</p>
+<p>If this is not currently available, this function returns an empty vector and begins fetching the ledger entry asynchronously. This will generally be true for the first call for a given seqno, and it may take some time to completely fetch and validate. The call should be repeated later with the same arguments to retrieve the requested entries. This state is kept until it is deleted for one of the following reasons:<ul class="simple">
+<li><p>A call to <code class="docutils literal notranslate"><span class="pre">drop_request</span></code> </p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">seconds_until_expiry</span></code> seconds elapse without calling this function</p></li>
+<li><p>This handle is used to request a different seqno or range</p></li>
+</ul>
+</p>
+<p>The range is inclusive of both start_seqno and end_seqno. If a non-empty vector is returned, it will always contain the full requested range; the vector will be of length (end_seqno - start_seqno + 1) and will contain no nullptrs. </p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE">
+<span id="_CPPv3N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE"></span><span id="_CPPv2N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE"></span><span id="ccf::historical::AbstractStateCache::get_store_range__RequestHandle.ccf::SeqNo.ccf::SeqNo"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache_1a575531d2bcc28cccf025be11ad6e2b5e"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">StorePtr</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_store_range</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RequestHandle</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">handle</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">start_seqno</span></span>, <span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf5SeqNoE" title="ccf::SeqNo"><span class="n"><span class="pre">SeqNo</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">end_seqno</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCache15get_store_rangeE13RequestHandleN3ccf5SeqNoEN3ccf5SeqNoE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Same as <code class="docutils literal notranslate"><span class="pre">get_store_range</span></code> but uses default expiry value. <dl class="simple">
+<dt><strong>See</strong></dt><dd><p><a class="reference internal" href="#classccf_1_1historical_1_1AbstractStateCache_1a6b68ee243b8875f34395956ea3e6df9d"><span class="std std-ref">get_store_range</span></a> </p>
+</dd>
+</dl>
+</p>
+</dd></dl>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical18AbstractStateCache12drop_requestE13RequestHandle">
+<span id="_CPPv3N3ccf10historical18AbstractStateCache12drop_requestE13RequestHandle"></span><span id="_CPPv2N3ccf10historical18AbstractStateCache12drop_requestE13RequestHandle"></span><span id="ccf::historical::AbstractStateCache::drop_request__RequestHandle"></span><span class="target" id="classccf_1_1historical_1_1AbstractStateCache_1a8923c34fd7f113d2ad0ff09cf3866d3a"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">drop_request</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RequestHandle</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">handle</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical18AbstractStateCache12drop_requestE13RequestHandle" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Drop state for the given handle.</p>
+<p>May be used to free up space once a historical query has been resolved, more aggressively than waiting for the requests to expire. </p>
+</dd></dl>
+</div>
+</dd></dl>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical5StateE">
+<span id="_CPPv3N3ccf10historical5StateE"></span><span id="_CPPv2N3ccf10historical5StateE"></span><span id="ccf::historical::State"></span><span class="target" id="structccf_1_1historical_1_1State"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">historical</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">State</span></span></span><a class="headerlink" href="#_CPPv4N3ccf10historical5StateE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical5State5storeE">
+<span id="_CPPv3N3ccf10historical5State5storeE"></span><span id="_CPPv2N3ccf10historical5State5storeE"></span><span id="ccf::historical::State::store__StorePtr"></span><span class="target" id="structccf_1_1historical_1_1State_1a5e09cecae0cc2a4837e297d26b86aedf"></span><span class="n"><span class="pre">StorePtr</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">store</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">nullptr</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical5State5storeE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Read-only historical store at transaction_id. </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical5State7receiptE">
+<span id="_CPPv3N3ccf10historical5State7receiptE"></span><span id="_CPPv2N3ccf10historical5State7receiptE"></span><span id="ccf::historical::State::receipt__TxReceiptPtr"></span><span class="target" id="structccf_1_1historical_1_1State_1a263cf196e9125c41741184ba610c3f75"></span><span class="n"><span class="pre">TxReceiptPtr</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">receipt</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">nullptr</span></span><a class="headerlink" href="#_CPPv4N3ccf10historical5State7receiptE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>Receipt for ledger entry at transaction_id. </p>
+</dd></dl>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N3ccf10historical5State14transaction_idE">
+<span id="_CPPv3N3ccf10historical5State14transaction_idE"></span><span id="_CPPv2N3ccf10historical5State14transaction_idE"></span><span id="ccf::historical::State::transaction_id__ccf::TxID"></span><span class="target" id="structccf_1_1historical_1_1State_1a7e270a5040d46934291dc3a4f67e886c"></span><span class="n"><span class="pre">ccf</span></span><span class="p"><span class="pre">::</span></span><a class="reference internal" href="#_CPPv4N3ccf4TxIDE" title="ccf::TxID"><span class="n"><span class="pre">TxID</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">transaction_id</span></span></span><a class="headerlink" href="#_CPPv4N3ccf10historical5State14transaction_idE" title="Permalink to this definition">¶</a><br/></dt>
+<dd><p>View and Sequence Number for the <a class="reference internal" href="#structccf_1_1historical_1_1State"><span class="std std-ref">State</span></a>. </p>
+</dd></dl>
+</div>
+</dd></dl>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="crypto.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Cryptography API</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="upgrading_app.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Upgrade Your Application</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/build_apps/api.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Developer API</a><ul>
+<li><a class="reference internal" href="#application-entry-point">Application Entry Point</a></li>
+<li><a class="reference internal" href="#application-endpoint-registration">Application Endpoint Registration</a></li>
+<li><a class="reference internal" href="#authentication">Authentication</a><ul>
+<li><a class="reference internal" href="#policies">Policies</a></li>
+<li><a class="reference internal" href="#identities">Identities</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#supporting-types">Supporting Types</a></li>
+<li><a class="reference internal" href="#historical-queries">Historical Queries</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

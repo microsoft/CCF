@@ -1,0 +1,583 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Python Library" href="python_library.html" /><link rel="prev" title="Merkle Tree" href="merkle_tree.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>Ledger - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../main/audit/ledger.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/audit/ledger.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/audit/ledger.html">ccf-2.0.0-dev2 </option>
+    <option value="../../ccf-2.0.0-dev1/audit/ledger.html">ccf-2.0.0-dev1 </option>
+    <option value="ledger.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/audit/ledger.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/audit/ledger.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/audit/ledger.html">ccf-1.0.7 </option>
+    <option value="../../ccf-1.0.6/audit/ledger.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/audit/ledger.html">ccf-1.0.5 </option>
+    <option value="../../ccf-1.0.4/audit/ledger.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/audit/ledger.html">ccf-1.0.3 </option>
+    <option value="../../ccf-1.0.2/audit/ledger.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/audit/ledger.html">ccf-1.0.1 </option>
+    <option value="../../ccf-1.0.0/audit/ledger.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/consensus.html">Consensus Protocols</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt_ms_example.html">JWT Authentication example using Microsoft Identity Platform</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/upgrading_app.html">Upgrade Your Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/js_gov.html">JavaScript Governance</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Audit</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="ledger">
+<h1>Ledger<a class="headerlink" href="#ledger" title="Permalink to this headline">¶</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>See the <a class="reference internal" href="../operations/ledger_snapshot.html"><span class="doc">Ledger and Snapshots</span></a> section to find out more about how ledger files are generated by CCF nodes and how they should be managed by operators.</p>
+</div>
+<p>The entire service and application state is contained in the ledger (including both governance and application transactions). The ledger contains regular signature transactions (<code class="docutils literal notranslate"><span class="pre">public:ccf.internal.signatures</span></code> map) which sign the root of the <a class="reference internal" href="../glossary.html#term-Merkle-Tree"><span class="xref std std-term">Merkle Tree</span></a> at the time the signature transaction is emitted.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Use the <code class="docutils literal notranslate"><span class="pre">read_ledger.py</span></code> utility available as part of the <a class="reference internal" href="python_library.html"><span class="doc">Python Library</span></a> to read the public content of a CCF ledger.</p>
+</div>
+<section id="ledger-format">
+<h2>Ledger Format<a class="headerlink" href="#ledger-format" title="Permalink to this headline">¶</a></h2>
+<p>The ledger is split into multiple files (or chunks). Each ledger file starts with an 8-byte offset pointing to the end of file where a vector of positions is stored for fast fetching of transactions (only set when a file is complete, internal use only).</p>
+<p>The serialised transactions follow the 8-byte offset, as described in <a class="reference internal" href="#transaction-format"><span class="std std-ref">Transaction Format</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A complete ledger file always ends on a signature transaction.</p>
+</div>
+</section>
+<section id="transaction-format">
+<h2>Transaction Format<a class="headerlink" href="#transaction-format" title="Permalink to this headline">¶</a></h2>
+<p>The following table describes the structure of a serialised transaction as it is stored in the ledger.</p>
+<div class="table-wrapper"><table class="docutils align-default">
+<colgroup>
+<col style="width: 8%"/>
+<col style="width: 4%"/>
+<col style="width: 2%"/>
+<col style="width: 26%"/>
+<col style="width: 59%"/>
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head" colspan="3"><p>Field Type</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td rowspan="3"><p>Header</p></td>
+<td colspan="3"><p>Transaction Header</p></td>
+<td><div class="line-block">
+<div class="line">- Version (1 byte)</div>
+<div class="line">- Flags (1 byte)</div>
+<div class="line">- Entry size (6 bytes)</div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td colspan="3"><p>AES GCM Header</p></td>
+<td><p>IV and tag fields required to decrypt and verify integrity</p></td>
+</tr>
+<tr class="row-even"><td colspan="3"><p>uint64_t</p></td>
+<td><p>Length of serialised public domain</p></td>
+</tr>
+<tr class="row-odd"><td rowspan="15"><div class="line-block">
+<div class="line">Public</div>
+<div class="line">Domain</div>
+</div>
+</td>
+<td colspan="3"><p>bool</p></td>
+<td><p>Is snapshot (<code class="docutils literal notranslate"><span class="pre">false</span></code> for all ledger entries)</p></td>
+</tr>
+<tr class="row-even"><td colspan="3"><p><a class="reference internal" href="../build_apps/kv/api.html#_CPPv4N2kv7VersionE" title="kv::Version"><code class="xref cpp cpp-type docutils literal notranslate"><span class="pre">kv::Version</span></code></a></p></td>
+<td><p>Transaction version</p></td>
+</tr>
+<tr class="row-odd"><td colspan="3"><p><a class="reference internal" href="../build_apps/kv/api.html#_CPPv4N2kv7VersionE" title="kv::Version"><code class="xref cpp cpp-type docutils literal notranslate"><span class="pre">kv::Version</span></code></a></p></td>
+<td><p>Indicates after which version can this ledger entry be executed while
+maintaining linearizability</p></td>
+</tr>
+<tr class="row-even"><td colspan="3"><p><strong>Repeating [0..n]</strong></p></td>
+<td><p>With <code class="docutils literal notranslate"><span class="pre">n</span></code> the number of maps in the transaction</p></td>
+</tr>
+<tr class="row-odd"><td></td>
+<td colspan="2"><p>std::string</p></td>
+<td><p>Name of the serialised <a class="reference internal" href="../build_apps/kv/api.html#_CPPv4I00EN2kv3MapE" title="kv::Map"><code class="xref cpp cpp-type docutils literal notranslate"><span class="pre">kv::Map</span></code></a></p></td>
+</tr>
+<tr class="row-even"><td></td>
+<td colspan="2"><p><a class="reference internal" href="../build_apps/kv/api.html#_CPPv4N2kv7VersionE" title="kv::Version"><code class="xref cpp cpp-type docutils literal notranslate"><span class="pre">kv::Version</span></code></a></p></td>
+<td><p>Read version</p></td>
+</tr>
+<tr class="row-odd"><td rowspan="3"></td>
+<td colspan="2"><p>uint64_t</p></td>
+<td><p>Read count</p></td>
+</tr>
+<tr class="row-even"><td colspan="3"><p><strong>Repeating [0..read count]</strong></p></td>
+</tr>
+<tr class="row-odd"><td></td>
+<td><div class="line-block">
+<div class="line">uint64_t</div>
+<div class="line">K</div>
+<div class="line">Ver</div>
+</div>
+</td>
+<td><div class="line-block">
+<div class="line">Key length</div>
+<div class="line">Key</div>
+<div class="line">Version</div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td rowspan="3"></td>
+<td colspan="2"><p>uint64_t</p></td>
+<td><p>Write count</p></td>
+</tr>
+<tr class="row-odd"><td colspan="3"><p><strong>Repeating [0..write count]</strong></p></td>
+</tr>
+<tr class="row-even"><td></td>
+<td><div class="line-block">
+<div class="line">uint64_t</div>
+<div class="line">K</div>
+<div class="line">uint64_t</div>
+<div class="line">V</div>
+</div>
+</td>
+<td><div class="line-block">
+<div class="line">Key length</div>
+<div class="line">Key</div>
+<div class="line">Value length</div>
+<div class="line">Value</div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td rowspan="3"></td>
+<td colspan="2"><div class="line-block">
+<div class="line">uint64_t</div>
+</div>
+</td>
+<td><p>Remove count</p></td>
+</tr>
+<tr class="row-even"><td colspan="3"><p><strong>Repeating [0..remove count]</strong></p></td>
+</tr>
+<tr class="row-odd"><td></td>
+<td><div class="line-block">
+<div class="line">uint64_t</div>
+<div class="line">K</div>
+</div>
+</td>
+<td><div class="line-block">
+<div class="line">Key length</div>
+<div class="line">Key</div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><div class="line-block">
+<div class="line">Private</div>
+<div class="line">Domain</div>
+</div>
+</td>
+<td colspan="4"><p><strong>Optional</strong>
+| Encrypted serialised private domain blob.</p></td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="transaction-encryption">
+<h2>Transaction Encryption<a class="headerlink" href="#transaction-encryption" title="Permalink to this headline">¶</a></h2>
+<p>Each entry in the ledger corresponds to a transaction committed by the primary node.</p>
+<p>When a transaction is committed, each <code class="docutils literal notranslate"><span class="pre">Store::Map</span></code> containing writes is serialised in different security domains (i.e. public or private), based on the name of the Map when it was created (default is private). A public <code class="docutils literal notranslate"><span class="pre">Store::Map</span></code> (i.e. one whose name starts with “public:”) is serialised and stored in the ledger as plaintext while a private <code class="docutils literal notranslate"><span class="pre">Store::Map</span></code> is serialised and encrypted before being stored.</p>
+<p>Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see <a class="reference internal" href="../overview/cryptography.html"><span class="doc">Cryptography</span></a>). This key is kept secure inside each enclave. See <a class="reference internal" href="../governance/common_member_operations.html#rekeying-ledger"><span class="std std-ref">Rekeying Ledger</span></a> for details on how members can rotate the ledger encryption key.</p>
+<p>Note that even if a transaction only writes to a private <code class="docutils literal notranslate"><span class="pre">Store::Map</span></code>, unencrypted information such as the sequence number is always present in the serialised entry.</p>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="python_library.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Python Library</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="merkle_tree.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Merkle Tree</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/audit/ledger.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Ledger</a><ul>
+<li><a class="reference internal" href="#ledger-format">Ledger Format</a></li>
+<li><a class="reference internal" href="#transaction-format">Transaction Format</a></li>
+<li><a class="reference internal" href="#transaction-encryption">Transaction Encryption</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

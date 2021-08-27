@@ -1,0 +1,513 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Audit" href="../audit/index.html" /><link rel="prev" title="Member RPC API" href="member_rpc_api.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>JavaScript Governance - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../main/index.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/index.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/index.html">ccf-2.0.0-dev2 </option>
+    <option value="../../ccf-2.0.0-dev1/index.html">ccf-2.0.0-dev1 </option>
+    <option value="../../ccf-2.0.0-dev0/governance/js_gov.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/governance/js_gov.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/governance/js_gov.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/governance/js_gov.html">ccf-1.0.7 </option>
+    <option value="../../ccf-1.0.6/governance/js_gov.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/governance/js_gov.html">ccf-1.0.5 </option>
+    <option value="js_gov.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/governance/js_gov.html">ccf-1.0.3 </option>
+    <option value="../../ccf-1.0.2/governance/js_gov.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/governance/js_gov.html">ccf-1.0.1 </option>
+    <option value="../../ccf-1.0.0/governance/js_gov.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/consensus.html">Consensus Protocols</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt_ms_example.html">JWT Authentication example using Microsoft Identity Platform</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/upgrading_app.html">Upgrade Your Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Governance</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="member_rpc_api.html">Member RPC API</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">JavaScript Governance</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="javascript-governance">
+<h1>JavaScript Governance<a class="headerlink" href="#javascript-governance" title="Permalink to this headline">¶</a></h1>
+<section id="constitution">
+<h2>Constitution<a class="headerlink" href="#constitution" title="Permalink to this headline">¶</a></h2>
+<p>The constitution for a CCF service is implemented as a set of JS scripts. These scripts can be submitted at network startup as <code class="docutils literal notranslate"><span class="pre">--constitution</span></code> args to <code class="docutils literal notranslate"><span class="pre">cchost</span></code>, or updated by a governance proposal. They will be concatenated into a single entry in the <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.constitution</span></code> table, and should export 3 named functions:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">validate</span></code>: This takes the raw body of a proposal and checks that this proposal is correctly formed. For instance it may parse the body as JSON, extract the list of proposed actions, and confirm that each action is known and has parameters matching the expected schema. This should not interact with the KV, and should operate purely on the given proposal.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">resolve</span></code>: This takes a proposal and the votes (the results of ballot scripts) which have been submitted against it, and determines whether the proposal should be accepted or rejected. In the simple case this might simply accept proposals after a majority of members have voted in favour. It could also examine member data to give each member a different role or weight, or have different thresholds for each action. This has read-only access to the KV.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">apply</span></code>: This takes a proposal which has been accepted by <code class="docutils literal notranslate"><span class="pre">resolve</span></code>, and should make the proposed changes to the service’s state. For instance if the proposal added a new user this should extract their cert and data from the proposal and write them to the appropriate KV tables. This has full read-write access to the KV.</p></li>
+</ul>
+</div></blockquote>
+<p>Sample constitutions are available in the <a class="reference external" href="https://github.com/microsoft/CCF/tree/main/src/runtime_config">src/runtime_config directory</a>, for instance the default implementation of <code class="docutils literal notranslate"><span class="pre">apply</span></code> which parses a JSON object from the proposal body, and then delegates the application of each action within the proposal to a named entry from <code class="docutils literal notranslate"><span class="pre">actions.js</span></code>:</p>
+<div class="highlight-js notranslate"><div class="highlight"><pre><span></span><span class="k">export</span> <span class="kd">function</span> <span class="nx">apply</span><span class="p">(</span><span class="nx">proposal</span><span class="p">,</span> <span class="nx">proposalId</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">proposed_actions</span> <span class="o">=</span> <span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">proposal</span><span class="p">)[</span><span class="s2">"actions"</span><span class="p">];</span>
+  <span class="k">for</span> <span class="p">(</span><span class="kd">const</span> <span class="nx">proposed_action</span> <span class="k">of</span> <span class="nx">proposed_actions</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">definition</span> <span class="o">=</span> <span class="nx">actions</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">proposed_action</span><span class="p">.</span><span class="nx">name</span><span class="p">);</span>
+    <span class="nx">definition</span><span class="p">.</span><span class="nx">apply</span><span class="p">(</span><span class="nx">proposed_action</span><span class="p">.</span><span class="nx">args</span><span class="p">,</span> <span class="nx">proposalId</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>There are also more involved examples such as <code class="docutils literal notranslate"><span class="pre">veto/resolve.js</span></code>. This accepts proposals when a majority of members vote in favour, but also allows any single member to veto the proposal, marking it <code class="docutils literal notranslate"><span class="pre">Rejected</span></code> after a single vote against:</p>
+<div class="highlight-js notranslate"><div class="highlight"><pre><span></span><span class="k">export</span> <span class="kd">function</span> <span class="nx">resolve</span><span class="p">(</span><span class="nx">proposal</span><span class="p">,</span> <span class="nx">proposerId</span><span class="p">,</span> <span class="nx">votes</span><span class="p">)</span> <span class="p">{</span>
+  <span class="c1">// Every member has the ability to veto a proposal.</span>
+  <span class="c1">// If they vote against it, it is rejected.</span>
+  <span class="k">if</span> <span class="p">(</span><span class="nx">votes</span><span class="p">.</span><span class="nx">some</span><span class="p">((</span><span class="nx">v</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="o">!</span><span class="nx">v</span><span class="p">.</span><span class="nx">vote</span><span class="p">))</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="s2">"Rejected"</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="kd">const</span> <span class="nx">memberVoteCount</span> <span class="o">=</span> <span class="nx">votes</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+
+  <span class="kd">let</span> <span class="nx">activeMemberCount</span> <span class="o">=</span> <span class="mf">0</span><span class="p">;</span>
+  <span class="nx">ccf</span><span class="p">.</span><span class="nx">kv</span><span class="p">[</span><span class="s2">"public:ccf.gov.members.info"</span><span class="p">].</span><span class="nx">forEach</span><span class="p">((</span><span class="nx">v</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">info</span> <span class="o">=</span> <span class="nx">ccf</span><span class="p">.</span><span class="nx">bufToJsonCompatible</span><span class="p">(</span><span class="nx">v</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">info</span><span class="p">.</span><span class="nx">status</span> <span class="o">===</span> <span class="s2">"Active"</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">activeMemberCount</span><span class="o">++</span><span class="p">;</span>
+    <span class="p">}</span>
+  <span class="p">});</span>
+
+  <span class="c1">// A majority of members can accept a proposal.</span>
+  <span class="k">if</span> <span class="p">(</span><span class="nx">memberVoteCount</span> <span class="o">&gt;</span> <span class="nb">Math</span><span class="p">.</span><span class="nx">floor</span><span class="p">(</span><span class="nx">activeMemberCount</span> <span class="o">/</span> <span class="mf">2</span><span class="p">))</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="s2">"Accepted"</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="s2">"Open"</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="upgrading-from-lua-to-js">
+<h2>Upgrading from Lua to JS<a class="headerlink" href="#upgrading-from-lua-to-js" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">0.99.0</span></code> release of CCF supports both Lua and JS governance. You should be able to upgrade to this release with your existing Lua governance tooling, then separately migrate to the JS governance, in preparation for the <code class="docutils literal notranslate"><span class="pre">1.0</span></code> release where Lua governance will be removed. To migrate, you will need to upgrade your constitution, your proposals, and your votes.</p>
+<section id="upgrading-constitution">
+<h3>Upgrading constitution<a class="headerlink" href="#upgrading-constitution" title="Permalink to this headline">¶</a></h3>
+<p>If you were using a Lua constitution provided by CCF then you can you can find an equivalent JS constitution in the CCF repo. All of these use the same list of proposable actions from <code class="docutils literal notranslate"><span class="pre">default/actions.js</span></code>, and the same simple implementations of <code class="docutils literal notranslate"><span class="pre">default/validate.js</span></code> and <code class="docutils literal notranslate"><span class="pre">default/apply.js</span></code>, but may have a custom <code class="docutils literal notranslate"><span class="pre">resolve.js</span></code>. For instance if you were previously passing <code class="docutils literal notranslate"><span class="pre">--gov-script</span> <span class="pre">&lt;path/to/&gt;gov_veto.lua</span></code> you should now pass <code class="docutils literal notranslate"><span class="pre">--constitution</span> <span class="pre">&lt;path/to/&gt;default/actions.js</span> <span class="pre">--constitution</span> <span class="pre">&lt;path/to/&gt;default/validate.js</span> <span class="pre">--constitution</span> <span class="pre">&lt;path/to/&gt;default/apply.js</span> <span class="pre">--constitution</span> <span class="pre">&lt;path/to/&gt;veto/resolve.js</span></code>. If you were using <code class="docutils literal notranslate"><span class="pre">operator_gov.lua</span></code> the resolve arg should instead be <code class="docutils literal notranslate"><span class="pre">--constitution</span> <span class="pre">&lt;path/to/&gt;operator/resolve.js</span></code>. The sandbox also has a trivial <code class="docutils literal notranslate"><span class="pre">resolve</span></code> implementation which accepts all proposals in the same way as <code class="docutils literal notranslate"><span class="pre">sanbox_gov.lua</span></code>. This is the version which will be installed in the CCF <code class="docutils literal notranslate"><span class="pre">bin</span></code> directory and used by <code class="docutils literal notranslate"><span class="pre">sandbox.sh</span></code>.</p>
+<p>If you have adapted these constitutions to write your own, you will need to port those adaptations to JS. The default constitutions should provide an example of how to do this. Please raise an issue on GitHub if you experience any problems.</p>
+</section>
+<section id="upgrading-proposals-and-votes">
+<h3>Upgrading proposals and votes<a class="headerlink" href="#upgrading-proposals-and-votes" title="Permalink to this headline">¶</a></h3>
+<p>While the functionality of the proposals remains similar, the name and body schema of many proposals has been modified. Additionally the semantics may be slightly different as the new default proposal actions aim to be idempotent, so will execute successfully in some situations where they would previously have thrown (eg - adding a user who already exists). Similarly the format of the vote body has changed as it now expects a JS script exporting a <code class="docutils literal notranslate"><span class="pre">vote</span></code> function.</p>
+<p>See <a class="reference external" href="https://github.com/microsoft/CCF/discussions/2169#discussioncomment-373490">this Discussion</a> for the mapping between proposal names in Lua and JS. The <code class="docutils literal notranslate"><span class="pre">ccf.proposal_generator</span></code> Python utility can be used to generate proposals. For instance:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ python -m ccf.proposal_generator --pretty-print set_user bob_cert.pem
+<span class="o">[</span><span class="m">2021</span>-04-06 <span class="m">11</span>:10:00.194<span class="o">]</span> SUCCESS <span class="p">|</span> Writing proposal to ./set_user_proposal.json
+<span class="o">[</span><span class="m">2021</span>-04-06 <span class="m">11</span>:10:00.194<span class="o">]</span> SUCCESS <span class="p">|</span> Wrote vote to ./set_user_vote_for.json
+
+$ cat ./set_user_proposal.json
+<span class="o">{</span>
+    <span class="s2">"actions"</span>: <span class="o">[</span>
+        <span class="o">{</span>
+            <span class="s2">"name"</span>: <span class="s2">"set_user"</span>,
+            <span class="s2">"args"</span>: <span class="o">{</span>
+                <span class="s2">"cert"</span>: <span class="s2">"-----BEGIN CERTIFICATE-----\nMIIBrjCCATSgAwIBAgIUGCKB69cgr9N+EEMFvrVu6cInLvgwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIxMDQwNjEwMDc0OFoXDTIyMDQwNjEwMDc0OFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEAdgT5JJTVd0x\nyxphNeF8nccwu+Ro1lAEsKEdxzZhD461kv/ecOiqGtHnqlahiHxdQoiAhSfErjpx\n4bCQTCQeZkjZ/7FvOkS9St4uIwUf+/0CU0YxtVLGlSLRep0Sr5nZo1MwUTAdBgNV\nHQ4EFgQUOTRHQS8XOiS0Tf8yh6reB++Fzc8wHwYDVR0jBBgwFoAUOTRHQS8XOiS0\nTf8yh6reB++Fzc8wDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNoADBlAjBt\nkHZNFMtWT/79or93gasIuuKItFFjwyMYCMyDq2xUQyX2GtLhVfiVt0Te6hNeVE0C\nMQC7paiA2jrZjJ6qaFbDsJvrY7y9YioIrXA5txGgEEYhlPRDA2+5/5hG+bHLeQbi\noIU=\n-----END CERTIFICATE-----\n"</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+    <span class="o">]</span>
+<span class="o">}</span>
+
+$ cat ./set_user_vote_for.json
+<span class="o">{</span>
+    <span class="s2">"ballot"</span>: <span class="s2">"export function vote (rawProposal, proposerId) {\n  let proposal = JSON.parse(rawProposal);\n  if (!('actions' in proposal)) { return false; };\n  let actions = proposal['actions'];\n  if (actions.length !== 1) { return false; };\n  let action = actions[0];\n  if (!('name' in action)) { return false; };\n  if (action.name !== 'set_user') { return false; };\n  if (!('args' in action)) { return false; };\n  let args = action.args;\n  {\n    if (!('cert' in args)) { return false; };\n    let expected = \"-----BEGIN CERTIFICATE-----\\nMIIBrjCCATSgAwIBAgIUGCKB69cgr9N+EEMFvrVu6cInLvgwCgYIKoZIzj0EAwMw\\nDjEMMAoGA1UEAwwDYm9iMB4XDTIxMDQwNjEwMDc0OFoXDTIyMDQwNjEwMDc0OFow\\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEAdgT5JJTVd0x\\nyxphNeF8nccwu+Ro1lAEsKEdxzZhD461kv/ecOiqGtHnqlahiHxdQoiAhSfErjpx\\n4bCQTCQeZkjZ/7FvOkS9St4uIwUf+/0CU0YxtVLGlSLRep0Sr5nZo1MwUTAdBgNV\\nHQ4EFgQUOTRHQS8XOiS0Tf8yh6reB++Fzc8wHwYDVR0jBBgwFoAUOTRHQS8XOiS0\\nTf8yh6reB++Fzc8wDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNoADBlAjBt\\nkHZNFMtWT/79or93gasIuuKItFFjwyMYCMyDq2xUQyX2GtLhVfiVt0Te6hNeVE0C\\nMQC7paiA2jrZjJ6qaFbDsJvrY7y9YioIrXA5txGgEEYhlPRDA2+5/5hG+bHLeQbi\\noIU=\\n-----END CERTIFICATE-----\\n\";\n    if (JSON.stringify(args['cert']) !== JSON.stringify(expected)) { return false; };\n  }\n  return true;\n}"</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>If you have custom tooling to generate proposals or votes, please use <code class="docutils literal notranslate"><span class="pre">proposal_generator</span></code> as a guide to the format these should now have. Note that if you have a custom constitution, then the format of the proposals themselves is also under your control.</p>
+<p>Finally, these proposals and votes should be submitted to URL paths under <code class="docutils literal notranslate"><span class="pre">/gov/proposals</span></code> rather than <code class="docutils literal notranslate"><span class="pre">/gov/proposals</span></code>.</p>
+</section>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../audit/index.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Audit</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="member_rpc_api.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Member RPC API</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/governance/js_gov.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">JavaScript Governance</a><ul>
+<li><a class="reference internal" href="#constitution">Constitution</a></li>
+<li><a class="reference internal" href="#upgrading-from-lua-to-js">Upgrading from Lua to JS</a><ul>
+<li><a class="reference internal" href="#upgrading-constitution">Upgrading constitution</a></li>
+<li><a class="reference internal" href="#upgrading-proposals-and-votes">Upgrading proposals and votes</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

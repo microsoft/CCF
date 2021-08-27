@@ -1,0 +1,654 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Opening a Network" href="open_network.html" /><link rel="prev" title="Governance" href="index.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>Proposing and Voting for a Proposal - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../main/governance/proposals.html">main </option>
+    <option value="../../ccf-2.0.0-dev3/governance/proposals.html">ccf-2.0.0-dev3 </option>
+    <option value="../../ccf-2.0.0-dev2/governance/proposals.html">ccf-2.0.0-dev2 </option>
+    <option value="../../ccf-2.0.0-dev1/governance/proposals.html">ccf-2.0.0-dev1 </option>
+    <option value="../../ccf-2.0.0-dev0/governance/proposals.html">ccf-2.0.0-dev0 </option>
+    <option value="../../ccf-1.0.9/governance/proposals.html">ccf-1.0.9 </option>
+    <option value="../../ccf-1.0.8/governance/proposals.html">ccf-1.0.8 </option>
+    <option value="../../ccf-1.0.7/governance/proposals.html">ccf-1.0.7 </option>
+    <option value="../../ccf-1.0.6/governance/proposals.html">ccf-1.0.6 </option>
+    <option value="../../ccf-1.0.5/governance/proposals.html">ccf-1.0.5 </option>
+    <option value="../../ccf-1.0.4/governance/proposals.html">ccf-1.0.4 </option>
+    <option value="../../ccf-1.0.3/governance/proposals.html">ccf-1.0.3 </option>
+    <option value="../../ccf-1.0.2/governance/proposals.html">ccf-1.0.2 </option>
+    <option value="../../ccf-1.0.1/governance/proposals.html">ccf-1.0.1 </option>
+    <option value="proposals.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/consensus.html">Consensus Protocols</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../build_apps/js_app_tsoa.html">TypeScript Application using tsoa</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt_ms_example.html">JWT Authentication example using Microsoft Identity Platform</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/upgrading_app.html">Upgrade Your Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Governance</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="member_rpc_api.html">Member RPC API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="js_gov.html">JavaScript Governance</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="proposing-and-voting-for-a-proposal">
+<h1>Proposing and Voting for a Proposal<a class="headerlink" href="#proposing-and-voting-for-a-proposal" title="Permalink to this headline">¶</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>See <a class="reference internal" href="js_gov.html"><span class="doc">JavaScript Governance</span></a> for pointers on converting from Lua to JS.</p>
+</div>
+<section id="summary">
+<h2>Summary<a class="headerlink" href="#summary" title="Permalink to this headline">¶</a></h2>
+<p>Proposals are submitted as JSON documents, which if resolved successfully are applied atomically to the KV state.</p>
+<p>Ballots are submitted as JavaScript modules exporting a single <code class="docutils literal notranslate"><span class="pre">vote()</span></code> function, executed transactionally, and are able to read from the current KV state but not write to it.
+Each vote script is given the proposal as a JSON document, typically containing list of actions, and returns a Boolean value indicating whether it supports or rejects it.</p>
+<p>Any member can submit a new proposal. All members can then vote, once at most, on this proposal using its unique proposal id.
+The proposer has the ability to <cite>withdraw</cite> a proposal as long as it is open.</p>
+<p>Each time a vote is submitted, all vote ballots for this proposal are re-executed on the current state to determine whether they are <cite>for</cite> or <cite>against</cite> the proposal.
+This vote tally is passed to the <code class="docutils literal notranslate"><span class="pre">resolve()</span></code> call in the <a class="reference internal" href="../glossary.html#term-Constitution"><span class="xref std std-term">Constitution</span></a>, which determines whether the proposal is accepted or remains open.
+Once a proposal is accepted under the rules of the <a class="reference internal" href="../glossary.html#term-Constitution"><span class="xref std std-term">Constitution</span></a>, it is executed via <code class="docutils literal notranslate"><span class="pre">apply()</span></code> and its effects are applied to the state and recorded in the ledger.</p>
+<p>For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.</p>
+<div class="mermaid">
+            sequenceDiagram
+    participant Member 0
+    participant Member 1
+    participant MemberFrontend
+    participant Constitution
+
+    Note over MemberFrontend, Constitution: CCF
+    Member 0-&gt;&gt;+MemberFrontend: Submit Proposal to /gov/proposals
+    MemberFrontend-&gt;&gt;+Constitution: call validate(Proposal)
+    Constitution--&gt;&gt;-MemberFrontend: no exception
+    MemberFrontend-&gt;&gt;+Constitution: call resolve(Proposal, {})
+    Constitution--&gt;&gt;-MemberFrontend: not enough votes, return Proposal is Open
+    MemberFrontend--&gt;&gt;-Member 0: Proposal is Open
+
+    Member 1-&gt;&gt;+MemberFrontend: Submit Ballot containing vote() to /gov/proposals/ProposalID/ballots
+    MemberFrontend-&gt;&gt;MemberFrontend: evaluate vote(Proposal, KV State) to boolean Vote
+    MemberFrontend-&gt;&gt;+Constitution: call resolve(Proposal, {Member 1: Vote})
+    Constitution--&gt;&gt;-MemberFrontend: enough positive votes, return Proposal is Accepted
+    MemberFrontend-&gt;&gt;+Constitution: call apply(Proposal) to perform side-effects
+    Constitution--&gt;&gt;-MemberFrontend: no exception
+    MemberFrontend--&gt;&gt;-Member 1: Proposal is Accepted, has successfully been applied
+        </div></section>
+<section id="creating-a-proposal">
+<h2>Creating a Proposal<a class="headerlink" href="#creating-a-proposal" title="Permalink to this headline">¶</a></h2>
+<p>For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand.
+For simple proposals there is a helper script in the CCF Python package - <code class="docutils literal notranslate"><span class="pre">proposal_generator.py</span></code>.
+This can be used to create proposals for common operations like adding members and users, without writing any JSON.
+It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected.
+These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.</p>
+<p>Assuming the CCF Python package has been installed in the current Python environment, the proposal generator can be invoked directly as <code class="docutils literal notranslate"><span class="pre">ccf.proposal_generator</span></code>. With no further argument it will print help text, including the list of possible actions as subcommands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>usage: proposal_generator.py <span class="o">[</span>-h<span class="o">]</span> <span class="o">[</span>-po PROPOSAL_OUTPUT_FILE<span class="o">]</span> <span class="o">[</span>-vo VOTE_OUTPUT_FILE<span class="o">]</span> <span class="o">[</span>-pp<span class="o">]</span> <span class="o">[</span>-i<span class="o">]</span> <span class="o">[</span>-v<span class="o">]</span>
+                            <span class="o">{</span>add_node_code,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_node,remove_node_code,remove_user,set_ca_cert_bundle,set_constitution,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member,set_member_data,set_recovery_threshold,set_user,set_user_data,transition_node_to_trusted,transition_service_to_open,trigger_ledger_rekey,trigger_recovery_shares_refresh<span class="o">}</span>
+</pre></div>
+</div>
+<p>Additional detail is available from the <code class="docutils literal notranslate"><span class="pre">--help</span></code> option. You can also find the script in a checkout of CCF:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ python CCF/python/ccf/proposal_generator.py
+</pre></div>
+</div>
+<p>Some of these subcommands require additional arguments, such as the node ID or user certificate to add to the service. Additional options allow the generated votes and proposals to be redirected to other files or pretty-printed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ python -m ccf.proposal_generator transition_node_to_trusted 6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f
+SUCCESS <span class="p">|</span> Writing proposal to ./trust_node_proposal.json
+SUCCESS <span class="p">|</span> Wrote vote to ./trust_node_vote_for.json
+
+$ cat trust_node_proposal.json
+<span class="o">{</span><span class="s2">"actions"</span>: <span class="o">[{</span><span class="s2">"name"</span>: <span class="s2">"transition_node_to_trusted"</span>, <span class="s2">"args"</span>: <span class="o">{</span><span class="s2">"node_id"</span>: <span class="s2">"6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f"</span><span class="o">}}]}</span>
+
+$ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json set_user pedro_cert.pem
+SUCCESS <span class="p">|</span> Writing proposal to ./add_pedro.json
+SUCCESS <span class="p">|</span> Wrote vote to ./vote_for_pedro.json
+
+$ cat add_pedro.json
+<span class="o">{</span>
+  <span class="s2">"actions"</span>: <span class="o">[</span>
+    <span class="o">{</span>
+      <span class="s2">"name"</span>: <span class="s2">"set_user"</span>,
+      <span class="s2">"args"</span>: <span class="o">{</span>
+        <span class="s2">"cert"</span>: <span class="s2">"-----BEGIN CERTIFICATE-----\nMIIBsjCCATigAwIBAgIUOiTU32JZsA0dSv64hW2mrKM0phEwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjIwHhcNMjEwNDE0MTUyODMyWhcNMjIwNDE0MTUyODMy\nWjAQMQ4wDAYDVQQDDAV1c2VyMjB2MBAGByqGSM49AgEGBSuBBAAiA2IABBFf+FD0\nUGIyJubt8j+f8+/BP7IY6G144yF/vBNe7CJpNNRyiMZzEyN6wmEKIjsn3gU36A6E\nqNYBlbYbXD1kzlw4q/Pe/Wl3o237p8Es6LD1e1MDUFp2qUcNA6vari6QLKNTMFEw\nHQYDVR0OBBYEFDuGVragGSHoIrFA44kQRg/SKIcFMB8GA1UdIwQYMBaAFDuGVrag\nGSHoIrFA44kQRg/SKIcFMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\nZQIxAPx54LaqQevKrcZIr7QSCZKGFJgSxfVxovSfEqTMD+sKdWzNTqJtJ1SDav1v\nImA4iwIwBsrdevSQj4U2ynXiTJKljviDnyc47ktJVkg/Ppq5cMcEZHO4Q0H/Wq3H\nlUuVImyR\n-----END CERTIFICATE-----\n"</span>
+      <span class="o">}</span>
+    <span class="o">}</span>
+  <span class="o">]</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>These proposals and votes should be sent as the body of HTTP requests as described below.</p>
+<section id="creating-proposals-in-python">
+<h3>Creating Proposals in Python<a class="headerlink" href="#creating-proposals-in-python" title="Permalink to this headline">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">ccf.proposal_generator</span></code> can also be imported and used in a Python application instead of as a command-line tool.</p>
+<div class="highlight-py notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">ccf.proposal_generator</span>
+</pre></div>
+</div>
+<p>The proposal generation functions return dictionaries that can be submitted to a <code class="docutils literal notranslate"><span class="pre">CCFClient</span></code>.</p>
+<div class="highlight-py notranslate"><div class="highlight"><pre><span></span><span class="n">proposal</span><span class="p">,</span> <span class="n">vote</span> <span class="o">=</span> <span class="n">ccf</span><span class="o">.</span><span class="n">proposal_generator</span><span class="o">.</span><span class="n">transition_service_to_open</span><span class="p">()</span>
+
+<span class="n">member_client</span> <span class="o">=</span> <span class="n">ccf</span><span class="o">.</span><span class="n">clients</span><span class="o">.</span><span class="n">CCFClient</span><span class="p">(</span>
+    <span class="n">host</span><span class="p">,</span>
+    <span class="n">port</span><span class="p">,</span>
+    <span class="n">ca</span><span class="p">,</span>
+    <span class="n">session_auth</span><span class="o">=</span><span class="n">ccf</span><span class="o">.</span><span class="n">clients</span><span class="o">.</span><span class="n">Identity</span><span class="p">(</span><span class="n">member_key</span><span class="p">,</span> <span class="n">member_cert</span><span class="p">,</span> <span class="s2">"member"</span><span class="p">),</span>
+    <span class="n">signing_auth</span><span class="o">=</span><span class="n">ccf</span><span class="o">.</span><span class="n">clients</span><span class="o">.</span><span class="n">Identity</span><span class="p">(</span><span class="n">member_key</span><span class="p">,</span> <span class="n">member_cert</span><span class="p">,</span> <span class="s2">"member"</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">member_client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+    <span class="s2">"/gov/proposals"</span><span class="p">,</span>
+    <span class="n">body</span><span class="o">=</span><span class="n">proposal</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>You may wish to write these proposals to files so they can be examined or modified further. These proposal files can be submitted directly — <code class="docutils literal notranslate"><span class="pre">CCFClient</span></code> will treat string request bodies beginning with an <code class="docutils literal notranslate"><span class="pre">@</span></code> as file paths in the same way that <code class="docutils literal notranslate"><span class="pre">curl</span></code> does, and use the content of the file when sending.</p>
+<div class="highlight-py notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"my_open_network_proposal.json"</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">proposal</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+
+<span class="c1"># The contents of `my_open_network_proposal.json` are submitted as the request body.</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">member_client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+    <span class="s2">"/gov/proposals"</span><span class="p">,</span>
+    <span class="n">body</span><span class="o">=</span><span class="s2">"@my_open_network_proposal.json"</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="submitting-a-new-proposal">
+<h2>Submitting a New Proposal<a class="headerlink" href="#submitting-a-new-proposal" title="Permalink to this headline">¶</a></h2>
+<p>Assuming that 3 members (<code class="docutils literal notranslate"><span class="pre">member1</span></code>, <code class="docutils literal notranslate"><span class="pre">member2</span></code> and <code class="docutils literal notranslate"><span class="pre">member3</span></code>) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/gov/proposals</span></code> and vote using <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/gov/proposals/{proposal_id}/ballots</span></code>.</p>
+<p>For example, <code class="docutils literal notranslate"><span class="pre">member1</span></code> may submit a proposal to add a new member (<code class="docutils literal notranslate"><span class="pre">member4</span></code>) to the consortium:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cat set_member.json
+<span class="o">{</span>
+  <span class="s2">"actions"</span>: <span class="o">[</span>
+    <span class="o">{</span>
+      <span class="s2">"name"</span>: <span class="s2">"set_member"</span>,
+      <span class="s2">"args"</span>: <span class="o">{</span>
+        <span class="s2">"cert"</span>: <span class="s2">"-----BEGIN CERTIFICATE-----\nMIIBeDCCAR+gAwIBAgIUNIlSzogSRYEIFzXZkt/8+yPP1mkwCgYIKoZIzj0EAwIw\nEjEQMA4GA1UEAwwHbWVtYmVyNTAeFw0yMTA0MTQxNTI5MDdaFw0yMjA0MTQxNTI5\nMDdaMBIxEDAOBgNVBAMMB21lbWJlcjUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC\nAATQ31dh+lbI9wtmEA5B9uvwMpchayuC6y2ODpvdikpW22YEEgMOHRTz9C1ouyA6\nDU/B8e44/Ix8EOyZ/o+o/x4uo1MwUTAdBgNVHQ4EFgQUkw5qTP11HKXElw/1PgS9\nczAI6kwwHwYDVR0jBBgwFoAUkw5qTP11HKXElw/1PgS9czAI6kwwDwYDVR0TAQH/\nBAUwAwEB/zAKBggqhkjOPQQDAgNHADBEAiBKK27btVObhaY3dNaRfTE5EPZeUvFQ\nysnx5xOcn7MGIAIgErGPvJeOD1mVKnHIsJ7JWpxbHCOWkiWuX5uPIX8didQ=\n-----END CERTIFICATE-----\n"</span>,
+        <span class="s2">"encryption_pub_key"</span>: <span class="s2">"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwHGQBecZimsPBmDJP7Bb\nSEtn3n2ee8luvyYWDgmxH2+GCE9bBdDrRu4qibGk/itrJ0ezIXChdszTQk1MdG0a\noWa4LbV2wTT7wRaqla+QaVI0VUAFFWuZkRlrTNvD6rizB7YBC9Qy54FqSmWfqbyK\nZF4gsnODPo78CABuiGvqASKfi9cfhJYARsXwFQNDTj+M9gXzThwC+oT5etOHmLVX\nxrs4mEmKaVgRS/qjedqqq2WSseteWDTg72LuSUgxC3OMBD+E0xQfOAOBXsi7EVqv\naPLlDSQJBG5tQDltz+kspUs3WWcP0UMY/mCvWeFtpP2wcaH5Y60PdYeOnSDYfCB5\nKwIDAQAB\n-----END PUBLIC KEY-----\n"</span>
+      <span class="o">}</span>
+    <span class="o">}</span>
+  <span class="o">]</span>
+<span class="o">}</span>
+
+$ scurl.sh https://&lt;ccf-node-address&gt;/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H <span class="s2">"content-type: application/json"</span>
+<span class="o">{</span>
+  <span class="s2">"ballot_count"</span>: <span class="m">0</span>,
+  <span class="s2">"proposal_id"</span>: <span class="s2">"d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd"</span>,
+  <span class="s2">"proposer_id"</span>: <span class="s2">"52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73"</span>,
+  <span class="s2">"state"</span>: <span class="s2">"Open"</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>Here a new proposal has successfully been created, and nobody has yet voted for it. The proposal is in state <code class="docutils literal notranslate"><span class="pre">Open</span></code>, meaning it will can receive additional votes. Members can then vote to accept or reject the proposal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cat vote_reject.json
+<span class="o">{</span>
+  <span class="s2">"ballot"</span>: <span class="s2">"export function vote (proposal, proposerId) { return false }"</span>
+<span class="o">}</span>
+
+$ cat vote_accept.json
+<span class="o">{</span>
+  <span class="s2">"ballot"</span>: <span class="s2">"export function vote (proposal, proposerId) { return true }"</span>
+<span class="o">}</span>
+
+
+<span class="c1"># Member 1 approves the proposal (votes in favour: 1/3)</span>
+$ scurl.sh https://&lt;ccf-node-address&gt;/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H <span class="s2">"content-type: application/json"</span>
+<span class="o">{</span>
+  <span class="s2">"ballot_count"</span>: <span class="m">1</span>,
+  <span class="s2">"proposal_id"</span>: <span class="s2">"d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd"</span>,
+  <span class="s2">"proposer_id"</span>: <span class="s2">"52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73"</span>,
+  <span class="s2">"state"</span>: <span class="s2">"Open"</span>
+<span class="o">}</span>
+
+
+<span class="c1"># Member 2 rejects the proposal (votes in favour: 1/3)</span>
+$ scurl.sh https://&lt;ccf-node-address&gt;/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H <span class="s2">"content-type: application/json"</span>
+<span class="o">{</span>
+  <span class="s2">"ballot_count"</span>: <span class="m">2</span>,
+  <span class="s2">"proposal_id"</span>: <span class="s2">"d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd"</span>,
+  <span class="s2">"proposer_id"</span>: <span class="s2">"52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73"</span>,
+  <span class="s2">"state"</span>: <span class="s2">"Open"</span>
+<span class="o">}</span>
+
+<span class="c1"># Member 3 accepts the proposal (votes in favour: 2/3)</span>
+$ scurl.sh https://&lt;ccf-node-address&gt;/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H <span class="s2">"content-type: application/json"</span>
+<span class="o">{</span>
+  <span class="s2">"ballot_count"</span>: <span class="m">3</span>,
+  <span class="s2">"proposal_id"</span>: <span class="s2">"d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd"</span>,
+  <span class="s2">"proposer_id"</span>: <span class="s2">"52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73"</span>,
+  <span class="s2">"state"</span>: <span class="s2">"Accepted"</span>
+<span class="o">}</span>
+
+<span class="c1"># As a majority of members have accepted the proposal, member 4 is added to the consortium</span>
+</pre></div>
+</div>
+<p>As soon as <code class="docutils literal notranslate"><span class="pre">member3</span></code> accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding <code class="docutils literal notranslate"><span class="pre">member4</span></code>. The response shows this, as the proposal’s state is now <code class="docutils literal notranslate"><span class="pre">Accepted</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a <code class="docutils literal notranslate"><span class="pre">/gov/ack</span></code> request. See <a class="reference internal" href="adding_member.html#activating-a-new-member"><span class="std std-ref">Activating a New Member</span></a>.</p>
+</div>
+</section>
+<section id="displaying-proposals">
+<h2>Displaying Proposals<a class="headerlink" href="#displaying-proposals" title="Permalink to this headline">¶</a></h2>
+<p>The details of pending proposals, can be queried from the service by calling <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/gov/proposals/{proposal_id}</span></code>. For example, after accepting the proposal above:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ scurl.sh https://&lt;ccf-node-address&gt;/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --cacert networkcert.pem --key member3_privk.pem --cert member3_cert.pem -H <span class="s2">"content-type: application/json"</span> -X GET
+<span class="o">{</span>
+  <span class="s2">"ballots"</span>: <span class="o">{</span>
+    <span class="s2">"0d8866bf4623a685963f3c087cd6fdcdf48fc483d774f7fc28bf428e31755aaa"</span>: <span class="s2">"export function vote (proposal, proposerId) { return true }"</span>,
+    <span class="s2">"466cc43f0cd17df4b49ded4b833f7bbba43b15ebee5be896d91e823fcce96a69"</span>: <span class="s2">"export function vote (proposal, proposerId) { return true }"</span>,
+    <span class="s2">"fe1b9b511fb3cf3ca3a1289b0d44db83a80dee8a54492f29467c52ebef9dbe40"</span>: <span class="s2">"export function vote (proposal, proposerId) { return false }"</span>
+  <span class="o">}</span>,
+  <span class="s2">"final_votes"</span>: <span class="o">{</span>
+    <span class="s2">"0d8866bf4623a685963f3c087cd6fdcdf48fc483d774f7fc28bf428e31755aaa"</span>: true,
+    <span class="s2">"466cc43f0cd17df4b49ded4b833f7bbba43b15ebee5be896d91e823fcce96a69"</span>: true,
+    <span class="s2">"fe1b9b511fb3cf3ca3a1289b0d44db83a80dee8a54492f29467c52ebef9dbe40"</span>: <span class="nb">false</span>
+  <span class="o">}</span>,
+  <span class="s2">"proposer_id"</span>: <span class="s2">"0d8866bf4623a685963f3c087cd6fdcdf48fc483d774f7fc28bf428e31755aaa"</span>,
+  <span class="s2">"state"</span>: <span class="s2">"Accepted"</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+<section id="withdrawing-a-proposal">
+<h2>Withdrawing a Proposal<a class="headerlink" href="#withdrawing-a-proposal" title="Permalink to this headline">¶</a></h2>
+<p>At any stage during the voting process, before the proposal is accepted, the proposing member may decide to withdraw a pending proposal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ scurl.sh https://&lt;ccf-node-address&gt;/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert networkcert.pem --key member1_privk.pem --cert member1_cert.pem -H <span class="s2">"content-type: application/json"</span>
+<span class="o">{</span>
+  <span class="s2">"ballot_count"</span>: <span class="m">1</span>,
+  <span class="s2">"proposal_id"</span>: <span class="s2">"d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd"</span>,
+  <span class="s2">"proposer_id"</span>: <span class="s2">"52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73"</span>,
+  <span class="s2">"state"</span>: <span class="s2">"Withdrawn"</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>This means future votes will be rejected, and the proposal will never be accepted. However it remains visible as a proposal so members can easily audit historic proposals.</p>
+</section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="open_network.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Opening a Network</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="index.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Governance</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../_sources/governance/proposals.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Proposing and Voting for a Proposal</a><ul>
+<li><a class="reference internal" href="#summary">Summary</a></li>
+<li><a class="reference internal" href="#creating-a-proposal">Creating a Proposal</a><ul>
+<li><a class="reference internal" href="#creating-proposals-in-python">Creating Proposals in Python</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#submitting-a-new-proposal">Submitting a New Proposal</a></li>
+<li><a class="reference internal" href="#displaying-proposals">Displaying Proposals</a></li>
+<li><a class="reference internal" href="#withdrawing-a-proposal">Withdrawing a Proposal</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

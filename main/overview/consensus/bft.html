@@ -1,0 +1,584 @@
+<!doctype html>
+<html class="no-js">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="Cryptography" href="../cryptography.html" /><link rel="prev" title="Crash Fault Tolerance" href="cft.html" />
+
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/><meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
+        <title>Byzantine Fault Tolerance - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #ffffff;
+  --color-code-foreground: black;
+  
+  }
+  body[data-theme="dark"] {
+    --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+  }
+</style>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../../_static/pygments_dark.css"></head>
+  <body>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="none" d="M0 0h24v24H0z" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="10" y1="12" x2="20" y2="12" />
+      <line x1="6" y1="18" x2="20" y2="18" />
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand centered" href="../../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../../_static/ccf.svg" alt="Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded",function(){
+      let selectedVersion = "main"
+      const thisURL = window.location.toString()
+      let indexOfVersion = thisURL.indexOf("ccf-")
+      if (indexOfVersion != -1) {
+          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="bft.html">main </option>
+    <option value="../../../ccf-2.0.0-dev3/overview/consensus/bft.html">ccf-2.0.0-dev3 </option>
+    <option value="../../../ccf-2.0.0-dev2/index.html">ccf-2.0.0-dev2 </option>
+    <option value="../../../ccf-2.0.0-dev1/index.html">ccf-2.0.0-dev1 </option>
+    <option value="../../../ccf-2.0.0-dev0/index.html">ccf-2.0.0-dev0 </option>
+    <option value="../../../ccf-1.0.9/index.html">ccf-1.0.9 </option>
+    <option value="../../../ccf-1.0.8/index.html">ccf-1.0.8 </option>
+    <option value="../../../ccf-1.0.7/index.html">ccf-1.0.7 </option>
+    <option value="../../../ccf-1.0.6/index.html">ccf-1.0.6 </option>
+    <option value="../../../ccf-1.0.5/index.html">ccf-1.0.5 </option>
+    <option value="../../../ccf-1.0.4/index.html">ccf-1.0.4 </option>
+    <option value="../../../ccf-1.0.3/index.html">ccf-1.0.3 </option>
+    <option value="../../../ccf-1.0.2/index.html">ccf-1.0.2 </option>
+    <option value="../../../ccf-1.0.1/index.html">ccf-1.0.1 </option>
+    <option value="../../../ccf-1.0.0/index.html">ccf-1.0.0 </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../../search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="../index.html">Overview</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../concepts.html">Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../release_policy.html">CCF release and support policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance.html">Governance</a></li>
+<li class="toctree-l2 current has-children"><a class="reference internal" href="index.html">Consensus Protocols</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="cft.html">Crash Fault Tolerance</a></li>
+<li class="toctree-l3 current current-page"><a class="current reference internal" href="#">Byzantine Fault Tolerance</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../threading.html">Threading</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/logging_cpp.html">Logging (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/logging_rpc_api.html">Logging RPC API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/logging.html">Logging</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../build_apps/js_app.html">JavaScript Application</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../build_apps/js_app_bundle.html">JavaScript Application Bundle</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../build_apps/js_app_ts.html">TypeScript Application</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/demo.html">End-to-end demo</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/crypto.html">Cryptography API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/verify_tx.html">Verifying Transaction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/python_tutorial.html">Python Client Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/python_api.html">Python Client API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/node_output.html">Node Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/python_library.html">Python Library</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/design/index.html">Design</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../research/index.html">Research</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../research/raft-tla.html">TLA+ model of CCF’s Raft modifications</a></li>
+<li class="toctree-l2"><a class="reference external" href="https://arxiv.org/abs/2105.13116">PAC: Practical Accountability for CCF</a></li>
+<li class="toctree-l2"><a class="reference external" href="https://github.com/microsoft/CCF/blob/main/CCF-TECHNICAL-REPORT.pdf">CCF whitepaper</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/microsoft/CCF">GitHub Repository</a></li>
+</ul>
+
+</div>
+</div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <article role="main">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <section id="byzantine-fault-tolerance">
+<h1>Byzantine Fault Tolerance<a class="headerlink" href="#byzantine-fault-tolerance" title="Permalink to this headline">¶</a></h1>
+<p>Below we discuss the reconfiguration as implemented for the BFT setting. Technically the two-transaction scheme is not specific to BFT. In fact, Ongardie and Ousterhout also described a two-transaction reconfiguration mechanism for Raft. As such, the two-transaction scheme as described below could also be used in CFT. However in BFT, the following properties are desirable:</p>
+<ol class="arabic simple">
+<li><p>A reconfiguration only starts when the reconfiguration transaction is committed, so a reconfiguration attempt can never roll back.</p></li>
+<li><p>Reconfigurations are atomic. This creates room for additional conditions, such as checking that the byzantine reconfiguration (a multiple transaction protocol) is complete before proceeding to the new configuration.</p></li>
+</ol>
+<p>BFT is still under development and should not be enabled in a production environment. There is an open research question of <a class="reference external" href="https://github.com/microsoft/CCF/issues/893">node identity with Byzantine nodes</a>.</p>
+<section id="two-transaction-reconfiguration">
+<h2>Two-transaction Reconfiguration<a class="headerlink" href="#two-transaction-reconfiguration" title="Permalink to this headline">¶</a></h2>
+<p>A two-transaction reconfiguration is triggered by the same mechanism as in one-transaction reconfiguration, i.e. a change to <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.nodes.info</span></code>. It does however not become active immediately. Joining nodes are held in a <code class="docutils literal notranslate"><span class="pre">LEARNER</span></code> state in which they receive copies of the ledger, but they are not taken into account in commit-level decisions or leader selection until a quorum of them has caught up. Nodes recognize that they are added to the network by observing the commit of the transaction that includes their own addition to <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.nodes.info</span></code>. This means that they have seen all preceding transactions up until their addition to the network. Similary, nodes that are to be retired recognize that their state is changed to <code class="docutils literal notranslate"><span class="pre">RETIRING</span></code> in <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.nodes.info</span></code>.</p>
+<p>All nodes in the new configuration (including learners) submit an Observed Reconfiguration Commit (ORC) RPC call to the current leader once they observe a reconfiguration that changes their state. This allows the leader to track how many of the nodes in the new configuration are aware of that configuration. Once the number of nodes in the next scheduled configuration reaches the required quorum of acknowledgements, the leader changes the state of all
+nodes of the new configuration that are in the <code class="docutils literal notranslate"><span class="pre">LEARNER</span></code> and <code class="docutils literal notranslate"><span class="pre">RETIRING</span></code> states to <code class="docutils literal notranslate"><span class="pre">TRUSTED</span></code> and <code class="docutils literal notranslate"><span class="pre">RETIRED</span></code> respectively, in <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.nodes.info</span></code>.</p>
+<p>This sample illustrates the addition of a single node to a one-node network with two-transaction reconfiguration:</p>
+<div class="mermaid">
+            sequenceDiagram
+    participant Members
+    participant Node 0
+    participant Node 1
+
+    Note over Node 0: State in KV: TRUSTED
+    Note over Node 1: State in KV: PENDING
+
+    Note right of Node 0: Cfg 0: [Node 0]
+    Note right of Node 0: Active configs: [Cfg 0]
+
+    Members-&gt;&gt;+Node 0: Vote for Node 1 to become LEARNER
+
+    Note right of Node 0: Tx ID := 3.42
+    Note right of Node 0: Cfg 1 := [Node 0, Node 1]
+    Note right of Node 0: Active configs := [Cfg 0]
+    Node 0--&gt;&gt;-Members: Success
+
+    Node 1-&gt;&gt;+Node 0: Poll join
+    Node 0--&gt;&gt;-Node 1: Learner
+
+    Node 0-&gt;&gt;Node 1: Replicate Tx ID 3.42
+    Note over Node 1: State in KV := LEARNER
+    Node 1-&gt;&gt;Node 0: Acknowledge Tx ID 3.42
+
+    Node 0-&gt;&gt;Node 1: Notify commit 3.42
+
+    Node 1-&gt;&gt;+Node 0: ORC for Node 1
+    Note over Node 0: Quorum reached. All nodes in Cfg 1: State in KV := TRUSTED
+    Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+    Node 0--&gt;&gt;-Node 1: Success @ Tx ID 3.43
+
+    Node 0-&gt;&gt;Node 1: Replicate Tx ID 3.43
+    Note over Node 1: State in KV := TRUSTED
+    Node 1-&gt;&gt;Node 0: Acknowledge Tx ID 3.43
+
+    Note right of Node 0: Tx ID 3.43 commits (meets quorum in Cfg 0 and 1)
+    Note right of Node 0: Active configs := [Cfg 1]
+        </div><p>The following example illustrates one possible execution of an addition of two nodes to a one-node network.</p>
+<div class="mermaid">
+            sequenceDiagram
+    participant Members
+    participant Node 0
+    participant Node 1
+    participant Node 2
+
+    Note over Node 0: State in KV: TRUSTED
+    Note over Node 1: State in KV: PENDING
+    Note over Node 2: State in KV: PENDING
+
+    Note right of Node 0: Cfg 0: [Node 0]
+    Note right of Node 0: Active configs: [Cfg 0]
+
+    Members-&gt;&gt;+Node 0: Vote for Nodes 1 and 2 to become LEARNER
+
+    Note right of Node 0: Tx ID := 3.42
+    Note right of Node 0: Cfg 1 := [Node 0, Node 1, Node 2]
+    Note right of Node 0: Active configs := [Cfg 0]
+    Node 0--&gt;&gt;-Members: Success
+
+    Node 1-&gt;&gt;+Node 0: Poll join
+    Node 0--&gt;&gt;-Node 1: Learner
+
+    Node 2-&gt;&gt;+Node 0: Poll join
+    Node 0--&gt;&gt;-Node 2: Learner
+
+    Node 0-&gt;&gt;Node 1: Replicate Tx ID 3.42
+    Note over Node 1: State in KV := LEARNER
+    Node 1-&gt;&gt;Node 0: Acknowledge Tx ID 3.42
+
+    Node 0-&gt;&gt;Node 2: Replicate Tx ID 3.42
+    Note over Node 2: State in KV := LEARNER
+    Node 2-&gt;&gt;Node 0: Acknowledge Tx ID 3.42
+
+    Node 0-&gt;&gt;Node 1: Notify commit 3.42
+
+    Node 1-&gt;&gt;+Node 0: ORC for Node 1
+    Note right of Node 0: Active configs := [Cfg 0]
+
+    Node 0-&gt;&gt;Node 2: Notify commit 3.42
+
+    Node 2-&gt;&gt;+Node 0: ORC for Node 2
+    Note over Node 0: Quorum reached. All nodes in Cfg 1: State in KV := TRUSTED
+    Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+    Node 0--&gt;&gt;-Node 2: Success @ Tx ID 3.43
+
+    Node 0-&gt;&gt;Node 1: Replicate Tx ID 3.43
+    Note over Node 1: State in KV := TRUSTED
+    Node 1-&gt;&gt;Node 0: Acknowledge Tx ID 3.43
+    Node 0-&gt;&gt;Node 2: Replicate Tx ID 3.43
+    Note over Node 2: State in KV := TRUSTED
+    Node 2-&gt;&gt;Node 0: Acknowledge Tx ID 3.43
+
+    Note right of Node 0: Tx ID 3.43 commits (meets quorum in Cfg 0 and 1)
+    Note right of Node 0: Active configs := [Cfg 1]
+        </div><p>Joining a small number of nodes to a large network will lead to almost-instant promotion of the joining node if both the existing and the new configuration have a sufficient number of nodes for quorums. Learners also help to improve the liveness of the system, because they do not necessarily have to receive the entire ledger from the leader immediately. Further, the two transactions on the ledger make it clear that the configuration change was not instant and it allows for other mechanisms to gate the switch to a new configuration on the committment to a number of other transactions on the ledger, for instance those required for the successful establishment of a Byzantine network identity.</p>
+<p>The following diagram illustrates retirement of the leader:</p>
+<div class="mermaid">
+            sequenceDiagram
+    participant Members
+    participant Node 0
+    participant Node 1
+
+    Note over Node 0: State in KV: TRUSTED
+    Note over Node 0: Leader
+    Note over Node 1: State in KV: TRUSTED
+
+    Note right of Node 0: Cfg 0: [Node 0, Node 1]
+    Note right of Node 0: Active configs: [Cfg 0]
+
+    Members-&gt;&gt;+Node 0: Vote for Node 0 to become RETIRED
+
+    Note right of Node 0: Tx ID := 3.42
+    Note right of Node 0: Cfg 1 := [Node 1]
+    Note right of Node 0: Active configs := [Cfg 0]
+    Node 0--&gt;&gt;-Members: Success @ Tx ID 3.42
+
+    Note over Node 0: State in KV := RETIRING
+
+    Node 0-&gt;&gt;Node 1: Replicate Tx ID 3.42
+    Node 1-&gt;&gt;Node 0: Acknowledge Tx ID 3.42
+
+    Node 1-&gt;&gt;+Node 0: ORC for Node 1
+    Note left of Node 0: Tx ID := 3.43
+    Note left of Node 0: (Quorum reached, all nodes in Cfg 1 are already TRUSTED)
+    Note left of Node 0: All RETIRING nodes in Cfg 1: state in KV := RETIRED
+    Note left of Node 0: Active configs := [Cfg 0, Cfg 1]
+    Node 0--&gt;&gt;-Node 1: Success @ Tx ID 3.43
+
+    Note over Node 0: State in KV := RETIRED
+
+    Node 0-&gt;&gt;Node 1: Replicate Tx ID 3.43
+    Node 1-&gt;&gt;Node 0: Acknowledge Tx ID 3.43
+    Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+    Note right of Node 0: Tx ID 3.43 commits (meets quorum in Cfg 0 and 1)
+
+    Node 0-&gt;&gt;Node 1: Notify commit 3.43
+    Note right of Node 1: Active configs := [Cfg 1]
+    Note over Node 1: Leader
+        </div></section>
+</section>
+
+      </article>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../cryptography.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Cryptography</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="cft.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Crash Fault Tolerance</div>
+                
+              </div>
+            </a>
+        </div>
+
+        <div class="related-information">
+              Copyright &#169; 2018, Microsoft Research
+            |
+            Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            |
+            <a class="muted-link" href="../../_sources/overview/consensus/bft.rst.txt"
+               rel="nofollow">
+              Show Source
+            </a>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Byzantine Fault Tolerance</a><ul>
+<li><a class="reference internal" href="#two-transaction-reconfiguration">Two-transaction Reconfiguration</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/scripts/main.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>
