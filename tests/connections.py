@@ -107,13 +107,10 @@ def run(args):
                                 client_fn(
                                     identity="user0",
                                     connection_timeout=1,
-                                    # Long enough to make sure that the connection
-                                    # we then re-use to query node metrics after we've
-                                    # hit the cap stays alive while we ramp up
                                     limits=httpx.Limits(
                                         max_connections=1,
                                         max_keepalive_connections=1,
-                                        keepalive_expiry=30,
+                                        keepalive_expiry=1,
                                     ),
                                 )
                             )
