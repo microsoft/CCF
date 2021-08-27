@@ -14,9 +14,30 @@ namespace crypto
   {
     std::string san;
     bool is_ip;
+
+    bool operator==(const SubjectAltName& other) const = default;
+    bool operator!=(const SubjectAltName& other) const = default;
   };
   DECLARE_JSON_TYPE(SubjectAltName);
   DECLARE_JSON_REQUIRED_FIELDS(SubjectAltName, san, is_ip);
+
+  struct CertificateSubjectIdentity
+  {
+    std::string name;
+    std::vector<SubjectAltName> sans = {};
+
+    CertificateSubjectIdentity() = default;
+    CertificateSubjectIdentity(
+      const std::string& name, const std::vector<SubjectAltName>& sans = {}) :
+      name(name),
+      sans(sans)
+    {}
+
+    bool operator==(const CertificateSubjectIdentity& other) const = default;
+    bool operator!=(const CertificateSubjectIdentity& other) const = default;
+  };
+  DECLARE_JSON_TYPE(CertificateSubjectIdentity);
+  DECLARE_JSON_REQUIRED_FIELDS(CertificateSubjectIdentity, sans, name);
 }
 
 FMT_BEGIN_NAMESPACE

@@ -15,6 +15,7 @@ namespace ccf
     size_t recovery_threshold = 0;
 
     ConsensusType consensus = ConsensusType::CFT;
+
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
     bool operator==(const ServiceConfiguration& other) const

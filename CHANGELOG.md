@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Service-endorsed node certificates are now recorded in a new `public:ccf.gov.nodes.endorsed_certificates` table, while the existing `cert` field in the `public:ccf.gov.nodes.info` table is now deprecated (#2844).
+- Joining nodes now present service-endorsed certificate in client TLS sessions _after_ they have observed their own addition to the store, rather than as soon as they have joined the service. Operators should monitor the initial progress of a new node using its self-signed certificate as TLS session certificate authority (#2844).
+- Updated `actions.js` constitution fragment to record service-endorsed node certificate on the `transition_node_to_trusted` action. The constitution should be updated using the existing `set_constitution` proposal (#2844).
+
 ## [2.0.0-dev3]
 
 ### Added

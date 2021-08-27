@@ -351,16 +351,18 @@ int main(int argc, char** argv)
       "latency at a cost to throughput")
     ->capture_default_str();
 
-  std::string subject_name("CN=CCF Node");
+  crypto::CertificateSubjectIdentity node_certificate_subject_identity(
+    "CN=CCF Node");
   app
     .add_option(
-      "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
+      "--sn",
+      node_certificate_subject_identity.name,
+      "Subject Name in node certificate, eg. CN=CCF Node")
     ->capture_default_str();
 
-  std::vector<crypto::SubjectAltName> subject_alternative_names;
   cli::add_subject_alternative_name_option(
     app,
-    subject_alternative_names,
+    node_certificate_subject_identity.sans,
     "--san",
     "Subject Alternative Name in node certificate. Can be either "
     "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld. If not specified, "
@@ -775,8 +777,8 @@ int main(int argc, char** argv)
     }
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
-    ccf_config.subject_name = subject_name;
-    ccf_config.subject_alternative_names = subject_alternative_names;
+    ccf_config.node_certificate_subject_identity =
+      node_certificate_subject_identity;
 
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
 
