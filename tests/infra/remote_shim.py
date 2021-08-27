@@ -59,7 +59,7 @@ class DockerShim(infra.remote.CCFRemote):
         # Otherwise, create network on the fly.
         if is_docker_env():
             self.network = self.docker_client.networks.get(
-                os.environ(AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR)
+                os.environ[AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR]
                 if is_azure_devops_env()
                 else DOCKER_NETWORK_NAME_LOCAL
             )
