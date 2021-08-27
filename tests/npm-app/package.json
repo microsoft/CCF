@@ -24,6 +24,6 @@
     "http-server": "^0.12.3",
     "rollup": "^2.41.0",
     "tslib": "^2.0.1",
-    "typescript": "^4.2.0"
+    "typescript": "4.2.4"
   }
 }
