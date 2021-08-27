@@ -114,9 +114,9 @@ class DockerShim(infra.remote.CCFRemote):
         devices = None
         running_as_user = f"{os.getuid()}:{os.getgid()}"
         cwd = str(pathlib.Path().resolve())
-        cwd = cwd.replace("__w", "mnt/vss/_work")
+        cwd_host = cwd.replace("__w", "mnt/vss/_work")
 
-        LOG.error(f"cwd: {cwd}")
+        LOG.error(f"-v {cwd_host}:{cwd}")
         LOG.debug(f"Running as user: {running_as_user}")
 
         # Expose port to clients running on host if not already in a container
@@ -131,7 +131,7 @@ class DockerShim(infra.remote.CCFRemote):
         # TODO: It looks like the remote root is empty!
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
-            volumes={cwd: {"bind": cwd, "mode": "rw"}},
+            volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
             # devices=devices,
             # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             command='bash -c "pwd && ls -la && ./cchost.virtual --version"',
