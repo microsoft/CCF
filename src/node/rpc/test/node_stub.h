@@ -126,8 +126,8 @@ namespace ccf
       const crypto::Pem& subject_csr,
       const crypto::Pem& endorser_private_key,
       const crypto::Pem& endorser_cert,
-      std::optional<std::string>& valid_from = std::nullopt,
-      std::optional<std::string>& valid_to = std::nullopt) override
+      const std::optional<std::string>& valid_from = std::nullopt,
+      const std::optional<std::string>& valid_to = std::nullopt) override
     {
       throw std::logic_error("Unimplemented");
     }

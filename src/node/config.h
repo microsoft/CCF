@@ -23,10 +23,6 @@ namespace ccf
 
     struct Nodes
     {
-      // If true, the service endorses the certificate of new trusted nodes, and
-      // records them in the store
-      bool node_endorsement_on_trust = true;
-
       size_t cert_maximum_validity_period_days =
         default_node_certificate_validity_period_days;
 
@@ -34,8 +30,7 @@ namespace ccf
 
       bool operator==(const Nodes& other) const
       {
-        return node_endorsement_on_trust == other.node_endorsement_on_trust &&
-          cert_maximum_validity_period_days ==
+        return cert_maximum_validity_period_days ==
           other.cert_maximum_validity_period_days;
       }
 
@@ -56,9 +51,7 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(ServiceConfiguration::Nodes)
   DECLARE_JSON_REQUIRED_FIELDS(
-    ServiceConfiguration::Nodes,
-    node_endorsement_on_trust,
-    cert_maximum_validity_period_days)
+    ServiceConfiguration::Nodes, cert_maximum_validity_period_days)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
   DECLARE_JSON_REQUIRED_FIELDS(

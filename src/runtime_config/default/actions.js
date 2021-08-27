@@ -786,11 +786,9 @@ const actions = new Map([
           );
 
           // Also generate and record service-endorsed node certificate from node CSR
-
           if (
             nodeInfo.certificate_signing_request !== undefined &&
-            serviceConfig.node_endorsement_on_trust !== undefined &&
-            serviceConfig.node_endorsement_on_trust
+            serviceConfig.consensus !== "BFT"
           ) {
             // Note: CSR is only present from 2.x
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
