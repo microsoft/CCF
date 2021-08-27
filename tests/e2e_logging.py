@@ -33,6 +33,7 @@ import infra.crypto
 import threading
 import copy
 
+import sys
 from loguru import logger as LOG
 
 
@@ -1284,6 +1285,16 @@ def test_rekey(network, args):
 
 
 def run(args):
+    config = {
+        "handlers": [
+            {
+                "sink": sys.stdout,
+                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{thread.name}::</red><cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+            }
+        ]
+    }
+    LOG.configure(**config)
+
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
