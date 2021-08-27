@@ -491,13 +491,6 @@ if(BUILD_TESTS)
       --constitution
       ${CCF_DIR}/src/runtime_config/default/apply.js
   )
-  add_e2e_test(
-    NAME governance_js_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
-    CONSENSUS cft
-    CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-  )
 
   # Storing signed governance operations
   add_e2e_test(
@@ -516,12 +509,14 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
-  add_e2e_test(
-    NAME recovery_test_curve_256
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --recovery 3 --curve-id secp256r1
-  )
+  if(LONG_TESTS)
+    add_e2e_test(
+      NAME recovery_test_curve_256
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --curve-id secp256r1
+    )
+  endif()
 
   add_e2e_test(
     NAME recovery_test_suite
