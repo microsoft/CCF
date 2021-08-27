@@ -136,7 +136,7 @@ class DockerShim(infra.remote.CCFRemote):
             # devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             # command='bash -c "pwd && ls -la && ./cchost.virtual --version"',
-            # ports=ports,
+            ports=ports,
             name=self.container_name,
             user=running_as_user,
             working_dir=self.remote.root,
@@ -170,7 +170,8 @@ class DockerShim(infra.remote.CCFRemote):
         return self.remote.get_logs()
 
     def get_rpc_host(self):
-        return self.container_ip  # if is_env_docker_in_docker() else self.pub_host
+        # return self.container_ip if is_env_docker_in_docker() else self.pub_host
+        return self.pub_host
 
     def get_target_rpc_host(self):
         return self.container_ip
