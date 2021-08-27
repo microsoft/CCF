@@ -126,6 +126,7 @@ class DockerShim(infra.remote.CCFRemote):
             else None
         )
 
+        LOG.success(os.environ)
         LOG.error(f"Root: {self.remote.root}")
 
         # TODO: It looks like the remote root is empty!
