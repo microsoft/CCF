@@ -121,6 +121,7 @@ class DockerShim(infra.remote.CCFRemote):
             pass
 
         # Group and device for kernel sgx builtin support (or not)
+        # TODO: Does not quite yet work locally inside docker (file permission issues, and cannot connect to docker daemon)
         if kernel_has_sgx_builtin():
             gid = grp.getgrnam("sgx_prv").gr_gid
             devices = (
@@ -130,7 +131,7 @@ class DockerShim(infra.remote.CCFRemote):
             )
         else:
             gid = os.getgid()
-            devices = ["dev/sgx"] if os.path.isdir("dev/sgx") else None
+            devices = ["/dev/sgx"] if os.path.isdir("/dev/sgx") else None
 
         # Mount workspace volume
         cwd = str(pathlib.Path().resolve())
