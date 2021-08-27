@@ -115,6 +115,7 @@ class DockerShim(infra.remote.CCFRemote):
 
             c = self.docker_client.containers.get(self.container_name)
             c.stop()
+            c.remove()
             LOG.debug(f"Stopped container {self.container_name}")
         except docker.errors.NotFound:
             pass
