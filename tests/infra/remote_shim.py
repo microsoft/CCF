@@ -8,7 +8,6 @@ import os
 import pathlib
 import grp
 import ipaddress
-import json
 
 from loguru import logger as LOG
 
@@ -31,6 +30,15 @@ AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR = "AGENT_CONTAINERNETWORK"
 DOCKER_NETWORK_NAME_LOCAL = "ccf_test_docker_network"
 
 
+def kernel_has_sgx_builtin():
+    with open("/proc/cpuinfo", "r") as cpu_info:
+        filter = re.compile("^flags.*sgx.*")
+        for line in cpu_info:
+            if filter.match(line):
+                return True
+    return False
+
+
 class PassThroughShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -50,7 +58,7 @@ class DockerShim(infra.remote.CCFRemote):
         # provided by ADO or the one already created by the runner).
         # Otherwise, create network on the fly.
         if is_docker_env():
-            self.network = self.docker_client.network.get(
+            self.network = self.docker_client.networks.get(
                 os.environ(AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR)
                 if is_azure_devops_env()
                 else DOCKER_NETWORK_NAME_LOCAL
@@ -111,25 +119,33 @@ class DockerShim(infra.remote.CCFRemote):
         except docker.errors.NotFound:
             pass
 
-        # TODO: Does not support 5.11 kernel yet (i.e. sgx_prv group)
+        # Group and device for kernel sgx builtin support (or not)
+        if kernel_has_sgx_builtin():
+            gid = grp.getgrnam("sgx_prv").gr_gid
+            devices = (
+                ["/dev/sgx/enclave", "/dev/sgx/provision"]
+                if os.path.isdir("/dev/sgx")
+                else None
+            )
+        else:
+            gid = os.getgid()
+            devices = ["dev/sgx"] if os.path.isdir("dev/sgx") else None
 
-        running_as_user = f"{os.getuid()}:{os.getgid()}"
+        # Mount workspace volume
         cwd = str(pathlib.Path().resolve())
         cwd_host = (
             map_azure_devops_docker_workspace_dir(cwd) if is_azure_devops_env() else cwd
         )
 
-        LOG.debug(f"Running as user: {running_as_user}")
-
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
-            devices=["/dev/sgx"] if os.path.isfile("/dev/sgx") else None,
+            devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             ports=ports,
             name=self.container_name,
             labels=[label],
-            user=running_as_user,
+            user=f"{os.getuid()}:{gid}",
             working_dir=self.remote.root,
             detach=True,
             auto_remove=True,  # Container is automatically removed on stop
