@@ -99,6 +99,7 @@ def run(args):
                 LOG.success(f"Creating {target} clients")
                 consecutive_failures = 0
                 i = 1
+                healthy_clients = []
                 while i <= target:
                     logs = []
                     try:
@@ -110,7 +111,7 @@ def run(args):
                                     limits=httpx.Limits(
                                         max_connections=1,
                                         max_keepalive_connections=1,
-                                        keepalive_expiry=1,
+                                        keepalive_expiry=30,
                                     ),
                                 )
                             )
@@ -127,6 +128,7 @@ def run(args):
                             )
                             consecutive_failures = 0
                             i += 1
+                            healthy_clients.append(clients[-1])
                         elif r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE:
                             if continue_to_hard_cap:
                                 consecutive_failures = 0
@@ -141,7 +143,6 @@ def run(args):
                     except (CCFConnectionException, RuntimeError) as e:
                         flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}/{target}: {e}")
-                        clients[-1].close()
                         clients.pop(-1)
                         if consecutive_failures < 5:
                             # Maybe got unlucky and tried to create a session while many files were open - keep trying
@@ -159,13 +160,13 @@ def run(args):
                 LOG.success(
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
-                r = clients[-2].get("/node/metrics")
+                r = clients[0].get("/node/metrics")
                 assert r.status_code == http.HTTPStatus.OK, r.status_code
                 peak_metrics = r.body.json()["sessions"]
                 assert peak_metrics["active"] <= peak_metrics["peak"], peak_metrics
-                assert peak_metrics["active"] >= len(clients), (
+                assert peak_metrics["active"] == len(healthy_clients), (
                     peak_metrics,
-                    len(clients),
+                    len(healthy_clients),
                 )
 
                 # Submit many requests, and at least enough to trigger additional snapshots
@@ -174,7 +175,7 @@ def run(args):
                     f"Submitting an additional {more_requests} requests from existing clients"
                 )
                 for _ in range(more_requests):
-                    client = random.choice(clients)
+                    client = random.choice(healthy_clients)
                     logs = []
                     try:
                         client.post(
