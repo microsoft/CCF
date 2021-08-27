@@ -78,7 +78,7 @@ def test_role_based_access(network, args):
             )
             assert r.status_code == 401, r.status_code
 
-    # Use member-governance operation to give first user special role, allowing them to set other user's roles
+    # Bootstrap with a member-governance operation to give first user special role, allowing them to set other users' roles
     network.consortium.set_user_data(
         primary, users[0].service_id, {"role": "role_master"}
     )
