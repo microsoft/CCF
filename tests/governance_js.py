@@ -609,30 +609,3 @@ def test_set_constitution(network, args):
         assert body["state"] == "Accepted", body
 
     return network
-
-
-def run(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_join(args)
-        network = test_proposal_validation(network, args)
-        network = test_proposal_storage(network, args)
-        network = test_proposal_withdrawal(network, args)
-        network = test_ballot_storage(network, args)
-        network = test_pure_proposals(network, args)
-        network = test_proposals_with_votes(network, args)
-        network = test_vote_failure_reporting(network, args)
-        network = test_operator_proposals_and_votes(network, args)
-        network = test_apply(network, args)
-        network = test_actions(network, args)
-        network = test_set_constitution(network, args)
-
-
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.nodes(args, 1)
-    args.initial_user_count = 2
-    run(args)
