@@ -26,6 +26,34 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/secret": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "get_secret",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      },
+      "post": {
+        "js_module": "endpoints.js",
+        "js_function": "put_secret",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/roles": {
+      "post": {
+        "js_module": "endpoints.js",
+        "js_function": "add_role",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
     }
   }
 }
