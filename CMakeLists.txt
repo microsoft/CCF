@@ -509,7 +509,7 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
-  if (LONG_TESTS)
+  if(LONG_TESTS)
     add_e2e_test(
       NAME recovery_test_curve_256
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
