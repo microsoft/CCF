@@ -126,11 +126,10 @@ class DockerShim(infra.remote.CCFRemote):
             else None
         )
 
-        for e in os.environ:
-            LOG.success(e)
+        for (e, v) in dict(os.environ).items():
+            LOG.success(f"{e}:{v}")
         LOG.error(f"Root: {self.remote.root}")
 
-        # TODO: It looks like the remote root is empty!
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
@@ -151,8 +150,8 @@ class DockerShim(infra.remote.CCFRemote):
     def start(self):
         LOG.info(self.remote.get_cmd())
         self.container.start()
-        for l in self.container.logs(stream=True):
-            LOG.debug(l.strip())
+        # for l in self.container.logs(stream=True):
+        #     LOG.debug(l.strip())
         LOG.debug(f"Started container {self.container_name}")
 
     def stop(self):
@@ -171,7 +170,7 @@ class DockerShim(infra.remote.CCFRemote):
         return self.remote.get_logs()
 
     def get_rpc_host(self):
-        return self.container_ip if is_env_docker_in_docker() else self.pub_host
+        return self.container_ip  # if is_env_docker_in_docker() else self.pub_host
 
     def get_target_rpc_host(self):
         return self.container_ip

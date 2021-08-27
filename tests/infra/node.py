@@ -272,6 +272,8 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
 
+        LOG.error("node started")
+
         try:
             self.remote.get_startup_files(self.common_dir)
         except Exception as e:
