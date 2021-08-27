@@ -14,6 +14,7 @@ import re
 import stat
 import shutil
 from collections import deque
+import docker
 
 from loguru import logger as LOG
 
@@ -57,11 +58,14 @@ def sftp_session(hostname):
         client.close()
 
 
-def log_errors(out_path, err_path):
+DEFAULT_TAIL_LINES_LEN = 10
+
+
+def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
     error_filter = ["[fail ]", "[fatal]"]
     error_lines = []
     try:
-        tail_lines = deque(maxlen=10)
+        tail_lines = deque(maxlen=tail_lines_len)
         with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
@@ -131,10 +135,8 @@ class SSHRemote(CmdMixin):
         data_files,
         cmd,
         workspace,
-        label,
         common_dir,
         env=None,
-        log_format_json=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -142,7 +144,7 @@ class SSHRemote(CmdMixin):
         run out of that directory.
 
         Note that the name matters, since the temporary directory that will be first
-        deleted, then created and populated is workspace/label_name. There is deliberately no
+        deleted, then created and populated is workspace/name. There is deliberately no
         cleanup on shutdown, to make debugging/inspection possible.
 
         setup() connects, creates the directory and ships over the files
@@ -159,7 +161,7 @@ class SSHRemote(CmdMixin):
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.common_dir = common_dir
-        self.root = os.path.join(workspace, f"{label}_{name}")
+        self.root = os.path.join(workspace, name)
         self.name = name
         self.env = env or {}
         self.out = os.path.join(self.root, "out")
@@ -238,8 +240,7 @@ class SSHRemote(CmdMixin):
                             )
                         for f in session.listdir(src_dir):
                             session.get(
-                                os.path.join(src_dir, f),
-                                os.path.join(dst_dir, f),
+                                os.path.join(src_dir, f), os.path.join(dst_dir, f)
                             )
                     else:
                         session.get(
@@ -273,14 +274,12 @@ class SSHRemote(CmdMixin):
                 raise ValueError(self.root)
         return files
 
-    def get_logs(self):
+    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
         with sftp_session(self.hostname) as session:
             for filepath in (self.err, self.out):
                 try:
                     local_file_name = "{}_{}_{}".format(
-                        self.hostname,
-                        self.name,
-                        os.path.basename(filepath),
+                        self.hostname, self.name, os.path.basename(filepath)
                     )
                     dst_path = os.path.join(self.common_dir, local_file_name)
                     session.get(filepath, dst_path)
@@ -291,6 +290,11 @@ class SSHRemote(CmdMixin):
                             filepath, dst_path, self.hostname
                         )
                     )
+        return log_errors(
+            os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
+            os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
+            tail_lines_len=tail_lines_len,
+        )
 
     def start(self):
         """
@@ -335,11 +339,10 @@ class SSHRemote(CmdMixin):
         Disconnect the client, and therefore shut down the command as well.
         """
         LOG.info("[{}] closing".format(self.hostname))
-        self.get_logs()
-        errors, fatal_errors = log_errors(
-            os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
-            os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
-        )
+        (
+            errors,
+            fatal_errors,
+        ) = self.get_logs()
         self.client.close()
         self.proc_client.close()
         return errors, fatal_errors
@@ -396,10 +399,8 @@ class LocalRemote(CmdMixin):
         data_files,
         cmd,
         workspace,
-        label,
         common_dir,
         env=None,
-        log_format_json=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -408,7 +409,7 @@ class LocalRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
-        self.root = os.path.join(workspace, f"{label}_{name}")
+        self.root = os.path.join(workspace, name)
         self.common_dir = common_dir
         self.proc = None
         self.stdout = None
@@ -486,6 +487,9 @@ class LocalRemote(CmdMixin):
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
 
+    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+        return log_errors(self.out, self.err, tail_lines_len=tail_lines_len)
+
     def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -498,7 +502,7 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            return log_errors(self.out, self.err)
+            return self.get_logs()
 
     def setup(self):
         """
@@ -507,9 +511,11 @@ class LocalRemote(CmdMixin):
         """
         self._setup_files()
 
-    def get_cmd(self):
-        cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {cmd} 1> {self.out} 2> {self.err}"
+    def get_cmd(self, include_dir=True):
+        # cmd = " ".join(self.cmd)
+        cmd = f"cd {self.root} && " if include_dir else ""
+        cmd += f'{" ".join(self.cmd)} 1> {self.out} 2> {self.err}'
+        return cmd
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
@@ -535,10 +541,7 @@ CCF_TO_OE_LOG_LEVEL = {
 
 
 def make_address(host, port=None):
-    if port is not None:
-        return f"{host}:{port}"
-    else:
-        return f"{host}:0"
+    return f"{host}:{port or 0}"
 
 
 class CCFRemote(object):
@@ -549,17 +552,18 @@ class CCFRemote(object):
         self,
         start_type,
         lib_path,
-        local_node_id,
-        host,
-        pubhost,
-        node_port,
-        rpc_port,
-        node_client_host,
-        remote_class,
         enclave_type,
+        remote_class,
         workspace,
-        label,
         common_dir,
+        label="",
+        local_node_id=None,
+        rpc_host=None,
+        node_host=None,
+        pub_host=None,
+        node_port=0,
+        rpc_port=0,
+        node_client_host=None,
         target_rpc_address=None,
         members_info=None,
         snapshot_dir=None,
@@ -591,6 +595,7 @@ class CCFRemote(object):
         """
         Run a ccf binary on a remote host.
         """
+        self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
@@ -600,6 +605,7 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
+        self.pub_host = pub_host
 
         self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
@@ -643,11 +649,11 @@ class CCFRemote(object):
             bin_path,
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
-            f"--node-address={make_address(host, node_port)}",
+            f"--node-address={make_address(node_host, node_port)}",
             f"--node-address-file={self.node_address_path}",
-            f"--rpc-address={make_address(host, rpc_port)}",
+            f"--rpc-address={make_address(rpc_host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
-            f"--public-rpc-address={make_address(pubhost, rpc_port)}",
+            f"--public-rpc-address={make_address(pub_host, rpc_port)}",
             f"--ledger-dir={self.ledger_dir_name}",
             f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
@@ -708,10 +714,7 @@ class CCFRemote(object):
                 cmd += [str(s)]
 
         if start_type == StartType.new:
-            cmd += [
-                "start",
-                "--network-cert-file=networkcert.pem",
-            ]
+            cmd += ["start", "--network-cert-file=networkcert.pem"]
             for fragment in constitution:
                 cmd.append(f"--constitution={os.path.basename(fragment)}")
                 data_files += [
@@ -764,16 +767,7 @@ class CCFRemote(object):
             env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
-            local_node_id,
-            host,
-            exe_files,
-            data_files,
-            cmd,
-            workspace,
-            label,
-            common_dir,
-            env,
-            log_format_json,
+            self.name, rpc_host, exe_files, data_files, cmd, workspace, common_dir, env
         )
 
     def setup(self):
@@ -822,9 +816,7 @@ class CCFRemote(object):
     # suite, this argument will probably default to True (or be deleted entirely)
     def get_ledger(self, ledger_dir_name, include_read_only_dirs=False):
         self.remote.get(
-            self.ledger_dir_name,
-            self.common_dir,
-            target_name=ledger_dir_name,
+            self.ledger_dir_name, self.common_dir, target_name=ledger_dir_name
         )
         read_only_ledger_dirs = []
         if include_read_only_dirs and self.read_only_ledger_dir is not None:
@@ -841,10 +833,7 @@ class CCFRemote(object):
             read_only_ledger_dirs.append(
                 os.path.join(self.common_dir, read_only_ledger_dir_name)
             )
-        return (
-            os.path.join(self.common_dir, ledger_dir_name),
-            read_only_ledger_dirs,
-        )
+        return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
     def get_snapshots(self):
         self.remote.get(self.snapshot_dir_name, self.common_dir)
@@ -866,6 +855,15 @@ class CCFRemote(object):
         if self.read_only_ledger_dir_name is not None:
             paths += [os.path.join(self.remote.root, self.read_only_ledger_dir_name)]
         return paths
+
+    def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
+        return self.remote.get_logs(tail_lines_len=tail_lines_len)
+
+    def get_rpc_host(self):
+        return self.pub_host
+
+    def get_target_rpc_host(self):
+        return self.pub_host
 
 
 class StartType(Enum):

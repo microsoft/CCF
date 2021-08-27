@@ -25,6 +25,7 @@ debs:
   - iptables # partition test infra
   - libclang1-9 # required by doxygen
   - libclang-cpp9 # required by doxygen
+  - docker-ce-cli
 
 mbedtls_ver: "2.16.10"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
