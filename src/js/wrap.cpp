@@ -1314,6 +1314,12 @@ namespace js
     auto crypto = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
 
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "verifySignature",
+      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
+
     if (txctx != nullptr)
     {
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
