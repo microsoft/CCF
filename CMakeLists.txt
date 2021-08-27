@@ -686,7 +686,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME js_e2e_logging_cft
+    NAME e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -792,12 +792,6 @@ if(BUILD_TESTS)
   )
 
   foreach(CONSENSUS ${CONSENSUSES})
-    add_e2e_test(
-      NAME cpp_e2e_logging_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CONSENSUS ${CONSENSUS}
-    )
-
     add_e2e_test(
       NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py

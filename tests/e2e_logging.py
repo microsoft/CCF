@@ -30,6 +30,8 @@ import urllib.parse
 import random
 import re
 import infra.crypto
+import threading
+import copy
 
 from loguru import logger as LOG
 
@@ -1331,13 +1333,23 @@ def run(args):
 
 
 if __name__ == "__main__":
+    jsargs = infra.e2e_args.cli_args()
+    label = jsargs.label
 
-    args = infra.e2e_args.cli_args()
-    if args.js_app_bundle:
-        args.package = "libjs_generic"
-    else:
-        args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.initial_user_count = 4
-    args.initial_member_count = 2
-    run(args)
+    jsargs.package = "libjs_generic"
+    jsargs.nodes = infra.e2e_args.max_nodes(jsargs, f=0)
+    jsargs.initial_user_count = 4
+    jsargs.initial_member_count = 2
+    jsargs.label = f"js_{label}"
+
+    cppargs = copy.deepcopy(jsargs)
+    cppargs.js_app_bundle = None
+    cppargs.package = "liblogging"
+    jsargs.label = f"cpp_{label}"
+
+    js = threading.Thread(name="JS", target=run, args=[jsargs])
+    cpp = threading.Thread(name="CPP", target=run, args=[cppargs])
+    js.start()
+    cpp.start()
+    js.join()
+    cpp.join()
