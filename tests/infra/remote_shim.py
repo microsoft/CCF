@@ -133,8 +133,8 @@ class DockerShim(infra.remote.CCFRemote):
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
             # devices=devices,
-            # command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            command='bash -c "pwd && ls -la && ./cchost.virtual --version"',
+            command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
+            # command='bash -c "pwd && ls -la && ./cchost.virtual --version"',
             # ports=ports,
             name=self.container_name,
             user=running_as_user,
