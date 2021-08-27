@@ -442,7 +442,7 @@ class Node:
         akwargs.update(kwargs)
         if interface_idx is None:
             return ccf.clients.client(
-                self.remote.get_rpc_host(), self.pubport, **akwargs
+                self.remote.pub_host, self.pubport, **akwargs
             )
         else:
             try:

@@ -12,16 +12,22 @@ import json
 
 from loguru import logger as LOG
 
-# Azure Pipelines specific
-def is_env_docker_in_docker():
+
+def is_docker_env():
+    """Returns true if the process executing _this_ code already runs inside Docker"""
+    return os.path.isfile("/.dockerenv")
+
+
+def is_azure_devops_env():
     return "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
 
 
-DOCKER_NETWORK_PREFIX_ADO = "vsts_network"
+def map_azure_devops_docker_workspace_dir(workspace_dir):
+    return workspace_dir.replace("__w", "/mnt/vss/_work")
 
 
-######
-
+# Network name
+AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR = "AGENT_CONTAINERNETWORK"
 DOCKER_NETWORK_NAME_LOCAL = "ccf_test_docker_network"
 
 
@@ -32,24 +38,23 @@ class PassThroughShim(infra.remote.CCFRemote):
 
 class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
-        self.docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
+        self.docker_client = docker.DockerClient()
 
-        LOG.error(json.dumps(self.docker_client.info(), indent=2))
-
-        self.label = kwargs.get("label")
         rpc_host = kwargs.get("rpc_host")
-        self.rpc_port = kwargs.get("rpc_port")
-        self.node_port = kwargs.get("node_port")
-        self.local_node_id = kwargs.get("local_node_id")
-        self.pub_host = kwargs.get("pub_host")
+        label = kwargs.get("label")
+        rpc_port = kwargs.get("rpc_port")
+        local_node_id = kwargs.get("local_node_id")
 
-        # Create network shared by all containers in the same test
-        # or in a ADO environment, use existing network
-        if is_env_docker_in_docker():
-            for network in self.docker_client.networks.list():
-                if network.name.startswith(DOCKER_NETWORK_PREFIX_ADO):
-                    self.network = network
-                    break
+        # Create network to connect all containers to (for n2n communication, etc.).
+        # In a Docker environment, use existing network (either the one
+        # provided by ADO or the one already created by the runner).
+        # Otherwise, create network on the fly.
+        if is_docker_env():
+            self.network = self.docker_client.network.get(
+                os.environ(AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR)
+                if is_azure_devops_env()
+                else DOCKER_NETWORK_NAME_LOCAL
+            )
         else:
             try:
                 self.network = self.docker_client.networks.get(
@@ -60,29 +65,30 @@ class DockerShim(infra.remote.CCFRemote):
                     DOCKER_NETWORK_NAME_LOCAL
                 )
 
-        if self.network is None:
-            raise ValueError("No network configured to start containers")
-
-        LOG.debug(f"Using network {self.network.name}")
-        LOG.error(json.dumps(self.network.attrs, indent=2))
-
-        # First IP address is reserved for parent container
-        # Find IP of container to be created
-        ip_address_offset = 2 if is_env_docker_in_docker() else 1
+        # Pre-determine IP address of container based on network.
+        # This is necessary since the CCF node needs to bind to known addresses
+        # at start-up, and the container IP address is not known until the container
+        # is started.
+        # TODO: Can we construct the cchost command after the IP address is known?
+        ip_address_offset = 2 if is_docker_env() else 1
         self.container_ip = str(
             ipaddress.ip_address(self.network.attrs["IPAM"]["Config"][0]["Gateway"])
-            + self.local_node_id
+            + local_node_id
             + ip_address_offset
         )
 
-        LOG.error(f"Container ip: {self.container_ip}")
+        LOG.debug(f"Network {self.network.name} [{self.container_ip}]")
 
-        # Bind local RPC address to 0.0.0.0 so that it can accessed from outside container
+        # Bind local RPC address to 0.0.0.0, so it be can be accessed from outside container
         kwargs["rpc_host"] = "0.0.0.0"
-
-        if is_env_docker_in_docker():
+        if is_docker_env():
             kwargs["pub_host"] = self.container_ip
         kwargs["node_host"] = self.container_ip
+
+        # Expose port to clients running on host if not already in a container
+        ports = (
+            {f"{rpc_port}/tcp": (rpc_host, rpc_port)} if not is_docker_env() else None
+        )
 
         super().__init__(*args, **kwargs)
 
@@ -90,58 +96,43 @@ class DockerShim(infra.remote.CCFRemote):
         # characters with underscores
         self.container_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", self.name)
 
-        # Stop and delete existing container, if it exists
+        # TODO: Move this elsewhere as we need to be sure that containers are stopped before using IP addresses
+        # Stop and delete existing container
         try:
-            # TODO: If local_node_id is 0, also stop all other containers with that label!
+            # First container with this label stops all other matching containers
+            if local_node_id == 0:
+                for c in self.docker_client.containers.list(filters={"label": [label]}):
+                    LOG.debug(f"Stopping existing container {c.name}")
+                    c.stop()
+
             c = self.docker_client.containers.get(self.container_name)
             c.stop()
-            c.remove()  # TODO: Delete
             LOG.debug(f"Stopped container {self.container_name}")
         except docker.errors.NotFound:
             pass
 
-        # TODO: Cheeky to get real enclave working on 5.11, at the cost of having all files created in sgx_prv group
-        # try:
-        #     sgx_prv_group = grp.getgrnam("sgx_prv")  # TODO: Doesn't work
-        #     # >= 5.11 kernel
-        #     gid = sgx_prv_group.gr_gid
-        #     devices = ["/dev/sgx/enclave", "/dev/sgx/provision"]
-        # except KeyError:
-        #     # # < 5.11 kernel
-        #     # gid = os.getgid()
-        #     # devices = ["/dev/sgx"]
+        # TODO: Does not support 5.11 kernel yet (i.e. sgx_prv group)
 
-        devices = None
         running_as_user = f"{os.getuid()}:{os.getgid()}"
         cwd = str(pathlib.Path().resolve())
-        cwd_host = cwd.replace("__w", "mnt/vss/_work")
-
-        LOG.error(f"-v {cwd_host}:{cwd}")
-        LOG.debug(f"Running as user: {running_as_user}")
-
-        # Expose port to clients running on host if not already in a container
-        ports = (
-            {f"{self.rpc_port}/tcp": (rpc_host, self.rpc_port)}
-            if not is_env_docker_in_docker()
-            else None
+        cwd_host = (
+            map_azure_devops_docker_workspace_dir(cwd) if is_azure_devops_env() else cwd
         )
 
-        for (e, v) in dict(os.environ).items():
-            LOG.success(f"{e}:{v}")
-        LOG.error(f"Root: {self.remote.root}")
+        LOG.debug(f"Running as user: {running_as_user}")
 
         self.container = self.docker_client.containers.create(
             "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
-            # devices=devices,
+            devices=["/dev/sgx"] if os.path.isfile("/dev/sgx") else None,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            # command='bash -c "pwd && ls -la && ./cchost.virtual --version"',
             ports=ports,
             name=self.container_name,
+            labels=[label],
             user=running_as_user,
             working_dir=self.remote.root,
             detach=True,
-            # auto_remove=True,  # Container is automatically removed on stop
+            auto_remove=True,  # Container is automatically removed on stop
         )
 
         self.network.connect(self.container)
@@ -150,8 +141,6 @@ class DockerShim(infra.remote.CCFRemote):
     def start(self):
         LOG.info(self.remote.get_cmd())
         self.container.start()
-        # for l in self.container.logs(stream=True):
-        #     LOG.debug(l.strip())
         LOG.debug(f"Started container {self.container_name}")
 
     def stop(self):
@@ -161,17 +150,12 @@ class DockerShim(infra.remote.CCFRemote):
         except docker.errors.NotFound:
             pass
 
-        # Deletings networks by label doesn't seem to work (see https://github.com/docker/docker-py/issues/2611).
         # So prune all unusued networks instead.
         # if (
         #     deleted_networks := self.docker_client.networks.prune()["NetworksDeleted"]
         # ) is not None:
         #     LOG.debug(f"Deleted network {deleted_networks}")
         return self.remote.get_logs()
-
-    def get_rpc_host(self):
-        # return self.container_ip if is_env_docker_in_docker() else self.pub_host
-        return self.pub_host
 
     def get_target_rpc_host(self):
         return self.container_ip
