@@ -51,7 +51,14 @@ class DockerShim(infra.remote.CCFRemote):
                     self.network = network
                     break
         else:
-            self.network = self.docker_client.networks.create(DOCKER_NETWORK_NAME_LOCAL)
+            try:
+                self.network = self.docker_client.networks.get(
+                    DOCKER_NETWORK_NAME_LOCAL
+                )
+            except docker.errors.NotFound:
+                self.network = self.docker_client.networks.create(
+                    DOCKER_NETWORK_NAME_LOCAL
+                )
 
         if self.network is None:
             raise ValueError("No network configured to start containers")
@@ -70,6 +77,7 @@ class DockerShim(infra.remote.CCFRemote):
 
         LOG.error(f"Container ip: {self.container_ip}")
 
+        # Bind local RPC address to 0.0.0.0 so that it can accessed from outside container
         kwargs["rpc_host"] = "0.0.0.0"
 
         if is_env_docker_in_docker():
@@ -106,6 +114,12 @@ class DockerShim(infra.remote.CCFRemote):
         devices = None
         running_as_user = f"{os.getuid()}:{os.getgid()}"
         cwd = str(pathlib.Path().resolve())
+
+        local_path = os.getenv("BUILD_REPOSITORY_LOCALPATH")
+        if local_path:
+            host_path = local_path.replace("__w", "mnt/vss/_work")
+            cwd = cwd.replace(local_path, host_path)
+
         LOG.error(f"cwd: {cwd}")
         LOG.debug(f"Running as user: {running_as_user}")
 
