@@ -114,11 +114,7 @@ class DockerShim(infra.remote.CCFRemote):
         devices = None
         running_as_user = f"{os.getuid()}:{os.getgid()}"
         cwd = str(pathlib.Path().resolve())
-
-        local_path = os.getenv("BUILD_REPOSITORY_LOCALPATH")
-        if local_path:
-            host_path = local_path.replace("__w", "mnt/vss/_work")
-            cwd = cwd.replace(local_path, host_path)
+        cwd = cwd.replace("__w", "mnt/vss/_work")
 
         LOG.error(f"cwd: {cwd}")
         LOG.debug(f"Running as user: {running_as_user}")
