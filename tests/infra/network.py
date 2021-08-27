@@ -660,7 +660,9 @@ class Network:
             log_output=False,
         ).check_returncode()
 
-        with open(os.path.join(self.common_dir, f"{local_user_id}_cert.pem")) as c:
+        with open(
+            os.path.join(self.common_dir, f"{local_user_id}_cert.pem"), encoding="utf-8"
+        ) as c:
             service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
         new_user = UserInfo(local_user_id, service_user_id)
         if record:
@@ -1085,6 +1087,7 @@ def network(
         if pdb:
             import pdb
 
+            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise

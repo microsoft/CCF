@@ -82,6 +82,7 @@ namespace ccf
     //
     Nodes nodes;
     NetworkConfigurations network_configurations;
+    NodeEndorsedCertificates node_endorsed_certificates;
 
     //
     // Internal CCF tables
@@ -132,6 +133,7 @@ namespace ccf
       user_info(Tables::USER_INFO),
       nodes(Tables::NODES),
       network_configurations(Tables::NODES_CONFIGURATIONS),
+      node_endorsed_certificates(Tables::NODE_ENDORSED_CERTIFICATES),
       service(Tables::SERVICE),
       values(Tables::VALUES),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),

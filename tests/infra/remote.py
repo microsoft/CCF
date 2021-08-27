@@ -66,7 +66,7 @@ def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
     error_lines = []
     try:
         tail_lines = deque(maxlen=tail_lines_len)
-        with open(out_path, "r", errors="replace") as lines:
+        with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
@@ -84,7 +84,7 @@ def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
 
     fatal_error_lines = []
     try:
-        with open(err_path, "r", errors="replace") as lines:
+        with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
             fatal_error_lines = [
                 line
                 for line in lines.readlines()

@@ -893,8 +893,8 @@ namespace ccf
     ringbuffer::AbstractWriterFactory& writer_factory;
     const crypto::Pem& network_cert;
     crypto::KeyPairPtr node_kp;
-    const crypto::Pem& node_cert;
     NodeId self;
+    std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     std::mutex lock;
 
   public:
@@ -902,14 +902,20 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory_,
       const crypto::Pem& network_cert_,
       crypto::KeyPairPtr node_kp_,
-      const crypto::Pem& node_cert_,
-      const NodeId& self_) :
+      const NodeId& self_,
+      std::optional<crypto::Pem> endorsed_node_cert_ = std::nullopt) :
       writer_factory(writer_factory_),
       network_cert(network_cert_),
       node_kp(node_kp_),
-      node_cert(node_cert_),
-      self(self_)
+      self(self_),
+      endorsed_node_cert(endorsed_node_cert_)
     {}
+
+    void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert_)
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      endorsed_node_cert = endorsed_node_cert_;
+    }
 
     void create_channel(
       const NodeId& peer_id,
@@ -918,6 +924,10 @@ namespace ccf
       size_t message_limit = Channel::default_message_limit)
     {
       std::lock_guard<std::mutex> guard(lock);
+      CCF_ASSERT_FMT(
+        endorsed_node_cert.has_value(),
+        "Endorsed node certificate has not yet been set");
+
       auto search = channels.find(peer_id);
       if (search == channels.end())
       {
@@ -930,7 +940,7 @@ namespace ccf
           writer_factory,
           network_cert,
           node_kp,
-          node_cert,
+          endorsed_node_cert.value(),
           self,
           peer_id,
           hostname,
@@ -957,7 +967,7 @@ namespace ccf
           writer_factory,
           network_cert,
           node_kp,
-          node_cert,
+          endorsed_node_cert.value(),
           self,
           peer_id,
           hostname,
@@ -1012,7 +1022,12 @@ namespace ccf
       channels.try_emplace(
         peer_id,
         std::make_shared<Channel>(
-          writer_factory, network_cert, node_kp, node_cert, self, peer_id));
+          writer_factory,
+          network_cert,
+          node_kp,
+          endorsed_node_cert.value(),
+          self,
+          peer_id));
       return channels.at(peer_id);
     }
   };

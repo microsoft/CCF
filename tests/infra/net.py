@@ -9,7 +9,9 @@ from subprocess import check_output
 def ephemeral_range():
     # Linux
     try:
-        with open("/proc/sys/net/ipv4/ip_local_port_range") as port_range:
+        with open(
+            "/proc/sys/net/ipv4/ip_local_port_range", encoding="utf-8"
+        ) as port_range:
             return tuple(int(port) for port in port_range.read().split())
     except IOError:
         pass

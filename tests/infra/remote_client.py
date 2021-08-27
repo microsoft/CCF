@@ -80,8 +80,12 @@ class CCFRemoteClient(object):
             remote_file_dst = f"{self.name}_{csv}"
             self.remote.get(csv, self.common_dir, 1, remote_file_dst)
             if csv == "perf_summary.csv":
-                with open("perf_summary.csv", "a") as l:
-                    with open(os.path.join(self.common_dir, remote_file_dst), "r") as r:
+                with open("perf_summary.csv", "a", encoding="utf-8") as l:
+                    with open(
+                        os.path.join(self.common_dir, remote_file_dst),
+                        "r",
+                        encoding="utf-8",
+                    ) as r:
                         l.write(r.read())
 
     def check_done(self):

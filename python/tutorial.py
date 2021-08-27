@@ -111,7 +111,7 @@ response = member_client.post(
 # SNIPPET_END: dict_proposal
 
 # SNIPPET_START: json_proposal_with_file
-with open("my_open_network_proposal.json", "w") as f:
+with open("my_open_network_proposal.json", "w", encoding="utf-8") as f:
     f.write(json.dumps(proposal, indent=2))
 
 # The contents of `my_open_network_proposal.json` are submitted as the request body.

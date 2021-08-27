@@ -175,16 +175,19 @@ namespace enclave
       }
 
       // Copy node and network certs out
-      if (r.node_cert.size() > node_cert_size)
+      if (r.self_signed_node_cert.size() > node_cert_size)
       {
         LOG_FAIL_FMT(
           "Insufficient space ({}) to copy node_cert out ({})",
           node_cert_size,
-          r.node_cert.size());
+          r.self_signed_node_cert.size());
         return false;
       }
-      ::memcpy(node_cert, r.node_cert.data(), r.node_cert.size());
-      *node_cert_len = r.node_cert.size();
+      ::memcpy(
+        node_cert,
+        r.self_signed_node_cert.data(),
+        r.self_signed_node_cert.size());
+      *node_cert_len = r.self_signed_node_cert.size();
 
       if (start_type == StartType::New || start_type == StartType::Recover)
       {

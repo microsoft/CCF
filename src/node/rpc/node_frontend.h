@@ -7,6 +7,7 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
+#include "crypto/csr.h"
 #include "crypto/hash.h"
 #include "frontend.h"
 #include "node/entities.h"
@@ -76,25 +77,38 @@ namespace ccf
   private:
     NetworkState& network;
 
-    using ExistingNodeInfo = std::pair<NodeId, std::optional<kv::Version>>;
+    struct ExistingNodeInfo
+    {
+      NodeId node_id;
+      std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+      std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+    };
 
     std::optional<ExistingNodeInfo> check_node_exists(
       kv::Tx& tx,
-      const std::vector<uint8_t>& node_der,
+      const std::vector<uint8_t>& self_signed_node_der,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
-      auto nodes = tx.rw(network.nodes);
+      // Check that a node exists by looking up its public key in the nodes
+      // table.
+      auto nodes = tx.ro(network.nodes);
+      auto endorsed_node_certificates =
+        tx.ro(network.node_endorsed_certificates);
 
-      auto node_pem = crypto::cert_der_to_pem(node_der);
+      auto pk_pem = crypto::public_key_pem_from_cert(self_signed_node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
-      nodes->foreach([&existing_node_info, &node_pem, &node_status](
+      nodes->foreach([&existing_node_info,
+                      &pk_pem,
+                      &node_status,
+                      &endorsed_node_certificates](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
-          ni.cert == node_pem &&
+          ni.public_key == pk_pem &&
           (!node_status.has_value() || ni.status == node_status.value()))
         {
-          existing_node_info = std::make_pair(nid, ni.ledger_secret_seqno);
+          existing_node_info = {
+            nid, ni.ledger_secret_seqno, endorsed_node_certificates->get(nid)};
           return false;
         }
         return true;
@@ -132,6 +146,8 @@ namespace ccf
       ServiceStatus service_status)
     {
       auto nodes = tx.rw(network.nodes);
+      auto node_endorsed_certificates =
+        tx.rw(network.node_endorsed_certificates);
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -175,15 +191,40 @@ namespace ccf
           this->network.ledger_secrets->get_latest(tx).first;
       }
 
-      nodes->put(
-        joining_node_id,
-        {in.node_info_network,
-         crypto::cert_der_to_pem(node_der),
-         in.quote_info,
-         in.public_encryption_key,
-         node_status,
-         ledger_secret_seqno,
-         ds::to_hex(code_digest.data)});
+      // Note: All new nodes should specify a CSR from 2.x
+      auto client_public_key_pem = crypto::public_key_pem_from_cert(node_der);
+      if (in.certificate_signing_request.has_value())
+      {
+        // Verify that client's public key matches the one specified in the CSR)
+        auto csr_public_key_pem = crypto::public_key_pem_from_csr(
+          in.certificate_signing_request.value());
+        if (client_public_key_pem != csr_public_key_pem)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::CSRPublicKeyInvalid,
+            "Public key in CSR does not match TLS client identity.");
+        }
+      }
+
+      NodeInfo node_info = {
+        in.node_info_network,
+        in.quote_info,
+        in.public_encryption_key,
+        node_status,
+        ledger_secret_seqno,
+        ds::to_hex(code_digest.data),
+        in.certificate_signing_request,
+        client_public_key_pem};
+
+      // Because the certificate signature scheme is non-deterministic, only
+      // self-signed node certificate is recorded in the node info table
+      if (this->network.consensus_type == ConsensusType::BFT)
+      {
+        node_info.cert = crypto::cert_der_to_pem(node_der);
+      }
+
+      nodes->put(joining_node_id, node_info);
 
       kv::NetworkConfiguration nc =
         get_latest_network_configuration(network, tx);
@@ -200,13 +241,29 @@ namespace ccf
         node_status == NodeStatus::TRUSTED ||
         node_status == NodeStatus::LEARNER)
       {
-        rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
+        // Joining node only submit a CSR from 2.x
+        std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+        if (
+          in.certificate_signing_request.has_value() &&
+          this->network.consensus_type == ConsensusType::CFT)
+        {
+          endorsed_certificate =
+            context.get_node_state().generate_endorsed_certificate(
+              in.certificate_signing_request.value(),
+              this->network.identity->priv_key,
+              this->network.identity->cert);
+          node_endorsed_certificates->put(
+            joining_node_id, {endorsed_certificate.value()});
+        }
+
+        rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
-          service_status);
+          service_status,
+          endorsed_certificate};
       }
       return make_success(rep);
     }
@@ -266,7 +323,8 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSnapshotIsOld,
             fmt::format(
-              "Node requested to join from snapshot at seqno {} which is older "
+              "Node requested to join from snapshot at seqno {} which is "
+              "older "
               "than this node startup seqno {}",
               in.startup_seqno.value(),
               this_startup_seqno.value()));
@@ -301,9 +359,11 @@ namespace ccf
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
-                args.tx, existing_node_info->second),
+                args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
-              active_service->status);
+              active_service->status,
+              existing_node_info->endorsed_certificate);
+
             return make_success(rep);
           }
 
@@ -361,7 +421,7 @@ namespace ccf
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
-          auto node_status = nodes->get(existing_node_info->first)->status;
+          auto node_status = nodes->get(existing_node_info->node_id)->status;
           rep.node_status = node_status;
           if (
             node_status == NodeStatus::TRUSTED ||
@@ -372,9 +432,11 @@ namespace ccf
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
-                args.tx, existing_node_info->second),
+                args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
-              active_service->status);
+              active_service->status,
+              existing_node_info->endorsed_certificate);
+
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
@@ -1040,6 +1102,19 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
+        // Retire all nodes, in case there are any (i.e. post recovery)
+        g.retire_active_nodes();
+
+        NodeInfo node_info = {
+          in.node_info_network,
+          {in.quote_info},
+          in.public_encryption_key,
+          NodeStatus::TRUSTED,
+          std::nullopt,
+          ds::to_hex(in.code_digest.data),
+          in.certificate_signing_request,
+          in.public_key};
+
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {
@@ -1069,20 +1144,23 @@ namespace ccf
           g.set_constitution(in.genesis_info->constitution);
         }
 
-        // Retire all nodes, in case there are any (i.e. post recovery)
-        g.retire_active_nodes();
+        if (!in.node_cert.has_value())
+        {
+          auto endorsed_certificates =
+            ctx.tx.rw(network.node_endorsed_certificates);
+          endorsed_certificates->put(
+            in.node_id,
+            context.get_node_state().generate_endorsed_certificate(
+              in.certificate_signing_request,
+              this->network.identity->priv_key,
+              this->network.identity->cert));
+        }
+        else
+        {
+          node_info.cert = in.node_cert.value();
+        }
 
-        g.add_node(
-          in.node_id,
-          {in.node_info_network,
-           in.node_cert,
-           {in.quote_info},
-           in.public_encryption_key,
-           NodeStatus::PENDING,
-           std::nullopt,
-           ds::to_hex(in.code_digest.data)});
-        g.trust_node(
-          in.node_id, network.ledger_secrets->get_latest(ctx.tx).first);
+        g.add_node(in.node_id, node_info);
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);

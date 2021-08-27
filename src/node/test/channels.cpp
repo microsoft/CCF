@@ -521,7 +521,7 @@ TEST_CASE("Host connections")
   auto channel_kp = crypto::make_key_pair(default_curve);
   auto channel_cert = channel_kp->self_sign("CN=Node");
   auto channel_manager =
-    ChannelManager(wf1, network_cert, channel_kp, channel_cert, self);
+    ChannelManager(wf1, network_cert, channel_kp, self, channel_cert);
 
   INFO("New channel creates host connection");
   {

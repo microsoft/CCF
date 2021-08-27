@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import sys
 import http
 import subprocess
 import infra.network
@@ -13,6 +12,7 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
+import requests
 
 from loguru import logger as LOG
 
@@ -40,6 +40,10 @@ def test_consensus_status(network, args):
 @reqs.description("Test quotes")
 @reqs.supports_methods("quotes/self", "quotes")
 def test_quote(network, args):
+    if args.enclave_type == "virtual":
+        LOG.warning("Quote test can only run in real enclaves, skipping")
+        return network
+
     primary, _ = network.find_nodes()
     with primary.client() as c:
         oed = subprocess.run(
@@ -165,61 +169,49 @@ def test_node_ids(network, args):
         return network
 
 
-@reqs.description("Checking service principals proposals")
-def test_service_principals(network, args):
-    node = network.find_node_by_role()
-
-    principal_id = "0xdeadbeef"
-
-    # Initially, there is nothing in this table
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert "public:ccf.gov.service_principals" not in latest_public_tables
-
-    # Create and accept a proposal which populates an entry in this table
-    principal_data = {"name": "Bob", "roles": ["Fireman", "Zookeeper"]}
-    proposal = {
-        "actions": [
-            {
-                "name": "set_service_principal",
-                "args": {"id": principal_id, "data": principal_data},
-            }
-        ]
-    }
-    ballot = {"ballot": "export function vote(proposal, proposer_id) { return true; }"}
-    proposal = network.consortium.get_any_active_member().propose(node, proposal)
-    network.consortium.vote_using_majority(node, proposal, ballot)
-
-    # Confirm it can be read
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert (
-        json.loads(
-            latest_public_tables["public:ccf.gov.service_principals"][
-                principal_id.encode()
-            ]
-        )
-        == principal_data
-    )
-
-    # Create and accept a proposal which removes an entry from this table
-    proposal = {
-        "actions": [{"name": "remove_service_principal", "args": {"id": principal_id}}]
-    }
-    proposal = network.consortium.get_any_active_member().propose(node, proposal)
-    network.consortium.vote_using_majority(node, proposal, ballot)
-
-    # Confirm it is gone
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert (
-        principal_id.encode()
-        not in latest_public_tables["public:ccf.gov.service_principals"]
-    )
-    return network
-
-
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
         network.consortium.get_any_active_member().update_ack_state_digest(node)
+    return network
+
+
+@reqs.description("Test invalid client signatures")
+def test_invalid_client_signature(network, args):
+    primary, _ = network.find_primary()
+
+    def post_proposal_request_raw(node, headers=None, expected_error_msg=None):
+        r = requests.post(
+            f"https://{node.pubhost}:{node.pubport}/gov/proposals",
+            headers=headers,
+            verify=os.path.join(node.common_dir, "networkcert.pem"),
+        ).json()
+        assert r["error"]["code"] == "InvalidAuthenticationInfo"
+        assert (
+            expected_error_msg in r["error"]["message"]
+        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
+
+    # Verify that _some_ HTTP signature parsing errors are communicated back to the client
+    post_proposal_request_raw(
+        primary,
+        headers=None,
+        expected_error_msg="Missing signature",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "invalid"},
+        expected_error_msg="'authorization' header only contains one field",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "invalid invalid"},
+        expected_error_msg="'authorization' scheme for signature should be 'Signature",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "Signature invalid"},
+        expected_error_msg="Error verifying HTTP 'digest' header: Missing 'digest' header",
+    )
 
 
 def run(args):
@@ -228,22 +220,21 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_create_endpoint(network, args)
-        test_consensus_status(network, args)
-        test_node_ids(network, args)
-        test_member_data(network, args)
-        test_quote(network, args)
-        test_user(network, args)
-        test_no_quote(network, args)
-        test_service_principals(network, args)
-        test_ack_state_digest_update(network, args)
+        for authenticate_session in (True, False):
+            network.consortium.set_authenticate_session(authenticate_session)
+            test_create_endpoint(network, args)
+            test_consensus_status(network, args)
+            test_node_ids(network, args)
+            test_member_data(network, args)
+            test_quote(network, args)
+            test_user(network, args)
+            test_no_quote(network, args)
+            test_ack_state_digest_update(network, args)
+            test_invalid_client_signature(network, args)
 
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    if args.enclave_type == "virtual":
-        LOG.warning("This test can only run in real enclaves, skipping")
-        sys.exit(0)
 
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)

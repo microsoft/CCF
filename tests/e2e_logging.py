@@ -586,7 +586,7 @@ def test_historical_query(network, args):
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
     cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path) as c:
+    with open(cert_path, encoding="utf-8") as c:
         primary_cert = load_pem_x509_certificate(
             c.read().encode("ascii"), default_backend()
         )
@@ -1125,7 +1125,7 @@ def test_memory(network, args):
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
     cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path) as c:
+    with open(cert_path, encoding="utf-8") as c:
         node_cert = load_pem_x509_certificate(
             c.read().encode("ascii"), default_backend()
         )
@@ -1174,7 +1174,7 @@ def test_random_receipts(network, args):
     ]
     certs = {}
     for path in cert_paths:
-        with open(path) as c:
+        with open(path, encoding="utf-8") as c:
             cert = c.read()
         certs[
             infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)

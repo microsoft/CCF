@@ -14,6 +14,7 @@ import os
 import socket
 import re
 import ipaddress
+import ssl
 
 from loguru import logger as LOG
 
@@ -118,7 +119,7 @@ class Node:
 
         pubhost_ = host.public_rpchost
         if pubhost_:
-            self.pubhost, *pubport = pubhost_[0].split(":")
+            self.pubhost, *pubport = pubhost_.split(":")
             self.pubport = int(pubport[0]) if pubport else self.rpc_port
         else:
             self.pubhost = self.rpc_host
@@ -250,7 +251,7 @@ class Node:
         self.remote.setup()
         self.network_state = NodeNetworkState.started
         if self.debug:
-            with open("/tmp/vscode-gdb.sh", "a") as f:
+            with open("/tmp/vscode-gdb.sh", "a", encoding="utf-8") as f:
                 f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
                 f.write(f"cd {self.remote.remote.root}\n")
                 f.write(f"{' '.join(self.remote.remote.cmd)}\n")
@@ -280,7 +281,9 @@ class Node:
 
         self.consensus = kwargs.get("consensus")
 
-        with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
+        with open(
+            os.path.join(self.common_dir, f"{self.local_node_id}.pem"), encoding="utf-8"
+        ) as f:
             self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
                 f.read()
             )
@@ -290,20 +293,21 @@ class Node:
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
-        with open(node_address_path, "r") as f:
+        with open(node_address_path, "r", encoding="utf-8") as f:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
             # assert (
             #     node_host == self.host
             # ), f"Unexpected change in node address from {self.host} to {node_host}"
-            if self.node_port is not None:
+            if self.node_port is None and self.node_port != 0:
+                self.node_port = node_port
                 assert (
                     node_port == self.node_port
                 ), f"Unexpected change in node port from {self.node_port} to {node_port}"
             self.node_port = node_port
 
         rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
-        with open(rpc_address_path, "r") as f:
+        with open(rpc_address_path, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
             it = [iter(lines)] * 2
             for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
@@ -312,7 +316,7 @@ class Node:
                     # assert (
                     #     rpc_host == self.host
                     # ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
-                    if self.rpc_port is not None:
+                    if self.rpc_port is not None and self.rpc_port != 0:
                         assert (
                             rpc_port == self.rpc_port
                         ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
@@ -448,6 +452,9 @@ class Node:
                 raise
             return ccf.clients.client(host, port, **akwargs)
 
+    def get_tls_certificate_pem(self):
+        return ssl.get_server_certificate((self.host, self.rpc_port))
+
     def suspend(self):
         assert not self.suspended
         self.suspended = True
@@ -495,6 +502,7 @@ def node(
         if pdb:
             import pdb
 
+            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise

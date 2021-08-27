@@ -31,6 +31,7 @@ LEDGER_HEADER_SIZE = 8
 # https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
+ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -284,13 +285,17 @@ class LedgerValidator:
         tables = transaction_public_domain.get_tables()
 
         # Add contributing nodes certs and update nodes network trust status for verification
+        node_certs = {}
         if NODES_TABLE_NAME in tables:
             node_table = tables[NODES_TABLE_NAME]
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
                 node_info = json.loads(node_info)
-                # Add the node certificate
-                self.node_certificates[node_id] = node_info["cert"].encode()
+                # Add the self-signed node certificate (only available in 1.x,
+                # refer to node endorsed certificates table otherwise)
+                if "cert" in node_info:
+                    node_certs[node_id] = node_info["cert"].encode()
+                    self.node_certificates[node_id] = node_certs[node_id]
                 # Update node trust status
                 # Also record the seqno at which the node status changed to
                 # track when a primary node should stop issuing signatures
@@ -298,6 +303,21 @@ class LedgerValidator:
                     node_info["status"],
                     transaction_public_domain.get_seqno(),
                 )
+
+        if ENDORSED_NODE_CERTIFICATES_TABLE_NAME in tables:
+            node_endorsed_certificates_tables = tables[
+                ENDORSED_NODE_CERTIFICATES_TABLE_NAME
+            ]
+            for (
+                node_id,
+                endorsed_node_cert,
+            ) in node_endorsed_certificates_tables.items():
+                node_id = node_id.decode()
+                assert (
+                    node_id not in node_certs
+                ), f"Only one of node self-signed certificate and endorsed certificate should be recorded for node {node_id}"
+                node_cert = endorsed_node_cert
+                self.node_certificates[node_id] = node_cert
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
