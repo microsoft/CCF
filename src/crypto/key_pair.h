@@ -55,7 +55,9 @@ namespace crypto
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
-      bool ca = false) const = 0;
+      bool ca = false,
+      const std::optional<std::string>& valid_from = std::nullopt,
+      const std::optional<std::string>& valid_to = std::nullopt) const = 0;
 
     Pem self_sign(
       const std::string& name,

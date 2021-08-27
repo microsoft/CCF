@@ -137,6 +137,14 @@ function checkX509CertBundle(value, field) {
   }
 }
 
+function validateCertificateValidityPeriod(from, to, from_field, to_field) {
+  checkType(from, "string", from_field);
+  checkType(to, "string", to_field);
+  if (!ccf.validateCertificateValidityPeriod(from, to)) {
+    throw new Error(`Date ${from_field} must be before date ${to_field}`);
+  }
+}
+
 function invalidateOtherOpenProposals(proposalIdToRetain) {
   let proposals = ccf.kv["public:ccf.gov.proposals_info"];
   const proposalsMap = ccf.kv["public:ccf.gov.proposals_info"];
@@ -835,6 +843,66 @@ const actions = new Map([
             ccf.jsonCompatibleToBuf(node_obj)
           );
         }
+      }
+    ),
+  ],
+  [
+    "renew_node_certificate",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+        validateCertificateValidityPeriod(
+          args.valid_from,
+          args.valid_to,
+          "valid_from",
+          "valid_to"
+        );
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node === undefined) {
+          throw new Error(`No such node: ${args.node_id}`);
+        }
+        const nodeInfo = ccf.bufToJsonCompatible(node);
+        if (nodeInfo.status !== "Trusted") {
+          throw new Error(`Node ${args.node_id} is not trusted`);
+        }
+
+        if (nodeInfo.certificate_signing_request === undefined) {
+          throw new Error(
+            `Node ${args.node_id} has no certificate signing request`
+          );
+        }
+
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey()
+        );
+        if (rawConfig === undefined) {
+          throw new Error("Service configuration could not be found");
+        }
+        const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
+
+        if (
+          !ccf.validateCertificateValidityPeriod(
+            args.valid_from,
+            args.valid_to,
+            serviceConfig.nodes.cert_maximum_validity_period_days
+          )
+        ) {
+          throw new Error(`Date valid_from must be before date valid_to`);
+        }
+
+        const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
+          nodeInfo.certificate_signing_request,
+          args.valid_from,
+          args.valid_to
+        );
+        ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
+          ccf.strToBuf(args.node_id),
+          ccf.strToBuf(endorsed_node_cert)
+        );
       }
     ),
   ],

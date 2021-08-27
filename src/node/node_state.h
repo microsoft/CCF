@@ -1588,10 +1588,13 @@ namespace ccf
     crypto::Pem generate_endorsed_certificate(
       const crypto::Pem& subject_csr,
       const crypto::Pem& endorser_private_key,
-      const crypto::Pem& endorser_cert) override
+      const crypto::Pem& endorser_cert,
+      const std::optional<std::string>& valid_from = std::nullopt,
+      const std::optional<std::string>& valid_to =
+        std::nullopt) override // TODO: Create date format type
     {
       return crypto::make_key_pair(endorser_private_key)
-        ->sign_csr(endorser_cert, subject_csr);
+        ->sign_csr(endorser_cert, subject_csr, false, valid_from, valid_to);
     }
 
     void accept_node_tls_connections()
@@ -1656,6 +1659,12 @@ namespace ccf
           config.genesis.recovery_threshold,
           network.consensus_type,
           reconf_type};
+
+        ServiceConfiguration::Nodes nodes;
+        nodes.cert_maximum_validity_period_days =
+          config.genesis.node_cert_maximum_validity_period_days;
+
+        genesis_info.configuration.nodes = nodes;
         create_params.genesis_info = genesis_info;
       }
 

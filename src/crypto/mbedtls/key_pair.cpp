@@ -273,7 +273,11 @@ namespace crypto
   }
 
   Pem KeyPair_mbedTLS::sign_csr(
-    const Pem& issuer_cert, const Pem& signing_request, bool ca) const
+    const Pem& issuer_cert,
+    const Pem& signing_request,
+    bool ca,
+    const std::optional<std::string>& valid_from,
+    const std::optional<std::string>& valid_to) const
   {
     auto entropy = create_entropy();
     auto csr = mbedtls::make_unique<mbedtls::X509Csr>();

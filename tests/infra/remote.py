@@ -586,6 +586,7 @@ class CCFRemote(object):
         jwt_key_refresh_interval_s=None,
         curve_id=None,
         client_connection_timeout_ms=None,
+        node_cert_max_validity_days=None,
         additional_raw_node_args=None,
     ):
         """
@@ -717,6 +718,10 @@ class CCFRemote(object):
                 data_files += [
                     os.path.join(self.common_dir, os.path.basename(fragment))
                 ]
+
+            if node_cert_max_validity_days:
+                cmd += [f"--node-cert-max-validity-days={node_cert_max_validity_days}"]
+
             if members_info is None:
                 raise ValueError(
                     "Starting node should be given at least one member info"

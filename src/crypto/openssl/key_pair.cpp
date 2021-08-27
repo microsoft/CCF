@@ -215,7 +215,11 @@ namespace crypto
   }
 
   Pem KeyPair_OpenSSL::sign_csr(
-    const Pem& issuer_cert, const Pem& signing_request, bool ca) const
+    const Pem& issuer_cert,
+    const Pem& signing_request,
+    bool ca,
+    const std::optional<std::string>& valid_from,
+    const std::optional<std::string>& valid_to) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -256,17 +260,11 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
-    ASN1_TIME *before = NULL, *after = NULL;
-    OpenSSL::CHECKNULL(before = ASN1_TIME_new());
-    OpenSSL::CHECKNULL(after = ASN1_TIME_new());
-    OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20210311000000Z"));
-    OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20230611235959Z"));
-    OpenSSL::CHECK1(ASN1_TIME_normalize(before));
-    OpenSSL::CHECK1(ASN1_TIME_normalize(after));
+    Unique_ASN1_TIME before(valid_from.value_or("20210311000000Z"));
+    Unique_ASN1_TIME after(valid_to.value_or("20230611235959Z"));
+
     OpenSSL::CHECK1(X509_set1_notBefore(crt, before));
     OpenSSL::CHECK1(X509_set1_notAfter(crt, after));
-    ASN1_TIME_free(before);
-    ASN1_TIME_free(after);
 
     X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
     X509_set_pubkey(crt, req_pubkey);

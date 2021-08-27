@@ -4,6 +4,7 @@
 
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
+#include "crypto/openssl/x509_time.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
@@ -495,9 +496,9 @@ namespace js
     int argc,
     [[maybe_unused]] JSValueConst* argv)
   {
-    if (argc != 1)
+    if (argc != 3)
     {
-      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 3", argc);
     }
 
     auto network =
@@ -529,8 +530,28 @@ namespace js
     auto csr = crypto::Pem(csr_cstr);
     JS_FreeCString(ctx, csr_cstr);
 
+    auto valid_from_cstr = JS_ToCString(ctx, argv[1]);
+    if (valid_from_cstr == nullptr)
+    {
+      throw JS_ThrowTypeError(ctx, "valid from argument is not a string");
+    }
+    auto valid_from = std::string(valid_from_cstr);
+    JS_FreeCString(ctx, valid_from_cstr);
+
+    auto valid_to_cstr = JS_ToCString(ctx, argv[2]);
+    if (valid_to_cstr == nullptr)
+    {
+      throw JS_ThrowTypeError(ctx, "valid to argument is not a string");
+    }
+    auto valid_to = std::string(valid_to_cstr);
+    JS_FreeCString(ctx, valid_to_cstr);
+
     auto endorsed_cert = node->generate_endorsed_certificate(
-      csr, network->identity->priv_key, network->identity->cert);
+      csr,
+      network->identity->priv_key,
+      network->identity->cert,
+      valid_from,
+      valid_to);
 
     return JS_NewString(ctx, endorsed_cert.str().c_str());
   }
@@ -1280,6 +1301,15 @@ namespace js
       "refreshAppBytecodeCache",
       JS_NewCFunction(
         ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "validateCertificateValidityPeriod",
+      JS_NewCFunction(
+        ctx,
+        js_validate_certificate_validity_period,
+        "validateCertificateValidityPeriod",
+        0));
 
     auto crypto = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);

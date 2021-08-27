@@ -13,6 +13,8 @@ import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
 import requests
+import infra.crypto
+from datetime import datetime, timedelta
 
 from loguru import logger as LOG
 
@@ -214,7 +216,73 @@ def test_invalid_client_signature(network, args):
     )
 
 
+@reqs.description("Update certificates of all nodes")
+def test_node_cert_renewal(network, args):
+
+    now = datetime.now().replace(
+        microsecond=0
+    )  # Truncate microseconds which are not reflected in RFC5280 UTCTime
+    future_allowed = now + timedelta(days=args.node_cert_max_validity_days - 1)
+    future_forbidden = now + timedelta(days=args.node_cert_max_validity_days + 1)
+
+    test_vectors = [
+        (now, future_allowed, None),
+        (now, future_forbidden, infra.proposal.ProposalNotAccepted),
+        (future_allowed, now, infra.proposal.ProposalNotCreated),
+    ]
+
+    for (before_date, after_date, expected_exception) in test_vectors:
+        for node in network.get_joined_nodes():
+            with node.client() as c:
+                c.get("/node/network/nodes")
+
+                node_cert_tls_before = node.get_tls_certificate_pem()
+                assert (
+                    infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                        node_cert_tls_before
+                    )
+                    == node.node_id
+                )
+
+                try:
+                    network.consortium.renew_node_certificate(
+                        node,
+                        node.node_id,
+                        valid_from=str(infra.crypto.datetime_as_UTCtime(before_date)),
+                        valid_to=str(infra.crypto.datetime_as_UTCtime(after_date)),
+                    )
+                except Exception as e:
+                    assert isinstance(e, expected_exception)
+                    continue
+                else:
+                    assert (
+                        expected_exception is None
+                    ), "Proposal should have not succeeded"
+
+                node_cert_tls_after = node.get_tls_certificate_pem()
+                assert (
+                    node_cert_tls_before != node_cert_tls_after
+                ), "Node TLS certificate should be updated after renewal"
+                valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                    node_cert_tls_after
+                )
+                assert valid_from == before_date, f"{valid_from} != {before_date}"
+                assert valid_to == after_date, f"{valid_to} != {after_date}"
+
+                assert (
+                    infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                        node_cert_tls_before
+                    )
+                    == node.node_id
+                )
+
+                # Long-connected client is still connected after certificate renewal
+                c.get("/node/network/nodes")
+
+
 def run(args):
+    args.node_cert_max_validity_days = 10
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -231,6 +299,7 @@ def run(args):
             test_no_quote(network, args)
             test_ack_state_digest_update(network, args)
             test_invalid_client_signature(network, args)
+            test_node_cert_renewal(network, args)
 
 
 if __name__ == "__main__":
