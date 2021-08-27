@@ -159,7 +159,7 @@ def run(args):
                 LOG.success(
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
-                r = clients[-1].get("/node/metrics")
+                r = clients[-2].get("/node/metrics")
                 assert r.status_code == http.HTTPStatus.OK, r.status_code
                 peak_metrics = r.body.json()["sessions"]
                 assert peak_metrics["active"] <= peak_metrics["peak"], peak_metrics
