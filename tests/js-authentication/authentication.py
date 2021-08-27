@@ -147,8 +147,8 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_jwt_auth(network, args)
-        # network = test_multi_auth(network, args)
+        network = test_jwt_auth(network, args)
+        network = test_multi_auth(network, args)
         network = test_role_based_access(network, args)
 
 
