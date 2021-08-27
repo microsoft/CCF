@@ -584,16 +584,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME modules_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --raft-election-timeout-ms 10000 # Larger election timeout as recording
-                                       # large JS applications may trigger
-                                       # leadership changes
-  )
-
-  add_e2e_test(
     NAME custom_authorization_test
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
