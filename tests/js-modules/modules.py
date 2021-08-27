@@ -190,8 +190,11 @@ def test_npm_app(network, args):
 
     LOG.info("Building npm app")
     app_dir = os.path.join(PARENT_DIR, "npm-app")
-    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
-    subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
+    assert infra.proc.ccall("npm", "install", path=app_dir).returncode == 0
+    assert (
+        infra.proc.ccall("npm", "run", "build", "--verbose", path=app_dir).returncode
+        == 0
+    )
 
     LOG.info("Deploying npm app")
     bundle_dir = os.path.join(app_dir, "dist")
