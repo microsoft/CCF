@@ -1023,6 +1023,93 @@ TEST_CASE("foreach")
   }
 }
 
+// The purpose of foreach_key and foreach_value is avoiding deserialisation of
+// values/keys (respectively) when they're not needed. To confirm that they're
+// not deserialised, we use a custom serialiser which will throw if ever asked
+// to deserialise.
+template <typename T>
+struct NoDeserialise
+{
+  static kv::serialisers::SerialisedEntry to_serialised(const T& t)
+  {
+    return kv::serialisers::JsonSerialiser<T>::to_serialised(t);
+  }
+
+  static T from_serialised(const kv::serialisers::SerialisedEntry& s)
+  {
+    throw std::logic_error("This deserialiser should not be called");
+  }
+};
+
+TEST_CASE("foreach_key")
+{
+  kv::Store kv_store;
+
+  kv::MapSerialisedWith<
+    std::string,
+    std::string,
+    kv::serialisers::JsonSerialiser,
+    NoDeserialise>
+    map("public:map");
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("k1", "v1");
+    handle->put("k2", "v2");
+    handle->put("k3", "v3");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    REQUIRE_NOTHROW(handle->foreach_key([](const std::string& k) {
+      REQUIRE(k.find('k') != std::string::npos);
+      return true;
+    }));
+
+    // Sanity check: Confirm that deserialising any value would throw
+    REQUIRE_THROWS(handle->foreach(
+      [](const std::string& k, const std::string& v) { return true; }));
+    REQUIRE_THROWS(handle->get("k1"));
+  }
+}
+
+TEST_CASE("foreach_value")
+{
+  kv::Store kv_store;
+
+  kv::MapSerialisedWith<
+    std::string,
+    std::string,
+    NoDeserialise,
+    kv::serialisers::JsonSerialiser>
+    map("public:map");
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("k1", "v1");
+    handle->put("k2", "v2");
+    handle->put("k3", "v3");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    REQUIRE_NOTHROW(handle->foreach_value([](const std::string& v) {
+      REQUIRE(v.find('v') != std::string::npos);
+      return true;
+    }));
+
+    // Sanity check: Confirm that deserialising any key would throw
+    REQUIRE_THROWS(handle->foreach(
+      [](const std::string& k, const std::string& v) { return true; }));
+  }
+}
+
 TEST_CASE("Modifications during foreach iteration")
 {
   kv::Store kv_store;

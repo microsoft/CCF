@@ -515,48 +515,48 @@ namespace ccfapp
       {
         std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
 
-        endpoints->foreach([this, &matches, &key, &rpc_ctx](
-                             const auto& other_key, const auto& properties) {
-          if (key.verb == other_key.verb)
-          {
-            const auto opt_spec =
-              ccf::endpoints::parse_path_template(other_key.uri_path);
-            if (opt_spec.has_value())
+        endpoints->foreach_key(
+          [this, &endpoints, &matches, &key, &rpc_ctx](const auto& other_key) {
+            if (key.verb == other_key.verb)
             {
-              const auto& template_spec = opt_spec.value();
-              // This endpoint has templates in its path, and the correct verb
-              // - now check if template matches the current request's path
-              std::smatch match;
-              if (std::regex_match(
-                    key.uri_path, match, template_spec.template_regex))
+              const auto opt_spec =
+                ccf::endpoints::parse_path_template(other_key.uri_path);
+              if (opt_spec.has_value())
               {
-                if (matches.empty())
+                const auto& template_spec = opt_spec.value();
+                // This endpoint has templates in its path, and the correct verb
+                // - now check if template matches the current request's path
+                std::smatch match;
+                if (std::regex_match(
+                      key.uri_path, match, template_spec.template_regex))
                 {
-                  // Populate the request_path_params while we have the match,
-                  // though this will be discarded on error if we later find
-                  // multiple matches
-                  auto& path_params = rpc_ctx.get_request_path_params();
-                  for (size_t i = 0;
-                       i < template_spec.template_component_names.size();
-                       ++i)
+                  if (matches.empty())
                   {
-                    const auto& template_name =
-                      template_spec.template_component_names[i];
-                    const auto& template_value = match[i + 1].str();
-                    path_params[template_name] = template_value;
+                    // Populate the request_path_params while we have the match,
+                    // though this will be discarded on error if we later find
+                    // multiple matches
+                    auto& path_params = rpc_ctx.get_request_path_params();
+                    for (size_t i = 0;
+                         i < template_spec.template_component_names.size();
+                         ++i)
+                    {
+                      const auto& template_name =
+                        template_spec.template_component_names[i];
+                      const auto& template_value = match[i + 1].str();
+                      path_params[template_name] = template_value;
+                    }
                   }
-                }
 
-                auto endpoint = std::make_shared<JSDynamicEndpoint>();
-                endpoint->dispatch = other_key;
-                endpoint->properties = properties;
-                instantiate_authn_policies(*endpoint);
-                matches.push_back(endpoint);
+                  auto endpoint = std::make_shared<JSDynamicEndpoint>();
+                  endpoint->dispatch = other_key;
+                  endpoint->properties = endpoints->get(other_key).value();
+                  instantiate_authn_policies(*endpoint);
+                  matches.push_back(endpoint);
+                }
               }
             }
-          }
-          return true;
-        });
+            return true;
+          });
 
         if (matches.size() > 1)
         {
