@@ -2019,11 +2019,15 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+
+      auto node_cert = endorsed_node_certificate_.has_value() ?
+        endorsed_node_certificate_.value() :
+        self_signed_node_cert;
       auto resharing_tracker =
         std::make_shared<ccf::SplitIdentityResharingTracker>(
-          shared_state, rpc_map, node_sign_kp, self_signed_node_cert);
+          shared_state, rpc_map, node_sign_kp, node_cert);
       auto rpc_request_context = std::make_shared<aft::RPCRequestContext>(
-        rpc_map, node_sign_kp, self_signed_node_cert);
+        rpc_map, node_sign_kp, node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
