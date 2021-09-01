@@ -143,7 +143,6 @@ export function put_secret(request) {
 
   return {
     statusCode: 204,
-    body: null,
   };
 }
 
@@ -173,6 +172,5 @@ export function add_role(request) {
 
   return {
     statusCode: 204,
-    body: null,
   };
 }
