@@ -1356,7 +1356,7 @@ if __name__ == "__main__":
     cppargs = copy.deepcopy(jsargs)
     cppargs.js_app_bundle = None
     cppargs.package = "liblogging"
-    jsargs.label = f"cpp_{label}"
+    cppargs.label = f"cpp_{label}"
 
     js = threading.Thread(name="JS", target=run, args=[jsargs])
     cpp = threading.Thread(name="CPP", target=run, args=[cppargs])
