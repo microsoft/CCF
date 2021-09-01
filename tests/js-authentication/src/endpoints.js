@@ -20,6 +20,7 @@ export function multi_auth(request) {
     lines.push(
       `The caller's user data is: ${JSON.stringify(request.caller.data)}`
     );
+    lines.push(`The caller's cert is ${request.caller.cert.length} long`);
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
   } else if (request.caller.policy === "member_cert") {
     lines.push("Member TLS cert");
@@ -143,7 +144,6 @@ export function put_secret(request) {
 
   return {
     statusCode: 204,
-    body: null,
   };
 }
 
@@ -173,6 +173,5 @@ export function add_role(request) {
 
   return {
     statusCode: 204,
-    body: null,
   };
 }
