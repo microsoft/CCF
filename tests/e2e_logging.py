@@ -1343,24 +1343,63 @@ def run(args):
         network = test_historical_receipts(network, args)
 
 
+def create_test_thread(prefix, target, args, **args_overrides):
+    args_ = copy.deepcopy(args)
+    for k, v in args_overrides.items():
+        setattr(args_, k, v)
+    args_.label = f"{prefix}_{args.label}"
+    return threading.Thread(name=prefix, target=target, args=[args_])
+
+
 if __name__ == "__main__":
-    jsargs = infra.e2e_args.cli_args()
-    label = jsargs.label
 
-    jsargs.package = "libjs_generic"
-    jsargs.nodes = infra.e2e_args.max_nodes(jsargs, f=0)
-    jsargs.initial_user_count = 4
-    jsargs.initial_member_count = 2
-    jsargs.label = f"js_{label}"
+    def add(parser):
+        parser.add_argument(
+            "-N",
+            help="List all sub-tests",
+            action="store_true",
+        )
+        parser.add_argument("-R", help="Run sub-tests whose name includes this string")
 
-    cppargs = copy.deepcopy(jsargs)
-    cppargs.js_app_bundle = None
-    cppargs.package = "liblogging"
-    cppargs.label = f"cpp_{label}"
+    args = infra.e2e_args.cli_args(add=add)
 
-    js = threading.Thread(name="JS", target=run, args=[jsargs])
-    cpp = threading.Thread(name="CPP", target=run, args=[cppargs])
-    js.start()
-    cpp.start()
-    js.join()
-    cpp.join()
+    threads = []
+
+    threads.append(
+        create_test_thread(
+            "js",
+            run,
+            args,
+            package="libjs_generic",
+            nodes=infra.e2e_args.max_nodes(args, f=0),
+            initial_user_count=4,
+            initial_member_count=2,
+        )
+    )
+
+    threads.append(
+        create_test_thread(
+            "cpp",
+            run,
+            args,
+            package="liblogging",
+            js_app_bundle=None,
+            nodes=infra.e2e_args.max_nodes(args, f=0),
+            initial_user_count=4,
+            initial_member_count=2,
+        )
+    )
+
+    if args.N:
+        for thread in threads:
+            print(thread)
+        sys.exit(0)
+
+    if args.R:
+        threads = [thread for thread in threads if args.R in thread.name]
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
