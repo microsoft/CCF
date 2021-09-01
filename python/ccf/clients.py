@@ -503,7 +503,7 @@ class CCFClient:
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
-    :param dict kwargs: Keyword args to be forwarded to the client implementation .
+    :param dict kwargs: Keyword args to be forwarded to the client implementation.
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
