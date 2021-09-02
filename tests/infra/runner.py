@@ -207,6 +207,7 @@ def run(get_command, args):
 
 
 def execute(run, args, failures):
+    @LOG.catch
     def inner():
         config = {
             "handlers": [
@@ -219,7 +220,7 @@ def execute(run, args, failures):
         LOG.configure(**config)
         try:
             run(args)
-        except Exception:
+        except:
             LOG.exception(f"{args.label} FAILED")
             failures.append(args.label)
 

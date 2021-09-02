@@ -15,6 +15,7 @@ import json
 import requests
 import governance_js
 from infra.runner import ConcurrentRunner
+import governance_history
 
 from loguru import logger as LOG
 
@@ -279,6 +280,16 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session=True,
+    )
+
+    cr.add(
+        "history",
+        governance_history.run,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        # Higher snapshot interval as snapshots trigger new ledger chunks, which
+        # may result in latest chunk being partially written
+        snapshot_tx_interval=10000
     )
 
     cr.run()
