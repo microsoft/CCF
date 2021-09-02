@@ -11,6 +11,7 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.jwt_issuer
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -437,9 +438,7 @@ def with_timeout(fn, timeout):
                 raise
 
 
-def run(args):
-    args.jwt_key_refresh_interval_s = 1
-
+def run_auto(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -456,7 +455,8 @@ def run(args):
         network.wait_for_new_primary(primary)
         network = test_jwt_key_auto_refresh(network, args)
 
-    args.jwt_key_refresh_interval_s = 100000
+
+def run_manual(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -471,8 +471,22 @@ def run(args):
 
 
 if __name__ == "__main__":
+    cr = ConcurrentRunner()
 
-    args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
+    cr.add(
+        "auto",
+        run_auto,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=1,
+    )
+
+    cr.add(
+        "manual",
+        run_manual,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=100000,
+    )
+
+    cr.run()
