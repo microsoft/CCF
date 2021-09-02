@@ -13,16 +13,19 @@ namespace ccf
   protected:
     std::shared_ptr<enclave::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
-    const crypto::Pem& node_cert;
+    const crypto::Pem& self_signed_node_cert;
+    const std::optional<crypto::Pem>& endorsed_node_cert = std::nullopt;
 
   public:
     NodeClient(
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       crypto::KeyPairPtr node_sign_kp_,
-      const crypto::Pem& node_cert_) :
+      const crypto::Pem& self_signed_node_cert_,
+      const std::optional<crypto::Pem>& endorsed_node_cert_) :
       rpc_map(rpc_map_),
       node_sign_kp(node_sign_kp_),
-      node_cert(node_cert_)
+      self_signed_node_cert(self_signed_node_cert_),
+      endorsed_node_cert(endorsed_node_cert_)
     {}
 
     virtual ~NodeClient() {}

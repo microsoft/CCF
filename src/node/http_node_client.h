@@ -15,14 +15,19 @@ namespace ccf
     HTTPNodeClient(
       std::shared_ptr<enclave::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
-      const crypto::Pem& node_cert) :
-      NodeClient(rpc_map, node_sign_kp, node_cert)
+      const crypto::Pem& self_signed_node_cert_,
+      const std::optional<crypto::Pem>& endorsed_node_cert_) :
+      NodeClient(
+        rpc_map, node_sign_kp, self_signed_node_cert_, endorsed_node_cert_)
     {}
 
     virtual ~HTTPNodeClient() {}
 
     inline bool make_request(http::Request& request)
     {
+      const auto& node_cert = endorsed_node_cert.has_value() ?
+        endorsed_node_cert.value() :
+        self_signed_node_cert;
       auto node_cert_der = crypto::cert_pem_to_der(node_cert);
       const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
 
