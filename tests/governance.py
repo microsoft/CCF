@@ -14,6 +14,8 @@ import infra.logging_app as app
 import json
 import requests
 import governance_js
+from infra.runner import ConcurrentRunner
+import sys
 
 from loguru import logger as LOG
 
@@ -215,24 +217,48 @@ def test_invalid_client_signature(network, args):
     )
 
 
-def run(args):
+def gov(args):
+    config = {
+        "handlers": [
+            {
+                "sink": sys.stdout,
+                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+            }
+        ]
+    }
+    LOG.configure(**config)
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        network.consortium.set_authenticate_session(args.authenticate_session)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_node_ids(network, args)
+        test_member_data(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_no_quote(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
 
-        for authenticate_session in (True, False):
-            network.consortium.set_authenticate_session(authenticate_session)
-            test_create_endpoint(network, args)
-            test_consensus_status(network, args)
-            test_node_ids(network, args)
-            test_member_data(network, args)
-            test_quote(network, args)
-            test_user(network, args)
-            test_no_quote(network, args)
-            test_ack_state_digest_update(network, args)
-            test_invalid_client_signature(network, args)
 
+def js_gov(args):
+    config = {
+        "handlers": [
+            {
+                "sink": sys.stdout,
+                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+            }
+        ]
+    }
+    LOG.configure(**config)
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
         governance_js.test_proposal_validation(network, args)
         governance_js.test_proposal_storage(network, args)
         governance_js.test_proposal_withdrawal(network, args)
@@ -247,9 +273,33 @@ def run(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+    cr = ConcurrentRunner()
 
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.initial_user_count = 3
-    run(args)
+    cr.add(
+        "session_auth",
+        gov,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=True,
+    )
+
+    cr.add(
+        "session_noauth",
+        gov,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=False,
+    )
+
+    cr.add(
+        "js",
+        gov,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=True,
+    )
+
+    cr.run()
