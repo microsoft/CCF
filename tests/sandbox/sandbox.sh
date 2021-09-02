@@ -42,6 +42,7 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
 fi
 # shellcheck source=/dev/null
 source "${VENV_DIR}"/bin/activate
+pip install -U -q pip
 
 if [ -f "${VERSION_FILE}" ]; then
     # install tree
@@ -59,17 +60,17 @@ if [ -f "${VERSION_FILE}" ]; then
         # With an install tree, the python package can be specified, e.g. when testing
         # an install just before it is released
         echo "Using python package: ${PYTHON_PACKAGE_PATH}"
-        pip install --disable-pip-version-check -q -U -e "${PYTHON_PACKAGE_PATH}"
+        pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
     else
-        pip install --disable-pip-version-check -q -U ccf=="$VERSION"
+        pip install -q -U ccf=="$VERSION"
     fi
-    pip install --disable-pip-version-check -q -U -r "${PATH_HERE}"/requirements.txt
+    pip install -q -U -r "${PATH_HERE}"/requirements.txt
 else
     # source tree
     BINARY_DIR=.
     START_NETWORK_SCRIPT="${PATH_HERE}"/../start_network.py
-    pip install --disable-pip-version-check -q -U -e "${PATH_HERE}"/../../python/
-    pip install --disable-pip-version-check -q -U -r "${PATH_HERE}"/../requirements.txt
+    pip install -q -U -e "${PATH_HERE}"/../../python/
+    pip install -q -U -r "${PATH_HERE}"/../requirements.txt
 fi
 
 echo "Python environment successfully setup"
