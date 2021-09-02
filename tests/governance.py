@@ -295,7 +295,7 @@ if __name__ == "__main__":
 
     cr.add(
         "js",
-        gov,
+        js_gov,
         package="liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,

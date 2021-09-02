@@ -205,8 +205,20 @@ def run(get_command, args):
                 raise
 
 
+def execute(run, args, failures):
+    def inner():
+        try:
+            run(args)
+        except Exception:
+            LOG.exception(f"{args.label} FAILED")
+            failures.append(args.label)
+
+    return inner
+
+
 class ConcurrentRunner:
     threads: List[threading.Thread] = []
+    failures: List[str] = []
 
     def __init__(self) -> None:
         def add(parser):
@@ -226,7 +238,9 @@ class ConcurrentRunner:
         for k, v in args_overrides.items():
             setattr(args_, k, v)
         args_.label = f"{prefix}_{self.args.label}"
-        self.threads.append(threading.Thread(name=prefix, target=target, args=[args_]))
+        self.threads.append(
+            threading.Thread(name=prefix, target=execute(target, args_, self.failures))
+        )
 
     def run(self):
         if self.args.N:
@@ -244,3 +258,6 @@ class ConcurrentRunner:
 
         for thread in self.threads:
             thread.join()
+
+        if self.failures:
+            raise Exception(f"Test failures: {self.failures}")
