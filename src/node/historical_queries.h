@@ -9,6 +9,7 @@
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
+#include "node/node_signature.h"
 #include "node/rpc/node_interface.h"
 
 #include <list>
@@ -373,17 +374,6 @@ namespace ccf::historical
       }
     }
 
-    std::optional<ccf::NodeInfo> get_node_info(const ccf::NodeId& node_id)
-    {
-      // Current solution: Use current state of Nodes table from real store.
-      // This only works while entries are never deleted from this table, and
-      // makes no check that the signing node was active at the point it
-      // produced this signature
-      auto tx = source_store.create_read_only_tx();
-      auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
-      return nodes->get(node_id);
-    }
-
     // Returns true if this is a valid signature that passes our verification
     // checks
     bool verify_signature(const StorePtr& sig_store, ccf::SeqNo sig_seqno)
@@ -411,18 +401,12 @@ namespace ccf::historical
         return false;
       }
 
-      const auto node_info = get_node_info(sig->node);
-      if (!node_info.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Signature at {}: Node {} is unknown", sig_seqno, sig->node);
-        return false;
-      }
-
-      auto verifier = crypto::make_verifier(node_info->cert);
-      const auto verified =
-        verifier->verify_hash(real_root.h, sig->sig, crypto::MDType::SHA256);
-      if (!verified)
+      // Current solution: Use current state of Nodes tables from real store.
+      // This only works while entries are never deleted from this table, and
+      // makes no check that the signing node was active at the point it
+      // produced this signature
+      auto tx = source_store.create_read_only_tx();
+      if (!verify_node_signature(tx, sig->node, sig->sig, real_root))
       {
         LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_seqno);
         return false;

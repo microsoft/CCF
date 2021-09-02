@@ -45,9 +45,12 @@ namespace crypto
 
     virtual std::vector<uint8_t> sign(CBuffer d, MDType md_type = {}) const = 0;
 
-    virtual Pem create_csr(
-      const std::string& name,
-      const std::vector<SubjectAltName>& sans = {}) const = 0;
+    virtual Pem create_csr(const CertificateSubjectIdentity& csi) const = 0;
+
+    Pem create_csr(const std::string& name)
+    {
+      return create_csr(CertificateSubjectIdentity(name));
+    }
 
     virtual Pem sign_csr(
       const Pem& issuer_cert,
@@ -62,16 +65,13 @@ namespace crypto
       std::vector<SubjectAltName> sans;
       if (subject_alt_name.has_value())
         sans.push_back(subject_alt_name.value());
-      auto csr = create_csr(name, sans);
+      auto csr = create_csr({name, sans});
       return sign_csr(Pem(0), csr, ca);
     }
 
-    Pem self_sign(
-      const std::string& name,
-      const std::vector<SubjectAltName> subject_alt_names,
-      bool ca = true) const
+    Pem self_sign(const CertificateSubjectIdentity& csi, bool ca = true) const
     {
-      auto csr = create_csr(name, subject_alt_names);
+      auto csr = create_csr(csi);
       return sign_csr(Pem(0), csr, ca);
     }
   };

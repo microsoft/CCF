@@ -34,7 +34,7 @@ namespace ccf
     kv::TxHistory::Result add_signature(
       ccf::TxID tx_id,
       const NodeId& node_id,
-      uint32_t signature_size,
+      size_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
       const kv::Configuration::Nodes& config,
@@ -693,7 +693,7 @@ namespace ccf
     kv::TxHistory::Result add_signature_internal(
       ccf::TxID tx_id,
       const NodeId& node_id,
-      uint32_t signature_size,
+      size_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
       const kv::Configuration::Nodes& config,

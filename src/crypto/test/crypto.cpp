@@ -418,7 +418,7 @@ void run_csr(bool corrupt_csr = false)
     subject_alternative_names.push_back({"192.168.0.1", true});
   }
 
-  auto csr = kpm.create_csr(subject_name, subject_alternative_names);
+  auto csr = kpm.create_csr({subject_name, subject_alternative_names});
 
   if (corrupt_csr)
   {

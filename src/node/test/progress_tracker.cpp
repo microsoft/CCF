@@ -33,7 +33,7 @@ public:
   MAKE_MOCK0(get_nonces, std::optional<aft::RevealedNonces>(), override);
   MAKE_MOCK4(
     verify_signature,
-    bool(const kv::NodeId&, crypto::Sha256Hash&, uint32_t, uint8_t*),
+    bool(const kv::NodeId&, crypto::Sha256Hash&, size_t, uint8_t*),
     override);
   MAKE_MOCK2(
     sign_view_change_request,
