@@ -636,12 +636,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME ca_certs_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ca_certs.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME jwt_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
     CONSENSUS cft

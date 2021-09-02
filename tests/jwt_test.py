@@ -12,10 +12,9 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.jwt_issuer
 from infra.runner import ConcurrentRunner
+import ca_certs
 
 from loguru import logger as LOG
-
-this_dir = os.path.dirname(__file__)
 
 
 @reqs.description("Refresh JWT issuer")
@@ -312,7 +311,7 @@ def test_jwt_key_auto_refresh(network, args):
     ca_cert_bundle_name = "jwt"
     kid = "the_kid"
     issuer_host = "localhost"
-    issuer_port = 12345
+    issuer_port = args.issuer_port
 
     issuer = infra.jwt_issuer.JwtIssuer(
         f"https://{issuer_host}:{issuer_port}", cn=issuer_host
@@ -382,7 +381,7 @@ def test_jwt_key_initial_refresh(network, args):
     ca_cert_bundle_name = "jwt"
     kid = "my_kid"
     issuer_host = "localhost"
-    issuer_port = 12345
+    issuer_port = args.issuer_port
 
     issuer = infra.jwt_issuer.JwtIssuer(
         f"https://{issuer_host}:{issuer_port}", cn=issuer_host
@@ -443,17 +442,17 @@ def run_auto(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_jwt_without_key_policy(network, args)
+        test_jwt_without_key_policy(network, args)
         if args.enclave_type != "virtual":
-            network = test_jwt_with_sgx_key_policy(network, args)
-            network = test_jwt_with_sgx_key_filter(network, args)
-        network = test_jwt_key_auto_refresh(network, args)
+            test_jwt_with_sgx_key_policy(network, args)
+            test_jwt_with_sgx_key_filter(network, args)
+        test_jwt_key_auto_refresh(network, args)
 
         # Check that auto refresh also works on backups
         primary, _ = network.find_primary()
         primary.stop()
         network.wait_for_new_primary(primary)
-        network = test_jwt_key_auto_refresh(network, args)
+        test_jwt_key_auto_refresh(network, args)
 
 
 def run_manual(args):
@@ -461,13 +460,21 @@ def run_manual(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_jwt_key_initial_refresh(network, args)
+        test_jwt_key_initial_refresh(network, args)
 
         # Check that initial refresh also works on backups
         primary, _ = network.find_primary()
         primary.stop()
         network.wait_for_new_primary(primary)
-        network = test_jwt_key_initial_refresh(network, args)
+        test_jwt_key_initial_refresh(network, args)
+
+
+def run_ca_cert(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        ca_certs.test_cert_store(network, args)
 
 
 if __name__ == "__main__":
@@ -479,6 +486,7 @@ if __name__ == "__main__":
         package="liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=1,
+        issuer_port=12345,
     )
 
     cr.add(
@@ -487,6 +495,14 @@ if __name__ == "__main__":
         package="liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         jwt_key_refresh_interval_s=100000,
+        issuer_port=12346,
+    )
+
+    cr.add(
+        "ca_cert",
+        run_ca_cert,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
     cr.run()
