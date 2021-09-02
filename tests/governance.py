@@ -289,7 +289,7 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         # Higher snapshot interval as snapshots trigger new ledger chunks, which
         # may result in latest chunk being partially written
-        snapshot_tx_interval=10000
+        snapshot_tx_interval=10000,
     )
 
     cr.run()

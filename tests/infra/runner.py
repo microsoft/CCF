@@ -220,7 +220,7 @@ def execute(run, args, failures):
         LOG.configure(**config)
         try:
             run(args)
-        except:
+        except Exception:
             LOG.exception(f"{args.label} FAILED")
             failures.append(args.label)
 
