@@ -12,6 +12,7 @@ from packaging import version
 from infra.runner import ConcurrentRunner
 import nobuiltins
 import e2e_tutorial
+import e2e_operations
 
 from loguru import logger as LOG
 
@@ -190,6 +191,15 @@ if __name__ == "__main__":
         package="liblogging",
         nodes=["local://127.0.0.1:8000"],
         initial_member_count=1,
+    )
+
+    cr.add(
+        "operations",
+        e2e_operations.run,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=1,
+        ledger_chunk_bytes="1",  # Chunk ledger at every signature transaction
     )
 
     cr.run()

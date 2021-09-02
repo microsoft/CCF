@@ -669,12 +669,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME e2e_operations
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_operations.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME partitions_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
