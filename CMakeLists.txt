@@ -631,14 +631,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME nobuiltins_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nobuiltins.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS -p
-                    ${CMAKE_BINARY_DIR}/samples/apps/nobuiltins/libnobuiltins
-  )
-
-  add_e2e_test(
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     CONSENSUS cft
@@ -714,7 +706,10 @@ if(BUILD_TESTS)
     NAME schema_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS cft
-    ADDITIONAL_ARGS -p liblogging --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas
+    ADDITIONAL_ARGS
+      --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --client-tutorial
+      ${CMAKE_SOURCE_DIR}/python/tutorial.py --ledger-tutorial
+      ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
   )
 
   add_e2e_test(

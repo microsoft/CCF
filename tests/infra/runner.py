@@ -231,7 +231,7 @@ class ConcurrentRunner:
     threads: List[threading.Thread] = []
     failures: List[str] = []
 
-    def __init__(self) -> None:
+    def __init__(self, add_options=None) -> None:
         def add(parser):
             parser.add_argument(
                 "-N",
@@ -241,6 +241,8 @@ class ConcurrentRunner:
             parser.add_argument(
                 "-R", help="Run sub-tests whose name includes this string"
             )
+            if add_options:
+                add_options(parser)
 
         self.args = infra.e2e_args.cli_args(add=add)
 
