@@ -596,16 +596,16 @@ def test_set_constitution(network, args):
         body = r.body.json()
         assert body["state"] == "Open", body
 
-    # Restore original constitution
-    network.consortium.set_constitution(node, original_constitution)
+        # Restore original constitution
+        network.consortium.set_constitution(node, original_constitution)
 
-    # Confirm original constitution was restored
-    r = c.post(
-        "/gov/proposals",
-        always_accept_noop,
-    )
-    assert r.status_code == 200, r.body.text()
-    body = r.body.json()
-    assert body["state"] == "Accepted", body
+        # Confirm original constitution was restored
+        r = c.post(
+            "/gov/proposals",
+            always_accept_noop,
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        assert body["state"] == "Accepted", body
 
     return network
