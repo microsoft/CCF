@@ -255,7 +255,7 @@ class ConcurrentRunner:
             threading.Thread(name=prefix, target=execute(target, args_, self.failures))
         )
 
-    def run(self):
+    def run(self, max_concurrent=None):
         if self.args.N:
             for thread in self.threads:
                 print(thread)
@@ -266,11 +266,20 @@ class ConcurrentRunner:
                 thread for thread in self.threads if self.args.R in thread.name
             ]
 
-        for thread in self.threads:
-            thread.start()
+        if max_concurrent is None:
+            max_concurrent = len(self.threads)
 
-        for thread in self.threads:
-            thread.join()
+        thread_groups = [
+            self.threads[i : i + max_concurrent]
+            for i in range(0, len(self.threads), max_concurrent)
+        ]
+
+        for group in thread_groups:
+            for thread in group:
+                thread.start()
+
+            for thread in group:
+                thread.join()
 
         if self.failures:
             raise Exception(f"Test failures: {self.failures}")

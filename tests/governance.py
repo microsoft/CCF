@@ -292,4 +292,4 @@ if __name__ == "__main__":
         snapshot_tx_interval=10000,
     )
 
-    cr.run()
+    cr.run(2)
