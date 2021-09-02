@@ -15,7 +15,6 @@ import json
 import requests
 import governance_js
 from infra.runner import ConcurrentRunner
-import sys
 
 from loguru import logger as LOG
 
@@ -218,16 +217,6 @@ def test_invalid_client_signature(network, args):
 
 
 def gov(args):
-    config = {
-        "handlers": [
-            {
-                "sink": sys.stdout,
-                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-            }
-        ]
-    }
-    LOG.configure(**config)
-
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -245,16 +234,6 @@ def gov(args):
 
 
 def js_gov(args):
-    config = {
-        "handlers": [
-            {
-                "sink": sys.stdout,
-                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-            }
-        ]
-    }
-    LOG.configure(**config)
-
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
