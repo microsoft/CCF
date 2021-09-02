@@ -778,7 +778,7 @@ if(BUILD_TESTS)
       NAME reconfiguration_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+      ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} --sig-ms-interval 1000
     )
 
   endforeach()
