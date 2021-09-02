@@ -712,17 +712,6 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
   )
 
-  add_e2e_test(
-    NAME tutorial_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_tutorial.py
-    CONSENSUS cft
-    LABEL tutorial
-    CURL_CLIENT TRUE
-    ADDITIONAL_ARGS
-      -p liblogging --client-tutorial ${CMAKE_SOURCE_DIR}/python/tutorial.py
-      --ledger-tutorial ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
-  )
-
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
        ${CCF_VERSION}
   )
