@@ -29,9 +29,9 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions|suite"'
     SGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions|suite"'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
