@@ -3,7 +3,6 @@
 #pragma once
 
 #include "blit.h"
-#include "consensus/aft/orc.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/entropy.h"
@@ -21,6 +20,7 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
@@ -2026,8 +2026,8 @@ namespace ccf
       auto resharing_tracker =
         std::make_shared<ccf::SplitIdentityResharingTracker>(
           shared_state, rpc_map, node_sign_kp, node_cert);
-      auto rpc_request_context = std::make_shared<aft::RPCRequestContext>(
-        rpc_map, node_sign_kp, node_cert);
+      auto node_client =
+        std::make_shared<HTTPNodeClient>(rpc_map, node_sign_kp, node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
@@ -2048,7 +2048,7 @@ namespace ccf
         request_tracker,
         std::move(view_change_tracker),
         std::move(resharing_tracker),
-        rpc_request_context,
+        node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),

@@ -1326,7 +1326,7 @@ namespace ccf
         .install();
 
       auto orc_handler = [this](auto& args, const nlohmann::json& params) {
-        const auto in = params.get<ORC::In>();
+        const auto in = params.get<ObservedReconfigurationCommit::In>();
         LOG_DEBUG_FMT(
           "ORC for configuration #{} from {}", in.reconfiguration_id, in.from);
 

@@ -151,6 +151,7 @@ namespace ccf
   DECLARE_JSON_TYPE(UpdateResharing::In)
   DECLARE_JSON_REQUIRED_FIELDS(UpdateResharing::In, rid)
 
-  DECLARE_JSON_TYPE(ORC::In)
-  DECLARE_JSON_REQUIRED_FIELDS(ORC::In, from, reconfiguration_id);
+  DECLARE_JSON_TYPE(ObservedReconfigurationCommit::In)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ObservedReconfigurationCommit::In, from, reconfiguration_id);
 }

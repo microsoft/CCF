@@ -177,7 +177,7 @@ namespace aft
 
     void set_endorsed_node_cert(const crypto::Pem&) override {}
 
-    bool have_channel(const NodeId& nid) const override
+    bool have_channel(const ccf::NodeId& nid) const override
     {
       return true;
     }

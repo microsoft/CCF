@@ -180,7 +180,7 @@ namespace ccf
     };
   };
 
-  struct ORC
+  struct ObservedReconfigurationCommit
   {
     struct In
     {

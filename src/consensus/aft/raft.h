@@ -32,6 +32,7 @@
 #include "impl/state.h"
 #include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
+#include "node/node_client.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
@@ -39,7 +40,6 @@
 #include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
-#include "node_client.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -150,11 +150,13 @@ namespace aft
     bool use_two_tx_reconfig = false;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
-    std::shared_ptr<aft::NodeClient> rpc_request_context;
     std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
       network_configurations;
-    std::unordered_map<kv::ReconfigurationId, std::unordered_set<NodeId>>
+    std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
       orc_sets;
+
+    // Node client to trigger submission of RPC requests
+    std::shared_ptr<ccf::NodeClient> node_client;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -201,7 +203,7 @@ namespace aft
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
-      std::shared_ptr<aft::RPCRequestContextBase> rpc_request_context_,
+      std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -227,7 +229,7 @@ namespace aft
       sig_tx_interval(sig_tx_interval_),
 
       resharing_tracker(std::move(resharing_tracker_)),
-      rpc_request_context(rpc_request_context_),
+      node_client(rpc_request_context_),
 
       public_only(public_only_),
 
@@ -675,7 +677,9 @@ namespace aft
       }
     }
 
-    bool orc(kv::ReconfigurationId rid, const NodeId& node_id)
+    // For more info about Observed Reconfiguration Commits see
+    // https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration
+    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
     {
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
@@ -3301,7 +3305,7 @@ namespace aft
           {
             if (
               use_two_tx_reconfig && !is_learner() && !is_retired() &&
-              rpc_request_context &&
+              node_client &&
               next->nodes.find(state->my_node_id) != next->nodes.end())
             {
               LOG_TRACE_FMT(
@@ -3310,8 +3314,7 @@ namespace aft
                 next->rid,
                 num_trusted(*next),
                 next->nodes.size());
-              rpc_request_context->schedule_submit_orc(
-                state->my_node_id, next->rid);
+              node_client->schedule_submit_orc(state->my_node_id, next->rid);
             }
             break;
           }

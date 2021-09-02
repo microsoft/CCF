@@ -6,9 +6,7 @@
 #include "crypto/pem.h"
 #include "enclave/rpc_sessions.h"
 
-using namespace ccf;
-
-namespace aft
+namespace ccf
 {
   class NodeClient
   {
@@ -26,6 +24,10 @@ namespace aft
       node_sign_kp(node_sign_kp_),
       node_cert(node_cert_)
     {}
+
+    virtual ~NodeClient() {}
+
+    virtual bool submit_orc(const NodeId& from, kv::ReconfigurationId rid) = 0;
 
     virtual void schedule_submit_orc(
       const NodeId& from, kv::ReconfigurationId rid) = 0;

@@ -2,26 +2,24 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/orc_rpc_request_context_base.h"
+#include "node/node_client.h"
 #include "node/rpc/node_call_types.h"
 #include "node/rpc/serdes.h"
 #include "node/rpc/serialization.h"
 
-using namespace ccf;
-
-namespace aft
+namespace ccf
 {
-  class RPCRequestContext : public NodeClient
+  class HTTPNodeClient : public NodeClient
   {
   public:
-    RPCRequestContext(
+    HTTPNodeClient(
       std::shared_ptr<enclave::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert) :
       NodeClient(rpc_map, node_sign_kp, node_cert)
     {}
 
-    virtual ~RPCRequestContext() {}
+    virtual ~HTTPNodeClient() {}
 
     inline bool make_request(http::Request& request)
     {
@@ -66,11 +64,11 @@ namespace aft
       return rs == HTTP_STATUS_OK;
     }
 
-    bool submit_orc(const NodeId& from, kv::ReconfigurationId rid)
+    bool submit_orc(const NodeId& from, kv::ReconfigurationId rid) override
     {
       LOG_DEBUG_FMT("Configurations: submit ORC for #{} from {}", rid, from);
 
-      ORC::In ps = {from, rid};
+      ObservedReconfigurationCommit::In ps = {from, rid};
 
       http::Request request(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "orc"));
@@ -85,17 +83,17 @@ namespace aft
     struct AsyncORCTaskMsg
     {
       AsyncORCTaskMsg(
-        RPCRequestContext* context_,
+        HTTPNodeClient* client_,
         const NodeId& from_,
         kv::ReconfigurationId rid_,
         size_t retries_ = 10) :
-        context(context_),
+        client(client_),
         from(from_),
         rid(rid_),
         retries(retries_)
       {}
 
-      RPCRequestContext* context;
+      HTTPNodeClient* client;
       NodeId from;
       kv::ReconfigurationId rid;
       size_t retries;
@@ -103,7 +101,7 @@ namespace aft
 
     static void orc_cb(std::unique_ptr<threading::Tmsg<AsyncORCTaskMsg>> msg)
     {
-      if (!msg->data.context->submit_orc(msg->data.from, msg->data.rid))
+      if (!msg->data.client->submit_orc(msg->data.from, msg->data.rid))
       {
         if (--msg->data.retries > 0)
         {

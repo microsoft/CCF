@@ -135,7 +135,7 @@ namespace aft
       aft->add_configuration(seqno, conf, learners);
     }
 
-    bool orc(kv::ReconfigurationId rid, const NodeId& node_id) override
+    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
       return aft->orc(rid, node_id);
     }
