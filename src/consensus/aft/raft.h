@@ -39,7 +39,7 @@
 #include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
-#include "orc_rpc_request_context_base.h"
+#include "node_client.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -150,7 +150,7 @@ namespace aft
     bool use_two_tx_reconfig = false;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
-    std::shared_ptr<aft::RPCRequestContextBase> rpc_request_context;
+    std::shared_ptr<aft::NodeClient> rpc_request_context;
     std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
       network_configurations;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<NodeId>>

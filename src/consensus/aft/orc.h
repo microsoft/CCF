@@ -11,14 +11,14 @@ using namespace ccf;
 
 namespace aft
 {
-  class RPCRequestContext : public RPCRequestContextBase
+  class RPCRequestContext : public NodeClient
   {
   public:
     RPCRequestContext(
       std::shared_ptr<enclave::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
       const crypto::Pem& node_cert) :
-      RPCRequestContextBase(rpc_map, node_sign_kp, node_cert)
+      NodeClient(rpc_map, node_sign_kp, node_cert)
     {}
 
     virtual ~RPCRequestContext() {}
