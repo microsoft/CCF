@@ -11,6 +11,9 @@ import infra.proc
 import infra.remote_client
 import infra.rates
 import cimetrics.upload
+import threading
+import copy
+from typing import List
 
 from loguru import logger as LOG
 
@@ -200,3 +203,44 @@ def run(get_command, args):
                 for remote_client in clients:
                     remote_client.stop()
                 raise
+
+
+class ConcurrentRunner:
+    threads: List[threading.Thread] = []
+
+    def __init__(self) -> None:
+        def add(parser):
+            parser.add_argument(
+                "-N",
+                help="List all sub-tests",
+                action="store_true",
+            )
+            parser.add_argument(
+                "-R", help="Run sub-tests whose name includes this string"
+            )
+
+        self.args = infra.e2e_args.cli_args(add=add)
+
+    def add(self, prefix, target, **args_overrides):
+        args_ = copy.deepcopy(self.args)
+        for k, v in args_overrides.items():
+            setattr(args_, k, v)
+        args_.label = f"{prefix}_{self.args.label}"
+        self.threads.append(threading.Thread(name=prefix, target=target, args=[args_]))
+
+    def run(self):
+        if self.args.N:
+            for thread in self.threads:
+                print(thread)
+            return
+
+        if self.args.R:
+            self.threads = [
+                thread for thread in self.threads if self.args.R in thread.name
+            ]
+
+        for thread in self.threads:
+            thread.start()
+
+        for thread in self.threads:
+            thread.join()

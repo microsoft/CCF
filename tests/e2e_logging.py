@@ -32,6 +32,7 @@ import re
 import infra.crypto
 import threading
 import copy
+from infra.runner import ConcurrentRunner
 
 import sys
 from loguru import logger as LOG
@@ -1289,7 +1290,7 @@ def run(args):
         "handlers": [
             {
                 "sink": sys.stdout,
-                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{thread.name}::</red><cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
             }
         ]
     }
@@ -1352,54 +1353,25 @@ def create_test_thread(prefix, target, args, **args_overrides):
 
 
 if __name__ == "__main__":
+    cr = ConcurrentRunner()
 
-    def add(parser):
-        parser.add_argument(
-            "-N",
-            help="List all sub-tests",
-            action="store_true",
-        )
-        parser.add_argument("-R", help="Run sub-tests whose name includes this string")
-
-    args = infra.e2e_args.cli_args(add=add)
-
-    threads = []
-
-    threads.append(
-        create_test_thread(
-            "js",
-            run,
-            args,
-            package="libjs_generic",
-            nodes=infra.e2e_args.max_nodes(args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-        )
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
     )
 
-    threads.append(
-        create_test_thread(
-            "cpp",
-            run,
-            args,
-            package="liblogging",
-            js_app_bundle=None,
-            nodes=infra.e2e_args.max_nodes(args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-        )
+    cr.add(
+        "cpp",
+        run,
+        package="liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
     )
 
-    if args.N:
-        for thread in threads:
-            print(thread)
-        sys.exit(0)
-
-    if args.R:
-        threads = [thread for thread in threads if args.R in thread.name]
-
-    for thread in threads:
-        thread.start()
-
-    for thread in threads:
-        thread.join()
+    cr.run()
