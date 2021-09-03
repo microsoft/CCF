@@ -582,15 +582,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization
-  )
-
-  add_e2e_test(
-    NAME js_limits_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-limits/limits.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-limits
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests
   )
 
   add_e2e_test(
