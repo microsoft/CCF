@@ -36,7 +36,8 @@ namespace ccf
       {
         if (opt_rr.has_value())
         {
-          LOG_DEBUG_FMT("New resharing result for configuration #{}.", rid);
+          LOG_DEBUG_FMT(
+            "Resharings: new resharing result for configuration #{}.", rid);
           results.try_emplace(rid, opt_rr.value());
         }
       }
@@ -75,11 +76,13 @@ namespace ccf
       std::shared_ptr<aft::State> shared_state_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       crypto::KeyPairPtr node_sign_kp_,
-      const crypto::Pem& node_cert_) :
+      const crypto::Pem& self_signed_node_cert_,
+      const std::optional<crypto::Pem>& endorsed_node_cert_) :
       shared_state(shared_state_),
       rpc_map(rpc_map_),
       node_sign_kp(node_sign_kp_),
-      node_cert(node_cert_)
+      self_signed_node_cert(self_signed_node_cert_),
+      endorsed_node_cert(endorsed_node_cert_)
     {}
 
     virtual ~SplitIdentityResharingTracker() {}
@@ -96,6 +99,9 @@ namespace ccf
       LOG_DEBUG_FMT("Resharings: start resharing for configuration #{}", rid);
       sessions.emplace(rid, ResharingSession(config));
 
+      const auto& node_cert = endorsed_node_cert.has_value() ?
+        endorsed_node_cert.value() :
+        self_signed_node_cert;
       auto msg = std::make_unique<threading::Tmsg<UpdateResharingTaskMsg>>(
         update_resharing_cb, rid, rpc_map, node_sign_kp, node_cert);
 
@@ -216,7 +222,8 @@ namespace ccf
     std::shared_ptr<aft::State> shared_state;
     std::shared_ptr<enclave::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
-    const crypto::Pem& node_cert;
+    const crypto::Pem& self_signed_node_cert;
+    const std::optional<crypto::Pem>& endorsed_node_cert;
     std::unordered_map<kv::ReconfigurationId, ResharingSession> sessions;
     std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
     std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration> configs;
