@@ -194,7 +194,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--sig-ms-interval",
         help="Milliseconds between signatures",
         type=int,
-        default=100,
+        default=500,
     )
     parser.add_argument(
         "--memory-reserve-startup",
