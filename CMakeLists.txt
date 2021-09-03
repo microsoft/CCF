@@ -578,7 +578,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME custom_authorization_test
+    NAME auth
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     CONSENSUS cft
