@@ -710,9 +710,7 @@ if(BUILD_TESTS)
        ${CCF_VERSION}
   )
   if(LONG_TESTS)
-    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility --sig-ms-interval
-         1000
-    )
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
 
   add_e2e_test(
