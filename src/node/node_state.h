@@ -20,6 +20,7 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
@@ -2018,9 +2019,16 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+
       auto resharing_tracker =
         std::make_shared<ccf::SplitIdentityResharingTracker>(
-          shared_state, rpc_map, node_sign_kp, self_signed_node_cert);
+          shared_state,
+          rpc_map,
+          node_sign_kp,
+          self_signed_node_cert,
+          endorsed_node_cert);
+      auto node_client = std::make_shared<HTTPNodeClient>(
+        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
@@ -2041,6 +2049,7 @@ namespace ccf
         request_tracker,
         std::move(view_change_tracker),
         std::move(resharing_tracker),
+        node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),

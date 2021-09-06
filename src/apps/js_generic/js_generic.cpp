@@ -149,11 +149,11 @@ namespace ccfapp
       crypto::Pem cert;
       if (is_member)
       {
-        result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
+        result = get_member_cert_v1(endpoint_ctx.tx, id, cert);
       }
       else
       {
-        result = get_member_cert_v1(endpoint_ctx.tx, id, cert);
+        result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
       }
 
       if (result == ccf::ApiResult::InternalError)
@@ -329,80 +329,83 @@ namespace ccfapp
       // Response body (also sets a default response content-type header)
       {
         auto response_body_js = ctx(JS_GetPropertyStr(ctx, val, "body"));
-        std::vector<uint8_t> response_body;
-        size_t buf_size;
-        size_t buf_offset;
-        JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
-          ctx, response_body_js, &buf_offset, &buf_size, nullptr);
-        uint8_t* array_buffer;
-        if (!JS_IsException(typed_array_buffer))
+
+        if (!JS_IsUndefined(response_body_js))
         {
-          size_t buf_size_total;
-          array_buffer =
-            JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
-          array_buffer += buf_offset;
-          JS_FreeValue(ctx, typed_array_buffer);
-        }
-        else
-        {
-          array_buffer = JS_GetArrayBuffer(ctx, &buf_size, response_body_js);
-        }
-        if (array_buffer)
-        {
-          endpoint_ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE,
-            http::headervalues::contenttype::OCTET_STREAM);
-          response_body =
-            std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
-        }
-        else
-        {
-          const char* cstr = nullptr;
-          if (JS_IsString(response_body_js))
+          std::vector<uint8_t> response_body;
+          size_t buf_size;
+          size_t buf_offset;
+          JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
+            ctx, response_body_js, &buf_offset, &buf_size, nullptr);
+          uint8_t* array_buffer;
+          if (!JS_IsException(typed_array_buffer))
           {
-            endpoint_ctx.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::TEXT);
-            cstr = JS_ToCString(ctx, response_body_js);
+            size_t buf_size_total;
+            array_buffer =
+              JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
+            array_buffer += buf_offset;
+            JS_FreeValue(ctx, typed_array_buffer);
           }
           else
           {
+            array_buffer = JS_GetArrayBuffer(ctx, &buf_size, response_body_js);
+          }
+          if (array_buffer)
+          {
             endpoint_ctx.rpc_ctx->set_response_header(
               http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::JSON);
-            JSValue rval =
-              JS_JSONStringify(ctx, response_body_js, JS_NULL, JS_NULL);
-            if (JS_IsException(rval))
+              http::headervalues::contenttype::OCTET_STREAM);
+            response_body =
+              std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
+          }
+          else
+          {
+            const char* cstr = nullptr;
+            if (JS_IsString(response_body_js))
+            {
+              endpoint_ctx.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::TEXT);
+              cstr = JS_ToCString(ctx, response_body_js);
+            }
+            else
+            {
+              endpoint_ctx.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::JSON);
+              JSValue rval =
+                JS_JSONStringify(ctx, response_body_js, JS_NULL, JS_NULL);
+              if (JS_IsException(rval))
+              {
+                js::js_dump_error(ctx);
+                endpoint_ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Invalid endpoint function return value (error during JSON "
+                  "conversion of body).");
+                return;
+              }
+              cstr = JS_ToCString(ctx, rval);
+              JS_FreeValue(ctx, rval);
+            }
+            if (!cstr)
             {
               js::js_dump_error(ctx);
               endpoint_ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                "Invalid endpoint function return value (error during JSON "
+                "Invalid endpoint function return value (error during string "
                 "conversion of body).");
               return;
             }
-            cstr = JS_ToCString(ctx, rval);
-            JS_FreeValue(ctx, rval);
-          }
-          if (!cstr)
-          {
-            js::js_dump_error(ctx);
-            endpoint_ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Invalid endpoint function return value (error during string "
-              "conversion of body).");
-            return;
-          }
-          std::string str(cstr);
-          JS_FreeCString(ctx, cstr);
+            std::string str(cstr);
+            JS_FreeCString(ctx, cstr);
 
-          response_body = std::vector<uint8_t>(str.begin(), str.end());
+            response_body = std::vector<uint8_t>(str.begin(), str.end());
+          }
+          endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
         }
-        endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
       }
-
       // Response headers
       {
         auto response_headers_js = ctx(JS_GetPropertyStr(ctx, val, "headers"));
@@ -515,48 +518,48 @@ namespace ccfapp
       {
         std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
 
-        endpoints->foreach([this, &matches, &key, &rpc_ctx](
-                             const auto& other_key, const auto& properties) {
-          if (key.verb == other_key.verb)
-          {
-            const auto opt_spec =
-              ccf::endpoints::parse_path_template(other_key.uri_path);
-            if (opt_spec.has_value())
+        endpoints->foreach_key(
+          [this, &endpoints, &matches, &key, &rpc_ctx](const auto& other_key) {
+            if (key.verb == other_key.verb)
             {
-              const auto& template_spec = opt_spec.value();
-              // This endpoint has templates in its path, and the correct verb
-              // - now check if template matches the current request's path
-              std::smatch match;
-              if (std::regex_match(
-                    key.uri_path, match, template_spec.template_regex))
+              const auto opt_spec =
+                ccf::endpoints::parse_path_template(other_key.uri_path);
+              if (opt_spec.has_value())
               {
-                if (matches.empty())
+                const auto& template_spec = opt_spec.value();
+                // This endpoint has templates in its path, and the correct verb
+                // - now check if template matches the current request's path
+                std::smatch match;
+                if (std::regex_match(
+                      key.uri_path, match, template_spec.template_regex))
                 {
-                  // Populate the request_path_params while we have the match,
-                  // though this will be discarded on error if we later find
-                  // multiple matches
-                  auto& path_params = rpc_ctx.get_request_path_params();
-                  for (size_t i = 0;
-                       i < template_spec.template_component_names.size();
-                       ++i)
+                  if (matches.empty())
                   {
-                    const auto& template_name =
-                      template_spec.template_component_names[i];
-                    const auto& template_value = match[i + 1].str();
-                    path_params[template_name] = template_value;
+                    // Populate the request_path_params while we have the match,
+                    // though this will be discarded on error if we later find
+                    // multiple matches
+                    auto& path_params = rpc_ctx.get_request_path_params();
+                    for (size_t i = 0;
+                         i < template_spec.template_component_names.size();
+                         ++i)
+                    {
+                      const auto& template_name =
+                        template_spec.template_component_names[i];
+                      const auto& template_value = match[i + 1].str();
+                      path_params[template_name] = template_value;
+                    }
                   }
-                }
 
-                auto endpoint = std::make_shared<JSDynamicEndpoint>();
-                endpoint->dispatch = other_key;
-                endpoint->properties = properties;
-                instantiate_authn_policies(*endpoint);
-                matches.push_back(endpoint);
+                  auto endpoint = std::make_shared<JSDynamicEndpoint>();
+                  endpoint->dispatch = other_key;
+                  endpoint->properties = endpoints->get(other_key).value();
+                  instantiate_authn_policies(*endpoint);
+                  matches.push_back(endpoint);
+                }
               }
             }
-          }
-          return true;
-        });
+            return true;
+          });
 
         if (matches.size() > 1)
         {

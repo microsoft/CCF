@@ -41,9 +41,6 @@ namespace ccf
     ccf::NetworkTables& tables, kv::Tx& tx, kv::NetworkConfiguration& config)
   {
     config.rid = get_next_reconfiguration_id(tables, tx);
-    LOG_DEBUG_FMT(
-      "Configurations: adding new entry to network_configurations table: {}",
-      config);
     auto nconfigs = tx.rw(tables.network_configurations);
     nconfigs->put(config.rid, config);
     nconfigs->put(CONFIG_COUNT_KEY, {config.rid, {}});
