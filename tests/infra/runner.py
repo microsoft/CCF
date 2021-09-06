@@ -220,7 +220,8 @@ def execute(run, args, failures):
         LOG.configure(**config)
         try:
             run(args)
-        except Exception:
+        except Exception as e:
+            LOG.error(f"Exception raised in {args.label}: {e}")
             LOG.exception(f"{args.label} FAILED")
             failures.append(args.label)
 
