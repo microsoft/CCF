@@ -34,7 +34,8 @@ if [ ! -f "scripts/env/bin/activate" ]
 fi
 
 source scripts/env/bin/activate
-pip install --disable-pip-version-check cmake_format==0.6.11 1>/dev/null
+pip install -U pip
+pip install cmake_format==0.6.11 1>/dev/null
 
 unformatted_files=""
 for file in $(git ls-files "$@" | grep -e '\.cmake$' -e 'CMakeLists\.txt$'); do

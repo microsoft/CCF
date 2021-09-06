@@ -13,6 +13,7 @@ import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
 import requests
+import governance_js
 
 from loguru import logger as LOG
 
@@ -231,6 +232,18 @@ def run(args):
             test_no_quote(network, args)
             test_ack_state_digest_update(network, args)
             test_invalid_client_signature(network, args)
+
+        governance_js.test_proposal_validation(network, args)
+        governance_js.test_proposal_storage(network, args)
+        governance_js.test_proposal_withdrawal(network, args)
+        governance_js.test_ballot_storage(network, args)
+        governance_js.test_pure_proposals(network, args)
+        governance_js.test_proposals_with_votes(network, args)
+        governance_js.test_vote_failure_reporting(network, args)
+        governance_js.test_operator_proposals_and_votes(network, args)
+        governance_js.test_apply(network, args)
+        governance_js.test_actions(network, args)
+        governance_js.test_set_constitution(network, args)
 
 
 if __name__ == "__main__":
