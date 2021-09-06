@@ -13,7 +13,7 @@ import infra.rates
 import cimetrics.upload
 import threading
 import copy
-from typing import List
+from typing import List, Dict
 import sys
 
 from loguru import logger as LOG
@@ -212,7 +212,7 @@ def execute(run, args, failures):
         config = {
             "handlers": [
                 {
-                    "sink": sys.stdout,
+                    "sink": sys.stderr,
                     "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
                 }
             ]
@@ -221,16 +221,15 @@ def execute(run, args, failures):
         try:
             run(args)
         except Exception as e:
-            LOG.error(f"Exception raised in {args.label}: {e}")
             LOG.exception(f"{args.label} FAILED")
-            failures.append(args.label)
+            failures[args.label] = str(e)
 
     return inner
 
 
 class ConcurrentRunner:
     threads: List[threading.Thread] = []
-    failures: List[str] = []
+    failures: Dict[str, str] = {}
 
     def __init__(self, add_options=None) -> None:
         def add(parser):
