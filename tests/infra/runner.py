@@ -13,7 +13,7 @@ import infra.rates
 import cimetrics.upload
 import threading
 import copy
-from typing import List, Dict
+from typing import List
 import sys
 import better_exceptions
 
@@ -207,22 +207,6 @@ def run(get_command, args):
                 raise
 
 
-def execute(run, args, failures):
-    def inner():
-        config = {
-            "handlers": [
-                {
-                    "sink": sys.stderr,
-                    "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-                }
-            ]
-        }
-        LOG.configure(**config)
-        run(args)
-
-    return inner
-
-
 FAILURES = []
 
 
@@ -245,7 +229,6 @@ threading.excepthook = log_exception
 
 class ConcurrentRunner:
     threads: List[threading.Thread] = []
-    failures: Dict[str, str] = {}
 
     def __init__(self, add_options=None) -> None:
         def add(parser):
@@ -267,11 +250,19 @@ class ConcurrentRunner:
         for k, v in args_overrides.items():
             setattr(args_, k, v)
         args_.label = f"{prefix}_{self.args.label}"
-        self.threads.append(
-            threading.Thread(name=prefix, target=execute(target, args_, self.failures))
-        )
+        self.threads.append(threading.Thread(name=prefix, target=target, args=[args_]))
 
     def run(self, max_concurrent=None):
+        config = {
+            "handlers": [
+                {
+                    "sink": sys.stderr,
+                    "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+                }
+            ]
+        }
+        LOG.configure(**config)
+
         if self.args.N:
             for thread in self.threads:
                 print(thread)
