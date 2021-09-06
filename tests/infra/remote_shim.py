@@ -95,14 +95,15 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Bind local RPC address to 0.0.0.0, so it be can be accessed from outside container
         kwargs["rpc_host"] = "0.0.0.0"
-        if is_docker_env():
-            kwargs["pub_host"] = self.container_ip
+        # if is_docker_env():
+        kwargs["pub_host"] = self.container_ip
         kwargs["node_host"] = self.container_ip
 
         # Expose port to clients running on host if not already in a container
-        ports = (
-            {f"{rpc_port}/tcp": (rpc_host, rpc_port)} if not is_docker_env() else None
-        )
+        # ports = (
+        #     {f"{rpc_port}/tcp": (rpc_host, rpc_port)} if not is_docker_env() else None
+        # )
+        ports = None
 
         super().__init__(*args, **kwargs)
 
@@ -145,8 +146,8 @@ class DockerShim(infra.remote.CCFRemote):
             map_azure_devops_docker_workspace_dir(cwd) if is_azure_devops_env() else cwd
         )
 
+        # Deduce container tag from node version
         repo = infra.github.Repository()
-
         image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
         if ccf_version is not None:
             image_name += ccf_version
@@ -167,6 +168,7 @@ class DockerShim(infra.remote.CCFRemote):
             ports=ports,
             name=self.container_name,
             labels=[label],
+            publish_all_ports=True,
             user=f"{os.getuid()}:{gid}",
             working_dir=self.remote.root,
             detach=True,
@@ -187,12 +189,6 @@ class DockerShim(infra.remote.CCFRemote):
             LOG.debug(f"Stopped container {self.container_name}")
         except docker.errors.NotFound:
             pass
-
-        # So prune all unusued networks instead.
-        # if (
-        #     deleted_networks := self.docker_client.networks.prune()["NetworksDeleted"]
-        # ) is not None:
-        #     LOG.debug(f"Deleted network {deleted_networks}")
         return self.remote.get_logs()
 
     def get_target_rpc_host(self):

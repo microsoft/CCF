@@ -118,7 +118,9 @@ class Node:
         host_ = host.rpchost
         self.rpc_host, *port = host_.split(":")
         self.rpc_port = (
-            int(port[0]) if port else infra.net.probably_free_local_port(self.rpc_host)
+            int(port[0])
+            if port
+            else None  # infra.net.probably_free_local_port(self.rpc_host)
         )
         if self.rpc_host == "localhost":
             self.rpc_host = infra.net.expand_localhost()
@@ -132,7 +134,9 @@ class Node:
             self.pubport = self.rpc_port
 
         self.node_host = self.rpc_host
-        self.node_port = node_port or infra.net.probably_free_local_port(self.node_host)
+        self.node_port = (
+            node_port  # or infra.net.probably_free_local_port(self.node_host)
+        )
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
@@ -310,8 +314,8 @@ class Node:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
             # assert (
-            #     node_host == self.host
-            # ), f"Unexpected change in node address from {self.host} to {node_host}"
+            #     node_host == self.node_host
+            # ), f"Unexpected change in node address from {self.node_host} to {node_host}"
             if self.node_port is None and self.node_port != 0:
                 self.node_port = node_port
                 assert (
@@ -327,8 +331,8 @@ class Node:
                 rpc_port = int(rpc_port)
                 if i == 0:
                     # assert (
-                    #     rpc_host == self.host
-                    # ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
+                    #     rpc_host == self.rpc_host
+                    # ), f"Unexpected change in RPC address from {self.rpc_host} to {rpc_host}"
                     if self.rpc_port is not None and self.rpc_port != 0:
                         assert (
                             rpc_port == self.rpc_port
