@@ -688,14 +688,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME e2e_scenario_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --scenario
-                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-  )
-
-  add_e2e_test(
     NAME member_client_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
     CONSENSUS cft

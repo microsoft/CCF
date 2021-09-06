@@ -114,7 +114,7 @@ namespace ccf
 
       for (const auto& nc : configs)
       {
-        consensus->add_network_configuration(version, nc);
+        consensus->reconfigure(version, nc);
       }
     }
   };
