@@ -15,6 +15,7 @@ import threading
 import copy
 from typing import List, Dict
 import sys
+import better_exceptions
 
 from loguru import logger as LOG
 
@@ -207,7 +208,6 @@ def run(get_command, args):
 
 
 def execute(run, args, failures):
-    @LOG.catch
     def inner():
         config = {
             "handlers": [
@@ -218,13 +218,29 @@ def execute(run, args, failures):
             ]
         }
         LOG.configure(**config)
-        try:
-            run(args)
-        except Exception as e:
-            LOG.exception(f"{args.label} FAILED")
-            failures[args.label] = str(e)
+        run(args)
 
     return inner
+
+
+FAILURES = []
+
+
+def log_exception(args: threading.ExceptHookArgs):
+    description = f"Failure in {args.thread.name}: {repr(args.exc_value)}"
+    FAILURES.append(description)
+    LOG.error(
+        description
+        + "\n"
+        + "\n".join(
+            better_exceptions.format_exception(
+                args.exc_type, args.exc_value, args.exc_traceback
+            )
+        )
+    )
+
+
+threading.excepthook = log_exception
 
 
 class ConcurrentRunner:
@@ -281,5 +297,5 @@ class ConcurrentRunner:
             for thread in group:
                 thread.join()
 
-        if self.failures:
-            raise Exception(f"Test failures: {self.failures}")
+        if FAILURES:
+            raise Exception(FAILURES)
