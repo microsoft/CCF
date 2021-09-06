@@ -590,6 +590,7 @@ class CCFRemote(object):
         jwt_key_refresh_interval_s=None,
         curve_id=None,
         client_connection_timeout_ms=None,
+        version=None,
         additional_raw_node_args=None,
     ):
         """

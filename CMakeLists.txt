@@ -453,7 +453,7 @@ if(BUILD_TESTS)
     )
 
     add_test(NAME versionifier_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/ccf/versionifier.py
     )
   endif()
 
@@ -776,6 +776,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
     CONSENSUS cft
     LABEL e2e
+    DOCKER_NODES TRUE
     ADDITIONAL_ARGS ${LTS_TEST_ARGS}
   )
 
@@ -796,6 +797,7 @@ if(BUILD_TESTS)
       NAME cpp_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS ${CONSENSUS}
+      DOCKER_NODES TRUE
     )
 
     add_e2e_test(

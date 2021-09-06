@@ -8,6 +8,8 @@ import os
 import pathlib
 import grp
 import ipaddress
+import infra.github
+
 
 from loguru import logger as LOG
 
@@ -24,6 +26,9 @@ def is_azure_devops_env():
 def map_azure_devops_docker_workspace_dir(workspace_dir):
     return workspace_dir.replace("__w", "/mnt/vss/_work")
 
+
+# Docker image name prefix
+DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
 
 # Network name
 AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR = "AGENT_CONTAINERNETWORK"
@@ -52,6 +57,7 @@ class DockerShim(infra.remote.CCFRemote):
         label = kwargs.get("label")
         rpc_port = kwargs.get("rpc_port")
         local_node_id = kwargs.get("local_node_id")
+        ccf_version = kwargs.get("version")
 
         # Create network to connect all containers to (for n2n communication, etc.).
         # In a Docker environment, use existing network (either the one
@@ -139,8 +145,22 @@ class DockerShim(infra.remote.CCFRemote):
             map_azure_devops_docker_workspace_dir(cwd) if is_azure_devops_env() else cwd
         )
 
+        repo = infra.github.Repository()
+
+        image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
+        if ccf_version is not None:
+            image_name += ccf_version
+        else:
+            image_name += infra.github.strip_release_tag_name(repo.get_latest_dev_tag())
+
+        try:
+            self.docker_client.images.get(image_name)
+        except docker.errors.ImageNotFound:
+            LOG.info(f"Pulling image {image_name}")
+            self.docker_client.images.pull(image_name)
+
         self.container = self.docker_client.containers.create(
-            "ccfciteam/ccf-ci:oe0.17.1-focal-docker",  # TODO: Make configurable
+            image_name,
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
             devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
@@ -154,7 +174,7 @@ class DockerShim(infra.remote.CCFRemote):
         )
 
         self.network.connect(self.container)
-        LOG.debug(f"Created container {self.container_name}")
+        LOG.debug(f"Created container {self.container_name} [{image_name}]")
 
     def start(self):
         LOG.info(self.remote.get_cmd())

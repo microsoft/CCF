@@ -7,7 +7,7 @@ from setuptools import setup  # type: ignore
 # pylint: disable=import-error
 import version  # type: ignore
 
-import versionifier
+import ccf.versionifier
 
 PACKAGE_NAME = "ccf"
 UTILITIES_PATH = "utils"
@@ -22,7 +22,7 @@ with open("requirements.txt", encoding="utf-8") as f:
 
 setup(
     name=PACKAGE_NAME,
-    version=str(versionifier.to_python_version(version.CCF_VERSION)),
+    version=str(ccf.versionifier.to_python_version(version.CCF_VERSION)),
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",

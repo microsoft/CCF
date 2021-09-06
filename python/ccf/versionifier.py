@@ -7,6 +7,8 @@ from setuptools.extern.packaging.version import (  # type: ignore
     InvalidVersion,
 )
 
+# TODO: Move this out of ccf package.
+
 
 def remove_prefix(s, prefix):
     if s.startswith(prefix):

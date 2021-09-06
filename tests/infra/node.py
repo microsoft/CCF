@@ -15,6 +15,7 @@ import socket
 import re
 import ipaddress
 import ssl
+import ccf.versionifier
 
 from loguru import logger as LOG
 
@@ -92,6 +93,11 @@ class Node:
         self.node_client_host = None
         self.interfaces = []
         self.version = version
+        self.major_version = (
+            ccf.versionifier.to_python_version(self.version).release[0]
+            if self.version is not None
+            else None
+        )
         self.consensus = None
 
         if isinstance(host, str):
@@ -100,7 +106,7 @@ class Node:
         if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
             # TODO: Docker isn't happy with this for n2n connections
-            # if not version or version > 1:
+            # if not self.major_version or self.major_version > 1:
             #     self.node_client_host = str(
             #         ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
             #     )
@@ -226,7 +232,13 @@ class Node:
         if self.max_open_sessions_hard:
             kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
-        self.remote = infra.remote_shim.DockerShim(
+
+        if os.getenv("DOCKER_NODES"):
+            remote_shim = infra.remote_shim.DockerShim
+        else:
+            remote_shim = infra.remote_shim.PassThroughShim
+
+        self.remote = remote_shim(
             start_type,
             lib_path,
             enclave_type,
@@ -246,6 +258,7 @@ class Node:
             snapshot_dir=snapshot_dir,
             binary_dir=self.binary_dir,
             additional_raw_node_args=self.additional_raw_node_args,
+            version=self.version,
             **kwargs,
         )
         self.remote.setup()
