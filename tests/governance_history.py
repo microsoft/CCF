@@ -192,10 +192,3 @@ def run(args):
         test_ledger_is_readable(network, args)
         test_read_ledger_utility(network, args)
         test_tables_doc(network, args)
-
-
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    run(args)

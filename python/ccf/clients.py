@@ -519,6 +519,7 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
+        curl: bool = False,
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
@@ -528,7 +529,7 @@ class CCFClient:
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
 
-        if os.getenv("CURL_CLIENT"):
+        if curl or os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
         else:
             self.client_impl = RequestClient(

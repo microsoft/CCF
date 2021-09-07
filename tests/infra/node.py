@@ -67,6 +67,9 @@ def get_snapshot_seqnos(file_name):
 
 
 class Node:
+    # Default to using httpx
+    curl = False
+
     def __init__(
         self,
         local_node_id,
@@ -426,6 +429,10 @@ class Node:
             "description"
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
+
+        if self.curl:
+            akwargs["curl"] = True
+
         if interface_idx is None:
             return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
         else:
