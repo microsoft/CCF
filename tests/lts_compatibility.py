@@ -111,7 +111,7 @@ def run_code_upgrade_from(
     args,
     from_install_path,
     to_install_path,
-    to_version=None,
+    from_version=None,
     to_version=None,
 ):
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
@@ -133,7 +133,7 @@ def run_code_upgrade_from(
             pdb=args.pdb,
             txs=txs,
             jwt_issuer=jwt_issuer,
-            version=to_version,
+            version=from_version,
         ) as network:
             network.start_and_join(args)
 
@@ -260,7 +260,7 @@ def run_live_compatibility_with_latest(args, repo, local_branch):
             args,
             from_install_path=lts_install_path,
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            to_version=lts_version,
+            from_version=lts_version,
             to_version=local_major_version,
         )
     return lts_version
@@ -277,16 +277,16 @@ def run_live_compatibility_with_following(args, repo, local_branch):
         LOG.warning(f"No next LTS for local {local_branch} branch")
         return None
 
-    local_version = infra.github.get_major_version_from_branch_name(local_branch)
+    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
     LOG.info(
-        f'From local "{local_branch}" branch (version: {local_version}) to LTS {lts_version}'
+        f'From local "{local_branch}" branch (version: {local_major_version}) to LTS {lts_version}'
     )
     if not args.dry_run:
         run_code_upgrade_from(
             args,
             from_install_path=LOCAL_CHECKOUT_DIRECTORY,
             to_install_path=lts_install_path,
-            to_version=local_version,
+            from_version=local_major_version,
             to_version=lts_version,
         )
     return lts_version

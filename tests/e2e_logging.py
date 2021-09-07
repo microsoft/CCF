@@ -64,7 +64,7 @@ def test_illegal(network, args, verify=True):
         )
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn = context.wrap_socket(
-            sock, server_side=False, server_hostname=primary.rpc_host
+            sock, server_side=False, server_hostname=primary.remote.pub_host
         )
         conn.connect((primary.rpc_host, primary.pubport))
         LOG.info(f"Sending: {content}")
