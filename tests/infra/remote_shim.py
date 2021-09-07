@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+`# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
 import infra.remote
@@ -34,6 +34,9 @@ DOCKER_IMAGE_NAME_PREFIX = "ccfciteam/ccf-app-run"
 AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR = "AGENT_CONTAINERNETWORK"
 DOCKER_NETWORK_NAME_LOCAL = "ccf_test_docker_network"
 
+# Identifier for all CCF test containers
+CCF_TEST_CONTAINERS_LABEL = "ccf_test"
+
 
 def kernel_has_sgx_builtin():
     with open("/proc/cpuinfo", "r") as cpu_info:
@@ -49,6 +52,9 @@ class PassThroughShim(infra.remote.CCFRemote):
         super().__init__(*args, **kwargs)
 
 
+# Current limitations, which should be overcomable:
+# 1. No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment
+# 2. No support for concurrent test: all nodes containers attach to the same network at pre-defined IPs
 class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.DockerClient()
@@ -82,11 +88,11 @@ class DockerShim(infra.remote.CCFRemote):
                 )
 
         # Stop and delete existing container(s)
-        # First container with stops all other containers
         try:
             if local_node_id == 0:
-                for _, c_info in self.network.attrs["Containers"].items():
-                    c = self.docker_client.containers.get(c_info["Name"])
+                for c in self.docker_client.containers.list(
+                    filters={"label": CCF_TEST_CONTAINERS_LABEL}
+                ):
                     c.stop()
                     LOG.debug(f"Stopped existing container {c.name}")
             c = self.docker_client.containers.get(self.container_name)
@@ -154,7 +160,7 @@ class DockerShim(infra.remote.CCFRemote):
             devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
             name=self.container_name,
-            labels=[label],
+            labels=[label, CCF_TEST_CONTAINERS_LABEL],
             publish_all_ports=True,
             user=f"{os.getuid()}:{gid}",
             working_dir=self.remote.root,
