@@ -39,10 +39,10 @@ CCF_TEST_CONTAINERS_LABEL = "ccf_test"
 
 
 def kernel_has_sgx_builtin():
-    with open("/proc/cpuinfo", "r") as cpu_info:
-        filter = re.compile("^flags.*sgx.*")
+    with open("/proc/cpuinfo", "r", encoding="utf-8") as cpu_info:
+        f = re.compile("^flags.*sgx.*")
         for line in cpu_info:
-            if filter.match(line):
+            if f.match(line):
                 return True
     return False
 

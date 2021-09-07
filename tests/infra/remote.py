@@ -14,7 +14,6 @@ import re
 import stat
 import shutil
 from collections import deque
-import docker
 
 from loguru import logger as LOG
 
