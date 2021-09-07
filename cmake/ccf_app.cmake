@@ -65,7 +65,9 @@ function(add_lvi_mitigations name)
 endfunction()
 
 if(LVI_MITIGATIONS)
-  find_package(OpenEnclave-LVI-Mitigation CONFIG REQUIRED)
+  find_package(
+    OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
+  )
 endif()
 
 # Sign a built enclave library with oesign
