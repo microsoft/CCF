@@ -26,7 +26,7 @@ set(CCFCRYPTO_SRC
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library(ccfcrypto.enclave "${CCFCRYPTO_SRC}")
+  add_enclave_library(ccfcrypto.enclave ${CCFCRYPTO_SRC})
   use_oe_mbedtls(ccfcrypto.enclave)
 
   install(

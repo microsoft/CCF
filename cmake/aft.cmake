@@ -5,7 +5,7 @@
 set(AFT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/impl/execution.cpp)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library(aft.enclave "${AFT_SRC}")
+  add_enclave_library(aft.enclave ${AFT_SRC})
   use_oe_mbedtls(aft.enclave)
   install(
     TARGETS aft.enclave

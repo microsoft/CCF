@@ -12,7 +12,7 @@ set(SSS_SRC ${SSS_PREFIX}/sss.c ${SSS_PREFIX}/hazmat.c
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library_c(sss.enclave "${SSS_SRC}")
+  add_enclave_library_c(sss.enclave ${SSS_SRC})
   install(
     TARGETS sss.enclave
     EXPORT ccf

@@ -29,7 +29,7 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library_c(
-    quickjs.enclave "${QUICKJS_SRC};${CCF_DIR}/src/enclave/stub_time.c"
+    quickjs.enclave ${QUICKJS_SRC} ${CCF_DIR}/src/enclave/stub_time.c
   )
   target_compile_options(
     quickjs.enclave

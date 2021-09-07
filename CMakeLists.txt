@@ -111,8 +111,14 @@ endif()
 
 if("virtual" IN_LIST COMPILE_TARGETS)
   # virtual version
-  add_host_library(ccf.virtual ${CCF_IMPL_SOURCE})
+  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 
+  target_compile_definitions(
+    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                       _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+
+  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
   add_warning_checks(ccf.virtual)
 
   target_include_directories(
@@ -128,14 +134,19 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.virtual
-    PUBLIC ccfcrypto.host
+    PUBLIC ${LINK_LIBCXX}
+           -lgcc
+           ccfcrypto.host
            http_parser.host
            quickjs.host
            aft.virtual
            sss.host
            ccf_endpoints.host
+           openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
+
+  set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(ccf.virtual)
 
