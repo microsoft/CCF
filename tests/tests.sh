@@ -21,4 +21,7 @@ echo "Python environment successfully setup"
 VENV_DIR=$(realpath env)
 export VENV_DIR="$VENV_DIR"
 
+# Enable https://github.com/Qix-/better-exceptions
+export BETTER_EXCEPTIONS=1
+
 ctest "$@"
