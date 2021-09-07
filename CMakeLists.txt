@@ -778,6 +778,13 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
+  add_e2e_test(
+    NAME reconfiguration_test_${CONSENSUS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    CONSENSUS ${CONSENSUS}
+    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
@@ -808,12 +815,9 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS -p liblogging --duration 45m
     )
 
-    add_e2e_test(
-      NAME reconfiguration_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
-    )
+    # add_e2e_test( NAME reconfiguration_test_${CONSENSUS} PYTHON_SCRIPT
+    # ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py CONSENSUS ${CONSENSUS}
+    # ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} )
 
   endforeach()
 
