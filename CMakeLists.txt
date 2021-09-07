@@ -779,9 +779,9 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME reconfiguration_test_${CONSENSUS}
+    NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    CONSENSUS ${CONSENSUS}
+    CONSENSUS cft
     ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
   )
 
