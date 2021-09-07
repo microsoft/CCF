@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
 import tempfile
 import infra.network
 import infra.path
@@ -12,8 +11,6 @@ import ccf.proposal_generator
 import json
 
 from loguru import logger as LOG
-
-this_dir = os.path.dirname(__file__)
 
 
 @reqs.description("Add and remove CA certs")
@@ -81,19 +78,3 @@ def test_cert_store(network, args):
     ), "CA bundle was not removed"
 
     return network
-
-
-def run(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_join(args)
-        network = test_cert_store(network, args)
-
-
-if __name__ == "__main__":
-
-    args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    run(args)

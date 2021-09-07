@@ -30,6 +30,9 @@ import urllib.parse
 import random
 import re
 import infra.crypto
+import threading
+import copy
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -1330,14 +1333,34 @@ def run(args):
         network = test_historical_receipts(network, args)
 
 
-if __name__ == "__main__":
+def create_test_thread(prefix, target, args, **args_overrides):
+    args_ = copy.deepcopy(args)
+    for k, v in args_overrides.items():
+        setattr(args_, k, v)
+    args_.label = f"{prefix}_{args.label}"
+    return threading.Thread(name=prefix, target=target, args=[args_])
 
-    args = infra.e2e_args.cli_args()
-    if args.js_app_bundle:
-        args.package = "libjs_generic"
-    else:
-        args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.initial_user_count = 4
-    args.initial_member_count = 2
-    run(args)
+
+if __name__ == "__main__":
+    cr = ConcurrentRunner()
+
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
+
+    cr.add(
+        "cpp",
+        run,
+        package="liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
+
+    cr.run()

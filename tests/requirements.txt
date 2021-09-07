@@ -10,3 +10,4 @@ docutils
 python-iptables
 py-spy
 GitPython
+better_exceptions
