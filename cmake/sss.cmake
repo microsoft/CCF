@@ -12,7 +12,7 @@ set(SSS_SRC ${SSS_PREFIX}/sss.c ${SSS_PREFIX}/hazmat.c
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library_c(sss.enclave ${SSS_SRC})
+  add_enclave_library_c(sss.enclave "${SSS_SRC}")
   install(
     TARGETS sss.enclave
     EXPORT ccf
@@ -20,8 +20,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 endif()
 
-add_host_library(sss.host ${SSS_SRC})
+add_library(sss.host STATIC ${SSS_SRC})
 add_san(sss.host)
+set_property(TARGET sss.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS sss.host
   EXPORT ccf
