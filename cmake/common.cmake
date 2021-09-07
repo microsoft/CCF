@@ -296,14 +296,12 @@ install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
-set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS http_parser.enclave
   EXPORT ccf
   DESTINATION lib
 )
-add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
-set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_host_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 install(
   TARGETS http_parser.host
   EXPORT ccf
