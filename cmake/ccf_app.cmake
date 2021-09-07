@@ -65,19 +65,13 @@ function(add_lvi_mitigations name)
 endfunction()
 
 if(LVI_MITIGATIONS)
-  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/lvi_mitigation_config.cmake
-          DESTINATION cmake/lvi
+  set(LVI_MITIGATION_BINDIR
+      /opt/oe_lvi
+      CACHE STRING "Path to the LVI mitigation bindir."
   )
-  install(
-    FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/configure_lvi_mitigation_build.cmake
-    DESTINATION cmake/lvi
+  find_package(
+    OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
   )
-  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/apply_lvi_mitigation.cmake
-          DESTINATION cmake/lvi
-  )
-
-  # Also pull in the LVI mitigation wrappers
-  include(${CMAKE_CURRENT_LIST_DIR}/lvi/lvi_mitigation_config.cmake)
 endif()
 
 # Sign a built enclave library with oesign
