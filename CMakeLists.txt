@@ -134,7 +134,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            aft.virtual
            sss.host
            ccf_endpoints.host
-           Threads::Threads
+           ${CMAKE_THREAD_LIBS_INIT}
   )
 
   add_san(ccf.virtual)
