@@ -65,7 +65,10 @@ function(add_lvi_mitigations name)
 endfunction()
 
 if(LVI_MITIGATIONS)
-  set(LVI_MITIGATION_BINDIR /opt/oe_lvi CACHE STRING "Path to the LVI mitigation bindir.")
+  set(LVI_MITIGATION_BINDIR
+      /opt/oe_lvi
+      CACHE STRING "Path to the LVI mitigation bindir."
+  )
   find_package(
     OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
   )
