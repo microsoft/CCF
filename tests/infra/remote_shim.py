@@ -1,4 +1,4 @@
-`# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
 import infra.remote
@@ -183,6 +183,3 @@ class DockerShim(infra.remote.CCFRemote):
         except docker.errors.NotFound:
             pass
         return self.remote.get_logs()
-
-    def get_target_rpc_host(self):
-        return self.container_ip

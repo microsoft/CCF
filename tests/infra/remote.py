@@ -863,9 +863,6 @@ class CCFRemote(object):
     def get_rpc_host(self):
         return self.pub_host
 
-    def get_target_rpc_host(self):
-        return self.pub_host
-
 
 class StartType(Enum):
     new = auto()
