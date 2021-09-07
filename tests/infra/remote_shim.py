@@ -53,15 +53,17 @@ class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.DockerClient()
 
-        rpc_host = kwargs.get("rpc_host")
         label = kwargs.get("label")
-        rpc_port = kwargs.get("rpc_port")
         local_node_id = kwargs.get("local_node_id")
         ccf_version = kwargs.get("version")
 
+        # Sanitise container name, replacing illegal characters with underscores
+        self.container_name = f"{label}_{local_node_id}"
+        self.container_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", self.container_name)
+
         # Create network to connect all containers to (for n2n communication, etc.).
-        # In a Docker environment, use existing network (either the one
-        # provided by ADO or the one already created by the runner).
+        # In a Docker environment, use existing network (either the one provided by
+        # ADO or the one already created by the runner).
         # Otherwise, create network on the fly.
         if is_docker_env():
             self.network = self.docker_client.networks.get(
@@ -79,12 +81,25 @@ class DockerShim(infra.remote.CCFRemote):
                     DOCKER_NETWORK_NAME_LOCAL
                 )
 
+        # Stop and delete existing container(s)
+        # First container with this label stops all other matching containers
+        if local_node_id == 0:
+            for c in self.docker_client.containers.list(filters={"label": [label]}):
+                c.stop()
+                LOG.debug(f"Stopped existing container {c.name}")
+
+        try:
+            c = self.docker_client.containers.get(self.container_name)
+            c.stop()
+            LOG.debug(f"Stopped container {self.container_name}")
+        except docker.errors.NotFound:
+            pass
+
         # Pre-determine IP address of container based on network.
         # This is necessary since the CCF node needs to bind to known addresses
         # at start-up, and the container IP address is not known until the container
         # is started.
-        # TODO: Can we construct the cchost command after the IP address is known?
-        ip_address_offset = 2 if is_docker_env() else 1
+        ip_address_offset = 2 if is_docker_env() else 1  # Not ideal...
         self.container_ip = str(
             ipaddress.ip_address(self.network.attrs["IPAM"]["Config"][0]["Gateway"])
             + local_node_id
@@ -95,37 +110,10 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Bind local RPC address to 0.0.0.0, so it be can be accessed from outside container
         kwargs["rpc_host"] = "0.0.0.0"
-        # if is_docker_env():
         kwargs["pub_host"] = self.container_ip
         kwargs["node_host"] = self.container_ip
 
-        # Expose port to clients running on host if not already in a container
-        # ports = (
-        #     {f"{rpc_port}/tcp": (rpc_host, rpc_port)} if not is_docker_env() else None
-        # )
-        ports = None
-
         super().__init__(*args, **kwargs)
-
-        # Sanitise container name from remote name, replacing illegal
-        # characters with underscores
-        self.container_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", self.name)
-
-        # TODO: Move this elsewhere as we need to be sure that containers are stopped before using IP addresses
-        # Stop and delete existing container
-        try:
-            # First container with this label stops all other matching containers
-            if local_node_id == 0:
-                for c in self.docker_client.containers.list(filters={"label": [label]}):
-                    LOG.debug(f"Stopping existing container {c.name}")
-                    c.stop()
-
-            c = self.docker_client.containers.get(self.container_name)
-            c.stop()
-            c.remove()
-            LOG.debug(f"Stopped container {self.container_name}")
-        except docker.errors.NotFound:
-            pass
 
         # Group and device for kernel sgx builtin support (or not)
         # TODO: Does not quite yet work locally inside docker (file permission issues, and cannot connect to docker daemon)
@@ -165,7 +153,6 @@ class DockerShim(infra.remote.CCFRemote):
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
             devices=devices,
             command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
-            ports=ports,
             name=self.container_name,
             labels=[label],
             publish_all_ports=True,
