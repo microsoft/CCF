@@ -26,18 +26,8 @@ set(CCFCRYPTO_SRC
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_library(ccfcrypto.enclave STATIC ${CCFCRYPTO_SRC})
-  target_compile_definitions(
-    ccfcrypto.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-  target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++)
-  target_link_libraries(
-    ccfcrypto.enclave
-    PRIVATE -nostdlib -nodefaultlibs -nostartfiles -Wl,--no-undefined
-            -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-  )
+  add_enclave_library(ccfcrypto.enclave ${CCFCRYPTO_SRC})
   use_oe_mbedtls(ccfcrypto.enclave)
-  set_property(TARGET ccfcrypto.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   install(
     TARGETS ccfcrypto.enclave
@@ -46,13 +36,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 endif()
 
-add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
+add_host_library(ccfcrypto.host ${CCFCRYPTO_SRC})
 add_san(ccfcrypto.host)
-target_compile_options(ccfcrypto.host PUBLIC ${COMPILE_LIBCXX})
-target_link_options(ccfcrypto.host PUBLIC ${LINK_LIBCXX})
 target_link_libraries(ccfcrypto.host PUBLIC crypto)
 use_client_mbedtls(ccfcrypto.host)
-set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 install(
   TARGETS ccfcrypto.host

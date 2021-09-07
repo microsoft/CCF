@@ -74,15 +74,10 @@ set(CCF_IMPL_SOURCE
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   # enclave version
-  add_library(
-    ccf.enclave STATIC ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
+  add_enclave_library(
+    ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(
-    ccf.enclave PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-
-  target_compile_options(ccf.enclave PUBLIC -nostdinc -nostdinc++)
   add_warning_checks(ccf.enclave)
 
   target_include_directories(
@@ -97,18 +92,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_link_libraries(
-    ccf.enclave
-    PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
-           -lgcc
-           quickjs.enclave
-           ccfcrypto.enclave
-           http_parser.enclave
-           aft.enclave
-           sss.enclave
-           ccf_endpoints.enclave
+    ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
+                       aft.enclave sss.enclave ccf_endpoints.enclave
   )
-
-  set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   enable_quote_code(ccf.enclave)
 
@@ -125,14 +111,8 @@ endif()
 
 if("virtual" IN_LIST COMPILE_TARGETS)
   # virtual version
-  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
+  add_host_library(ccf.virtual ${CCF_IMPL_SOURCE})
 
-  target_compile_definitions(
-    ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-
-  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
   add_warning_checks(ccf.virtual)
 
   target_include_directories(
@@ -148,19 +128,14 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.virtual
-    PUBLIC ${LINK_LIBCXX}
-           -lgcc
-           ccfcrypto.host
+    PUBLIC ccfcrypto.host
            http_parser.host
            quickjs.host
            aft.virtual
            sss.host
            ccf_endpoints.host
-           openenclave::oehost
-           ${CMAKE_THREAD_LIBS_INIT}
+           Threads::Threads
   )
-
-  set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(ccf.virtual)
 
