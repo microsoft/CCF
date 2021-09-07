@@ -221,7 +221,9 @@ endfunction()
 
 # Convenience wrapper to build C-libraries that can be linked in enclave, ie. in
 # a CCF application.
-function(add_enclave_library_c name files)
+function(add_enclave_library_c name)
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
+  set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   add_library(${name} STATIC ${files})
   target_compile_options(${name} PRIVATE -nostdinc)
   target_link_libraries(${name} PRIVATE ${OE_TARGET_LIBC})
@@ -230,7 +232,9 @@ endfunction()
 
 # Convenience wrapper to build C++-libraries that can be linked in enclave, ie.
 # in a CCF application.
-function(add_enclave_library name files)
+function(add_enclave_library name)
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
+  set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   add_library(${name} ${files})
   target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
   target_compile_definitions(
@@ -240,7 +244,9 @@ function(add_enclave_library name files)
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()
 
-function(add_host_library name files)
+function(add_host_library name)
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
+  set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   add_library(${name} ${files})
   target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
   target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc openenclave::oehost)
