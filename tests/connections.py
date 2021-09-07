@@ -44,8 +44,8 @@ def interface_caps(i):
 
 def run(args):
     # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
-    args.max_open_sessions = 100
-    args.max_open_sessions_hard = args.max_open_sessions + 20
+    args.max_open_sessions = 40
+    args.max_open_sessions_hard = args.max_open_sessions + 5
 
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
@@ -257,5 +257,6 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.initial_user_count = 1
     run(args)
