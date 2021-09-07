@@ -82,13 +82,13 @@ class DockerShim(infra.remote.CCFRemote):
                 )
 
         # Stop and delete existing container(s)
-        # First container with this label stops all other matching containers
-        if local_node_id == 0:
-            for c in self.docker_client.containers.list(filters={"label": [label]}):
-                c.stop()
-                LOG.debug(f"Stopped existing container {c.name}")
-
+        # First container with stops all other containers
         try:
+            if local_node_id == 0:
+                for _, c_info in self.network.attrs["Containers"].items():
+                    c = self.docker_client.containers.get(c_info["Name"])
+                    c.stop()
+                    LOG.debug(f"Stopped existing container {c.name}")
             c = self.docker_client.containers.get(self.container_name)
             c.stop()
             LOG.debug(f"Stopped container {self.container_name}")

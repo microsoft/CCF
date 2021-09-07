@@ -100,16 +100,22 @@ class Node:
         )
         self.consensus = None
 
+        if os.getenv("DOCKER_NODES"):
+            self.remote_shim = infra.remote_shim.DockerShim
+        else:
+            self.remote_shim = infra.remote_shim.PassThroughShim
+
         if isinstance(host, str):
             host = infra.e2e_args.HostSpec.from_str(host)
 
         if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
-            # TODO: Docker isn't happy with this for n2n connections
-            # if not self.major_version or self.major_version > 1:
-            #     self.node_client_host = str(
-            #         ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
-            #     )
+            # Node client address does not currently work with DockerShim
+            if self.remote_shim != infra.remote_shim.DockerShim:
+                if not self.major_version or self.major_version > 1:
+                    self.node_client_host = str(
+                        ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+                    )
         elif host.protocol == "ssh":
             self.remote_impl = infra.remote.SSHRemote
         else:
@@ -117,11 +123,7 @@ class Node:
 
         host_ = host.rpchost
         self.rpc_host, *port = host_.split(":")
-        self.rpc_port = (
-            int(port[0])
-            if port
-            else None  # infra.net.probably_free_local_port(self.rpc_host)
-        )
+        self.rpc_port = int(port[0]) if port else None
         if self.rpc_host == "localhost":
             self.rpc_host = infra.net.expand_localhost()
 
@@ -134,9 +136,7 @@ class Node:
             self.pubport = self.rpc_port
 
         self.node_host = self.rpc_host
-        self.node_port = (
-            node_port  # or infra.net.probably_free_local_port(self.node_host)
-        )
+        self.node_port = node_port
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
@@ -237,12 +237,7 @@ class Node:
             kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
 
-        if os.getenv("DOCKER_NODES"):
-            remote_shim = infra.remote_shim.DockerShim
-        else:
-            remote_shim = infra.remote_shim.PassThroughShim
-
-        self.remote = remote_shim(
+        self.remote = self.remote_shim(
             start_type,
             lib_path,
             enclave_type,
@@ -313,9 +308,10 @@ class Node:
         with open(node_address_path, "r", encoding="utf-8") as f:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
-            # assert (
-            #     node_host == self.node_host
-            # ), f"Unexpected change in node address from {self.node_host} to {node_host}"
+            if self.remote_shim != infra.remote_shim.DockerShim:
+                assert (
+                    node_host == self.node_host
+                ), f"Unexpected change in node address from {self.node_host} to {node_host}"
             if self.node_port is None and self.node_port != 0:
                 self.node_port = node_port
                 assert (
@@ -330,9 +326,10 @@ class Node:
             for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
                 rpc_port = int(rpc_port)
                 if i == 0:
-                    # assert (
-                    #     rpc_host == self.rpc_host
-                    # ), f"Unexpected change in RPC address from {self.rpc_host} to {rpc_host}"
+                    if self.remote_shim != infra.remote_shim.DockerShim:
+                        assert (
+                            rpc_host == self.rpc_host
+                        ), f"Unexpected change in RPC address from {self.rpc_host} to {rpc_host}"
                     if self.rpc_port is not None and self.rpc_port != 0:
                         assert (
                             rpc_port == self.rpc_port
