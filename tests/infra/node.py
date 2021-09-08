@@ -439,6 +439,9 @@ class Node:
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
+    def get_public_rpc_host(self):
+        return self.remote.pub_host
+
     def client(
         self, identity=None, signing_identity=None, interface_idx=None, **kwargs
     ):
@@ -453,7 +456,9 @@ class Node:
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
         if interface_idx is None:
-            return ccf.clients.client(self.remote.pub_host, self.pubport, **akwargs)
+            return ccf.clients.client(
+                self.get_public_rpc_host(), self.pubport, **akwargs
+            )
         else:
             try:
                 host, port = self.interfaces[interface_idx]

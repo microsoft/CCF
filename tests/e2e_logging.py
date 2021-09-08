@@ -64,9 +64,9 @@ def test_illegal(network, args, verify=True):
         )
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn = context.wrap_socket(
-            sock, server_side=False, server_hostname=primary.remote.pub_host
+            sock, server_side=False, server_hostname=primary.get_public_rpc_host()
         )
-        conn.connect((primary.rpc_host, primary.pubport))
+        conn.connect((primary.get_public_rpc_host(), primary.pubport))
         LOG.info(f"Sending: {content}")
         conn.sendall(content)
         response = HTTPResponse(conn)
@@ -1014,7 +1014,7 @@ def test_primary(network, args):
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
-            == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+            == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
         )
     return network
 
@@ -1033,7 +1033,7 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
-            assert node["host"] == n.pubhost
+            assert node["host"] == n.get_public_rpc_host()
             assert node["port"] == str(n.pubport)
             assert node["primary"] == (n == primary)
             del nodes_by_id[n.node_id]
@@ -1049,7 +1049,7 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             assert (
                 r.headers["location"]
-                == f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{node.node_id}"
+                == f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{node.node_id}"
             ), r.headers["location"]
 
             # Following that redirect gets you the node info
@@ -1057,7 +1057,7 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.OK.value
             body = r.body.json()
             assert body["node_id"] == node.node_id
-            assert body["host"] == node.pubhost
+            assert body["host"] == node.get_public_rpc_host()
             assert body["port"] == str(node.pubport)
             assert body["primary"] == (node == primary)
 
@@ -1071,7 +1071,7 @@ def test_network_node_info(network, args):
                 assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
                 assert (
                     r.headers["location"]
-                    == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+                    == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
                 ), r.headers["location"]
                 r = c.head("/node/primary", allow_redirects=True)
 
@@ -1081,7 +1081,7 @@ def test_network_node_info(network, args):
             r = c.get("/node/network/nodes/primary", allow_redirects=False)
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             actual = r.headers["location"]
-            expected = f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{primary.node_id}"
+            expected = f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{primary.node_id}"
             assert actual == expected, f"{actual} != {expected}"
 
             # Following that redirect gets you the primary's node info

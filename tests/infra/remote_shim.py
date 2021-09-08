@@ -91,9 +91,10 @@ class DockerShim(infra.remote.CCFRemote):
         try:
             if local_node_id == 0:
                 for c in self.docker_client.containers.list(
-                    filters={"label": CCF_TEST_CONTAINERS_LABEL}
+                    all=True, filters={"label": CCF_TEST_CONTAINERS_LABEL}
                 ):
                     c.stop()
+                    c.remove()
                     LOG.debug(f"Stopped existing container {c.name}")
             c = self.docker_client.containers.get(self.container_name)
             c.stop()
@@ -154,11 +155,13 @@ class DockerShim(infra.remote.CCFRemote):
             LOG.info(f"Pulling image {image_name}")
             self.docker_client.images.pull(image_name)
 
+        self.command = f'./docker_wrap.sh "{self.remote.get_cmd(include_dir=False)}"'
+
         self.container = self.docker_client.containers.create(
             image_name,
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
             devices=devices,
-            command=f'bash -c "exec {self.remote.get_cmd(include_dir=False)}"',
+            command=self.command,
             name=self.container_name,
             labels=[label, CCF_TEST_CONTAINERS_LABEL],
             publish_all_ports=True,
@@ -171,9 +174,15 @@ class DockerShim(infra.remote.CCFRemote):
         self.network.connect(self.container)
         LOG.debug(f"Created container {self.container_name} [{image_name}]")
 
+    def setup(self):
+        src_path = os.path.join(self.binary_dir, "docker_wrap.sh")
+        self.remote.setup()
+        self.remote.cp(src_path, self.remote.root)
+
     def start(self):
-        LOG.info(self.remote.get_cmd())
+        LOG.info(self.command)
         self.container.start()
+
         LOG.debug(f"Started container {self.container_name}")
 
     def stop(self):

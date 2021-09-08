@@ -422,7 +422,7 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] {}".format(self.hostname, cmd))
         return subprocess.call(cmd, shell=True)
 
-    def _cp(self, src_path, dst_path):
+    def cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
             assert self._rc("rm -rf {}".format(os.path.join(dst_path))) == 0
             assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
@@ -438,7 +438,7 @@ class LocalRemote(CmdMixin):
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = os.path.join(self.root, os.path.basename(path))
-            self._cp(path, dst_path)
+            self.cp(path, dst_path)
 
     def get(
         self,
@@ -459,7 +459,7 @@ class LocalRemote(CmdMixin):
         if not pre_condition_func(path, os.listdir):
             raise RuntimeError("Pre-condition for getting remote files failed")
         target_name = target_name or os.path.basename(src_path)
-        self._cp(path, os.path.join(dst_path, target_name))
+        self.cp(path, os.path.join(dst_path, target_name))
 
     def list_files(self):
         return os.listdir(self.root)
@@ -511,7 +511,6 @@ class LocalRemote(CmdMixin):
         self._setup_files()
 
     def get_cmd(self, include_dir=True):
-        # cmd = " ".join(self.cmd)
         cmd = f"cd {self.root} && " if include_dir else ""
         cmd += f'{" ".join(self.cmd)} 1> {self.out} 2> {self.err}'
         return cmd
@@ -590,6 +589,7 @@ class CCFRemote(object):
         curve_id=None,
         client_connection_timeout_ms=None,
         version=None,
+        include_addresses=None,
         additional_raw_node_args=None,
     ):
         """
@@ -601,6 +601,7 @@ class CCFRemote(object):
         self.pem = f"{local_node_id}.pem"
         self.node_address_path = f"{local_node_id}.node_address"
         self.rpc_address_path = f"{local_node_id}.rpc_address"
+        self.binary_dir = binary_dir
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
@@ -649,11 +650,9 @@ class CCFRemote(object):
             bin_path,
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
-            f"--node-address={make_address(node_host, node_port)}",
             f"--node-address-file={self.node_address_path}",
             f"--rpc-address={make_address(rpc_host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
-            f"--public-rpc-address={make_address(pub_host, rpc_port)}",
             f"--ledger-dir={self.ledger_dir_name}",
             f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
@@ -662,6 +661,12 @@ class CCFRemote(object):
             f"--consensus={consensus}",
             f"--worker-threads={worker_threads}",
         ]
+
+        if include_addresses:
+            cmd += [
+                f"--node-address={make_address(node_host, node_port)}",
+                f"--public-rpc-address={make_address(pub_host, rpc_port)}",
+            ]
 
         if node_client_host:
             cmd += [f"--node-client-interface={node_client_host}"]
