@@ -11,6 +11,11 @@ import infra.proc
 import infra.remote_client
 import infra.rates
 import cimetrics.upload
+import threading
+import copy
+from typing import List
+import sys
+import better_exceptions
 
 from loguru import logger as LOG
 
@@ -200,3 +205,88 @@ def run(get_command, args):
                 for remote_client in clients:
                     remote_client.stop()
                 raise
+
+
+FAILURES = []
+
+
+def log_exception(args: threading.ExceptHookArgs):
+    description = f"Failure in {args.thread.name}: {repr(args.exc_value)}"
+    FAILURES.append(description)
+    LOG.error(
+        description
+        + "\n"
+        + "\n".join(
+            better_exceptions.format_exception(
+                args.exc_type, args.exc_value, args.exc_traceback
+            )
+        )
+    )
+
+
+threading.excepthook = log_exception
+
+
+class ConcurrentRunner:
+    threads: List[threading.Thread] = []
+
+    def __init__(self, add_options=None) -> None:
+        def add(parser):
+            parser.add_argument(
+                "-N",
+                help="List all sub-tests",
+                action="store_true",
+            )
+            parser.add_argument(
+                "-R", help="Run sub-tests whose name includes this string"
+            )
+            if add_options:
+                add_options(parser)
+
+        self.args = infra.e2e_args.cli_args(add=add)
+
+    def add(self, prefix, target, **args_overrides):
+        args_ = copy.deepcopy(self.args)
+        for k, v in args_overrides.items():
+            setattr(args_, k, v)
+        args_.label = f"{prefix}_{self.args.label}"
+        self.threads.append(threading.Thread(name=prefix, target=target, args=[args_]))
+
+    def run(self, max_concurrent=None):
+        config = {
+            "handlers": [
+                {
+                    "sink": sys.stderr,
+                    "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <red>{{{thread.name}}}</red> <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+                }
+            ]
+        }
+        LOG.configure(**config)
+
+        if self.args.N:
+            for thread in self.threads:
+                print(thread)
+            return
+
+        if self.args.R:
+            self.threads = [
+                thread for thread in self.threads if self.args.R in thread.name
+            ]
+
+        if max_concurrent is None:
+            max_concurrent = len(self.threads)
+
+        thread_groups = [
+            self.threads[i : i + max_concurrent]
+            for i in range(0, len(self.threads), max_concurrent)
+        ]
+
+        for group in thread_groups:
+            for thread in group:
+                thread.start()
+
+            for thread in group:
+                thread.join()
+
+        if FAILURES:
+            raise Exception(FAILURES)

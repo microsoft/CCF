@@ -11,3 +11,4 @@ python-iptables
 py-spy
 GitPython
 docker
+better_exceptions

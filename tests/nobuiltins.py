@@ -1,7 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.e2e_args
-import infra.network
 from ccf.tx_id import TxID
 from http import HTTPStatus
 import openapi_spec_validator
@@ -59,19 +57,3 @@ def test_nobuiltins_endpoints(network, args):
                 node_id in known_node_ids
             ), f"Response contains '{node_id}', which is not in known IDs: {known_node_ids}"
             assert node_info["quote_format"] == "OE_SGX_v1"
-
-
-def run(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_join(args)
-
-        test_nobuiltins_endpoints(network, args)
-
-
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
