@@ -7,7 +7,6 @@ import re
 import os
 import pathlib
 import grp
-import ipaddress
 import infra.github
 
 
@@ -68,6 +67,7 @@ class DockerShim(infra.remote.CCFRemote):
 
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.DockerClient()
+        self.container_ip = None  # Assigned when container is started
 
         label = kwargs.get("label")
         local_node_id = kwargs.get("local_node_id")
@@ -101,7 +101,7 @@ class DockerShim(infra.remote.CCFRemote):
         # Stop and delete existing container(s)
         if local_node_id == 0:
             for c in self.docker_client.containers.list(
-                all=True, filters={"label": CCF_TEST_CONTAINERS_LABEL, "label": label}
+                all=True, filters={"label": [CCF_TEST_CONTAINERS_LABEL, label]}
             ):
                 self._stop_container(c)
 
