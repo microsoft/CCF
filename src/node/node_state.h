@@ -367,11 +367,11 @@ namespace ccf
             open_frontend(ActorsType::members);
           }
 
-          setup_snapshotter();
           setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
           setup_history();
+          setup_snapshotter();
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -552,7 +552,6 @@ namespace ccf
                 resp.network_info->endorsed_certificate.value();
             }
 
-            setup_snapshotter();
             setup_encryptor();
             setup_consensus(
               resp.network_info->service_status.value_or(
@@ -561,6 +560,7 @@ namespace ccf
               n2n_channels_cert);
             setup_progress_tracker();
             setup_history();
+            setup_snapshotter();
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
@@ -2106,7 +2106,7 @@ namespace ccf
     void setup_snapshotter()
     {
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshot_tx_interval);
+        writer_factory, network.tables, history, config.snapshot_tx_interval);
     }
 
     void setup_tracker_store()

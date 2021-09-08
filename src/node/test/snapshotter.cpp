@@ -5,6 +5,8 @@
 
 #include "ds/logger.h"
 #include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
+#include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -15,6 +17,7 @@
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 constexpr auto buffer_size = 1024 * 16;
+auto kp = crypto::make_key_pair();
 
 using StringString = kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
@@ -57,6 +60,9 @@ void issue_transactions(ccf::NetworkState& network, size_t tx_count)
 TEST_CASE("Regular snapshotting")
 {
   ccf::NetworkState network;
+  std::shared_ptr<kv::TxHistory> history =
+    std::make_shared<ccf::MerkleTxHistory>(
+      *network.tables.get(), kv::test::PrimaryNodeId, *kp);
 
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -71,7 +77,7 @@ TEST_CASE("Regular snapshotting")
   issue_transactions(network, snapshot_tx_interval * interval_count);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
+    *writer_factory, network.tables, history, snapshot_tx_interval);
 
   REQUIRE_FALSE(snapshotter->record_committable(snapshot_tx_interval - 1));
   REQUIRE(snapshotter->record_committable(snapshot_tx_interval));
@@ -147,6 +153,9 @@ TEST_CASE("Regular snapshotting")
 TEST_CASE("Commit snapshot evidence")
 {
   ccf::NetworkState network;
+  std::shared_ptr<kv::TxHistory> history =
+    std::make_shared<ccf::MerkleTxHistory>(
+      *network.tables.get(), kv::test::PrimaryNodeId, *kp);
 
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -159,7 +168,7 @@ TEST_CASE("Commit snapshot evidence")
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
+    *writer_factory, network.tables, history, snapshot_tx_interval);
 
   INFO("Generate snapshot");
   {
@@ -194,6 +203,9 @@ TEST_CASE("Commit snapshot evidence")
 TEST_CASE("Rollback before evidence is committed")
 {
   ccf::NetworkState network;
+  std::shared_ptr<kv::TxHistory> history =
+    std::make_shared<ccf::MerkleTxHistory>(
+      *network.tables.get(), kv::test::PrimaryNodeId, *kp);
 
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -206,7 +218,7 @@ TEST_CASE("Rollback before evidence is committed")
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network.tables, snapshot_tx_interval);
+    *writer_factory, network.tables, history, snapshot_tx_interval);
 
   INFO("Generate snapshot");
   {
