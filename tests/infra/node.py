@@ -482,8 +482,15 @@ class Node:
                 raise
             return ccf.clients.client(host, port, **akwargs)
 
-    def get_tls_certificate_pem(self):
-        return ssl.get_server_certificate((self.get_public_rpc_host(), self.rpc_port))
+    def get_tls_certificate_pem(self, use_public_rpc_host=True):
+        return ssl.get_server_certificate(
+            (
+                self.get_public_rpc_host()
+                if use_public_rpc_host
+                else self.rpc_host,
+                self.rpc_port,
+            )
+        )
 
     def suspend(self):
         assert not self.suspended

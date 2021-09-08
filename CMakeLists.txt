@@ -681,7 +681,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
     CONSENSUS cft
     LABEL e2e
-    DOCKER_NODES TRUE
     ADDITIONAL_ARGS ${LTS_TEST_ARGS}
   )
 
