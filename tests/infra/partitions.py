@@ -122,7 +122,7 @@ class Partitioner:
         # Isolates node server socket
         server_rule = {
             **base_rule,
-            "dst": node.host,
+            "dst": node.node_host,
             "tcp": {"dport": str(node.node_port)},
         }
 
@@ -137,7 +137,7 @@ class Partitioner:
         # If there is one, only isolate from specific node
         if other:
             server_rule["src"] = other.node_client_host
-            client_rule["dst"] = other.host
+            client_rule["dst"] = other.node_host
             name += f" from node {other.local_node_id}"
 
         if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, server_rule):

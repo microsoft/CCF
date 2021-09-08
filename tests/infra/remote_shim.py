@@ -58,6 +58,14 @@ class PassThroughShim(infra.remote.CCFRemote):
 # No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment (e.g. docker CI):
 # file permission issues, and cannot connect to docker daemon
 class DockerShim(infra.remote.CCFRemote):
+    def _stop_container(self, container):
+        try:
+            container.stop()
+            container.remove()
+            LOG.info(f"Stopped container {container.name}")
+        except docker.errors.NotFound:
+            pass
+
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.DockerClient()
 
@@ -91,18 +99,11 @@ class DockerShim(infra.remote.CCFRemote):
                 )
 
         # Stop and delete existing container(s)
-        try:
-            if local_node_id == 0:
-                for c in self.docker_client.containers.list(
-                    filters={"label": CCF_TEST_CONTAINERS_LABEL, "label": label}
-                ):
-                    c.stop()
-                    LOG.debug(f"Stopped existing container {c.name}")
-            c = self.docker_client.containers.get(self.container_name)
-            c.stop()
-            LOG.debug(f"Stopped container {self.container_name}")
-        except docker.errors.NotFound:
-            pass
+        if local_node_id == 0:
+            for c in self.docker_client.containers.list(
+                all=True, filters={"label": CCF_TEST_CONTAINERS_LABEL, "label": label}
+            ):
+                self._stop_container(c)
 
         LOG.debug(
             f'Network {self.network.name} [{self.network.attrs["IPAM"]["Config"][0]["Gateway"]}]'
@@ -159,7 +160,7 @@ class DockerShim(infra.remote.CCFRemote):
             user=f"{os.getuid()}:{gid}",
             working_dir=self.remote.root,
             detach=True,
-            auto_remove=True,  # Container is automatically removed on stop
+            auto_remove=True,
         )
         self.network.connect(self.container)
         LOG.debug(f"Created container {self.container_name} [{image_name}]")
@@ -183,8 +184,7 @@ class DockerShim(infra.remote.CCFRemote):
 
     def stop(self):
         try:
-            self.container.stop()
-            LOG.debug(f"Stopped container {self.container_name}")
+            self._stop_container(self.container)
         except docker.errors.NotFound:
             pass
         return self.remote.get_logs()

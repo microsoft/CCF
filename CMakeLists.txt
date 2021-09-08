@@ -437,7 +437,7 @@ if(BUILD_TESTS)
     )
 
     add_test(NAME versionifier_test
-             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/ccf/versionifier.py
+             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
     )
   endif()
 

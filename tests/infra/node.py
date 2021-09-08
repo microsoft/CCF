@@ -15,7 +15,9 @@ import socket
 import re
 import ipaddress
 import ssl
-import ccf.versionifier
+
+# pylint: disable=import-error, no-name-in-module
+from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
@@ -68,6 +70,10 @@ def get_snapshot_seqnos(file_name):
     return int(seqnos[0]), int(seqnos[1])
 
 
+def strip_version_suffix(full_version):
+    return full_version.split("-")[0]
+
+
 class Node:
     # Default to using httpx
     curl = False
@@ -97,7 +103,7 @@ class Node:
         self.interfaces = []
         self.version = version
         self.major_version = (
-            ccf.versionifier.to_python_version(self.version).release[0]
+            Version(strip_version_suffix(self.version)).release[0]
             if self.version is not None
             else None
         )
@@ -477,7 +483,7 @@ class Node:
             return ccf.clients.client(host, port, **akwargs)
 
     def get_tls_certificate_pem(self):
-        return ssl.get_server_certificate((self.host, self.rpc_port))
+        return ssl.get_server_certificate((self.get_public_rpc_host(), self.rpc_port))
 
     def suspend(self):
         assert not self.suspended
