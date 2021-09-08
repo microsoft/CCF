@@ -701,7 +701,6 @@ if(BUILD_TESTS)
     NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
-    DOCKER_NODES TRUE
     ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
   )
 
