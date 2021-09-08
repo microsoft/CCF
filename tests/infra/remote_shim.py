@@ -37,6 +37,8 @@ DOCKER_NETWORK_NAME_LOCAL = "ccf_test_docker_network"
 # Identifier for all CCF test containers
 CCF_TEST_CONTAINERS_LABEL = "ccf_test"
 
+NODE_STARTUP_WRAPPER_SCRIPT = "docker_wrap.sh"
+
 
 def kernel_has_sgx_builtin():
     with open("/proc/cpuinfo", "r", encoding="utf-8") as cpu_info:
@@ -53,8 +55,8 @@ class PassThroughShim(infra.remote.CCFRemote):
 
 
 # Current limitations, which should be overcomable:
-# 1. No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment
-# 2. No support for concurrent test: all nodes containers attach to the same network at pre-defined IPs
+# No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment (e.g. docker CI):
+# file permission issues, and cannot connect to docker daemon
 class DockerShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         self.docker_client = docker.DockerClient()
@@ -83,6 +85,7 @@ class DockerShim(infra.remote.CCFRemote):
                     DOCKER_NETWORK_NAME_LOCAL
                 )
             except docker.errors.NotFound:
+                LOG.debug(f"Creating network {DOCKER_NETWORK_NAME_LOCAL}")
                 self.network = self.docker_client.networks.create(
                     DOCKER_NETWORK_NAME_LOCAL
                 )
@@ -102,28 +105,11 @@ class DockerShim(infra.remote.CCFRemote):
         except docker.errors.NotFound:
             pass
 
-        # Pre-determine IP address of container based on network.
-        # This is necessary since the CCF node needs to bind to known addresses
-        # at start-up, and the container IP address is not known until the container
-        # is started.
-        ip_address_offset = 2 if is_docker_env() else 1  # Not ideal...
-        self.container_ip = str(
-            ipaddress.ip_address(self.network.attrs["IPAM"]["Config"][0]["Gateway"])
-            + local_node_id
-            + ip_address_offset
+        LOG.debug(
+            f'Network {self.network.name} [{self.network.attrs["IPAM"]["Config"][0]["Gateway"]}]'
         )
 
-        LOG.debug(f"Network {self.network.name} [{self.container_ip}]")
-
-        # Bind local RPC address to 0.0.0.0, so it be can be accessed from outside container
-        kwargs["rpc_host"] = "0.0.0.0"
-        kwargs["pub_host"] = self.container_ip
-        kwargs["node_host"] = self.container_ip
-
-        super().__init__(*args, **kwargs)
-
         # Group and device for kernel sgx builtin support (or not)
-        # TODO: Does not quite yet work locally inside docker (file permission issues, and cannot connect to docker daemon)
         if kernel_has_sgx_builtin():
             gid = grp.getgrnam("sgx_prv").gr_gid
             devices = (
@@ -155,7 +141,12 @@ class DockerShim(infra.remote.CCFRemote):
             LOG.info(f"Pulling image {image_name}")
             self.docker_client.images.pull(image_name)
 
-        self.command = f'./docker_wrap.sh "{self.remote.get_cmd(include_dir=False)}"'
+        # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
+        kwargs["rpc_host"] = "0.0.0.0"
+        kwargs["include_addresses"] = False
+        super().__init__(*args, **kwargs)
+
+        self.command = f'./{NODE_STARTUP_WRAPPER_SCRIPT} "{self.remote.get_cmd(include_dir=False)}"'
 
         self.container = self.docker_client.containers.create(
             image_name,
@@ -163,6 +154,7 @@ class DockerShim(infra.remote.CCFRemote):
             devices=devices,
             command=self.command,
             name=self.container_name,
+            init=True,
             labels=[label, CCF_TEST_CONTAINERS_LABEL],
             publish_all_ports=True,
             user=f"{os.getuid()}:{gid}",
@@ -170,20 +162,26 @@ class DockerShim(infra.remote.CCFRemote):
             detach=True,
             auto_remove=True,  # Container is automatically removed on stop
         )
-
         self.network.connect(self.container)
         LOG.debug(f"Created container {self.container_name} [{image_name}]")
 
     def setup(self):
-        src_path = os.path.join(self.binary_dir, "docker_wrap.sh")
+        src_path = os.path.join(self.binary_dir, NODE_STARTUP_WRAPPER_SCRIPT)
         self.remote.setup()
         self.remote.cp(src_path, self.remote.root)
 
     def start(self):
         LOG.info(self.command)
         self.container.start()
+        self.container.reload()  # attrs are cached
+        self.container_ip = self.container.attrs["NetworkSettings"]["Networks"][
+            self.network.name
+        ]["IPAddress"]
 
-        LOG.debug(f"Started container {self.container_name}")
+        LOG.debug(f"Started container {self.container_name} [{self.container_ip}]")
+
+    def get_host(self):
+        return self.container_ip
 
     def stop(self):
         try:

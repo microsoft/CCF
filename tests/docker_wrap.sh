@@ -13,7 +13,7 @@
 
 set -e
 
-cmd=$@
+cmd=$*
 container_ip=$(hostname -i | cut -d " " -f 2) # Network container IP address
 addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"
 
@@ -24,7 +24,7 @@ for c in " start " " join" " recover "; do
     fi
 done
 
-if [ -z ${startup_cmd} ]; then
+if [ -z "${startup_cmd}" ]; then
     echo "Command does not container valid cchost startup command"
     exit 1
 fi

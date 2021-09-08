@@ -589,7 +589,7 @@ class CCFRemote(object):
         curve_id=None,
         client_connection_timeout_ms=None,
         version=None,
-        include_addresses=None,
+        include_addresses=True,
         additional_raw_node_args=None,
     ):
         """
@@ -864,7 +864,7 @@ class CCFRemote(object):
     def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
         return self.remote.get_logs(tail_lines_len=tail_lines_len)
 
-    def get_rpc_host(self):
+    def get_host(self):
         return self.pub_host
 
 

@@ -440,7 +440,7 @@ class Node:
         return {"signing_auth": self.identity(name)}
 
     def get_public_rpc_host(self):
-        return self.remote.pub_host
+        return self.remote.get_host()
 
     def client(
         self, identity=None, signing_identity=None, interface_idx=None, **kwargs
