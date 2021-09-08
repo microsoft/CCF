@@ -166,7 +166,7 @@ class DockerShim(infra.remote.CCFRemote):
         LOG.debug(f"Created container {self.container_name} [{image_name}]")
 
     def setup(self):
-        src_path = os.path.join(self.binary_dir, NODE_STARTUP_WRAPPER_SCRIPT)
+        src_path = os.path.join(".", NODE_STARTUP_WRAPPER_SCRIPT)
         self.remote.setup()
         self.remote.cp(src_path, self.remote.root)
 
@@ -184,7 +184,14 @@ class DockerShim(infra.remote.CCFRemote):
 
     def stop(self):
         try:
-            self._stop_container(self.container)
+            self.container.stop()
+            LOG.info(f"Stopped container {self.container.name}")
         except docker.errors.NotFound:
             pass
         return self.remote.get_logs()
+
+    def suspend(self):
+        self.container.pause()
+
+    def resume(self):
+        self.container.unpause()

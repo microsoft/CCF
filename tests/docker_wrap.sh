@@ -17,6 +17,9 @@ cmd=$*
 container_ip=$(hostname -i | cut -d " " -f 2) # Network container IP address
 addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"
 
+# Required for 1.x releases
+addresses="${addresses} --san=iPAddress:${container_ip}"
+
 startup_cmd=""
 for c in " start " " join" " recover "; do
     if [[ $cmd == *"${c}"* ]]; then
