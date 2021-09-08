@@ -94,10 +94,9 @@ class DockerShim(infra.remote.CCFRemote):
         try:
             if local_node_id == 0:
                 for c in self.docker_client.containers.list(
-                    all=True, filters={"label": CCF_TEST_CONTAINERS_LABEL}
+                    filters={"label": CCF_TEST_CONTAINERS_LABEL, "label": label}
                 ):
                     c.stop()
-                    c.remove()
                     LOG.debug(f"Stopped existing container {c.name}")
             c = self.docker_client.containers.get(self.container_name)
             c.stop()
@@ -177,7 +176,6 @@ class DockerShim(infra.remote.CCFRemote):
         self.container_ip = self.container.attrs["NetworkSettings"]["Networks"][
             self.network.name
         ]["IPAddress"]
-
         LOG.debug(f"Started container {self.container_name} [{self.container_ip}]")
 
     def get_host(self):

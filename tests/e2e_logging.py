@@ -30,8 +30,6 @@ import urllib.parse
 import random
 import re
 import infra.crypto
-import threading
-import copy
 from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
@@ -1285,14 +1283,6 @@ def run(args):
         if args.package == "liblogging":
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
-
-
-def create_test_thread(prefix, target, args, **args_overrides):
-    args_ = copy.deepcopy(args)
-    for k, v in args_overrides.items():
-        setattr(args_, k, v)
-    args_.label = f"{prefix}_{args.label}"
-    return threading.Thread(name=prefix, target=target, args=[args_])
 
 
 if __name__ == "__main__":
