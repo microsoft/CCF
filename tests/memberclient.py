@@ -95,19 +95,12 @@ def test_corrupted_signature(network, args):
             nc.wait_for_commit(r)
 
         with node.client(*member.auth(write=True)) as mc:
-            # pylint: disable=protected-access
-
-            # Cache the original auth provider
-            original_auth = ccf.clients.RequestClient._auth_provider
-
             # Override the auth provider with invalid ones
             for fn in (missing_signature, empty_signature, modified_signature):
-                ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
+                # pylint: disable=protected-access
+                mc.client_impl._auth_provider = make_signature_corrupter(fn)
                 r = mc.post("/gov/proposals", '{"actions": []}')
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-
-            # Restore original auth provider for future calls!
-            ccf.clients.RequestClient._auth_provider = original_auth
 
         # Remove the new member once we're done with them
         network.consortium.remove_member(node, member)
@@ -246,10 +239,3 @@ def run(args):
         network = test_missing_signature_header(network, args)
         network = test_corrupted_signature(network, args)
         network = test_governance(network, args)
-
-
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
