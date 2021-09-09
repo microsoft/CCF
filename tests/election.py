@@ -8,6 +8,8 @@ import infra.proc
 import infra.e2e_args
 import infra.checker
 import suite.test_requirements as reqs
+from infra.runner import ConcurrentRunner
+import copy
 
 from loguru import logger as LOG
 
@@ -92,8 +94,27 @@ def run(args):
 
 if __name__ == "__main__":
 
-    args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.raft_election_timeout_ms = 500
-    run(args)
+    cr = ConcurrentRunner()
+
+    args = copy.deepcopy(cr.args)
+
+    args.consensus = "cft"
+    cr.add(
+        "cft",
+        run,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(args, f=1),
+        raft_election_timeout_ms=500,
+        consensus="cft",
+    )
+
+    args.consensus = "bft"
+    cr.add(
+        "bft",
+        run,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(args, f=1),
+        consensus="bft",
+    )
+
+    cr.run()
