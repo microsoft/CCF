@@ -183,6 +183,12 @@ namespace kv
       ReconfigurationId rid,
       const ccf::ResharingResult& result) = 0;
     virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) = 0;
+    virtual void record_signature(
+      kv::Version version,
+      const crypto::Sha256Hash& root,
+      const std::vector<uint8_t>& sig) = 0;
+    virtual void record_serialised_tree(
+      kv::Version version, const std::vector<uint8_t>& tree) = 0;
   };
 
   class ConsensusHook

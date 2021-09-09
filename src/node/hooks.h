@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "node/signatures.h"
 
 namespace ccf
 {
@@ -116,6 +117,49 @@ namespace ccf
       {
         consensus->reconfigure(version, nc);
       }
+    }
+  };
+
+  class SignaturesHook : public kv::ConsensusHook
+  {
+    kv::Version version;
+    PrimarySignature sig;
+
+  public:
+    SignaturesHook(kv::Version version_, const Signatures::Write& w) :
+      version(version_)
+    {
+      assert(w.size() == 1);
+      version = version_;
+      sig = w.begin()->second;
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      consensus->record_signature(version, sig.root, sig.sig);
+    }
+  };
+
+  // TODO: Write comment to explain that the two tables are separate because
+  // they don't use the same serialisation format
+  class SerialisedMerkleTreeHook : public kv::ConsensusHook
+  {
+    kv::Version version;
+    std::vector<uint8_t> tree;
+
+  public:
+    SerialisedMerkleTreeHook(
+      kv::Version version_, const SerialisedMerkleTree::Write& w) :
+      version(version_)
+    {
+      assert(w.size() == 1);
+      version = version_;
+      tree = w.begin();
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      consensus->record_serialised_tree(version, tree);
     }
   };
 

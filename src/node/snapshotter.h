@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/historical_queries_interface.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
@@ -126,6 +127,7 @@ namespace ccf
         snapshot_hash);
     }
 
+    // TODO: This can probably be simplfied as no longer need for double commit
     void update_indices(consensus::Index idx)
     {
       while ((next_snapshot_indices.size() > 1) &&
@@ -141,6 +143,9 @@ namespace ccf
         {
           if (idx > it->evidence_commit_idx.value())
           {
+            auto proof = history->get_proof(it->evidence_idx);
+            ccf::Receipt receipt;
+
             commit_snapshot(it->idx, idx);
             auto it_ = it;
             it++;
@@ -204,6 +209,7 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
+    // TODO: Merkle with record signature
     bool record_committable(consensus::Index idx)
     {
       // Returns true if the committable idx will require the generation of a
@@ -218,6 +224,20 @@ namespace ccf
       }
 
       return false;
+    }
+
+    void record_signature(
+      consensus::Index idx,
+      const crypto::Sha256Hash& root,
+      const std::vector<uint8_t>& sig)
+    {
+      LOG_FAIL_FMT("Recording signature at {}", idx);
+    }
+
+    void record_serialised_tree(
+      consensus::Index idx, const std::vector<uint8_t>& tree)
+    {
+      LOG_FAIL_FMT("Recording tree at {}", idx);
     }
 
     void commit(consensus::Index idx, bool generate_snapshot)

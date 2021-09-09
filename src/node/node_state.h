@@ -2089,6 +2089,22 @@ namespace ccf
             return std::make_unique<ResharingsHook>(version, w);
           }));
 
+      network.tables->set_map_hook(
+        network.signatures.get_name(),
+        network.signatures.wrap_map_hook(
+          [](kv::Version version, const Signatures::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<SignaturesHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.serialise_tree.get_name(),
+        network.serialise_tree.wrap_map_hook(
+          [](kv::Version version, const SerialisedMerkleTree::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<SerialisedMerkleTreeHook>(version, w);
+          }));
+
       setup_basic_hooks();
     }
 
