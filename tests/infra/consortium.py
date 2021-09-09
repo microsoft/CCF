@@ -361,7 +361,8 @@ class Consortium:
     def add_users_and_transition_service_to_open(self, remote_node, users):
         proposal = {"actions": []}
         for user_id in users:
-            cert = open(self.user_cert_path(user_id)).read()
+            with open(self.user_cert_path(user_id), encoding="utf-8") as cf:
+                cert = cf.read()
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
         proposal["actions"].append({"name": "transition_service_to_open", "args": {}})
         proposal = self.get_any_active_member().propose(remote_node, proposal)
