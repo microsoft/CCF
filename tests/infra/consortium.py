@@ -364,7 +364,7 @@ class Consortium:
             with open(self.user_cert_path(user_id), encoding="utf-8") as cf:
                 cert = cf.read()
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
-        proposal["actions"].append({"name": "transition_service_to_open", "args": {}})
+        proposal["actions"].append({"name": "transition_service_to_open"})
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(
             remote_node,
