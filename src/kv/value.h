@@ -5,6 +5,7 @@
 #include "kv_types.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
+#include "unit.h"
 #include "value_handle.h"
 
 namespace kv

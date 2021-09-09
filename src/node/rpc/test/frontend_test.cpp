@@ -546,7 +546,7 @@ TEST_CASE("process_bft")
 
   auto tx = bft_network.tables->create_tx();
   auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-  auto request_value = aft_requests->get(0);
+  auto request_value = aft_requests->get();
   REQUIRE(request_value.has_value());
 
   aft::Request deserialised_req = request_value.value();

@@ -104,7 +104,7 @@ namespace ccf
       kv::CommittableTx tx(&store);
       auto backup_sig_view = tx.rw(backup_signatures);
 
-      backup_sig_view->put(0, sig_value);
+      backup_sig_view->put(sig_value);
       auto r = tx.commit();
       LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
       CCF_ASSERT_FMT(
@@ -117,7 +117,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto sigs_tv = tx.ro(backup_signatures);
-      auto sigs = sigs_tv->get(0);
+      auto sigs = sigs_tv->get();
       if (!sigs.has_value())
       {
         LOG_FAIL_FMT("No signatures found in signatures map");
@@ -130,7 +130,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto new_views_tv = tx.ro(new_views);
-      return new_views_tv->get(0);
+      return new_views_tv->get();
     }
 
     void write_nonces(aft::RevealedNonces& nonces) override
@@ -138,7 +138,7 @@ namespace ccf
       kv::CommittableTx tx(&store);
       auto nonces_tv = tx.rw(revealed_nonces);
 
-      nonces_tv->put(0, nonces);
+      nonces_tv->put(nonces);
       auto r = tx.commit();
       if (r != kv::CommitResult::SUCCESS)
       {
@@ -157,7 +157,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto nonces_tv = tx.ro(revealed_nonces);
-      auto nonces = nonces_tv->get(0);
+      auto nonces = nonces_tv->get();
       if (!nonces.has_value())
       {
         LOG_FAIL_FMT("No signatures found in signatures map");
@@ -217,7 +217,7 @@ namespace ccf
       kv::CommittableTx tx(&store);
       auto new_views_tv = tx.rw(new_views);
 
-      new_views_tv->put(0, new_view);
+      new_views_tv->put(new_view);
       auto r = tx.commit();
       if (r != kv::CommitResult::SUCCESS)
       {
