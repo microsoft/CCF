@@ -193,7 +193,7 @@ function(add_unit_test name)
   )
   add_san(${name})
 
-  add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
+  add_test(NAME ${name} COMMAND ${name})
   set_property(
     TEST ${name}
     APPEND
