@@ -52,26 +52,24 @@ export function resolve(proposal, proposer_id, votes) {
       votes[1].vote === false
     ) {
       return "Rejected";
-    } else {
-      // For all other proposals (i.e. the real ones), use member
-      // majority
-      const memberVoteCount = votes.filter((v) => v.vote).length;
-
-      let activeMemberCount = 0;
-      ccf.kv["public:ccf.gov.members.info"].forEach((v) => {
-        const info = ccf.bufToJsonCompatible(v);
-        if (info.status === "Active") {
-          activeMemberCount++;
-        }
-      });
-
-      // A majority of members can accept a proposal.
-      if (memberVoteCount > Math.floor(activeMemberCount / 2)) {
-        return "Accepted";
-      }
-
-      return "Open";
     }
+  }
+
+  // For all other proposals (i.e. the real ones), use member
+  // majority
+  const memberVoteCount = votes.filter((v) => v.vote).length;
+
+  let activeMemberCount = 0;
+  ccf.kv["public:ccf.gov.members.info"].forEach((v) => {
+    const info = ccf.bufToJsonCompatible(v);
+    if (info.status === "Active") {
+      activeMemberCount++;
+    }
+  });
+
+  // A majority of members can accept a proposal.
+  if (memberVoteCount > Math.floor(activeMemberCount / 2)) {
+    return "Accepted";
   }
 
   return "Open";
