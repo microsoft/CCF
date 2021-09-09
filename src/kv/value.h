@@ -35,9 +35,40 @@ namespace kv
     using WriteOnlyHandle = kv::WriteableValueHandle<V, VSerialiser, Unit>;
     using Handle = kv::ValueHandle<V, VSerialiser, Unit>;
 
+    using Write = std::optional<V>;
+    using MapHook = MapHook<Write>;
+    using CommitHook = CommitHook<Write>;
+
     using ValueSerialiser = VSerialiser;
 
     using NamedHandleMixin::NamedHandleMixin;
+
+  private:
+    static Write deserialise_write(const kv::untyped::Write& w)
+    {
+      assert(w.size() == 1); // Value contains only one element
+      const auto& value = w.begin()->second;
+      if (!value.has_value())
+      {
+        return std::nullopt;
+      }
+      return VSerialiser::from_serialised(value.value());
+    }
+
+  public:
+    static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
+    {
+      return [hook](Version v, const kv::untyped::Write& w) {
+        hook(v, deserialise_write(w));
+      };
+    }
+
+    static kv::untyped::Map::MapHook wrap_map_hook(const MapHook& hook)
+    {
+      return [hook](Version v, const kv::untyped::Write& w) {
+        return hook(v, deserialise_write(w));
+      };
+    }
   };
 
   template <
