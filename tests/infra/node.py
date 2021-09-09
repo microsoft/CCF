@@ -70,8 +70,9 @@ def get_snapshot_seqnos(file_name):
     return int(seqnos[0]), int(seqnos[1])
 
 
-def strip_version_suffix(full_version):
-    return full_version.split("-")[0]
+def strip_version(full_version):
+    dash_offset = 1 if full_version.startswith("ccf-") else 0
+    return full_version.split("-")[dash_offset]
 
 
 class Node:
@@ -103,7 +104,7 @@ class Node:
         self.interfaces = []
         self.version = version
         self.major_version = (
-            Version(strip_version_suffix(self.version)).release[0]
+            Version(strip_version(self.version)).release[0]
             if self.version is not None
             else None
         )
@@ -485,9 +486,7 @@ class Node:
     def get_tls_certificate_pem(self, use_public_rpc_host=True):
         return ssl.get_server_certificate(
             (
-                self.get_public_rpc_host()
-                if use_public_rpc_host
-                else self.rpc_host,
+                self.get_public_rpc_host() if use_public_rpc_host else self.rpc_host,
                 self.rpc_port,
             )
         )
