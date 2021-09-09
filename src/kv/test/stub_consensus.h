@@ -161,6 +161,16 @@ namespace kv::test
       return false;
     }
 
+    void record_signature(
+      kv::Version version,
+      const crypto::Sha256Hash& root,
+      const std::vector<uint8_t>& sig) override
+    {}
+
+    void record_serialised_tree(
+      kv::Version version, const std::vector<uint8_t>& tree) override
+    {}
+
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       return {};
