@@ -301,9 +301,7 @@ class Consortium:
             )
             assert r.body.json()["status"] == expected
 
-    def trust_node(
-        self, remote_node, node_id, expected_status=NodeStatus.TRUSTED, timeout=3
-    ):
+    def trust_node(self, remote_node, node_id, timeout=3):
         if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
@@ -319,9 +317,11 @@ class Consortium:
             timeout=timeout,
         )
 
-        if not self._check_node_exists(remote_node, node_id, expected_status):
+        if not self._check_node_exists(
+            remote_node, node_id, NodeStatus.TRUSTED
+        ) and not self._check_node_exists(remote_node, node_id, NodeStatus.LEARNER):
             raise ValueError(
-                f"Node {node_id} does not exist in state {expected_status}"
+                f"Node {node_id} does not exist in state {NodeStatus.TRUSTED} or {NodeStatus.LEARNER}"
             )
 
     def remove_member(self, remote_node, member_to_remove):
@@ -552,6 +552,8 @@ class Consortium:
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.client() as c:
             r = c.get(f"/node/network/nodes/{node_id}")
+
+            print(f"r={r}")
 
             if r.status_code != http.HTTPStatus.OK.value or (
                 node_status and r.body.json()["status"] != node_status.value

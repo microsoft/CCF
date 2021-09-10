@@ -20,6 +20,7 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
@@ -860,7 +861,7 @@ namespace ccf
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
-          auto evidence = snapshot_evidence->get(0);
+          auto evidence = snapshot_evidence->get();
           if (!evidence.has_value())
           {
             throw std::logic_error("Invalid snapshot evidence");
@@ -1128,19 +1129,10 @@ namespace ccf
           [this](
             kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
             -> kv::ConsensusHookPtr {
-            if (w.size() > 1)
+            if (!w.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.encrypted_ledger_secrets.get_name()));
-            }
-
-            auto encrypted_ledger_secret_info = w.at(0);
-            if (!encrypted_ledger_secret_info.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Removal from {} table",
+                "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 
@@ -1810,19 +1802,12 @@ namespace ccf
             -> kv::ConsensusHookPtr {
             LedgerSecretsMap restored_ledger_secrets;
 
-            if (w.size() > 1)
-            {
-              throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.secrets.get_name()));
-            }
-
-            auto ledger_secrets_for_nodes = w.at(0);
+            const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Removal from {} table", network.secrets.get_name()));
+                "Unexpected removal from {} table",
+                network.secrets.get_name()));
             }
 
             for (const auto& [node_id, encrypted_ledger_secrets] :
@@ -1930,19 +1915,11 @@ namespace ccf
           [this](
             kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
             -> kv::ConsensusHookPtr {
-            if (w.size() > 1)
-            {
-              throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.encrypted_ledger_secrets.get_name()));
-            }
-
-            auto encrypted_ledger_secret_info = w.at(0);
+            auto encrypted_ledger_secret_info = w;
             if (!encrypted_ledger_secret_info.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Removal from {} table",
+                "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 
@@ -2027,9 +2004,16 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+
       auto resharing_tracker =
         std::make_shared<ccf::SplitIdentityResharingTracker>(
-          shared_state, rpc_map, node_sign_kp, self_signed_node_cert);
+          shared_state,
+          rpc_map,
+          node_sign_kp,
+          self_signed_node_cert,
+          endorsed_node_cert);
+      auto node_client = std::make_shared<HTTPNodeClient>(
+        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
@@ -2050,6 +2034,7 @@ namespace ccf
         request_tracker,
         std::move(view_change_tracker),
         std::move(resharing_tracker),
+        node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),

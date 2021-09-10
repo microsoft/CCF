@@ -8,24 +8,57 @@ import sys
 import os
 import subprocess
 import tempfile
+import hashlib
 from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 import struct
 import base64
 import re
 from typing import Union, Optional, List, Any
 from ccf.tx_id import TxID
 
-import requests
+import httpx
 from loguru import logger as LOG  # type: ignore
-from requests_http_signature import HTTPSignatureAuth  # type: ignore
 
 import ccf.commit
 from ccf.log_capture import flush_info
+
+
+class HttpSig(httpx.Auth):
+    requires_request_body = True
+
+    def __init__(self, key_id, pem_private_key):
+        self.key_id = key_id
+        self.private_key = load_pem_private_key(
+            pem_private_key, password=None, backend=default_backend()
+        )
+
+    def auth_flow(self, request):
+        body_digest = base64.b64encode(hashlib.sha256(request.content).digest()).decode(
+            "ascii"
+        )
+        request.headers["digest"] = f"SHA-256={body_digest}"
+        string_to_sign = "\n".join(
+            [
+                f"(request-target): {request.method.lower()} {request.url.raw_path.decode('utf-8')}",
+                f"digest: SHA-256={body_digest}",
+                f"content-length: {len(request.content)}",
+            ]
+        ).encode("utf-8")
+        signature = self.private_key.sign(
+            signature_algorithm=ec.ECDSA(algorithm=hashes.SHA256()), data=string_to_sign
+        )
+        b64signature = base64.b64encode(signature).decode("ascii")
+        request.headers[
+            "authorization"
+        ] = f'Signature keyId="{self.key_id}",algorithm="ecdsa-sha256",headers="(request-target) digest content-length",signature="{b64signature}"'
+        yield request
 
 
 loguru_tag_regex = re.compile(r"\\?</?((?:[fb]g\s)?[^<>\s]*)>")
@@ -125,7 +158,7 @@ class ResponseBody(abc.ABC):
 
 
 class RequestsResponseBody(ResponseBody):
-    def __init__(self, response: requests.Response):
+    def __init__(self, response: httpx.Response):
         self._response = response
 
     def data(self):
@@ -258,7 +291,9 @@ class CurlClient:
     These commands could also be run manually, or used by another client tool.
     """
 
-    def __init__(self, host, port, ca=None, session_auth=None, signing_auth=None):
+    def __init__(
+        self, host, port, ca=None, session_auth=None, signing_auth=None, **kwargs
+    ):
         self.host = host
         self.port = port
         self.ca = ca
@@ -341,21 +376,8 @@ class CurlClient:
 
             return Response.from_raw(rc.stdout)
 
-
-class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
-    """
-    Support for HTTP signatures with empty body.
-    """
-
-    def add_digest(self, request):
-        # Add digest of empty body, never leave it blank
-        if request.body is None:
-            if "digest" not in self.headers:
-                self.headers.append("digest")
-            digest = self.hasher_constructor(b"").digest()
-            request.headers["Digest"] = "SHA-256=" + base64.b64encode(digest).decode()
-        else:
-            super(HTTPSignatureAuth_AlwaysDigest, self).add_digest(request)
+    def close(self):
+        pass
 
 
 class RequestClient:
@@ -363,7 +385,7 @@ class RequestClient:
     CCF default client and wrapper around Python Requests, handling HTTP signatures.
     """
 
-    _auth_provider = HTTPSignatureAuth_AlwaysDigest
+    _auth_provider = HttpSig
 
     def __init__(
         self,
@@ -372,6 +394,7 @@ class RequestClient:
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -379,10 +402,10 @@ class RequestClient:
         self.session_auth = session_auth
         self.signing_auth = signing_auth
         self.key_id = None
-        self.session = requests.Session()
-        self.session.verify = self.ca
+        cert = None
         if self.session_auth:
-            self.session.cert = (self.session_auth.cert, self.session_auth.key)
+            cert = (self.session_auth.cert, self.session_auth.key)
+        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
         if self.signing_auth:
             with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
@@ -401,7 +424,7 @@ class RequestClient:
         extra_headers = {}
         extra_headers.update(request.headers)
 
-        auth_value = None
+        auth = None
         if self.signing_auth is not None:
             # Add content length of 0 when signing a GET request
             if request.http_verb == "GET":
@@ -414,11 +437,8 @@ class RequestClient:
                     )
                 else:
                     extra_headers["Content-Length"] = "0"
-            auth_value = RequestClient._auth_provider(
-                algorithm="ecdsa-sha256",
-                key=open(self.signing_auth.key, "rb").read(),
-                key_id=self.key_id,
-                headers=["(request-target)", "Digest", "Content-Length"],
+            auth = self._auth_provider(
+                self.key_id, open(self.signing_auth.key, "rb").read()
             )
 
         request_body = None
@@ -448,20 +468,23 @@ class RequestClient:
             response = self.session.request(
                 request.http_verb,
                 url=f"https://{self.host}:{self.port}{request.path}",
-                auth=auth_value,
+                auth=auth,
                 headers=extra_headers,
                 allow_redirects=request.allow_redirects,
                 timeout=timeout,
-                data=request_body,
+                content=request_body,
             )
-        except requests.exceptions.ReadTimeout as exc:
+        except httpx.ReadTimeout as exc:
             raise TimeoutError from exc
-        except requests.exceptions.SSLError as exc:
+        except httpx.NetworkError as exc:
             raise CCFConnectionException from exc
         except Exception as exc:
             raise RuntimeError("Request client failed with unexpected error") from exc
 
         return Response.from_requests_response(response)
+
+    def close(self):
+        self.session.close()
 
 
 class CCFClient:
@@ -480,6 +503,7 @@ class CCFClient:
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
+    :param dict kwargs: Keyword args to be forwarded to the client implementation.
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
@@ -495,6 +519,8 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
+        curl: bool = False,
+        **kwargs,
     ):
         self.connection_timeout = connection_timeout
         self.name = f"[{host}:{port}]"
@@ -503,10 +529,12 @@ class CCFClient:
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
 
-        if os.getenv("CURL_CLIENT"):
+        if curl or os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
         else:
-            self.client_impl = RequestClient(host, port, ca, session_auth, signing_auth)
+            self.client_impl = RequestClient(
+                host, port, ca, session_auth, signing_auth, **kwargs
+            )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)
@@ -673,7 +701,12 @@ class CCFClient:
 
         ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
+    def close(self):
+        self.client_impl.close()
+
 
 @contextlib.contextmanager
 def client(*args, **kwargs):
-    yield CCFClient(*args, **kwargs)
+    c = CCFClient(*args, **kwargs)
+    yield c
+    c.close()

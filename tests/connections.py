@@ -13,6 +13,7 @@ from ccf.clients import CCFConnectionException
 import random
 import http
 import functools
+import httpx
 
 from loguru import logger as LOG
 
@@ -43,8 +44,8 @@ def interface_caps(i):
 
 def run(args):
     # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
-    args.max_open_sessions = 100
-    args.max_open_sessions_hard = args.max_open_sessions + 20
+    args.max_open_sessions = 40
+    args.max_open_sessions_hard = args.max_open_sessions + 5
 
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
@@ -98,12 +99,21 @@ def run(args):
                 LOG.success(f"Creating {target} clients")
                 consecutive_failures = 0
                 i = 1
+                healthy_clients = []
                 while i <= target:
                     logs = []
                     try:
                         clients.append(
                             es.enter_context(
-                                client_fn(identity="user0", connection_timeout=1)
+                                client_fn(
+                                    identity="user0",
+                                    connection_timeout=1,
+                                    limits=httpx.Limits(
+                                        max_connections=1,
+                                        max_keepalive_connections=1,
+                                        keepalive_expiry=30,
+                                    ),
+                                )
                             )
                         )
                         r = clients[-1].post(
@@ -118,6 +128,7 @@ def run(args):
                             )
                             consecutive_failures = 0
                             i += 1
+                            healthy_clients.append(clients[-1])
                         elif r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE:
                             if continue_to_hard_cap:
                                 consecutive_failures = 0
@@ -149,14 +160,13 @@ def run(args):
                 LOG.success(
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
-
-                r = clients[-1].get("/node/metrics")
+                r = clients[0].get("/node/metrics")
                 assert r.status_code == http.HTTPStatus.OK, r.status_code
                 peak_metrics = r.body.json()["sessions"]
                 assert peak_metrics["active"] <= peak_metrics["peak"], peak_metrics
-                assert peak_metrics["active"] >= len(clients), (
+                assert peak_metrics["active"] == len(healthy_clients), (
                     peak_metrics,
-                    len(clients),
+                    len(healthy_clients),
                 )
 
                 # Submit many requests, and at least enough to trigger additional snapshots
@@ -165,7 +175,7 @@ def run(args):
                     f"Submitting an additional {more_requests} requests from existing clients"
                 )
                 for _ in range(more_requests):
-                    client = random.choice(clients)
+                    client = random.choice(healthy_clients)
                     logs = []
                     try:
                         client.post(
@@ -247,5 +257,6 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.initial_user_count = 1
     run(args)

@@ -7,7 +7,6 @@ import paramiko
 import subprocess
 from contextlib import contextmanager
 import infra.path
-import uuid
 import ctypes
 import signal
 import re
@@ -31,15 +30,6 @@ def _term_on_pdeathsig():
 def popen(*args, **kwargs):
     kwargs["preexec_fn"] = _term_on_pdeathsig
     return subprocess.Popen(*args, **kwargs)
-
-
-def coverage_enabled(binary):
-    return (
-        subprocess.run(
-            f"nm -C {binary} | grep __llvm_coverage_mapping", shell=True, check=False
-        ).returncode
-        == 0
-    )
 
 
 @contextmanager
@@ -757,12 +747,8 @@ class CCFRemote(object):
             )
 
         env = {}
-        self.profraw = None
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-            if coverage_enabled(lib_path):
-                self.profraw = f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
-                env["LLVM_PROFILE_FILE"] = self.profraw
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
         if oe_log_level:
@@ -809,11 +795,6 @@ class CCFRemote(object):
             errors, fatal_errors = self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
-        if self.profraw:
-            try:
-                self.remote.get(self.profraw, self.common_dir)
-            except Exception:
-                LOG.info(f"Could not retrieve {self.profraw}")
         return errors, fatal_errors
 
     def check_done(self):

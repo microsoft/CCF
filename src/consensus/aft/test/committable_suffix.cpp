@@ -41,8 +41,7 @@ void keep_messages_for_multiple(
     }
     else
     {
-      ++it;
-      ++kept[it->first];
+      ++kept[it++->first];
     }
   }
 }
@@ -111,6 +110,7 @@ void keep_earliest_append_entries_for_each_target(
     nullptr, \
     nullptr, \
     std::make_shared<aft::State>(node_id##N), \
+    nullptr, \
     nullptr, \
     nullptr, \
     nullptr, \

@@ -14,6 +14,7 @@
 #include "node/network_state.h"
 #include "node/quote.h"
 #include "node/reconfig_id.h"
+#include "node/rpc/error.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
 
@@ -229,7 +230,13 @@ namespace ccf
       kv::NetworkConfiguration nc =
         get_latest_network_configuration(network, tx);
       nc.nodes.insert(joining_node_id);
-      add_new_network_reconfiguration(network, tx, nc);
+
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
+      {
+        add_new_network_reconfiguration(network, tx, nc);
+      }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -1313,6 +1320,84 @@ namespace ccf
         "/update-resharing",
         HTTP_POST,
         json_adapter(update_resharing),
+        {std::make_shared<NodeCertAuthnPolicy>()})
+        .set_forwarding_required(endpoints::ForwardingRequired::Always)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto orc_handler = [this](auto& args, const nlohmann::json& params) {
+        const auto in = params.get<ObservedReconfigurationCommit::In>();
+        LOG_DEBUG_FMT(
+          "ORC for configuration #{} from {}", in.reconfiguration_id, in.from);
+
+        if (consensus == nullptr)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::ConsensusTypeMismatch,
+            fmt::format("No consensus"));
+        }
+
+        if (consensus->type() != ConsensusType::BFT)
+        {
+          auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+          }
+
+          if (primary_id.value() != context.get_node_state().get_node_id())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::NodeCannotHandleRequest,
+              "Only the primary accepts ORCs");
+          }
+        }
+
+        if (consensus->orc(in.reconfiguration_id, in.from))
+        {
+          LOG_DEBUG_FMT(
+            "Configurations: sufficient number of ORCs, updating nodes in "
+            "configuration #{}",
+            in.reconfiguration_id);
+          auto ncfgs = args.tx.ro(network.network_configurations);
+          auto nodes = args.tx.rw(network.nodes);
+          auto nc = ncfgs->get(in.reconfiguration_id);
+          for (auto nid : nc->nodes)
+          {
+            auto node_info = nodes->get(nid);
+            if (!node_info.has_value())
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("Missing node information for {}", nid));
+            }
+
+            if (node_info->status == NodeStatus::LEARNER)
+            {
+              node_info->status = NodeStatus::TRUSTED;
+              nodes->put(nid, *node_info);
+            }
+            else if (node_info->status == NodeStatus::RETIRING)
+            {
+              node_info->status = NodeStatus::RETIRED;
+              nodes->put(nid, *node_info);
+            }
+          }
+        }
+
+        return make_success();
+      };
+
+      make_endpoint(
+        "/orc",
+        HTTP_POST,
+        json_adapter(orc_handler),
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)

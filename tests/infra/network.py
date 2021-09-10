@@ -636,14 +636,13 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args, expected_status=NodeStatus.TRUSTED):
+    def trust_node(self, node, args):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
-                    expected_status,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
@@ -740,14 +739,13 @@ class Network:
         logs = []
 
         asked_nodes = nodes or self.get_joined_nodes()
-
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in asked_nodes:
                 with node.client() as c:
                     try:
                         logs = []
-                        res = c.get("/node/network", log_capture=logs)
+                        res = c.get("/node/network", timeout=1, log_capture=logs)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
                         body = res.body.json()
@@ -756,7 +754,7 @@ class Network:
                         if primary_id is not None:
                             break
 
-                    except CCFConnectionException:
+                    except Exception:
                         LOG.warning(
                             f"Could not successfully connect to node {node.local_node_id}. Retrying..."
                         )

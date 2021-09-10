@@ -40,39 +40,38 @@ def test_missing_signature_header(network, args):
 
 
 def make_signature_corrupter(fn):
-    class SignatureCorrupter(ccf.clients.HTTPSignatureAuth_AlwaysDigest):
-        def __call__(self, request):
-            r = super(SignatureCorrupter, self).__call__(request)
-            return fn(r)
+    class SignatureCorrupter(ccf.clients.HttpSig):
+        def auth_flow(self, request):
+            yield fn(next(super(SignatureCorrupter, self).auth_flow(request)))
 
     return SignatureCorrupter
 
 
-signature_regex = 'signature="([^"]*)",'
+signature_regex = 'signature="([^"]*)"'
 
 
 def missing_signature(request):
-    original = request.headers["Authorization"]
-    request.headers["Authorization"] = re.sub(signature_regex, "", original)
+    original = request.headers["authorization"]
+    request.headers["authorization"] = re.sub(signature_regex, "", original)
     return request
 
 
 def empty_signature(request):
-    original = request.headers["Authorization"]
-    request.headers["Authorization"] = re.sub(
+    original = request.headers["authorization"]
+    request.headers["authorization"] = re.sub(
         signature_regex, 'signature="",', original
     )
     return request
 
 
 def modified_signature(request):
-    original = request.headers["Authorization"]
+    original = request.headers["authorization"]
     s = re.search(signature_regex, original).group(1)
     index = len(s) // 3
     char = s[index]
     new_char = "B" if char == "A" else "A"
     new_s = s[:index] + new_char + s[index + 1 :]
-    request.headers["Authorization"] = re.sub(
+    request.headers["authorization"] = re.sub(
         signature_regex, f'signature="{new_s}",', original
     )
     return request
@@ -91,20 +90,17 @@ def test_corrupted_signature(network, args):
             curve=curve,
         )
 
+        r = member.ack(node)
+        with node.client() as nc:
+            nc.wait_for_commit(r)
+
         with node.client(*member.auth(write=True)) as mc:
-            # pylint: disable=protected-access
-
-            # Cache the original auth provider
-            original_auth = ccf.clients.RequestClient._auth_provider
-
             # Override the auth provider with invalid ones
             for fn in (missing_signature, empty_signature, modified_signature):
-                ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
-                r = mc.post("/gov/proposals")
+                # pylint: disable=protected-access
+                mc.client_impl._auth_provider = make_signature_corrupter(fn)
+                r = mc.post("/gov/proposals", '{"actions": []}')
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-
-            # Restore original auth provider for future calls!
-            ccf.clients.RequestClient._auth_provider = original_auth
 
         # Remove the new member once we're done with them
         network.consortium.remove_member(node, member)
@@ -243,10 +239,3 @@ def run(args):
         network = test_missing_signature_header(network, args)
         network = test_corrupted_signature(network, args)
         network = test_governance(network, args)
-
-
-if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
