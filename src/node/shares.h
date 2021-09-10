@@ -107,14 +107,12 @@ namespace ccf
   // and can be deduced to the version at which the
   // EncryptedPastLedgerSecret map was updated.
 
-  // The key for this table is always 0. It is updated every time the member
-  // recovery shares are updated, e.g. when the recovery threshold is modified
-  // and when the ledger secret is updated
-  using RecoveryShares = ServiceMap<size_t, RecoverySharesInfo>;
+  // This table is updated every time the member recovery shares are updated,
+  // e.g. when the recovery threshold is modified and when the ledger secret is
+  // updated
+  using RecoveryShares = ServiceValue<RecoverySharesInfo>;
 
-  // The key for this table is always 0. It is updated every time the ledger
-  // secret is updated, e.g. at startup or on ledger rekey. It is not updated on
-  // a pure re-share.
-  using EncryptedLedgerSecretsInfo =
-    ServiceMap<size_t, EncryptedLedgerSecretInfo>;
+  // This table is updated every time the ledger secret is updated, e.g. at
+  // startup or on ledger rekey. It is not updated on a pure re-share.
+  using EncryptedLedgerSecretsInfo = ServiceValue<EncryptedLedgerSecretInfo>;
 }

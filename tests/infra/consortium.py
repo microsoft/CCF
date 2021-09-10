@@ -358,6 +358,20 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def add_users_and_transition_service_to_open(self, remote_node, users):
+        proposal = {"actions": []}
+        for user_id in users:
+            with open(self.user_cert_path(user_id), encoding="utf-8") as cf:
+                cert = cf.read()
+            proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
+        proposal["actions"].append({"name": "transition_service_to_open"})
+        proposal = self.get_any_active_member().propose(remote_node, proposal)
+        return self.vote_using_majority(
+            remote_node,
+            proposal,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+        )
+
     def create_and_withdraw_large_proposal(self, remote_node):
         """
         This is useful to force a ledger chunk to be produced, which is desirable

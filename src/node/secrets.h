@@ -31,5 +31,5 @@ namespace ccf
 
   // This map is used to communicate encrypted ledger secrets from the primary
   // to the backups during recovery (past secrets) and re-keying (new secret)
-  using Secrets = ServiceMap<size_t, LedgerSecretsForNodes>;
+  using Secrets = ServiceValue<LedgerSecretsForNodes>;
 }

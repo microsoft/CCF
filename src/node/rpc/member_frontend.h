@@ -485,7 +485,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "1.1.0";
+      openapi_info.document_version = "2.0.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -865,7 +865,7 @@ namespace ccf
             "{:02x}", fmt::join(caller_identity.request_digest, ""));
         }
 
-        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
           ctx.rpc_ctx->set_error(
@@ -1207,7 +1207,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
           return make_error(
