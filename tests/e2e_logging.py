@@ -638,8 +638,8 @@ def test_historical_receipts(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"]
             )
             r = first_receipt.json()["receipt"]
-            assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
-            ccf.receipt.verify(r["root"], r["signature"], primary_cert)
+            root = ccf.receipt.root(r["leaf"], r["proof"])
+            ccf.receipt.verify(root, r["signature"], primary_cert)
 
     # receipt.verify() raises if it fails, but does not return anything
     verified = True
@@ -1187,12 +1187,8 @@ def test_receipts(network, args):
                     rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
                     if rc.status_code == http.HTTPStatus.OK:
                         receipt = rc.body.json()
-                        assert receipt["root"] == ccf.receipt.root(
-                            receipt["leaf"], receipt["proof"]
-                        )
-                        ccf.receipt.verify(
-                            receipt["root"], receipt["signature"], node_cert
-                        )
+                        root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+                        ccf.receipt.verify(root, receipt["signature"], node_cert)
                         break
                     elif rc.status_code == http.HTTPStatus.ACCEPTED:
                         time.sleep(0.5)
@@ -1243,15 +1239,12 @@ def test_random_receipts(network, args):
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
-                    assert receipt["root"] == ccf.receipt.root(
-                        receipt["leaf"], receipt["proof"]
-                    )
+                    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
                     ccf.receipt.verify(
-                        receipt["root"], receipt["signature"], certs[receipt["node_id"]]
+                        root, receipt["signature"], certs[receipt["node_id"]]
                     )
                     if s == max_seqno:
                         # Always a signature receipt
-                        assert receipt["root"] == receipt["leaf"], receipt
                         assert receipt["proof"] == [], receipt
                     print(f"Verified receipt for {view}.{s}")
                     break
