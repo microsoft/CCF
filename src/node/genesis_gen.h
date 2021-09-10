@@ -409,7 +409,7 @@ namespace ccf
 
     void set_constitution(const std::string& constitution)
     {
-      tx.rw(tables.constitution)->put(0, constitution);
+      tx.rw(tables.constitution)->put(constitution);
     }
 
     void trust_node_code_id(const CodeDigest& node_code_id)
