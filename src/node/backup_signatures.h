@@ -29,6 +29,5 @@ namespace ccf
   DECLARE_JSON_TYPE(BackupSignatures);
   DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures);
 
-  // Always recorded at key 0
-  using BackupSignaturesMap = ServiceMap<size_t, BackupSignatures>;
+  using BackupSignaturesMap = ServiceValue<BackupSignatures>;
 }

@@ -92,6 +92,5 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     ViewChangeConfirmation, view, primary_id, signature, view_change_messages);
 
-  // Always recorded at key 0
-  using NewViewsMap = ServiceMap<size_t, ViewChangeConfirmation>;
+  using NewViewsMap = ServiceValue<ViewChangeConfirmation>;
 }
