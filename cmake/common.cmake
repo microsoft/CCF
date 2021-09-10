@@ -301,7 +301,8 @@ install(
   EXPORT ccf
   DESTINATION lib
 )
-add_host_library(http_parser.host "${HTTP_PARSER_SOURCES}")
+add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
+set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS http_parser.host
   EXPORT ccf
