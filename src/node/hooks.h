@@ -136,7 +136,7 @@ namespace ccf
 
     void call(kv::ConfigurableConsensus* consensus) override
     {
-      consensus->record_signature(version, sig.root, sig.sig);
+      consensus->record_signature(version, sig.sig, sig.node);
     }
   };
 

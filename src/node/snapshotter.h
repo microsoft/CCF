@@ -42,7 +42,8 @@ namespace ccf
       // TODO: First two can be bundled together (root will be removed soon)
       std::optional<consensus::Index>
         evidence_commit_idx; // TODO: Rename to evidence_sig_idx
-      std::optional<crypto::Sha256Hash> root = std::nullopt;
+
+      std::optional<NodeId> node_id = std::nullopt;
       std::optional<std::vector<uint8_t>> sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
@@ -136,20 +137,17 @@ namespace ccf
         snapshot_hash);
     }
 
+    // TODO: Refactor with historical queries code
     std::vector<uint8_t> build_and_serialise_receipt(
-      const crypto::Sha256Hash& r,
       const std::vector<uint8_t>& s,
       const std::vector<uint8_t>& t,
+      const NodeId& node_id,
       consensus::Index evidence_idx)
     {
-      // TODO: Remove root altogether
       ccf::MerkleTreeHistory tree(t);
-      assert(r == tree.get_root());
-
-      NodeId invalid_node_id;
       auto proof = tree.get_proof(evidence_idx);
       auto tx_receipt = ccf::historical::TxReceipt(
-        s, proof.get_root(), proof.get_path(), invalid_node_id);
+        s, proof.get_root(), proof.get_path(), node_id);
 
       Receipt receipt;
       tx_receipt.describe(receipt);
@@ -159,7 +157,6 @@ namespace ccf
       return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
     }
 
-    // TODO: This can probably be simplified as no longer need for double commit
     void update_indices(consensus::Index idx)
     {
       while ((next_snapshot_indices.size() > 1) &&
@@ -175,9 +172,9 @@ namespace ccf
           idx > it->evidence_commit_idx.value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
-            it->root.value(),
             it->sig.value(),
             it->tree.value(),
+            it->node_id.value(),
             it->evidence_idx);
           commit_snapshot(
             it->idx, it->evidence_commit_idx.value(), serialised_receipt);
@@ -257,12 +254,10 @@ namespace ccf
 
     void record_signature(
       consensus::Index idx,
-      const crypto::Sha256Hash& root,
-      const std::vector<uint8_t>& sig)
+      const std::vector<uint8_t>& sig,
+      const NodeId& node_id)
     {
       std::lock_guard<std::mutex> guard(lock);
-      LOG_FAIL_FMT(
-        "Recording signature at {}: root {}, sig {}", idx, root, sig);
 
       for (auto& pending_snapshot : pending_snapshots)
       {
@@ -272,7 +267,7 @@ namespace ccf
         {
           LOG_FAIL_FMT(
             "Recording sig for snapshot e{}", pending_snapshot.evidence_idx);
-          pending_snapshot.root = root;
+          pending_snapshot.node_id = node_id;
           pending_snapshot.sig = sig;
           pending_snapshot.evidence_commit_idx = idx;
         }

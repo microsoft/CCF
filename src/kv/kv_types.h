@@ -185,8 +185,8 @@ namespace kv
     virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) = 0;
     virtual void record_signature(
       kv::Version version,
-      const crypto::Sha256Hash& root,
-      const std::vector<uint8_t>& sig) = 0;
+      const std::vector<uint8_t>& sig,
+      const NodeId& node_id) = 0;
     virtual void record_serialised_tree(
       kv::Version version, const std::vector<uint8_t>& tree) = 0;
   };
