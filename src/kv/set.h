@@ -36,9 +36,49 @@ namespace kv
     using WriteOnlyHandle = kv::WriteableSetHandle<K, KSerialiser, Unit>;
     using Handle = kv::SetHandle<K, KSerialiser, Unit>;
 
-    using KeySerialiser = KSerialiser;
+    // Note: The type V of the value `std::optional<V>` does not matter here.
+    // The optional type is required to differentiate additions from deletions,
+    // and to provide a consistent interface with the more generic `TypedMap`.
+    using Write = std::map<K, std::optional<kv::serialisers::SerialisedEntry>>;
+    using MapHook = MapHook<Write>;
+    using CommitHook = CommitHook<Write>;
 
     using NamedHandleMixin::NamedHandleMixin;
+
+  private:
+    static Write deserialise_write(const kv::untyped::Write& w)
+    {
+      Write typed_writes;
+      for (const auto& [uk, opt_uv] : w)
+      {
+        if (!opt_uv.has_value())
+        {
+          // Deletions are indicated by nullopt. We cannot deserialise them,
+          // they are deletions here as well
+          typed_writes[KSerialiser::from_serialised(uk)] = std::nullopt;
+        }
+        else
+        {
+          typed_writes[KSerialiser::from_serialised(uk)] = Unit::get();
+        }
+      }
+      return typed_writes;
+    }
+
+  public:
+    static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
+    {
+      return [hook](Version v, const kv::untyped::Write& w) {
+        hook(v, deserialise_write(w));
+      };
+    }
+
+    static kv::untyped::Map::MapHook wrap_map_hook(const MapHook& hook)
+    {
+      return [hook](Version v, const kv::untyped::Write& w) {
+        return hook(v, deserialise_write(w));
+      };
+    }
   };
 
   template <
