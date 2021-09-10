@@ -129,9 +129,9 @@ namespace ccf
     SignaturesHook(kv::Version version_, const Signatures::Write& w) :
       version(version_)
     {
-      assert(w.size() == 1);
+      assert(w.has_value()); // Signatures are never deleted
       version = version_;
-      sig = w.begin()->second;
+      sig = w.value();
     }
 
     void call(kv::ConfigurableConsensus* consensus) override
@@ -152,9 +152,9 @@ namespace ccf
       kv::Version version_, const SerialisedMerkleTree::Write& w) :
       version(version_)
     {
-      assert(w.size() == 1);
+      assert(w.has_value()); // Merkle trees are never deleted
       version = version_;
-      tree = w.begin();
+      tree = w.value();
     }
 
     void call(kv::ConfigurableConsensus* consensus) override
