@@ -98,23 +98,25 @@ if __name__ == "__main__":
 
     args = copy.deepcopy(cr.args)
 
-    args.consensus = "cft"
-    cr.add(
-        "cft",
-        run,
-        package="liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=1),
-        raft_election_timeout_ms=500,
-        consensus="cft",
-    )
+    if cr.args.consensus in ("cft", "all"):
+        args.consensus = "cft"
+        cr.add(
+            "cft",
+            run,
+            package="liblogging",
+            nodes=infra.e2e_args.min_nodes(args, f=1),
+            raft_election_timeout_ms=500,
+            consensus="cft",
+        )
 
-    args.consensus = "bft"
-    cr.add(
-        "bft",
-        run,
-        package="liblogging",
-        nodes=infra.e2e_args.min_nodes(args, f=1),
-        consensus="bft",
-    )
+    if cr.args.consensus in ("bft", "all"):
+        args.consensus = "bft"
+        cr.add(
+            "bft",
+            run,
+            package="liblogging",
+            nodes=infra.e2e_args.min_nodes(args, f=1),
+            consensus="bft",
+        )
 
     cr.run()
