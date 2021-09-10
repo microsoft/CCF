@@ -96,7 +96,7 @@ namespace ccf
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
-      evidence->put(0, {snapshot_hash, snapshot_version});
+      evidence->put({snapshot_hash, snapshot_version});
 
       auto rc = tx.commit();
       if (rc != kv::CommitResult::SUCCESS)

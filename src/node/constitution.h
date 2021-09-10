@@ -6,5 +6,5 @@
 
 namespace ccf
 {
-  using Constitution = ServiceMap<size_t, std::string>;
+  using Constitution = ServiceValue<std::string>;
 }

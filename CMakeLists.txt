@@ -54,8 +54,10 @@ install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 if(ENABLE_BFT)
   set(CONSENSUSES cft bft)
+  set(CONSENSUS_FILTER all)
 else()
   set(CONSENSUSES cft)
+  set(CONSENSUS_FILTER cft)
 endif()
 
 option(BUILD_TESTS "Build tests" ON)
@@ -74,15 +76,10 @@ set(CCF_IMPL_SOURCE
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   # enclave version
-  add_library(
-    ccf.enclave STATIC ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
+  add_enclave_library(
+    ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(
-    ccf.enclave PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-
-  target_compile_options(ccf.enclave PUBLIC -nostdinc -nostdinc++)
   add_warning_checks(ccf.enclave)
 
   target_include_directories(
@@ -97,18 +94,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_link_libraries(
-    ccf.enclave
-    PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
-           -lgcc
-           quickjs.enclave
-           ccfcrypto.enclave
-           http_parser.enclave
-           aft.enclave
-           sss.enclave
-           ccf_endpoints.enclave
+    ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
+                       aft.enclave sss.enclave ccf_endpoints.enclave
   )
-
-  set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   enable_quote_code(ccf.enclave)
 
@@ -709,13 +697,20 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
-  foreach(CONSENSUS ${CONSENSUSES})
-    add_e2e_test(
-      NAME election_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-    )
+  add_e2e_test(
+    NAME reconfiguration_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+  )
 
+  add_e2e_test(
+    NAME election_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    CONSENSUS ${CONSENSUS_FILTER}
+  )
+
+  foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME vegeta_stress_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
@@ -733,12 +728,9 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS -p liblogging --duration 45m
     )
 
-    add_e2e_test(
-      NAME reconfiguration_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
-    )
+    # add_e2e_test( NAME reconfiguration_test_${CONSENSUS} PYTHON_SCRIPT
+    # ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py CONSENSUS ${CONSENSUS}
+    # ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} )
 
   endforeach()
 

@@ -154,7 +154,6 @@ namespace ccf
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
       auto recovery_shares = tx.rw(network.shares);
       recovery_shares->put(
-        0,
         {wrapped_latest_ls,
          compute_encrypted_shares(tx, ls_wrapping_key),
          latest_ledger_secret->previous_secret_stored_version});
@@ -198,16 +197,15 @@ namespace ccf
 
         encrypted_previous_secret = encrypted_previous_ls.serialise();
         encrypted_ls->put(
-          0,
           {PreviousLedgerSecretInfo(
              std::move(encrypted_previous_secret),
              version_previous_secret,
-             encrypted_ls->get_version_of_previous_write(0)),
+             encrypted_ls->get_version_of_previous_write()),
            latest_ls_version});
       }
       else
       {
-        encrypted_ls->put(0, {std::nullopt, latest_ls_version});
+        encrypted_ls->put({std::nullopt, latest_ls_version});
       }
     }
 
@@ -330,7 +328,7 @@ namespace ccf
     std::optional<EncryptedShare> get_encrypted_share(
       kv::Tx& tx, const MemberId& member_id)
     {
-      auto recovery_shares_info = tx.rw(network.shares)->get(0);
+      auto recovery_shares_info = tx.rw(network.shares)->get();
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -359,7 +357,7 @@ namespace ccf
           "Could not find any ledger secrets in the ledger");
       }
 
-      auto recovery_shares_info = tx.ro(network.shares)->get(0);
+      auto recovery_shares_info = tx.ro(network.shares)->get();
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -392,7 +390,7 @@ namespace ccf
         current_ledger_secret_version.value(),
         std::make_shared<LedgerSecret>(
           std::move(restored_ls->raw_key),
-          encrypted_previous_ledger_secret->get_version_of_previous_write(0)));
+          encrypted_previous_ledger_secret->get_version_of_previous_write()));
       auto latest_ls = s.first->second;
 
       for (auto it = recovery_ledger_secrets.rbegin();
