@@ -862,7 +862,7 @@ namespace ccf
             "{:02x}", fmt::join(caller_identity.request_digest, ""));
         }
 
-        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
           ctx.rpc_ctx->set_error(
@@ -1204,7 +1204,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
           return make_error(

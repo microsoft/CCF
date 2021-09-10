@@ -43,7 +43,7 @@ namespace ccf
         secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
       }
 
-      secrets->put(0, secrets_for_nodes);
+      secrets->put(secrets_for_nodes);
     }
 
     static void broadcast_new(
@@ -68,7 +68,7 @@ namespace ccf
         secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
       }
 
-      secrets->put(0, secrets_for_nodes);
+      secrets->put(secrets_for_nodes);
     }
 
     static std::vector<uint8_t> decrypt(

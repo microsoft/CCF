@@ -41,8 +41,7 @@ void keep_messages_for_multiple(
     }
     else
     {
-      ++it;
-      ++kept[it->first];
+      ++kept[it++->first];
     }
   }
 }

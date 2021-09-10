@@ -642,7 +642,6 @@ namespace ccf
       PreExec fn = [](kv::CommittableTx& tx, enclave::RpcContext& ctx) {
         auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
         aft_requests->put(
-          0,
           {tx.get_req_id(),
            ctx.session->caller_cert,
            ctx.get_serialised_request(),
