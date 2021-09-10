@@ -14,6 +14,7 @@
 #include "node/snapshot_evidence.h"
 
 #include <deque>
+#include <nlohmann/json.hpp>
 #include <optional>
 
 namespace ccf
@@ -37,15 +38,22 @@ namespace ccf
       consensus::Index idx;
       consensus::Index evidence_idx;
 
-      // The evidence isn't committed when the snapshot is generated
-      std::optional<consensus::Index> evidence_commit_idx;
+      // TODO: New
+      // TODO: First two can be bundled together (root will be removed soon)
+      std::optional<consensus::Index>
+        evidence_commit_idx; // TODO: Rename to evidence_sig_idx
+      std::optional<crypto::Sha256Hash> root = std::nullopt;
+      std::optional<std::vector<uint8_t>> sig = std::nullopt;
+      std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
       SnapshotInfo(consensus::Index idx, consensus::Index evidence_idx) :
         idx(idx),
         evidence_idx(evidence_idx)
       {}
     };
-    std::deque<SnapshotInfo> snapshot_evidence_indices;
+    // Queue of pending snapshots that have been generated, but are not yet
+    // committed
+    std::deque<SnapshotInfo> pending_snapshots;
 
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
@@ -66,10 +74,13 @@ namespace ccf
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
+      consensus::Index snapshot_idx,
+      consensus::Index evidence_commit_idx,
+      const std::vector<uint8_t>& serialised_receipt)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
       // previously generated. The evidence_commit_idx is recorded as metadata.
+      (void)serialised_receipt;
       RINGBUFFER_WRITE_MESSAGE(
         consensus::snapshot_commit, to_host, snapshot_idx, evidence_commit_idx);
     }
@@ -114,8 +125,7 @@ namespace ccf
         static_cast<consensus::Index>(snapshot_version);
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
-      snapshot_evidence_indices.emplace_back(
-        snapshot_idx, snapshot_evidence_idx);
+      pending_snapshots.emplace_back(snapshot_idx, snapshot_evidence_idx);
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "
@@ -126,7 +136,30 @@ namespace ccf
         snapshot_hash);
     }
 
-    // TODO: This can probably be simplfied as no longer need for double commit
+    std::vector<uint8_t> build_and_serialise_receipt(
+      const crypto::Sha256Hash& r,
+      const std::vector<uint8_t>& s,
+      const std::vector<uint8_t>& t,
+      consensus::Index evidence_idx)
+    {
+      // TODO: Remove root altogether
+      ccf::MerkleTreeHistory tree(t);
+      assert(r == tree.get_root());
+
+      NodeId invalid_node_id;
+      auto proof = tree.get_proof(evidence_idx);
+      auto tx_receipt = ccf::historical::TxReceipt(
+        s, proof.get_root(), proof.get_path(), invalid_node_id);
+
+      Receipt receipt;
+      tx_receipt.describe(receipt);
+
+      const auto receipt_str = nlohmann::json(receipt).dump();
+      LOG_FAIL_FMT("Receipt: {}", receipt_str);
+      return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
+    }
+
+    // TODO: This can probably be simplified as no longer need for double commit
     void update_indices(consensus::Index idx)
     {
       while ((next_snapshot_indices.size() > 1) &&
@@ -135,25 +168,27 @@ namespace ccf
         next_snapshot_indices.pop_front();
       }
 
-      for (auto it = snapshot_evidence_indices.begin();
-           it != snapshot_evidence_indices.end();)
+      for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
-        if (it->evidence_commit_idx.has_value())
+        if (
+          it->evidence_commit_idx.has_value() &&
+          idx > it->evidence_commit_idx.value())
         {
-          if (idx > it->evidence_commit_idx.value())
-          {
-            commit_snapshot(it->idx, idx);
-            auto it_ = it;
-            it++;
-            snapshot_evidence_indices.erase(it_);
-            continue;
-          }
+          auto serialised_receipt = build_and_serialise_receipt(
+            it->root.value(),
+            it->sig.value(),
+            it->tree.value(),
+            it->evidence_idx);
+          commit_snapshot(
+            it->idx, it->evidence_commit_idx.value(), serialised_receipt);
+          auto it_ = it;
+          ++it;
+          pending_snapshots.erase(it_);
         }
-        else if (idx >= it->evidence_idx)
+        else
         {
-          it->evidence_commit_idx = idx;
+          ++it;
         }
-        it++;
       }
     }
 
@@ -225,13 +260,54 @@ namespace ccf
       const crypto::Sha256Hash& root,
       const std::vector<uint8_t>& sig)
     {
-      LOG_FAIL_FMT("Recording signature at {}", idx);
+      std::lock_guard<std::mutex> guard(lock);
+      LOG_FAIL_FMT(
+        "Recording signature at {}: root {}, sig {}", idx, root, sig);
+
+      for (auto& pending_snapshot : pending_snapshots)
+      {
+        if (
+          pending_snapshot.evidence_idx < idx &&
+          !pending_snapshot.sig.has_value())
+        {
+          LOG_FAIL_FMT(
+            "Recording sig for snapshot e{}", pending_snapshot.evidence_idx);
+          pending_snapshot.root = root;
+          pending_snapshot.sig = sig;
+          pending_snapshot.evidence_commit_idx = idx;
+        }
+        else
+        {
+          LOG_FAIL_FMT(
+            "Not recording signature for snapshot e{}",
+            pending_snapshot.evidence_idx);
+        }
+      }
     }
 
     void record_serialised_tree(
       consensus::Index idx, const std::vector<uint8_t>& tree)
     {
-      LOG_FAIL_FMT("Recording tree at {}", idx);
+      std::lock_guard<std::mutex> guard(lock);
+      LOG_FAIL_FMT("Recording tree at {}, tree size {}", idx, tree.size());
+
+      for (auto& pending_snapshot : pending_snapshots)
+      {
+        if (
+          pending_snapshot.evidence_idx < idx &&
+          !pending_snapshot.tree.has_value())
+        {
+          LOG_FAIL_FMT(
+            "Recording tree for snapshot e{}", pending_snapshot.evidence_idx);
+          pending_snapshot.tree = tree;
+        }
+        else
+        {
+          LOG_FAIL_FMT(
+            "Not recording tree for snapshot e{}",
+            pending_snapshot.evidence_idx);
+        }
+      }
     }
 
     void commit(consensus::Index idx, bool generate_snapshot)
@@ -300,10 +376,10 @@ namespace ccf
         "Rolled back snapshotter: last snapshottable idx is now {}",
         next_snapshot_indices.front());
 
-      while (!snapshot_evidence_indices.empty() &&
-             (snapshot_evidence_indices.back().evidence_idx > idx))
+      while (!pending_snapshots.empty() &&
+             (pending_snapshots.back().evidence_idx > idx))
       {
-        snapshot_evidence_indices.pop_back();
+        pending_snapshots.pop_back();
       }
     }
   };

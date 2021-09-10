@@ -14,6 +14,7 @@
 
 namespace ccf::historical
 {
+  // TODO: Move out of historical namespace
   struct TxReceipt
   {
     std::vector<uint8_t> signature = {};
