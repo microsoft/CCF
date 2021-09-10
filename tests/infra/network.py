@@ -431,11 +431,11 @@ class Network:
         if self.jwt_issuer:
             self.jwt_issuer.register(self)
 
-        self.consortium.add_users(self.find_random_node(), initial_users)
-        LOG.info(f"Initial set of users added: {len(initial_users)}")
-
-        self.consortium.transition_service_to_open(remote_node=self.find_random_node())
+        self.consortium.add_users_and_transition_service_to_open(
+            self.find_random_node(), initial_users
+        )
         self.status = ServiceStatus.OPEN
+        LOG.info(f"Initial set of users added: {len(initial_users)}")
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
