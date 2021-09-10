@@ -703,13 +703,13 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
   )
 
-  foreach(CONSENSUS ${CONSENSUSES})
-    add_e2e_test(
-      NAME election_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-    )
+  add_e2e_test(
+    NAME election_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    CONSENSUS cft
+  )
 
+  foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME vegeta_stress_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
