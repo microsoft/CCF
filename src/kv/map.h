@@ -43,54 +43,41 @@ namespace kv
       kv::WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
     using Handle = kv::MapHandle<K, V, KSerialiser, VSerialiser>;
 
-    using KeySerialiser = KSerialiser;
-    using ValueSerialiser = VSerialiser;
-
     using NamedHandleMixin::NamedHandleMixin;
 
+  private:
+    static Write deserialise_write(const kv::untyped::Write& w)
+    {
+      Write typed_writes;
+      for (const auto& [uk, opt_uv] : w)
+      {
+        if (!opt_uv.has_value())
+        {
+          // Deletions are indicated by nullopt. We cannot deserialise them,
+          // they are deletions here as well
+          typed_writes[KSerialiser::from_serialised(uk)] = std::nullopt;
+        }
+        else
+        {
+          typed_writes[KSerialiser::from_serialised(uk)] =
+            VSerialiser::from_serialised(opt_uv.value());
+        }
+      }
+      return typed_writes;
+    }
+
+  public:
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {
-        Write typed_writes;
-        for (const auto& [uk, opt_uv] : w)
-        {
-          if (!opt_uv.has_value())
-          {
-            // Deletions are indicated by nullopt. We cannot deserialise them,
-            // they are deletions here as well
-            typed_writes[KSerialiser::from_serialised(uk)] = std::nullopt;
-          }
-          else
-          {
-            typed_writes[KSerialiser::from_serialised(uk)] =
-              VSerialiser::from_serialised(opt_uv.value());
-          }
-        }
-
-        hook(v, typed_writes);
+        hook(v, deserialise_write(w));
       };
     }
 
     static kv::untyped::Map::MapHook wrap_map_hook(const MapHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {
-        Write typed_writes;
-        for (const auto& [uk, opt_uv] : w)
-        {
-          if (!opt_uv.has_value())
-          {
-            // Deletions are indicated by nullopt. We cannot deserialise them,
-            // they are deletions here as well
-            typed_writes[KSerialiser::from_serialised(uk)] = std::nullopt;
-          }
-          else
-          {
-            typed_writes[KSerialiser::from_serialised(uk)] =
-              VSerialiser::from_serialised(opt_uv.value());
-          }
-        }
-
-        return hook(v, typed_writes);
+        return hook(v, deserialise_write(w));
       };
     }
   };
