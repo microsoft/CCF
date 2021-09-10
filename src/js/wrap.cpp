@@ -1340,8 +1340,6 @@ namespace js
         "signature",
         JS_NewString(ctx, receipt_out.signature.c_str()));
       JS_SetPropertyStr(
-        ctx, js_receipt, "root", JS_NewString(ctx, receipt_out.root.c_str()));
-      JS_SetPropertyStr(
         ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf.c_str()));
       JS_SetPropertyStr(
         ctx,
