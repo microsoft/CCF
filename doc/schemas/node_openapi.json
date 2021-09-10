@@ -355,6 +355,9 @@
           "proof": {
             "$ref": "#/components/schemas/Receipt__Element_array"
           },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
           "signature": {
             "$ref": "#/components/schemas/string"
           }
