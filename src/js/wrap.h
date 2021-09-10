@@ -52,7 +52,7 @@ namespace js
     TxContext* txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
-    ccf::historical::TxReceiptPtr receipt,
+    ccf::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,

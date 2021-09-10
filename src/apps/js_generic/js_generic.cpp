@@ -257,7 +257,7 @@ namespace ccfapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       kv::Tx& target_tx,
       const std::optional<ccf::TxID>& transaction_id,
-      ccf::historical::TxReceiptPtr receipt)
+      ccf::TxReceiptPtr receipt)
     {
       js::Runtime rt;
       rt.add_ccf_classdefs();

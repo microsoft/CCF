@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/historical_queries_interface.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
@@ -12,6 +11,7 @@
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/snapshot_evidence.h"
+#include "node/tx_receipt.h"
 
 #include <deque>
 #include <nlohmann/json.hpp>
@@ -146,8 +146,9 @@ namespace ccf
     {
       ccf::MerkleTreeHistory tree(t);
       auto proof = tree.get_proof(evidence_idx);
-      auto tx_receipt = ccf::historical::TxReceipt(
-        s, proof.get_root(), proof.get_path(), node_id);
+      // TODO: Do not include root in receipt!
+      auto tx_receipt =
+        ccf::TxReceipt(s, proof.get_root(), proof.get_path(), node_id);
 
       Receipt receipt;
       tx_receipt.describe(receipt);
