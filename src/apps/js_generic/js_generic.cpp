@@ -269,8 +269,7 @@ namespace ccfapp
       js::TxContext txctx{&target_tx, js::TxAccess::APP};
 
       js::register_request_body_class(ctx);
-      js::populate_global_console(ctx);
-      js::populate_global_ccf(
+      js::populate_global(
         &txctx,
         endpoint_ctx.rpc_ctx.get(),
         transaction_id,
@@ -279,7 +278,6 @@ namespace ccfapp
         &context.get_node_state(),
         nullptr,
         ctx);
-      js::populate_global_openenclave(ctx);
 
       JSValue export_func;
       try

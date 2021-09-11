@@ -208,8 +208,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
-        js::populate_global_console(context);
-        js::populate_global_ccf(
+        js::populate_global(
           &txctx,
           nullptr,
           std::nullopt,
@@ -255,10 +254,9 @@ namespace ccf
       {
         js::Runtime rt;
         js::Context js_context(rt);
-        js::populate_global_console(js_context);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
-        js::populate_global_ccf(
+        js::populate_global(
           &txctx,
           nullptr,
           std::nullopt,
@@ -367,10 +365,9 @@ namespace ccf
           {
             js::Runtime rt;
             js::Context js_context(rt);
-            js::populate_global_console(js_context);
             rt.add_ccf_classdefs();
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
-            js::populate_global_ccf(
+            js::populate_global(
               &txctx,
               nullptr,
               std::nullopt,
@@ -485,7 +482,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "1.1.0";
+      openapi_info.document_version = "2.0.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -880,7 +877,7 @@ namespace ccf
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(
+        js::populate_global(
           nullptr,
           nullptr,
           std::nullopt,

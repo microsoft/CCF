@@ -32,10 +32,13 @@ namespace ccf::historical
       node_id(n_)
     {}
 
-    void describe(ccf::Receipt& r)
+    void describe(ccf::Receipt& r, bool include_root = false)
     {
       r.signature = tls::b64_from_raw(signature);
-      r.root = root.to_string();
+      if (include_root)
+      {
+        r.root = root.to_string();
+      }
       if (path)
       {
         for (const auto& node : *path)
@@ -55,7 +58,7 @@ namespace ccf::historical
       }
       else
       {
-        r.leaf = r.root;
+        r.leaf = root.to_string();
       }
       r.node_id = node_id;
     }
