@@ -33,9 +33,6 @@ namespace ccf
   {
     auto data = snapshot.data();
     auto size = snapshot.size();
-
-    // TODO:
-    // 1. Read version from TxHeader
     auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
     auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
     // TODO: Check version (or flags) for backwards compatibility
@@ -59,9 +56,15 @@ namespace ccf
     LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
 
     auto tx = store->create_read_only_tx();
+    auto service = tx.ro<Service>(Tables::SERVICE);
     auto node_certs =
       tx.ro<NodeEndorsedCertificates>(Tables::NODE_ENDORSED_CERTIFICATES);
-    auto service = tx.ro<Service>(Tables::SERVICE);
+
+    auto service_info = service->get();
+    if (!service_info.has_value())
+    {
+      throw std::logic_error("Service information not found in snapshot");
+    }
 
     auto node_cert = node_certs->get(receipt.node_id);
     if (!node_cert.has_value())
@@ -70,15 +73,14 @@ namespace ccf
         "Receipt node certificate {} not found in snapshot", receipt.node_id));
     }
 
-    auto service_info = service->get();
-    if (!service_info.has_value())
+    // Verify node certificate endorsement
+    auto v = crypto::make_unique_verifier(node_cert.value());
+    if (!v->verify_certificate({&service_info->cert}))
     {
-      throw std::logic_error("Service information not found in snapshot");
+      throw std::logic_error(
+        "Node certificate is not endorsed by snapshot service");
     }
 
-    // TODO: Verify endorsement
-
-    auto v = crypto::make_unique_verifier(node_cert.value());
     if (!v->verify_hash(
           root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
     {
