@@ -9,7 +9,10 @@
 #include "ds/thread_messaging.h"
 #include "entities.h"
 #include "kv/kv_types.h"
+#include "kv/serialised_entry_format.h"
 #include "node/network_state.h"
+#include "node/nodes.h"
+#include "node/service.h"
 #include "node/snapshot_evidence.h"
 #include "node/tx_receipt.h"
 
@@ -19,6 +22,74 @@
 
 namespace ccf
 {
+  // TODO: Returns true if the snapshot is valid, false if it requires further
+  // validation (1.x snapshots)
+  static bool deserialise_snapshot(
+    const std::shared_ptr<kv::Store>& store,
+    const std::vector<uint8_t>& snapshot,
+    kv::ConsensusHookPtrs& hooks,
+    std::vector<kv::Version>* view_history = nullptr,
+    bool public_only = false)
+  {
+    auto data = snapshot.data();
+    auto size = snapshot.size();
+
+    // TODO:
+    // 1. Read version from TxHeader
+    auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
+    auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
+    // TODO: Check version (or flags) for backwards compatibility
+
+    auto rc = store->deserialise_snapshot(
+      snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
+    if (rc != kv::ApplyResult::PASS)
+    {
+      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
+    }
+
+    auto receipt_data = data + store_snapshot_size;
+    auto receipt_size = size - store_snapshot_size;
+
+    auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
+    auto receipt = j.get<Receipt>();
+
+    auto root = compute_root_from_receipt(receipt);
+    auto raw_sig = tls::raw_from_b64(receipt.signature);
+
+    LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
+
+    auto tx = store->create_read_only_tx();
+    auto node_certs =
+      tx.ro<NodeEndorsedCertificates>(Tables::NODE_ENDORSED_CERTIFICATES);
+    auto service = tx.ro<Service>(Tables::SERVICE);
+
+    auto node_cert = node_certs->get(receipt.node_id);
+    if (!node_cert.has_value())
+    {
+      throw std::logic_error(fmt::format(
+        "Receipt node certificate {} not found in snapshot", receipt.node_id));
+    }
+
+    auto service_info = service->get();
+    if (!service_info.has_value())
+    {
+      throw std::logic_error("Service information not found in snapshot");
+    }
+
+    // TODO: Verify endorsement
+
+    auto v = crypto::make_unique_verifier(node_cert.value());
+    if (!v->verify_hash(
+          root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
+    {
+      throw std::logic_error("Receipt not valid for snapshot");
+    }
+
+    LOG_FAIL_FMT("Snapshot successfully verified");
+
+    return true;
+  };
+
   class Snapshotter : public std::enable_shared_from_this<Snapshotter>
   {
   public:
@@ -149,7 +220,6 @@ namespace ccf
     {
       ccf::MerkleTreeHistory tree(t);
       auto proof = tree.get_proof(evidence_idx);
-      // TODO: Do not include root in receipt!
       auto tx_receipt =
         ccf::TxReceipt(s, proof.get_root(), proof.get_path(), node_id);
 

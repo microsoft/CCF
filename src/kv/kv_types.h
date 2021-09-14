@@ -706,7 +706,8 @@ namespace kv
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual ApplyResult deserialise_snapshot(
-      const std::vector<uint8_t>& data,
+      const uint8_t* data,
+      size_t size,
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;

@@ -227,13 +227,19 @@ namespace ccf
         "Deserialising public snapshot ({})", config.startup_snapshot.size());
 
       kv::ConsensusHookPtrs hooks;
-      auto rc = snapshot_store->deserialise_snapshot(
-        config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::ApplyResult::PASS)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to apply public snapshot: {}", rc));
-      }
+      deserialise_snapshot(
+        snapshot_store, config.startup_snapshot, hooks, &view_history, true);
+      // auto rc = snapshot_store->deserialise_snapshot(
+      //   config.startup_snapshot.data(),
+      //   config.startup_snapshot.size(),
+      //   hooks,
+      //   &view_history,
+      //   true);
+      // if (rc != kv::ApplyResult::PASS)
+      // {
+      //   throw std::logic_error(
+      //     fmt::format("Failed to apply public snapshot: {}", rc));
+      // }
 
       LOG_INFO_FMT(
         "Public snapshot deserialised at seqno {}",
@@ -397,7 +403,7 @@ namespace ccf
         {
           if (!config.startup_snapshot.empty())
           {
-            initialise_startup_snapshot();
+            initialise_startup_snapshot(); // TODO: Only for old snapshots
             sm.advance(State::verifyingSnapshot);
           }
           else
@@ -582,7 +588,8 @@ namespace ccf
               std::vector<kv::Version> view_history;
               kv::ConsensusHookPtrs hooks;
               auto rc = network.tables->deserialise_snapshot(
-                startup_snapshot_info->raw,
+                startup_snapshot_info->raw.data(),
+                startup_snapshot_info->raw.size(),
                 hooks,
                 &view_history,
                 resp.network_info->public_only);
@@ -1204,7 +1211,10 @@ namespace ccf
         std::vector<kv::Version> view_history;
         kv::ConsensusHookPtrs hooks;
         auto rc = recovery_store->deserialise_snapshot(
-          startup_snapshot_info->raw, hooks, &view_history);
+          startup_snapshot_info->raw.data(),
+          startup_snapshot_info->raw.size(),
+          hooks,
+          &view_history);
         if (rc != kv::ApplyResult::PASS)
         {
           throw std::logic_error(fmt::format(

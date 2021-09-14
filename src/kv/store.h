@@ -398,7 +398,8 @@ namespace kv
     }
 
     ApplyResult deserialise_snapshot(
-      const std::vector<uint8_t>& data,
+      const uint8_t* data,
+      size_t size,
       kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
@@ -409,22 +410,14 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      // TODO:
-      // 1. Deserialise snapshot
-      // 2. Return receipt
-      // 3. Verify receipt with history
-
       kv::Term term;
-      auto v_ = d.init(data.data(), data.size(), term, is_historical, true);
+      auto v_ = d.init(data, size, term, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return ApplyResult::FAIL;
       }
       auto [v, _] = v_.value();
-
-      auto receipt = d.get_additional_data();
-      assert(!receipt.empty());
 
       std::lock_guard<std::mutex> mguard(maps_lock);
 
