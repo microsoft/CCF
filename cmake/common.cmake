@@ -398,6 +398,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
   add_san(js_generic_base.virtual)
+  add_warning_checks(js_generic_base.virtual)
   target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
