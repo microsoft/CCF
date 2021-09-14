@@ -50,8 +50,7 @@ namespace ccf::js
     if (plugin.ccf_version != std::string(ccf::ccf_version))
     {
       throw std::runtime_error(fmt::format(
-        "CCF version mismatch in JS FFI plugin '{}': expected={} != "
-        "actual={}",
+        "CCF version mismatch in JS FFI plugin '{}': expected={} != actual={}",
         plugin.name,
         plugin.ccf_version,
         ccf::ccf_version));
@@ -1003,9 +1002,8 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  // Partially replicates
-  // https://developer.mozilla.org/en-US/docs/Web/API/Body with a synchronous
-  // interface.
+  // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
+  // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
     JS_CFUNC_DEF("text", 0, js_body_text),
     JS_CFUNC_DEF("json", 0, js_body_json),
