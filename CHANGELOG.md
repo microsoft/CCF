@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `foreach_key` and `foreach_value` to C++ KV API, to iterate without deserializing both entries when only one is used (#2918).
+- `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 
 ### Changed
 
