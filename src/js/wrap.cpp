@@ -61,6 +61,7 @@ namespace js
   void register_ffi_plugins(const std::vector<FFIPlugin>& plugins)
   {
     for (const auto& plugin : plugins)
+    {
       register_ffi_plugin(plugin);
     }
   }
