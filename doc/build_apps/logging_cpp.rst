@@ -181,7 +181,7 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
 Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
-This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter`.
+This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v2`.
 
 The handler passed to the adapter is very similar to a read-only endpoint definition, but receives a read-only :cpp:struct:`ccf::historical::State` rather than a transaction.
 
