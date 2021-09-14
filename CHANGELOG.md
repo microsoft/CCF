@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `foreach_key` and `foreach_value` to C++ KV API, to iterate without deserializing both entries when only one is used (#2918).
+- `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 
 ### Changed
 
@@ -18,7 +19,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Updated `actions.js` constitution fragment to record service-endorsed node certificate on the `transition_node_to_trusted` action. The constitution should be updated using the existing `set_constitution` proposal (#2844).
 - Improved performance for lookup of path-templated endpoints (#2918).
 - Raised the minimum supported CMake version for building CCF to 3.16 (#2946).
-- `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 
 ## [2.0.0-dev3]
 

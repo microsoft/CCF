@@ -201,7 +201,6 @@ namespace ccf::historical
           }
           case HistoricalTxStatus::Valid:
           {
-            continue;
           }
         }
       }
@@ -234,6 +233,8 @@ namespace ccf::historical
     };
   }
 
+  CCF_DEPRECATED(
+    "Will be removed in 2.0, switch to ccf::historical::adapter_v2")
   static ccf::endpoints::EndpointFunction adapter_v1(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
@@ -301,6 +302,8 @@ namespace ccf::historical
   // These unversioned aliases are here for compatibility reasons,
   // but the intention is to remove them come 2.0, and make all usage
   // explicitly versioned
+  CCF_DEPRECATED(
+    "Will be removed in 2.0, switch to ccf::historical::adapter_v2")
   static ccf::endpoints::EndpointFunction adapter(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
