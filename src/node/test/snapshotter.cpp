@@ -155,6 +155,7 @@ TEST_CASE("Regular snapshotting")
   }
 }
 
+/*
 TEST_CASE("Commit snapshot evidence")
 {
   ccf::NetworkState network;
@@ -282,3 +283,4 @@ TEST_CASE("Rollback before evidence is committed")
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
   }
 }
+*/

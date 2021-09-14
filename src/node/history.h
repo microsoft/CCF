@@ -221,7 +221,7 @@ namespace ccf
     }
   };
 
-  typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
+  using HistoryTree = merkle::TreeT<32, merkle::sha256_openssl>;
 
   class Proof
   {

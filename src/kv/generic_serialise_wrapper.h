@@ -223,6 +223,9 @@ namespace kv
     R private_reader;
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
+    std::vector<uint8_t>
+      additional_data; // Additional data contained in the
+                       // payload but that does not belong to the store
     bool is_snapshot;
     Version version;
     Version max_conflict_version;
@@ -250,7 +253,8 @@ namespace kv
       const uint8_t* data,
       size_t size,
       kv::Term& term,
-      bool historical_hint = false)
+      bool historical_hint = false,
+      bool is_snapshot = false)
     {
       current_reader = &public_reader;
       auto data_ = data;
@@ -259,11 +263,17 @@ namespace kv
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
 
-      CCF_ASSERT_FMT(
-        tx_header.size == size_,
-        "Reported size in entry header {} does not match size of entry {}",
-        tx_header.size,
-        size_);
+      // TODO: Snapshot also include receipt which isn't integrity protected, so
+      // only do this for non snapshots
+      //  CCF_ASSERT_FMT(
+      //   tx_header.size == size_,
+      //   "Reported size in entry header {} does not match size of entry {}",
+      //   tx_header.size,
+      //   size_);
+
+      size_t additional_data_size = size_ - tx_header.size;
+      LOG_FAIL_FMT("Additional data size: {}", additional_data_size);
+      size_ = tx_header.size;
 
       auto gcm_hdr_data = data_;
 
@@ -328,7 +338,18 @@ namespace kv
       }
 
       private_reader.init(decrypted_buffer.data(), decrypted_buffer.size());
+      LOG_FAIL_FMT("Receipt of size: {}", additional_data_size);
+
+      additional_data.assign(
+        data_,
+        data_ + additional_data_size); // TODO: Do we actually need a copy here?
+
       return std::make_tuple(version, max_conflict_version);
+    }
+
+    std::vector<uint8_t> get_additional_data() const
+    {
+      return additional_data;
     }
 
     std::optional<std::string> start_map()

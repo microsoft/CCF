@@ -409,14 +409,22 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
+      // TODO:
+      // 1. Deserialise snapshot
+      // 2. Return receipt
+      // 3. Verify receipt with history
+
       kv::Term term;
-      auto v_ = d.init(data.data(), data.size(), term, is_historical);
+      auto v_ = d.init(data.data(), data.size(), term, is_historical, true);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return ApplyResult::FAIL;
       }
       auto [v, _] = v_.value();
+
+      auto receipt = d.get_additional_data();
+      assert(!receipt.empty());
 
       std::lock_guard<std::mutex> mguard(maps_lock);
 
