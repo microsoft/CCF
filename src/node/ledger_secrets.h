@@ -271,7 +271,7 @@ namespace ccf
 
       if (version < ledger_secrets.begin()->first)
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "Cannot rollback ledger secrets at {}: first secret is at {}",
           version,
           ledger_secrets.begin()->first);

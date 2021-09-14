@@ -11,13 +11,13 @@ namespace ccf
   {
     std::vector<uint8_t> signature = {};
     HistoryTree::Hash root = {};
-    std::shared_ptr<HistoryTree::Path> path = {};
-    NodeId node_id = {};
+    std::shared_ptr<ccf::HistoryTree::Path> path = {};
+    ccf::NodeId node_id = {};
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
       const HistoryTree::Hash& r_,
-      std::shared_ptr<HistoryTree::Path> p_,
+      std::shared_ptr<ccf::HistoryTree::Path> p_,
       const NodeId& n_) :
       signature(s_),
       root(r_),
@@ -25,16 +25,19 @@ namespace ccf
       node_id(n_)
     {}
 
-    void describe(Receipt& r)
+    void describe(ccf::Receipt& r, bool include_root = false)
     {
       r.signature = tls::b64_from_raw(signature);
-      r.root = root.to_string();
+      if (include_root)
+      {
+        r.root = root.to_string();
+      }
       if (path)
       {
         for (const auto& node : *path)
         {
-          Receipt::Element n;
-          if (node.direction == HistoryTree::Path::Direction::PATH_LEFT)
+          ccf::Receipt::Element n;
+          if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
           {
             n.left = node.hash.to_string();
           }
@@ -48,7 +51,7 @@ namespace ccf
       }
       else
       {
-        r.leaf = r.root;
+        r.leaf = root.to_string();
       }
       r.node_id = node_id;
     }

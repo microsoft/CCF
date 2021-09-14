@@ -6,6 +6,7 @@
 #include "ccf/tx.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
+#include "js/plugin.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/rpc/node_interface.h"
@@ -45,10 +46,10 @@ namespace js
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
+  void register_ffi_plugins();
   void register_class_ids();
   void register_request_body_class(JSContext* ctx);
-  void populate_global_console(JSContext* ctx);
-  void populate_global_ccf(
+  void populate_global(
     TxContext* txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
@@ -57,7 +58,6 @@ namespace js
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx);
-  void populate_global_openenclave(JSContext* ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   void js_dump_error(JSContext* ctx);
