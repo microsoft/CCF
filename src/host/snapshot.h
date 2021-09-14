@@ -163,7 +163,10 @@ namespace asynchost
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
+      consensus::Index snapshot_idx,
+      consensus::Index evidence_commit_idx,
+      const uint8_t* receipt_data,
+      size_t receipt_size)
     {
       try
       {
@@ -189,6 +192,17 @@ namespace asynchost
               snapshot_committed_suffix,
               snapshot_idx_delimiter,
               evidence_commit_idx);
+
+            LOG_FAIL_FMT("Receipt size: {}", receipt_size); // TODO: Remove
+
+            auto full_snapshot_path =
+              fs::path(snapshot_dir) / fs::path(file_name);
+
+            // TODO: Append receipt to snapshot file
+            std::ofstream snapshot_file(
+              full_snapshot_path, std::ios::app | std::ios::binary);
+            snapshot_file.write(
+              reinterpret_cast<const char*>(receipt_data), receipt_size);
 
             fs::rename(
               fs::path(snapshot_dir) / fs::path(file_name),
@@ -276,7 +290,7 @@ namespace asynchost
           auto snapshot_idx = serialized::read<consensus::Index>(data, size);
           auto evidence_commit_idx =
             serialized::read<consensus::Index>(data, size);
-          commit_snapshot(snapshot_idx, evidence_commit_idx);
+          commit_snapshot(snapshot_idx, evidence_commit_idx, data, size);
         });
     }
   };

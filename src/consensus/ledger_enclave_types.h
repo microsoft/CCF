@@ -64,4 +64,5 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_commit,
   consensus::Index /* snapshot idx */,
-  consensus::Index /* evidence commit idx */);
+  consensus::Index /* evidence commit idx */,
+  std::vector<uint8_t> /* serialised receipt */);

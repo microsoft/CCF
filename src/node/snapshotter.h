@@ -81,9 +81,12 @@ namespace ccf
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
       // previously generated. The evidence_commit_idx is recorded as metadata.
-      (void)serialised_receipt;
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit, to_host, snapshot_idx, evidence_commit_idx);
+        consensus::snapshot_commit,
+        to_host,
+        snapshot_idx,
+        evidence_commit_idx, // TODO: Do we still need to include this idx?
+        serialised_receipt);
     }
 
     struct SnapshotMsg
