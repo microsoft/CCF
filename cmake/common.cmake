@@ -364,6 +364,7 @@ endif()
 if("virtual" IN_LIST COMPILE_TARGETS)
   add_library(js_generic_base.virtual STATIC ${CCF_DIR}/src/apps/js_generic/js_generic.cpp)
   add_san(js_generic_base.virtual)
+  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
