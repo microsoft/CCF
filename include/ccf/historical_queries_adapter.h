@@ -173,12 +173,15 @@ namespace ccf::historical
         switch (is_available)
         {
           case HistoricalTxStatus::Error:
+          {
             args.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::TransactionPendingOrUnknown,
               std::move(error_reason));
             return;
+          }
           case HistoricalTxStatus::PendingOrUnknown:
+          {
             // Set header No-Cache
             args.rpc_ctx->set_response_header(
               http::headers::CACHE_CONTROL, "no-cache");
@@ -187,13 +190,19 @@ namespace ccf::historical
               ccf::errors::TransactionPendingOrUnknown,
               std::move(error_reason));
             return;
+          }
           case HistoricalTxStatus::Invalid:
+          {
             args.rpc_ctx->set_error(
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::TransactionInvalid,
               std::move(error_reason));
             return;
-          case HistoricalTxStatus::Valid:;
+          }
+          case HistoricalTxStatus::Valid:
+          {
+            continue;
+          }
         }
       }
 
