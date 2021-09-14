@@ -471,9 +471,4 @@ namespace ccfapp
   {
     return make_shared<SmallBank>(*nwt.tables, context);
   }
-
-  std::vector<ccf::js::FFIPlugin> get_js_plugins()
-  {
-    return {};
-  }
 }

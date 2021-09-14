@@ -8,6 +8,7 @@
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
+#include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
