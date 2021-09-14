@@ -13,9 +13,9 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
-#include "ccf/version.h"
-#include "ccf/js_plugin.h"
 #include "ccf/js_openenclave_plugin.h"
+#include "ccf/js_plugin.h"
+#include "ccf/version.h"
 #include "js/wrap.h"
 
 namespace js

@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/js_plugin.h"
 #include "ccf/tx.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
-#include "ccf/js_plugin.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/rpc/node_interface.h"

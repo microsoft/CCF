@@ -348,11 +348,8 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
 )
 
-
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library(
-    js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp
-  )
+  add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
   use_oe_mbedtls(js_openenclave.enclave)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_openenclave.enclave)
@@ -369,9 +366,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD
+                                  _LIBCPP_HAS_THREAD_API_PTHREAD
   )
-  set_property(TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(
+    TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
   use_client_mbedtls(js_openenclave.virtual)
   install(
     TARGETS js_openenclave.virtual
@@ -382,7 +381,7 @@ endif()
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(
-    js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
+    js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
   use_oe_mbedtls(js_generic_base.enclave)
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
@@ -394,15 +393,20 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 endif()
 if("virtual" IN_LIST COMPILE_TARGETS)
-  add_library(js_generic_base.virtual STATIC ${CCF_DIR}/src/apps/js_generic/js_generic.cpp)
+  add_library(
+    js_generic_base.virtual STATIC
+    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
+  )
   add_san(js_generic_base.virtual)
   target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                       _LIBCPP_HAS_THREAD_API_PTHREAD
+                                   _LIBCPP_HAS_THREAD_API_PTHREAD
   )
-  set_property(TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(
+    TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
   use_client_mbedtls(js_generic_base.virtual)
   install(
     TARGETS js_generic_base.virtual
@@ -413,9 +417,10 @@ endif()
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic
-  SRCS ${CCF_DIR}/src/apps/js_generic/plugins.cpp
+  SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual INSTALL_LIBS ON
+  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual INSTALL_LIBS
+                    ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf

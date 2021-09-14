@@ -7,6 +7,7 @@
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "interface.h"
+#include "js/wrap.h"
 #include "node/entities.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
@@ -18,7 +19,6 @@
 #include "oe_init.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
-#include "js/wrap.h"
 
 #include <openssl/engine.h>
 

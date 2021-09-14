@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "js_plugin.h"
+
 #include <memory>
 #include <vector>
 
@@ -11,11 +13,6 @@ namespace ccf
   class RpcFrontend;
 
   struct NetworkTables;
-}
-
-namespace js
-{
-  struct FFIPlugin;
 }
 
 namespace ccfapp
