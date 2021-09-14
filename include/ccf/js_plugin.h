@@ -6,12 +6,15 @@
 #include <quickjs/quickjs.h>
 #include <string>
 
-namespace js
+namespace ccf
 {
-  struct FFIPlugin
+  namespace js
   {
-    std::string name;
-    std::string ccf_version;
-    std::function<void(JSContext* ctx)> extend;
-  };
+    struct FFIPlugin
+    {
+      std::string name;
+      std::string ccf_version;
+      std::function<void(JSContext* ctx)> extend;
+    };
+  }
 }

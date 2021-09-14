@@ -1205,7 +1205,7 @@ namespace ccfapp
     return make_shared<loggingapp::Logger>(nwt, context);
   }
 
-  std::vector<js::FFIPlugin> get_js_plugins()
+  std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
     return {};
   }

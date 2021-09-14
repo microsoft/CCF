@@ -350,7 +350,7 @@ namespace ccfapp
     return std::make_shared<nobuiltins::NoBuiltinsFrontend>(nwt, context);
   }
 
-  std::vector<js::FFIPlugin> get_js_plugins()
+  std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
     return {};
   }

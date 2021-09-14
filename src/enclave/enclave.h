@@ -127,7 +127,7 @@ namespace enclave
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
-      js::register_ffi_plugins(ccfapp::get_js_plugins());
+      ccf::js::register_ffi_plugins(ccfapp::get_js_plugins());
 
       node->initialize(
         consensus_config,

@@ -12,9 +12,9 @@ namespace ccfapp
     return get_rpc_handler_impl(network, context);
   }
 
-  std::vector<js::FFIPlugin> get_js_plugins()
+  std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
-    return {js::openenclave_plugin};
+    return {ccf::js::openenclave_plugin};
   }
 
 } // namespace ccfapp

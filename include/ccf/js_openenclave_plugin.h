@@ -4,7 +4,10 @@
 
 #include "ccf/js_plugin.h"
 
-namespace js
+namespace ccf
 {
-  extern FFIPlugin openenclave_plugin;
+  namespace js
+  {
+    extern FFIPlugin openenclave_plugin;
+  }
 }
