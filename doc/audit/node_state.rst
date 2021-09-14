@@ -4,14 +4,14 @@ Node State
 .. mermaid::
 
     graph TB;
-        Uninitialized-->Initialized;
-        Initialized-->PartOfNetwork;
-        Initialized-->VerifyingSnapshot;
+        Uninitialized-- config -->Initialized;
+        Initialized-- start -->PartOfNetwork;
+        Initialized-- join from snapshot -->VerifyingSnapshot;
         VerifyingSnapshot-->Pending;
-        Initialized-->Pending;
-        Pending-->Pending;
-        Pending-->PartOfNetwork;
-        Initialized-->ReadingPublicLedger;
+        Initialized-- join -->Pending;
+        Pending-- poll status -->Pending;
+        Pending-- trusted -->PartOfNetwork;
+        Initialized-- recovery -->ReadingPublicLedger;
         ReadingPublicLedger-->PartOfPublicNetwork;
-        PartOfPublicNetwork-->ReadingPrivateLedger;
+        PartOfPublicNetwork-- shares reassembly -->ReadingPrivateLedger;
         ReadingPrivateLedger-->PartOfNetwork;
