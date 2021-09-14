@@ -162,6 +162,11 @@ namespace ccfapp
   {
     return make_shared<Tpcc>(*nwt.tables, context);
   }
+
+  std::vector<ccf::js::FFIPlugin> get_js_plugins()
+  {
+    return {};
+  }
 }
 
 tpcc::TpccMap<tpcc::Stock::Key, tpcc::Stock> tpcc::TpccTables::stocks("stocks");
