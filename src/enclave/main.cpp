@@ -4,7 +4,6 @@
 #include "common/enclave_interface_types.h"
 #include "ds/json.h"
 #include "ds/logger.h"
-#include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
