@@ -4,7 +4,7 @@ Install CCF
 Requirements
 ------------
 
-CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 20.04, with Clang 8.
+CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 20.04, with Clang 10.
 Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
 
 .. note::
@@ -22,7 +22,6 @@ These dependencies can be conveniently installed using the ``ansible`` playbooks
 .. code-block:: bash
 
     $ cd <ccf_path>/getting_started/setup_vm/
-    $ ./run.sh driver.yml # Only on SGX-enabled hardware
     $ ./run.sh app-dev.yml
 
 Install
@@ -62,7 +61,7 @@ The CCF install notably contains:
 
 - The ``cchost`` binary required to spin up a CCF application
 - The ``cmake`` files required to build CCF applications
-- Azure and ``ansible`` scripts required to :doc:`create_vm` and :doc:`build_setup` (under ``getting_started/``)
+- The ``ansible`` playbooks required for :doc:`build_setup` (under ``getting_started/``)
 - Header files and libraries to build CCF applications (under ``include/`` and ``lib/``)
 - A limited set of Python utilities to start a basic CCF service for local testing
 - Various utility scripts (see :doc:`/build_apps/demo`)

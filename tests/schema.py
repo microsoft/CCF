@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import sys
 import json
 import http
 import infra.network
@@ -10,6 +9,10 @@ import infra.e2e_args
 import infra.checker
 import openapi_spec_validator
 from packaging import version
+from infra.runner import ConcurrentRunner
+import nobuiltins
+import e2e_tutorial
+import e2e_operations
 
 from loguru import logger as LOG
 
@@ -46,7 +49,7 @@ def run(args):
         except KeyError:
             pass
 
-        with open(openapi_target_file, "a+") as f:
+        with open(openapi_target_file, "a+", encoding="utf-8") as f:
             f.seek(0)
             previous = f.read()
             if previous != formatted_schema:
@@ -67,7 +70,7 @@ def run(args):
                         args.schema_dir, f"{prefix}_{fetched_version}_openapi.json"
                     )
                     LOG.error(f"Writing to {alt_file} for comparison")
-                    with open(alt_file, "w") as f2:
+                    with open(alt_file, "w", encoding="utf-8") as f2:
                         f2.write(formatted_schema)
                 changed_files.append(openapi_target_file)
             else:
@@ -131,7 +134,15 @@ def run(args):
             LOG.info(f"  {method}")
 
     if made_changes or not documents_valid:
-        sys.exit(1)
+        assert False
+
+
+def run_nobuiltins(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        nobuiltins.test_nobuiltins_endpoints(network, args)
 
 
 if __name__ == "__main__":
@@ -147,7 +158,48 @@ if __name__ == "__main__":
             help="List all discovered methods at the end of the run",
             action="store_true",
         )
+        parser.add_argument(
+            "--client-tutorial",
+            help="Path to client tutorial file",
+            type=str,
+        )
+        parser.add_argument(
+            "--ledger-tutorial",
+            help="Path to ledger tutorial file",
+            type=str,
+        )
 
-    args = infra.e2e_args.cli_args(add=add)
-    args.nodes = ["local://localhost"]
-    run(args)
+    cr = ConcurrentRunner(add)
+
+    cr.add(
+        "schema",
+        run,
+        package="liblogging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+    )
+
+    cr.add(
+        "nobuiltins",
+        run_nobuiltins,
+        package="samples/apps/nobuiltins/libnobuiltins",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "tutorial",
+        e2e_tutorial.run,
+        package="liblogging",
+        nodes=["local://127.0.0.1:8000"],
+        initial_member_count=1,
+    )
+
+    cr.add(
+        "operations",
+        e2e_operations.run,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=1,
+        ledger_chunk_bytes="1",  # Chunk ledger at every signature transaction
+    )
+
+    cr.run()

@@ -32,10 +32,12 @@
 #include "impl/state.h"
 #include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
+#include "node/node_client.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
 #include "node/request_tracker.h"
+#include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
@@ -146,6 +148,15 @@ namespace aft
     std::unordered_map<ccf::NodeId, NodeState> nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
     bool use_two_tx_reconfig = false;
+    bool require_identity_for_reconfig = false;
+    std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
+    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
+      network_configurations;
+    std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
+      orc_sets;
+
+    // Node client to trigger submission of RPC requests
+    std::shared_ptr<ccf::NodeClient> node_client;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -187,11 +198,12 @@ namespace aft
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      const std::vector<uint8_t>& /*cert*/,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
+      std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
+      std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -213,7 +225,12 @@ namespace aft
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
       view_change_timeout(view_change_timeout_),
+
       sig_tx_interval(sig_tx_interval_),
+
+      resharing_tracker(std::move(resharing_tracker_)),
+      node_client(rpc_request_context_),
+
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -248,6 +265,15 @@ namespace aft
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
         use_two_tx_reconfig = true;
+        require_identity_for_reconfig = true;
+      }
+
+      if (require_identity_for_reconfig)
+      {
+        if (!resharing_tracker)
+        {
+          throw std::logic_error("missing identity tracker");
+        }
       }
     }
 
@@ -316,22 +342,22 @@ namespace aft
         !retirement_committable_idx.has_value();
     }
 
-    bool is_follower()
+    bool is_follower() const
     {
       return replica_state == kv::ReplicaState::Follower;
     }
 
-    bool is_learner()
+    bool is_learner() const
     {
       return replica_state == kv::ReplicaState::Learner;
     }
 
-    bool is_retired()
+    bool is_retired() const
     {
       return replica_state == kv::ReplicaState::Retired;
     }
 
-    bool is_retiring()
+    bool is_retiring() const
     {
       return replica_state == kv::ReplicaState::Retiring;
     }
@@ -342,6 +368,7 @@ namespace aft
         consensus_type == ConsensusType::BFT,
         "Computing primary id from view is only supported with BFT consensus");
 
+      assert(configurations.size() > 0);
       const auto& config = configurations.back();
       return get_primary_at_config(view, config.bft_offset, config.nodes);
     }
@@ -488,17 +515,34 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
+  private:
+    uint32_t get_bft_offset(const Configuration::Nodes& conf) const
+    {
+      uint32_t offset = 0;
+      if (consensus_type == ConsensusType::BFT && !configurations.empty())
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        auto target = progress_tracker->get_primary_at_last_view_change();
+        for (; offset < configurations.back().nodes.size(); ++offset)
+        {
+          if (
+            get_primary_at_config(std::get<1>(target), offset, conf) ==
+            std::get<0>(target))
+          {
+            break;
+          }
+        }
+      }
+      return offset;
+    }
+
+  public:
     void add_configuration(
       Index idx,
-      const Configuration::Nodes& conf,
+      const kv::Configuration::Nodes& conf,
       const std::unordered_set<ccf::NodeId>& new_learners = {})
     {
-      std::unordered_set<ccf::NodeId> conf_ids;
-      for (const auto& [id, _] : conf)
-      {
-        conf_ids.insert(id);
-      }
-      LOG_DEBUG_FMT("Configurations: add {{{}}}", fmt::join(conf_ids, ", "));
+      LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
@@ -511,6 +555,8 @@ namespace aft
 
       if (!use_two_tx_reconfig)
       {
+        assert(new_learners.empty());
+
         // Detect when we are retired by observing a configuration
         // from which we are absent following a configuration in which
         // we were included. Note that this relies on retirement being
@@ -529,24 +575,7 @@ namespace aft
           LOG_INFO_FMT("Node retiring at {}", idx);
         }
       }
-
-      uint32_t offset = 0;
-      if (consensus_type == ConsensusType::BFT && !configurations.empty())
-      {
-        auto progress_tracker = store->get_progress_tracker();
-        auto target = progress_tracker->get_primary_at_last_view_change();
-        for (; offset < configurations.back().nodes.size(); ++offset)
-        {
-          if (
-            get_primary_at_config(std::get<1>(target), offset, conf) ==
-            std::get<0>(target))
-          {
-            break;
-          }
-        }
-      }
-      configurations.push_back({idx, std::move(conf), offset});
-      if (use_two_tx_reconfig)
+      else
       {
         if (!new_learners.empty())
         {
@@ -561,36 +590,126 @@ namespace aft
             }
           }
         }
+
+        if (!configurations.empty())
+        {
+          for (const auto& [nid, _] : conf)
+          {
+            if (
+              nodes.find(nid) != nodes.end() &&
+              learners.find(nid) != learners.end() &&
+              new_learners.find(nid) == new_learners.end())
+            {
+              // Promotion of known learner
+              learners.erase(nid);
+            }
+            if (is_learner() && nid == state->my_node_id)
+            {
+              LOG_DEBUG_FMT(
+                "Configurations: observing own promotion, becoming a follower");
+              replica_state = kv::ReplicaState::Follower;
+            }
+          }
+        }
       }
-      else if (!new_learners.empty())
-      {
-        throw std::runtime_error(
-          "learner requires two-transaction reconfiguration");
-      }
+
+      uint32_t offset = get_bft_offset(conf);
+      configurations.push_back({idx, std::move(conf), offset, 0});
+
       backup_nodes.clear();
       create_and_remove_node_state();
     }
 
-    void add_network_configuration(
-      ccf::SeqNo seqno, const kv::NetworkConfiguration& config)
+    void reconfigure(
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig)
     {
-      LOG_DEBUG_FMT("Configurations: new network config: {{{}}}", config);
-      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
+      LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
 
+      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       if (is_bft_reexecution() && threading::ThreadMessaging::thread_count > 1)
       {
         guard.lock();
       }
 
-      // Hooks may be reordered, so the node info in `configurations` and
-      // `nodes` may not be available yet.
+      assert(!configurations.empty());
 
-      if (
-        use_two_tx_reconfig && !is_learner() && !is_retired() &&
-        config.nodes.find(state->my_node_id) != config.nodes.end())
+      for (const auto& nid : netconfig.nodes)
       {
-        // Send/schedule ORCs
+        if (nid != state->my_node_id && nodes.find(nid) == nodes.end())
+        {
+          LOG_FAIL_FMT("Configurations: node {} is unknown", nid);
+          return;
+        }
       }
+
+      network_configurations[netconfig.rid] = netconfig;
+
+      if (orc_sets.find(netconfig.rid) == orc_sets.end())
+      {
+        orc_sets[netconfig.rid] = {};
+      }
+
+      if (configurations.back().rid == 0)
+      {
+        configurations.back().rid = netconfig.rid;
+      }
+
+      if (resharing_tracker)
+      {
+        assert(resharing_tracker);
+        resharing_tracker->add_network_configuration(netconfig);
+        if (is_primary())
+        {
+          resharing_tracker->reshare(netconfig);
+        }
+      }
+    }
+
+    void add_resharing_result(
+      ccf::SeqNo seqno,
+      kv::ReconfigurationId rid,
+      const ccf::ResharingResult& result)
+    {
+      if (use_two_tx_reconfig && require_identity_for_reconfig)
+      {
+        assert(resharing_tracker);
+        resharing_tracker->add_resharing_result(seqno, rid, result);
+      }
+    }
+
+    // For more info about Observed Reconfiguration Commits see
+    // https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration
+    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
+    {
+      LOG_DEBUG_FMT(
+        "Configurations: ORC for configuration #{} from {}", rid, node_id);
+
+      const auto oit = orc_sets.find(rid);
+      if (oit == orc_sets.end())
+      {
+        throw std::logic_error(
+          fmt::format("Missing ORC set for configuration #{}", rid));
+      }
+
+      const auto ncit = network_configurations.find(rid);
+      if (ncit == network_configurations.end())
+      {
+        throw std::logic_error(fmt::format("Unknown configuration #{}", rid));
+      }
+
+      const auto& ncnodes = ncit->second.nodes;
+      if (ncnodes.find(node_id) == ncnodes.end())
+      {
+        throw std::logic_error(fmt::format("Unknown node {}", node_id));
+      }
+
+      oit->second.insert(node_id);
+      LOG_DEBUG_FMT(
+        "Configurations: have {} ORCs out of {} for configuration #{}",
+        oit->second.size(),
+        ncnodes.size(),
+        rid);
+      return oit->second.size() >= get_quorum(ncnodes.size());
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const
@@ -690,7 +809,7 @@ namespace aft
 
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
-          state->my_node_id.trim(),
+          state->my_node_id,
           index,
           (globally_committable ? " committable" : ""),
           hooks->size());
@@ -733,7 +852,7 @@ namespace aft
           entry_size_not_limited = 0;
           for (const auto& it : nodes)
           {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first.trim());
+            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
@@ -1036,8 +1155,7 @@ namespace aft
 
       ccf::ViewChangeRequest v =
         ccf::ViewChangeRequest::deserialize(data, size);
-      LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", from.trim(), r.view);
+      LOG_INFO_FMT("Received view change from:{}, view:{}", from, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
       auto result =
@@ -1144,6 +1262,39 @@ namespace aft
     }
 
   private:
+    Index find_highest_possible_match(const ccf::TxID& tx_id)
+    {
+      // Find the highest TxID this node thinks exists, which is still
+      // compatible with the given tx_id. That is, given T.n, find largest n'
+      // such that n' <= n && term_of(n') == T' && T' <= T. This may be T.n
+      // itself, if this node holds that index. Otherwise, examine the final
+      // entry in each term, counting backwards, until we find one which is
+      // still possible.
+      Index probe_index = std::min(tx_id.seqno, state->last_idx);
+      Term term_of_probe = state->view_history.view_at(probe_index);
+      while (term_of_probe > tx_id.view)
+      {
+        // Next possible match is the end of the previous term, which is
+        // 1-before the start of the currently considered term. Anything after
+        // that must have a term which is still too high.
+        probe_index = state->view_history.start_of_view(term_of_probe);
+        if (probe_index > 0)
+        {
+          --probe_index;
+        }
+        term_of_probe = state->view_history.view_at(probe_index);
+      }
+
+      LOG_TRACE_FMT(
+        "Looking for match with {}.{}, from {}.{}, best answer is {}",
+        tx_id.view,
+        tx_id.seqno,
+        state->view_history.view_at(state->last_idx),
+        state->last_idx,
+        probe_index);
+      return probe_index;
+    }
+
     inline void update_batch_size()
     {
       auto avg_entry_size = (entry_count == 0) ?
@@ -1161,12 +1312,13 @@ namespace aft
     }
 
     ccf::NodeId get_primary_at_config(
-      ccf::View view, uint32_t offset, const Configuration::Nodes& conf)
+      ccf::View view, uint32_t offset, const Configuration::Nodes& conf) const
     {
       CCF_ASSERT_FMT(
         consensus_type == ConsensusType::BFT,
         "Computing primary id from view is only supported with BFT consensus");
 
+      assert(conf.size() > 0);
       auto it = conf.begin();
       std::advance(it, (view - starting_view_change + offset) % conf.size());
       return it->first;
@@ -1305,13 +1457,14 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {{raft_append_entries},
-                          {end_idx, prev_idx},
-                          state->current_view,
-                          prev_term,
-                          state->commit_idx,
-                          term_of_idx,
-                          contains_new_view};
+      AppendEntries ae = {
+        {raft_append_entries},
+        {end_idx, prev_idx},
+        state->current_view,
+        prev_term,
+        state->commit_idx,
+        term_of_idx,
+        contains_new_view};
 
       auto& node = nodes.at(to);
 
@@ -1471,6 +1624,7 @@ namespace aft
             state->my_node_id,
             from,
             r.prev_idx);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         }
         else
         {
@@ -1482,6 +1636,9 @@ namespace aft
             r.prev_idx,
             prev_term,
             r.prev_term);
+          const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
+          send_append_entries_response(
+            from, AppendEntriesResponseType::FAIL, rejected_tx);
         }
 
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
@@ -1538,8 +1695,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.idx,
         r.prev_idx);
 
@@ -1582,8 +1739,7 @@ namespace aft
           continue;
         }
 
-        LOG_DEBUG_FMT(
-          "Replicating on follower {}: {}", state->my_node_id.trim(), i);
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
 
         std::vector<uint8_t> entry;
         try
@@ -2125,37 +2281,39 @@ namespace aft
     }
 
     void send_append_entries_response(
-      ccf::NodeId to, AppendEntriesResponseType answer)
+      ccf::NodeId to,
+      AppendEntriesResponseType answer,
+      const std::optional<ccf::TxID>& rejected = std::nullopt)
     {
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
       }
 
-      // AppendEntriesResponse should contain the highest _matching_ index we
-      // hold - that is how the primary will treat it.
-      // If this is an affirmative response, then that index is the last entry
-      // in this log.
-      // But if this is NACKing what was just sent (because it could not be
-      // applied), then we want to ensure that the next thing they send begins
-      // with a match. This may result in resending a redundant chunk which
-      // agrees, but will eventually include the earliest mismatch, which will
-      // trigger a rollback and correct application on this node.
-      auto matching_idx = answer == AppendEntriesResponseType::FAIL ?
-        state->commit_idx :
-        state->last_idx;
+      aft::Index response_idx = state->last_idx;
+      aft::Term response_term = state->current_view;
+
+      // This matching-index-detection logic doesn't work on BFT, so is disabled
+      // and still uses the original behaviour:
+      // https://github.com/microsoft/CCF/issues/2853
+      if (consensus_type != ConsensusType::BFT)
+      {
+        if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
+        {
+          response_idx = find_highest_possible_match(rejected.value());
+          response_term = get_term_internal(response_idx);
+        }
+      }
 
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
-        matching_idx,
+        state->my_node_id,
+        to,
+        response_idx,
         answer);
 
-      AppendEntriesResponse response = {{raft_append_entries_response},
-                                        state->current_view,
-                                        matching_idx,
-                                        answer};
+      AppendEntriesResponse response = {
+        {raft_append_entries_response}, response_term, response_idx, answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -2166,19 +2324,20 @@ namespace aft
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         state->last_idx);
 
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
 
-      SignedAppendEntriesResponse r = {{raft_append_entries_signed_response},
-                                       state->current_view,
-                                       state->last_idx,
-                                       {},
-                                       static_cast<uint32_t>(sig.sig.size()),
-                                       {}};
+      SignedAppendEntriesResponse r = {
+        {raft_append_entries_signed_response},
+        state->current_view,
+        state->last_idx,
+        {},
+        static_cast<uint32_t>(sig.sig.size()),
+        {}};
 
       std::optional<crypto::Sha256Hash> hashed_nonce;
       progress_tracker->get_node_hashed_nonce(
@@ -2299,7 +2458,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
 
@@ -2373,7 +2532,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing nonce_reveal, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
@@ -2425,41 +2584,55 @@ namespace aft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale term ({} != {})",
-          state->my_node_id,
-          from,
-          r.term,
-          state->current_view);
+        // NB: In NACKs the term may be that of an estimated matching index
+        // in the log, rather than the current term, so it is correct for it to
+        // be older in this case.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale term ({} != {})",
+            state->my_node_id,
+            from,
+            r.term,
+            state->current_view);
           return;
         }
       }
       else if (r.last_log_idx < node->second.match_idx)
       {
-        // Stale response, discard if success.
+        // Response about past indices, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale idx",
-          state->my_node_id,
-          from);
+        // NB: It is correct for this index to move backwards during NACKs
+        // which iteratively discover the last matching index of divergent logs
+        // after an election.
         if (r.success == AppendEntriesResponseType::OK)
         {
+          LOG_DEBUG_FMT(
+            "Recv append entries response to {} from {}: stale idx",
+            state->my_node_id,
+            from);
           return;
         }
       }
 
       // Update next and match for the responding node.
-      node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      if (r.success == AppendEntriesResponseType::FAIL)
+      {
+        node->second.match_idx =
+          find_highest_possible_match({r.term, r.last_log_idx});
+      }
+      else
+      {
+        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
+      }
 
       if (r.success == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
-                                    state->current_view};
+        ViewChangeEvidenceMsg vw = {
+          {bft_view_change_evidence}, state->current_view};
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
@@ -2488,8 +2661,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.last_log_idx);
       update_commit();
     }
@@ -2499,15 +2672,16 @@ namespace aft
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
         "Send request vote from {} to {} at {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {{raft_request_vote},
-                        state->current_view,
-                        last_committable_idx,
-                        get_term_internal(last_committable_idx)};
+      RequestVote rv = {
+        {raft_request_vote},
+        state->current_view,
+        last_committable_idx,
+        get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
@@ -2599,8 +2773,8 @@ namespace aft
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         answer);
 
       RequestVoteResponse response = {
@@ -2858,13 +3032,13 @@ namespace aft
 
         // Need 50% + 1 of the total nodes in the current config (including us).
         votes_for_me.insert(from);
-        quorum = get_quorum(cfg);
+        quorum = get_quorum(cfg.nodes.size());
       }
       else
       {
         // Need 50% + 1 of the total nodes, which are the other nodes plus us.
         votes_for_me.insert(from);
-        quorum = ((nodes.size() + 1) / 2) + 1;
+        quorum = get_quorum(nodes.size() + 1);
       }
 
       if (votes_for_me.size() >= quorum)
@@ -2984,7 +3158,9 @@ namespace aft
       for (const auto& [id, _] : c.nodes)
       {
         if (
-          nodes.find(id) != nodes.end() && learners.find(id) == learners.end())
+          (nodes.find(id) != nodes.end() &&
+           learners.find(id) == learners.end()) ||
+          (id == state->my_node_id && !is_learner()))
         {
           r++;
         }
@@ -2992,14 +3168,14 @@ namespace aft
       return r;
     }
 
-    size_t get_quorum(const kv::Configuration& c) const
+    size_t get_quorum(size_t n) const
     {
       switch (consensus_type)
       {
         case CFT:
-          return (c.nodes.size() / 2) + 1;
+          return (n / 2) + 1;
         case BFT:
-          return (c.nodes.size() / 3) + 1;
+          return ((2 * n) / 3) + 1;
         default:
           return -1;
       }
@@ -3007,7 +3183,7 @@ namespace aft
 
     bool have_quorum(size_t n, const kv::Configuration& c) const
     {
-      return n >= get_quorum(c);
+      return n >= get_quorum(c.nodes.size());
     }
 
     bool enough_trusted(const kv::Configuration& c) const
@@ -3049,7 +3225,7 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
-      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
+      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
       // Examine all configurations that are followed by a globally committed
       // configuration.
@@ -3068,6 +3244,21 @@ namespace aft
         if (idx < next->idx)
           break;
 
+        if (require_identity_for_reconfig)
+        {
+          assert(resharing_tracker);
+          auto rr = resharing_tracker->find_reconfiguration(next->nodes);
+          if (
+            !rr.has_value() ||
+            !resharing_tracker->have_resharing_result_for(rr.value(), idx))
+          {
+            LOG_TRACE_FMT(
+              "Configurations: not switching to next configuration, resharing "
+              "not completed yet.");
+            break;
+          }
+        }
+
         if (!use_two_tx_reconfig)
         {
           configurations.pop_front();
@@ -3076,24 +3267,14 @@ namespace aft
         }
         else
         {
-          if (is_primary())
-          {
-            if (!enough_trusted(*next))
-            {
-              LOG_TRACE_FMT(
-                "Configurations: not enough trusted nodes for next "
-                "configuration");
-              break;
-            }
-          }
-
           if (num_trusted(*next) == next->nodes.size())
           {
             LOG_TRACE_FMT(
-              "Configurations: all nodes trusted, switching to next "
-              "configuration");
+              "Configurations: all nodes trusted, switching to configuration "
+              "#{}",
+              next->rid);
 
-            if (!is_retiring())
+            if (!is_retiring() && !is_retired())
             {
               if (
                 conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
@@ -3103,13 +3284,47 @@ namespace aft
               }
             }
 
+            for (auto& [nid, _] : next->nodes)
+            {
+              learners.erase(nid);
+            }
+
+            if (
+              is_learner() &&
+              next->nodes.find(state->my_node_id) != next->nodes.end())
+            {
+              LOG_INFO_FMT(
+                "Becoming follower {}: {}",
+                state->my_node_id,
+                state->current_view);
+              replica_state = kv::ReplicaState::Follower;
+            }
+
             configurations.pop_front();
           }
           else
           {
+            if (
+              use_two_tx_reconfig && !is_learner() && !is_retired() &&
+              node_client &&
+              next->nodes.find(state->my_node_id) != next->nodes.end())
+            {
+              LOG_TRACE_FMT(
+                "Configurations: not enough trusted nodes for configuration "
+                "#{} ({} out of {}); submitting ORC",
+                next->rid,
+                num_trusted(*next),
+                next->nodes.size());
+              node_client->schedule_submit_orc(state->my_node_id, next->rid);
+            }
             break;
           }
         }
+      }
+
+      if (resharing_tracker)
+      {
+        resharing_tracker->compact(idx);
       }
 
       if (changed)
@@ -3162,6 +3377,8 @@ namespace aft
       state->last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
 
+      state->view_history.rollback(idx);
+
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {
         committable_indices.pop_back();
@@ -3189,19 +3406,18 @@ namespace aft
         changed = true;
       }
 
-      if (use_two_tx_reconfig && changed)
+      if (use_two_tx_reconfig)
       {
-        std::unordered_set<ccf::NodeId> to_erase;
-        for (auto& [id, seqno] : learners)
+        for (auto it = learners.begin(); it != learners.end();)
         {
-          if (seqno > idx)
+          if (it->second > idx)
           {
-            to_erase.insert(id);
+            it = learners.erase(it);
           }
-        }
-        for (auto& id : to_erase)
-        {
-          learners.erase(id);
+          else
+          {
+            it++;
+          }
         }
       }
 
@@ -3213,32 +3429,6 @@ namespace aft
 
     void create_and_remove_node_state()
     {
-      if (use_two_tx_reconfig && is_learner())
-      {
-        for (auto& cfg : configurations)
-        {
-          if (cfg.idx > state->commit_idx)
-            break;
-
-          if (
-            cfg.nodes.find(state->my_node_id) != cfg.nodes.end() &&
-            learners.find(state->my_node_id) != learners.end())
-          {
-            LOG_INFO_FMT("Configurations: ready for promotion");
-            // Submit promotion RPC here.
-            learners.erase(state->my_node_id);
-
-            // The transition to follower will happen when the reconfiguration
-            // transaction commits.
-            LOG_INFO_FMT(
-              "Becoming follower {}: {}",
-              state->my_node_id,
-              state->current_view);
-            replica_state = kv::ReplicaState::Follower;
-          }
-        }
-      }
-
       // Find all nodes present in any active configuration.
       Configuration::Nodes active_nodes;
 
@@ -3276,8 +3466,13 @@ namespace aft
           continue;
         }
 
-        if (nodes.find(node_info.first) == nodes.end())
+        if (
+          nodes.find(node_info.first) == nodes.end() ||
+          !channels->have_channel(node_info.first))
         {
+          LOG_DEBUG_FMT(
+            "Configurations: create node channel with {}", node_info.first);
+
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;

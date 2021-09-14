@@ -14,7 +14,8 @@ set(QUICKJS_SRC
     ${QUICKJS_PREFIX}/quickjs.c
 )
 set_source_files_properties(
-  quickjs.c PROPERTIES COMPILE_FLAGS -Wnoimplicit-int-float-conversion
+  ${QUICKJS_PREFIX}/quickjs.c PROPERTIES COMPILE_FLAGS
+                                         -Wno-implicit-int-float-conversion
 )
 
 execute_process(
@@ -27,17 +28,15 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 # We need two versions of libquickjs, because it depends on libc
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  add_library(
-    quickjs.enclave STATIC ${QUICKJS_SRC} ${CCF_DIR}/src/enclave/stub_time.c
+  add_enclave_library_c(
+    quickjs.enclave ${QUICKJS_SRC} ${CCF_DIR}/src/enclave/stub_time.c
   )
   target_compile_options(
     quickjs.enclave
-    PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}" -DEMSCRIPTEN
+    PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DEMSCRIPTEN
            -DCONFIG_STACK_CHECK -DCONFIG_BIGNUM
     PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
   )
-  target_link_libraries(quickjs.enclave PUBLIC ${OE_TARGET_LIBC})
-  set_property(TARGET quickjs.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(
     quickjs.enclave
     PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>

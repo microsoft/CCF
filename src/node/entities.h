@@ -66,8 +66,10 @@ namespace ccf
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";
     static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
-    static constexpr auto NETWORK_CONFIGURATIONS =
-      "public:ccf.gov.network.configurations";
+    static constexpr auto NODES_CONFIGURATIONS =
+      "public:ccf.gov.nodes.network.configurations";
+    static constexpr auto NODE_ENDORSED_CERTIFICATES =
+      "public:ccf.gov.nodes.endorsed_certificates";
 
     // Service information
     static constexpr auto SERVICE = "public:ccf.gov.service.info";
@@ -118,6 +120,9 @@ namespace ccf
     static constexpr auto CONSTITUTION = "public:ccf.gov.constitution";
     static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
     static constexpr auto PROPOSALS_INFO = "public:ccf.gov.proposals_info";
+
+    // Identity resharings
+    static constexpr auto RESHARINGS = "public:ccf.internal.resharings";
   };
 
 }

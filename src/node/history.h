@@ -11,6 +11,7 @@
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
+#include "node_signature_verify.h"
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
@@ -198,9 +199,10 @@ namespace ccf
     std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
     get_replicated_state_txid_and_root() override
     {
-      return {{term_of_last_version, version},
-              crypto::Sha256Hash(std::to_string(version)),
-              term_of_next_version};
+      return {
+        {term_of_last_version, version},
+        crypto::Sha256Hash(std::to_string(version)),
+        term_of_next_version};
     }
 
     std::vector<uint8_t> get_proof(kv::Version) override
@@ -652,10 +654,11 @@ namespace ccf
     get_replicated_state_txid_and_root() override
     {
       std::lock_guard<std::mutex> guard(state_lock);
-      return {{term_of_last_version,
-               static_cast<kv::Version>(replicated_state_tree.end_index())},
-              replicated_state_tree.get_root(),
-              term_of_next_version};
+      return {
+        {term_of_last_version,
+         static_cast<kv::Version>(replicated_state_tree.end_index())},
+        replicated_state_tree.get_root(),
+        term_of_next_version};
     }
 
     kv::TxHistory::Result verify_and_sign(
@@ -690,10 +693,9 @@ namespace ccf
     bool verify(
       kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
     {
-      auto tx = store.create_tx();
+      auto tx = store.create_read_only_tx();
       auto signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
       auto sig = signatures->get();
       if (!sig.has_value())
       {
@@ -711,26 +713,9 @@ namespace ccf
         *signature = sig_value;
       }
 
-      auto ni = nodes->get(sig_value.node);
-      if (!ni.has_value())
-      {
-        LOG_FAIL_FMT(
-          "No node info, and therefore no cert for node {}", sig_value.node);
-        return false;
-      }
-
-      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
-      crypto::Sha256Hash root = get_replicated_state_root();
+      auto root = get_replicated_state_root();
       log_hash(root, VERIFY);
-      bool result =
-        from_cert->verify_hash(root.h, sig_value.sig, crypto::MDType::SHA256);
-
-      if (!result)
-      {
-        return false;
-      }
-
-      return true;
+      return verify_node_signature(tx, sig_value.node, sig_value.sig, root);
     }
 
     std::vector<uint8_t> serialise_tree(size_t from, size_t to) override

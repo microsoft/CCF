@@ -776,6 +776,56 @@ const actions = new Map([
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(nodeInfo)
           );
+
+          // Also generate and record service-endorsed node certificate from node CSR
+          if (
+            nodeInfo.certificate_signing_request !== undefined &&
+            serviceConfig.consensus !== "BFT"
+          ) {
+            // Note: CSR is only present from 2.x
+            const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
+              nodeInfo.certificate_signing_request
+            );
+            ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
+              ccf.strToBuf(args.node_id),
+              ccf.strToBuf(endorsed_node_cert)
+            );
+          }
+
+          if (serviceConfig.reconfiguration_type == "TwoTransaction") {
+            const latest_id_raw = ccf.kv[
+              "public:ccf.gov.nodes.network.configurations"
+            ].get(getSingletonKvKey());
+            if (latest_id_raw === undefined) {
+              throw new Error("Network configuration could not be found");
+            }
+            const latest_id = ccf.bufToJsonCompatible(latest_id_raw);
+            const rid_buf = new ArrayBuffer(8);
+            new DataView(rid_buf).setUint32(0, latest_id.rid, true);
+
+            const latest_config_raw =
+              ccf.kv["public:ccf.gov.nodes.network.configurations"].get(
+                rid_buf
+              );
+            if (latest_config_raw === undefined) {
+              throw new Error("Network configuration could not be found");
+            }
+            const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
+
+            latest_config.nodes.push(args.node_id);
+            latest_config.rid++;
+            new DataView(rid_buf).setUint32(0, latest_config.rid, true);
+            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+              rid_buf,
+              ccf.jsonCompatibleToBuf(latest_config)
+            );
+            latest_config.nodes = {};
+            latest_id.rid = latest_config.rid;
+            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+              getSingletonKvKey(),
+              ccf.jsonCompatibleToBuf(latest_id)
+            );
+          }
         }
       }
     ),
@@ -819,6 +869,42 @@ const actions = new Map([
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(node_obj)
           );
+
+          if (serviceConfig.reconfiguration_type == "TwoTransaction") {
+            const latest_id_raw = ccf.kv[
+              "public:ccf.gov.nodes.network.configurations"
+            ].get(getSingletonKvKey());
+            if (latest_id_raw === undefined) {
+              throw new Error("Network configuration could not be found");
+            }
+            const latest_id = ccf.bufToJsonCompatible(latest_id_raw);
+            const rid_buf = new ArrayBuffer(8);
+            new DataView(rid_buf).setUint32(0, latest_id.rid, true);
+            const latest_config_raw =
+              ccf.kv["public:ccf.gov.nodes.network.configurations"].get(
+                rid_buf
+              );
+            if (latest_config_raw === undefined) {
+              throw new Error("Network configuration could not be found");
+            }
+            const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
+            const idx = latest_config.nodes.indexOf(args.node_id);
+            if (idx > -1) {
+              latest_config.nodes.splice(idx, 1);
+            }
+            latest_config.rid++;
+            new DataView(rid_buf).setUint32(0, latest_config.rid, true);
+            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+              rid_buf,
+              ccf.jsonCompatibleToBuf(latest_config)
+            );
+            latest_config.nodes = {};
+            latest_id.rid = latest_config.rid;
+            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+              getSingletonKvKey(),
+              ccf.jsonCompatibleToBuf(latest_id)
+            );
+          }
         }
       }
     ),

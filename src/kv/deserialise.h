@@ -61,8 +61,8 @@ namespace kv
 
     ApplyResult apply() override
     {
-      kv::Version max_conflict_version;
-      kv::Term view;
+      kv::Version max_conflict_version = 0;
+      kv::Term view = 0;
       if (!store->fill_maps(
             data,
             public_only,
@@ -551,7 +551,7 @@ namespace kv
       tx->set_change_list(std::move(changes), term);
 
       auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-      auto req_v = aft_requests->get(0);
+      auto req_v = aft_requests->get();
       CCF_ASSERT(
         req_v.has_value(),
         "Deserialised append entry, but requests map is empty");
@@ -628,7 +628,7 @@ namespace kv
         tx->set_change_list(std::move(changes), term);
 
         auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-        auto req_v = aft_requests->get(0);
+        auto req_v = aft_requests->get();
         CCF_ASSERT(
           req_v.has_value(),
           "Deserialised append entry, but requests map is empty");

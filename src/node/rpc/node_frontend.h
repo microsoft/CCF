@@ -7,12 +7,15 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
+#include "crypto/csr.h"
 #include "crypto/hash.h"
 #include "frontend.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
 #include "node/reconfig_id.h"
+#include "node/rpc/error.h"
+#include "node/session_metrics.h"
 #include "node_interface.h"
 
 namespace ccf
@@ -49,10 +52,6 @@ namespace ccf
     ccf::SessionMetrics sessions;
   };
 
-  DECLARE_JSON_TYPE(ccf::SessionMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    ccf::SessionMetrics, active, peak, soft_cap, hard_cap)
-
   DECLARE_JSON_TYPE(NodeMetrics)
   DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions)
 
@@ -65,30 +64,52 @@ namespace ccf
   DECLARE_JSON_TYPE(JavaScriptMetrics)
   DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used)
 
+  struct SetJwtPublicSigningKeys
+  {
+    std::string issuer;
+    JsonWebKeySet jwks;
+  };
+
+  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
     NetworkState& network;
 
-    using ExistingNodeInfo = std::pair<NodeId, std::optional<kv::Version>>;
+    struct ExistingNodeInfo
+    {
+      NodeId node_id;
+      std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+      std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+    };
 
     std::optional<ExistingNodeInfo> check_node_exists(
       kv::Tx& tx,
-      const std::vector<uint8_t>& node_der,
+      const std::vector<uint8_t>& self_signed_node_der,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
-      auto nodes = tx.rw(network.nodes);
+      // Check that a node exists by looking up its public key in the nodes
+      // table.
+      auto nodes = tx.ro(network.nodes);
+      auto endorsed_node_certificates =
+        tx.ro(network.node_endorsed_certificates);
 
-      auto node_pem = crypto::cert_der_to_pem(node_der);
+      auto pk_pem = crypto::public_key_pem_from_cert(self_signed_node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
-      nodes->foreach([&existing_node_info, &node_pem, &node_status](
+      nodes->foreach([&existing_node_info,
+                      &pk_pem,
+                      &node_status,
+                      &endorsed_node_certificates](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
-          ni.cert == node_pem &&
+          ni.public_key == pk_pem &&
           (!node_status.has_value() || ni.status == node_status.value()))
         {
-          existing_node_info = std::make_pair(nid, ni.ledger_secret_seqno);
+          existing_node_info = {
+            nid, ni.ledger_secret_seqno, endorsed_node_certificates->get(nid)};
           return false;
         }
         return true;
@@ -106,8 +127,7 @@ namespace ccf
       nodes->foreach([&node_info_network, &duplicate_node_id](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
-          node_info_network.nodeport == ni.nodeport &&
-          node_info_network.nodehost == ni.nodehost &&
+          node_info_network.node_address == ni.node_address &&
           ni.status != NodeStatus::RETIRED)
         {
           duplicate_node_id = nid;
@@ -127,6 +147,8 @@ namespace ccf
       ServiceStatus service_status)
     {
       auto nodes = tx.rw(network.nodes);
+      auto node_endorsed_certificates =
+        tx.rw(network.node_endorsed_certificates);
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -138,32 +160,20 @@ namespace ccf
           fmt::format(
             "A node with the same node host {} and port {} already exists "
             "(node id: {}).",
-            in.node_info_network.nodehost,
-            in.node_info_network.nodeport,
+            in.node_info_network.node_address.hostname,
+            in.node_info_network.node_address.port,
             conflicting_node_id.value()));
       }
 
-      auto pk_der = crypto::public_key_der_from_cert(node_der);
-
-      NodeId joining_node_id;
-      if (network.consensus_type == ConsensusType::CFT)
-      {
-        joining_node_id = crypto::Sha256Hash(pk_der).hex_str();
-      }
-      else
-      {
-        // Pad node id string to avoid memory alignment issues on
-        // node-to-node messages
-        joining_node_id = fmt::format(
-          "{:#064}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
-      }
+      auto pubk_der = crypto::public_key_der_from_cert(node_der);
+      NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
 
       CodeDigest code_digest;
 
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
         this->context.get_node_state().verify_quote(
-          tx, in.quote_info, pk_der, code_digest);
+          tx, in.quote_info, pubk_der, code_digest);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -182,20 +192,51 @@ namespace ccf
           this->network.ledger_secrets->get_latest(tx).first;
       }
 
-      nodes->put(
-        joining_node_id,
-        {in.node_info_network,
-         crypto::cert_der_to_pem(node_der),
-         in.quote_info,
-         in.public_encryption_key,
-         node_status,
-         ledger_secret_seqno,
-         ds::to_hex(code_digest.data)});
+      // Note: All new nodes should specify a CSR from 2.x
+      auto client_public_key_pem = crypto::public_key_pem_from_cert(node_der);
+      if (in.certificate_signing_request.has_value())
+      {
+        // Verify that client's public key matches the one specified in the CSR)
+        auto csr_public_key_pem = crypto::public_key_pem_from_csr(
+          in.certificate_signing_request.value());
+        if (client_public_key_pem != csr_public_key_pem)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::CSRPublicKeyInvalid,
+            "Public key in CSR does not match TLS client identity.");
+        }
+      }
+
+      NodeInfo node_info = {
+        in.node_info_network,
+        in.quote_info,
+        in.public_encryption_key,
+        node_status,
+        ledger_secret_seqno,
+        ds::to_hex(code_digest.data),
+        in.certificate_signing_request,
+        client_public_key_pem};
+
+      // Because the certificate signature scheme is non-deterministic, only
+      // self-signed node certificate is recorded in the node info table
+      if (this->network.consensus_type == ConsensusType::BFT)
+      {
+        node_info.cert = crypto::cert_der_to_pem(node_der);
+      }
+
+      nodes->put(joining_node_id, node_info);
 
       kv::NetworkConfiguration nc =
         get_latest_network_configuration(network, tx);
       nc.nodes.insert(joining_node_id);
-      add_new_network_reconfiguration(network, tx, nc);
+
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
+      {
+        add_new_network_reconfiguration(network, tx, nc);
+      }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -207,13 +248,29 @@ namespace ccf
         node_status == NodeStatus::TRUSTED ||
         node_status == NodeStatus::LEARNER)
       {
+        // Joining node only submit a CSR from 2.x
+        std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+        if (
+          in.certificate_signing_request.has_value() &&
+          this->network.consensus_type == ConsensusType::CFT)
+        {
+          endorsed_certificate =
+            context.get_node_state().generate_endorsed_certificate(
+              in.certificate_signing_request.value(),
+              this->network.identity->priv_key,
+              this->network.identity->cert);
+          node_endorsed_certificates->put(
+            joining_node_id, {endorsed_certificate.value()});
+        }
+
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
-          service_status};
+          service_status,
+          endorsed_certificate};
       }
       return make_success(rep);
     }
@@ -228,7 +285,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.4.0";
+      openapi_info.document_version = "2.0.0";
     }
 
     void init_handlers() override
@@ -273,7 +330,8 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSnapshotIsOld,
             fmt::format(
-              "Node requested to join from snapshot at seqno {} which is older "
+              "Node requested to join from snapshot at seqno {} which is "
+              "older "
               "than this node startup seqno {}",
               in.startup_seqno.value(),
               this_startup_seqno.value()));
@@ -303,15 +361,16 @@ namespace ccf
           {
             JoinNetworkNodeToNode::Out rep;
             rep.node_status = joining_node_status;
-            rep.node_id = existing_node_info->first;
-            rep.network_info = {
+            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
-                args.tx, existing_node_info->second),
+                args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
-              active_service->status};
+              active_service->status,
+              existing_node_info->endorsed_certificate);
+
             return make_success(rep);
           }
 
@@ -326,10 +385,14 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
+                const auto& pub_address =
+                  info->rpc_interfaces[0].public_rpc_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
                   fmt::format(
-                    "https://{}:{}/node/join", info->pubhost, info->pubport));
+                    "https://{}:{}/node/join",
+                    pub_address.hostname,
+                    pub_address.port));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -362,24 +425,25 @@ namespace ccf
         if (existing_node_info.has_value())
         {
           JoinNetworkNodeToNode::Out rep;
-          rep.node_id = existing_node_info->first;
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
-          auto node_status = nodes->get(existing_node_info->first)->status;
+          auto node_status = nodes->get(existing_node_info->node_id)->status;
           rep.node_status = node_status;
           if (
             node_status == NodeStatus::TRUSTED ||
             node_status == NodeStatus::LEARNER)
           {
-            rep.network_info = {
+            rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
               this->network.ledger_secrets->get(
-                args.tx, existing_node_info->second),
+                args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
-              active_service->status};
+              active_service->status,
+              existing_node_info->endorsed_certificate);
+
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
@@ -408,10 +472,14 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
+                const auto& pub_address =
+                  info->rpc_interfaces[0].public_rpc_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
                   fmt::format(
-                    "https://{}:{}/node/join", info->pubhost, info->pubport));
+                    "https://{}:{}/node/join",
+                    pub_address.hostname,
+                    pub_address.port));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -543,7 +611,7 @@ namespace ccf
         GetQuotes::Out result;
 
         auto nodes = args.tx.ro(network.nodes);
-        nodes->foreach([& quotes = result.quotes](
+        nodes->foreach([&quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
           if (
             node_info.status == ccf::NodeStatus::TRUSTED ||
@@ -663,9 +731,11 @@ namespace ccf
         auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach([this, host, port, status, &out](
                          const NodeId& nid, const NodeInfo& ni) {
-          if (host.has_value() && host.value() != ni.pubhost)
+          const auto& primary_interface = ni.rpc_interfaces[0];
+          const auto& pub_address = primary_interface.public_rpc_address;
+          if (host.has_value() && host.value() != pub_address.hostname)
             return true;
-          if (port.has_value() && port.value() != ni.pubport)
+          if (port.has_value() && port.value() != pub_address.port)
             return true;
           if (status.has_value() && status.value() != ni.status)
             return true;
@@ -675,13 +745,14 @@ namespace ccf
           {
             is_primary = consensus->primary() == nid;
           }
-          out.nodes.push_back({nid,
-                               ni.status,
-                               ni.pubhost,
-                               ni.pubport,
-                               ni.rpchost,
-                               ni.rpcport,
-                               is_primary});
+          out.nodes.push_back(
+            {nid,
+             ni.status,
+             pub_address.hostname,
+             pub_address.port,
+             primary_interface.rpc_address.hostname,
+             primary_interface.rpc_address.port,
+             is_primary});
           return true;
         });
 
@@ -737,13 +808,15 @@ namespace ccf
           }
         }
         auto ni = info.value();
-        return make_success(GetNode::Out{node_id,
-                                         ni.status,
-                                         ni.pubhost,
-                                         ni.pubport,
-                                         ni.rpchost,
-                                         ni.rpcport,
-                                         is_primary});
+        const auto& primary_interface = ni.rpc_interfaces[0];
+        return make_success(GetNode::Out{
+          node_id,
+          ni.status,
+          primary_interface.public_rpc_address.hostname,
+          primary_interface.public_rpc_address.port,
+          primary_interface.rpc_address.hostname,
+          primary_interface.rpc_address.port,
+          is_primary});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",
@@ -761,13 +834,14 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
+          const auto& address = info->rpc_interfaces[0].public_rpc_address;
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
             fmt::format(
               "https://{}:{}/node/network/nodes/{}",
-              info->pubhost,
-              info->pubport,
+              address.hostname,
+              address.port,
               node_id.value()));
           return;
         }
@@ -802,13 +876,14 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
+            const auto& address = info->rpc_interfaces[0].public_rpc_address;
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
             args.rpc_ctx->set_response_header(
               http::headers::LOCATION,
               fmt::format(
                 "https://{}:{}/node/network/nodes/{}",
-                info->pubhost,
-                info->pubport,
+                address.hostname,
+                address.port,
                 primary_id->value()));
             return;
           }
@@ -849,10 +924,13 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
+              const auto& address = info->rpc_interfaces[0].public_rpc_address;
               args.rpc_ctx->set_response_header(
                 http::headers::LOCATION,
                 fmt::format(
-                  "https://{}:{}/node/primary", info->pubhost, info->pubport));
+                  "https://{}:{}/node/primary",
+                  address.hostname,
+                  address.port));
             }
           }
         }
@@ -1000,6 +1078,329 @@ namespace ccf
         .set_auto_schema<GetVersion>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
+      auto create = [this](auto& ctx, nlohmann::json&& params) {
+        LOG_DEBUG_FMT("Processing create RPC");
+
+        // This endpoint can only be called once, directly from the starting
+        // node for the genesis or end of public recovery transaction to
+        // initialise the service
+        if (
+          network.consensus_type == ConsensusType::CFT &&
+          !context.get_node_state().is_in_initialised_state() &&
+          !context.get_node_state().is_reading_public_ledger())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::InternalError,
+            "Node is not in initial state.");
+        }
+
+        const auto in = params.get<CreateNetworkNodeToNode::In>();
+        GenesisGenerator g(this->network, ctx.tx);
+        if (g.is_service_created(in.network_cert))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::InternalError,
+            "Service is already created.");
+        }
+
+        g.create_service(in.network_cert);
+
+        // Retire all nodes, in case there are any (i.e. post recovery)
+        g.retire_active_nodes();
+
+        NodeInfo node_info = {
+          in.node_info_network,
+          {in.quote_info},
+          in.public_encryption_key,
+          NodeStatus::TRUSTED,
+          std::nullopt,
+          ds::to_hex(in.code_digest.data),
+          in.certificate_signing_request,
+          in.public_key};
+
+        // Genesis transaction (i.e. not after recovery)
+        if (in.genesis_info.has_value())
+        {
+          g.init_values();
+
+          // Note that it is acceptable to start a network without any member
+          // having a recovery share. The service will check that at least one
+          // recovery member is added before the service is opened.
+          for (const auto& info : in.genesis_info->members_info)
+          {
+            g.add_member(info);
+          }
+
+          if (
+            in.genesis_info->configuration.consensus == ConsensusType::BFT &&
+            (!in.genesis_info->configuration.reconfiguration_type.has_value() ||
+             in.genesis_info->configuration.reconfiguration_type.value() !=
+               ReconfigurationType::TWO_TRANSACTION))
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "BFT consensus requires two-transaction reconfiguration.");
+          }
+
+          g.init_configuration(in.genesis_info->configuration);
+          g.set_constitution(in.genesis_info->constitution);
+        }
+
+        if (!in.node_cert.has_value())
+        {
+          auto endorsed_certificates =
+            ctx.tx.rw(network.node_endorsed_certificates);
+          endorsed_certificates->put(
+            in.node_id,
+            context.get_node_state().generate_endorsed_certificate(
+              in.certificate_signing_request,
+              this->network.identity->priv_key,
+              this->network.identity->cert));
+        }
+        else
+        {
+          node_info.cert = in.node_cert.value();
+        }
+
+        g.add_node(in.node_id, node_info);
+
+#ifdef GET_QUOTE
+        g.trust_node_code_id(in.code_digest);
+#endif
+
+        LOG_INFO_FMT("Created service");
+        return make_success(true);
+      };
+      make_endpoint(
+        "/create", HTTP_POST, json_adapter(create), no_auth_required)
+        .set_openapi_hidden(true)
+        .install();
+
+      // Only called from node. See node_state.h.
+      auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
+        // All errors are server errors since the client is the server.
+
+        if (!consensus)
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No consensus available.");
+        }
+
+        auto primary_id = consensus->primary();
+        if (!primary_id.has_value())
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary is unknown");
+        }
+
+        const auto& sig_auth_ident =
+          ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
+        if (primary_id.value() != sig_auth_ident.node_id)
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: request does not originate from primary");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Request does not originate from primary.");
+        }
+
+        SetJwtPublicSigningKeys parsed;
+        try
+        {
+          parsed = body.get<SetJwtPublicSigningKeys>();
+        }
+        catch (const JsonParseError& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Unable to parse body.");
+        }
+
+        auto issuers = ctx.tx.rw(this->network.jwt_issuers);
+        auto issuer_metadata_ = issuers->get(parsed.issuer);
+        if (!issuer_metadata_.has_value())
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("{} is not a valid issuer.", parsed.issuer));
+        }
+        auto& issuer_metadata = issuer_metadata_.value();
+
+        if (!issuer_metadata.auto_refresh)
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: {} does not have auto_refresh enabled",
+            parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "{} does not have auto_refresh enabled.", parsed.issuer));
+        }
+
+        if (!set_jwt_public_signing_keys(
+              ctx.tx,
+              "<auto-refresh>",
+              parsed.issuer,
+              issuer_metadata,
+              parsed.jwks))
+        {
+          LOG_FAIL_FMT(
+            "JWT key auto-refresh: error while storing signing keys for issuer "
+            "{}",
+            parsed.issuer);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Error while storing signing keys for issuer {}.",
+              parsed.issuer));
+        }
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "/jwt_keys/refresh",
+        HTTP_POST,
+        json_adapter(refresh_jwt_keys),
+        {std::make_shared<NodeCertAuthnPolicy>()})
+        .set_openapi_hidden(true)
+        .install();
+
+      auto update_resharing = [this](auto& args, const nlohmann::json& params) {
+        const auto in = params.get<UpdateResharing::In>();
+        auto resharings = args.tx.rw(network.resharings);
+
+        bool exists = false;
+        resharings->foreach(
+          [rid = in.rid, &exists](
+            const kv::ReconfigurationId& trid, const ResharingResult& result) {
+            if (trid == rid)
+            {
+              exists = true;
+              return false;
+            }
+            return true;
+          });
+
+        if (exists)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ResharingAlreadyCompleted,
+            fmt::format(
+              "resharing for configuration {} already completed", in.rid));
+        }
+
+        // For now, just pretend that we're done.
+        ResharingResult rr;
+        rr.reconfiguration_id = in.rid;
+        rr.seqno = 0;
+        resharings->put(in.rid, rr);
+        return make_success(true);
+      };
+
+      make_endpoint(
+        "/update-resharing",
+        HTTP_POST,
+        json_adapter(update_resharing),
+        {std::make_shared<NodeCertAuthnPolicy>()})
+        .set_forwarding_required(endpoints::ForwardingRequired::Always)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto orc_handler = [this](auto& args, const nlohmann::json& params) {
+        const auto in = params.get<ObservedReconfigurationCommit::In>();
+        LOG_DEBUG_FMT(
+          "ORC for configuration #{} from {}", in.reconfiguration_id, in.from);
+
+        if (consensus == nullptr)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::ConsensusTypeMismatch,
+            fmt::format("No consensus"));
+        }
+
+        if (consensus->type() != ConsensusType::BFT)
+        {
+          auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+          }
+
+          if (primary_id.value() != context.get_node_state().get_node_id())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::NodeCannotHandleRequest,
+              "Only the primary accepts ORCs");
+          }
+        }
+
+        if (consensus->orc(in.reconfiguration_id, in.from))
+        {
+          LOG_DEBUG_FMT(
+            "Configurations: sufficient number of ORCs, updating nodes in "
+            "configuration #{}",
+            in.reconfiguration_id);
+          auto ncfgs = args.tx.ro(network.network_configurations);
+          auto nodes = args.tx.rw(network.nodes);
+          auto nc = ncfgs->get(in.reconfiguration_id);
+          for (auto nid : nc->nodes)
+          {
+            auto node_info = nodes->get(nid);
+            if (!node_info.has_value())
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("Missing node information for {}", nid));
+            }
+
+            if (node_info->status == NodeStatus::LEARNER)
+            {
+              node_info->status = NodeStatus::TRUSTED;
+              nodes->put(nid, *node_info);
+            }
+            else if (node_info->status == NodeStatus::RETIRING)
+            {
+              node_info->status = NodeStatus::RETIRED;
+              nodes->put(nid, *node_info);
+            }
+          }
+        }
+
+        return make_success();
+      };
+
+      make_endpoint(
+        "/orc",
+        HTTP_POST,
+        json_adapter(orc_handler),
+        {std::make_shared<NodeCertAuthnPolicy>()})
+        .set_forwarding_required(endpoints::ForwardingRequired::Always)
+        .set_openapi_hidden(true)
         .install();
     }
   };

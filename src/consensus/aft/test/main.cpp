@@ -1,73 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "consensus/aft/raft.h"
-#include "ds/logger.h"
-#include "kv/test/stub_consensus.h"
-#include "logging_stub.h"
+
+#include "test_common.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
-
-#include <chrono>
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
-#include <string>
-
-using namespace std;
-
-using ms = std::chrono::milliseconds;
-using TRaft =
-  aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
-using Store = aft::LoggingStubStore;
-using Adaptor = aft::Adaptor<Store>;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
-std::vector<uint8_t> cert;
-
-const auto request_timeout = ms(10);
-
-aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
-{
-  return (aft::ChannelStubProxy*)r.channels.get();
-}
-
-void receive_message(
-  TRaft& sender, TRaft& receiver, std::vector<uint8_t> contents)
-{
-  bool should_send = true;
-
-  {
-    // If this is AppendEntries, then append the serialised ledger entries to
-    // the message before transmitting
-    const uint8_t* data = contents.data();
-    auto size = contents.size();
-    auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
-    if (msg_type == aft::raft_append_entries)
-    {
-      // Parse the indices to be sent to the recipient.
-      auto ae = *(aft::AppendEntries*)data;
-
-      TRaft* ps = &sender;
-      const auto payload_opt =
-        sender.ledger->get_append_entries_payload(ae, ps);
-      if (payload_opt.has_value())
-      {
-        contents.insert(
-          contents.end(), payload_opt->begin(), payload_opt->end());
-      }
-      else
-      {
-        should_send = false;
-      }
-    }
-  }
-
-  if (should_send)
-  {
-    receiver.recv_message(sender.id(), contents.data(), contents.size());
-  }
-}
+using ms = std::chrono::milliseconds;
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
@@ -83,8 +26,9 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -128,8 +72,9 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -184,8 +129,9 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -200,8 +146,9 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -216,8 +163,9 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -335,43 +283,6 @@ DOCTEST_TEST_CASE(
   }
 }
 
-template <typename AssertionArg, class NodeMap, class Assertion>
-static size_t dispatch_all_and_DOCTEST_CHECK(
-  NodeMap& nodes,
-  const ccf::NodeId& from,
-  aft::ChannelStubProxy::MessageList& messages,
-  const Assertion& assertion)
-{
-  size_t count = 0;
-  while (messages.size())
-  {
-    auto [tgt_node_id, contents] = messages.front();
-    messages.pop_front();
-
-    {
-      AssertionArg arg = *(AssertionArg*)contents.data();
-      assertion(arg);
-    }
-
-    receive_message(*nodes[from], *nodes[tgt_node_id], contents);
-
-    count++;
-  }
-  return count;
-}
-
-template <class NodeMap>
-static size_t dispatch_all(
-  NodeMap& nodes,
-  const ccf::NodeId& from,
-  aft::ChannelStubProxy::MessageList& messages)
-{
-  return dispatch_all_and_DOCTEST_CHECK<bool>(
-    nodes, from, messages, [](const auto&) {
-      // Pass
-    });
-}
-
 DOCTEST_TEST_CASE(
   "Multiple nodes append entries" * doctest::test_suite("multiple"))
 {
@@ -393,8 +304,9 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -409,8 +321,9 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -425,8 +338,9 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -442,7 +356,7 @@ DOCTEST_TEST_CASE(
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
 
-  map<ccf::NodeId, TRaft*> nodes;
+  std::map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
   nodes[node_id2] = &r2;
@@ -549,8 +463,9 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -565,8 +480,9 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -581,8 +497,9 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -596,7 +513,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
 
-  map<ccf::NodeId, TRaft*> nodes;
+  std::map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -692,8 +609,9 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -708,8 +626,9 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -723,7 +642,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  map<ccf::NodeId, TRaft*> nodes;
+  std::map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -868,8 +787,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -884,8 +804,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -900,8 +821,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::StubSnapshotter>(),
     nullptr,
     nullptr,
-    cert,
     std::make_shared<aft::State>(node_id2),
+    nullptr,
+    nullptr,
     nullptr,
     nullptr,
     nullptr,
@@ -915,7 +837,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  map<ccf::NodeId, TRaft*> nodes;
+  std::map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 

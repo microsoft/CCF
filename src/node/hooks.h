@@ -35,7 +35,9 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            cfg_delta.try_emplace(
+              node_id,
+              NodeAddr{ni.node_address.hostname, ni.node_address.port});
             break;
           }
           case NodeStatus::RETIRED:
@@ -45,7 +47,9 @@ namespace ccf
           }
           case NodeStatus::LEARNER:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            cfg_delta.try_emplace(
+              node_id,
+              NodeAddr{ni.node_address.hostname, ni.node_address.port});
             learners.insert(node_id);
             break;
           }
@@ -94,7 +98,7 @@ namespace ccf
     {
       for (const auto& [rid, opt_nc] : w)
       {
-        if (opt_nc.has_value())
+        if (rid != CONFIG_COUNT_KEY && opt_nc.has_value())
         {
           configs.insert(opt_nc.value());
         }
@@ -103,9 +107,14 @@ namespace ccf
 
     void call(kv::ConfigurableConsensus* consensus) override
     {
-      for (auto nc : configs)
+      // This hook is always executed after the hook for the nodes table above,
+      // because the hooks are sorted by table name.
+      assert(
+        std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATIONS));
+
+      for (const auto& nc : configs)
       {
-        consensus->add_network_configuration(version, nc);
+        consensus->reconfigure(version, nc);
       }
     }
   };

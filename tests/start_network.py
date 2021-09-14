@@ -13,6 +13,7 @@ DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 def run(args):
     hosts = args.node or DEFAULT_NODES
+    hosts = [infra.e2e_args.HostSpec.from_str(node) for node in hosts]
 
     if not args.verbose:
         LOG.remove()

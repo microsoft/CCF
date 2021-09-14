@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import sys
 import http
 import subprocess
 import infra.network
@@ -13,8 +12,22 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
+import requests
+import governance_js
+from infra.runner import ConcurrentRunner
+import governance_history
 
 from loguru import logger as LOG
+
+
+@reqs.description("Test create endpoint is not available")
+def test_create_endpoint(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client() as c:
+        r = c.post("/node/create")
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
+        assert r.body.json()["error"]["message"] == "Node is not in initial state."
+    return network
 
 
 @reqs.description("Test consensus status")
@@ -22,7 +35,7 @@ def test_consensus_status(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as c:
         r = c.get("/node/consensus")
-        assert r.status_code == 200
+        assert r.status_code == http.HTTPStatus.OK.value
         assert r.body.json()["details"]["state"] == "Leader"
     return network
 
@@ -30,6 +43,10 @@ def test_consensus_status(network, args):
 @reqs.description("Test quotes")
 @reqs.supports_methods("quotes/self", "quotes")
 def test_quote(network, args):
+    if args.enclave_type == "virtual":
+        LOG.warning("Quote test can only run in real enclaves, skipping")
+        return network
+
     primary, _ = network.find_nodes()
     with primary.client() as c:
         oed = subprocess.run(
@@ -155,86 +172,124 @@ def test_node_ids(network, args):
         return network
 
 
-@reqs.description("Checking service principals proposals")
-def test_service_principals(network, args):
-    node = network.find_node_by_role()
-
-    principal_id = "0xdeadbeef"
-
-    # Initially, there is nothing in this table
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert "public:ccf.gov.service_principals" not in latest_public_tables
-
-    # Create and accept a proposal which populates an entry in this table
-    principal_data = {"name": "Bob", "roles": ["Fireman", "Zookeeper"]}
-    proposal = {
-        "actions": [
-            {
-                "name": "set_service_principal",
-                "args": {"id": principal_id, "data": principal_data},
-            }
-        ]
-    }
-    ballot = {"ballot": "export function vote(proposal, proposer_id) { return true; }"}
-    proposal = network.consortium.get_any_active_member().propose(node, proposal)
-    network.consortium.vote_using_majority(node, proposal, ballot)
-
-    # Confirm it can be read
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert (
-        json.loads(
-            latest_public_tables["public:ccf.gov.service_principals"][
-                principal_id.encode()
-            ]
-        )
-        == principal_data
-    )
-
-    # Create and accept a proposal which removes an entry from this table
-    proposal = {
-        "actions": [{"name": "remove_service_principal", "args": {"id": principal_id}}]
-    }
-    proposal = network.consortium.get_any_active_member().propose(node, proposal)
-    network.consortium.vote_using_majority(node, proposal, ballot)
-
-    # Confirm it is gone
-    latest_public_tables, _ = network.get_latest_ledger_public_state()
-    assert (
-        principal_id.encode()
-        not in latest_public_tables["public:ccf.gov.service_principals"]
-    )
-    return network
-
-
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
         network.consortium.get_any_active_member().update_ack_state_digest(node)
+    return network
 
 
-def run(args):
+@reqs.description("Test invalid client signatures")
+def test_invalid_client_signature(network, args):
+    primary, _ = network.find_primary()
+
+    def post_proposal_request_raw(node, headers=None, expected_error_msg=None):
+        r = requests.post(
+            f"https://{node.pubhost}:{node.pubport}/gov/proposals",
+            headers=headers,
+            verify=os.path.join(node.common_dir, "networkcert.pem"),
+        ).json()
+        assert r["error"]["code"] == "InvalidAuthenticationInfo"
+        assert (
+            expected_error_msg in r["error"]["message"]
+        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['message']}'"
+
+    # Verify that _some_ HTTP signature parsing errors are communicated back to the client
+    post_proposal_request_raw(
+        primary,
+        headers=None,
+        expected_error_msg="Missing signature",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "invalid"},
+        expected_error_msg="'authorization' header only contains one field",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "invalid invalid"},
+        expected_error_msg="'authorization' scheme for signature should be 'Signature",
+    )
+    post_proposal_request_raw(
+        primary,
+        headers={"Authorization": "Signature invalid"},
+        expected_error_msg="Error verifying HTTP 'digest' header: Missing 'digest' header",
+    )
+
+
+def gov(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        network.consortium.set_authenticate_session(args.authenticate_session)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_node_ids(network, args)
+        test_member_data(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_no_quote(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
 
-        network = test_consensus_status(network, args)
-        network = test_node_ids(network, args)
-        network = test_member_data(network, args)
-        network = test_quote(network, args)
-        network = test_user(network, args)
-        network = test_no_quote(network, args)
-        network = test_service_principals(network, args)
-        network = test_ack_state_digest_update(network, args)
+
+def js_gov(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        governance_js.test_proposal_validation(network, args)
+        governance_js.test_proposal_storage(network, args)
+        governance_js.test_proposal_withdrawal(network, args)
+        governance_js.test_ballot_storage(network, args)
+        governance_js.test_pure_proposals(network, args)
+        governance_js.test_proposals_with_votes(network, args)
+        governance_js.test_vote_failure_reporting(network, args)
+        governance_js.test_operator_proposals_and_votes(network, args)
+        governance_js.test_apply(network, args)
+        governance_js.test_actions(network, args)
+        governance_js.test_set_constitution(network, args)
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    if args.enclave_type == "virtual":
-        LOG.warning("This test can only run in real enclaves, skipping")
-        sys.exit(0)
+    cr = ConcurrentRunner()
 
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.initial_user_count = 3
-    run(args)
+    cr.add(
+        "session_auth",
+        gov,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=True,
+    )
+
+    cr.add(
+        "session_noauth",
+        gov,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=False,
+    )
+
+    cr.add(
+        "js",
+        js_gov,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=True,
+    )
+
+    cr.add(
+        "history",
+        governance_history.run,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        # Higher snapshot interval as snapshots trigger new ledger chunks, which
+        # may result in latest chunk being partially written
+        snapshot_tx_interval=10000,
+    )
+
+    cr.run(2)

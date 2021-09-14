@@ -3,7 +3,6 @@
 #pragma once
 
 #include "../key_pair.h"
-
 #include "../san.h"
 #include "mbedtls_wrappers.h"
 #include "public_key.h"
@@ -51,8 +50,7 @@ namespace crypto
       uint8_t* sig) const override;
 
     virtual Pem create_csr(
-      const std::string& name,
-      const std::vector<SubjectAltName>& sans = {}) const override;
+      const CertificateSubjectIdentity& csi) const override;
 
     virtual Pem sign_csr(
       const Pem& issuer_cert,

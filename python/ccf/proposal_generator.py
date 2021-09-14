@@ -17,7 +17,7 @@ from loguru import logger as LOG  # type: ignore
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(obj, f, **dump_args)
 
 
@@ -117,9 +117,11 @@ def set_member(
     member_data: Any = None,
     **kwargs,
 ):
-    member_info = {"cert": open(member_cert_path).read()}
+    member_info = {"cert": open(member_cert_path, encoding="utf-8").read()}
     if member_enc_pubk_path is not None:
-        member_info["encryption_pub_key"] = open(member_enc_pubk_path).read()
+        member_info["encryption_pub_key"] = open(
+            member_enc_pubk_path, encoding="utf-8"
+        ).read()
     if member_data is not None:
         member_info["member_data"] = member_data
 
@@ -140,7 +142,7 @@ def set_member_data(member_id: str, member_data: Any, **kwargs):
 
 @cli_proposal
 def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
-    user_info = {"cert": open(user_cert_path).read()}
+    user_info = {"cert": open(user_cert_path, encoding="utf-8").read()}
     if user_data is not None:
         user_info["user_data"] = user_data
     return build_proposal("set_user", user_info, **kwargs)
@@ -160,7 +162,9 @@ def set_user_data(user_id: str, user_data: Any, **kwargs):
 
 @cli_proposal
 def set_constitution(constitution_paths: List[str], **kwargs):
-    concatenated = "\n".join(open(path, "r").read() for path in constitution_paths)
+    concatenated = "\n".join(
+        open(path, "r", encoding="utf-8").read() for path in constitution_paths
+    )
     proposal_args = {"constitution": concatenated}
     return build_proposal("set_constitution", proposal_args, **kwargs)
 
@@ -177,7 +181,7 @@ def set_js_app(bundle_path: str, disable_bytecode_cache: bool = False, **kwargs)
 
     # read metadata
     metadata_path = os.path.join(bundle_path, "app.json")
-    with open(metadata_path) as f:
+    with open(metadata_path, encoding="utf-8") as f:
         metadata = json.load(f)
 
     # sanity checks
@@ -205,12 +209,12 @@ def remove_js_app(**kwargs):
 
 def read_modules(modules_path: str) -> List[dict]:
     modules = []
-    for path in glob.glob(f"{modules_path}/**/*.js", recursive=True):
+    for path in glob.glob(f"{modules_path}/**/*", recursive=True):
         if not os.path.isfile(path):
             continue
         rel_module_name = os.path.relpath(path, modules_path)
         rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             js = f.read()
             modules.append({"name": rel_module_name, "module": js})
     return modules
@@ -264,7 +268,7 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 @cli_proposal
 def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **kwargs):
-    with open(cert_bundle_path) as f:
+    with open(cert_bundle_path, encoding="utf-8") as f:
         cert_bundle_pem = f.read()
 
     if not skip_checks:
@@ -292,7 +296,7 @@ def remove_ca_cert_bundle(cert_bundle_name, **kwargs):
 
 @cli_proposal
 def set_jwt_issuer(json_path: str, **kwargs):
-    with open(json_path) as f:
+    with open(json_path, encoding="utf-8") as f:
         obj = json.load(f)
     args = {
         "issuer": obj["issuer"],
@@ -313,7 +317,7 @@ def remove_jwt_issuer(issuer: str, **kwargs):
 
 @cli_proposal
 def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
-    with open(jwks_path) as f:
+    with open(jwks_path, encoding="utf-8") as f:
         jwks = json.load(f)
     if "keys" not in jwks:
         raise ValueError("not a JWKS document")

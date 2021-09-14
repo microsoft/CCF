@@ -995,6 +995,7 @@ namespace fmt
           break;
         }
       }
+
       return format_to(ctx.out(), s);
     }
   };

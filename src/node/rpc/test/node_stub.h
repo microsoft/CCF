@@ -51,6 +51,11 @@ namespace ccf
       return true;
     }
 
+    bool is_in_initialised_state() const override
+    {
+      return false;
+    }
+
     bool is_reading_public_ledger() const override
     {
       return false;
@@ -115,6 +120,14 @@ namespace ccf
     SessionMetrics get_session_metrics() override
     {
       return {};
+    }
+
+    crypto::Pem generate_endorsed_certificate(
+      const crypto::Pem& subject_csr,
+      const crypto::Pem& endorser_private_key,
+      const crypto::Pem& endorser_cert) override
+    {
+      throw std::logic_error("Unimplemented");
     }
   };
 

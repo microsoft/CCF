@@ -163,13 +163,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
-)
-
-set(CCF_ENDPOINTS_SOURCES
-    ${CCF_DIR}/src/endpoints/endpoint.cpp
-    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
-    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
 )
 
@@ -200,7 +193,7 @@ function(add_unit_test name)
   )
   add_san(${name})
 
-  add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
+  add_test(NAME ${name} COMMAND ${name})
   set_property(
     TEST ${name}
     APPEND
@@ -303,7 +296,6 @@ install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
-set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS http_parser.enclave
   EXPORT ccf

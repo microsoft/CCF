@@ -38,6 +38,8 @@ namespace ccf
 
     virtual void close_channel(const NodeId& peer_id) = 0;
 
+    virtual bool have_channel(const NodeId& nid) const = 0;
+
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)
     {
@@ -98,6 +100,15 @@ namespace ccf
 
     virtual bool recv_channel_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
+
+    virtual void initialize(
+      const NodeId& self_id,
+      const crypto::Pem& network_cert,
+      crypto::KeyPairPtr node_kp,
+      const std::optional<crypto::Pem>& node_cert = std::nullopt) = 0;
+
+    virtual void set_endorsed_node_cert(
+      const crypto::Pem& endorsed_node_cert) = 0;
 
     virtual bool send_encrypted(
       const NodeId& to,

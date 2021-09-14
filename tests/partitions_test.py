@@ -6,8 +6,9 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
-from infra.checker import check_can_progress
+from infra.checker import check_can_progress, check_does_not_progress
 import pprint
+from ccf.tx_status import TxStatus
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -106,6 +107,8 @@ def test_isolate_primary_from_one_backup(network, args):
 def test_isolate_and_reconnect_primary(network, args):
     primary, backups = network.find_nodes()
     with network.partitioner.partition(backups):
+        lost_tx_resp = check_does_not_progress(primary)
+
         new_primary, _ = network.wait_for_new_primary(
             primary, nodes=backups, timeout_multiplier=6
         )
@@ -120,6 +123,11 @@ def test_isolate_and_reconnect_primary(network, args):
             assert (
                 False
             ), f"Stuck before {new_tx_resp.view}.{new_tx_resp.seqno}: {pprint.pformat(details)}"
+
+        # Check it has dropped anything submitted while partitioned
+        r = c.get(f"/node/tx?transaction_id={lost_tx_resp.view}.{lost_tx_resp.seqno}")
+        status = TxStatus(r.body.json()["status"])
+        assert status == TxStatus.Invalid, r
 
 
 def run(args):

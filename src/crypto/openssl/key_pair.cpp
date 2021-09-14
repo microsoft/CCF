@@ -162,8 +162,7 @@ namespace crypto
     return 0;
   }
 
-  Pem KeyPair_OpenSSL::create_csr(
-    const std::string& name, const std::vector<SubjectAltName>& sans) const
+  Pem KeyPair_OpenSSL::create_csr(const CertificateSubjectIdentity& csi) const
   {
     Unique_X509_REQ req;
 
@@ -172,7 +171,7 @@ namespace crypto
     X509_NAME* subj_name = NULL;
     OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
 
-    for (const auto& [k, v] : parse_name(name))
+    for (const auto& [k, v] : parse_name(csi.name))
     {
       OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
         subj_name,
@@ -187,10 +186,7 @@ namespace crypto
     OpenSSL::CHECK1(X509_REQ_set_subject_name(req, subj_name));
     X509_NAME_free(subj_name);
 
-    if (key)
-      OpenSSL::CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
-
-    if (!sans.empty())
+    if (!csi.sans.empty())
     {
       Unique_STACK_OF_X509_EXTENSIONS exts;
 
@@ -200,10 +196,13 @@ namespace crypto
           NULL,
           NULL,
           NID_subject_alt_name,
-          fmt::format("{}", fmt::join(sans, ", ")).c_str()));
+          fmt::format("{}", fmt::join(csi.sans, ", ")).c_str()));
       sk_X509_EXTENSION_push(exts, ext);
       X509_REQ_add_extensions(req, exts);
     }
+
+    if (key)
+      OpenSSL::CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
 
     Unique_BIO mem;
     OpenSSL::CHECK1(PEM_write_bio_X509_REQ(mem, req));
@@ -223,6 +222,11 @@ namespace crypto
     Unique_X509_REQ csr(mem);
     Unique_X509 crt;
 
+    // First, verify self-signed CSR
+    EVP_PKEY* req_pubkey = X509_REQ_get0_pubkey(csr);
+    OpenSSL::CHECK1(X509_REQ_verify(csr, req_pubkey));
+
+    // Add version
     OpenSSL::CHECK1(X509_set_version(crt, 2));
 
     // Add serial number
@@ -265,9 +269,7 @@ namespace crypto
     ASN1_TIME_free(after);
 
     X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
-    EVP_PKEY* req_pubkey = X509_REQ_get_pubkey(csr);
     X509_set_pubkey(crt, req_pubkey);
-    EVP_PKEY_free(req_pubkey);
 
     // Extensions
     X509V3_CTX v3ctx;

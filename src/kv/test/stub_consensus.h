@@ -5,6 +5,7 @@
 #include "consensus/aft/impl/state.h"
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
+#include "node/resharing_types.h"
 
 #include <algorithm>
 #include <iostream>
@@ -151,9 +152,14 @@ namespace kv::test
       const std::unordered_set<NodeId>& learners = {}) override
     {}
 
-    void add_network_configuration(
+    void reconfigure(
       ccf::SeqNo seqno, const NetworkConfiguration& config) override
     {}
+
+    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) override
+    {
+      return false;
+    }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
@@ -169,6 +175,12 @@ namespace kv::test
     {
       return ConsensusDetails{{}, {}, ReplicaState::Candidate};
     }
+
+    void add_resharing_result(
+      ccf::SeqNo seqno,
+      ReconfigurationId rid,
+      const ccf::ResharingResult& result) override
+    {}
 
     void emit_signature() override
     {

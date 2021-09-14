@@ -170,7 +170,8 @@ TEST_CASE("sets and values")
 
   {
     INFO("kv::Set");
-    kv::Set<std::string> set("public:set");
+    using Set = kv::Set<std::string>;
+    Set set("public:set");
     constexpr auto k1 = "key1";
     constexpr auto k2 = "key2";
 
@@ -234,12 +235,96 @@ TEST_CASE("sets and values")
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
+
+    {
+      INFO("Hooks");
+
+      kv_store.compact(kv_store.current_version()); // Flush global hook
+
+      std::vector<Set::Write> local_writes;
+      std::vector<Set::Write> global_writes;
+
+      auto map_hook =
+        [&](kv::Version v, const Set::Write& w) -> kv::ConsensusHookPtr {
+        local_writes.push_back(w);
+        return kv::ConsensusHookPtr(nullptr);
+      };
+      auto global_hook = [&](kv::Version v, const Set::Write& w) {
+        global_writes.push_back(w);
+      };
+
+      kv_store.set_map_hook(set.get_name(), set.wrap_map_hook(map_hook));
+      kv_store.set_global_hook(
+        set.get_name(), set.wrap_commit_hook(global_hook));
+
+      {
+        INFO("Insertion only");
+
+        auto tx = kv_store.create_tx();
+        auto set_handle = tx.rw(set);
+        set_handle->insert(k1);
+        set_handle->insert(k2);
+        set_handle->remove(k2);
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+        REQUIRE(global_writes.size() == 0);
+        REQUIRE(local_writes.size() == 1);
+        const auto& latest_writes = local_writes.front();
+        REQUIRE(latest_writes.at(k1).has_value());
+        INFO("Local removals are not seen");
+        REQUIRE(latest_writes.size() == 1);
+        REQUIRE(latest_writes.find(k2) == latest_writes.end());
+
+        local_writes.clear();
+      }
+
+      {
+        INFO("Insertion and removal");
+
+        auto tx = kv_store.create_tx();
+        auto set_handle = tx.rw(set);
+        set_handle->remove(k1);
+        set_handle->insert(k2);
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+        REQUIRE(local_writes.size() == 1);
+        const auto& latest_writes = local_writes.front();
+        REQUIRE(latest_writes.size() == 2);
+        REQUIRE(!latest_writes.at(k1).has_value());
+        REQUIRE(latest_writes.at(k2).has_value());
+
+        local_writes.clear();
+      }
+
+      {
+        INFO("Global hook");
+
+        auto tx = kv_store.create_tx();
+        auto set_handle = tx.rw(set);
+        set_handle->insert(k1);
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+        kv_store.compact(kv_store.current_version());
+
+        REQUIRE(global_writes.size() == 4);
+        REQUIRE(global_writes.at(0).size() == 1);
+        REQUIRE(!global_writes.at(0).at(k1).has_value());
+        REQUIRE(global_writes.at(1).size() == 1);
+        REQUIRE(global_writes.at(1).at(k1).has_value());
+        REQUIRE(global_writes.at(2).size() == 2);
+        REQUIRE(!global_writes.at(2).at(k1).has_value());
+        REQUIRE(global_writes.at(2).at(k2).has_value());
+        REQUIRE(global_writes.at(3).size() == 1);
+        REQUIRE(global_writes.at(3).at(k1).has_value());
+      }
+    }
   }
 
   {
     INFO("kv::Value");
-    kv::Value<std::string> val1("public:value1");
-    kv::Value<std::string> val2("public:value2");
+    using Value = kv::Value<std::string>;
+    Value val1("public:value1");
+    Value val2("public:value2");
 
     const auto v1 = "hello";
     const auto v2 = "world";
@@ -295,6 +380,75 @@ TEST_CASE("sets and values")
       REQUIRE(!h1->has());
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Hooks");
+
+      kv_store.compact(kv_store.current_version()); // Flush global hook
+
+      std::vector<Value::Write> local_writes;
+      std::vector<Value::Write> global_writes;
+
+      auto map_hook =
+        [&](kv::Version v, const Value::Write& w) -> kv::ConsensusHookPtr {
+        local_writes.push_back(w);
+        return kv::ConsensusHookPtr(nullptr);
+      };
+      auto global_hook = [&](kv::Version v, const Value::Write& w) {
+        global_writes.push_back(w);
+      };
+
+      kv_store.set_map_hook(val1.get_name(), val1.wrap_map_hook(map_hook));
+      kv_store.set_global_hook(
+        val1.get_name(), val1.wrap_commit_hook(global_hook));
+
+      {
+        INFO("Local hook");
+
+        auto tx = kv_store.create_tx();
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        REQUIRE(local_writes.size() == 0); // Commit without puts
+
+        tx = kv_store.create_tx();
+        auto h1 = tx.rw(val1);
+        h1->put(v1);
+        h1->put(v2); // Override previous value
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+        REQUIRE(global_writes.size() == 0);
+        REQUIRE(local_writes.size() == 1);
+        auto latest_writes = local_writes.front();
+        REQUIRE(latest_writes.value() == v2);
+        local_writes.clear();
+
+        tx = kv_store.create_tx();
+        h1 = tx.rw(val1);
+        h1->clear();
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+        REQUIRE(local_writes.size() == 1);
+        latest_writes = local_writes.front();
+        REQUIRE(!latest_writes.has_value());
+        local_writes.clear();
+      }
+
+      {
+        INFO("Global hook");
+
+        auto tx = kv_store.create_tx();
+        auto h1 = tx.rw(val1);
+        h1->put(v3);
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+        kv_store.compact(kv_store.current_version());
+
+        REQUIRE(global_writes.size() == 4);
+        REQUIRE(!global_writes.at(0).has_value());
+        REQUIRE(global_writes.at(1).value() == v2);
+        REQUIRE(!global_writes.at(2).has_value());
+        REQUIRE(global_writes.at(3).value() == v3);
+      }
     }
   }
 
@@ -1020,6 +1174,93 @@ TEST_CASE("foreach")
         REQUIRE(ctr == 5);
       }
     }
+  }
+}
+
+// The purpose of foreach_key and foreach_value is avoiding deserialisation of
+// values/keys (respectively) when they're not needed. To confirm that they're
+// not deserialised, we use a custom serialiser which will throw if ever asked
+// to deserialise.
+template <typename T>
+struct NoDeserialise
+{
+  static kv::serialisers::SerialisedEntry to_serialised(const T& t)
+  {
+    return kv::serialisers::JsonSerialiser<T>::to_serialised(t);
+  }
+
+  static T from_serialised(const kv::serialisers::SerialisedEntry& s)
+  {
+    throw std::logic_error("This deserialiser should not be called");
+  }
+};
+
+TEST_CASE("foreach_key")
+{
+  kv::Store kv_store;
+
+  kv::MapSerialisedWith<
+    std::string,
+    std::string,
+    kv::serialisers::JsonSerialiser,
+    NoDeserialise>
+    map("public:map");
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("k1", "v1");
+    handle->put("k2", "v2");
+    handle->put("k3", "v3");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    REQUIRE_NOTHROW(handle->foreach_key([](const std::string& k) {
+      REQUIRE(k.find('k') != std::string::npos);
+      return true;
+    }));
+
+    // Sanity check: Confirm that deserialising any value would throw
+    REQUIRE_THROWS(handle->foreach(
+      [](const std::string& k, const std::string& v) { return true; }));
+    REQUIRE_THROWS(handle->get("k1"));
+  }
+}
+
+TEST_CASE("foreach_value")
+{
+  kv::Store kv_store;
+
+  kv::MapSerialisedWith<
+    std::string,
+    std::string,
+    NoDeserialise,
+    kv::serialisers::JsonSerialiser>
+    map("public:map");
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("k1", "v1");
+    handle->put("k2", "v2");
+    handle->put("k3", "v3");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    REQUIRE_NOTHROW(handle->foreach_value([](const std::string& v) {
+      REQUIRE(v.find('v') != std::string::npos);
+      return true;
+    }));
+
+    // Sanity check: Confirm that deserialising any key would throw
+    REQUIRE_THROWS(handle->foreach(
+      [](const std::string& k, const std::string& v) { return true; }));
   }
 }
 

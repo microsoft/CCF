@@ -31,7 +31,7 @@ def validate_openapi(client):
         openapi_spec_validator.validate_spec(openapi_doc)
     except Exception as e:
         filename = "./bad_schema.json"
-        with open(filename, "w") as f:
+        with open(filename, "w", encoding="utf-8") as f:
             json.dump(openapi_doc, f, indent=2)
         LOG.error(f"Document written to {filename}")
         raise e
@@ -207,7 +207,7 @@ def test_dynamic_endpoints(network, args):
     with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
         modified_bundle_dir = shutil.copytree(bundle_dir, tmp_dir, dirs_exist_ok=True)
         metadata_path = os.path.join(modified_bundle_dir, "app.json")
-        with open(metadata_path, "r") as f:
+        with open(metadata_path, "r", encoding="utf-8") as f:
             metadata = json.load(f)
         # Modifying a single entry
         metadata["endpoints"]["/compute"]["post"]["authn_policies"] = []
@@ -218,7 +218,7 @@ def test_dynamic_endpoints(network, args):
         metadata["endpoints"]["/dispatch_test/{baz}"] = metadata["endpoints"][
             "/compute"
         ]
-        with open(metadata_path, "w") as f:
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
         network.consortium.set_js_app(primary, modified_bundle_dir)
 
@@ -255,8 +255,11 @@ def test_npm_app(network, args):
 
     LOG.info("Building npm app")
     app_dir = os.path.join(PARENT_DIR, "npm-app")
-    subprocess.run(["npm", "install"], cwd=app_dir, check=True)
-    subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
+    assert infra.proc.ccall("npm", "install", path=app_dir).returncode == 0
+    assert (
+        infra.proc.ccall("npm", "run", "build", "--verbose", path=app_dir).returncode
+        == 0
+    )
 
     LOG.info("Deploying npm app")
     bundle_dir = os.path.join(app_dir, "dist")

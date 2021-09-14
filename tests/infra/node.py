@@ -13,6 +13,7 @@ import os
 import socket
 import re
 import ipaddress
+import ssl
 
 from loguru import logger as LOG
 
@@ -66,6 +67,9 @@ def get_snapshot_seqnos(file_name):
 
 
 class Node:
+    # Default to using httpx
+    curl = False
+
     def __init__(
         self,
         local_node_id,
@@ -88,34 +92,42 @@ class Node:
         self.suspended = False
         self.node_id = None
         self.node_client_host = None
+        self.interfaces = []
         self.version = version
         self.consensus = None
 
-        if host.startswith("local://"):
+        if isinstance(host, str):
+            host = infra.e2e_args.HostSpec.from_str(host)
+
+        if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
             if not version or version > 1:
                 self.node_client_host = str(
                     ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
                 )
-        elif host.startswith("ssh://"):
+        elif host.protocol == "ssh":
             self.remote_impl = infra.remote.SSHRemote
         else:
             assert False, f"{host} does not start with 'local://' or 'ssh://'"
 
-        host_, *pubhost_ = host.split(",")
-
-        self.host, *port = host_[host_.find("/") + 2 :].split(":")
+        host_ = host.rpchost
+        self.host, *port = host_.split(":")
         self.rpc_port = int(port[0]) if port else None
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
 
+        pubhost_ = host.public_rpchost
         if pubhost_:
-            self.pubhost, *pubport = pubhost_[0].split(":")
+            self.pubhost, *pubport = pubhost_.split(":")
             self.pubport = int(pubport[0]) if pubport else self.rpc_port
         else:
             self.pubhost = self.host
             self.pubport = self.rpc_port
         self.node_port = node_port
+
+        self.max_open_sessions = host.max_open_sessions
+        self.max_open_sessions_hard = host.max_open_sessions_hard
+        self.additional_raw_node_args = host.additional_raw_node_args
 
     def __hash__(self):
         return self.local_node_id
@@ -206,6 +218,10 @@ class Node:
         lib_path = infra.path.build_lib_path(
             lib_name, enclave_type, library_dir=self.library_dir
         )
+        if self.max_open_sessions:
+            kwargs["max_open_sessions"] = self.max_open_sessions
+        if self.max_open_sessions_hard:
+            kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
         self.remote = infra.remote.CCFRemote(
             start_type,
@@ -225,12 +241,13 @@ class Node:
             members_info=members_info,
             snapshot_dir=snapshot_dir,
             binary_dir=self.binary_dir,
+            additional_raw_node_args=self.additional_raw_node_args,
             **kwargs,
         )
         self.remote.setup()
         self.network_state = NodeNetworkState.started
         if self.debug:
-            with open("/tmp/vscode-gdb.sh", "a") as f:
+            with open("/tmp/vscode-gdb.sh", "a", encoding="utf-8") as f:
                 f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
                 f.write(f"cd {self.remote.remote.root}\n")
                 f.write(f"{' '.join(self.remote.remote.cmd)}\n")
@@ -253,47 +270,49 @@ class Node:
         self.remote.get_startup_files(self.common_dir)
         self.consensus = kwargs.get("consensus")
 
-        if self.consensus == "cft":
-            with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
-                self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
-                    f.read()
-                )
-        else:
-            # BFT consensus should deterministically compute the primary id from the
-            # consensus view, so node ids are monotonic in this case
-            self.node_id = "{:0>64}".format(self.local_node_id)
+        with open(
+            os.path.join(self.common_dir, f"{self.local_node_id}.pem"), encoding="utf-8"
+        ) as f:
+            self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                f.read()
+            )
 
         self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
-        with open(node_address_path, "r") as f:
+        with open(node_address_path, "r", encoding="utf-8") as f:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
             assert (
                 node_host == self.host
             ), f"Unexpected change in node address from {self.host} to {node_host}"
-            if self.node_port is not None:
+            if self.node_port is None and self.node_port != 0:
+                self.node_port = node_port
                 assert (
                     node_port == self.node_port
                 ), f"Unexpected change in node port from {self.node_port} to {node_port}"
             self.node_port = node_port
 
         rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
-        with open(rpc_address_path, "r") as f:
-            rpc_host, rpc_port = f.read().splitlines()
-            rpc_port = int(rpc_port)
-            assert (
-                rpc_host == self.host
-            ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
-            if self.rpc_port is not None:
-                assert (
-                    rpc_port == self.rpc_port
-                ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
-            self.rpc_port = rpc_port
-            if self.pubport is None:
-                self.pubport = self.rpc_port
+        with open(rpc_address_path, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+            it = [iter(lines)] * 2
+            for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
+                rpc_port = int(rpc_port)
+                if i == 0:
+                    assert (
+                        rpc_host == self.host
+                    ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
+                    if self.rpc_port is not None and self.rpc_port != 0:
+                        assert (
+                            rpc_port == self.rpc_port
+                        ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
+                    self.rpc_port = rpc_port
+                    if self.pubport is None:
+                        self.pubport = self.rpc_port
+                self.interfaces.append((rpc_host, rpc_port))
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -397,7 +416,9 @@ class Node:
             "signing_auth": self.identity(name),
         }
 
-    def client(self, identity=None, signing_identity=None, **kwargs):
+    def client(
+        self, identity=None, signing_identity=None, interface_idx=None, **kwargs
+    ):
         if self.network_state == NodeNetworkState.stopped:
             raise RuntimeError(
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
@@ -408,7 +429,24 @@ class Node:
             "description"
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
-        return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
+
+        if self.curl:
+            akwargs["curl"] = True
+
+        if interface_idx is None:
+            return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
+        else:
+            try:
+                host, port = self.interfaces[interface_idx]
+            except IndexError:
+                LOG.error(
+                    f"Cannot create client on interface {interface_idx} - this node only has {len(self.interfaces)} interfaces"
+                )
+                raise
+            return ccf.clients.client(host, port, **akwargs)
+
+    def get_tls_certificate_pem(self):
+        return ssl.get_server_certificate((self.host, self.rpc_port))
 
     def suspend(self):
         assert not self.suspended
@@ -457,6 +495,7 @@ def node(
         if pdb:
             import pdb
 
+            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise

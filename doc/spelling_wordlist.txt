@@ -21,5 +21,4 @@ schemas
 SGX
 stderr
 stdout
-tsoa
 uint

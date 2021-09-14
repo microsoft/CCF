@@ -546,7 +546,7 @@ TEST_CASE("process_bft")
 
   auto tx = bft_network.tables->create_tx();
   auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-  auto request_value = aft_requests->get(0);
+  auto request_value = aft_requests->get();
   REQUIRE(request_value.has_value());
 
   aft::Request deserialised_req = request_value.value();
@@ -805,8 +805,8 @@ TEST_CASE("JsonWrappedEndpointFunction")
     {
       INFO("Calling echo, with params in body");
       auto echo_call = create_simple_request("/echo", pack_type);
-      const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
-                                     {"other", "Another string"}};
+      const nlohmann::json j_body = {
+        {"data", {"nested", "Some string"}}, {"other", "Another string"}};
       const auto serialized_body = serdes::pack(j_body, pack_type);
       echo_call.set_body(serialized_body.data(), serialized_body.size());
       const auto serialized_call = echo_call.build_request();
@@ -1008,8 +1008,8 @@ TEST_CASE("Explicit commitability")
 
       http::Request request("maybe_commit", HTTP_POST);
 
-      const nlohmann::json request_body = {{"value", new_value},
-                                           {"status", status}};
+      const nlohmann::json request_body = {
+        {"value", new_value}, {"status", status}};
       const auto serialized_body = serdes::pack(request_body, default_pack);
       request.set_body(&serialized_body);
 

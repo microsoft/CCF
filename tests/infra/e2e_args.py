@@ -5,6 +5,8 @@ import os
 import infra.path
 import infra.network
 import sys
+from dataclasses import dataclass
+from typing import Optional
 
 from loguru import logger as LOG
 
@@ -17,15 +19,69 @@ def absolute_path_to_existing_file(arg):
     return arg
 
 
+@dataclass
+class HostSpec:
+    protocol: str = "local"
+    rpchost: str = "localhost"
+    public_rpchost: Optional[str] = None
+    max_open_sessions: Optional[int] = None
+    max_open_sessions_hard: Optional[int] = None
+    additional_raw_node_args: Optional[list] = None
+
+    def __str__(self):
+        s = f"{self.protocol}://{self.rpchost}"
+        if self.public_rpchost or self.max_open_sessions or self.max_open_sessions_hard:
+            s += ","
+        if self.public_rpchost:
+            s += self.public_rpchost
+        if self.max_open_sessions or self.max_open_sessions_hard:
+            s += ","
+        if self.max_open_sessions:
+            s += f"{self.max_open_sessions}"
+        if self.max_open_sessions_hard:
+            s += f",{self.max_open_sessions_hard}"
+        return s
+
+    @staticmethod
+    def from_str(s):
+        kwargs = {}
+        protocol_end = s.find("://")
+        if protocol_end != -1:
+            kwargs["protocol"] = s[:protocol_end]
+            rpc_start = protocol_end + len("://")
+        else:
+            rpc_start = 0
+        components = s[rpc_start:].split(",")
+        kwargs["rpchost"] = components[0]
+        if len(components) > 1 and len(components[1]) > 0:
+            kwargs["public_rpchost"] = components[1]
+        if len(components) > 2 and len(components[2]) > 0:
+            kwargs["max_open_sessions"] = components[2]
+        if len(components) > 3 and len(components[3]) > 0:
+            kwargs["max_open_sessions_hard"] = components[3]
+        return HostSpec(**kwargs)
+
+
+def nodes(args, n):
+    return [
+        HostSpec(
+            max_open_sessions=args.max_open_sessions,
+            max_open_sessions_hard=args.max_open_sessions_hard,
+        )
+        for _ in range(n)
+    ]
+
+
 def min_nodes(args, f):
     """
     Minimum number of nodes allowing 'f' faults for the
     consensus variant.
     """
     if args.consensus == "bft":
-        return ["local://localhost"] * (3 * f + 1)
+        n = 3 * f + 1
     else:
-        return ["local://localhost"] * (2 * f + 1)
+        n = 2 * f + 1
+    return nodes(args, n)
 
 
 def max_nodes(args, f):
@@ -161,7 +217,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--consensus",
         help="Consensus",
         default="cft",
-        choices=("cft", "bft"),
+        choices=("cft", "bft", "all"),
     )
     parser.add_argument(
         "--worker-threads",

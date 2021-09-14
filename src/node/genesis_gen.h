@@ -9,7 +9,6 @@
 #include "ledger_secrets.h"
 #include "members.h"
 #include "network_tables.h"
-#include "node_info_network.h"
 #include "nodes.h"
 #include "reconfig_id.h"
 #include "values.h"
@@ -319,10 +318,10 @@ namespace ccf
       service->put({network_cert, ServiceStatus::OPENING});
     }
 
-    bool is_service_created()
+    bool is_service_created(const crypto::Pem& expected_service_cert)
     {
-      auto service = tx.ro(tables.service);
-      return service->get().has_value();
+      auto service = tx.ro(tables.service)->get();
+      return service.has_value() && service->cert == expected_service_cert;
     }
 
     bool open_service()
@@ -396,28 +395,21 @@ namespace ccf
         throw std::logic_error(fmt::format("Node {} is retired", node_id));
       }
 
-      kv::NetworkConfiguration nc =
-        get_latest_network_configuration(tables, tx);
-
       node_info->status = NodeStatus::TRUSTED;
       node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
       nodes->put(node_id, node_info.value());
 
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(tables, tx);
       nc.nodes.insert(node_id);
       add_new_network_reconfiguration(tables, tx, nc);
 
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
     }
 
-    auto get_last_signature()
-    {
-      auto signatures = tx.ro(tables.signatures);
-      return signatures->get();
-    }
-
     void set_constitution(const std::string& constitution)
     {
-      tx.rw(tables.constitution)->put(0, constitution);
+      tx.rw(tables.constitution)->put(constitution);
     }
 
     void trust_node_code_id(const CodeDigest& node_code_id)

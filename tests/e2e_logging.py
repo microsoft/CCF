@@ -30,6 +30,9 @@ import urllib.parse
 import random
 import re
 import infra.crypto
+import threading
+import copy
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -621,7 +624,7 @@ def test_historical_query(network, args):
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
     cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path) as c:
+    with open(cert_path, encoding="utf-8") as c:
         primary_cert = load_pem_x509_certificate(
             c.read().encode("ascii"), default_backend()
         )
@@ -635,8 +638,8 @@ def test_historical_receipts(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"]
             )
             r = first_receipt.json()["receipt"]
-            assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
-            ccf.receipt.verify(r["root"], r["signature"], primary_cert)
+            root = ccf.receipt.root(r["leaf"], r["proof"])
+            ccf.receipt.verify(root, r["signature"], primary_cert)
 
     # receipt.verify() raises if it fails, but does not return anything
     verified = True
@@ -1164,7 +1167,7 @@ def test_memory(network, args):
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
     cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path) as c:
+    with open(cert_path, encoding="utf-8") as c:
         node_cert = load_pem_x509_certificate(
             c.read().encode("ascii"), default_backend()
         )
@@ -1184,12 +1187,8 @@ def test_receipts(network, args):
                     rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
                     if rc.status_code == http.HTTPStatus.OK:
                         receipt = rc.body.json()
-                        assert receipt["root"] == ccf.receipt.root(
-                            receipt["leaf"], receipt["proof"]
-                        )
-                        ccf.receipt.verify(
-                            receipt["root"], receipt["signature"], node_cert
-                        )
+                        root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+                        ccf.receipt.verify(root, receipt["signature"], node_cert)
                         break
                     elif rc.status_code == http.HTTPStatus.ACCEPTED:
                         time.sleep(0.5)
@@ -1213,7 +1212,7 @@ def test_random_receipts(network, args):
     ]
     certs = {}
     for path in cert_paths:
-        with open(path) as c:
+        with open(path, encoding="utf-8") as c:
             cert = c.read()
         certs[
             infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)
@@ -1240,15 +1239,12 @@ def test_random_receipts(network, args):
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
-                    assert receipt["root"] == ccf.receipt.root(
-                        receipt["leaf"], receipt["proof"]
-                    )
+                    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
                     ccf.receipt.verify(
-                        receipt["root"], receipt["signature"], certs[receipt["node_id"]]
+                        root, receipt["signature"], certs[receipt["node_id"]]
                     )
                     if s == max_seqno:
                         # Always a signature receipt
-                        assert receipt["root"] == receipt["leaf"], receipt
                         assert receipt["proof"] == [], receipt
                     print(f"Verified receipt for {view}.{s}")
                     break
@@ -1330,14 +1326,34 @@ def run(args):
         network = test_historical_receipts(network, args)
 
 
-if __name__ == "__main__":
+def create_test_thread(prefix, target, args, **args_overrides):
+    args_ = copy.deepcopy(args)
+    for k, v in args_overrides.items():
+        setattr(args_, k, v)
+    args_.label = f"{prefix}_{args.label}"
+    return threading.Thread(name=prefix, target=target, args=[args_])
 
-    args = infra.e2e_args.cli_args()
-    if args.js_app_bundle:
-        args.package = "libjs_generic"
-    else:
-        args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.initial_user_count = 4
-    args.initial_member_count = 2
-    run(args)
+
+if __name__ == "__main__":
+    cr = ConcurrentRunner()
+
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
+
+    cr.add(
+        "cpp",
+        run,
+        package="liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
+
+    cr.run()

@@ -7,7 +7,6 @@ import paramiko
 import subprocess
 from contextlib import contextmanager
 import infra.path
-import uuid
 import ctypes
 import signal
 import re
@@ -33,15 +32,6 @@ def popen(*args, **kwargs):
     return subprocess.Popen(*args, **kwargs)
 
 
-def coverage_enabled(binary):
-    return (
-        subprocess.run(
-            f"nm -C {binary} | grep __llvm_coverage_mapping", shell=True, check=False
-        ).returncode
-        == 0
-    )
-
-
 @contextmanager
 def sftp_session(hostname):
     client = paramiko.SSHClient()
@@ -62,7 +52,7 @@ def log_errors(out_path, err_path):
     error_lines = []
     try:
         tail_lines = deque(maxlen=10)
-        with open(out_path, "r", errors="replace") as lines:
+        with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
@@ -80,7 +70,7 @@ def log_errors(out_path, err_path):
 
     fatal_error_lines = []
     try:
-        with open(err_path, "r", errors="replace") as lines:
+        with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
             fatal_error_lines = [
                 line
                 for line in lines.readlines()
@@ -574,7 +564,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         constitution=None,
         ledger_dir=None,
-        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
+        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         log_format_json=None,
         binary_dir=".",
@@ -586,6 +576,7 @@ class CCFRemote(object):
         jwt_key_refresh_interval_s=None,
         curve_id=None,
         client_connection_timeout_ms=None,
+        additional_raw_node_args=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -702,6 +693,10 @@ class CCFRemote(object):
         if client_connection_timeout_ms:
             cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
+        if additional_raw_node_args:
+            for s in additional_raw_node_args:
+                cmd += [str(s)]
+
         if start_type == StartType.new:
             cmd += [
                 "start",
@@ -747,12 +742,8 @@ class CCFRemote(object):
             )
 
         env = {}
-        self.profraw = None
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-            if coverage_enabled(lib_path):
-                self.profraw = f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
-                env["LLVM_PROFILE_FILE"] = self.profraw
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
         if oe_log_level:
@@ -799,11 +790,6 @@ class CCFRemote(object):
             errors, fatal_errors = self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
-        if self.profraw:
-            try:
-                self.remote.get(self.profraw, self.common_dir)
-            except Exception:
-                LOG.info(f"Could not retrieve {self.profraw}")
         return errors, fatal_errors
 
     def check_done(self):

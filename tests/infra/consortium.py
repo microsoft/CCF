@@ -128,11 +128,11 @@ class Consortium:
         dump_args = {"indent": 2}
 
         LOG.debug(f"Writing proposal to {proposal_output_path}")
-        with open(proposal_output_path, "w") as f:
+        with open(proposal_output_path, "w", encoding="utf-8") as f:
             json.dump(proposal, f, **dump_args)
 
         LOG.debug(f"Writing vote to {vote_output_path}")
-        with open(vote_output_path, "w") as f:
+        with open(vote_output_path, "w", encoding="utf-8") as f:
             json.dump(vote, f, **dump_args)
 
         return f"@{proposal_output_path}", f"@{vote_output_path}"
@@ -301,9 +301,7 @@ class Consortium:
             )
             assert r.body.json()["status"] == expected
 
-    def trust_node(
-        self, remote_node, node_id, expected_status=NodeStatus.TRUSTED, timeout=3
-    ):
+    def trust_node(self, remote_node, node_id, timeout=3):
         if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
@@ -319,9 +317,11 @@ class Consortium:
             timeout=timeout,
         )
 
-        if not self._check_node_exists(remote_node, node_id, expected_status):
+        if not self._check_node_exists(
+            remote_node, node_id, NodeStatus.TRUSTED
+        ) and not self._check_node_exists(remote_node, node_id, NodeStatus.LEARNER):
             raise ValueError(
-                f"Node {node_id} does not exist in state {expected_status}"
+                f"Node {node_id} does not exist in state {NodeStatus.TRUSTED} or {NodeStatus.LEARNER}"
             )
 
     def remove_member(self, remote_node, member_to_remove):
@@ -357,6 +357,20 @@ class Consortium:
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def add_users_and_transition_service_to_open(self, remote_node, users):
+        proposal = {"actions": []}
+        for user_id in users:
+            with open(self.user_cert_path(user_id), encoding="utf-8") as cf:
+                cert = cf.read()
+            proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
+        proposal["actions"].append({"name": "transition_service_to_open"})
+        proposal = self.get_any_active_member().propose(remote_node, proposal)
+        return self.vote_using_majority(
+            remote_node,
+            proposal,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+        )
 
     def create_and_withdraw_large_proposal(self, remote_node):
         """
@@ -545,6 +559,8 @@ class Consortium:
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.client() as c:
             r = c.get(f"/node/network/nodes/{node_id}")
+
+            print(f"r={r}")
 
             if r.status_code != http.HTTPStatus.OK.value or (
                 node_status and r.body.json()["status"] != node_status.value

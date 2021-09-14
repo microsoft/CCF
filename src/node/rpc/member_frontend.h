@@ -55,14 +55,6 @@ namespace ccf
   DECLARE_JSON_TYPE(JsBundle)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundle, metadata, modules)
 
-  struct SetJwtPublicSigningKeys
-  {
-    std::string issuer;
-    JsonWebKeySet jwks;
-  };
-  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
-  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
-
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -216,8 +208,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
-        js::populate_global_console(context);
-        js::populate_global_ccf(
+        js::populate_global(
           &txctx,
           nullptr,
           std::nullopt,
@@ -263,10 +254,9 @@ namespace ccf
       {
         js::Runtime rt;
         js::Context js_context(rt);
-        js::populate_global_console(js_context);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
-        js::populate_global_ccf(
+        js::populate_global(
           &txctx,
           nullptr,
           std::nullopt,
@@ -375,10 +365,9 @@ namespace ccf
           {
             js::Runtime rt;
             js::Context js_context(rt);
-            js::populate_global_console(js_context);
             rt.add_ccf_classdefs();
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
-            js::populate_global_ccf(
+            js::populate_global(
               &txctx,
               nullptr,
               std::nullopt,
@@ -416,13 +405,14 @@ namespace ccf
           }
         }
 
-        return jsgov::ProposalInfoSummary{proposal_id,
-                                          pi_->proposer_id,
-                                          pi_.value().state,
-                                          pi_.value().ballots.size(),
-                                          final_votes,
-                                          vote_failures,
-                                          failure};
+        return jsgov::ProposalInfoSummary{
+          proposal_id,
+          pi_->proposer_id,
+          pi_.value().state,
+          pi_.value().ballots.size(),
+          final_votes,
+          vote_failures,
+          failure};
       }
     }
 
@@ -492,7 +482,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "1.1.0";
+      openapi_info.document_version = "2.0.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -521,8 +511,8 @@ namespace ccf
 
       const AuthnPolicies member_sig_only = {member_signature_auth_policy};
 
-      const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy,
-                                                member_signature_auth_policy};
+      const AuthnPolicies member_cert_or_sig = {
+        member_cert_auth_policy, member_signature_auth_policy};
 
       //! A member acknowledges state
       auto ack = [this](auto& ctx, nlohmann::json&& params) {
@@ -798,173 +788,6 @@ namespace ccf
         .set_auto_schema<SubmitRecoveryShare>()
         .install();
 
-      auto create = [this](auto& ctx, nlohmann::json&& params) {
-        LOG_DEBUG_FMT("Processing create RPC");
-        const auto in = params.get<CreateNetworkNodeToNode::In>();
-
-        GenesisGenerator g(this->network, ctx.tx);
-
-        // This endpoint can only be called once, directly from the starting
-        // node for the genesis transaction to initialise the service
-        if (g.is_service_created())
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Service is already created.");
-        }
-
-        g.init_values();
-        g.create_service(in.network_cert);
-
-        for (const auto& info : in.members_info)
-        {
-          g.add_member(info);
-        }
-
-        if (
-          in.configuration.consensus == ConsensusType::BFT &&
-          (!in.configuration.reconfiguration_type.has_value() ||
-           in.configuration.reconfiguration_type.value() !=
-             ReconfigurationType::TWO_TRANSACTION))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "BFT consensus requires two-transaction reconfiguration.");
-        }
-
-        // Note that it is acceptable to start a network without any member
-        // having a recovery share. The service will check that at least one
-        // recovery member is added before the service is opened.
-        g.init_configuration(in.configuration);
-
-        g.add_node(
-          in.node_id,
-          {in.node_info_network,
-           in.node_cert,
-           {in.quote_info},
-           in.public_encryption_key,
-           NodeStatus::TRUSTED,
-           std::nullopt,
-           ds::to_hex(in.code_digest.data)});
-
-#ifdef GET_QUOTE
-        g.trust_node_code_id(in.code_digest);
-#endif
-
-        g.set_constitution(in.constitution);
-
-        LOG_INFO_FMT("Created service");
-        return make_success(true);
-      };
-      make_endpoint(
-        "/create", HTTP_POST, json_adapter(create), no_auth_required)
-        .set_openapi_hidden(true)
-        .install();
-
-      // Only called from node. See node_state.h.
-      auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
-        // All errors are server errors since the client is the server.
-
-        if (!consensus)
-        {
-          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "No consensus available.");
-        }
-
-        auto primary_id = consensus->primary();
-        if (!primary_id.has_value())
-        {
-          LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Primary is unknown");
-        }
-
-        const auto& cert_auth_ident =
-          ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
-        if (primary_id.value() != cert_auth_ident.node_id)
-        {
-          LOG_FAIL_FMT(
-            "JWT key auto-refresh: request does not originate from primary");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Request does not originate from primary.");
-        }
-
-        SetJwtPublicSigningKeys parsed;
-        try
-        {
-          parsed = body.get<SetJwtPublicSigningKeys>();
-        }
-        catch (const JsonParseError& e)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Unable to parse body.");
-        }
-
-        auto issuers = ctx.tx.rw(this->network.jwt_issuers);
-        auto issuer_metadata_ = issuers->get(parsed.issuer);
-        if (!issuer_metadata_.has_value())
-        {
-          LOG_FAIL_FMT(
-            "JWT key auto-refresh: {} is not a valid issuer", parsed.issuer);
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("{} is not a valid issuer.", parsed.issuer));
-        }
-        auto& issuer_metadata = issuer_metadata_.value();
-
-        if (!issuer_metadata.auto_refresh)
-        {
-          LOG_FAIL_FMT(
-            "JWT key auto-refresh: {} does not have auto_refresh enabled",
-            parsed.issuer);
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "{} does not have auto_refresh enabled.", parsed.issuer));
-        }
-
-        if (!set_jwt_public_signing_keys(
-              ctx.tx,
-              "<auto-refresh>",
-              parsed.issuer,
-              issuer_metadata,
-              parsed.jwks))
-        {
-          LOG_FAIL_FMT(
-            "JWT key auto-refresh: error while storing signing keys for issuer "
-            "{}",
-            parsed.issuer);
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Error while storing signing keys for issuer {}.",
-              parsed.issuer));
-        }
-
-        return make_success(true);
-      };
-      make_endpoint(
-        "/jwt_keys/refresh",
-        HTTP_POST,
-        json_adapter(refresh_jwt_keys),
-        {std::make_shared<NodeCertAuthnPolicy>()})
-        .set_openapi_hidden(true)
-        .install();
-
       using JWTKeyMap = std::map<JwtKeyId, crypto::Pem>;
 
       auto get_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
@@ -1039,7 +862,7 @@ namespace ccf
             "{:02x}", fmt::join(caller_identity.request_digest, ""));
         }
 
-        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
           ctx.rpc_ctx->set_error(
@@ -1054,7 +877,7 @@ namespace ccf
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(
+        js::populate_global(
           nullptr,
           nullptr,
           std::nullopt,
@@ -1381,7 +1204,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
           return make_error(

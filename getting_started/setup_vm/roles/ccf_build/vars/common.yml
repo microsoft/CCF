@@ -3,14 +3,14 @@ debs:
   - apt-transport-https
   - ninja-build
   - libuv1-dev
-  - libc++-8-dev
-  - libc++abi-8-dev
+  - libc++-10-dev
+  - libc++abi-10-dev
   - python3.8-dev
   - python3.8-venv
-  - llvm-8
-  - clang-8
-  - clang-format-8
-  - clang-tools-8
+  - llvm-10
+  - clang-10
+  - clang-format-10
+  - clang-tools-10
   - build-essential
   - expect
   - git
@@ -25,8 +25,6 @@ debs:
   - iptables # partition test infra
   - libclang1-9 # required by doxygen
   - libclang-cpp9 # required by doxygen
-  - flex # required to build doxygen
-  - bison # required to build doxygen
 
 mbedtls_ver: "2.16.10"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"

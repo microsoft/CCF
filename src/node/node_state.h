@@ -20,11 +20,14 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
+#include "node_to_node.h"
+#include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -69,7 +72,7 @@ namespace ccf
 
   struct NodeCreateInfo
   {
-    crypto::Pem node_cert;
+    crypto::Pem self_signed_node_cert;
     crypto::Pem network_cert;
   };
 
@@ -92,7 +95,8 @@ namespace ccf
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
-    crypto::Pem node_cert;
+    crypto::Pem self_signed_node_cert;
+    std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     CCFConfig config;
@@ -258,18 +262,14 @@ namespace ccf
       sm("NodeState", State::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
+      self(compute_node_id_from_kp(node_sign_kp)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
       share_manager(share_manager)
-    {
-      if (network.consensus_type == ConsensusType::CFT)
-      {
-        self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
-      }
-    }
+    {}
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
@@ -331,8 +331,13 @@ namespace ccf
       sm.expect(State::initialized);
 
       config = std::move(config_);
+      config.node_certificate_subject_identity.sans =
+        get_subject_alternative_names();
 
       js::register_class_ids();
+      js::register_ffi_plugins();
+      self_signed_node_cert = create_self_signed_node_cert();
+      accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
@@ -353,45 +358,33 @@ namespace ccf
       {
         case StartType::New:
         {
-          network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
-
-          node_cert = create_endorsed_node_cert();
+          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            "CN=CCF Network", curve_id);
 
           network.ledger_secrets->init();
 
           if (network.consensus_type == ConsensusType::BFT)
           {
-            // BFT consensus requires a stable order of node IDs so that the
-            // primary node in a given view can be computed deterministically by
-            // all nodes in the network
-            // See https://github.com/microsoft/CCF/issues/1852
-
-            // Pad node id string to avoid memory alignment issues on
-            // node-to-node messages
-            self = NodeId(fmt::format("{:#064}", 0));
+            endorsed_node_cert = create_endorsed_node_cert();
+            accept_network_tls_connections();
+            open_frontend(ActorsType::members);
           }
 
           setup_snapshotter();
           setup_encryptor();
-          setup_consensus(ServiceStatus::OPENING);
+          setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
           setup_history();
 
           // Become the primary and force replication
           consensus->force_become_primary();
 
-          // Open member frontend for members to configure and open the
-          // network
-          open_frontend(ActorsType::members);
-
-          if (!create_and_send_request())
+          if (!create_and_send_boot_request(true /* Create new consortium */))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections();
           auto_refresh_jwt_keys();
 
           reset_data(quote_info.quote);
@@ -399,13 +392,11 @@ namespace ccf
           sm.advance(State::partOfNetwork);
 
           LOG_INFO_FMT("Created new node {}", self);
-          return {node_cert, network.identity->cert};
+
+          return {self_signed_node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
-          node_cert = create_self_signed_node_cert();
-          accept_node_tls_connections();
-
           if (!config.startup_snapshot.empty())
           {
             initialise_startup_snapshot();
@@ -417,15 +408,14 @@ namespace ccf
           }
 
           LOG_INFO_FMT("Created join node {}", self);
-          return {node_cert, {}};
+          return {self_signed_node_cert, {}};
         }
         case StartType::Recover:
         {
           node_info_network = config.node_info_network;
 
-          network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
-          node_cert = create_endorsed_node_cert();
+          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            "CN=CCF Network", curve_id);
 
           setup_history();
 
@@ -446,12 +436,10 @@ namespace ccf
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
 
-          accept_network_tls_connections();
-
           sm.advance(State::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
-          return {node_cert, network.identity->cert};
+          return {self_signed_node_cert, network.identity->cert};
         }
         default:
         {
@@ -468,7 +456,7 @@ namespace ccf
     {
       auto network_ca = std::make_shared<tls::CA>(config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        network_ca, node_cert, node_sign_kp->private_key_pem());
+        network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -534,42 +522,54 @@ namespace ccf
             resp.node_status == NodeStatus::TRUSTED ||
             resp.node_status == NodeStatus::LEARNER)
           {
-            network.identity =
-              std::make_unique<NetworkIdentity>(resp.network_info.identity);
-
-            node_cert = create_endorsed_node_cert();
-
-            network.ledger_secrets->init_from_map(
-              std::move(resp.network_info.ledger_secrets));
-
-            if (resp.network_info.consensus_type != network.consensus_type)
+            if (resp.network_info->consensus_type != network.consensus_type)
             {
               throw std::logic_error(fmt::format(
                 "Enclave initiated with consensus type {} but target node "
                 "responded with consensus {}",
                 network.consensus_type,
-                resp.network_info.consensus_type));
+                resp.network_info->consensus_type));
             }
 
-            if (network.consensus_type == ConsensusType::BFT)
+            network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+              resp.network_info->identity);
+            network.ledger_secrets->init_from_map(
+              std::move(resp.network_info->ledger_secrets));
+
+            crypto::Pem n2n_channels_cert;
+            if (!resp.network_info->endorsed_certificate.has_value())
             {
-              // In CFT, the node id is computed at startup, as the hash of the
-              // node's public key
-              self = resp.node_id;
+              // Endorsed node certificate is included in join response
+              // from 2.x (CFT only). When joining an existing 1.x service,
+              // self-sign own certificate and use it to endorse TLS
+              // connections.
+              endorsed_node_cert = create_endorsed_node_cert();
+              n2n_channels_cert = endorsed_node_cert.value();
+              open_frontend(ActorsType::members);
+              open_user_frontend();
+              accept_network_tls_connections();
+            }
+            else
+            {
+              n2n_channels_cert =
+                resp.network_info->endorsed_certificate.value();
             }
 
             setup_snapshotter();
             setup_encryptor();
             setup_consensus(
-              resp.network_info.service_status, resp.network_info.public_only);
+              resp.network_info->service_status.value_or(
+                ServiceStatus::OPENING),
+              resp.network_info->public_only,
+              n2n_channels_cert);
             setup_progress_tracker();
             setup_history();
             auto_refresh_jwt_keys();
 
-            if (resp.network_info.public_only)
+            if (resp.network_info->public_only)
             {
               last_recovered_signed_idx =
-                resp.network_info.last_recovered_signed_idx;
+                resp.network_info->last_recovered_signed_idx;
               setup_recovery_hook();
               snapshotter->set_snapshot_generation(false);
             }
@@ -587,7 +587,7 @@ namespace ccf
                 startup_snapshot_info->raw,
                 hooks,
                 &view_history,
-                resp.network_info.public_only);
+                resp.network_info->public_only);
               if (rc != kv::ApplyResult::PASS)
               {
                 throw std::logic_error(
@@ -611,7 +611,7 @@ namespace ccf
               auto seqno = network.tables->current_version();
               consensus->init_as_backup(seqno, sig->view, view_history);
 
-              if (!resp.network_info.public_only)
+              if (!resp.network_info->public_only)
               {
                 // Only clear snapshot if not recovering. When joining the
                 // public network the snapshot is used later to initialise the
@@ -626,11 +626,7 @@ namespace ccf
                 sig->view);
             }
 
-            open_frontend(ActorsType::members);
-
-            accept_network_tls_connections();
-
-            if (resp.network_info.public_only)
+            if (resp.network_info->public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -644,17 +640,12 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (resp.network_info.public_only ? "public only" : "all domains"));
-
-            // The network identity is now known, the user frontend can be
-            // opened once the KV state catches up
-            open_user_frontend();
+              (resp.network_info->public_only ? "public only" : "all domains"));
           }
           else if (resp.node_status == NodeStatus::PENDING)
           {
             LOG_INFO_FMT(
-              "Node {} is waiting for votes of members to be trusted",
-              resp.node_id);
+              "Node {} is waiting for votes of members to be trusted", self);
           }
 
           return true;
@@ -669,6 +660,8 @@ namespace ccf
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
+      join_params.certificate_signing_request =
+        node_sign_kp->create_csr(config.node_certificate_subject_identity);
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -738,7 +731,7 @@ namespace ccf
         rpcsessions,
         rpc_map,
         node_sign_kp,
-        node_cert);
+        self_signed_node_cert);
       jwt_key_auto_refresh->start();
 
       network.tables->set_map_hook(
@@ -817,7 +810,7 @@ namespace ccf
         store->compact(ledger_idx);
         auto tx = store->create_tx();
         GenesisGenerator g(network, tx);
-        auto last_sig = g.get_last_signature();
+        auto last_sig = tx.ro(network.signatures)->get();
 
         if (!last_sig.has_value())
         {
@@ -871,7 +864,7 @@ namespace ccf
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
-          auto evidence = snapshot_evidence->get(0);
+          auto evidence = snapshot_evidence->get();
           if (!evidence.has_value())
           {
             throw std::logic_error("Invalid snapshot evidence");
@@ -960,52 +953,13 @@ namespace ccf
         last_recovered_term,
         last_recovered_signed_idx);
 
-      auto tx = network.tables->create_tx();
-      GenesisGenerator g(network, tx);
-      g.create_service(network.identity->cert);
-      auto network_config = g.retire_active_nodes();
-
+      auto tx = network.tables->create_read_only_tx();
       if (network.consensus_type == ConsensusType::BFT)
       {
-        // BFT consensus requires a stable order of node IDs so that the
-        // primary node in a given view can be computed deterministically by
-        // all nodes in the network
-        // See https://github.com/microsoft/CCF/issues/1852
-
-        // Pad node id string to avoid memory alignment issues on
-        // node-to-node messages
-        auto values = tx.ro(network.values);
-        auto id = values->get(0);
-        self = NodeId(fmt::format("{:#064}", id.value()));
+        endorsed_node_cert = create_endorsed_node_cert();
+        accept_network_tls_connections();
+        open_frontend(ActorsType::members);
       }
-
-      CodeDigest code_digest;
-#ifdef GET_QUOTE
-      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
-      if (code_id.has_value())
-      {
-        code_digest = code_id.value();
-      }
-      else
-      {
-        throw std::logic_error("Failed to extract code id from quote");
-      }
-#endif
-
-      g.add_node(
-        self,
-        {node_info_network,
-         node_cert,
-         quote_info,
-         node_encrypt_kp->public_key_pem().raw(),
-         NodeStatus::PENDING,
-         std::nullopt,
-         ds::to_hex(code_digest.data)});
-
-      network_config.nodes.insert(self);
-      add_new_network_reconfiguration(network, tx, network_config);
-
-      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
       setup_encryptor();
@@ -1018,7 +972,8 @@ namespace ccf
       kv::Term view = 0;
       kv::Version global_commit = 0;
 
-      auto ls = g.get_last_signature();
+      // auto ls = g.get_last_signature();
+      auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
       {
         auto s = ls.value();
@@ -1050,21 +1005,12 @@ namespace ccf
 
       consensus->force_become_primary(index, view, view_history, index);
 
-      // Sets itself as trusted
-      g.trust_node(self, network.ledger_secrets->get_latest(tx).first);
-
-#ifdef GET_QUOTE
-      g.trust_node_code_id(node_code_id);
-#endif
-
-      if (tx.commit() != kv::CommitResult::SUCCESS)
+      if (!create_and_send_boot_request(
+            false /* Restore consortium from ledger */))
       {
-        throw std::logic_error(
-          "Could not commit transaction when starting recovered public "
-          "network");
+        throw std::runtime_error(
+          "End of public recovery transaction could not be committed");
       }
-
-      open_frontend(ActorsType::members);
 
       sm.advance(State::partOfPublicNetwork);
     }
@@ -1186,19 +1132,10 @@ namespace ccf
           [this](
             kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
             -> kv::ConsensusHookPtr {
-            if (w.size() > 1)
+            if (!w.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.encrypted_ledger_secrets.get_name()));
-            }
-
-            auto encrypted_ledger_secret_info = w.at(0);
-            if (!encrypted_ledger_secret_info.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Removal from {} table",
+                "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 
@@ -1492,6 +1429,11 @@ namespace ccf
         consensus->can_replicate());
     }
 
+    bool is_in_initialised_state() const override
+    {
+      return sm.check(State::initialized);
+    }
+
     bool is_part_of_network() const override
     {
       return sm.check(State::partOfNetwork);
@@ -1573,48 +1515,91 @@ namespace ccf
 
     SessionMetrics get_session_metrics() override
     {
-      SessionMetrics sm;
-      rpcsessions->get_stats(sm.active, sm.peak, sm.soft_cap, sm.hard_cap);
-      return sm;
+      return rpcsessions->get_session_metrics();
     }
 
   private:
+    bool is_ip(const std::string& hostname)
+    {
+      // IP address components are purely numeric. DNS names may be largely
+      // numeric, but at least the final component (TLD) must not be
+      // all-numeric. So this distinguishes "1.2.3.4" (and IP address) from
+      // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
+      // throw. Attempts to handle IPv6 by also splitting on ':', but this is
+      // untested.
+      const auto final_component =
+        nonstd::split(nonstd::split(hostname, ".").back(), ":").back();
+      if (final_component.empty())
+      {
+        throw std::runtime_error(fmt::format(
+          "{} has a trailing period, is not a valid hostname",
+          final_component));
+      }
+      for (const auto c : final_component)
+      {
+        if (c < '0' || c > '9')
+        {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
       // If no Subject Alternative Name (SAN) is passed in at node creation,
       // default to using node's RPC address as single SAN. Otherwise, use
       // specified SANs.
-      if (!config.subject_alternative_names.empty())
+      if (!config.node_certificate_subject_identity.sans.empty())
       {
-        return config.subject_alternative_names;
+        return config.node_certificate_subject_identity.sans;
       }
-
-      return {{config.node_info_network.rpchost,
-               ds::is_valid_ip(config.node_info_network.rpchost)}};
+      else
+      {
+        // Construct SANs from RPC interfaces, manually detecting whether each
+        // is a domain name or IP
+        std::vector<crypto::SubjectAltName> sans;
+        for (const auto& interface : config.node_info_network.rpc_interfaces)
+        {
+          sans.push_back(
+            {interface.public_rpc_address.hostname,
+             is_ip(interface.public_rpc_address.hostname)});
+        }
+        return sans;
+      }
     }
 
     Pem create_self_signed_node_cert()
     {
-      auto sans = get_subject_alternative_names();
-      return node_sign_kp->self_sign(config.subject_name, sans);
+      return node_sign_kp->self_sign(config.node_certificate_subject_identity);
     }
 
     Pem create_endorsed_node_cert()
     {
+      // Only used by a 2.x node joining an existing 1.x service which will not
+      // endorsed the identity of the new joiner.
       auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto sans = get_subject_alternative_names();
-      auto csr = node_sign_kp->create_csr(config.subject_name, sans);
+      auto csr =
+        node_sign_kp->create_csr(config.node_certificate_subject_identity);
       return nw->sign_csr(network.identity->cert, csr);
+    }
+
+    crypto::Pem generate_endorsed_certificate(
+      const crypto::Pem& subject_csr,
+      const crypto::Pem& endorser_private_key,
+      const crypto::Pem& endorser_cert) override
+    {
+      return crypto::make_key_pair(endorser_private_key)
+        ->sign_csr(endorser_cert, subject_csr);
     }
 
     void accept_node_tls_connections()
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
-      // node certificate. Once the node is part of the network, this
-      // certificate should be replaced with network-endorsed counterpart
-
-      assert(!node_cert.empty());
-      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
+      // node certificate.
+      rpcsessions->set_cert(
+        self_signed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
@@ -1622,9 +1607,12 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-
-      assert(!node_cert.empty() && !make_verifier(node_cert)->is_self_signed());
-      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
+      CCF_ASSERT_FMT(
+        endorsed_node_cert.has_value(),
+        "Node certificate should be endorsed before accepting endorsed client "
+        "connections");
+      rpcsessions->set_cert(
+        endorsed_node_cert.value(), node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
@@ -1646,42 +1634,56 @@ namespace ccf
       open_frontend(ccf::ActorsType::users, &network.identity->cert);
     }
 
-    std::vector<uint8_t> serialize_create_request(const QuoteInfo& quote_info)
+    std::vector<uint8_t> serialize_create_request(bool create_consortium = true)
     {
       CreateNetworkNodeToNode::In create_params;
 
-      for (const auto& m_info : config.genesis.members_info)
+      // False on recovery where the consortium is read from the existing
+      // ledger
+      if (create_consortium)
       {
-        create_params.members_info.push_back(m_info);
+        CreateNetworkNodeToNode::In::GenesisInfo genesis_info;
+        for (auto const& m_info : config.genesis.members_info)
+        {
+          genesis_info.members_info.push_back(m_info);
+        }
+        genesis_info.constitution = config.genesis.constitution;
+        auto reconf_type = network.consensus_type == ConsensusType::BFT ?
+          ReconfigurationType::TWO_TRANSACTION :
+          ReconfigurationType::ONE_TRANSACTION;
+
+        genesis_info.configuration = {
+          config.genesis.recovery_threshold,
+          network.consensus_type,
+          reconf_type};
+        create_params.genesis_info = genesis_info;
       }
 
-      create_params.constitution = config.genesis.constitution;
       create_params.node_id = self;
-      create_params.node_cert = node_cert;
+      create_params.certificate_signing_request =
+        node_sign_kp->create_csr(config.node_certificate_subject_identity);
+      create_params.public_key = node_sign_kp->public_key_pem();
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
-      auto reconf_type = network.consensus_type == ConsensusType::BFT ?
-        ReconfigurationType::TWO_TRANSACTION :
-        ReconfigurationType::ONE_TRANSACTION;
-      create_params.configuration = {
-        config.genesis.recovery_threshold, network.consensus_type, reconf_type};
+
+      // Record self-signed certificate in create request if the node does not
+      // require endorsement by the service (i.e. BFT)
+      if (network.consensus_type == ConsensusType::BFT)
+      {
+        create_params.node_cert = self_signed_node_cert;
+      }
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
       http::Request request(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::members), "create"));
+        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "create"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
       request.set_body(&body);
-
-      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
-      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
-
-      http::sign_request(request, node_sign_kp, key_id);
 
       return request.build_request();
     }
@@ -1726,7 +1728,7 @@ namespace ccf
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
       auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
+        enclave::InvalidSessionId, self_signed_node_cert.raw());
       auto ctx = enclave::make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
@@ -1755,10 +1757,10 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_request()
+    bool create_and_send_boot_request(bool create_consortium = true)
     {
       const auto create_success =
-        send_create_request(serialize_create_request(quote_info));
+        send_create_request(serialize_create_request(create_consortium));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
@@ -1799,19 +1801,12 @@ namespace ccf
             -> kv::ConsensusHookPtr {
             LedgerSecretsMap restored_ledger_secrets;
 
-            if (w.size() > 1)
-            {
-              throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.secrets.get_name()));
-            }
-
-            auto ledger_secrets_for_nodes = w.at(0);
+            const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Removal from {} table", network.secrets.get_name()));
+                "Unexpected removal from {} table",
+                network.secrets.get_name()));
             }
 
             for (const auto& [node_id, encrypted_ledger_secrets] :
@@ -1868,6 +1863,36 @@ namespace ccf
 
             return kv::ConsensusHookPtr(nullptr);
           }));
+
+      network.tables->set_map_hook(
+        network.node_endorsed_certificates.get_name(),
+        network.node_endorsed_certificates.wrap_map_hook(
+          [this](
+            kv::Version hook_version,
+            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            for (auto const& [node_id, endorsed_certificate] : w)
+            {
+              if (node_id != self)
+              {
+                continue;
+              }
+
+              if (!endorsed_certificate.has_value())
+              {
+                throw std::logic_error(fmt::format(
+                  "Could not find endorsed node certificate for {}", self));
+              }
+
+              endorsed_node_cert = endorsed_certificate.value();
+              n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
+              accept_network_tls_connections();
+
+              open_frontend(ActorsType::members);
+              open_user_frontend();
+            }
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
     }
 
     kv::Version get_last_recovered_signed_idx() override
@@ -1889,19 +1914,11 @@ namespace ccf
           [this](
             kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
             -> kv::ConsensusHookPtr {
-            if (w.size() > 1)
-            {
-              throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.encrypted_ledger_secrets.get_name()));
-            }
-
-            auto encrypted_ledger_secret_info = w.at(0);
+            auto encrypted_ledger_secret_info = w;
             if (!encrypted_ledger_secret_info.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Removal from {} table",
+                "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 
@@ -1933,10 +1950,16 @@ namespace ccf
         network.encrypted_ledger_secrets.get_name());
     }
 
-    void setup_n2n_channels()
+    void setup_n2n_channels(
+      const std::optional<crypto::Pem>& endorsed_node_certificate_ =
+        std::nullopt)
     {
+      // If the endorsed node certificate is available at the time the
+      // consensus/node-to-node channels are initialised, use it (i.e. join).
+      // Otherwise, specify it later, on endorsed certificate table hook (i.e.
+      // start or recover).
       n2n_channels->initialize(
-        self, network.identity->cert, node_sign_kp, node_cert);
+        self, network.identity->cert, node_sign_kp, endorsed_node_certificate_);
     }
 
     void setup_cmd_forwarder()
@@ -1944,9 +1967,34 @@ namespace ccf
       cmd_forwarder->initialize(self);
     }
 
-    void setup_raft(ServiceStatus service_status, bool public_only = false)
+    void setup_history()
     {
-      setup_n2n_channels();
+      history = std::make_shared<MerkleTxHistory>(
+        *network.tables.get(),
+        self,
+        *node_sign_kp,
+        sig_tx_interval,
+        sig_ms_interval,
+        true);
+
+      network.tables->set_history(history);
+    }
+
+    void setup_encryptor()
+    {
+      // This function makes use of ledger secrets and should be called once
+      // the node has joined the service
+      encryptor = make_encryptor();
+      network.tables->set_encryptor(encryptor);
+    }
+
+    void setup_consensus(
+      ServiceStatus service_status,
+      bool public_only = false,
+      const std::optional<crypto::Pem>& endorsed_node_certificate_ =
+        std::nullopt)
+    {
+      setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
       setup_tracker_store();
 
@@ -1955,6 +2003,16 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+
+      auto resharing_tracker =
+        std::make_shared<ccf::SplitIdentityResharingTracker>(
+          shared_state,
+          rpc_map,
+          node_sign_kp,
+          self_signed_node_cert,
+          endorsed_node_cert);
+      auto node_client = std::make_shared<HTTPNodeClient>(
+        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
@@ -1970,11 +2028,12 @@ namespace ccf
         snapshotter,
         rpcsessions,
         rpc_map,
-        node_cert.raw(),
         shared_state,
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
         std::move(view_change_tracker),
+        std::move(resharing_tracker),
+        node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
@@ -2006,33 +2065,15 @@ namespace ccf
             return std::make_unique<NetworkConfigurationsHook>(version, w);
           }));
 
+      network.tables->set_map_hook(
+        network.resharings.get_name(),
+        network.resharings.wrap_map_hook(
+          [](kv::Version version, const Resharings::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<ResharingsHook>(version, w);
+          }));
+
       setup_basic_hooks();
-    }
-
-    void setup_history()
-    {
-      history = std::make_shared<MerkleTxHistory>(
-        *network.tables.get(),
-        self,
-        *node_sign_kp,
-        sig_tx_interval,
-        sig_ms_interval,
-        true);
-
-      network.tables->set_history(history);
-    }
-
-    void setup_encryptor()
-    {
-      // This function makes use of ledger secrets and should be called once
-      // the node has joined the service
-      encryptor = make_encryptor();
-      network.tables->set_encryptor(encryptor);
-    }
-
-    void setup_consensus(ServiceStatus service_status, bool public_only = false)
-    {
-      setup_raft(service_status, public_only);
     }
 
     void setup_progress_tracker()

@@ -136,9 +136,14 @@ namespace ccf
 
           if (info)
           {
-            ctx->set_response_header(
-              http::headers::LOCATION,
-              fmt::format("{}:{}", info->pubhost, info->pubport));
+            const auto& address = info->rpc_interfaces[0].public_rpc_address;
+            const auto location = fmt::format(
+              "https://{}:{}{}",
+              address.hostname,
+              address.port,
+              ctx->get_request_path());
+            ctx->set_response_header(http::headers::LOCATION, location);
+            LOG_DEBUG_FMT("Redirecting to {}", location);
           }
         }
 
@@ -532,56 +537,62 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      auto endpoint = endpoints.find_endpoint(tx, *ctx);
-
       const bool is_bft =
         consensus != nullptr && consensus->type() == ConsensusType::BFT;
-      const bool is_local = endpoint != nullptr &&
-        endpoint->properties.execute_outside_consensus !=
-          ccf::endpoints::ExecuteOutsideConsensus::Never;
-      const bool should_bft_distribute = is_bft && !is_local &&
-        (ctx->execute_on_node || consensus->can_replicate());
 
-      // This decision is based on several things read from the KV
-      // (request->is_local) which are true _now_ but may not
-      // be true when this is actually received/executed. We should revisit this
-      // once we have general KV-defined dispatch, to ensure this is safe. For
-      // forwarding we will need to pass a digest of the endpoint definition,
-      // and that should also work here
-      if (should_bft_distribute)
+      // Avoid calling find_endpoint (or doing any of this work) in non-BFT
+      // situations
+      if (is_bft)
       {
-        update_history();
-        if (history)
+        auto endpoint = endpoints.find_endpoint(tx, *ctx);
+
+        const bool is_local = endpoint != nullptr &&
+          endpoint->properties.execute_outside_consensus !=
+            ccf::endpoints::ExecuteOutsideConsensus::Never;
+        const bool should_bft_distribute = is_bft && !is_local &&
+          (ctx->execute_on_node || consensus->can_replicate());
+
+        // This decision is based on several things read from the KV
+        // (request->is_local) which are true _now_ but may not
+        // be true when this is actually received/executed. We should revisit
+        // this once we have general KV-defined dispatch, to ensure this is
+        // safe. For forwarding we will need to pass a digest of the endpoint
+        // definition, and that should also work here
+        if (should_bft_distribute)
         {
-          const kv::TxHistory::RequestID reqid = {
-            ctx->session->client_session_id, ctx->get_request_index()};
-          if (!history->add_request(
-                reqid,
-                ctx->session->caller_cert,
-                ctx->get_serialised_request(),
-                ctx->frame_format()))
+          update_history();
+          if (history)
           {
-            LOG_FAIL_FMT("Adding request failed");
-            LOG_DEBUG_FMT(
-              "Adding request failed: {}, {}",
-              std::get<0>(reqid),
-              std::get<1>(reqid));
+            const kv::TxHistory::RequestID reqid = {
+              ctx->session->client_session_id, ctx->get_request_index()};
+            if (!history->add_request(
+                  reqid,
+                  ctx->session->caller_cert,
+                  ctx->get_serialised_request(),
+                  ctx->frame_format()))
+            {
+              LOG_FAIL_FMT("Adding request failed");
+              LOG_DEBUG_FMT(
+                "Adding request failed: {}, {}",
+                std::get<0>(reqid),
+                std::get<1>(reqid));
+              ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Could not process request.");
+              return ctx->serialise_response();
+            }
+            tx.set_req_id(reqid);
+            return std::nullopt;
+          }
+          else
+          {
             ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              "Could not process request.");
+              "Consensus is not yet ready.");
             return ctx->serialise_response();
           }
-          tx.set_req_id(reqid);
-          return std::nullopt;
-        }
-        else
-        {
-          ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Consensus is not yet ready.");
-          return ctx->serialise_response();
         }
       }
 
@@ -632,7 +643,6 @@ namespace ccf
       PreExec fn = [](kv::CommittableTx& tx, enclave::RpcContext& ctx) {
         auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
         aft_requests->put(
-          0,
           {tx.get_req_id(),
            ctx.session->caller_cert,
            ctx.get_serialised_request(),

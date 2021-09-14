@@ -108,8 +108,15 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 .. doxygenenum:: ccf::QuoteFormat
    :project: CCF
 
-``network.configurations``
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+``nodes.endorsed_certificates``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
+
+**Value** Node service-endorsed certificate, represented as a PEM-encoded string.
+
+``nodes.network.configurations``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The currently valid and in-flight network configurations of the network. The entry at 0 contains a dummy configuration that holds the largest ID used so far.
 
@@ -386,3 +393,8 @@ Evidence inserted in the ledger by a primary producing a snapshot to establish p
 Used to persist submitted shares during a recovery.
 
 While the contents themselves are encrypted, the table is public so as to be accessible by nodes bootstrapping a recovery service.
+
+``resharings``
+~~~~~~~~~~~~~~
+
+Internal information for identity resharing during 2-transaction reconfiguration.

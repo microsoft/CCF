@@ -109,10 +109,8 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      auto caller_public_key_der =
-        crypto::make_unique_verifier(ctx->session->caller_cert)
-          ->public_key_der();
-      auto node_caller_id = crypto::Sha256Hash(caller_public_key_der).hex_str();
+      auto node_caller_id =
+        compute_node_id_from_cert_der(ctx->session->caller_cert);
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       auto node = nodes->get(node_caller_id);
@@ -123,6 +121,17 @@ namespace ccf
         identity->node_info = node.value();
         return identity;
       }
+
+      std::vector<ccf::NodeId> known_nids;
+      nodes->foreach([&known_nids](const NodeId& nid, const NodeInfo& ni) {
+        known_nids.push_back(nid);
+        return true;
+      });
+      LOG_DEBUG_FMT(
+        "Could not find matching node certificate for node {}; we have "
+        "certificates for the following node ids: {}",
+        node_caller_id,
+        fmt::join(known_nids, ", "));
 
       error_reason = "Could not find matching node certificate";
       return nullptr;

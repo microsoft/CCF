@@ -11,10 +11,10 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.jwt_issuer
+from infra.runner import ConcurrentRunner
+import ca_certs
 
 from loguru import logger as LOG
-
-this_dir = os.path.dirname(__file__)
 
 
 @reqs.description("Refresh JWT issuer")
@@ -136,7 +136,7 @@ def test_jwt_with_sgx_key_policy(network, args):
     primary, _ = network.find_nodes()
     oe_cert_path = make_attested_cert(network, args)
 
-    with open(oe_cert_path) as f:
+    with open(oe_cert_path, encoding="utf-8") as f:
         oe_cert_pem = f.read()
 
     kid = "my_kid"
@@ -237,7 +237,7 @@ def test_jwt_with_sgx_key_filter(network, args):
     primary, _ = network.find_nodes()
 
     oe_cert_path = make_attested_cert(network, args)
-    with open(oe_cert_path) as f:
+    with open(oe_cert_path, encoding="utf-8") as f:
         oe_cert_pem = f.read()
 
     oe_issuer = infra.jwt_issuer.JwtIssuer("oe_issuer", oe_cert_pem)
@@ -293,7 +293,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
 def get_jwt_refresh_endpoint_metrics(network) -> dict:
     primary, _ = network.find_nodes()
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/api/metrics")
+        r = c.get("/node/api/metrics")
         m = next(
             v
             for v in r.body.json()["metrics"]
@@ -311,7 +311,7 @@ def test_jwt_key_auto_refresh(network, args):
     ca_cert_bundle_name = "jwt"
     kid = "the_kid"
     issuer_host = "localhost"
-    issuer_port = 12345
+    issuer_port = args.issuer_port
 
     issuer = infra.jwt_issuer.JwtIssuer(
         f"https://{issuer_host}:{issuer_port}", cn=issuer_host
@@ -381,7 +381,7 @@ def test_jwt_key_initial_refresh(network, args):
     ca_cert_bundle_name = "jwt"
     kid = "my_kid"
     issuer_host = "localhost"
-    issuer_port = 12345
+    issuer_port = args.issuer_port
 
     issuer = infra.jwt_issuer.JwtIssuer(
         f"https://{issuer_host}:{issuer_port}", cn=issuer_host
@@ -437,42 +437,72 @@ def with_timeout(fn, timeout):
                 raise
 
 
-def run(args):
-    args.jwt_key_refresh_interval_s = 1
-
+def run_auto(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_jwt_without_key_policy(network, args)
+        test_jwt_without_key_policy(network, args)
         if args.enclave_type != "virtual":
-            network = test_jwt_with_sgx_key_policy(network, args)
-            network = test_jwt_with_sgx_key_filter(network, args)
-        network = test_jwt_key_auto_refresh(network, args)
+            test_jwt_with_sgx_key_policy(network, args)
+            test_jwt_with_sgx_key_filter(network, args)
+        test_jwt_key_auto_refresh(network, args)
 
         # Check that auto refresh also works on backups
         primary, _ = network.find_primary()
         primary.stop()
         network.wait_for_new_primary(primary)
-        network = test_jwt_key_auto_refresh(network, args)
+        test_jwt_key_auto_refresh(network, args)
 
-    args.jwt_key_refresh_interval_s = 100000
+
+def run_manual(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_jwt_key_initial_refresh(network, args)
+        test_jwt_key_initial_refresh(network, args)
 
         # Check that initial refresh also works on backups
         primary, _ = network.find_primary()
         primary.stop()
         network.wait_for_new_primary(primary)
-        network = test_jwt_key_initial_refresh(network, args)
+        test_jwt_key_initial_refresh(network, args)
+
+
+def run_ca_cert(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        ca_certs.test_cert_store(network, args)
 
 
 if __name__ == "__main__":
+    cr = ConcurrentRunner()
 
-    args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    run(args)
+    cr.add(
+        "auto",
+        run_auto,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=1,
+        issuer_port=12345,
+    )
+
+    cr.add(
+        "manual",
+        run_manual,
+        package="liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        jwt_key_refresh_interval_s=100000,
+        issuer_port=12346,
+    )
+
+    cr.add(
+        "ca_cert",
+        run_ca_cert,
+        package="liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
+
+    cr.run()

@@ -1,10 +1,9 @@
 # Copyright (c) Open Enclave SDK contributors.
 # Licensed under the MIT License.
 
----
 flc_enabled: true
-intel_sgx_w_flc_driver_url: "https://download.01.org/intel-sgx/sgx-dcap/1.7/linux/distro/ubuntu20.04-server/sgx_linux_x64_driver_1.41.bin"
-intel_sgx1_driver_url: "https://download.01.org/intel-sgx/sgx-linux/2.13/distro/ubuntu20.04-server/sgx_linux_x64_driver_2.11.0_2d2b795.bin"
+
+sgx_group_name: "sgx_prv"
 
 intel_sgx_packages:
   - "libsgx-enclave-common"
@@ -14,14 +13,7 @@ intel_sgx_packages:
   - "libsgx-qe3-logic"
   - "libsgx-pce-logic"
 
-intel_sgx_dev_packages:
-  - "libsgx-enclave-common-dev"
-
 intel_dcap_packages:
   - "libsgx-dcap-ql"
   - "libsgx-urts"
   - "libsgx-quote-ex"
-
-intel_dcap_dev_packages:
-  - "libsgx-dcap-ql-dev"
-  - "sgx-aesm-service"

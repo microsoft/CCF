@@ -9,6 +9,7 @@
 #include "crypto/verifier.h"
 #include "kv/committable_tx.h"
 #include "node_signature.h"
+#include "node_signature_verify.h"
 #include "tls/tls.h"
 #include "view_change.h"
 
@@ -68,7 +69,7 @@ namespace ccf
     virtual bool verify_signature(
       const NodeId& node_id,
       crypto::Sha256Hash& root,
-      uint32_t sig_size,
+      size_t sig_size,
       uint8_t* sig) = 0;
     virtual void sign_view_change_request(
       ViewChangeRequest& view_change, ccf::View view) = 0;
@@ -103,7 +104,7 @@ namespace ccf
       kv::CommittableTx tx(&store);
       auto backup_sig_view = tx.rw(backup_signatures);
 
-      backup_sig_view->put(0, sig_value);
+      backup_sig_view->put(sig_value);
       auto r = tx.commit();
       LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
       CCF_ASSERT_FMT(
@@ -116,7 +117,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto sigs_tv = tx.ro(backup_signatures);
-      auto sigs = sigs_tv->get(0);
+      auto sigs = sigs_tv->get();
       if (!sigs.has_value())
       {
         LOG_FAIL_FMT("No signatures found in signatures map");
@@ -129,7 +130,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto new_views_tv = tx.ro(new_views);
-      return new_views_tv->get(0);
+      return new_views_tv->get();
     }
 
     void write_nonces(aft::RevealedNonces& nonces) override
@@ -137,7 +138,7 @@ namespace ccf
       kv::CommittableTx tx(&store);
       auto nonces_tv = tx.rw(revealed_nonces);
 
-      nonces_tv->put(0, nonces);
+      nonces_tv->put(nonces);
       auto r = tx.commit();
       if (r != kv::CommitResult::SUCCESS)
       {
@@ -156,7 +157,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto nonces_tv = tx.ro(revealed_nonces);
-      auto nonces = nonces_tv->get(0);
+      auto nonces = nonces_tv->get();
       if (!nonces.has_value())
       {
         LOG_FAIL_FMT("No signatures found in signatures map");
@@ -168,22 +169,12 @@ namespace ccf
     bool verify_signature(
       const NodeId& node_id,
       crypto::Sha256Hash& root,
-      uint32_t sig_size,
+      size_t sig_size,
       uint8_t* sig) override
     {
       kv::ReadOnlyTx tx(&store);
-      auto ni_tv = tx.ro(nodes);
-
-      auto ni = ni_tv->get(node_id);
-      if (!ni.has_value())
-      {
-        LOG_FAIL_FMT(
-          "No node info, and therefore no cert for node {}", node_id);
-        return false;
-      }
-      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
-      return from_cert->verify_hash(
-        root.h.data(), root.h.size(), sig, sig_size, crypto::MDType::SHA256);
+      return verify_node_signature(
+        tx, node_id, sig, sig_size, root.h.data(), root.h.size());
     }
 
     void sign_view_change_request(
@@ -202,35 +193,15 @@ namespace ccf
       crypto::Sha256Hash h = hash_view_change(view_change, view);
 
       kv::ReadOnlyTx tx(&store);
-      auto ni_tv = tx.ro(nodes);
-
-      auto ni = ni_tv->get(from);
-      if (!ni.has_value())
-      {
-        LOG_FAIL_FMT("No node info, and therefore no cert for node {}", from);
-        return false;
-      }
-      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
-      return from_cert->verify_hash(
-        h.h, view_change.signature, crypto::MDType::SHA256);
+      return verify_node_signature(tx, from, view_change.signature, h);
     }
 
     bool verify_view_change_request_confirmation(
       ViewChangeConfirmation& new_view, const NodeId& from) override
     {
+      crypto::Sha256Hash h = hash_new_view(new_view);
       kv::ReadOnlyTx tx(&store);
-      auto ni_tv = tx.ro(nodes);
-
-      auto ni = ni_tv->get(from);
-      if (!ni.has_value())
-      {
-        LOG_FAIL_FMT("No node info, and therefore no cert for node {}", from);
-        return false;
-      }
-      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
-      auto h = hash_new_view(new_view);
-      return from_cert->verify_hash(
-        h.h, new_view.signature, crypto::MDType::SHA256);
+      return verify_node_signature(tx, from, new_view.signature, h);
     }
 
     void sign_view_change_confirmation(
@@ -246,7 +217,7 @@ namespace ccf
       kv::CommittableTx tx(&store);
       auto new_views_tv = tx.rw(new_views);
 
-      new_views_tv->put(0, new_view);
+      new_views_tv->put(new_view);
       auto r = tx.commit();
       if (r != kv::CommitResult::SUCCESS)
       {
@@ -301,11 +272,7 @@ namespace ccf
 
   static constexpr uint32_t get_endorsement_threshold(uint32_t count)
   {
-    uint32_t f = 0;
-    for (; 3 * f + 1 < count; ++f)
-      ;
-
-    return 2 * f + 1;
+    return count * 2 / 3 + 1;
   }
 
   // Counts the number of endorsements (backup signatures, nonces,
@@ -315,7 +282,7 @@ namespace ccf
     T& messages, const kv::Configuration::Nodes& config)
   {
     uint32_t endorsements = 0;
-    for (const auto node : config)
+    for (const auto& node : config)
     {
       if (messages.find(node.first) != messages.end())
       {

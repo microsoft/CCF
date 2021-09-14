@@ -68,12 +68,14 @@ namespace enclave
       const consensus::Configuration& consensus_config,
       const CurveID& curve_id) :
       circuit(
-        ringbuffer::BufferDef{ec.to_enclave_buffer_start,
-                              ec.to_enclave_buffer_size,
-                              ec.to_enclave_buffer_offsets},
-        ringbuffer::BufferDef{ec.from_enclave_buffer_start,
-                              ec.from_enclave_buffer_size,
-                              ec.from_enclave_buffer_offsets}),
+        ringbuffer::BufferDef{
+          ec.to_enclave_buffer_start,
+          ec.to_enclave_buffer_size,
+          ec.to_enclave_buffer_offsets},
+        ringbuffer::BufferDef{
+          ec.from_enclave_buffer_start,
+          ec.from_enclave_buffer_size,
+          ec.from_enclave_buffer_offsets}),
       basic_writer_factory(circuit),
       writer_factory(basic_writer_factory, ec.writer_config),
       network(consensus_config.consensus_type),
@@ -158,8 +160,8 @@ namespace enclave
 
       start_type = start_type_;
 
-      rpcsessions->set_max_open_sessions(
-        ccf_config_.max_open_sessions_soft, ccf_config_.max_open_sessions_hard);
+      rpcsessions->update_listening_interface_caps(
+        ccf_config_.node_info_network);
 
       ccf::NodeCreateInfo r;
       try
@@ -173,16 +175,19 @@ namespace enclave
       }
 
       // Copy node and network certs out
-      if (r.node_cert.size() > node_cert_size)
+      if (r.self_signed_node_cert.size() > node_cert_size)
       {
         LOG_FAIL_FMT(
           "Insufficient space ({}) to copy node_cert out ({})",
           node_cert_size,
-          r.node_cert.size());
+          r.self_signed_node_cert.size());
         return false;
       }
-      ::memcpy(node_cert, r.node_cert.data(), r.node_cert.size());
-      *node_cert_len = r.node_cert.size();
+      ::memcpy(
+        node_cert,
+        r.self_signed_node_cert.data(),
+        r.self_signed_node_cert.size());
+      *node_cert_len = r.self_signed_node_cert.size();
 
       if (start_type == StartType::New || start_type == StartType::Recover)
       {

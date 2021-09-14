@@ -86,7 +86,7 @@ namespace ccf::historical
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 
-  static ccf::endpoints::EndpointFunction adapter(
+  static ccf::endpoints::EndpointFunction adapter_v1(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
     const CheckAvailability& available,
@@ -148,6 +148,15 @@ namespace ccf::historical
       // Call the provided handler
       f(args, historical_state);
     };
+  }
+
+  static ccf::endpoints::EndpointFunction adapter(
+    const HandleHistoricalQuery& f,
+    AbstractStateCache& state_cache,
+    const CheckAvailability& available,
+    const TxIDExtractor& extractor = txid_from_header)
+  {
+    return adapter_v1(f, state_cache, available, extractor);
   }
 #pragma clang diagnostic pop
 }

@@ -58,6 +58,6 @@ def check_does_not_progress(node, timeout=3):
         try:
             c.wait_for_commit(r, timeout=timeout)
         except TimeoutError:
-            pass
+            return r
         else:
             assert False, f"Commit unexpectedly advanced past {r.view}.{r.seqno}"

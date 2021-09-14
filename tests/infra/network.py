@@ -121,7 +121,7 @@ class Network:
         if existing_network is None:
             self.consortium = None
             self.users = []
-            self.node_offset = 0
+            self.next_node_id = 0
             self.txs = txs
             self.jwt_issuer = jwt_issuer
         else:
@@ -131,8 +131,8 @@ class Network:
             # the node id of the nodes of the new network should start from the node
             # id of the existing network, so that new nodes id match the ones in the
             # nodes KV table
-            self.node_offset = (
-                len(existing_network.nodes) + existing_network.node_offset
+            self.next_node_id = (
+                len(existing_network.nodes) + existing_network.next_node_id
             )
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
@@ -169,9 +169,9 @@ class Network:
             self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
-        if len(self.nodes):
-            return self.nodes[-1].local_node_id + 1
-        return self.node_offset
+        next_node_id = self.next_node_id
+        self.next_node_id += 1
+        return next_node_id
 
     def create_node(
         self, host, binary_dir=None, library_dir=None, node_port=None, version=None
@@ -430,11 +430,11 @@ class Network:
         if self.jwt_issuer:
             self.jwt_issuer.register(self)
 
-        self.consortium.add_users(self.find_random_node(), initial_users)
-        LOG.info(f"Initial set of users added: {len(initial_users)}")
-
-        self.consortium.transition_service_to_open(remote_node=self.find_random_node())
+        self.consortium.add_users_and_transition_service_to_open(
+            self.find_random_node(), initial_users
+        )
         self.status = ServiceStatus.OPEN
+        LOG.info(f"Initial set of users added: {len(initial_users)}")
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
@@ -635,14 +635,13 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args, expected_status=NodeStatus.TRUSTED):
+    def trust_node(self, node, args):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
-                    expected_status,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
@@ -672,7 +671,9 @@ class Network:
             log_output=False,
         ).check_returncode()
 
-        with open(os.path.join(self.common_dir, f"{local_user_id}_cert.pem")) as c:
+        with open(
+            os.path.join(self.common_dir, f"{local_user_id}_cert.pem"), encoding="utf-8"
+        ) as c:
             service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
         new_user = UserInfo(
             local_user_id,
@@ -737,14 +738,13 @@ class Network:
         logs = []
 
         asked_nodes = nodes or self.get_joined_nodes()
-
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in asked_nodes:
                 with node.client() as c:
                     try:
                         logs = []
-                        res = c.get("/node/network", log_capture=logs)
+                        res = c.get("/node/network", timeout=1, log_capture=logs)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
                         body = res.body.json()
@@ -753,7 +753,7 @@ class Network:
                         if primary_id is not None:
                             break
 
-                    except CCFConnectionException:
+                    except Exception:
                         LOG.warning(
                             f"Could not successfully connect to node {node.local_node_id}. Retrying..."
                         )
@@ -894,24 +894,24 @@ class Network:
         end_time = time.time() + timeout
         error = TimeoutError
         logs = []
+
+        backup = self.find_any_backup(old_primary)
+        if backup.get_consensus() == "bft":
+            try:
+                with backup.client("user0") as c:
+                    _ = c.post(
+                        "/app/log/private",
+                        {
+                            "id": -1,
+                            "msg": "This is submitted to force a view change",
+                        },
+                    )
+                time.sleep(1)
+            except CCFConnectionException:
+                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
+
         while time.time() < end_time:
             try:
-                backup = self.find_any_backup()
-                if backup.get_consensus() == "bft":
-                    try:
-                        with backup.client("user0") as c:
-                            _ = c.post(
-                                "/app/log/private",
-                                {
-                                    "id": -1,
-                                    "msg": "This is submitted to force a view change",
-                                },
-                            )
-                        time.sleep(1)
-                    except CCFConnectionException:
-                        LOG.warning(
-                            f"Could not successfully connect to node {backup.node_id}."
-                        )
                 logs = []
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:
@@ -1103,6 +1103,7 @@ def network(
         if pdb:
             import pdb
 
+            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise

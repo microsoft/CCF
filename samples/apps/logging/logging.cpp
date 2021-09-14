@@ -156,8 +156,8 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
-      const ccf::AuthnPolicies auth_policies = {ccf::jwt_auth_policy,
-                                                ccf::user_cert_auth_policy};
+      const ccf::AuthnPolicies auth_policies = {
+        ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
       // SNIPPET_START: record
       auto record = [this](auto& ctx, nlohmann::json&& params) {
@@ -1191,7 +1191,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "0.1.0";
+      logger_handlers.openapi_info.document_version = "1.0.0";
     }
   };
 }

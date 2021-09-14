@@ -14,10 +14,11 @@
 #include <string>
 #include <trompeloeil/include/trompeloeil.hpp>
 
-std::vector<kv::NodeId> node_ids = {kv::test::PrimaryNodeId,
-                                    kv::test::FirstBackupNodeId,
-                                    kv::test::SecondBackupNodeId,
-                                    kv::test::ThirdBackupNodeId};
+std::vector<kv::NodeId> node_ids = {
+  kv::test::PrimaryNodeId,
+  kv::test::FirstBackupNodeId,
+  kv::test::SecondBackupNodeId,
+  kv::test::ThirdBackupNodeId};
 
 class StoreMock : public ccf::ProgressTrackerStore
 {
@@ -32,7 +33,7 @@ public:
   MAKE_MOCK0(get_nonces, std::optional<aft::RevealedNonces>(), override);
   MAKE_MOCK4(
     verify_signature,
-    bool(const kv::NodeId&, crypto::Sha256Hash&, uint32_t, uint8_t*),
+    bool(const kv::NodeId&, crypto::Sha256Hash&, size_t, uint8_t*),
     override);
   MAKE_MOCK2(
     sign_view_change_request,
@@ -864,4 +865,18 @@ TEST_CASE("Sending evidence out of band")
       i++;
     }
   }
+}
+
+TEST_CASE("Endorsement threshold")
+{
+  REQUIRE(ccf::get_endorsement_threshold(1) == 1);
+  REQUIRE(ccf::get_endorsement_threshold(2) == 2);
+  REQUIRE(ccf::get_endorsement_threshold(3) == 3);
+  REQUIRE(ccf::get_endorsement_threshold(4) == 3);
+  REQUIRE(ccf::get_endorsement_threshold(5) == 4);
+  REQUIRE(ccf::get_endorsement_threshold(6) == 5);
+  REQUIRE(ccf::get_endorsement_threshold(7) == 5);
+  REQUIRE(ccf::get_endorsement_threshold(8) == 6);
+  REQUIRE(ccf::get_endorsement_threshold(9) == 7);
+  REQUIRE(ccf::get_endorsement_threshold(10) == 7);
 }

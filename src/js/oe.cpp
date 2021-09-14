@@ -13,6 +13,8 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
+#include "ccf/version.h"
+#include "js/plugin.h"
 
 namespace js
 {
@@ -143,8 +145,8 @@ namespace js
       }
       else
       {
-        std::vector<uint8_t> claim_value{claim.value,
-                                         claim.value + claim.value_size};
+        std::vector<uint8_t> claim_value{
+          claim.value, claim.value + claim.value_size};
         out_claims.emplace(std::move(claim_name), std::move(claim_value));
       }
     }
@@ -172,4 +174,30 @@ namespace js
 
 #pragma clang diagnostic pop
 
+  static JSValue create_openenclave_obj(JSContext* ctx)
+  {
+    auto openenclave = JS_NewObject(ctx);
+
+    JS_SetPropertyStr(
+      ctx,
+      openenclave,
+      "verifyOpenEnclaveEvidence",
+      JS_NewCFunction(
+        ctx, js_verify_open_enclave_evidence, "verifyOpenEnclaveEvidence", 3));
+
+    return openenclave;
+  }
+
+  static void populate_global_openenclave(JSContext* ctx)
+  {
+    auto global_obj = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(
+      ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
+    JS_FreeValue(ctx, global_obj);
+  }
+
+  FFIPlugin openenclave_plugin = {
+    .name = "Open Enclave",
+    .ccf_version = ccf::ccf_version,
+    .extend = populate_global_openenclave};
 }

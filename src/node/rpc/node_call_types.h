@@ -59,16 +59,33 @@ namespace ccf
   {
     struct In
     {
-      std::vector<NewMember> members_info;
-      std::string constitution;
       NodeId node_id;
-      crypto::Pem node_cert;
+      crypto::Pem certificate_signing_request;
+      crypto::Pem public_key;
       crypto::Pem network_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
-      ServiceConfiguration configuration;
+
+      // Only set if node does _not_ require endorsement by the service
+      std::optional<crypto::Pem> node_cert = std::nullopt;
+
+      // Only set on genesis transaction, but not on recovery
+      struct GenesisInfo
+      {
+        std::vector<NewMember> members_info;
+        std::string constitution;
+        ServiceConfiguration configuration;
+
+        bool operator==(const GenesisInfo& other) const
+        {
+          return members_info == other.members_info &&
+            constitution == other.constitution &&
+            configuration == other.configuration;
+        }
+      };
+      std::optional<GenesisInfo> genesis_info = std::nullopt;
     };
   };
 
@@ -81,14 +98,16 @@ namespace ccf
       crypto::Pem public_encryption_key;
       ConsensusType consensus_type = ConsensusType::CFT;
       std::optional<kv::Version> startup_seqno = std::nullopt;
+      std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
     };
 
     struct Out
     {
       NodeStatus node_status;
-      NodeId node_id; // Only used in BFT
 
-      // Only if the caller node is trusted
+      // Deprecated in 2.x
+      std::optional<NodeId> node_id = std::nullopt;
+
       struct NetworkInfo
       {
         bool public_only = false;
@@ -97,7 +116,28 @@ namespace ccf
 
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
-        ServiceStatus service_status;
+        std::optional<ServiceStatus> service_status = std::nullopt;
+
+        std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+
+        NetworkInfo() {}
+
+        NetworkInfo(
+          bool public_only,
+          kv::Version last_recovered_signed_idx,
+          ConsensusType consensus_type,
+          const LedgerSecretsMap& ledger_secrets,
+          const NetworkIdentity& identity,
+          ServiceStatus service_status,
+          const std::optional<crypto::Pem>& endorsed_certificate) :
+          public_only(public_only),
+          last_recovered_signed_idx(last_recovered_signed_idx),
+          consensus_type(consensus_type),
+          ledger_secrets(ledger_secrets),
+          identity(identity),
+          service_status(service_status),
+          endorsed_certificate(endorsed_certificate)
+        {}
 
         bool operator==(const NetworkInfo& other) const
         {
@@ -105,8 +145,9 @@ namespace ccf
             last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
+            identity == other.identity &&
             service_status == other.service_status &&
-            identity == other.identity;
+            endorsed_certificate == other.endorsed_certificate;
         }
 
         bool operator!=(const NetworkInfo& other) const
@@ -115,7 +156,8 @@ namespace ccf
         }
       };
 
-      NetworkInfo network_info;
+      // Only set if the caller node is trusted
+      std::optional<NetworkInfo> network_info = std::nullopt;
     };
   };
 
@@ -136,5 +178,16 @@ namespace ccf
       size_t current_allocated_heap_size = 0;
       size_t peak_allocated_heap_size = 0;
     };
+  };
+
+  struct ObservedReconfigurationCommit
+  {
+    struct In
+    {
+      NodeId from;
+      kv::ReconfigurationId reconfiguration_id;
+    };
+
+    using Out = void;
   };
 }

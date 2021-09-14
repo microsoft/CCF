@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.16)
 
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
@@ -11,8 +11,6 @@ project(
   VERSION ${CCF_RELEASE_VERSION}
   LANGUAGES C CXX
 )
-
-set(ENV{BETTER_EXCEPTIONS} 1)
 
 message(STATUS "CCF version = ${CCF_VERSION}")
 message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
@@ -56,16 +54,15 @@ install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 if(ENABLE_BFT)
   set(CONSENSUSES cft bft)
+  set(CONSENSUS_FILTER all)
 else()
   set(CONSENSUSES cft)
+  set(CONSENSUS_FILTER cft)
 endif()
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
-option(ZAP_TEST
-       "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
-)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
@@ -79,15 +76,10 @@ set(CCF_IMPL_SOURCE
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   # enclave version
-  add_library(
-    ccf.enclave STATIC ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
+  add_enclave_library(
+    ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(
-    ccf.enclave PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-
-  target_compile_options(ccf.enclave PUBLIC -nostdinc -nostdinc++)
   add_warning_checks(ccf.enclave)
 
   target_include_directories(
@@ -102,18 +94,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_link_libraries(
-    ccf.enclave
-    PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
-           -lgcc
-           quickjs.enclave
-           ccfcrypto.enclave
-           http_parser.enclave
-           aft.enclave
-           sss.enclave
-           ccf_endpoints.enclave
+    ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
+                       aft.enclave sss.enclave ccf_endpoints.enclave
   )
-
-  set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   enable_quote_code(ccf.enclave)
 
@@ -302,6 +285,7 @@ if(BUILD_TESTS)
     add_unit_test(
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
     target_link_libraries(raft_test PRIVATE ccfcrypto.host)
 
@@ -358,6 +342,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
     target_link_libraries(snapshotter_test PRIVATE)
+
+    add_unit_test(
+      node_info_json_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
+    )
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
@@ -488,31 +477,21 @@ if(BUILD_TESTS)
       --constitution
       ${CCF_DIR}/src/runtime_config/default/apply.js
   )
-  add_e2e_test(
-    NAME governance_js_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
-    CONSENSUS cft
-    CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-  )
-
-  # Storing signed governance operations
-  add_e2e_test(
-    NAME governance_history_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      # Higher snapshot interval as snapshots trigger new ledger chunks, which
-      # may result in latest chunk being partially written
-      --snapshot-tx-interval 10000
-  )
 
   add_e2e_test(
-    NAME recovery_test_curve_256
+    NAME recovery_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --recovery 3 --curve-id secp256r1
   )
+
+  if(LONG_TESTS)
+    add_e2e_test(
+      NAME recovery_test_curve_256
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --curve-id secp256r1
+    )
+  endif()
 
   add_e2e_test(
     NAME recovery_test_suite
@@ -585,39 +564,13 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME custom_authorization_test
+    NAME auth
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests
   )
 
-  add_e2e_test(
-    NAME js_limits_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-limits/limits.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-limits
-  )
-
-  add_e2e_test(
-    NAME authentication_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-authentication/authentication.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-authentication
-  )
-
-  add_e2e_test(
-    NAME content_types_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-content-types/content_types.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-content-types
-  )
-
-  set(SERVICE_PRINCIPAL_CONSTITUTION_ARGS
-      ${CONSTITUTION_ARGS} --constitution
-      ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
-  )
   add_e2e_test(
     NAME launch_host_process_test
     PYTHON_SCRIPT
@@ -631,37 +584,14 @@ if(BUILD_TESTS)
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
-    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
+    CONSTITUTION ${CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-  )
-
-  add_e2e_test(
-    NAME governance_no_session_auth_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-    CONSENSUS cft
-    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-                    --disable-member-session-auth
-  )
-
-  add_e2e_test(
-    NAME ca_certs_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ca_certs.py
-    CONSENSUS cft
   )
 
   add_e2e_test(
     NAME jwt_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
     CONSENSUS cft
-  )
-
-  add_e2e_test(
-    NAME nobuiltins_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nobuiltins.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS -p
-                    ${CMAKE_BINARY_DIR}/samples/apps/nobuiltins/libnobuiltins
   )
 
   add_e2e_test(
@@ -690,35 +620,15 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME js_e2e_logging_cft
+    NAME e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
   add_e2e_test(
-    NAME e2e_scenario_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --scenario
-                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-  )
-
-  add_e2e_test(
-    NAME member_client_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME membership
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
-    NAME ledger_operation
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ledger_operation.py
     CONSENSUS cft
   )
 
@@ -750,42 +660,14 @@ if(BUILD_TESTS)
     )
   endif()
 
-  if(ZAP_TEST)
-    configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/zap.config ${CMAKE_BINARY_DIR}/zap.config
-      COPYONLY
-    )
-    add_e2e_test(
-      NAME zaptest_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/zap.py
-      CONSENSUS cft
-      LABEL zaptest
-    )
-  endif()
-
   add_e2e_test(
     NAME schema_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS cft
-    ADDITIONAL_ARGS -p liblogging --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas
-  )
-
-  add_e2e_test(
-    NAME tutorial_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_tutorial.py
-    CONSENSUS cft
-    LABEL tutorial
-    CURL_CLIENT TRUE
     ADDITIONAL_ARGS
-      -p liblogging --client-tutorial ${CMAKE_SOURCE_DIR}/python/tutorial.py
-      --ledger-tutorial ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
-  )
-
-  add_e2e_sandbox_test(
-    NAME forum_app
-    SCRIPT ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
-    CONSENSUS cft
-    LABEL forum
+      --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --client-tutorial
+      ${CMAKE_SOURCE_DIR}/python/tutorial.py --ledger-tutorial
+      ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
   )
 
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
@@ -815,25 +697,20 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
+  add_e2e_test(
+    NAME reconfiguration_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+  )
+
+  add_e2e_test(
+    NAME election_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    CONSENSUS ${CONSENSUS_FILTER}
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
-    add_e2e_test(
-      NAME cpp_e2e_logging_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME election_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME recovery_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      CONSENSUS ${CONSENSUS}
-    )
-
     add_e2e_test(
       NAME vegeta_stress_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
@@ -851,12 +728,9 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS -p liblogging --duration 45m
     )
 
-    add_e2e_test(
-      NAME reconfiguration_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
-    )
+    # add_e2e_test( NAME reconfiguration_test_${CONSENSUS} PYTHON_SCRIPT
+    # ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py CONSENSUS ${CONSENSUS}
+    # ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} )
 
   endforeach()
 

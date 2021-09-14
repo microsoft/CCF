@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added `foreach_key` and `foreach_value` to C++ KV API, to iterate without deserializing both entries when only one is used (#2918).
+
+### Changed
+
+- Service-endorsed node certificates are now recorded in a new `public:ccf.gov.nodes.endorsed_certificates` table, while the existing `cert` field in the `public:ccf.gov.nodes.info` table is now deprecated (#2844).
+- Joining nodes now present service-endorsed certificate in client TLS sessions _after_ they have observed their own addition to the store, rather than as soon as they have joined the service. Operators should monitor the initial progress of a new node using its self-signed certificate as TLS session certificate authority (#2844).
+- Updated `actions.js` constitution fragment to record service-endorsed node certificate on the `transition_node_to_trusted` action. The constitution should be updated using the existing `set_constitution` proposal (#2844).
+- Improved performance for lookup of path-templated endpoints (#2918).
+- Raised the minimum supported CMake version for building CCF to 3.16 (#2946).
+
 ## [2.0.0-dev3]
+
+### Added
+
+- Added support for listening on multiple interfaces for incoming client RPCs, with individual session caps (#2628).
 
 ### Changed
 
@@ -13,10 +31,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `get_state_at()` now returns receipts for signature transactions (#2785), see [documentation](https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#transaction-receipts) for details.
 - Upgrade playbooks and base CI image to Ubuntu 20.04. CCF is now primarily developed and tested against Ubuntu 20.04.
 - Python `ccf.read_ledger` module now accepts custom formatting rules for the key and value based on the key-value store table name (#2791).
+- CCF is now built with Clang 10. It is recommended that C++ applications upgrade to Clang 10 as well.
+- Internal `/gov/jwt_keys/refresh` endpoint has been moved to `/node/jwt_keys/refresh` (#2885).
+- If no `--san` is specified at node start-up, the node certificate _Subject Alternative Name_ extension now defaults to the value of `--public-rpc-address` (#2902).
 
 ### Removed
 
 - Remove long-deprecated `--domain` argument from `cchost`. Node certificate Subject Alternative Names should be passed in via existing `--san` argument (#2798).
+- Removed Forum sample app.
 
 ## [2.0.0-dev2]
 

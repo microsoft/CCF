@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/entities.h"
+#include "node/session_metrics.h"
 #include "node_call_types.h"
 
 namespace ccf
@@ -20,14 +21,6 @@ namespace ccf
     std::optional<kv::Version> /* recovery_target_seqno */,
     std::optional<kv::Version> /* last_recovered_seqno */>;
 
-  struct SessionMetrics
-  {
-    size_t active;
-    size_t peak;
-    size_t soft_cap;
-    size_t hard_cap;
-  };
-
   class AbstractNodeState
   {
   public:
@@ -37,6 +30,7 @@ namespace ccf
     virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual void trigger_host_process_launch(
       const std::vector<std::string>& args) = 0;
+    virtual bool is_in_initialised_state() const = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;
     virtual bool can_replicate() = 0;
@@ -56,5 +50,9 @@ namespace ccf
       CodeDigest& code_digest) = 0;
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
+    virtual crypto::Pem generate_endorsed_certificate(
+      const crypto::Pem& subject_csr,
+      const crypto::Pem& endorser_private_key,
+      const crypto::Pem& endorser_cert) = 0;
   };
 }
