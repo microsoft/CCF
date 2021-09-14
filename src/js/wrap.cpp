@@ -43,9 +43,9 @@ namespace ccf::js
   JSClassDef rpc_class_def = {};
   JSClassDef host_class_def = {};
 
-  std::vector<ccf::js::FFIPlugin> ffi_plugins;
+  std::vector<FFIPlugin> ffi_plugins;
 
-  static void register_ffi_plugin(const ccf::js::FFIPlugin& plugin)
+  static void register_ffi_plugin(const FFIPlugin& plugin)
   {
     if (plugin.ccf_version != std::string(ccf::ccf_version))
     {
@@ -60,7 +60,7 @@ namespace ccf::js
     ffi_plugins.push_back(plugin);
   }
 
-  void register_ffi_plugins(const std::vector<ccf::js::FFIPlugin>& plugins)
+  void register_ffi_plugins(const std::vector<FFIPlugin>& plugins)
   {
     for (const auto& plugin : plugins)
     {
