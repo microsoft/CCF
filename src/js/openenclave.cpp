@@ -16,6 +16,7 @@
 #include "ccf/version.h"
 #include "ccf/js_plugin.h"
 #include "ccf/js_openenclave_plugin.h"
+#include "js/wrap.h"
 
 namespace js
 {
