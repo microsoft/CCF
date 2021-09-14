@@ -156,6 +156,8 @@ namespace ccf
       Receipt receipt;
       tx_receipt.describe(receipt);
 
+      LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
+
       const auto receipt_str = nlohmann::json(receipt).dump();
       LOG_FAIL_FMT("Receipt: {}", receipt_str);
       return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());

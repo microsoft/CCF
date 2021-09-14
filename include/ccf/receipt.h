@@ -5,6 +5,7 @@
 
 #include "ccf/entity_id.h"
 #include "ds/json.h"
+#include "node/history.h"
 
 namespace ccf
 {
@@ -29,4 +30,25 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, leaf, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root)
+
+  static crypto::Sha256Hash compute_root_from_receipt(const Receipt& receipt)
+  {
+    crypto::Sha256Hash current = receipt.leaf;
+    for (auto const& element : receipt.proof)
+    {
+      if (element.left.has_value())
+      {
+        crypto::Sha256Hash left = element.left.value();
+        current = crypto::Sha256Hash(left, current);
+      }
+      else
+      {
+        assert(element.right.has_value());
+        crypto::Sha256Hash right = element.right.value();
+        current = crypto::Sha256Hash(current, right);
+      }
+    }
+
+    return current;
+  }
 }
