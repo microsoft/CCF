@@ -5,6 +5,12 @@ trigger:
       - main
       - "refs/tags/ccf-*"
 
+pr:
+  batch: true
+  branches:
+    include:
+    - main
+
 jobs:
   - job: build_and_publish_docs
     container: ccfciteam/ccf-ci:oe0.17.1-focal
