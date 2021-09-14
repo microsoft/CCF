@@ -86,7 +86,7 @@ Supporting Types
 Historical Queries
 ------------------
 
-.. doxygenfunction:: ccf::historical::adapter
+.. doxygenfunction:: ccf::historical::adapter_v2
    :project: CCF
 
 .. doxygenclass:: ccf::historical::AbstractStateCache
