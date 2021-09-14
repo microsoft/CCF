@@ -29,6 +29,13 @@ Audit
 
     Utility library that can be used to write ledger audit scripts quickly and easily.
 
+    ---
+
+    :fa:`server` :doc:`node_state`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Node state transitions in a CCF service.
+
 .. toctree::
     :hidden:
 
@@ -36,3 +43,4 @@ Audit
     merkle_tree
     ledger
     python_library
+    node_state
