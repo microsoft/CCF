@@ -92,6 +92,27 @@ namespace ccf
     return true;
   };
 
+  static std::vector<uint8_t> build_and_serialise_receipt(
+    const std::vector<uint8_t>& s,
+    const std::vector<uint8_t>& t,
+    const NodeId& node_id,
+    consensus::Index idx)
+  {
+    ccf::MerkleTreeHistory tree(t);
+    auto proof = tree.get_proof(idx);
+    auto tx_receipt =
+      ccf::TxReceipt(s, proof.get_root(), proof.get_path(), node_id);
+
+    Receipt receipt;
+    tx_receipt.describe(receipt);
+
+    LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
+
+    const auto receipt_str = nlohmann::json(receipt).dump();
+    LOG_FAIL_FMT("Receipt: {}", receipt_str);
+    return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
+  }
+
   class Snapshotter : public std::enable_shared_from_this<Snapshotter>
   {
   public:
@@ -112,7 +133,7 @@ namespace ccf
       consensus::Index evidence_idx;
 
       // TODO: New
-      // TODO: First two can be bundled together (root will be removed soon)
+      // TODO: First two can be bundled together
       std::optional<consensus::Index>
         evidence_commit_idx; // TODO: Rename to evidence_sig_idx
 
@@ -213,28 +234,6 @@ namespace ccf
         snapshot_hash);
     }
 
-    // TODO: Refactor with historical queries code
-    std::vector<uint8_t> build_and_serialise_receipt(
-      const std::vector<uint8_t>& s,
-      const std::vector<uint8_t>& t,
-      const NodeId& node_id,
-      consensus::Index evidence_idx)
-    {
-      ccf::MerkleTreeHistory tree(t);
-      auto proof = tree.get_proof(evidence_idx);
-      auto tx_receipt =
-        ccf::TxReceipt(s, proof.get_root(), proof.get_path(), node_id);
-
-      Receipt receipt;
-      tx_receipt.describe(receipt);
-
-      LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
-
-      const auto receipt_str = nlohmann::json(receipt).dump();
-      LOG_FAIL_FMT("Receipt: {}", receipt_str);
-      return std::vector<uint8_t>(receipt_str.begin(), receipt_str.end());
-    }
-
     void update_indices(consensus::Index idx)
     {
       while ((next_snapshot_indices.size() > 1) &&
@@ -313,7 +312,7 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    // TODO: Merkle with record signature
+    // TODO: Merge with record signature
     bool record_committable(consensus::Index idx)
     {
       // Returns true if the committable idx will require the generation of a
@@ -343,17 +342,9 @@ namespace ccf
           pending_snapshot.evidence_idx < idx &&
           !pending_snapshot.sig.has_value())
         {
-          LOG_FAIL_FMT(
-            "Recording sig for snapshot e{}", pending_snapshot.evidence_idx);
           pending_snapshot.node_id = node_id;
           pending_snapshot.sig = sig;
           pending_snapshot.evidence_commit_idx = idx;
-        }
-        else
-        {
-          LOG_FAIL_FMT(
-            "Not recording signature for snapshot e{}",
-            pending_snapshot.evidence_idx);
         }
       }
     }
@@ -362,7 +353,6 @@ namespace ccf
       consensus::Index idx, const std::vector<uint8_t>& tree)
     {
       std::lock_guard<std::mutex> guard(lock);
-      LOG_FAIL_FMT("Recording tree at {}, tree size {}", idx, tree.size());
 
       for (auto& pending_snapshot : pending_snapshots)
       {
@@ -370,15 +360,7 @@ namespace ccf
           pending_snapshot.evidence_idx < idx &&
           !pending_snapshot.tree.has_value())
         {
-          LOG_FAIL_FMT(
-            "Recording tree for snapshot e{}", pending_snapshot.evidence_idx);
           pending_snapshot.tree = tree;
-        }
-        else
-        {
-          LOG_FAIL_FMT(
-            "Not recording tree for snapshot e{}",
-            pending_snapshot.evidence_idx);
         }
       }
     }
