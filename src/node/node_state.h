@@ -198,7 +198,7 @@ namespace ccf
 #endif
     }
 
-    void initialise_startup_snapshot(bool recovery = false)
+    bool initialise_startup_snapshot(bool recovery = false)
     {
       std::shared_ptr<kv::Store> snapshot_store;
       if (!recovery)
@@ -227,19 +227,8 @@ namespace ccf
         "Deserialising public snapshot ({})", config.startup_snapshot.size());
 
       kv::ConsensusHookPtrs hooks;
-      deserialise_snapshot(
+      bool is_snapshot_verified = deserialise_snapshot(
         snapshot_store, config.startup_snapshot, hooks, &view_history, true);
-      // auto rc = snapshot_store->deserialise_snapshot(
-      //   config.startup_snapshot.data(),
-      //   config.startup_snapshot.size(),
-      //   hooks,
-      //   &view_history,
-      //   true);
-      // if (rc != kv::ApplyResult::PASS)
-      // {
-      //   throw std::logic_error(
-      //     fmt::format("Failed to apply public snapshot: {}", rc));
-      // }
 
       LOG_INFO_FMT(
         "Public snapshot deserialised at seqno {}",
@@ -255,6 +244,8 @@ namespace ccf
         config.startup_snapshot,
         ledger_idx,
         config.startup_snapshot_evidence_seqno);
+
+      return is_snapshot_verified;
     }
 
   public:
@@ -401,14 +392,17 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (!config.startup_snapshot.empty())
+          // TODO: Do we need this at all for 2.x snapshots?
+          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
           {
-            initialise_startup_snapshot(); // TODO: Only for old snapshots
-            sm.advance(State::verifyingSnapshot);
+            // Note: 2.x snapshots are self-verified so the ledger verification
+            // of its evidence can be skipped entirely
+            sm.advance(State::pending);
           }
           else
           {
-            sm.advance(State::pending);
+            // Node joins from a 1.x snapshot
+            sm.advance(State::verifyingSnapshot);
           }
 
           LOG_INFO_FMT("Created join node {}", self);
@@ -587,17 +581,17 @@ namespace ccf
                 startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
               kv::ConsensusHookPtrs hooks;
-              auto rc = network.tables->deserialise_snapshot(
-                startup_snapshot_info->raw.data(),
-                startup_snapshot_info->raw.size(),
+              deserialise_snapshot(
+                network.tables,
+                startup_snapshot_info->raw,
                 hooks,
                 &view_history,
                 resp.network_info->public_only);
-              if (rc != kv::ApplyResult::PASS)
-              {
-                throw std::logic_error(
-                  fmt::format("Failed to apply snapshot on join: {}", rc));
-              }
+              // if (rc != kv::ApplyResult::PASS)
+              // {
+              //   throw std::logic_error(
+              //     fmt::format("Failed to apply snapshot on join: {}", rc));
+              // }
 
               for (auto& hook : hooks)
               {

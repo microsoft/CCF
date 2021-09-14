@@ -193,12 +193,10 @@ namespace asynchost
               snapshot_idx_delimiter,
               evidence_commit_idx);
 
-            LOG_FAIL_FMT("Receipt size: {}", receipt_size); // TODO: Remove
-
             auto full_snapshot_path =
               fs::path(snapshot_dir) / fs::path(file_name);
 
-            // TODO: Append receipt to snapshot file
+            // Also append receipt to snapshot file
             std::ofstream snapshot_file(
               full_snapshot_path, std::ios::app | std::ios::binary);
             snapshot_file.write(
@@ -225,6 +223,7 @@ namespace asynchost
 
     std::optional<std::string> find_latest_committed_snapshot()
     {
+      // TODO: This should only be done for 1.x snapshots...
       std::optional<std::string> snapshot_file = std::nullopt;
       size_t latest_idx = 0;
 
