@@ -25,12 +25,6 @@ namespace ccf
       DroppedMessageException(const NodeId& from) : from(from) {}
     };
 
-    virtual void initialize(
-      const NodeId& self_id,
-      const crypto::Pem& network_cert,
-      crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) = 0;
-
     virtual void associate_node_address(
       const NodeId& peer_id,
       const std::string& peer_hostname,

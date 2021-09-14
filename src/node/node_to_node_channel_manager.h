@@ -21,7 +21,7 @@ namespace ccf
       NodeId node_id;
       const crypto::Pem& network_cert;
       crypto::KeyPairPtr node_kp;
-      const crypto::Pem& node_cert;
+      std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     };
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
                                          // after calling initialize()
@@ -36,6 +36,9 @@ namespace ccf
         peer_id);
 
       std::lock_guard<std::mutex> guard(lock);
+      CCF_ASSERT_FMT(
+        endorsed_node_cert.has_value(),
+        "Endorsed node certificate has not yet been set");
 
       auto search = channels.find(peer_id);
       if (search != channels.end())
@@ -50,7 +53,7 @@ namespace ccf
           writer_factory,
           this_node->network_cert,
           this_node->node_kp,
-          this_node->node_cert,
+          this_node->endorsed_node_cert.value(),
           this_node->node_id,
           peer_id,
           message_limit));
@@ -68,7 +71,7 @@ namespace ccf
       const NodeId& self_id,
       const crypto::Pem& network_cert,
       crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) override
+      const std::optional<crypto::Pem>& node_cert) override
     {
       CCF_ASSERT_FMT(
         this_node == nullptr,
@@ -76,17 +79,22 @@ namespace ccf
         this_node->node_id,
         self_id);
 
-      if (make_verifier(node_cert)->is_self_signed())
+      if (node_cert.has_value() && make_verifier(node_cert.value())->is_self_signed())
       {
         LOG_INFO_FMT(
           "Refusing to initialize node-to-node channels with "
-          "this_node->node_id-signed node "
-          "certificate.");
+          "self-signed node certificate.");
         return;
       }
 
       this_node = std::unique_ptr<ThisNode>(
         new ThisNode{self_id, network_cert, node_kp, node_cert});
+    }
+
+    void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert) override
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      this_node->endorsed_node_cert = endorsed_node_cert;
     }
 
     void set_message_limit(size_t message_limit_)
@@ -110,6 +118,13 @@ namespace ccf
     void close_channel(const NodeId& peer_id) override
     {
       get_channel(peer_id)->close_channel();
+    }
+
+    // TODO: Is this explicit check needed?
+    bool have_channel(const ccf::NodeId& nid) const override
+    {
+      // TODO: Can't lock due to const
+      return channels.find(nid) != channels.end();
     }
 
     ChannelStatus get_status(const NodeId& peer_id)
