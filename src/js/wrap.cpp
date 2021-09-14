@@ -8,7 +8,6 @@
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
-#include "js/oe.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -59,9 +58,11 @@ namespace js
     ffi_plugins.push_back(plugin);
   }
 
-  void register_ffi_plugins()
+  void register_ffi_plugins(const std::vector<FFIPlugin>& plugins)
   {
-    register_ffi_plugin(openenclave_plugin);
+    for (const auto& plugin : plugins)
+      register_ffi_plugin(plugin);
+    }
   }
 
   static JSValue js_kv_map_has(

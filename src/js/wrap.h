@@ -6,7 +6,7 @@
 #include "ccf/tx.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
-#include "js/plugin.h"
+#include "ccf/js_plugin.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/rpc/node_interface.h"
@@ -46,7 +46,7 @@ namespace js
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  void register_ffi_plugins();
+  void register_ffi_plugins(const std::vector<FFIPlugin>& plugins);
   void register_class_ids();
   void register_request_body_class(JSContext* ctx);
   void populate_global(

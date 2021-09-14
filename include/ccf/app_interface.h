@@ -3,6 +3,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 namespace ccf
 {
@@ -10,6 +11,11 @@ namespace ccf
   class RpcFrontend;
 
   struct NetworkTables;
+}
+
+namespace js
+{
+  struct FFIPlugin;
 }
 
 namespace ccfapp
@@ -28,4 +34,6 @@ namespace ccfapp
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     ccf::NetworkTables& network, AbstractNodeContext& context);
   // SNIPPET_END: rpc_handler
+
+  std::vector<js::FFIPlugin> get_js_plugins();
 }

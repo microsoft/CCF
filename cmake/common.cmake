@@ -348,12 +348,41 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
 )
 
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library(
+    js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
+  )
+  use_oe_mbedtls(js_generic_base.enclave)
+  target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
+  add_lvi_mitigations(js_generic_base.enclave)
+  install(
+    TARGETS js_generic_base.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+if("virtual" IN_LIST COMPILE_TARGETS)
+  add_library(js_generic_base.virtual STATIC ${CCF_DIR}/src/apps/js_generic/js_generic.cpp)
+  add_san(js_generic_base.virtual)
+  target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                       _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+  set_property(TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
+  use_client_mbedtls(js_generic_base.virtual)
+  install(
+    TARGETS js_generic_base.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic
-  SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-  LINK_LIBS_ENCLAVE quickjs.enclave -lgcc
-  LINK_LIBS_VIRTUAL quickjs.host INSTALL_LIBS ON
+  SRCS ${CCF_DIR}/src/apps/js_generic/plugins.cpp
+  LINK_LIBS_ENCLAVE js_generic_base.enclave
+  LINK_LIBS_VIRTUAL js_generic_base.virtual INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
