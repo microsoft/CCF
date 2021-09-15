@@ -17,7 +17,7 @@ namespace ccf
     };
 
     std::string signature;
-    std::string root;
+    std::optional<std::string> root = std::nullopt;
     std::vector<Element> proof = {};
     std::string leaf;
     ccf::NodeId node_id;
@@ -26,6 +26,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::Element)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt::Element);
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt::Element, left, right)
-  DECLARE_JSON_TYPE(Receipt)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, root, proof, leaf, node_id)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
+  DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, leaf, node_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root)
 }

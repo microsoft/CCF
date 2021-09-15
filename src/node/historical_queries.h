@@ -583,7 +583,7 @@ namespace ccf::historical
 
       // Construct description and decrypted secret
       auto previous_ledger_secret =
-        encrypted_past_ledger_secret->get(0)->previous_ledger_secret;
+        encrypted_past_ledger_secret->get()->previous_ledger_secret;
 
       auto recovered_ledger_secret = std::make_shared<LedgerSecret>(
         ccf::decrypt_previous_ledger_secret_raw(

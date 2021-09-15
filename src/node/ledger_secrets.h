@@ -94,7 +94,7 @@ namespace ccf
       // require access to a tx object, which must take a dependency on the
       // secrets table.
       auto secrets = tx.ro<Secrets>(Tables::ENCRYPTED_LEDGER_SECRETS);
-      secrets->get(0);
+      secrets->get();
     }
 
   public:
@@ -271,7 +271,7 @@ namespace ccf
 
       if (version < ledger_secrets.begin()->first)
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "Cannot rollback ledger secrets at {}: first secret is at {}",
           version,
           ledger_secrets.begin()->first);

@@ -333,6 +333,7 @@ namespace ccf
         get_subject_alternative_names();
 
       js::register_class_ids();
+      js::register_ffi_plugins();
       self_signed_node_cert = create_self_signed_node_cert();
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -861,7 +862,7 @@ namespace ccf
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
-          auto evidence = snapshot_evidence->get(0);
+          auto evidence = snapshot_evidence->get();
           if (!evidence.has_value())
           {
             throw std::logic_error("Invalid snapshot evidence");
@@ -1129,19 +1130,10 @@ namespace ccf
           [this](
             kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
             -> kv::ConsensusHookPtr {
-            if (w.size() > 1)
+            if (!w.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.encrypted_ledger_secrets.get_name()));
-            }
-
-            auto encrypted_ledger_secret_info = w.at(0);
-            if (!encrypted_ledger_secret_info.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Removal from {} table",
+                "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 
@@ -1802,19 +1794,12 @@ namespace ccf
             -> kv::ConsensusHookPtr {
             LedgerSecretsMap restored_ledger_secrets;
 
-            if (w.size() > 1)
-            {
-              throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.secrets.get_name()));
-            }
-
-            auto ledger_secrets_for_nodes = w.at(0);
+            const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Removal from {} table", network.secrets.get_name()));
+                "Unexpected removal from {} table",
+                network.secrets.get_name()));
             }
 
             for (const auto& [node_id, encrypted_ledger_secrets] :
@@ -1922,19 +1907,11 @@ namespace ccf
           [this](
             kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
             -> kv::ConsensusHookPtr {
-            if (w.size() > 1)
-            {
-              throw std::logic_error(fmt::format(
-                "Transaction contains {} writes to map {}, expected one",
-                w.size(),
-                network.encrypted_ledger_secrets.get_name()));
-            }
-
-            auto encrypted_ledger_secret_info = w.at(0);
+            auto encrypted_ledger_secret_info = w;
             if (!encrypted_ledger_secret_info.has_value())
             {
               throw std::logic_error(fmt::format(
-                "Removal from {} table",
+                "Unexpected removal from {} table",
                 network.encrypted_ledger_secrets.get_name()));
             }
 

@@ -54,8 +54,10 @@ install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 if(ENABLE_BFT)
   set(CONSENSUSES cft bft)
+  set(CONSENSUS_FILTER all)
 else()
   set(CONSENSUSES cft)
+  set(CONSENSUS_FILTER cft)
 endif()
 
 option(BUILD_TESTS "Build tests" ON)
@@ -706,7 +708,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME election_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    CONSENSUS cft
+    CONSENSUS ${CONSENSUS_FILTER}
   )
 
   foreach(CONSENSUS ${CONSENSUSES})
