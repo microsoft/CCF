@@ -196,7 +196,8 @@ def test_clear(network, args):
                     resource = f"/app/log/{table}"
                     for log_id in log_ids:
                         check_commit(
-                            c.post(resource, {"id": log_id, "msg": msg}), result=True
+                            c.post(resource, {"id": log_id, "msg": msg}),
+                            result=True,
                         )
                         check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
                     check(
@@ -206,7 +207,10 @@ def test_clear(network, args):
                     for log_id in log_ids:
                         get_r = c.get(f"{resource}?id={log_id}")
                         if args.package == "libjs_generic":
-                            check(get_r, result={"error": "No such key"})
+                            check(
+                                get_r,
+                                result={"error": "No such key"},
+                            )
                         else:
                             check(
                                 get_r,
@@ -263,7 +267,10 @@ def test_record_count(network, args):
                         count = new_count
 
                     # Clear all IDs
-                    check(c.delete(f"{resource}/all"), result=None)
+                    check(
+                        c.delete(f"{resource}/all"),
+                        result=None,
+                    )
                     new_count = get_count(resource)
                     assert (
                         new_count == 0
