@@ -5,16 +5,16 @@ A C++ application exposes itself to CCF by implementing:
 
 .. literalinclude:: ../../include/ccf/app_interface.h
     :language: cpp
-    :start-after: SNIPPET_START: rpc_handler
-    :end-before: SNIPPET_END: rpc_handler
+    :start-after: SNIPPET_START: app_interface
+    :end-before: SNIPPET_END: app_interface
     :dedent:
 
 The Logging application simply has:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
-    :start-after: SNIPPET_START: rpc_handler
-    :end-before: SNIPPET_END: rpc_handler
+    :start-after: SNIPPET_START: app_interface
+    :end-before: SNIPPET_END: app_interface
     :dedent:
 
 .. note::
