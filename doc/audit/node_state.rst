@@ -13,5 +13,5 @@ Node State
         Pending-- trusted -->PartOfNetwork;
         Initialized-- recovery -->ReadingPublicLedger;
         ReadingPublicLedger-->PartOfPublicNetwork;
-        PartOfPublicNetwork-- shares reassembly -->ReadingPrivateLedger;
+        PartOfPublicNetwork-- member recovery shares reassembly -->ReadingPrivateLedger;
         ReadingPrivateLedger-->PartOfNetwork;
