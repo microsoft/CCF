@@ -499,37 +499,37 @@ namespace ccf::js
     {
       JS_SetPropertyStr(
         ctx,
-        crypto,
+        obj,
         "generateAesKey",
         JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
       JS_SetPropertyStr(
         ctx,
-        crypto,
+        obj,
         "generateRsaKeyPair",
         JS_NewCFunction(
           ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
       JS_SetPropertyStr(
         ctx,
-        crypto,
+        obj,
         "wrapKey",
         JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
       JS_SetPropertyStr(
-        ctx, crypto, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
+        ctx, obj, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
       JS_SetPropertyStr(
         ctx,
-        crypto,
+        obj,
         "isValidX509CertBundle",
         JS_NewCFunction(
           ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
       JS_SetPropertyStr(
         ctx,
-        crypto,
+        obj,
         "isValidX509CertChain",
         JS_NewCFunction(
           ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
       JS_SetPropertyStr(
         ctx,
-        crypto,
+        obj,
         "pemToId",
         JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     }
