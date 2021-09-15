@@ -349,28 +349,36 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
 )
 
 add_ccf_plugin(js_crypto SRCS ${CCF_DIR}/src/js/crypto.cpp)
-install(
-  TARGETS js_crypto.enclave
-  EXPORT ccf
-  DESTINATION lib
-)
-install(
-  TARGETS js_crypto.virtual
-  EXPORT ccf
-  DESTINATION lib
-)
+if("sgx" IN_LIST COMPILE_TARGETS)
+  install(
+    TARGETS js_crypto.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+if("virtual" IN_LIST COMPILE_TARGETS)
+  install(
+    TARGETS js_crypto.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 add_ccf_plugin(js_openenclave SRCS ${CCF_DIR}/src/js/openenclave.cpp)
-install(
-  TARGETS js_openenclave.enclave
-  EXPORT ccf
-  DESTINATION lib
-)
-install(
-  TARGETS js_openenclave.virtual
-  EXPORT ccf
-  DESTINATION lib
-)
+if("sgx" IN_LIST COMPILE_TARGETS)
+  install(
+    TARGETS js_openenclave.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+if("virtual" IN_LIST COMPILE_TARGETS)
+  install(
+    TARGETS js_openenclave.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(
