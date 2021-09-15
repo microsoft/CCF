@@ -55,6 +55,9 @@ namespace ccf
 
     LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
 
+    // TODO: Node cert should be extracted from receipt instead, so that
+    // verification of the receipt happens before the snapshot is applied
+
     auto tx = store->create_read_only_tx();
     auto service = tx.ro<Service>(Tables::SERVICE);
     auto node_certs =
