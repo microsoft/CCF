@@ -1640,8 +1640,6 @@ namespace aft
           send_append_entries_response(
             from, AppendEntriesResponseType::FAIL, rejected_tx);
         }
-
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
       }
 
