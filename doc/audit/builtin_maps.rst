@@ -159,9 +159,19 @@ Service identity and status.
 
 **Value** Represented as JSON.
 
+.. doxygenenum:: ccf::ServiceStatus
+   :project: CCF
+
 .. doxygenstruct:: ccf::ServiceInfo
    :project: CCF
    :members:
+
+.. mermaid::
+
+    graph TB;
+        Opening-- config -->Open;
+        Opening-- transition_service_to_open-->WaitingForRecoveryShares;
+        WaitingForRecoveryShares -- member shares reassembly--> Open;
 
 ``service.config``
 ~~~~~~~~~~~~~~~~~~
