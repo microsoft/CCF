@@ -228,11 +228,11 @@ namespace ccfapp
       {
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
-            return ccf::historical::is_tx_committed(
+            return ccf::historical::is_tx_committed_v2(
               consensus, view, seqno, error_reason);
           };
 
-        ccf::historical::adapter(
+        ccf::historical::adapter_v2(
           [this, &props](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
