@@ -39,8 +39,15 @@ from loguru import logger as LOG
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
 def test(network, args, verify=True):
-    network.txs.issue(network=network, number_txs=1)
-    network.txs.issue(network=network, number_txs=1, on_backup=True)
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
     if verify:
         network.txs.verify()
     else:
@@ -84,8 +91,15 @@ def test_illegal(network, args, verify=True):
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
 
     # Valid transactions are still accepted
-    network.txs.issue(network=network, number_txs=1)
-    network.txs.issue(network=network, number_txs=1, on_backup=True)
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+    )
     if verify:
         network.txs.verify()
     else:
@@ -135,13 +149,20 @@ def test_remove(network, args):
                 for table in ["private", "public"]:
                     resource = f"/app/log/{table}"
                     check_commit(
-                        c.post(resource, {"id": log_id, "msg": msg}), result=True
+                        c.post(resource, {"id": log_id, "msg": msg}),
+                        result=True,
                     )
                     check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
-                    check(c.delete(f"{resource}?id={log_id}"), result=None)
+                    check(
+                        c.delete(f"{resource}?id={log_id}"),
+                        result=None,
+                    )
                     get_r = c.get(f"{resource}?id={log_id}")
                     if args.package == "libjs_generic":
-                        check(get_r, result={"error": "No such key"})
+                        check(
+                            get_r,
+                            result={"error": "No such key"},
+                        )
                     else:
                         check(
                             get_r,
@@ -178,7 +199,10 @@ def test_clear(network, args):
                             c.post(resource, {"id": log_id, "msg": msg}), result=True
                         )
                         check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
-                    check(c.delete(f"{resource}/all"), result=None)
+                    check(
+                        c.delete(f"{resource}/all"),
+                        result=None,
+                    )
                     for log_id in log_ids:
                         get_r = c.get(f"{resource}?id={log_id}")
                         if args.package == "libjs_generic":
@@ -229,7 +253,8 @@ def test_record_count(network, args):
                     for i in range(10):
                         log_id = 234 + i
                         check_commit(
-                            c.post(resource, {"id": log_id, "msg": msg}), result=True
+                            c.post(resource, {"id": log_id, "msg": msg}),
+                            result=True,
                         )
                         new_count = get_count(resource)
                         assert (
@@ -563,7 +588,10 @@ def test_metrics(network, args):
         r = c.get("/app/api/metrics")
         calls = get_metrics(r, "log/public", "POST", {"calls": 0})["calls"]
 
-    network.txs.issue(network=network, number_txs=1)
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
 
     with primary.client("user0") as c:
         r = c.get("/app/api/metrics")
@@ -742,7 +770,10 @@ def escaped_query_tests(c, endpoint):
         if os.getenv("CURL_CLIENT"):
             query_to_send = urllib.parse.urlencode(query)
         r = c.get(f"/app/log/{endpoint}?{query_to_send}")
-        assert r.body.text() == unescaped_query, (r.body.text(), unescaped_query)
+        assert r.body.text() == unescaped_query, (
+            r.body.text(),
+            unescaped_query,
+        )
 
     all_chars = list(range(0, 255))
     max_args = 50
@@ -785,7 +816,8 @@ def test_forwarding_frontends(network, args):
         msg = "forwarded_msg"
         log_id = 123
         check_commit(
-            c.post("/app/log/private", {"id": log_id, "msg": msg}), result=True
+            c.post("/app/log/private", {"id": log_id, "msg": msg}),
+            result=True,
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
@@ -1227,7 +1259,10 @@ def test_random_receipts(network, args):
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
 def test_liveness(network, args):
-    network.txs.issue(network=network, number_txs=3)
+    network.txs.issue(
+        network=network,
+        number_txs=3,
+    )
     network.txs.verify()
     return network
 
