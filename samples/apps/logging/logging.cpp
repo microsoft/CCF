@@ -1198,11 +1198,11 @@ namespace loggingapp
 
 namespace ccfapp
 {
-  // SNIPPET_START: rpc_handler
+  // SNIPPET_START: app_interface
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
   {
     return make_shared<loggingapp::Logger>(nwt, context);
   }
-  // SNIPPET_END: rpc_handler
+  // SNIPPET_END: app_interface
 }

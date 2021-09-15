@@ -6,7 +6,7 @@
 #include <quickjs/quickjs.h>
 #include <string>
 
-namespace js
+namespace ccf::js
 {
   struct FFIPlugin
   {
