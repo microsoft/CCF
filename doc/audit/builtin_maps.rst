@@ -169,8 +169,8 @@ Service identity and status.
 .. mermaid::
 
     graph TB;
-        Opening-- config -->Open;
-        Opening-- transition_service_to_open-->WaitingForRecoveryShares;
+        Opening-- transition_service_to_open -->Open;
+        Opening-- transition_service_to_open (recovery)-->WaitingForRecoveryShares;
         WaitingForRecoveryShares -- member shares reassembly--> Open;
 
 ``service.config``
