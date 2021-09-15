@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "f42a74b8f53cc308647123d49d33d1c8122e3f42"
+          "commitHash": "626e7d61e44dee32887126c8f437dd077dec09cf"
         }
       }
     },
@@ -87,15 +87,6 @@
         "git": {
           "repositoryUrl": "https://github.com/thelink2012/SmallVector",
           "commitHash": "febc8cb7b1a83d902b86dd1612feb7c86c690186"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/bombela/backward-cpp",
-          "commitHash": "83da75636cef3ee6e0c83cf8651e2929e1b87261"
         }
       }
     },
