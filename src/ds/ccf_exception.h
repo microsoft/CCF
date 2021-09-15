@@ -2,12 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifdef VIRTUAL_ENCLAVE
-#  pragma clang diagnostic push
-#  pragma clang diagnostic ignored "-Wundef"
-#  include <backward-cpp/backward.hpp>
-#  pragma clang diagnostic pop
-#endif
 #include "logger.h"
 
 #include <exception>
@@ -25,16 +19,6 @@ namespace ccf
         result.append(what_arg.c_str());
         result.append("\n");
       }
-
-#ifdef VIRTUAL_ENCLAVE
-      backward::StackTrace st;
-      st.load_here();
-
-      std::ostringstream stream;
-      backward::Printer p;
-      p.print(st, stream);
-      result.append(stream.str());
-#endif
     }
 
     ccf_logic_error() : ccf_logic_error("") {}
