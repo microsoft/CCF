@@ -390,7 +390,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
-    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;DOCKER_NODES"
+    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;CONTAINER_NODES"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -463,11 +463,12 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-    if(${PARSED_ARGS_DOCKER_NODES})
+    if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
+      # Containerised nodes are only enabled with long tests
       set_property(
         TEST ${PARSED_ARGS_NAME}
         APPEND
-        PROPERTY ENVIRONMENT "DOCKER_NODES=ON"
+        PROPERTY ENVIRONMENT "CONTAINER_NODES=ON"
       )
     endif()
     set_property(

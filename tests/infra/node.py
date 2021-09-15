@@ -110,7 +110,7 @@ class Node:
         )
         self.consensus = None
 
-        if os.getenv("DOCKER_NODES"):
+        if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim

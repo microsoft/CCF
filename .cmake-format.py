@@ -26,7 +26,7 @@ with section("parse"):
                 "CONSENSUS": "*",
                 "CONFIGURATIONS": "*",
                 "ADDITIONAL_ARGS": "*",
-                "DOCKER_NODES": "*",
+                "CONTAINER_NODES": "*",
             },
         },
         "add_e2e_sandbox_test": {
