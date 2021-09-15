@@ -122,10 +122,8 @@ namespace ccf
       get_channel(peer_id)->close_channel();
     }
 
-    // TODO: Is this explicit check needed?
     bool have_channel(const ccf::NodeId& nid) const override
     {
-      // TODO: Can't lock due to const
       return channels.find(nid) != channels.end();
     }
 
