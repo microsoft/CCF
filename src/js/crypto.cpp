@@ -509,10 +509,7 @@ namespace ccf::js
         JS_NewCFunction(
           ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
       JS_SetPropertyStr(
-        ctx,
-        obj,
-        "wrapKey",
-        JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
+        ctx, obj, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
       JS_SetPropertyStr(
         ctx, obj, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
       JS_SetPropertyStr(
@@ -528,10 +525,7 @@ namespace ccf::js
         JS_NewCFunction(
           ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
       JS_SetPropertyStr(
-        ctx,
-        obj,
-        "pemToId",
-        JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+        ctx, obj, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     }
 
     JS_SetPropertyStr(
