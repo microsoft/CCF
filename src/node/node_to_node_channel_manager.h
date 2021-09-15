@@ -37,7 +37,7 @@ namespace ccf
 
       std::lock_guard<std::mutex> guard(lock);
       CCF_ASSERT_FMT(
-        endorsed_node_cert.has_value(),
+        this_node != nullptr && this_node->endorsed_node_cert.has_value(),
         "Endorsed node certificate has not yet been set");
 
       auto search = channels.find(peer_id);
@@ -79,7 +79,9 @@ namespace ccf
         this_node->node_id,
         self_id);
 
-      if (node_cert.has_value() && make_verifier(node_cert.value())->is_self_signed())
+      if (
+        node_cert.has_value() &&
+        make_verifier(node_cert.value())->is_self_signed())
       {
         LOG_INFO_FMT(
           "Refusing to initialize node-to-node channels with "
