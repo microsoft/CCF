@@ -2,7 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "js_plugin.h"
+
 #include <memory>
+#include <vector>
 
 namespace ccf
 {
@@ -17,7 +20,7 @@ namespace ccfapp
   // Forward declaration
   struct AbstractNodeContext;
 
-  // SNIPPET_START: rpc_handler
+  // SNIPPET_START: app_interface
   /** To be implemented by the application to be registered by CCF.
    *
    * @param network Access to the network's replicated tables
@@ -27,5 +30,11 @@ namespace ccfapp
    */
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     ccf::NetworkTables& network, AbstractNodeContext& context);
-  // SNIPPET_END: rpc_handler
+
+  /** To be implemented by the application to be registered by CCF.
+   *
+   * @return Vector of JavaScript FFI plugins
+   */
+  std::vector<ccf::js::FFIPlugin> get_js_plugins();
+  // SNIPPET_END: app_interface
 }
