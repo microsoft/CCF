@@ -9,7 +9,7 @@
 
 #include <quickjs/quickjs.h>
 
-namespace js
+namespace ccf::js
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"

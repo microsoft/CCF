@@ -30,8 +30,6 @@ import urllib.parse
 import random
 import re
 import infra.crypto
-import threading
-import copy
 from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
@@ -615,6 +613,24 @@ def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
     network.txs.verify()
+
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        r = c.get(
+            "/app/log/private/historical",
+            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.1"},
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "TransactionInvalid", r
+
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        r = c.get(
+            "/app/log/private/historical",
+            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.999999"},
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "TransactionPendingOrUnknown", r
 
     return network
 
@@ -1324,14 +1340,6 @@ def run(args):
         if args.package == "liblogging":
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
-
-
-def create_test_thread(prefix, target, args, **args_overrides):
-    args_ = copy.deepcopy(args)
-    for k, v in args_overrides.items():
-        setattr(args_, k, v)
-    args_.label = f"{prefix}_{args.label}"
-    return threading.Thread(name=prefix, target=target, args=[args_])
 
 
 if __name__ == "__main__":

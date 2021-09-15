@@ -226,7 +226,7 @@ namespace ccf
 
     auto is_tx_committed =
       [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
-        return ccf::historical::is_tx_committed(
+        return ccf::historical::is_tx_committed_v2(
           consensus, view, seqno, error_reason);
       };
 
@@ -245,7 +245,7 @@ namespace ccf
     make_endpoint(
       "/receipt",
       HTTP_GET,
-      ccf::historical::adapter(
+      ccf::historical::adapter_v2(
         get_receipt,
         context.get_historical_state(),
         is_tx_committed,
