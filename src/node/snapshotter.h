@@ -135,11 +135,6 @@ namespace ccf
       consensus::Index idx;
       consensus::Index evidence_idx;
 
-      // TODO: New
-      // TODO: First two can be bundled together
-      std::optional<consensus::Index>
-        evidence_commit_idx; // TODO: Rename to evidence_sig_idx
-
       std::optional<NodeId> node_id = std::nullopt;
       std::optional<std::vector<uint8_t>> sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
@@ -173,17 +168,12 @@ namespace ccf
 
     void commit_snapshot(
       consensus::Index snapshot_idx,
-      consensus::Index evidence_commit_idx,
       const std::vector<uint8_t>& serialised_receipt)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
-      // previously generated. The evidence_commit_idx is recorded as metadata.
+      // previously generated.
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit,
-        to_host,
-        snapshot_idx,
-        evidence_commit_idx, // TODO: Do we still need to include this idx?
-        serialised_receipt);
+        consensus::snapshot_commit, to_host, snapshot_idx, serialised_receipt);
     }
 
     struct SnapshotMsg
@@ -247,17 +237,14 @@ namespace ccf
 
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
-        if (
-          it->evidence_commit_idx.has_value() &&
-          idx > it->evidence_commit_idx.value())
+        if (idx > it->evidence_idx)
         {
           auto serialised_receipt = build_and_serialise_receipt(
             it->sig.value(),
             it->tree.value(),
             it->node_id.value(),
             it->evidence_idx);
-          commit_snapshot(
-            it->idx, it->evidence_commit_idx.value(), serialised_receipt);
+          commit_snapshot(it->idx, serialised_receipt);
           auto it_ = it;
           ++it;
           pending_snapshots.erase(it_);
@@ -349,7 +336,6 @@ namespace ccf
         {
           pending_snapshot.node_id = node_id;
           pending_snapshot.sig = sig;
-          pending_snapshot.evidence_commit_idx = idx;
         }
       }
     }

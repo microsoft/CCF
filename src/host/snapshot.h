@@ -164,7 +164,6 @@ namespace asynchost
 
     void commit_snapshot(
       consensus::Index snapshot_idx,
-      consensus::Index evidence_commit_idx,
       const uint8_t* receipt_data,
       size_t receipt_size)
     {
@@ -179,32 +178,22 @@ namespace asynchost
             !get_snapshot_evidence_idx_from_file_name(file_name).has_value() &&
             get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
           {
-            LOG_INFO_FMT(
-              "Committing snapshot file \"{}\" with evidence proof committed "
-              "at "
-              "{}",
-              file_name,
-              evidence_commit_idx);
-
-            const auto committed_file_name = fmt::format(
-              "{}.{}{}{}",
-              file_name,
-              snapshot_committed_suffix,
-              snapshot_idx_delimiter,
-              evidence_commit_idx);
-
             auto full_snapshot_path =
               fs::path(snapshot_dir) / fs::path(file_name);
 
-            // Also append receipt to snapshot file
+            // Append receipt to snapshot file
             std::ofstream snapshot_file(
               full_snapshot_path, std::ios::app | std::ios::binary);
             snapshot_file.write(
               reinterpret_cast<const char*>(receipt_data), receipt_size);
 
+            const auto committed_file_name =
+              fmt::format("{}.{}", file_name, snapshot_committed_suffix);
             fs::rename(
               fs::path(snapshot_dir) / fs::path(file_name),
               fs::path(snapshot_dir) / fs::path(committed_file_name));
+
+            LOG_INFO_FMT("Committed snapshot file \"{}\"", committed_file_name);
 
             return;
           }
@@ -287,9 +276,7 @@ namespace asynchost
         consensus::snapshot_commit,
         [this](const uint8_t* data, size_t size) {
           auto snapshot_idx = serialized::read<consensus::Index>(data, size);
-          auto evidence_commit_idx =
-            serialized::read<consensus::Index>(data, size);
-          commit_snapshot(snapshot_idx, evidence_commit_idx, data, size);
+          commit_snapshot(snapshot_idx, data, size);
         });
     }
   };
