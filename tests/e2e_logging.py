@@ -614,6 +614,24 @@ def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2, repeat=True)
     network.txs.verify()
 
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        r = c.get(
+            "/app/log/private/historical",
+            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.1"},
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "TransactionInvalid", r
+
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        r = c.get(
+            "/app/log/private/historical",
+            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.999999"},
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "TransactionPendingOrUnknown", r
+
     return network
 
 

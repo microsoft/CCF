@@ -69,6 +69,8 @@ namespace ccf
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)
     ERROR(NodeCannotHandleRequest)
+    ERROR(TransactionPendingOrUnknown)
+    ERROR(TransactionInvalid)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)

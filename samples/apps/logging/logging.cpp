@@ -739,13 +739,13 @@ namespace loggingapp
 
       auto is_tx_committed =
         [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
-          return ccf::historical::is_tx_committed(
+          return ccf::historical::is_tx_committed_v2(
             consensus, view, seqno, error_reason);
         };
       make_endpoint(
         "/log/private/historical",
         HTTP_GET,
-        ccf::historical::adapter(
+        ccf::historical::adapter_v2(
           get_historical, context.get_historical_state(), is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
@@ -799,7 +799,7 @@ namespace loggingapp
       make_endpoint(
         "/log/private/historical_receipt",
         HTTP_GET,
-        ccf::historical::adapter(
+        ccf::historical::adapter_v2(
           get_historical_with_receipt,
           context.get_historical_state(),
           is_tx_committed),
