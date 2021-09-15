@@ -20,17 +20,17 @@ import { ccf } from "./global.js";
 /**
  * @inheritDoc CCF.generateAesKey
  */
-export const generateAesKey = ccf.generateAesKey;
+export const generateAesKey = ccf.crypto.generateAesKey;
 
 /**
  * @inheritDoc CCF.generateRsaKeyPair
  */
-export const generateRsaKeyPair = ccf.generateRsaKeyPair;
+export const generateRsaKeyPair = ccf.crypto.generateRsaKeyPair;
 
 /**
  * @inheritDoc CCF.wrapKey
  */
-export const wrapKey = ccf.wrapKey;
+export const wrapKey = ccf.crypto.wrapKey;
 
 /**
  * @inheritDoc CCF.crypto.verifySignature
@@ -40,17 +40,17 @@ export const verifySignature = ccf.crypto.verifySignature;
 /**
  * @inheritDoc CCF.digest
  */
-export const digest = ccf.digest;
+export const digest = ccf.crypto.digest;
 
 /**
  * @inheritDoc CCF.isValidX509CertBundle
  */
-export const isValidX509CertBundle = ccf.isValidX509CertBundle;
+export const isValidX509CertBundle = ccf.crypto.isValidX509CertBundle;
 
 /**
  * @inheritDoc CCF.isValidX509CertChain
  */
-export const isValidX509CertChain = ccf.isValidX509CertChain;
+export const isValidX509CertChain = ccf.crypto.isValidX509CertChain;
 
 export {
   WrapAlgoParams,

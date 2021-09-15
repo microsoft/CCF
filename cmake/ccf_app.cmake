@@ -219,6 +219,66 @@ function(add_ccf_app name)
   endif()
 endfunction()
 
+function(add_ccf_plugin name)
+
+  cmake_parse_arguments(
+    PARSE_ARGV 1 PARSED_ARGS "" ""
+    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS"
+  )
+  add_custom_target(${name} ALL)
+
+  if("sgx" IN_LIST COMPILE_TARGETS)
+    set(enc_name ${name}.enclave)
+
+    add_enclave_library(${enc_name} ${PARSED_ARGS_SRCS})
+
+    target_include_directories(
+      ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+    add_warning_checks(${enc_name})
+    target_link_libraries(
+      ${enc_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE} ccf.enclave
+    )
+
+    set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_lvi_mitigations(${enc_name})
+
+    add_dependencies(${name} ${enc_name})
+    if(PARSED_ARGS_DEPS)
+      add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
+    endif()
+  endif()
+
+  if("virtual" IN_LIST COMPILE_TARGETS)
+    set(virt_name ${name}.virtual)
+
+    add_library(${virt_name} STATIC ${PARSED_ARGS_SRCS})
+
+    target_include_directories(
+      ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+    add_warning_checks(${virt_name})
+
+    target_link_libraries(
+      ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
+    )
+
+    if(NOT SAN)
+      target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
+    endif()
+
+    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_san(${virt_name})
+
+    add_dependencies(${name} ${virt_name})
+    if(PARSED_ARGS_DEPS)
+      add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
+    endif()
+  endif()
+endfunction()
+
 # Convenience wrapper to build C-libraries that can be linked in enclave, ie. in
 # a CCF application.
 function(add_enclave_library_c name)

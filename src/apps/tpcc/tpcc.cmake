@@ -18,6 +18,8 @@ add_ccf_app(
   tpcc
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/tpcc.cpp
   INCLUDE_DIRS ${CCF_DIR}/3rdparty/test
+  LINK_LIBS_ENCLAVE js_crypto.enclave
+  LINK_LIBS_VIRTUAL js_crypto.virtual
 )
 sign_app_library(
   tpcc.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf

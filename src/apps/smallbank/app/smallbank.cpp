@@ -3,6 +3,7 @@
 #include "apps/smallbank/smallbank_serializer.h"
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/js_crypto_plugin.h"
 #include "ccf/user_frontend.h"
 
 #include <charconv>
@@ -470,5 +471,10 @@ namespace ccfapp
     NetworkTables& nwt, AbstractNodeContext& context)
   {
     return make_shared<SmallBank>(*nwt.tables, context);
+  }
+
+  std::vector<ccf::js::FFIPlugin> get_js_plugins()
+  {
+    return {ccf::js::crypto_plugin};
   }
 }

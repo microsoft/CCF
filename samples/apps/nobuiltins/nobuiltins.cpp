@@ -3,6 +3,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/js_crypto_plugin.h"
 #include "ccf/json_handler.h"
 #include "ds/json.h"
 #include "enclave/node_context.h"
@@ -348,5 +349,10 @@ namespace ccfapp
     ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
   {
     return std::make_shared<nobuiltins::NoBuiltinsFrontend>(nwt, context);
+  }
+
+  std::vector<ccf::js::FFIPlugin> get_js_plugins()
+  {
+    return {ccf::js::crypto_plugin};
   }
 }

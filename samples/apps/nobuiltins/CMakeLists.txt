@@ -1,7 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-add_ccf_app(nobuiltins SRCS nobuiltins.cpp)
+add_ccf_app(
+  nobuiltins
+  SRCS nobuiltins.cpp
+  LINK_LIBS_ENCLAVE js_crypto.enclave
+  LINK_LIBS_VIRTUAL js_crypto.virtual
+)
 
 # Generate an ephemeral signing key
 add_custom_command(

@@ -25,7 +25,12 @@ else()
 endif()
 
 # SmallBank application
-add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
+add_ccf_app(
+  smallbank
+  SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
+  LINK_LIBS_ENCLAVE js_crypto.enclave
+  LINK_LIBS_VIRTUAL js_crypto.virtual
+)
 sign_app_library(
   smallbank.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem

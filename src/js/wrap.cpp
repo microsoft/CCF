@@ -7,7 +7,6 @@
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
-#include "js/crypto.cpp"
 #include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
@@ -1248,34 +1247,7 @@ namespace ccf::js
       "bufToJsonCompatible",
       JS_NewCFunction(
         ctx, js_buf_to_json_compatible, "bufToJsonCompatible", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "generateAesKey",
-      JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "generateRsaKeyPair",
-      JS_NewCFunction(ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
-    JS_SetPropertyStr(
-      ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
-    JS_SetPropertyStr(
-      ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "isValidX509CertBundle",
-      JS_NewCFunction(
-        ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "isValidX509CertChain",
-      JS_NewCFunction(
-        ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
-    JS_SetPropertyStr(
-      ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+
     JS_SetPropertyStr(
       ctx,
       ccf,
@@ -1285,12 +1257,6 @@ namespace ccf::js
 
     auto crypto = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
-
-    JS_SetPropertyStr(
-      ctx,
-      crypto,
-      "verifySignature",
-      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
 
     if (txctx != nullptr)
     {

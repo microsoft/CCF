@@ -10,6 +10,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
+#include "ccf/js_crypto_plugin.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 
@@ -1203,6 +1204,11 @@ namespace ccfapp
     ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
   {
     return make_shared<loggingapp::Logger>(nwt, context);
+  }
+
+  std::vector<ccf::js::FFIPlugin> get_js_plugins()
+  {
+    return {ccf::js::crypto_plugin};
   }
   // SNIPPET_END: app_interface
 }

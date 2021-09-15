@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/js_crypto_plugin.h"
+#include "ccf/js_plugin.h"
+#include "ccf/version.h"
 #include "crypto/ecdsa.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
@@ -483,6 +486,69 @@ namespace ccf::js
     }
   }
 
+  static void populate_global_ccf_crypto(JSContext* ctx)
+  {
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+
+    JSValue crypto = JS_NewObject(ctx);
+
+    // For backwards-compatibility with 1.x, the following functions
+    // are exposed both to ccf and ccf.crypto.
+    for (const auto& obj : {ccf, crypto})
+    {
+      JS_SetPropertyStr(
+        ctx,
+        crypto,
+        "generateAesKey",
+        JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
+      JS_SetPropertyStr(
+        ctx,
+        crypto,
+        "generateRsaKeyPair",
+        JS_NewCFunction(
+          ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
+      JS_SetPropertyStr(
+        ctx,
+        crypto,
+        "wrapKey",
+        JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
+      JS_SetPropertyStr(
+        ctx, crypto, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
+      JS_SetPropertyStr(
+        ctx,
+        crypto,
+        "isValidX509CertBundle",
+        JS_NewCFunction(
+          ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
+      JS_SetPropertyStr(
+        ctx,
+        crypto,
+        "isValidX509CertChain",
+        JS_NewCFunction(
+          ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
+      JS_SetPropertyStr(
+        ctx,
+        crypto,
+        "pemToId",
+        JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+    }
+
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "verifySignature",
+      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
+
+    JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+  }
 #pragma clang diagnostic pop
+
+  FFIPlugin crypto_plugin = {
+    .name = "Crypto",
+    .ccf_version = ccf::ccf_version,
+    .extend = populate_global_ccf_crypto};
 
 }

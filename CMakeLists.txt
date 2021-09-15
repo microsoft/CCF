@@ -221,7 +221,12 @@ add_custom_target(
 )
 
 # Add Logging app. Rebuilt/redefined here, rather than via add_subdirectory
-add_ccf_app(logging SRCS samples/apps/logging/logging.cpp)
+add_ccf_app(
+  logging
+  SRCS samples/apps/logging/logging.cpp
+  LINK_LIBS_ENCLAVE js_crypto.enclave
+  LINK_LIBS_VIRTUAL js_crypto.virtual
+)
 sign_app_library(
   logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
