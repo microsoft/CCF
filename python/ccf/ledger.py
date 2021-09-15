@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric import utils, ec
 
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
+import ccf.receipt
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -223,14 +224,25 @@ class PublicDomain:
         return self._version
 
 
-def _byte_read_safe(file, num_of_bytes):
+def _byte_read_safe(
+    file, num_of_bytes=None
+):  # TODO: Remove None behaviour when receipt is len prefixed
     offset = file.tell()
     ret = file.read(num_of_bytes)
-    if len(ret) != num_of_bytes:
+    if num_of_bytes is not None and len(ret) != num_of_bytes:
         raise ValueError(
             f"Failed to read precise number of bytes in {file.name} at offset {offset}: {len(ret)}/{num_of_bytes}"
         )
     return ret
+
+
+def _peek(file, num_bytes, pos=None):
+    save_pos = file.tell()
+    if pos is not None:
+        file.seek(pos)
+    buffer = _byte_read_safe(file, num_bytes)
+    file.seek(save_pos)
+    return buffer
 
 
 class TxBundleInfo(NamedTuple):
@@ -489,6 +501,7 @@ class Entry:
         # read the transaction header
         buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
         self._header = TransactionHeader(buffer)
+        entry_start_pos = self._file.tell()
 
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
@@ -497,6 +510,8 @@ class Entry:
         # read the size of the public domain
         buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
+
+        return entry_start_pos
 
     def get_public_domain(self) -> PublicDomain:
         """
@@ -565,15 +580,11 @@ class Transaction(Entry):
         """
         assert self._file is not None
 
-        # remember where the pointer is in the file before we go back for the transaction bytes
-        save_pos = self._file.tell()
-        self._file.seek(self._tx_offset)
-        buffer = _byte_read_safe(
-            self._file, TransactionHeader.get_size() + self._header.size
+        return _peek(
+            self._file,
+            TransactionHeader.get_size() + self._header.size,
+            pos=self._tx_offset,
         )
-        # return to original filepointer and return the transaction bytes
-        self._file.seek(save_pos)
-        return buffer
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
@@ -609,7 +620,21 @@ class Snapshot(Entry):
         super().__init__(filename)
         self._filename = filename
         self._file_size = os.path.getsize(filename)
-        super()._read_header()
+
+        entry_start_pos = super()._read_header()
+
+        # TODO: Only for 2.x receipts
+
+        receipt_pos = entry_start_pos + self._header.size
+        receipt_bytes = _peek(self._file, num_bytes=None, pos=receipt_pos)
+
+        receipt = json.loads(receipt_bytes.decode("utf-8"))
+        LOG.error(receipt)
+        root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+        LOG.success(root)
+
+        # TODO: Verify snapshot integrity once endorsed node certificate is
+        # in the receipt
 
     def commit_seqno(self):
         try:

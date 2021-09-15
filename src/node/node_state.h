@@ -365,11 +365,11 @@ namespace ccf
             open_frontend(ActorsType::members);
           }
 
-          setup_encryptor();
-          setup_history();
           setup_snapshotter();
+          setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
+          setup_history();
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -553,15 +553,15 @@ namespace ccf
                 resp.network_info->endorsed_certificate.value();
             }
 
-            setup_encryptor();
-            setup_history();
             setup_snapshotter();
+            setup_encryptor();
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
               resp.network_info->public_only,
               n2n_channels_cert);
             setup_progress_tracker();
+            setup_history();
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)

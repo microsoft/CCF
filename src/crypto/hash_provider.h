@@ -65,7 +65,6 @@ namespace crypto
     }
     Sha256Hash(const Sha256Hash& left, const Sha256Hash& right)
     {
-      // TODO: Concatenance left.h and right.h
       std::vector<uint8_t> data(left.h.size() + right.h.size());
       std::copy(left.h.begin(), left.h.end(), data.begin());
       std::copy(right.h.begin(), right.h.end(), data.begin() + left.h.size());
