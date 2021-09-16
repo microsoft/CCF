@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.13)
 
 project(logging LANGUAGES C CXX)
 
-if (NOT TARGET ccf)
+if(NOT TARGET ccf)
   find_package(ccf REQUIRED)
 endif()
 
