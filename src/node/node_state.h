@@ -372,6 +372,8 @@ namespace ccf
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
           setup_history();
+          if (endorsed_node_cert.has_value())
+            history->set_endorsed_certificate(endorsed_node_cert.value());
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -561,6 +563,8 @@ namespace ccf
               n2n_channels_cert);
             setup_progress_tracker();
             setup_history();
+            if (endorsed_node_cert.has_value())
+              history->set_endorsed_certificate(endorsed_node_cert.value());
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
@@ -1876,6 +1880,7 @@ namespace ccf
               }
 
               endorsed_node_cert = endorsed_certificate.value();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
