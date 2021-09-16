@@ -150,7 +150,8 @@ namespace ccf
     {
       std::vector<uint8_t>& raw;
       consensus::Index seqno;
-      consensus::Index evidence_seqno;
+      std::optional<consensus::Index>
+        evidence_seqno; // Only set for 1.x snapshots
 
       // Store used to verify a snapshot (either created fresh when a node joins
       // from a snapshot or points to the main store when recovering from a
@@ -167,7 +168,7 @@ namespace ccf
         const std::shared_ptr<kv::Store>& store_,
         std::vector<uint8_t>& raw_,
         consensus::Index seqno_,
-        consensus::Index evidence_seqno_) :
+        std::optional<consensus::Index> evidence_seqno_) :
         raw(raw_),
         seqno(seqno_),
         evidence_seqno(evidence_seqno_),
@@ -839,8 +840,9 @@ namespace ccf
 
         if (
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
+          startup_snapshot_info->evidence_seqno.has_value() &&
           static_cast<consensus::Index>(last_sig->commit_seqno) >=
-            startup_snapshot_info->evidence_seqno)
+            startup_snapshot_info->evidence_seqno.value())
         {
           startup_snapshot_info->is_evidence_committed = true;
         }
@@ -861,7 +863,9 @@ namespace ccf
         auto tx = store->create_read_only_tx();
         auto snapshot_evidence = tx.ro(network.snapshot_evidence);
 
-        if (ledger_idx == startup_snapshot_info->evidence_seqno)
+        if (
+          startup_snapshot_info->evidence_seqno.has_value() &&
+          ledger_idx == startup_snapshot_info->evidence_seqno.value())
         {
           auto evidence = snapshot_evidence->get();
           if (!evidence.has_value())
@@ -873,7 +877,7 @@ namespace ccf
           {
             LOG_DEBUG_FMT(
               "Snapshot evidence for snapshot found at {}",
-              startup_snapshot_info->evidence_seqno);
+              startup_snapshot_info->evidence_seqno.value());
             startup_snapshot_info->has_evidence = true;
           }
         }
@@ -905,7 +909,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Snapshot evidence at {} was not committed in ledger ending at {}. "
           "Node should be shutdown by operator.",
-          startup_snapshot_info->evidence_seqno,
+          startup_snapshot_info->evidence_seqno.value(),
           ledger_idx);
         return;
       }
@@ -928,7 +932,9 @@ namespace ccf
             "Snapshot evidence was not committed in ledger");
         }
 
-        if (last_recovered_signed_idx < startup_snapshot_info->evidence_seqno)
+        if (
+          last_recovered_signed_idx <
+          startup_snapshot_info->evidence_seqno.value())
         {
           throw std::logic_error("Snapshot evidence would be rolled back");
         }

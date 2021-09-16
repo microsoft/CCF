@@ -865,6 +865,10 @@ int main(int argc, char** argv)
             snapshot));
         }
 
+        LOG_FAIL_FMT("Snapshot evidence idx: {}", snapshot_evidence_idx->first);
+        LOG_FAIL_FMT(
+          "Snapshot evidence commit idx: {}", snapshot_evidence_idx->second);
+
         ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
         ccf_config.startup_snapshot_evidence_seqno =
           snapshot_evidence_idx->first;

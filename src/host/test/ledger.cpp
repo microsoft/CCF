@@ -20,6 +20,7 @@ static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
 static constexpr auto snapshot_dir = "snapshot_dir";
 
 static const auto dummy_snapshot = std::vector<uint8_t>(128, 42);
+static const auto dummy_receipt = std::vector<uint8_t>(64, 1);
 
 constexpr auto buffer_size = 1024;
 auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -39,17 +40,6 @@ void move_all_from_to(
       fs::remove(f.path());
     }
   }
-}
-
-std::string get_snapshot_file_name(
-  size_t idx, size_t evidence_idx, size_t evidence_commit_idx)
-{
-  return fmt::format(
-    "{}/snapshot_{}_{}.committed_{}",
-    snapshot_dir,
-    idx,
-    evidence_idx,
-    evidence_commit_idx);
 }
 
 // Ledger entry type
@@ -1036,7 +1026,181 @@ TEST_CASE("Delete committed file from main directory")
   }
 }
 
-TEST_CASE("Find latest snapshot with corresponding ledger chunk")
+TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
+{
+  fs::remove_all(ledger_dir);
+  fs::remove_all(snapshot_dir);
+
+  Ledger ledger(ledger_dir, wf, 1);
+  SnapshotManager snapshots(snapshot_dir, ledger);
+
+  size_t snapshot_interval = 5;
+  size_t snapshot_count = 5;
+
+  INFO("Generate snapshots");
+  {
+    for (size_t i = 1; i < snapshot_interval * snapshot_count;
+         i += snapshot_interval)
+    {
+      // Note: Evidence is assumed to be at snapshot idx + 1
+      snapshots.write_snapshot(
+        i, i + 1, dummy_snapshot.data(), dummy_snapshot.size());
+    }
+
+    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+  }
+
+  INFO("Commit snapshots");
+  {
+    for (size_t i = 1; i < snapshot_interval * snapshot_count;
+         i += snapshot_interval)
+    {
+      // Note: Evidence is assumed to be at snapshot idx + 1
+      snapshots.commit_snapshot(i, dummy_receipt.data(), dummy_receipt.size());
+
+      auto latest_committed_snapshot =
+        snapshots.find_latest_committed_snapshot();
+      REQUIRE(latest_committed_snapshot.has_value());
+      REQUIRE(
+        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        i);
+    }
+  }
+}
+
+std::string generate_1_x_snapshot(
+  const std::string& snapshot_dir, size_t snapshot_idx, bool committed)
+{
+  auto snapshot_file_name = fmt::format(
+    "{}{}{}{}{}",
+    snapshot_file_prefix,
+    snapshot_idx_delimiter,
+    snapshot_idx,
+    snapshot_idx_delimiter,
+    snapshot_idx + 1);
+
+  if (committed)
+  {
+    snapshot_file_name =
+      fmt::format("{}.committed_{}", snapshot_file_name, snapshot_idx + 2);
+  }
+  auto full_snapshot_path =
+    fs::path(snapshot_dir) / fs::path(snapshot_file_name);
+
+  std::ofstream snapshot_file(
+    full_snapshot_path, std::ios::out | std::ios::binary);
+  snapshot_file.write(
+    reinterpret_cast<const char*>(dummy_snapshot.data()),
+    dummy_snapshot.size());
+
+  return snapshot_file_name;
+}
+
+std::optional<std::string> commit_1_x_snapshot(
+  const std::string& snapshot_dir, size_t snapshot_idx)
+{
+  for (auto const& f : fs::directory_iterator(snapshot_dir))
+  {
+    auto file_name = f.path().filename().string();
+    if (
+      !is_snapshot_file_committed(file_name) &&
+      get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
+    {
+      const auto committed_file_name = fmt::format(
+        "{}.{}_{}", file_name, snapshot_committed_suffix, snapshot_idx + 2);
+
+      fs::rename(
+        fs::path(snapshot_dir) / fs::path(file_name),
+        fs::path(snapshot_dir) / fs::path(committed_file_name));
+
+      return committed_file_name;
+    }
+  }
+  return std::nullopt;
+}
+
+TEST_CASE(
+  "Backwards compatibility with 1.x snapshots" *
+  doctest::test_suite("snapshot"))
+{
+  // To be removed as part of https://github.com/microsoft/CCF/issues/2981
+  fs::remove_all(ledger_dir);
+  fs::remove_all(snapshot_dir);
+
+  Ledger ledger(ledger_dir, wf, 1);
+  TestEntrySubmitter entry_submitter(ledger);
+  initialise_ledger(entry_submitter, 10, 10);
+  SnapshotManager snapshots(snapshot_dir, ledger);
+
+  size_t snapshot_interval = 5;
+  size_t snapshot_count = 5;
+
+  size_t latest_committed_snapshot_idx = 0;
+
+  INFO("Populate snapshot directory with 1.x snapshots");
+  {
+    for (size_t i = 1; i < snapshot_interval * snapshot_count;
+         i += snapshot_interval)
+    {
+      bool committed = (i < ((snapshot_interval / 2) * snapshot_count));
+
+      generate_1_x_snapshot(snapshot_dir, i, committed);
+      if (committed)
+      {
+        latest_committed_snapshot_idx = i;
+      }
+
+      auto latest_committed_snapshot =
+        snapshots.find_latest_committed_snapshot();
+      REQUIRE(latest_committed_snapshot.has_value());
+      REQUIRE(
+        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        latest_committed_snapshot_idx);
+    }
+  }
+
+  size_t snapshot_2_x_start_idx = snapshot_interval * snapshot_count;
+  size_t snapshot_2_x_end_idx = 2 * snapshot_2_x_start_idx;
+
+  INFO("Generate 2.x snapshots");
+  {
+    for (size_t i = snapshot_2_x_start_idx; i < snapshot_2_x_end_idx;
+         i += snapshot_interval)
+    {
+      snapshots.write_snapshot(
+        i, i + 1, dummy_snapshot.data(), dummy_snapshot.size());
+
+      // 2.x snapshot isn't yet committed
+      auto latest_committed_snapshot =
+        snapshots.find_latest_committed_snapshot();
+      REQUIRE(latest_committed_snapshot.has_value());
+      REQUIRE(
+        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        latest_committed_snapshot_idx);
+    }
+  }
+
+  INFO("Commit 2.x snapshots");
+  {
+    for (size_t i = snapshot_2_x_start_idx; i < snapshot_2_x_end_idx;
+         i += snapshot_interval)
+    {
+      snapshots.commit_snapshot(i, dummy_receipt.data(), dummy_receipt.size());
+
+      // 2.x snapshot isn't yet committed
+      auto latest_committed_snapshot =
+        snapshots.find_latest_committed_snapshot();
+      REQUIRE(latest_committed_snapshot.has_value());
+      REQUIRE(
+        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        i);
+    }
+  }
+}
+
+TEST_CASE(
+  "Find latest snapshot with corresponding ledger chunk (1.x only)" *
+  doctest::test_suite("snapshot"))
 {
   fs::remove_all(ledger_dir);
   fs::remove_all(snapshot_dir);
@@ -1065,28 +1229,21 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
     size_t snapshot_evidence_idx = snapshot_idx + 1;
     size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
 
-    snapshots.write_snapshot(
-      snapshot_idx,
-      snapshot_evidence_idx,
-      dummy_snapshot.data(),
-      dummy_snapshot.size());
+    generate_1_x_snapshot(snapshot_dir, snapshot_idx, false);
 
     // Snapshot is not yet committed
     REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
 
-    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
+    auto snapshot_file_name = commit_1_x_snapshot(snapshot_dir, snapshot_idx);
 
-    auto snapshot_file_name = get_snapshot_file_name(
-      snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx);
+    LOG_DEBUG_FMT("{}", snapshot_file_name.value());
 
+    REQUIRE(snapshot_file_name.has_value());
     REQUIRE(
-      fmt::format(
-        "{}/{}",
-        snapshot_dir,
-        snapshots.find_latest_committed_snapshot().value()) ==
-      snapshot_file_name);
+      snapshots.find_latest_committed_snapshot().value() ==
+      snapshot_file_name.value());
 
-    fs::remove(snapshot_file_name);
+    fs::remove(fmt::format("{}/{}", snapshot_dir, snapshot_file_name.value()));
   }
 
   INFO("Snapshot evidence commit past last ledger index");
@@ -1096,13 +1253,8 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
     size_t snapshot_evidence_idx = snapshot_idx + 1; // Still covered by ledger
     size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
 
-    snapshots.write_snapshot(
-      snapshot_idx,
-      snapshot_evidence_idx,
-      dummy_snapshot.data(),
-      dummy_snapshot.size());
-
-    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
+    auto snapshot_file_name =
+      generate_1_x_snapshot(snapshot_dir, snapshot_idx, true);
 
     // Even though snapshot is committed, evidence commit is past last ledger
     // index
@@ -1113,12 +1265,8 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
     entry_submitter.write(true); // note: is_committable flag does not matter
 
     // Snapshot is now valid
-    REQUIRE(
-      fmt::format(
-        "{}/{}",
-        snapshot_dir,
-        snapshots.find_latest_committed_snapshot().value()) ==
-      get_snapshot_file_name(
-        snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx));
+    auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
+    REQUIRE(latest_committed_snapshot.has_value());
+    REQUIRE(latest_committed_snapshot.value() == snapshot_file_name);
   }
 }

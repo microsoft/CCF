@@ -4,6 +4,7 @@
 
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
+#include "ds/nonstd.h"
 #include "host/ledger.h"
 
 #include <charconv>
@@ -20,6 +21,44 @@ namespace asynchost
   static constexpr auto snapshot_idx_delimiter = "_";
   static constexpr auto snapshot_committed_suffix = "committed";
 
+  bool is_snapshot_file(const std::string& file_name)
+  {
+    return nonstd::starts_with(file_name, snapshot_file_prefix);
+  }
+
+  bool is_snapshot_file_committed(const std::string& file_name)
+  {
+    return file_name.find(snapshot_committed_suffix) != std::string::npos;
+  }
+
+  bool is_committed_snapshot_file_1_x(const std::string& file_name)
+  {
+    // 1.x committed snapshots file names are of the form:
+    // "snapshot_X_Y.committed_Z" while 2.x+ ones are of the form:
+    // "snapshot_X_Y.committed"
+    auto pos = file_name.find(snapshot_committed_suffix);
+    if (pos == std::string::npos)
+    {
+      throw std::logic_error(
+        fmt::format("Snapshot file \"{}\" is not committed", file_name));
+    }
+
+    return file_name.find(snapshot_idx_delimiter, pos) != std::string::npos;
+  }
+
+  size_t get_snapshot_idx_from_file_name(const std::string& file_name)
+  {
+    auto pos = file_name.find(snapshot_idx_delimiter);
+    if (pos == std::string::npos)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot file name {} does not contain snapshot seqno", file_name));
+    }
+
+    return std::stol(file_name.substr(pos + 1));
+  }
+
+  // TODO: This should only be called for 1.x snapshots
   std::optional<std::pair<size_t, size_t>>
   get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
   {
@@ -94,19 +133,6 @@ namespace asynchost
     static constexpr auto snapshot_idx_delimiter = "_";
     static constexpr auto snapshot_committed_suffix = "committed";
 
-    size_t get_snapshot_idx_from_file_name(const std::string& file_name)
-    {
-      // Assumes snapshot file is not committed
-      auto pos = file_name.find(snapshot_idx_delimiter);
-      if (pos == std::string::npos)
-      {
-        throw std::logic_error(fmt::format(
-          "Snapshot file name {} does not contain seqno", file_name));
-      }
-
-      return std::stol(file_name.substr(pos + 1));
-    }
-
   public:
     SnapshotManager(const std::string& snapshot_dir_, const Ledger& ledger_) :
       snapshot_dir(snapshot_dir_),
@@ -119,8 +145,8 @@ namespace asynchost
       }
       else if (!fs::create_directory(snapshot_dir))
       {
-        throw std::logic_error(fmt::format(
-          "Error: Could not create snapshot directory: {}", snapshot_dir));
+        throw std::logic_error(
+          fmt::format("Could not create snapshot directory: {}", snapshot_dir));
       }
     }
 
@@ -147,10 +173,11 @@ namespace asynchost
 
       if (fs::exists(full_snapshot_path))
       {
-        throw std::logic_error(fmt::format(
+        LOG_FAIL_FMT(
           "Cannot write snapshot at {} since file already exists: {}",
           idx,
-          full_snapshot_path));
+          full_snapshot_path);
+        return;
       }
 
       LOG_INFO_FMT(
@@ -170,16 +197,25 @@ namespace asynchost
       try
       {
         // Find previously-generated snapshot for snapshot_idx and rename file,
-        // including evidence_commit_idx in name too
+        // also appending receipt to it
         for (auto const& f : fs::directory_iterator(snapshot_dir))
         {
           auto file_name = f.path().filename().string();
+          // TODO: Test this with 1.x and 2.x snapshots in directory (is the
+          // right snapshot committed??)
           if (
-            !get_snapshot_evidence_idx_from_file_name(file_name).has_value() &&
+            !is_snapshot_file_committed(file_name) &&
             get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
           {
             auto full_snapshot_path =
               fs::path(snapshot_dir) / fs::path(file_name);
+            const auto committed_file_name =
+              fmt::format("{}.{}", file_name, snapshot_committed_suffix);
+
+            LOG_INFO_FMT(
+              "Committing snapshot file \"{}\" [{}]",
+              committed_file_name,
+              receipt_size);
 
             // Append receipt to snapshot file
             std::ofstream snapshot_file(
@@ -187,13 +223,9 @@ namespace asynchost
             snapshot_file.write(
               reinterpret_cast<const char*>(receipt_data), receipt_size);
 
-            const auto committed_file_name =
-              fmt::format("{}.{}", file_name, snapshot_committed_suffix);
             fs::rename(
               fs::path(snapshot_dir) / fs::path(file_name),
               fs::path(snapshot_dir) / fs::path(committed_file_name));
-
-            LOG_INFO_FMT("Committed snapshot file \"{}\"", committed_file_name);
 
             return;
           }
@@ -212,53 +244,61 @@ namespace asynchost
 
     std::optional<std::string> find_latest_committed_snapshot()
     {
-      // TODO: This should only be done for 1.x snapshots...
-      std::optional<std::string> snapshot_file = std::nullopt;
+      std::optional<std::string> latest_committed_snapshot_file_name =
+        std::nullopt;
       size_t latest_idx = 0;
-
       size_t ledger_last_idx = ledger.get_last_idx();
 
       for (auto& f : fs::directory_iterator(snapshot_dir))
       {
         auto file_name = f.path().filename().string();
-        if (
-          file_name.find(fmt::format(
-            "{}{}", snapshot_file_prefix, snapshot_idx_delimiter)) ==
-          std::string::npos)
+        if (!is_snapshot_file(file_name))
         {
           LOG_INFO_FMT("Ignoring non-snapshot file \"{}\"", file_name);
           continue;
         }
 
-        auto evidence_indices =
-          get_snapshot_evidence_idx_from_file_name(file_name);
-        if (!evidence_indices.has_value())
-        {
-          LOG_INFO_FMT("Ignoring uncommitted snapshot file \"{}\"", file_name);
-          continue;
-        }
-
-        if (evidence_indices->second > ledger.get_last_idx())
+        if (!is_snapshot_file_committed(file_name))
         {
           LOG_INFO_FMT(
-            "Ignoring \"{}\" because ledger does not contain evidence commit "
-            "seqno: evidence commit seqno {} > last ledger seqno {}",
-            file_name,
-            evidence_indices->second,
-            ledger_last_idx);
+            "Ignoring non-committed snapshot file \"{}\"", file_name);
           continue;
         }
 
-        auto pos = file_name.find(snapshot_idx_delimiter);
-        size_t snapshot_idx = std::stol(file_name.substr(pos + 1));
+        if (is_committed_snapshot_file_1_x(file_name))
+        {
+          // 1.x committed snapshot file names contain the evidence commit index
+          // which must be contained in the ledger
+          auto evidence_indices =
+            get_snapshot_evidence_idx_from_file_name(file_name);
+          if (!evidence_indices.has_value())
+          {
+            LOG_INFO_FMT(
+              "Ignoring uncommitted snapshot file \"{}\"", file_name);
+            continue;
+          }
+
+          if (evidence_indices->second > ledger.get_last_idx())
+          {
+            LOG_INFO_FMT(
+              "Ignoring \"{}\" because ledger does not contain evidence commit "
+              "seqno: evidence commit seqno {} > last ledger seqno {} ",
+              file_name,
+              evidence_indices->second,
+              ledger_last_idx);
+            continue;
+          }
+        }
+
+        auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
         if (snapshot_idx > latest_idx)
         {
-          snapshot_file = file_name;
+          latest_committed_snapshot_file_name = file_name;
           latest_idx = snapshot_idx;
         }
       }
 
-      return snapshot_file;
+      return latest_committed_snapshot_file_name;
     }
 
     void register_message_handlers(
