@@ -31,6 +31,8 @@ import random
 import re
 import infra.crypto
 from infra.runner import ConcurrentRunner
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, utils
 
 from loguru import logger as LOG
 
@@ -645,6 +647,12 @@ def test_historical_receipts(network, args):
             c.read().encode("ascii"), default_backend()
         )
 
+    cert_path = os.path.join(primary.common_dir, "networkcert.pem")
+    with open(cert_path, encoding="utf-8") as c:
+        network_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
+        )
+
     TXS_COUNT = 5
     network.txs.issue(network, number_txs=5)
     for idx in range(1, TXS_COUNT + 1):
@@ -656,8 +664,13 @@ def test_historical_receipts(network, args):
             r = first_receipt.json()["receipt"]
             root = ccf.receipt.root(r["leaf"], r["proof"])
             ccf.receipt.verify(root, r["signature"], primary_cert)
-            # TODO: check certificate against network identity
             assert r["cert"], r
+            node_cert = load_pem_x509_certificate(r["cert"].encode(), default_backend())
+            network_cert.public_key().verify(
+                node_cert.signature,
+                hashlib.sha384(node_cert.tbs_certificate_bytes).digest(),
+                ec.ECDSA(utils.Prehashed(hashes.SHA384())),
+            )
 
     # receipt.verify() raises if it fails, but does not return anything
     verified = True
