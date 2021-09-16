@@ -1220,9 +1220,9 @@ def test_receipts(network, args):
                         receipt = rc.body.json()
                         root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
                         ccf.receipt.verify(root, receipt["signature"], node_cert)
-                        assert r["cert"], r
+                        assert receipt["cert"], receipt
                         node_cert = load_pem_x509_certificate(
-                            r["cert"].encode(), default_backend()
+                            receipt["cert"].encode(), default_backend()
                         )
                         ccf.receipt.check_endorsement(node_cert, network_cert)
                         break
