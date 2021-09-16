@@ -15,7 +15,7 @@
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshot.h"
+#include "snapshots.h"
 #include "ticker.h"
 #include "time_updater.h"
 

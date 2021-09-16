@@ -150,8 +150,8 @@ namespace ccf
     {
       std::vector<uint8_t>& raw;
       consensus::Index seqno;
-      std::optional<consensus::Index>
-        evidence_seqno; // Only set for 1.x snapshots
+      std::optional<consensus::Index> evidence_seqno =
+        std::nullopt; // Only set for 1.x snapshots
 
       // Store used to verify a snapshot (either created fresh when a node joins
       // from a snapshot or points to the main store when recovering from a
@@ -224,20 +224,19 @@ namespace ccf
         snapshot_store = network.tables;
       }
 
-      LOG_INFO_FMT(
-        "Deserialising public snapshot ({})", config.startup_snapshot.size());
-
       kv::ConsensusHookPtrs hooks;
       bool is_snapshot_verified = deserialise_snapshot(
-        snapshot_store, config.startup_snapshot, hooks, &view_history, true);
-
-      LOG_INFO_FMT(
-        "Public snapshot deserialised at seqno {}",
-        snapshot_store->current_version());
+        snapshot_store,
+        config.startup_snapshot,
+        hooks,
+        config.startup_snapshot_evidence_seqno
+          .has_value(), // Snapshots without a snapshot evidence seqno specified
+                        // by the host should be self-verifiable
+        &view_history,
+        true);
 
       startup_seqno = snapshot_store->current_version();
-
-      ledger_idx = snapshot_store->current_version();
+      ledger_idx = startup_seqno.value();
       last_recovered_signed_idx = ledger_idx;
 
       startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
@@ -393,7 +392,6 @@ namespace ccf
         }
         case StartType::Join:
         {
-          // TODO: Do we need this at all for 2.x snapshots?
           if (config.startup_snapshot.empty() || initialise_startup_snapshot())
           {
             // Note: 2.x snapshots are self-verified so the ledger verification
@@ -431,6 +429,9 @@ namespace ccf
 
           if (from_snapshot)
           {
+            // TODO: There's probably something missing here so that the
+            // verification of the evidence in the ledger isn't required to boot
+            // up the node
             initialise_startup_snapshot(true);
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
@@ -577,22 +578,15 @@ namespace ccf
             {
               // It is only possible to deserialise the entire snapshot then,
               // once the ledger secrets have been passed in by the network
-              LOG_DEBUG_FMT(
-                "Deserialising snapshot ({})",
-                startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
               kv::ConsensusHookPtrs hooks;
               deserialise_snapshot(
                 network.tables,
                 startup_snapshot_info->raw,
                 hooks,
+                startup_snapshot_info->evidence_seqno.has_value(),
                 &view_history,
                 resp.network_info->public_only);
-              // if (rc != kv::ApplyResult::PASS)
-              // {
-              //   throw std::logic_error(
-              //     fmt::format("Failed to apply snapshot on join: {}", rc));
-              // }
 
               for (auto& hook : hooks)
               {
@@ -1205,22 +1199,14 @@ namespace ccf
 
       if (startup_snapshot_info)
       {
-        LOG_INFO_FMT(
-          "Deserialising private snapshot for recovery ({})",
-          startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
         kv::ConsensusHookPtrs hooks;
-        auto rc = recovery_store->deserialise_snapshot(
-          startup_snapshot_info->raw.data(),
-          startup_snapshot_info->raw.size(),
+        deserialise_snapshot(
+          recovery_store,
+          startup_snapshot_info->raw,
           hooks,
+          startup_snapshot_info->evidence_seqno.has_value(),
           &view_history);
-        if (rc != kv::ApplyResult::PASS)
-        {
-          throw std::logic_error(fmt::format(
-            "Could not deserialise snapshot in recovery store: {}", rc));
-        }
-
         startup_snapshot_info.reset();
       }
 

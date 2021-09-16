@@ -48,7 +48,7 @@ namespace asynchost
     pos = file_name.find(snapshot_idx_delimiter, pos);
     if (pos == std::string::npos)
     {
-      // 2.x snapshot
+      // 2.x+ snapshot
       return std::nullopt;
     }
 
