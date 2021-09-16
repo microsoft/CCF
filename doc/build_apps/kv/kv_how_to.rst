@@ -46,10 +46,10 @@ By ``Map``:
     kv::Map<string, string> map_priv("map1");
     auto map1_handle = tx.rw(map_priv);
 
-    kv::Map<string, stuint64_tring> map_pub("public:map2");
+    kv::Map<string, uint64_t> map_pub("public:map2");
     auto map2_handle = tx.rw(map_pub);
 
-    kv::Map<uint64_t, string> MyCustomClass("map3");
+    kv::Map<uint64_t, MyCustomClass> map_priv_int("map3");
     auto map3_handle = tx.rw(map_priv_int);
 
 The latter approach introduces a named binding between the map's name and the types of its keys and values, reducing the chance for errors where code attempts to read a map with the wrong type.
