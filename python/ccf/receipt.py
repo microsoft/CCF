@@ -42,9 +42,12 @@ def check_endorsement(endorsee: Certificate, endorser: Certificate):
     Check endorser has endorsed endorsee
     """
     digest_algo = endorsee.signature_hash_algorithm
+    assert digest_algo
     digester = hashes.Hash(digest_algo)
     digester.update(endorsee.tbs_certificate_bytes)
     digest = digester.finalize()
-    endorser.public_key().verify(
+    endorser_pk = endorser.public_key()
+    assert isinstance(endorser_pk, ec.EllipticCurvePublicKey)
+    endorser_pk.verify(
         endorsee.signature, digest, ec.ECDSA(utils.Prehashed(digest_algo))
     )
