@@ -1287,7 +1287,7 @@ def test_random_receipts(network, args):
                     )
                     assert receipt["cert"], receipt
                     node_cert = load_pem_x509_certificate(
-                        r["cert"].encode(), default_backend()
+                        receipt["cert"].encode(), default_backend()
                     )
                     ccf.receipt.check_endorsement(node_cert, network_cert)
                     if s == max_seqno:
