@@ -35,3 +35,16 @@ def verify(root: str, signature: str, cert: Certificate):
         bytes.fromhex(root),
         ec.ECDSA(utils.Prehashed(hashes.SHA256())),
     )
+
+
+def check_endorsement(endorsee: Certificate, endorser: Certificate):
+    """
+    Check endorser has endorsed endorsee
+    """
+    digest_algo = endorsee.signature_hash_algorithm
+    digester = hashes.Hash(digest_algo)
+    digester.update(endorsee.tbs_certificate_bytes)
+    digest = digester.finalize()
+    endorser.public_key().verify(
+        endorsee.signature, digest, ec.ECDSA(utils.Prehashed(digest_algo))
+    )

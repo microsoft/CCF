@@ -666,13 +666,9 @@ def test_historical_receipts(network, args):
             ccf.receipt.verify(root, r["signature"], primary_cert)
             assert r["cert"], r
             node_cert = load_pem_x509_certificate(r["cert"].encode(), default_backend())
-            network_cert.public_key().verify(
-                node_cert.signature,
-                hashlib.sha384(node_cert.tbs_certificate_bytes).digest(),
-                ec.ECDSA(utils.Prehashed(hashes.SHA384())),
-            )
+            ccf.receipt.check_endorsement(node_cert, network_cert)
 
-    # receipt.verify() raises if it fails, but does not return anything
+    # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
     try:
         ccf.receipt.verify(
