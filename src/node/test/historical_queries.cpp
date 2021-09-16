@@ -89,8 +89,9 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
 
   // Make history to produce signatures
   const ccf::NodeId node_id = std::string("node_id");
-  ts.kv_store->set_history(
-    std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *node_kp));
+  auto h = std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *node_kp);
+  h->set_endorsed_certificate({}); 
+  ts.kv_store->set_history(h);
 
   {
     INFO("Store the signing node's key");
