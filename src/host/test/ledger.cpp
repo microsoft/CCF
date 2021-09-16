@@ -1061,9 +1061,11 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
-      REQUIRE(
-        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
-        i);
+      const auto& snapshot = latest_committed_snapshot.value();
+      REQUIRE(get_snapshot_idx_from_file_name(snapshot) == i);
+      REQUIRE(get_snapshot_evidence_idx_from_file_name(snapshot) == i + 1);
+      REQUIRE_FALSE(
+        get_evidence_commit_idx_from_file_name(snapshot).has_value());
     }
   }
 }
@@ -1144,18 +1146,29 @@ TEST_CASE(
     {
       bool committed = (i < ((snapshot_interval / 2) * snapshot_count));
 
-      generate_1_x_snapshot(snapshot_dir, i, committed);
+      auto file_name = generate_1_x_snapshot(snapshot_dir, i, committed);
+      REQUIRE(get_snapshot_idx_from_file_name(file_name) == i);
+      REQUIRE(get_snapshot_evidence_idx_from_file_name(file_name) == i + 1);
       if (committed)
       {
         latest_committed_snapshot_idx = i;
+        REQUIRE(get_evidence_commit_idx_from_file_name(file_name) == i + 2);
       }
 
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
+      const auto& snapshot = latest_committed_snapshot.value();
       REQUIRE(
-        get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
+        get_snapshot_idx_from_file_name(snapshot) ==
         latest_committed_snapshot_idx);
+      REQUIRE(
+        get_snapshot_evidence_idx_from_file_name(snapshot) ==
+        latest_committed_snapshot_idx + 1);
+      REQUIRE(get_evidence_commit_idx_from_file_name(snapshot).has_value());
+      REQUIRE(
+        get_evidence_commit_idx_from_file_name(snapshot).value() ==
+        latest_committed_snapshot_idx + 2);
     }
   }
 
@@ -1191,9 +1204,16 @@ TEST_CASE(
       auto latest_committed_snapshot =
         snapshots.find_latest_committed_snapshot();
       REQUIRE(latest_committed_snapshot.has_value());
+      REQUIRE_FALSE(is_snapshot_file_1_x(latest_committed_snapshot.value()));
       REQUIRE(
         get_snapshot_idx_from_file_name(latest_committed_snapshot.value()) ==
         i);
+      REQUIRE(
+        get_snapshot_evidence_idx_from_file_name(
+          latest_committed_snapshot.value()) == i + 1);
+      REQUIRE_FALSE(get_evidence_commit_idx_from_file_name(
+                      latest_committed_snapshot.value())
+                      .has_value());
     }
   }
 }

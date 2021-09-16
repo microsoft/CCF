@@ -31,8 +31,10 @@ namespace asynchost
     return file_name.find(snapshot_committed_suffix) != std::string::npos;
   }
 
-  bool is_committed_snapshot_file_1_x(const std::string& file_name)
+  std::optional<size_t> get_evidence_commit_idx_from_file_name(
+    const std::string& file_name)
   {
+    // Only returns an evidence commit index for 1.x committed snapshots.
     // 1.x committed snapshots file names are of the form:
     // "snapshot_X_Y.committed_Z" while 2.x+ ones are of the form:
     // "snapshot_X_Y.committed"
@@ -43,7 +45,19 @@ namespace asynchost
         fmt::format("Snapshot file \"{}\" is not committed", file_name));
     }
 
-    return file_name.find(snapshot_idx_delimiter, pos) != std::string::npos;
+    pos = file_name.find(snapshot_idx_delimiter, pos);
+    if (pos == std::string::npos)
+    {
+      // 2.x snapshot
+      return std::nullopt;
+    }
+
+    return std::stoi(file_name.substr(pos + 1));
+  }
+
+  bool is_snapshot_file_1_x(const std::string& file_name)
+  {
+    return get_evidence_commit_idx_from_file_name(file_name).has_value();
   }
 
   size_t get_snapshot_idx_from_file_name(const std::string& file_name)
@@ -55,72 +69,35 @@ namespace asynchost
         "Snapshot file name {} does not contain snapshot seqno", file_name));
     }
 
+    // stol: unconverted suffix is ignored
     return std::stol(file_name.substr(pos + 1));
   }
 
-  // TODO: This should only be called for 1.x snapshots
-  std::optional<std::pair<size_t, size_t>>
-  get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
+  size_t get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
   {
-    // Returns snapshot evidence and evidence commit proof indices
-    auto commit_pos =
-      file_name.find(fmt::format(".{}", snapshot_committed_suffix));
-    if (commit_pos == std::string::npos)
+    if (!is_snapshot_file(file_name))
     {
-      // Snapshot is not yet committed
-      return std::nullopt;
+      throw std::logic_error(
+        fmt::format("File \"{}\" is not a valid snapshot file", file_name));
     }
 
     auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
     if (idx_pos == std::string::npos)
     {
-      // Snapshot has no idx
-      return std::nullopt;
+      throw std::logic_error(
+        fmt::format("Snapshot file \"{}\" does not contain index", file_name));
     }
 
-    auto evidence_pos =
+    auto evidence_idx_pos =
       file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
-    if (evidence_pos == std::string::npos)
+    if (evidence_idx_pos == std::string::npos)
     {
-      // Snapshot has no evidence idx
-      return std::nullopt;
+      throw std::logic_error(fmt::format(
+        "Snapshot file \"{}\" does not contain evidence index", file_name));
     }
 
-    auto evidence_proof_pos = file_name.find_last_of(snapshot_idx_delimiter);
-    if (evidence_proof_pos == std::string::npos)
-    {
-      // Snapshot has no evidence proof idx
-      return std::nullopt;
-    }
-
-    size_t evidence_idx;
-    const auto evidence_start = evidence_pos + 1;
-    const auto str_evidence_idx =
-      file_name.substr(evidence_start, commit_pos - evidence_start);
-    if (
-      std::from_chars(
-        str_evidence_idx.data(),
-        str_evidence_idx.data() + str_evidence_idx.size(),
-        evidence_idx)
-        .ec != std::errc())
-    {
-      return std::nullopt;
-    }
-
-    size_t evidence_commit_idx;
-    const auto str_evidence_commit_idx =
-      file_name.substr(evidence_proof_pos + 1);
-    if (
-      std::from_chars(
-        str_evidence_commit_idx.data(),
-        str_evidence_commit_idx.data() + str_evidence_commit_idx.size(),
-        evidence_commit_idx)
-        .ec != std::errc())
-    {
-      return std::nullopt;
-    }
-
-    return std::make_pair(evidence_idx, evidence_commit_idx);
+    // stol: unconverted suffix is ignored
+    return std::stol(file_name.substr(evidence_idx_pos + 1));
   }
 
   class SnapshotManager
@@ -201,8 +178,6 @@ namespace asynchost
         for (auto const& f : fs::directory_iterator(snapshot_dir))
         {
           auto file_name = f.path().filename().string();
-          // TODO: Test this with 1.x and 2.x snapshots in directory (is the
-          // right snapshot committed??)
           if (
             !is_snapshot_file_committed(file_name) &&
             get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
@@ -265,29 +240,21 @@ namespace asynchost
           continue;
         }
 
-        if (is_committed_snapshot_file_1_x(file_name))
+        // 1.x committed snapshot file names contain the evidence commit index
+        // which must be contained in the ledger for the snapshot to be valid
+        auto snapshot_evidence_commit_idx_1_x =
+          get_evidence_commit_idx_from_file_name(file_name);
+        if (
+          snapshot_evidence_commit_idx_1_x.has_value() &&
+          snapshot_evidence_commit_idx_1_x.value() > ledger_last_idx)
         {
-          // 1.x committed snapshot file names contain the evidence commit index
-          // which must be contained in the ledger
-          auto evidence_indices =
-            get_snapshot_evidence_idx_from_file_name(file_name);
-          if (!evidence_indices.has_value())
-          {
-            LOG_INFO_FMT(
-              "Ignoring uncommitted snapshot file \"{}\"", file_name);
-            continue;
-          }
-
-          if (evidence_indices->second > ledger.get_last_idx())
-          {
-            LOG_INFO_FMT(
-              "Ignoring \"{}\" because ledger does not contain evidence commit "
-              "seqno: evidence commit seqno {} > last ledger seqno {} ",
-              file_name,
-              evidence_indices->second,
-              ledger_last_idx);
-            continue;
-          }
+          LOG_INFO_FMT(
+            "Ignoring \"{}\" because ledger does not contain evidence commit "
+            "seqno: evidence commit seqno {} > last ledger seqno {} ",
+            file_name,
+            snapshot_evidence_commit_idx_1_x.value(),
+            ledger_last_idx);
+          continue;
         }
 
         auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
