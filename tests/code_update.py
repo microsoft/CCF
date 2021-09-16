@@ -47,7 +47,7 @@ def test_add_node_with_bad_code(network, args):
         return network
 
     replacement_package = (
-        "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+        "samples/apps/logging/liblogging" if args.package == "libjs_generic" else "libjs_generic"
     )
 
     new_code_id = infra.utils.get_code_id(
@@ -70,7 +70,7 @@ def test_add_node_with_bad_code(network, args):
 
 
 def get_replacement_package(args):
-    return "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+    return "samples/apps/logging/liblogging" if args.package == "libjs_generic" else "libjs_generic"
 
 
 @reqs.description("Update all nodes code")
@@ -192,6 +192,6 @@ def run(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
 
-    args.package = "liblogging"
+    args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)
