@@ -1199,6 +1199,12 @@ def test_receipts(network, args):
             c.read().encode("ascii"), default_backend()
         )
 
+    cert_path = os.path.join(primary.common_dir, "networkcert.pem")
+    with open(cert_path, encoding="utf-8") as c:
+        network_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
+        )
+
     with primary.client() as mc:
         check_commit = infra.checker.Checker(mc)
         msg = "Hello world"
@@ -1216,6 +1222,11 @@ def test_receipts(network, args):
                         receipt = rc.body.json()
                         root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
                         ccf.receipt.verify(root, receipt["signature"], node_cert)
+                        assert r["cert"], r
+                        node_cert = load_pem_x509_certificate(
+                            r["cert"].encode(), default_backend()
+                        )
+                        ccf.receipt.check_endorsement(node_cert, network_cert)
                         break
                     elif rc.status_code == http.HTTPStatus.ACCEPTED:
                         time.sleep(0.5)
@@ -1245,6 +1256,12 @@ def test_random_receipts(network, args):
             infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)
         ] = load_pem_x509_certificate(cert.encode("ascii"), default_backend())
 
+    cert_path = os.path.join(primary.common_dir, "networkcert.pem")
+    with open(cert_path, encoding="utf-8") as c:
+        network_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
+        )
+
     with primary.client("user0") as c:
         r = c.get("/app/commit")
         max_view, max_seqno = [
@@ -1270,6 +1287,11 @@ def test_random_receipts(network, args):
                     ccf.receipt.verify(
                         root, receipt["signature"], certs[receipt["node_id"]]
                     )
+                    assert receipt["cert"], receipt
+                    node_cert = load_pem_x509_certificate(
+                        r["cert"].encode(), default_backend()
+                    )
+                    ccf.receipt.check_endorsement(node_cert, network_cert)
                     if s == max_seqno:
                         # Always a signature receipt
                         assert receipt["proof"] == [], receipt
