@@ -260,7 +260,11 @@ namespace ccf::historical
 
                   auto proof = tree.get_proof(seqno);
                   details->receipt = std::make_shared<TxReceipt>(
-                    sig->sig, proof.get_root(), proof.get_path(), sig->node);
+                    sig->sig,
+                    proof.get_root(),
+                    proof.get_path(),
+                    sig->node,
+                    sig->cert);
                   details->transaction_id = {sig->view, seqno};
                   details->current_stage = RequestStage::Trusted;
                 }
@@ -294,7 +298,11 @@ namespace ccf::historical
 
                   auto proof = tree.get_proof(new_seqno);
                   details->receipt = std::make_shared<TxReceipt>(
-                    sig->sig, proof.get_root(), proof.get_path(), sig->node);
+                    sig->sig,
+                    proof.get_root(),
+                    proof.get_path(),
+                    sig->node,
+                    sig->cert);
                   details->transaction_id = {sig->view, new_seqno};
                   new_details->current_stage = RequestStage::Trusted;
                 }
@@ -324,7 +332,11 @@ namespace ccf::historical
 
                 auto proof = tree.get_proof(new_seqno);
                 details->receipt = std::make_shared<TxReceipt>(
-                  sig->sig, proof.get_root(), proof.get_path(), sig->node);
+                  sig->sig,
+                  proof.get_root(),
+                  proof.get_path(),
+                  sig->node,
+                  sig->cert);
                 details->transaction_id = {sig->view, new_seqno};
                 new_details->current_stage = RequestStage::Trusted;
               }
@@ -532,7 +544,7 @@ namespace ccf::historical
             const auto sig = get_signature(details->store);
             assert(sig.has_value());
             details->receipt = std::make_shared<TxReceipt>(
-              sig->sig, sig->root.h, nullptr, sig->node);
+              sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
             details->transaction_id = {sig->view, sig->seqno};
           }
 

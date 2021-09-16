@@ -656,6 +656,8 @@ def test_historical_receipts(network, args):
             r = first_receipt.json()["receipt"]
             root = ccf.receipt.root(r["leaf"], r["proof"])
             ccf.receipt.verify(root, r["signature"], primary_cert)
+            # TODO: check certificate against network identity
+            assert r["cert"], r
 
     # receipt.verify() raises if it fails, but does not return anything
     verified = True

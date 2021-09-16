@@ -1341,6 +1341,12 @@ namespace ccf::js
         js_receipt,
         "signature",
         JS_NewString(ctx, receipt_out.signature.c_str()));
+      if (receipt_out.cert.has_value())
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "cert",
+          JS_NewString(ctx, receipt_out.cert.value().c_str()));
       JS_SetPropertyStr(
         ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf.c_str()));
       JS_SetPropertyStr(
