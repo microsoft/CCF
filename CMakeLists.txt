@@ -712,7 +712,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
       CONSENSUS ${CONSENSUS}
       LABEL vegeta
-      ADDITIONAL_ARGS -p liblogging
+      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
     )
 
     add_e2e_test(
@@ -721,7 +721,7 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
       LABEL vegeta
       CONFIGURATIONS long_stress
-      ADDITIONAL_ARGS -p liblogging --duration 45m
+      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
     )
 
     # add_e2e_test( NAME reconfiguration_test_${CONSENSUS} PYTHON_SCRIPT
@@ -737,7 +737,7 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --package
-      liblogging
+      "samples/apps/logging/liblogging"
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead
@@ -755,7 +755,7 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --package
-      liblogging
+      "samples/apps/logging/liblogging"
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead
