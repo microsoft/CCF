@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Improved performance for lookup of path-templated endpoints (#2918).
 - Raised the minimum supported CMake version for building CCF to 3.16 (#2946).
 
+### Dependency
+
+- Upgrade OpenEnclave from 0.17.1 to 0.17.2 (#2992)
+
 ## [2.0.0-dev3]
 
 ### Added
