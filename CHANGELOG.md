@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Dependency
 
-- Upgrade OpenEnclave from 0.17.1 to 0.17.2
+- Upgrade OpenEnclave from 0.17.1 to 0.17.2 (#2992)
 
 ## [2.0.0-dev3]
 
