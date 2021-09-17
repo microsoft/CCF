@@ -9,7 +9,7 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-20.04
-    container: ccfciteam/ccf-ci:oe0.17.2-clang8
+    container: ccfciteam/ccf-ci:oe0.17.2-clang-8
 
     steps:
       - name: Checkout repository
