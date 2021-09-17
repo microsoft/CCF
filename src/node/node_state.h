@@ -351,6 +351,8 @@ namespace ccf
       }
 #endif
 
+      setup_history();
+
       switch (start_type)
       {
         case StartType::New:
@@ -363,6 +365,7 @@ namespace ccf
           if (network.consensus_type == ConsensusType::BFT)
           {
             endorsed_node_cert = create_endorsed_node_cert();
+            history->set_endorsed_certificate(endorsed_node_cert.value());
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
           }
@@ -371,9 +374,6 @@ namespace ccf
           setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
-          setup_history();
-          if (endorsed_node_cert.has_value())
-            history->set_endorsed_certificate(endorsed_node_cert.value());
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -543,6 +543,7 @@ namespace ccf
               // self-sign own certificate and use it to endorse TLS
               // connections.
               endorsed_node_cert = create_endorsed_node_cert();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels_cert = endorsed_node_cert.value();
               open_frontend(ActorsType::members);
               open_user_frontend();
@@ -562,9 +563,6 @@ namespace ccf
               resp.network_info->public_only,
               n2n_channels_cert);
             setup_progress_tracker();
-            setup_history();
-            if (endorsed_node_cert.has_value())
-              history->set_endorsed_certificate(endorsed_node_cert.value());
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
@@ -958,6 +956,7 @@ namespace ccf
       if (network.consensus_type == ConsensusType::BFT)
       {
         endorsed_node_cert = create_endorsed_node_cert();
+        history->set_endorsed_certificate(endorsed_node_cert.value());
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
       }

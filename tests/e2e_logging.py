@@ -660,18 +660,15 @@ def test_historical_receipts(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"]
             )
             r = first_receipt.json()["receipt"]
-            root = ccf.receipt.root(r["leaf"], r["proof"])
-            ccf.receipt.verify(root, r["signature"], primary_cert)
-            assert r["cert"], r
             node_cert = load_pem_x509_certificate(r["cert"].encode(), default_backend())
             ccf.receipt.check_endorsement(node_cert, network_cert)
+            root = ccf.receipt.root(r["leaf"], r["proof"])
+            ccf.receipt.verify(root, r["signature"], node_cert)
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
     try:
-        ccf.receipt.verify(
-            hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
-        )
+        ccf.receipt.verify(hashlib.sha256(b"").hexdigest(), r["signature"], node_cert)
     except InvalidSignature:
         verified = False
     assert not verified
