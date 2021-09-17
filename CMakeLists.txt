@@ -220,12 +220,8 @@ add_custom_target(
   signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
-# Add Logging app. Rebuilt/redefined here, rather than via add_subdirectory
-add_ccf_app(logging SRCS samples/apps/logging/logging.cpp)
-sign_app_library(
-  logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-)
+# Add Logging app.
+add_subdirectory(${CCF_DIR}/samples/apps/logging)
 
 # Add NoBuiltins app
 add_subdirectory(${CCF_DIR}/samples/apps/nobuiltins)
@@ -717,7 +713,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
       CONSENSUS ${CONSENSUS}
       LABEL vegeta
-      ADDITIONAL_ARGS -p liblogging
+      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
     )
 
     add_e2e_test(
@@ -726,7 +722,7 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
       LABEL vegeta
       CONFIGURATIONS long_stress
-      ADDITIONAL_ARGS -p liblogging --duration 45m
+      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
     )
 
   endforeach()
@@ -738,7 +734,7 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --package
-      liblogging
+      "samples/apps/logging/liblogging"
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead
@@ -756,7 +752,7 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --package
-      liblogging
+      "samples/apps/logging/liblogging"
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead

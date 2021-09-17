@@ -258,7 +258,7 @@ if __name__ == "__main__":
     cr.add(
         "session_auth",
         gov,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session=True,
@@ -267,7 +267,7 @@ if __name__ == "__main__":
     cr.add(
         "session_noauth",
         gov,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session=False,
@@ -276,7 +276,7 @@ if __name__ == "__main__":
     cr.add(
         "js",
         js_gov,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session=True,
@@ -285,7 +285,7 @@ if __name__ == "__main__":
     cr.add(
         "history",
         governance_history.run,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         # Higher snapshot interval as snapshots trigger new ledger chunks, which
         # may result in latest chunk being partially written
