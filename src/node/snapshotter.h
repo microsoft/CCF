@@ -9,14 +9,11 @@
 #include "ds/thread_messaging.h"
 #include "entities.h"
 #include "kv/kv_types.h"
-#include "kv/serialised_entry_format.h"
 #include "node/network_state.h"
-#include "node/nodes.h"
 #include "node/snapshot_evidence.h"
 #include "node/snapshot_serialise.h"
 
 #include <deque>
-#include <nlohmann/json.hpp>
 #include <optional>
 
 namespace ccf

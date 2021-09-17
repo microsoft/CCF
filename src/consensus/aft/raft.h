@@ -540,7 +540,7 @@ namespace aft
     void add_configuration(
       Index idx,
       const kv::Configuration::Nodes& conf,
-      const std::unordered_set<ccf::NodeId>& new_learners = {}) override
+      const std::unordered_set<ccf::NodeId>& new_learners = {})
     {
       LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
@@ -623,19 +623,19 @@ namespace aft
     void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,
-      const ccf::NodeId& node_id) override
+      const ccf::NodeId& node_id)
     {
       snapshotter->record_signature(version, sig, node_id);
     }
 
     void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree) override
+      kv::Version version, const std::vector<uint8_t>& tree)
     {
       snapshotter->record_serialised_tree(version, tree);
     }
 
     void reconfigure(
-      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig) override
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig)
     {
       LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
 
@@ -682,7 +682,7 @@ namespace aft
     void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
-      const ccf::ResharingResult& result) override
+      const ccf::ResharingResult& result)
     {
       if (use_two_tx_reconfig && require_identity_for_reconfig)
       {
@@ -693,7 +693,7 @@ namespace aft
 
     // For more info about Observed Reconfiguration Commits see
     // https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration
-    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
+    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
     {
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
@@ -726,7 +726,7 @@ namespace aft
       return oit->second.size() >= get_quorum(ncnodes.size());
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const override
+    Configuration::Nodes get_latest_configuration_unsafe() const
     {
       if (configurations.empty())
       {
@@ -736,13 +736,13 @@ namespace aft
       return configurations.back().nodes;
     }
 
-    Configuration::Nodes get_latest_configuration() override
+    Configuration::Nodes get_latest_configuration()
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
     }
 
-    kv::ConsensusDetails get_details() override
+    kv::ConsensusDetails get_details()
     {
       kv::ConsensusDetails details;
       std::lock_guard<std::mutex> guard(state->lock);
@@ -1152,7 +1152,7 @@ namespace aft
       const ccf::NodeId& from,
       RequestViewChangeMsg r,
       const uint8_t* data,
-      size_t size) override
+      size_t size)
     {
       LOG_DEBUG_FMT("Received evidence for view:{}, from:{}", r.view, from);
       auto node = nodes.find(from);
@@ -1204,7 +1204,7 @@ namespace aft
       const ccf::NodeId& from,
       ViewChangeEvidenceMsg r,
       const uint8_t* data,
-      size_t size) override
+      size_t size)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1239,7 +1239,7 @@ namespace aft
       become_aware_of_new_term(r.view);
     }
 
-    void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r) override
+    void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1523,7 +1523,7 @@ namespace aft
       const ccf::NodeId& from,
       AppendEntries r,
       const uint8_t* data,
-      size_t size) override
+      size_t size)
     {
       std::unique_lock<std::mutex> guard(state->lock);
 
@@ -2385,7 +2385,7 @@ namespace aft
     }
 
     void recv_append_entries_signed_response(
-      const ccf::NodeId& from, SignedAppendEntriesResponse r) override
+      const ccf::NodeId& from, SignedAppendEntriesResponse r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -2450,7 +2450,7 @@ namespace aft
     }
 
     void recv_signature_received_ack(
-      const ccf::NodeId& from, SignaturesReceivedAck r) override
+      const ccf::NodeId& from, SignaturesReceivedAck r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -2524,7 +2524,7 @@ namespace aft
       }
     }
 
-    void recv_nonce_reveal(const ccf::NodeId& from, NonceRevealMsg r) override
+    void recv_nonce_reveal(const ccf::NodeId& from, NonceRevealMsg r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -2556,7 +2556,7 @@ namespace aft
     }
 
     void recv_append_entries_response(
-      const ccf::NodeId& from, AppendEntriesResponse r) override
+      const ccf::NodeId& from, AppendEntriesResponse r)
     {
       std::lock_guard<std::mutex> guard(state->lock);
       // Ignore if we're not the leader.
@@ -2695,7 +2695,7 @@ namespace aft
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
-    void recv_request_vote(const ccf::NodeId& from, RequestVote r) override
+    void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
@@ -2794,7 +2794,7 @@ namespace aft
     }
 
     void recv_request_vote_response(
-      const ccf::NodeId& from, RequestVoteResponse r) override
+      const ccf::NodeId& from, RequestVoteResponse r)
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
