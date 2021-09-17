@@ -175,9 +175,14 @@ namespace ccf
         store(store_)
       {}
 
-      bool is_snapshot_verified()
+      bool is_snapshot_verified() const
       {
         return has_evidence && is_evidence_committed;
+      }
+
+      bool requires_ledger_verification() const
+      {
+        return evidence_seqno.has_value();
       }
 
       ~StartupSnapshotInfo()
@@ -584,7 +589,7 @@ namespace ccf
                 network.tables,
                 startup_snapshot_info->raw,
                 hooks,
-                startup_snapshot_info->evidence_seqno.has_value(),
+                startup_snapshot_info->requires_ledger_verification(),
                 &view_history,
                 resp.network_info->public_only);
 
@@ -918,7 +923,9 @@ namespace ccf
     {
       sm.expect(State::readingPublicLedger);
 
-      if (startup_snapshot_info)
+      if (
+        startup_snapshot_info &&
+        startup_snapshot_info->requires_ledger_verification())
       {
         if (!startup_snapshot_info->is_snapshot_verified())
         {
@@ -1205,7 +1212,7 @@ namespace ccf
           recovery_store,
           startup_snapshot_info->raw,
           hooks,
-          startup_snapshot_info->evidence_seqno.has_value(),
+          startup_snapshot_info->requires_ledger_verification(),
           &view_history);
         startup_snapshot_info.reset();
       }
