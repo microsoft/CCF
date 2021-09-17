@@ -335,7 +335,6 @@ namespace ccf
         get_subject_alternative_names();
 
       js::register_class_ids();
-      js::register_ffi_plugins();
       self_signed_node_cert = create_self_signed_node_cert();
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);

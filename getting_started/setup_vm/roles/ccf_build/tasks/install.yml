@@ -32,7 +32,7 @@
 
 - name: Build mbedtls
   shell: |
-    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
+    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
     make
   args:
     chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"

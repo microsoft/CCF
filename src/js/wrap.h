@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/js_plugin.h"
 #include "ccf/tx.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
-#include "js/plugin.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/rpc/node_interface.h"
@@ -15,7 +15,7 @@
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 
-namespace js
+namespace ccf::js
 {
   extern JSClassID kv_class_id;
   extern JSClassID kv_map_handle_class_id;
@@ -46,7 +46,7 @@ namespace js
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  void register_ffi_plugins();
+  void register_ffi_plugins(const std::vector<ccf::js::FFIPlugin>& plugins);
   void register_class_ids();
   void register_request_body_class(JSContext* ctx);
   void populate_global(
