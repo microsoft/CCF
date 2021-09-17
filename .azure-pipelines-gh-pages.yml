@@ -13,7 +13,7 @@ pr:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe0.17.1-focal
+    container: ccfciteam/ccf-ci:oe0.17.2
     pool:
       vmImage: ubuntu-20.04
 
