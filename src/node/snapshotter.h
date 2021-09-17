@@ -214,6 +214,7 @@ namespace ccf
       // snapshot, and thus a new ledger chunk
       std::lock_guard<std::mutex> guard(lock);
 
+      // TODO: Assert that idx - snapshot_indices.back() > 0
       if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
         next_snapshot_indices.push_back(idx);
