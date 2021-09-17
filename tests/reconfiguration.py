@@ -519,7 +519,7 @@ def run_join_old_snapshot(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
+    args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_user_count = 1
 
