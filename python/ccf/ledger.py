@@ -34,6 +34,8 @@ SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 
+COMMITTED_FILE_SUFFIX = ".committed"
+
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
 
@@ -51,7 +53,7 @@ def to_uint_64(buffer):
 
 
 def is_ledger_chunk_committed(file_name):
-    return file_name.endswith(".committed")
+    return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
 def unpack(stream, fmt):
@@ -623,25 +625,27 @@ class Snapshot(Entry):
 
         entry_start_pos = super()._read_header()
 
-        # TODO: Only for 2.x receipts
+        # Snapshots embed evidence receipt since 2.x
+        if self.is_committed and not self.is_snapshot_file_1_x():
+            receipt_pos = entry_start_pos + self._header.size
+            receipt_bytes = _peek(self._file, num_bytes=None, pos=receipt_pos)
 
-        receipt_pos = entry_start_pos + self._header.size
-        receipt_bytes = _peek(self._file, num_bytes=None, pos=receipt_pos)
+            receipt = json.loads(receipt_bytes.decode("utf-8"))
+            LOG.error(receipt)
+            root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+            LOG.success(root)
 
-        receipt = json.loads(receipt_bytes.decode("utf-8"))
-        LOG.error(receipt)
-        root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
-        LOG.success(root)
+            # TODO: Verify snapshot integrity once endorsed node certificate is
+            # in the receipt
 
-        # TODO: Verify snapshot integrity once endorsed node certificate is
-        # in the receipt
+    def is_committed(self):
+        # Note: Also valid for 1.x snapshots which end in ".committed_Z"
+        return COMMITTED_FILE_SUFFIX in self._filename
 
-    def commit_seqno(self):
-        try:
-            return int(self._filename.split("committed_")[1])
-        except IndexError:
-            # Snapshot is not yet committed
-            return None
+    def is_snapshot_file_1_x(self):
+        if not self.is_committed():
+            raise ValueError(f"Snapshot file {self._filename} is not yet committed")
+        return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
 
 
 class LedgerChunk:
@@ -695,7 +699,7 @@ class Ledger:
     def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
         elements = (
             os.path.basename(filename)
-            .replace(".committed", "")
+            .replace(COMMITTED_FILE_SUFFIX, "")
             .replace("ledger_", "")
             .split("-")
         )
@@ -713,7 +717,7 @@ class Ledger:
         ledger_files = []
         for directory in directories:
             for path in os.listdir(directory):
-                if committed_only and not path.endswith(".committed"):
+                if committed_only and not path.endswith(COMMITTED_FILE_SUFFIX):
                     continue
                 chunk = os.path.join(directory, path)
                 if os.path.isfile(chunk):
