@@ -51,13 +51,18 @@ def strip_release_branch_name(branch_name):
     return branch_name[len(BRANCH_RELEASE_PREFIX) :]
 
 
+def strip_release_tag_name(tag_name):
+    assert is_release_tag(tag_name), tag_name
+    return tag_name[len(TAG_RELEASE_PREFIX) :]
+
+
 def get_major_version_from_release_branch_name(full_branch_name):
     return int(strip_release_branch_name(full_branch_name).split(".")[0])
 
 
 def get_version_from_tag_name(tag_name):
     assert is_release_tag(tag_name), tag_name
-    return Version(tag_name[len(TAG_RELEASE_PREFIX) :])
+    return Version(strip_release_tag_name(tag_name))
 
 
 def get_release_branch_from_branch_name(branch_name):
@@ -106,6 +111,9 @@ class Repository:
             for branch in self.g.ls_remote(REMOTE_URL).split("\n")
             if "heads/release" in branch
         ]
+
+    def get_latest_dev_tag(self):
+        return self.tags[-1]
 
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
@@ -175,7 +183,7 @@ class Repository:
         return releases
 
     def install_release(self, tag):
-        stripped_tag = tag[len(TAG_RELEASE_PREFIX) :]
+        stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
         debian_package_url = get_debian_package_url_from_tag_name(tag)
 

@@ -248,7 +248,7 @@ class Network:
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
-            target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
+            target_rpc_address=f"{target_node.get_public_rpc_host()}:{target_node.rpc_port}",
             snapshot_dir=snapshot_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dir=committed_ledger_dir,
@@ -588,21 +588,9 @@ class Network:
                 raise NodeShutdownError("Fatal error found during node shutdown")
 
     def join_node(
-        self,
-        node,
-        lib_name,
-        args,
-        target_node=None,
-        timeout=JOIN_TIMEOUT,
-        **kwargs,
+        self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
     ):
-        self._add_node(
-            node,
-            lib_name,
-            args,
-            target_node,
-            **kwargs,
-        )
+        self._add_node(node, lib_name, args, target_node, **kwargs)
 
         primary, _ = self.find_primary()
         try:
@@ -669,10 +657,7 @@ class Network:
             os.path.join(self.common_dir, f"{local_user_id}_cert.pem"), encoding="utf-8"
         ) as c:
             service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
-        new_user = UserInfo(
-            local_user_id,
-            service_user_id,
-        )
+        new_user = UserInfo(local_user_id, service_user_id)
         if record:
             self.users.append(new_user)
 
@@ -895,10 +880,7 @@ class Network:
                 with backup.client("user0") as c:
                     _ = c.post(
                         "/app/log/private",
-                        {
-                            "id": -1,
-                            "msg": "This is submitted to force a view change",
-                        },
+                        {"id": -1, "msg": "This is submitted to force a view change"},
                     )
                 time.sleep(1)
             except CCFConnectionException:
