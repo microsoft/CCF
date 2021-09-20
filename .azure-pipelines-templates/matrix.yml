@@ -29,13 +29,13 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions|suite"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
     SGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions|suite"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|suite"'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
-      ctest_args: '-LE "partitions"'
+      ctest_args: ''
 
 jobs:
   # Debug
