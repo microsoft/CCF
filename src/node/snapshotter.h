@@ -205,16 +205,18 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    // TODO: At first, it seemed that this could be merged with record_signature
-    // but record_signature is called from a hook and doesn't have a return
-    // value to tell the consensus to create a new ledger chunk...
     bool record_committable(consensus::Index idx)
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
       std::lock_guard<std::mutex> guard(lock);
 
-      // TODO: Assert that idx - snapshot_indices.back() > 0
+      CCF_ASSERT_FMT(
+        idx >= next_snapshot_indices.back(),
+        "Committable seqno {} < next snapshot seqno {}",
+        idx,
+        next_snapshot_indices.back());
+
       if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
         next_snapshot_indices.push_back(idx);
