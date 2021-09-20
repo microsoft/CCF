@@ -18,8 +18,12 @@ from dataclasses import dataclass
 from math import ceil
 import http
 import pprint
+import functools
 
 from loguru import logger as LOG
+
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
@@ -1045,6 +1049,15 @@ class Network:
         return self._get_ledger_public_view_at(
             primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
         )
+
+    @functools.cached_property
+    def cert(self):
+        cert_path = os.path.join(self.common_dir, "networkcert.pem")
+        with open(cert_path, encoding="utf-8") as c:
+            network_cert = load_pem_x509_certificate(
+                c.read().encode("ascii"), default_backend()
+            )
+            return network_cert
 
 
 @contextmanager

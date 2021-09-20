@@ -649,18 +649,6 @@ def test_historical_query(network, args):
 @reqs.supports_methods("log/private", "log/private/historical_receipt")
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        primary_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
-    cert_path = os.path.join(primary.common_dir, "networkcert.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        network_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
     TXS_COUNT = 5
     network.txs.issue(network, number_txs=5)
     for idx in range(1, TXS_COUNT + 1):
@@ -670,13 +658,13 @@ def test_historical_receipts(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"]
             )
             r = first_receipt.json()["receipt"]
-            verify_receipt(r, network_cert)
+            verify_receipt(r, network.cert)
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
     try:
         ccf.receipt.verify(
-            hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
+            hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
         )
     except InvalidSignature:
         verified = False
@@ -1197,18 +1185,6 @@ def test_memory(network, args):
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        node_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
-    cert_path = os.path.join(primary.common_dir, "networkcert.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        network_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
     with primary.client() as mc:
         check_commit = infra.checker.Checker(mc)
         msg = "Hello world"
@@ -1224,7 +1200,7 @@ def test_receipts(network, args):
                     rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
                     if rc.status_code == http.HTTPStatus.OK:
                         receipt = rc.body.json()
-                        verify_receipt(receipt, network_cert)
+                        verify_receipt(receipt, network.cert)
                         break
                     elif rc.status_code == http.HTTPStatus.ACCEPTED:
                         time.sleep(0.5)
@@ -1254,12 +1230,6 @@ def test_random_receipts(network, args):
             infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)
         ] = load_pem_x509_certificate(cert.encode("ascii"), default_backend())
 
-    cert_path = os.path.join(primary.common_dir, "networkcert.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        network_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
     with primary.client("user0") as c:
         r = c.get("/app/commit")
         max_view, max_seqno = [
@@ -1281,7 +1251,7 @@ def test_random_receipts(network, args):
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
-                    verify_receipt(receipt, network_cert)
+                    verify_receipt(receipt, network.cert)
                     if s == max_seqno:
                         # Always a signature receipt
                         assert receipt["proof"] == [], receipt
