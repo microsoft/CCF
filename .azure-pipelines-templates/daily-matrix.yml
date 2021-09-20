@@ -42,7 +42,7 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
-      ctest_filter: '-LE "benchmark|perf|partitions"'
+      ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "300"
       timeoutInMinutes: 120
 
@@ -53,7 +53,7 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON -DENABLE_BFT=OFF"
       suffix: "Release"
       artifact_name: "SGX_Release"
-      ctest_filter: '-LE "benchmark|perf|rotation|partitions"'
+      ctest_filter: '-LE "benchmark|perf|rotation"'
 
   - template: common.yml
     parameters:
@@ -62,4 +62,4 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON -DENABLE_BFT=OFF"
       suffix: "Release"
       artifact_name: "SGX_IceLake_Release"
-      ctest_filter: '-LE "benchmark|perf|rotation|partitions"'
+      ctest_filter: '-LE "benchmark|perf|rotation"'
