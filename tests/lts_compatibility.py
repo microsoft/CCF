@@ -15,8 +15,6 @@ import json
 import time
 from e2e_logging import test_random_receipts
 
-# pylint: disable=import-error, no-name-in-module
-from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
@@ -66,9 +64,7 @@ def get_new_constitution_for_install(args, install_path):
     return args.constitution
 
 
-def test_new_service(
-    network, args, install_path, binary_dir, library_dir, major_version
-):
+def test_new_service(network, args, install_path, binary_dir, library_dir, version):
     LOG.info("Update constitution")
     primary, _ = network.find_primary()
     new_constitution = get_new_constitution_for_install(args, install_path)
@@ -81,7 +77,7 @@ def test_new_service(
         "local://localhost",
         binary_dir=binary_dir,
         library_dir=library_dir,
-        version=major_version,
+        version=version,
     )
     network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
@@ -117,8 +113,8 @@ def run_code_upgrade_from(
     args,
     from_install_path,
     to_install_path,
-    from_major_version=None,
-    to_major_version=None,
+    from_version=None,
+    to_version=None,
 ):
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
         from_install_path
@@ -139,7 +135,7 @@ def run_code_upgrade_from(
             pdb=args.pdb,
             txs=txs,
             jwt_issuer=jwt_issuer,
-            version=from_major_version,
+            version=from_version,
         ) as network:
             network.start_and_join(args)
 
@@ -167,7 +163,7 @@ def run_code_upgrade_from(
                     "local://localhost",
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
-                    version=to_major_version,
+                    version=to_version,
                 )
                 network.join_node(
                     new_node, args.package, args, from_snapshot=from_snapshot
@@ -179,7 +175,7 @@ def run_code_upgrade_from(
             # Verify that all nodes run the expected CCF version
             for node in network.get_joined_nodes():
                 # Note: /node/version endpoint was added in 2.x
-                if not node.version or node.version > 1:
+                if not node.major_version or node.major_version > 1:
                     with node.client() as c:
                         r = c.get("/node/version")
                         expected_version = node.version or args.ccf_version
@@ -214,7 +210,7 @@ def run_code_upgrade_from(
             jwt_issuer.refresh_keys()
             # Note: /gov/jwt_keys/all endpoint was added in 2.x
             primary, _ = network.find_nodes()
-            if primary.version and primary.version > 1:
+            if not primary.major_version or primary.version > 1:
                 jwt_issuer.wait_for_refresh(network)
             else:
                 time.sleep(3)
@@ -241,7 +237,7 @@ def run_code_upgrade_from(
                 to_install_path,
                 to_binary_dir,
                 to_library_dir,
-                to_major_version,
+                to_version,
             )
 
             # Check that the ledger can be parsed
@@ -266,8 +262,8 @@ def run_live_compatibility_with_latest(args, repo, local_branch):
             args,
             from_install_path=lts_install_path,
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            from_major_version=Version(lts_version).release[0],
-            to_major_version=local_major_version,
+            from_version=lts_version,
+            to_version=local_major_version,
         )
     return lts_version
 
@@ -292,8 +288,8 @@ def run_live_compatibility_with_following(args, repo, local_branch):
             args,
             from_install_path=LOCAL_CHECKOUT_DIRECTORY,
             to_install_path=lts_install_path,
-            from_major_version=local_major_version,
-            to_major_version=Version(lts_version).release[0],
+            from_version=local_major_version,
+            to_version=lts_version,
         )
     return lts_version
 
@@ -327,14 +323,11 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
             if lts_release:
                 version, install_path = repo.install_release(lts_release)
                 lts_versions.append(version)
-                major_version = Version(version).release[0]
                 set_js_args(args, install_path)
             else:
                 version = args.ccf_version
                 install_path = LOCAL_CHECKOUT_DIRECTORY
-                major_version = infra.github.get_major_version_from_branch_name(
-                    local_branch
-                )
+
             binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
                 install_path
             )
@@ -346,7 +339,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     "library_dir": library_dir,
                     "txs": txs,
                     "jwt_issuer": jwt_issuer,
-                    "version": major_version,
+                    "version": version,
                 }
                 if idx == 0:
                     LOG.info(f"Starting new service (version: {version})")
@@ -371,7 +364,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 # Verify that all nodes run the expected CCF version
                 for node in nodes:
                     # Note: /node/version endpoint was added in 2.x
-                    if not node.version or node.version > 1:
+                    if not node.major_version or node.major_version > 1:
                         with node.client() as c:
                             r = c.get("/node/version")
                             expected_version = node.version or args.ccf_version
@@ -385,7 +378,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
                 primary, _ = network.find_nodes()
-                if primary.version and primary.version > 1:
+                if not primary.major_version or primary.major_version > 1:
                     jwt_issuer.wait_for_refresh(network)
                 else:
                     time.sleep(3)
@@ -396,7 +389,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     install_path,
                     binary_dir,
                     library_dir,
-                    major_version,
+                    version,
                 )
 
                 snapshot_dir = (
