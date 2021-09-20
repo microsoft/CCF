@@ -1210,10 +1210,10 @@ def test_receipts(network, args):
     return network
 
 
-@reqs.description("Validate all receipts")
+@reqs.description("Validate random receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_random_receipts(network, args):
+def test_random_receipts(network, args, lts=False):
     primary, _ = network.find_primary_and_any_backup()
 
     common = os.listdir(network.common_dir)
@@ -1226,9 +1226,7 @@ def test_random_receipts(network, args):
     for path in cert_paths:
         with open(path, encoding="utf-8") as c:
             cert = c.read()
-        certs[
-            infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)
-        ] = load_pem_x509_certificate(cert.encode("ascii"), default_backend())
+        certs[infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)] = cert
 
     with primary.client("user0") as c:
         r = c.get("/app/commit")
@@ -1251,6 +1249,8 @@ def test_random_receipts(network, args):
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
+                    if lts and not receipt.get("cert"):
+                        receipt["cert"] = certs[receipt["node_id"]]
                     verify_receipt(receipt, network.cert)
                     if s == max_seqno:
                         # Always a signature receipt

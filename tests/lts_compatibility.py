@@ -13,6 +13,7 @@ import ccf.ledger
 import os
 import json
 import time
+from e2e_logging import test_random_receipts
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -87,6 +88,7 @@ def test_new_service(
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
+    test_random_receipts(network, args, lts=True)
 
 
 # Local build and install bin/ and lib/ directories differ
