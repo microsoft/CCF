@@ -30,7 +30,26 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
     recover
     --network-cert-file /path/to/network_certificate
 
+.. mermaid::
+
+    graph LR;
+        Uninitialized-- config -->Initialized;
+        Initialized-- recovery -->ReadingPublicLedger;
+        ReadingPublicLedger-->PartOfPublicNetwork;
+        PartOfPublicNetwork-- member shares reassembly -->ReadingPrivateLedger;
+        ReadingPrivateLedger-->PartOfNetwork;
+
 Each node will then immediately restore the public entries of its ledger (``--ledger-dir``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``/node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+
+.. mermaid::
+
+    graph LR;
+        Uninitialized-- config -->Initialized;
+        Initialized-- join from snapshot -->VerifyingSnapshot;
+        VerifyingSnapshot-->Pending;
+        Initialized-- join -->Pending;
+        Pending-- poll status -->Pending;
+        Pending-- trusted -->PartOfPublicNetwork;
 
 .. note:: If more than one node were started in ``recover`` mode, the node with the highest signed sequence number (as per the response to the ``/node/state`` RPC) should be preferred to start the new network. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
 

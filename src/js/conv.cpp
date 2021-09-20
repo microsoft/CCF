@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "js/wrap.h"
 
-namespace js
+namespace ccf::js
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"

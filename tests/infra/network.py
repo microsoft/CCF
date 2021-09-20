@@ -127,13 +127,7 @@ class Network:
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
-            # When creating a new network from an existing one (e.g. for recovery),
-            # the node id of the nodes of the new network should start from the node
-            # id of the existing network, so that new nodes id match the ones in the
-            # nodes KV table
-            self.next_node_id = (
-                len(existing_network.nodes) + existing_network.next_node_id
-            )
+            self.next_node_id = existing_network.next_node_id
             self.txs = existing_network.txs
             self.jwt_issuer = existing_network.jwt_issuer
 

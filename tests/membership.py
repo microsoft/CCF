@@ -324,7 +324,7 @@ if __name__ == "__main__":
     cr.add(
         "membership",
         run,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=0,
     )
@@ -332,7 +332,7 @@ if __name__ == "__main__":
     cr.add(
         "member_client",
         memberclient.run,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=1),
     )
 

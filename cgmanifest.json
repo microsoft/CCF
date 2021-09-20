@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "f42a74b8f53cc308647123d49d33d1c8122e3f42"
+          "commitHash": "626e7d61e44dee32887126c8f437dd077dec09cf"
         }
       }
     },
@@ -50,7 +50,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "7bdf0628b1276379886c7f6dda2cef2b3b374f0b"
+          "commitHash": "d141cdbeb0fb422a3fb7173b285fd38e0d1772dc"
         }
       }
     },
@@ -94,15 +94,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/bombela/backward-cpp",
-          "commitHash": "83da75636cef3ee6e0c83cf8651e2929e1b87261"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/rollbear/trompeloeil",
           "commitHash": "08cba57ed7207c8ad5c94fd2a20dc0bfecabe878"
         }
@@ -113,7 +104,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "2046903d99690b13a4a51a976dcc68254705fcd5"
+          "commitHash": "a4aa7a70e8b9a67f378b53264c61bb044a224366"
         }
       }
     },

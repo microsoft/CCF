@@ -16,7 +16,7 @@ pr:
 resources:
   containers:
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.17.1-focal-docker
+      image: ccfciteam/ccf-ci:oe0.17.2-docker-cli
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
@@ -29,6 +29,6 @@ jobs:
       cmake_args: "-DCOMPILE_TARGETS=sgx -DWORKER_THREADS=2"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
-      ctest_filter: '-LE "perf|partitions|bft"'
+      ctest_filter: '-LE "perf|bft"'
       ctest_timeout: "0" # No timeout
 
