@@ -122,7 +122,7 @@ endforeach()
 
 # Copy utilities from tests directory
 set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh test_python_cli.sh
+                       test_install.sh test_python_cli.sh docker_wrap.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -458,7 +458,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
-    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
+    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;CONTAINER_NODES"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -529,6 +529,14 @@ function(add_e2e_test)
         TEST ${PARSED_ARGS_NAME}
         APPEND
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
+      )
+    endif()
+    if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
+      # Containerised nodes are only enabled with long tests
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "CONTAINER_NODES=ON"
       )
     endif()
     set_property(

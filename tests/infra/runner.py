@@ -63,7 +63,7 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             "client_" + str(client_id),
             client_host,
             args.client,
-            node.host,
+            node.rpc_host,
             node.rpc_port,
             args.workspace,
             args.label,
