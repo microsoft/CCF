@@ -982,8 +982,9 @@ class Network:
         snapshot_evidence_seqno = None
         primary, _ = self.find_primary()
         for s in os.listdir(primary.get_snapshots()):
-            if infra.node.get_snapshot_seqnos(s)[0] > seqno:
-                snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)[1]
+            snapshot_seqno, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)
+            if snapshot_seqno > seqno:
+                break
         if snapshot_evidence_seqno is None:
             return False
 
