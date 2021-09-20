@@ -265,7 +265,7 @@ class ConcurrentRunner:
 
         if self.args.N:
             for thread in self.threads:
-                print(thread)
+                print(thread.name)
             return
 
         if self.args.R:
