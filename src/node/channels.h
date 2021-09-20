@@ -195,6 +195,10 @@ namespace ccf
         // Set local recv nonce to received nonce only if verification is
         // successful
         *local_nonce = recv_nonce.nonce;
+
+        // Now safe to forget the key establishment context - we've successfully
+        // decrypted something from the peer
+        kex_ctx.free_ctx();
       }
 
       size_t num_messages = send_nonce + recv_nonce.nonce;
@@ -536,7 +540,12 @@ namespace ccf
       }
       else if (status == WAITING_FOR_FINAL)
       {
-        return false;
+        // Peer tried to initiate, but this node was still waiting for a
+        // previous attempt to succeed. Reset and obey the newer attempt.
+        reset();
+        LOG_INFO_FMT(
+          "Received initiation attempt while in WAITING_FOR_FINAL - resetting "
+          "to handle it");
       }
 
       key_exchange_in_progress = true;
@@ -672,7 +681,10 @@ namespace ccf
         info);
       send_key = crypto::make_key_aes_gcm(key_bytes);
 
-      kex_ctx.free_ctx();
+      // NB: Don't free this context just because this node think the channel is
+      // established. If the FINAL message is lost and peer resends a RESPONSE
+      // message, this node must retain this context to process it!
+      // kex_ctx.free_ctx();
       send_nonce = 1;
       for (size_t i = 0; i < local_recv_nonce.size(); i++)
       {
