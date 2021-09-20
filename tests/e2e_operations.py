@@ -94,7 +94,9 @@ def run_tls_san_checks(args):
         args.san = None
         new_node = network.create_node(f"local://localhost:0,{dummy_public_rpc_host}")
         network.join_node(new_node, args.package, args)
-        sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
+        sans = infra.crypto.get_san_from_pem_cert(
+            new_node.get_tls_certificate_pem(use_public_rpc_host=False)
+        )
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
