@@ -144,7 +144,7 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("log/private")
 def test_remove(network, args):
-    supported_packages = ["libjs_generic", "liblogging"]
+    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -190,7 +190,7 @@ def test_remove(network, args):
 @reqs.description("Write/Read/Clear messages on primary")
 @reqs.supports_methods("log/private/all", "log/public/all")
 def test_clear(network, args):
-    supported_packages = ["libjs_generic", "liblogging"]
+    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -242,7 +242,7 @@ def test_clear(network, args):
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("log/private/count", "log/public/count")
 def test_record_count(network, args):
-    supported_packages = ["libjs_generic", "liblogging"]
+    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -300,7 +300,7 @@ def test_record_count(network, args):
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("log/private/prefix_cert", "log/private")
 def test_cert_prefix(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         for user in network.users:
@@ -322,7 +322,7 @@ def test_cert_prefix(network, args):
 @reqs.description("Write as anonymous caller")
 @reqs.supports_methods("log/private/anonymous", "log/private")
 def test_anonymous_caller(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         # Create a new user but do not record its identity
@@ -465,7 +465,7 @@ def test_multi_auth(network, args):
 @reqs.description("Call an endpoint with a custom auth policy")
 @reqs.supports_methods("custom_auth")
 def test_custom_auth(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, other = network.find_primary_and_any_backup()
 
         for node in (primary, other):
@@ -518,7 +518,7 @@ def test_custom_auth(network, args):
 @reqs.description("Call an endpoint with a custom auth policy which throws")
 @reqs.supports_methods("custom_auth")
 def test_custom_auth_safety(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, other = network.find_primary_and_any_backup()
 
         for node in (primary, other):
@@ -537,7 +537,7 @@ def test_custom_auth_safety(network, args):
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         log_id = 101
@@ -688,7 +688,7 @@ def test_historical_receipts(network, args):
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("log/private", "log/private/historical/range")
 def test_historical_query_range(network, args):
-    if args.package != "liblogging":
+    if args.package != "samples/apps/logging/liblogging":
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
         )
@@ -861,7 +861,7 @@ def test_forwarding_frontends(network, args):
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
-        if args.package == "liblogging":
+        if args.package == "samples/apps/logging/liblogging":
             escaped_query_tests(c, "request_query")
 
     return network
@@ -870,7 +870,7 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Testing signed queries with escaped queries")
 @reqs.at_least_n_nodes(2)
 def test_signed_escapes(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         node = network.find_node_by_role()
         with node.client("user0", "user0") as c:
             escaped_query_tests(c, "signed_request_query")
@@ -881,7 +881,7 @@ def test_signed_escapes(network, args):
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("log/private/admin_only")
 def test_user_data_ACL(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         user = network.users[0]
@@ -1359,7 +1359,7 @@ def run(args):
             network = test_rekey(network, args)
             network = test_liveness(network, args)
             network = test_random_receipts(network, args)
-        if args.package == "liblogging":
+        if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
 
@@ -1379,7 +1379,7 @@ if __name__ == "__main__":
     cr.add(
         "cpp",
         run,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         js_app_bundle=None,
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
