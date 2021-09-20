@@ -59,7 +59,19 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
 .. code-block:: bash
 
     $ cd build
-    $ ./tests.sh
+    $ ./tests.sh -LE partitions
+
+The `partitions` test requires `root` access (to set up firewall rules), so it will not pass when using normal user accounts.
+To run the partitions test, please use `sudo`.
+
+.. code-block:: bash
+
+    $ sudo ./tests.sh -R partitions
+
+Be sure to run the non-root tests first, or the configuration will be created as root and break some non-root tests from altering it.
+
+.. note::
+   Use the `-j<threads>` option to speed up tests, unless you're running benchmarks, in which case it's best to run single-threaded.
 
 Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. `tests.sh <https://github.com/microsoft/CCF/blob/main/tests/tests.sh>`_ will set up a virtual environment with these dependencies and activate it before running ``ctest`` (use ``-VV`` for verbose test output). Further runs will re-use that virtual environment.
 
