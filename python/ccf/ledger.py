@@ -225,9 +225,7 @@ class PublicDomain:
         return self._version
 
 
-def _byte_read_safe(
-    file, num_of_bytes=None
-):  # TODO: Remove None behaviour when receipt is len prefixed
+def _byte_read_safe(file, num_of_bytes=None):
     offset = file.tell()
     ret = file.read(num_of_bytes)
     if num_of_bytes is not None and len(ret) != num_of_bytes:
@@ -612,7 +610,7 @@ class Snapshot(Entry):
         entry_start_pos = super()._read_header()
 
         # Snapshots embed evidence receipt since 2.x
-        if self.is_committed and not self.is_snapshot_file_1_x():
+        if self.is_committed() and not self.is_snapshot_file_1_x():
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek(self._file, num_bytes=None, pos=receipt_pos)
 

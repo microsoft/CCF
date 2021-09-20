@@ -146,50 +146,6 @@ namespace ccf
     //
     std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
 
-    struct StartupSnapshotInfo
-    {
-      std::vector<uint8_t>& raw;
-      consensus::Index seqno;
-      std::optional<consensus::Index> evidence_seqno =
-        std::nullopt; // Only set for 1.x snapshots
-
-      // Store used to verify a snapshot (either created fresh when a node joins
-      // from a snapshot or points to the main store when recovering from a
-      // snapshot)
-      std::shared_ptr<kv::Store> store = nullptr;
-
-      // The snapshot to startup from (on join or recovery) is only valid once a
-      // signature ledger entry confirms that the snapshot evidence was
-      // committed
-      bool has_evidence = false;
-      bool is_evidence_committed = false;
-
-      StartupSnapshotInfo(
-        const std::shared_ptr<kv::Store>& store_,
-        std::vector<uint8_t>& raw_,
-        consensus::Index seqno_,
-        std::optional<consensus::Index> evidence_seqno_) :
-        raw(raw_),
-        seqno(seqno_),
-        evidence_seqno(evidence_seqno_),
-        store(store_)
-      {}
-
-      bool is_snapshot_verified() const
-      {
-        return has_evidence && is_evidence_committed;
-      }
-
-      bool requires_ledger_verification() const
-      {
-        return evidence_seqno.has_value();
-      }
-
-      ~StartupSnapshotInfo()
-      {
-        reset_data(raw);
-      }
-    };
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
@@ -230,27 +186,19 @@ namespace ccf
       }
 
       kv::ConsensusHookPtrs hooks;
-      bool is_snapshot_verified = deserialise_snapshot(
+      startup_snapshot_info = initialise_from_snapshot(
         snapshot_store,
         config.startup_snapshot,
         hooks,
-        config.startup_snapshot_evidence_seqno
-          .has_value(), // Snapshots without a snapshot evidence seqno specified
-                        // by the host should be self-verifiable
         &view_history,
-        true);
+        true,
+        config.startup_snapshot_evidence_seqno);
 
-      startup_seqno = snapshot_store->current_version();
+      startup_seqno = startup_snapshot_info->seqno;
       ledger_idx = startup_seqno.value();
       last_recovered_signed_idx = ledger_idx;
 
-      startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-        snapshot_store,
-        config.startup_snapshot,
-        ledger_idx,
-        config.startup_snapshot_evidence_seqno);
-
-      return is_snapshot_verified;
+      return !startup_snapshot_info->requires_ledger_verification();
     }
 
   public:
@@ -433,9 +381,6 @@ namespace ccf
 
           if (from_snapshot)
           {
-            // TODO: There's probably something missing here so that the
-            // verification of the evidence in the ledger isn't required to boot
-            // up the node
             initialise_startup_snapshot(true);
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
@@ -588,9 +533,9 @@ namespace ccf
                 network.tables,
                 startup_snapshot_info->raw,
                 hooks,
-                startup_snapshot_info->requires_ledger_verification(),
                 &view_history,
-                resp.network_info->public_only);
+                resp.network_info->public_only,
+                startup_snapshot_info->evidence_seqno);
 
               for (auto& hook : hooks)
               {
@@ -1211,8 +1156,9 @@ namespace ccf
           recovery_store,
           startup_snapshot_info->raw,
           hooks,
-          startup_snapshot_info->requires_ledger_verification(),
-          &view_history);
+          &view_history,
+          false,
+          startup_snapshot_info->evidence_seqno);
         startup_snapshot_info.reset();
       }
 

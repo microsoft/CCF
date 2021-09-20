@@ -121,9 +121,9 @@ namespace ccf
   };
 
   // Note: The SignaturesHook and SerialisedMerkleTreeHook are separate because
-  // the signature and the Merkle tree are recorded in distinct table (for
-  // serialisation performacance reason). However here, they are expected to
-  // always be called one after the other.
+  // the signature and the Merkle tree are recorded in distinct tables (for
+  // serialisation performance reason). However here, they are expected to
+  // always be called one after the other and for the same version.
   class SignaturesHook : public kv::ConsensusHook
   {
     kv::Version version;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "ds/serialized.h"
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
@@ -14,20 +15,73 @@
 
 namespace ccf
 {
-  static bool deserialise_snapshot(
-    const std::shared_ptr<kv::Store>& store,
-    const std::vector<uint8_t>& snapshot,
-    kv::ConsensusHookPtrs& hooks,
-    bool skip_snapshot_verification = false,
-    std::vector<kv::Version>* view_history = nullptr,
-    bool public_only = false)
+  struct StartupSnapshotInfo
   {
-    auto data = snapshot.data();
+    std::vector<uint8_t>& raw;
+    kv::Version seqno;
+    std::optional<kv::Version> evidence_seqno = std::nullopt;
+
+    // Store used to verify a snapshot (either created fresh when a node joins
+    // from a snapshot or points to the main store when recovering from a
+    // snapshot)
+    std::shared_ptr<kv::Store> store = nullptr;
+
+    // The snapshot to startup from (on join or recovery) is only valid once a
+    // signature ledger entry confirms that the snapshot evidence was
+    // committed
+    bool has_evidence = false;
+    bool is_evidence_committed = false;
+
+    StartupSnapshotInfo(
+      const std::shared_ptr<kv::Store>& store_,
+      std::vector<uint8_t>& raw_,
+      kv::Version seqno_,
+      std::optional<kv::Version> evidence_seqno_) :
+      raw(raw_),
+      seqno(seqno_),
+      evidence_seqno(evidence_seqno_),
+      store(store_)
+    {}
+
+    bool is_snapshot_verified() const
+    {
+      return has_evidence && is_evidence_committed;
+    }
+
+    bool requires_ledger_verification() const
+    {
+      // Snapshot evidence seqno is only set by the host for 1.x snapshots
+      // whose evidence need to be verified in the ledger suffix on startup
+      return evidence_seqno.has_value();
+    }
+
+    ~StartupSnapshotInfo()
+    {
+      LOG_FAIL_FMT("Resettting startup snapshot");
+      raw.clear();
+      raw.shrink_to_fit();
+    }
+  };
+
+  static void deserialise_snapshot(
+    const std::shared_ptr<kv::Store>& store,
+    std::vector<uint8_t>& snapshot,
+    kv::ConsensusHookPtrs& hooks,
+    std::vector<kv::Version>* view_history = nullptr,
+    bool public_only = false,
+    std::optional<kv::Version> evidence_seqno = std::nullopt)
+  {
+    const auto* data = snapshot.data();
     auto size = snapshot.size();
+
+    LOG_FAIL_FMT("Snapshot size: {}", snapshot.size());
     auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
     auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
 
-    LOG_DEBUG_FMT("Deserialising snapshot ({})", snapshot.size());
+    LOG_DEBUG_FMT(
+      "Deserialising snapshot (size: {}, public only: {})",
+      snapshot.size(),
+      public_only);
 
     auto rc = store->deserialise_snapshot(
       snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
@@ -40,7 +94,9 @@ namespace ccf
       "Snapshot successfully deserialised at seqno {}",
       store->current_version());
 
-    if (!skip_snapshot_verification)
+    // Snapshots without a snapshot evidence seqno specified by the host should
+    // be self-verifiable with embedded receipt
+    if (!evidence_seqno.has_value())
     {
       auto receipt_data = data + store_snapshot_size;
       auto receipt_size = size - store_snapshot_size;
@@ -92,20 +148,31 @@ namespace ccf
       // }
 
       LOG_FAIL_FMT("Snapshot successfully verified");
-      return true;
     }
-
-    return false;
   };
+
+  static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
+    const std::shared_ptr<kv::Store>& store,
+    std::vector<uint8_t>& snapshot,
+    kv::ConsensusHookPtrs& hooks,
+    std::vector<kv::Version>* view_history = nullptr,
+    bool public_only = false,
+    std::optional<kv::Version> evidence_seqno = std::nullopt)
+  {
+    deserialise_snapshot(
+      store, snapshot, hooks, view_history, public_only, evidence_seqno);
+    return std::make_unique<StartupSnapshotInfo>(
+      store, snapshot, store->current_version(), evidence_seqno);
+  }
 
   static std::vector<uint8_t> build_and_serialise_receipt(
     const std::vector<uint8_t>& s,
     const std::vector<uint8_t>& t,
     const NodeId& node_id,
-    consensus::Index idx)
+    kv::Version seqno)
   {
     ccf::MerkleTreeHistory tree(t);
-    auto proof = tree.get_proof(idx);
+    auto proof = tree.get_proof(seqno);
     auto tx_receipt =
       ccf::TxReceipt(s, proof.get_root(), proof.get_path(), node_id);
 
