@@ -196,9 +196,12 @@ namespace ccf
         // successful
         *local_nonce = recv_nonce.nonce;
 
-        // Now safe to forget the key establishment context - we've successfully
-        // decrypted something from the peer
-        kex_ctx.free_ctx();
+        if (!key_exchange_in_progress)
+        {
+          // Now safe to forget the key establishment context - we've
+          // successfully decrypted something from the peer
+          kex_ctx.free_ctx();
+        }
       }
 
       size_t num_messages = send_nonce + recv_nonce.nonce;
