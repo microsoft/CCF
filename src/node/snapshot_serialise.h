@@ -57,7 +57,6 @@ namespace ccf
 
     ~StartupSnapshotInfo()
     {
-      LOG_FAIL_FMT("Resettting startup snapshot");
       raw.clear();
       raw.shrink_to_fit();
     }
