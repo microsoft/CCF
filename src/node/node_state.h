@@ -351,6 +351,8 @@ namespace ccf
       }
 #endif
 
+      setup_history();
+
       switch (start_type)
       {
         case StartType::New:
@@ -371,7 +373,6 @@ namespace ccf
           setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
           setup_progress_tracker();
-          setup_history();
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -413,8 +414,6 @@ namespace ccf
 
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             "CN=CCF Network", curve_id);
-
-          setup_history();
 
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
@@ -560,7 +559,6 @@ namespace ccf
               resp.network_info->public_only,
               n2n_channels_cert);
             setup_progress_tracker();
-            setup_history();
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
