@@ -7,6 +7,18 @@
     update_cache: yes
   become: yes
 
+# Note: Do not install docker CLI if moby-buildx is already installed
+- name: Gather the package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Install docker debs
+  apt:
+    name: "{{ docker_debs }}"
+    update_cache: yes
+  become: yes
+  when: "'moby-buildx' not in ansible_facts.packages"
+
 - name: Download mbedtls
   get_url:
     url: https://github.com/ARMmbed/mbedtls/archive/{{ mbedtls_src }}
