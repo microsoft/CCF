@@ -353,6 +353,7 @@ namespace ccf
 
       setup_history();
       setup_progress_tracker();
+      setup_snapshotter();
 
       switch (start_type)
       {
@@ -370,7 +371,6 @@ namespace ccf
             open_frontend(ActorsType::members);
           }
 
-          setup_snapshotter();
           setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
 
@@ -422,7 +422,6 @@ namespace ccf
           // secrets.
           setup_encryptor();
 
-          setup_snapshotter();
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
 
@@ -551,7 +550,6 @@ namespace ccf
                 resp.network_info->endorsed_certificate.value();
             }
 
-            setup_snapshotter();
             setup_encryptor();
             setup_consensus(
               resp.network_info->service_status.value_or(
