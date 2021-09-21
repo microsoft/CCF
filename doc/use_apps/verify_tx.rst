@@ -88,4 +88,4 @@ Verifying a receipt is a three-phase process:
 
   - Combine ``leaf`` with the successive elements in ``proof`` to calculate the value of ``root``. See :py:func:`ccf.receipt.root` for a reference implementation.
   - Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id`` and ``cert``. See :py:func:`ccf.receipt.verify` for a reference implementation.
-  - Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. :py:func:`ccf.receipt.check_endorsement` for a reference implementation.
+  - Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsement` for a reference implementation.
