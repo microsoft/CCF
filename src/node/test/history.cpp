@@ -83,11 +83,13 @@ TEST_CASE("Check signature verification")
   std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
       primary_store, kv::test::PrimaryNodeId, *kp);
+  primary_history->set_endorsed_certificate({});
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
       backup_store, kv::test::FirstBackupNodeId, *kp);
+  backup_history->set_endorsed_certificate({});
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
@@ -143,11 +145,13 @@ TEST_CASE("Check signing works across rollback")
   std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
       primary_store, kv::test::PrimaryNodeId, *kp);
+  primary_history->set_endorsed_certificate({});
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
       backup_store, kv::test::FirstBackupNodeId, *kp);
+  backup_history->set_endorsed_certificate({});
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");

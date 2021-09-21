@@ -368,6 +368,7 @@ namespace ccf
           if (network.consensus_type == ConsensusType::BFT)
           {
             endorsed_node_cert = create_endorsed_node_cert();
+            history->set_endorsed_certificate(endorsed_node_cert.value());
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
           }
@@ -532,6 +533,7 @@ namespace ccf
               // self-sign own certificate and use it to endorse TLS
               // connections.
               endorsed_node_cert = create_endorsed_node_cert();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels_cert = endorsed_node_cert.value();
               open_frontend(ActorsType::members);
               open_user_frontend();
@@ -941,6 +943,7 @@ namespace ccf
       if (network.consensus_type == ConsensusType::BFT)
       {
         endorsed_node_cert = create_endorsed_node_cert();
+        history->set_endorsed_certificate(endorsed_node_cert.value());
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
       }
@@ -1861,6 +1864,7 @@ namespace ccf
               }
 
               endorsed_node_cert = endorsed_certificate.value();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
