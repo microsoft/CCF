@@ -354,6 +354,7 @@ namespace ccf
       setup_history();
       setup_progress_tracker();
       setup_snapshotter();
+      setup_encryptor();
 
       switch (start_type)
       {
@@ -371,7 +372,6 @@ namespace ccf
             open_frontend(ActorsType::members);
           }
 
-          setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
 
           // Become the primary and force replication
@@ -414,13 +414,6 @@ namespace ccf
 
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             "CN=CCF Network", curve_id);
-
-          // It is necessary to give an encryptor to the store for it to
-          // deserialise the public domain when recovering the public ledger.
-          // Once the public recovery is complete, the existing encryptor is
-          // replaced with a new one initialised with the recovered ledger
-          // secrets.
-          setup_encryptor();
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
@@ -550,7 +543,6 @@ namespace ccf
                 resp.network_info->endorsed_certificate.value();
             }
 
-            setup_encryptor();
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
@@ -954,7 +946,6 @@ namespace ccf
       }
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
-      setup_encryptor();
 
       // Initialise snapshotter after public recovery
       snapshotter->init_after_public_recovery();
