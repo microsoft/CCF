@@ -1946,6 +1946,11 @@ namespace ccf
 
     void setup_history()
     {
+      if (history)
+      {
+        throw std::logic_error("History already initialised");
+      }
+
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
@@ -1953,14 +1958,16 @@ namespace ccf
         sig_tx_interval,
         sig_ms_interval,
         true);
-
       network.tables->set_history(history);
     }
 
     void setup_encryptor()
     {
-      // This function makes use of ledger secrets and should be called once
-      // the node has joined the service
+      if (encryptor)
+      {
+        throw std::logic_error("Encryptor already initialised");
+      }
+
       encryptor = make_encryptor();
       network.tables->set_encryptor(encryptor);
     }
@@ -1973,7 +1980,6 @@ namespace ccf
     {
       setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
-      setup_tracker_store();
 
       auto request_tracker = std::make_shared<aft::RequestTracker>();
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
@@ -2057,6 +2063,11 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
+        if (progress_tracker)
+        {
+          throw std::logic_error("Progress tracker already initialised");
+        }
+
         setup_tracker_store();
         progress_tracker =
           std::make_shared<ccf::ProgressTracker>(tracker_store, self);
@@ -2066,6 +2077,10 @@ namespace ccf
 
     void setup_snapshotter()
     {
+      if (snapshotter)
+      {
+        throw std::logic_error("Snapshotter already initialised");
+      }
       snapshotter = std::make_shared<Snapshotter>(
         writer_factory, network.tables, config.snapshot_tx_interval);
     }
