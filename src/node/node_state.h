@@ -352,6 +352,7 @@ namespace ccf
 #endif
 
       setup_history();
+      setup_progress_tracker();
 
       switch (start_type)
       {
@@ -372,7 +373,6 @@ namespace ccf
           setup_snapshotter();
           setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
-          setup_progress_tracker();
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -558,7 +558,6 @@ namespace ccf
                 ServiceStatus::OPENING),
               resp.network_info->public_only,
               n2n_channels_cert);
-            setup_progress_tracker();
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
@@ -989,7 +988,6 @@ namespace ccf
       }
 
       setup_consensus(ServiceStatus::OPENING, true);
-      setup_progress_tracker();
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
