@@ -35,6 +35,16 @@ from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 
+def verify_receipt(receipt, network_cert):
+    """
+    Raises an exception on failure
+    """
+    node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
+    ccf.receipt.check_endorsement(node_cert, network_cert)
+    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+    ccf.receipt.verify(root, receipt["signature"], node_cert)
+
+
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
@@ -72,9 +82,9 @@ def test_illegal(network, args, verify=True):
         )
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn = context.wrap_socket(
-            sock, server_side=False, server_hostname=primary.host
+            sock, server_side=False, server_hostname=primary.get_public_rpc_host()
         )
-        conn.connect((primary.host, primary.pubport))
+        conn.connect((primary.get_public_rpc_host(), primary.pubport))
         LOG.info(f"Sending: {content}")
         conn.sendall(content)
         response = HTTPResponse(conn)
@@ -639,12 +649,6 @@ def test_historical_query(network, args):
 @reqs.supports_methods("log/private", "log/private/historical_receipt")
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        primary_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
     TXS_COUNT = 5
     network.txs.issue(network, number_txs=5)
     for idx in range(1, TXS_COUNT + 1):
@@ -654,14 +658,13 @@ def test_historical_receipts(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"]
             )
             r = first_receipt.json()["receipt"]
-            root = ccf.receipt.root(r["leaf"], r["proof"])
-            ccf.receipt.verify(root, r["signature"], primary_cert)
+            verify_receipt(r, network.cert)
 
-    # receipt.verify() raises if it fails, but does not return anything
+    # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
     try:
         ccf.receipt.verify(
-            hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
+            hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
         )
     except InvalidSignature:
         verified = False
@@ -1072,7 +1075,7 @@ def test_primary(network, args):
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
-            == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+            == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
         )
     return network
 
@@ -1091,7 +1094,7 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
-            assert node["host"] == n.pubhost
+            assert node["host"] == n.get_public_rpc_host()
             assert node["port"] == str(n.pubport)
             assert node["primary"] == (n == primary)
             del nodes_by_id[n.node_id]
@@ -1107,7 +1110,7 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             assert (
                 r.headers["location"]
-                == f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{node.node_id}"
+                == f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{node.node_id}"
             ), r.headers["location"]
 
             # Following that redirect gets you the node info
@@ -1115,7 +1118,7 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.OK.value
             body = r.body.json()
             assert body["node_id"] == node.node_id
-            assert body["host"] == node.pubhost
+            assert body["host"] == node.get_public_rpc_host()
             assert body["port"] == str(node.pubport)
             assert body["primary"] == (node == primary)
 
@@ -1129,7 +1132,7 @@ def test_network_node_info(network, args):
                 assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
                 assert (
                     r.headers["location"]
-                    == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+                    == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
                 ), r.headers["location"]
                 r = c.head("/node/primary", allow_redirects=True)
 
@@ -1139,7 +1142,7 @@ def test_network_node_info(network, args):
             r = c.get("/node/network/nodes/primary", allow_redirects=False)
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             actual = r.headers["location"]
-            expected = f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{primary.node_id}"
+            expected = f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{primary.node_id}"
             assert actual == expected, f"{actual} != {expected}"
 
             # Following that redirect gets you the primary's node info
@@ -1182,12 +1185,6 @@ def test_memory(network, args):
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        node_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
     with primary.client() as mc:
         check_commit = infra.checker.Checker(mc)
         msg = "Hello world"
@@ -1203,8 +1200,7 @@ def test_receipts(network, args):
                     rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
                     if rc.status_code == http.HTTPStatus.OK:
                         receipt = rc.body.json()
-                        root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
-                        ccf.receipt.verify(root, receipt["signature"], node_cert)
+                        verify_receipt(receipt, network.cert)
                         break
                     elif rc.status_code == http.HTTPStatus.ACCEPTED:
                         time.sleep(0.5)
@@ -1214,10 +1210,10 @@ def test_receipts(network, args):
     return network
 
 
-@reqs.description("Validate all receipts")
+@reqs.description("Validate random receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_random_receipts(network, args):
+def test_random_receipts(network, args, lts=False):
     primary, _ = network.find_primary_and_any_backup()
 
     common = os.listdir(network.common_dir)
@@ -1230,9 +1226,7 @@ def test_random_receipts(network, args):
     for path in cert_paths:
         with open(path, encoding="utf-8") as c:
             cert = c.read()
-        certs[
-            infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)
-        ] = load_pem_x509_certificate(cert.encode("ascii"), default_backend())
+        certs[infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)] = cert
 
     with primary.client("user0") as c:
         r = c.get("/app/commit")
@@ -1255,14 +1249,12 @@ def test_random_receipts(network, args):
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
-                    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
-                    ccf.receipt.verify(
-                        root, receipt["signature"], certs[receipt["node_id"]]
-                    )
+                    if lts and not receipt.get("cert"):
+                        receipt["cert"] = certs[receipt["node_id"]]
+                    verify_receipt(receipt, network.cert)
                     if s == max_seqno:
                         # Always a signature receipt
                         assert receipt["proof"] == [], receipt
-                    print(f"Verified receipt for {view}.{s}")
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
                     time.sleep(0.5)
@@ -1305,11 +1297,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
+        network = test(network, args, verify=args.package != "libjs_generic")
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)

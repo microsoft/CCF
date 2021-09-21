@@ -51,13 +51,18 @@ def strip_release_branch_name(branch_name):
     return branch_name[len(BRANCH_RELEASE_PREFIX) :]
 
 
+def strip_release_tag_name(tag_name):
+    assert is_release_tag(tag_name), tag_name
+    return tag_name[len(TAG_RELEASE_PREFIX) :]
+
+
 def get_major_version_from_release_branch_name(full_branch_name):
     return int(strip_release_branch_name(full_branch_name).split(".")[0])
 
 
 def get_version_from_tag_name(tag_name):
     assert is_release_tag(tag_name), tag_name
-    return Version(tag_name[len(TAG_RELEASE_PREFIX) :])
+    return Version(strip_release_tag_name(tag_name))
 
 
 def get_release_branch_from_branch_name(branch_name):
@@ -107,6 +112,26 @@ class Repository:
             if "heads/release" in branch
         ]
 
+    def _filter_released_tags(self, tags):
+        # From a list of tags ordered by semver (latest first), filter out the ones
+        # that don't have a release yet
+        first_release_tag_idx = -1
+        for i, t in enumerate(tags):
+            if not has_release_for_tag_name(t):
+                LOG.debug(f"No release available for tag {t}")
+                first_release_tag_idx = i
+            else:
+                break
+
+        return tags[first_release_tag_idx + 1 :]
+
+    def get_latest_dev_tag(self):
+        dev_tags = [t for t in self.tags if "-dev" in t]
+        dev_tags.reverse()
+
+        # Only consider tags that have releases as a release might be in progress
+        return self._filter_released_tags(dev_tags)[0]
+
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
         return sorted(
@@ -152,15 +177,7 @@ class Repository:
         )
 
         # Only consider tags that have releases as a release might be in progress
-        first_release_tag_idx = -1
-        for i, t in enumerate(tags_for_release):
-            if not has_release_for_tag_name(t):
-                LOG.debug(f"No release available for tag {t}")
-                first_release_tag_idx = i
-            else:
-                break
-
-        return tags_for_release[first_release_tag_idx + 1 :]
+        return self._filter_released_tags(tags_for_release)
 
     def get_lts_releases(self):
         """
@@ -175,7 +192,7 @@ class Repository:
         return releases
 
     def install_release(self, tag):
-        stripped_tag = tag[len(TAG_RELEASE_PREFIX) :]
+        stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
         debian_package_url = get_debian_package_url_from_tag_name(tag)
 

@@ -619,6 +619,7 @@ if(BUILD_TESTS)
     NAME e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
+    CONTAINER_NODES TRUE
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -633,6 +634,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
     LABEL partitions
+    CONFIGURATIONS partitions
     # Higher snapshot interval as the test currently assumes that no
     # transactions are emitted while partitions are up. To be removed when
     # https://github.com/microsoft/CCF/issues/2577 is implemented
@@ -723,10 +725,6 @@ if(BUILD_TESTS)
       CONFIGURATIONS long_stress
       ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
     )
-
-    # add_e2e_test( NAME reconfiguration_test_${CONSENSUS} PYTHON_SCRIPT
-    # ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py CONSENSUS ${CONSENSUS}
-    # ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} )
 
   endforeach()
 

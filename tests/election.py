@@ -119,4 +119,4 @@ if __name__ == "__main__":
             consensus="bft",
         )
 
-    cr.run()
+    cr.run(1)

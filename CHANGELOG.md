@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Receipts now include the endorsed certificate of the node, as well as its node id, for convenience.
+
+## [2.0.0-dev4]
+
+### Added
+
 - Added `foreach_key` and `foreach_value` to C++ KV API, to iterate without deserializing both entries when only one is used (#2918).
 - `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 
@@ -974,6 +980,9 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev4
+[ccf-2.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev3
+[ccf-2.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev2
 [ccf-2.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev1
 [ccf-2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
 [1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3

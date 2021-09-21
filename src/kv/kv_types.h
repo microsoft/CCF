@@ -377,6 +377,7 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
+    virtual void set_endorsed_certificate(const crypto::Pem& cert) = 0;
   };
 
   class Consensus : public ConfigurableConsensus

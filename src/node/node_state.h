@@ -301,6 +301,11 @@ namespace ccf
       }
 #endif
 
+      setup_history();
+      setup_progress_tracker();
+      setup_snapshotter();
+      setup_encryptor();
+
       switch (start_type)
       {
         case StartType::New:
@@ -313,15 +318,12 @@ namespace ccf
           if (network.consensus_type == ConsensusType::BFT)
           {
             endorsed_node_cert = create_endorsed_node_cert();
+            history->set_endorsed_certificate(endorsed_node_cert.value());
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
           }
 
-          setup_snapshotter();
-          setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
-          setup_progress_tracker();
-          setup_history();
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -366,16 +368,6 @@ namespace ccf
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             "CN=CCF Network", curve_id);
 
-          setup_history();
-
-          // It is necessary to give an encryptor to the store for it to
-          // deserialise the public domain when recovering the public ledger.
-          // Once the public recovery is complete, the existing encryptor is
-          // replaced with a new one initialised with the recovered ledger
-          // secrets.
-          setup_encryptor();
-
-          setup_snapshotter();
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
 
@@ -493,6 +485,7 @@ namespace ccf
               // self-sign own certificate and use it to endorse TLS
               // connections.
               endorsed_node_cert = create_endorsed_node_cert();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels_cert = endorsed_node_cert.value();
               open_frontend(ActorsType::members);
               open_user_frontend();
@@ -504,15 +497,11 @@ namespace ccf
                 resp.network_info->endorsed_certificate.value();
             }
 
-            setup_snapshotter();
-            setup_encryptor();
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
               resp.network_info->public_only,
               n2n_channels_cert);
-            setup_progress_tracker();
-            setup_history();
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
@@ -907,12 +896,12 @@ namespace ccf
       if (network.consensus_type == ConsensusType::BFT)
       {
         endorsed_node_cert = create_endorsed_node_cert();
+        history->set_endorsed_certificate(endorsed_node_cert.value());
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
       }
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
-      setup_encryptor();
 
       // Initialise snapshotter after public recovery
       snapshotter->init_after_public_recovery();
@@ -944,7 +933,6 @@ namespace ccf
       }
 
       setup_consensus(ServiceStatus::OPENING, true);
-      setup_progress_tracker();
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
@@ -1825,6 +1813,7 @@ namespace ccf
               }
 
               endorsed_node_cert = endorsed_certificate.value();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
@@ -1910,6 +1899,11 @@ namespace ccf
 
     void setup_history()
     {
+      if (history)
+      {
+        throw std::logic_error("History already initialised");
+      }
+
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
@@ -1917,14 +1911,16 @@ namespace ccf
         sig_tx_interval,
         sig_ms_interval,
         true);
-
       network.tables->set_history(history);
     }
 
     void setup_encryptor()
     {
-      // This function makes use of ledger secrets and should be called once
-      // the node has joined the service
+      if (encryptor)
+      {
+        throw std::logic_error("Encryptor already initialised");
+      }
+
       encryptor = make_encryptor();
       network.tables->set_encryptor(encryptor);
     }
@@ -1937,7 +1933,6 @@ namespace ccf
     {
       setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
-      setup_tracker_store();
 
       auto request_tracker = std::make_shared<aft::RequestTracker>();
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
@@ -2037,6 +2032,11 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
+        if (progress_tracker)
+        {
+          throw std::logic_error("Progress tracker already initialised");
+        }
+
         setup_tracker_store();
         progress_tracker =
           std::make_shared<ccf::ProgressTracker>(tracker_store, self);
@@ -2046,6 +2046,10 @@ namespace ccf
 
     void setup_snapshotter()
     {
+      if (snapshotter)
+      {
+        throw std::logic_error("Snapshotter already initialised");
+      }
       snapshotter = std::make_shared<Snapshotter>(
         writer_factory, network.tables, config.snapshot_tx_interval);
     }
