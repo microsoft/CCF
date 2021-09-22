@@ -35,12 +35,13 @@ from infra.runner import ConcurrentRunner
 from loguru import logger as LOG
 
 
-def verify_receipt(receipt, network_cert):
+def verify_receipt(receipt, network_cert, check_endorsement=True):
     """
     Raises an exception on failure
     """
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
-    ccf.receipt.check_endorsement(node_cert, network_cert)
+    if check_endorsement:
+        ccf.receipt.check_endorsement(node_cert, network_cert)
     root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
@@ -1251,7 +1252,7 @@ def test_random_receipts(network, args, lts=False):
                     receipt = rc.body.json()
                     if lts and not receipt.get("cert"):
                         receipt["cert"] = certs[receipt["node_id"]]
-                    verify_receipt(receipt, network.cert)
+                    verify_receipt(receipt, network.cert, not lts)
                     if s == max_seqno:
                         # Always a signature receipt
                         assert receipt["proof"] == [], receipt
