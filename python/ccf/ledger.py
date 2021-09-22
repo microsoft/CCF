@@ -615,12 +615,11 @@ class Snapshot(Entry):
             receipt_bytes = _peek(self._file, num_bytes=None, pos=receipt_pos)
 
             receipt = json.loads(receipt_bytes.decode("utf-8"))
-            # LOG.error(receipt)
             root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
-            # LOG.success(root)
-
-            # TODO: Verify snapshot integrity once endorsed node certificate is
-            # in the receipt
+            node_cert = load_pem_x509_certificate(
+                receipt["cert"].encode(), default_backend()
+            )
+            ccf.receipt.verify(root, receipt["signature"], node_cert)
 
     def is_committed(self):
         # Note: Also valid for 1.x snapshots which end in ".committed_Z"
