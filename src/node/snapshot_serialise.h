@@ -151,7 +151,6 @@ namespace ccf
       store, snapshot, store->current_version(), evidence_seqno);
   }
 
-  // TODO: This should be moved elsewhere
   static std::vector<uint8_t> build_and_serialise_receipt(
     const std::vector<uint8_t>& s,
     const std::vector<uint8_t>& t,
