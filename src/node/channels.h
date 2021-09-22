@@ -11,6 +11,7 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
+#include "enclave/enclave_time.h"
 #include "entities.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
@@ -81,6 +82,8 @@ namespace ccf
     static constexpr size_t default_message_limit = 23726566;
 #endif
 
+    static std::chrono::microseconds min_gap_between_initiation_attempts;
+
   private:
     struct OutgoingMsg
     {
@@ -108,6 +111,7 @@ namespace ccf
     // Used for key exchange
     tls::KeyExchangeContext kex_ctx;
     ds::StateMachine<ChannelStatus> status;
+    std::chrono::microseconds last_initiation_time;
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
@@ -301,15 +305,27 @@ namespace ccf
       }
       else if (status.check(INITIATED))
       {
-        // If we try to initiate too early when a node starts up, they will
-        // never receive the init message (they drop it if it arrives too early
-        // in their state machine). So sometimes we need to re-initiate.
-        // Currently, this means if we try to send too fast during initial key
-        // exchange, we'll constantly generate new handshake attempts and never
-        // succeed! This should be handled by a timeout, timing out an INITIATED
-        // connection faster than a later one, but still slow enough that we
-        // give a roundtrip a chance.
-        initiate();
+        const auto time_since_initiated =
+          enclave::get_enclave_time() - last_initiation_time;
+        if (
+          time_since_initiated >= min_gap_between_initiation_attempts)
+        {
+          // TODO: Doc this, there is now a timeout on this!
+
+          // If we try to initiate too early when a node starts up, they will
+          // never receive the init message (they drop it if it arrives too
+          // early in their state machine). So sometimes we need to re-initiate.
+          // Currently, this means if we try to send too fast during initial key
+          // exchange, we'll constantly generate new handshake attempts and
+          // never succeed! This should be handled by a timeout, timing out an
+          // INITIATED connection faster than a later one, but still slow enough
+          // that we give a roundtrip a chance.
+          initiate();
+        }
+        else
+        {
+          LOG_INFO_FMT("Ignoring advance attempt! Only {} us have elapsed", time_since_initiated.count());
+        }
       }
     }
 
@@ -389,7 +405,7 @@ namespace ccf
       {
         // Whatever else we _were_ doing, we've received a valid init from them
         // - reset to use it
-        reset();
+        // reset();
         peer_cert = cert;
         peer_cv = verifier;
       }
@@ -745,6 +761,8 @@ namespace ccf
       // currently true
       // status.expect(INACTIVE);
       status.advance(INITIATED);
+
+      last_initiation_time = enclave::get_enclave_time();
 
       send_key_exchange_init();
     }

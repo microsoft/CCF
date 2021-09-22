@@ -16,6 +16,17 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+namespace enclave
+{
+  std::atomic<std::chrono::microseconds>* host_time = nullptr;
+  std::chrono::microseconds last_value(0);
+}
+
+namespace ccf
+{
+  std::chrono::microseconds Channel::min_gap_between_initiation_attempts(0);
+}
+
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
