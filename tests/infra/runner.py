@@ -277,12 +277,8 @@ class ConcurrentRunner:
                 print(thread.name)
             return
 
-        if max_concurrent is None:
+        if not max_concurrent:
             max_concurrent = len(self.threads)
-
-        if max_concurrent == 0:
-            LOG.warning("No tests to run")
-            return
 
         thread_groups = [
             self.threads[i : i + max_concurrent]
