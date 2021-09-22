@@ -43,7 +43,7 @@ jobs:
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: "300"
+      ctest_timeout: "360"
       timeoutInMinutes: 120
 
   - template: common.yml
