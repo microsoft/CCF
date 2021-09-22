@@ -37,8 +37,8 @@ namespace ccf
       consensus::Index idx;
       consensus::Index evidence_idx;
 
-      std::optional<NodeId> node_id =
-        std::nullopt; // TODO: node_id can be replaced with node_cert
+      std::optional<NodeId> node_id = std::nullopt;
+      std::optional<crypto::Pem> node_cert = std::nullopt;
       std::optional<std::vector<uint8_t>> sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
@@ -146,6 +146,7 @@ namespace ccf
             it->sig.value(),
             it->tree.value(),
             it->node_id.value(),
+            it->node_cert.value(),
             it->evidence_idx);
           commit_snapshot(it->idx, serialised_receipt);
           auto it_ = it;
@@ -230,7 +231,8 @@ namespace ccf
     void record_signature(
       consensus::Index idx,
       const std::vector<uint8_t>& sig,
-      const NodeId& node_id)
+      const NodeId& node_id,
+      const crypto::Pem& node_cert)
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -241,6 +243,7 @@ namespace ccf
           !pending_snapshot.sig.has_value())
         {
           pending_snapshot.node_id = node_id;
+          pending_snapshot.node_cert = node_cert;
           pending_snapshot.sig = sig;
         }
       }

@@ -623,9 +623,10 @@ namespace aft
     void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,
-      const ccf::NodeId& node_id)
+      const ccf::NodeId& node_id,
+      const crypto::Pem& node_cert)
     {
-      snapshotter->record_signature(version, sig, node_id);
+      snapshotter->record_signature(version, sig, node_id, node_cert);
     }
 
     void record_serialised_tree(

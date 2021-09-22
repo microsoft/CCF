@@ -164,16 +164,18 @@ namespace ccf
       store, snapshot, store->current_version(), evidence_seqno);
   }
 
+  // TODO: This should be moved elsewhere
   static std::vector<uint8_t> build_and_serialise_receipt(
     const std::vector<uint8_t>& s,
     const std::vector<uint8_t>& t,
-    const NodeId& node_id,
+    const NodeId& n,
+    const crypto::Pem& c,
     kv::Version seqno)
   {
     ccf::MerkleTreeHistory tree(t);
     auto proof = tree.get_proof(seqno);
     auto tx_receipt =
-      ccf::TxReceipt(s, proof.get_root(), proof.get_path(), node_id);
+      ccf::TxReceipt(s, proof.get_root(), proof.get_path(), n, c);
 
     Receipt receipt;
     tx_receipt.describe(receipt);

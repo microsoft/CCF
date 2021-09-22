@@ -381,7 +381,10 @@ namespace aft
     {}
 
     void record_signature(
-      Index, const std::vector<uint8_t>&, const ccf::NodeId&)
+      Index,
+      const std::vector<uint8_t>&,
+      const ccf::NodeId&,
+      const crypto::Pem&)
     {}
   };
 }

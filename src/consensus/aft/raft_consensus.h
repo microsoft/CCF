@@ -138,9 +138,10 @@ namespace aft
     void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,
-      const ccf::NodeId& node_id) override
+      const ccf::NodeId& node_id,
+      const crypto::Pem& node_cert) override
     {
-      aft->record_signature(version, sig, node_id);
+      aft->record_signature(version, sig, node_id, node_cert);
     }
 
     void record_serialised_tree(

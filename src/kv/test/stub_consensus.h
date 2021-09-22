@@ -164,7 +164,8 @@ namespace kv::test
     void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,
-      const NodeId& node_id) override
+      const NodeId& node_id,
+      const crypto::Pem& node_cert) override
     {}
 
     void record_serialised_tree(
