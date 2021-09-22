@@ -80,7 +80,7 @@ The member's identity key is now ready to be used for signing HTTP requests. The
 .. code-block:: bash
 
     # First, retrieve the hash to be signed
-    $ scurl.sh https://<ccf-node-address>/gov/<endpoint> -X [GET|POST] --cert $IDENTITY_CERT_NAME.pem --print-digest-to-sign
+    $ scurl.sh https://<ccf-node-address>/gov/<endpoint> -X [GET|POST] --signing-cert $IDENTITY_CERT_NAME.pem --print-digest-to-sign
     Hash to sign: <hash_to_sign> # To be signed by AKV
     Request headers:
     -H 'Digest: SHA-256=...'
