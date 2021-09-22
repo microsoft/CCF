@@ -12,7 +12,6 @@ import json
 import base64
 from dataclasses import dataclass
 
-from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -378,14 +377,11 @@ class LedgerValidator:
         """Verify item 1, The merkle root is signed by a valid node in the given network"""
         # Note: A retired primary will still issue signature transactions until
         # its retirement is committed
-        if tx_info.node_activity[tx_info.signing_node][0] not in (
-            NodeStatus.TRUSTED.value,
-            NodeStatus.RETIRED.value,
-        ):
-            LOG.error(
-                f"The signing node {tx_info.signing_node!r} is not trusted by the network"
+        node_status = NodeStatus(tx_info.node_activity[tx_info.signing_node][0])
+        if node_status not in (NodeStatus.TRUSTED, NodeStatus.RETIRED):
+            raise UntrustedNodeException(
+                f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )
-            raise UntrustedNodeException
 
     def _verify_root_signature(self, tx_info: TxBundleInfo):
         """Verify item 2, that the Merkle root signature validates against the node certificate"""
@@ -399,22 +395,20 @@ class LedgerValidator:
             )  # type: ignore[override]
         # This exception is thrown from x509, catch for logging and raise our own
         except InvalidSignature:
-            LOG.error(
+            raise InvalidRootSignatureException(
                 "Signature verification failed:"
-                + f"\nCertificate: {tx_info.node_cert!r}"
-                + f"\nSignature: {tx_info.signature!r}"
-                + f"\nRoot: {tx_info.existing_root!r}"
-            )
-            raise InvalidRootSignatureException from InvalidSignature
+                + f"\nCertificate: {tx_info.node_cert.decode()}"
+                + f"\nSignature: {base64.b64encode(tx_info.signature).decode()}"
+                + f"\nRoot: {tx_info.existing_root.hex()}"
+            ) from InvalidSignature
 
     def _verify_merkle_root(self, merkletree: MerkleTree, existing_root: bytes):
         """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""
         root = merkletree.get_merkle_root()
         if root != existing_root:
-            LOG.error(
-                f"\nRoot: {root.hex()} \nExisting root from ledger: {existing_root.hex()}"
+            raise InvalidRootException(
+                f"\nComputed root: {root.hex()} \nExisting root from ledger: {existing_root.hex()}"
             )
-            raise InvalidRootException
 
 
 @dataclass
@@ -535,21 +529,13 @@ class Transaction(Entry):
         super().__init__(filename)
         self._ledger_validator = ledger_validator
 
-        try:
-            self._file_size = int.from_bytes(
-                _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
-            )
-            # If the ledger chunk is not yet committed, the ledger header will be empty.
-            # Default to reading the file size instead.
-            if self._file_size == 0:
-                self._file_size = os.path.getsize(filename)
-        except ValueError:
-            if is_ledger_chunk_committed(filename):
-                raise
-            else:
-                LOG.warning(
-                    f"Could not read ledger header size in uncommitted ledger file '{filename}'"
-                )
+        self._file_size = int.from_bytes(
+            _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
+        )
+        # If the ledger chunk is not yet committed, the ledger header will be empty.
+        # Default to reading the file size instead.
+        if self._file_size == 0:
+            self._file_size = os.path.getsize(filename)
 
     def _read_header(self):
         self._tx_offset = self._file.tell()

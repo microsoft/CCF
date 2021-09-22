@@ -5,6 +5,7 @@ A CCF application is composed of the following:
 
 - The :ref:`Application Entry Point <build_apps/api:Application Entry Point>` which registers the application in CCF.
 - A collection of :cpp:class:`endpoints <ccf::endpoints::Endpoint>` handling HTTP requests and grouped in a single :cpp:class:`registry <ccf::endpoints::EndpointRegistry>`. An :cpp:class:`endpoint <ccf::endpoints::Endpoint>` reads and writes to the key-value store via the :ref:`Key-Value Store API <build_apps/kv/api:Key-Value Store API>`.
+- An optional set of :ref:`JavaScript FFI Plugins <build_apps/api:JavaScript FFI Plugins>` that can be registered to extend the built-in JavaScript API surface.
 
 Application Entry Point
 -----------------------
@@ -86,7 +87,7 @@ Supporting Types
 Historical Queries
 ------------------
 
-.. doxygenfunction:: ccf::historical::adapter
+.. doxygenfunction:: ccf::historical::adapter_v2
    :project: CCF
 
 .. doxygenclass:: ccf::historical::AbstractStateCache
@@ -96,3 +97,9 @@ Historical Queries
 .. doxygenstruct:: ccf::historical::State
    :project: CCF
    :members:
+
+JavaScript FFI Plugins
+----------------------
+
+.. doxygenfunction:: ccfapp::get_js_plugins
+   :project: CCF

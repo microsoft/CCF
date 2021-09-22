@@ -252,14 +252,14 @@ def test_node_replacement(network, args):
 
     # Add in a node using the same address
     replacement_node = network.create_node(
-        f"local://{node_to_replace.host}:{node_to_replace.rpc_port}",
+        f"local://{node_to_replace.rpc_host}:{node_to_replace.rpc_port}",
         node_port=node_to_replace.node_port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
-    assert replacement_node.host == node_to_replace.host
+    assert replacement_node.rpc_host == node_to_replace.rpc_host
     assert replacement_node.node_port == node_to_replace.node_port
     assert replacement_node.rpc_port == node_to_replace.rpc_port
     LOG.info(
@@ -519,7 +519,7 @@ def run_join_old_snapshot(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
+    args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_user_count = 1
 

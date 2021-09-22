@@ -18,6 +18,7 @@ namespace http
     static constexpr auto LOCATION = "location";
     static constexpr auto RETRY_AFTER = "retry-after";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
+    static constexpr auto CACHE_CONTROL = "cache-control";
 
     static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
   }

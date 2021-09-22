@@ -80,7 +80,7 @@ def run(args):
         initial_metrics = get_session_metrics(primary)
         assert initial_metrics["active"] <= initial_metrics["peak"], initial_metrics
         main_session_metrics = initial_metrics["interfaces"][
-            f"{primary.host}:{primary.rpc_port}"
+            f"{primary.rpc_host}:{primary.rpc_port}"
         ]
         assert (
             main_session_metrics["soft_cap"] == args.max_open_sessions
@@ -256,7 +256,7 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
+    args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.nodes(args, 1)
     args.initial_user_count = 1
     run(args)
