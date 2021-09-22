@@ -405,7 +405,7 @@ namespace ccf
       {
         // Whatever else we _were_ doing, we've received a valid init from them
         // - reset to use it
-        // reset();
+        kex_ctx.reset();
         peer_cert = cert;
         peer_cv = verifier;
       }

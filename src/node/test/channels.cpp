@@ -755,7 +755,7 @@ TEST_CASE("Full NodeToNode test")
     n2n1.initialize(ni1, network_cert, channel1_kp, channel1_cert);
     n2n1.set_message_limit(message_limit);
     n2n2.initialize(ni2, network_cert, channel2_kp, channel2_cert);
-    n2n1.set_message_limit(message_limit);
+    n2n2.set_message_limit(message_limit);
 
     srand(0); // keep it deterministic
 
