@@ -77,6 +77,22 @@ namespace ccf
     auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
     auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
 
+    // Snapshots without a snapshot evidence seqno specified by the host should
+    // be self-verifiable with embedded receipt
+    if (!evidence_seqno.has_value())
+    {
+      auto receipt_data = data + store_snapshot_size;
+      auto receipt_size = size - store_snapshot_size;
+
+      auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
+      auto receipt = j.get<Receipt>();
+
+      auto root = compute_root_from_receipt(receipt);
+      auto raw_sig = tls::raw_from_b64(receipt.signature);
+
+      LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
+    }
+
     LOG_DEBUG_FMT(
       "Deserialising snapshot (size: {}, public only: {})",
       snapshot.size(),
@@ -106,47 +122,18 @@ namespace ccf
       auto root = compute_root_from_receipt(receipt);
       auto raw_sig = tls::raw_from_b64(receipt.signature);
 
-      LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
+      if (!receipt.cert.has_value())
+      {
+        throw std::logic_error("Missing node certificate in snapshot receipt");
+      }
 
-      // TODO: Node cert should be extracted from receipt instead, so that
-      // verification of the receipt happens before the snapshot is applied
-
-      // TODO: Disabled for now to pass LTS compatibility test as the snasphot
-      // wouldn't contain the endorsed cert for a new node (unless the new
-      // renew_node_cert proposal is added)
-      //  auto tx = store->create_read_only_tx(); auto service =
-      // tx.ro<Service>(Tables::SERVICE); auto node_certs =
-      //   tx.ro<NodeEndorsedCertificates>(Tables::NODE_ENDORSED_CERTIFICATES);
-
-      // auto service_info = service->get();
-      // if (!service_info.has_value())
-      // {
-      //   throw std::logic_error("Service information not found in snapshot");
-      // }
-
-      // auto node_cert = node_certs->get(receipt.node_id);
-      // if (!node_cert.has_value())
-      // {
-      //   throw std::logic_error(fmt::format(
-      //     "Receipt node certificate {} not found in snapshot",
-      //     receipt.node_id));
-      // }
-
-      // // Verify node certificate endorsement
-      // auto v = crypto::make_unique_verifier(node_cert.value());
-      // if (!v->verify_certificate({&service_info->cert}))
-      // {
-      //   throw std::logic_error(
-      //     "Node certificate is not endorsed by snapshot service");
-      // }
-
-      // if (!v->verify_hash(
-      //       root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
-      // {
-      //   throw std::logic_error("Receipt not valid for snapshot");
-      // }
-
-      LOG_FAIL_FMT("Snapshot successfully verified");
+      auto v = crypto::make_unique_verifier(receipt.cert.value());
+      if (!v->verify_hash(
+            root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
+      {
+        throw std::logic_error(
+          "Signature verification failed for snapshot receipt");
+      }
     }
   };
 
