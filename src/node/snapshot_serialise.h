@@ -73,7 +73,6 @@ namespace ccf
     const auto* data = snapshot.data();
     auto size = snapshot.size();
 
-    LOG_FAIL_FMT("Snapshot size: {}", snapshot.size());
     auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
     auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
 
@@ -89,11 +88,9 @@ namespace ccf
 
       auto root = compute_root_from_receipt(receipt);
       auto raw_sig = tls::raw_from_b64(receipt.signature);
-
-      LOG_FAIL_FMT("Root from receipt: {}", compute_root_from_receipt(receipt));
     }
 
-    LOG_DEBUG_FMT(
+    LOG_INFO_FMT(
       "Deserialising snapshot (size: {}, public only: {})",
       snapshot.size(),
       public_only);
