@@ -127,7 +127,7 @@ if [ "$is_print_digest_to_sign" == true ]; then
     echo "Hash to sign: $hash_to_sign"
     echo "Request headers:"
     echo "-H 'Digest: SHA-256=$req_digest'"
-    echo "-H 'Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"<insert_base64_signature_here>\"'"
+    echo "-H 'Authorization: Signature keyId=\"$key_id\",algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"<insert_base64_signature_here>\"'"
     echo "${additional_curl_args[@]}"
     exit 0
 fi

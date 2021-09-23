@@ -1214,7 +1214,7 @@ def test_receipts(network, args):
 @reqs.description("Validate random receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_random_receipts(network, args, lts=False):
+def test_random_receipts(network, args, lts=True):
     primary, _ = network.find_primary_and_any_backup()
 
     common = os.listdir(network.common_dir)
@@ -1325,7 +1325,7 @@ def run(args):
             network = test_liveness(network, args)
             network = test_rekey(network, args)
             network = test_liveness(network, args)
-            network = test_random_receipts(network, args)
+            network = test_random_receipts(network, args, False)
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
