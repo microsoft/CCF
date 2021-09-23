@@ -4,8 +4,6 @@
 
 set -ex
 
-sudo apt-get update
-sudo apt install software-properties-common
-sudo add-apt-repository -y --update ppa:ansible/ansible
-sudo apt install ansible -y
+sudo apt install python3-pip
+pip install ansible-base
 ansible-playbook "$@"
