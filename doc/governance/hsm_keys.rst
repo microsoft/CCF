@@ -84,7 +84,7 @@ The member's identity key is now ready to be used for signing HTTP requests. The
     Hash to sign: <hash_to_sign> # To be signed by AKV
     Request headers:
     -H 'Digest: SHA-256=...'
-    -H 'Authorization: Signature keyId="...",signature_algorithm="hs2019",headers="(request-target) digest content-length",signature="<insert_base64_signature_here>"' # Replace signature with AKV signature here
+    -H 'Authorization: Signature keyId="...",algorithm="hs2019",headers="(request-target) digest content-length",signature="<insert_base64_signature_here>"' # Replace signature with AKV signature here
     -H 'content-length: 0'
 
     # Then, retrieve the kid url for the identity key
@@ -108,7 +108,7 @@ Finally, the signed HTTP request can be issued, using the request headers printe
 
     $ curl https://<ccf-node-address>/gov/<endpoint> -X [GET|POST] --cert $IDENTITY_CERT_NAME.pem \
     -H 'Digest: SHA-256=...' \
-    -H 'Authorization: Signature keyId="...",signature_algorithm="hs2019",headers="(request-target) digest content-length",signature="$ccf_signature"' \
+    -H 'Authorization: Signature keyId="...",algorithm="hs2019",headers="(request-target) digest content-length",signature="$ccf_signature"' \
     -H 'content-length: <content-length>'
 
 Recovery Share Decryption
