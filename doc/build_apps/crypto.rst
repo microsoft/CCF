@@ -3,7 +3,6 @@ Cryptography API
 
 For convenience, CCF provides access to commonly used cryptographic primitives to applications.
 
-
 Hashing
 -------
 
