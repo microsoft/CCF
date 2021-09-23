@@ -9,7 +9,7 @@
 #include <memory>
 
 /**
- * @file Defines static instances of common framework-provided authentication
+ * Defines static instances of common framework-provided authentication
  * policies, to be used freely by other apps.
  */
 
