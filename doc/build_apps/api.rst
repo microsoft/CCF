@@ -29,6 +29,14 @@ Application Endpoint Registration
    :project: CCF
    :members:
 
+.. doxygenstruct:: ccf::EndpointMetricsEntry
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::EndpointMetrics
+   :project: CCF
+   :members:
+
 .. doxygenclass:: ccf::BaseEndpointRegistry
    :project: CCF
    :members:

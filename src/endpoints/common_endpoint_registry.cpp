@@ -11,7 +11,6 @@
 #include "enclave/node_context.h"
 #include "http/http_consts.h"
 #include "node/code_id.h"
-#include "node/endpoint_metrics.h"
 
 namespace ccf
 {
@@ -198,22 +197,19 @@ namespace ccf
       .install();
 
     auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
-      std::lock_guard<std::mutex> guard(metrics_lock);
       EndpointMetrics out;
-      for (const auto& [path, verb_metrics] : metrics)
+      const auto result = get_metrics_v1(out);
+      if (result == ccf::ApiResult::OK)
       {
-        for (const auto& [verb, metric] : verb_metrics)
-        {
-          out.metrics.push_back(
-            {path,
-             verb,
-             metric.calls,
-             metric.errors,
-             metric.failures,
-             metric.retries});
-        }
+        return make_success(out);
       }
-      return make_success(out);
+      else
+      {
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+      }
     };
     make_command_endpoint(
       "/api/metrics",
