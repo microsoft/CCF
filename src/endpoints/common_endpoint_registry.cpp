@@ -11,6 +11,7 @@
 #include "enclave/node_context.h"
 #include "http/http_consts.h"
 #include "node/code_id.h"
+#include "node/endpoint_metrics.h"
 
 namespace ccf
 {
@@ -198,7 +199,7 @@ namespace ccf
 
     auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
       std::lock_guard<std::mutex> guard(metrics_lock);
-      EndpointMetrics::Out out;
+      EndpointMetrics out;
       for (const auto& [path, verb_metrics] : metrics)
       {
         for (const auto& [verb, metric] : verb_metrics)
@@ -219,7 +220,7 @@ namespace ccf
       HTTP_GET,
       json_command_adapter(endpoint_metrics_fn),
       no_auth_required)
-      .set_auto_schema<void, EndpointMetrics::Out>()
+      .set_auto_schema<void, EndpointMetrics>()
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
