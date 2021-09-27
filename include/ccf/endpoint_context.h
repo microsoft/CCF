@@ -9,7 +9,7 @@
 #include <memory>
 
 /**
- * @file Defines the different types of context an Endpoint can operate over,
+ * Defines the different types of context an Endpoint can operate over,
  * and the types of handler functions which process them.
  */
 

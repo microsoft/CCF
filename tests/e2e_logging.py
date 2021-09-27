@@ -30,11 +30,20 @@ import urllib.parse
 import random
 import re
 import infra.crypto
-import threading
-import copy
 from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
+
+
+def verify_receipt(receipt, network_cert, check_endorsement=True):
+    """
+    Raises an exception on failure
+    """
+    node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
+    if check_endorsement:
+        ccf.receipt.check_endorsement(node_cert, network_cert)
+    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+    ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
 @reqs.description("Running transactions against logging app")
@@ -74,9 +83,9 @@ def test_illegal(network, args, verify=True):
         )
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn = context.wrap_socket(
-            sock, server_side=False, server_hostname=primary.host
+            sock, server_side=False, server_hostname=primary.get_public_rpc_host()
         )
-        conn.connect((primary.host, primary.pubport))
+        conn.connect((primary.get_public_rpc_host(), primary.pubport))
         LOG.info(f"Sending: {content}")
         conn.sendall(content)
         response = HTTPResponse(conn)
@@ -136,7 +145,7 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("log/private")
 def test_remove(network, args):
-    supported_packages = ["libjs_generic", "liblogging"]
+    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -182,7 +191,7 @@ def test_remove(network, args):
 @reqs.description("Write/Read/Clear messages on primary")
 @reqs.supports_methods("log/private/all", "log/public/all")
 def test_clear(network, args):
-    supported_packages = ["libjs_generic", "liblogging"]
+    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -234,7 +243,7 @@ def test_clear(network, args):
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("log/private/count", "log/public/count")
 def test_record_count(network, args):
-    supported_packages = ["libjs_generic", "liblogging"]
+    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -292,7 +301,7 @@ def test_record_count(network, args):
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("log/private/prefix_cert", "log/private")
 def test_cert_prefix(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         for user in network.users:
@@ -314,7 +323,7 @@ def test_cert_prefix(network, args):
 @reqs.description("Write as anonymous caller")
 @reqs.supports_methods("log/private/anonymous", "log/private")
 def test_anonymous_caller(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         # Create a new user but do not record its identity
@@ -457,7 +466,7 @@ def test_multi_auth(network, args):
 @reqs.description("Call an endpoint with a custom auth policy")
 @reqs.supports_methods("custom_auth")
 def test_custom_auth(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, other = network.find_primary_and_any_backup()
 
         for node in (primary, other):
@@ -510,7 +519,7 @@ def test_custom_auth(network, args):
 @reqs.description("Call an endpoint with a custom auth policy which throws")
 @reqs.supports_methods("custom_auth")
 def test_custom_auth_safety(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, other = network.find_primary_and_any_backup()
 
         for node in (primary, other):
@@ -529,7 +538,7 @@ def test_custom_auth_safety(network, args):
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         log_id = 101
@@ -616,6 +625,24 @@ def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2, repeat=True)
     network.txs.verify()
 
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        r = c.get(
+            "/app/log/private/historical",
+            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.1"},
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "TransactionInvalid", r
+
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        r = c.get(
+            "/app/log/private/historical",
+            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.999999"},
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        assert r.body.json()["error"]["code"] == "TransactionPendingOrUnknown", r
+
     return network
 
 
@@ -623,12 +650,6 @@ def test_historical_query(network, args):
 @reqs.supports_methods("log/private", "log/private/historical_receipt")
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        primary_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
     TXS_COUNT = 5
     network.txs.issue(network, number_txs=5)
     for idx in range(1, TXS_COUNT + 1):
@@ -638,14 +659,13 @@ def test_historical_receipts(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"]
             )
             r = first_receipt.json()["receipt"]
-            assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
-            ccf.receipt.verify(r["root"], r["signature"], primary_cert)
+            verify_receipt(r, network.cert)
 
-    # receipt.verify() raises if it fails, but does not return anything
+    # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
     try:
         ccf.receipt.verify(
-            hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
+            hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
         )
     except InvalidSignature:
         verified = False
@@ -657,7 +677,7 @@ def test_historical_receipts(network, args):
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("log/private", "log/private/historical/range")
 def test_historical_query_range(network, args):
-    if args.package != "liblogging":
+    if args.package != "samples/apps/logging/liblogging":
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
         )
@@ -667,6 +687,7 @@ def test_historical_query_range(network, args):
 
     id_a = 142
     id_b = 143
+    id_c = 144
 
     first_seqno = None
     last_seqno = None
@@ -678,7 +699,8 @@ def test_historical_query_range(network, args):
         logs = []
         with primary.client("user0") as c:
             timeout = 5
-            end_time = time.time() + timeout
+            start_time = time.time()
+            end_time = start_time + timeout
             entries = []
             path = f"/app/log/private/historical/range?id={target_id}"
             if from_seqno is not None:
@@ -695,7 +717,11 @@ def test_historical_query_range(network, args):
                         continue
                     else:
                         # No @nextLink means we've reached end of range
-                        return entries
+                        duration = time.time() - start_time
+                        LOG.info(
+                            f"Done! Fetched {len(entries)} entries in {duration:0.2f}s"
+                        )
+                        return entries, duration
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     # Ignore retry-after header, retry soon
                     time.sleep(0.1)
@@ -717,8 +743,16 @@ def test_historical_query_range(network, args):
         # time to retrieve the submitted transactions
         msgs = dict()
         n_entries = 100
+
+        def id_for(i):
+            if i == n_entries // 2:
+                return id_c
+            else:
+                return id_b if i % 3 == 0 else id_a
+
         for i in range(n_entries):
-            idx = id_b if i % 3 == 0 else id_a
+            idx = id_for(i)
+
             network.txs.issue(
                 network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
             )
@@ -735,26 +769,35 @@ def test_historical_query_range(network, args):
 
         ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        entries_a = get_all_entries(id_a)
-        entries_b = get_all_entries(id_b)
+        entries_a, duration_a = get_all_entries(id_a)
+        entries_b, duration_b = get_all_entries(id_b)
+        entries_c, duration_c = get_all_entries(id_c)
+
+        # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
+        assert duration_c < duration_a
+        assert duration_c < duration_b
 
         # Confirm that we can retrieve these with more specific queries, and we end up with the same result
-        alt_a = get_all_entries(id_a, from_seqno=first_seqno)
+        alt_a, _ = get_all_entries(id_a, from_seqno=first_seqno)
         assert alt_a == entries_a
-        alt_a = get_all_entries(id_a, to_seqno=last_seqno)
+        alt_a, _ = get_all_entries(id_a, to_seqno=last_seqno)
         assert alt_a == entries_a
-        alt_a = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
+        alt_a, _ = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
         assert alt_a == entries_a
 
-        actual_len = len(entries_a) + len(entries_b)
+        actual_len = len(entries_a) + len(entries_b) + len(entries_c)
         assert (
             n_entries == actual_len
         ), f"Expected {n_entries} total entries, got {actual_len}"
 
         # Iterate through both lists, by i, checking retrieved entries match expectations
         for i in range(n_entries):
-            entries = entries_b if i % 3 == 0 else entries_a
-            expected_id = id_b if i % 3 == 0 else id_a
+            expected_id = id_for(i)
+            entries = (
+                entries_a
+                if expected_id == id_a
+                else (entries_b if expected_id == id_b else entries_c)
+            )
             entry = entries.pop(0)
             assert entry["id"] == expected_id
             assert entry["msg"] == msgs[entry["seqno"]]
@@ -762,6 +805,7 @@ def test_historical_query_range(network, args):
         # Make sure this has checked every entry
         assert len(entries_a) == 0
         assert len(entries_b) == 0
+        assert len(entries_c) == 0
 
     return network
 
@@ -830,7 +874,7 @@ def test_forwarding_frontends(network, args):
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
-        if args.package == "liblogging":
+        if args.package == "samples/apps/logging/liblogging":
             escaped_query_tests(c, "request_query")
 
     return network
@@ -839,7 +883,7 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Testing signed queries with escaped queries")
 @reqs.at_least_n_nodes(2)
 def test_signed_escapes(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         node = network.find_node_by_role()
         with node.client("user0", "user0") as c:
             escaped_query_tests(c, "signed_request_query")
@@ -850,7 +894,7 @@ def test_signed_escapes(network, args):
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("log/private/admin_only")
 def test_user_data_ACL(network, args):
-    if args.package == "liblogging":
+    if args.package == "samples/apps/logging/liblogging":
         primary, _ = network.find_primary()
 
         user = network.users[0]
@@ -1056,7 +1100,7 @@ def test_primary(network, args):
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
-            == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+            == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
         )
     return network
 
@@ -1075,7 +1119,7 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
-            assert node["host"] == n.pubhost
+            assert node["host"] == n.get_public_rpc_host()
             assert node["port"] == str(n.pubport)
             assert node["primary"] == (n == primary)
             del nodes_by_id[n.node_id]
@@ -1091,7 +1135,7 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             assert (
                 r.headers["location"]
-                == f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{node.node_id}"
+                == f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{node.node_id}"
             ), r.headers["location"]
 
             # Following that redirect gets you the node info
@@ -1099,7 +1143,7 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.OK.value
             body = r.body.json()
             assert body["node_id"] == node.node_id
-            assert body["host"] == node.pubhost
+            assert body["host"] == node.get_public_rpc_host()
             assert body["port"] == str(node.pubport)
             assert body["primary"] == (node == primary)
 
@@ -1113,7 +1157,7 @@ def test_network_node_info(network, args):
                 assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
                 assert (
                     r.headers["location"]
-                    == f"https://{primary.pubhost}:{primary.pubport}/node/primary"
+                    == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
                 ), r.headers["location"]
                 r = c.head("/node/primary", allow_redirects=True)
 
@@ -1123,7 +1167,7 @@ def test_network_node_info(network, args):
             r = c.get("/node/network/nodes/primary", allow_redirects=False)
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             actual = r.headers["location"]
-            expected = f"https://{node.pubhost}:{node.pubport}/node/network/nodes/{primary.node_id}"
+            expected = f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{primary.node_id}"
             assert actual == expected, f"{actual} != {expected}"
 
             # Following that redirect gets you the primary's node info
@@ -1166,12 +1210,6 @@ def test_memory(network, args):
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-    with open(cert_path, encoding="utf-8") as c:
-        node_cert = load_pem_x509_certificate(
-            c.read().encode("ascii"), default_backend()
-        )
-
     with primary.client() as mc:
         check_commit = infra.checker.Checker(mc)
         msg = "Hello world"
@@ -1187,12 +1225,7 @@ def test_receipts(network, args):
                     rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
                     if rc.status_code == http.HTTPStatus.OK:
                         receipt = rc.body.json()
-                        assert receipt["root"] == ccf.receipt.root(
-                            receipt["leaf"], receipt["proof"]
-                        )
-                        ccf.receipt.verify(
-                            receipt["root"], receipt["signature"], node_cert
-                        )
+                        verify_receipt(receipt, network.cert)
                         break
                     elif rc.status_code == http.HTTPStatus.ACCEPTED:
                         time.sleep(0.5)
@@ -1202,10 +1235,10 @@ def test_receipts(network, args):
     return network
 
 
-@reqs.description("Validate all receipts")
+@reqs.description("Validate random receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_random_receipts(network, args):
+def test_random_receipts(network, args, lts=True):
     primary, _ = network.find_primary_and_any_backup()
 
     common = os.listdir(network.common_dir)
@@ -1218,9 +1251,7 @@ def test_random_receipts(network, args):
     for path in cert_paths:
         with open(path, encoding="utf-8") as c:
             cert = c.read()
-        certs[
-            infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)
-        ] = load_pem_x509_certificate(cert.encode("ascii"), default_backend())
+        certs[infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)] = cert
 
     with primary.client("user0") as c:
         r = c.get("/app/commit")
@@ -1243,17 +1274,12 @@ def test_random_receipts(network, args):
                 rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
-                    assert receipt["root"] == ccf.receipt.root(
-                        receipt["leaf"], receipt["proof"]
-                    )
-                    ccf.receipt.verify(
-                        receipt["root"], receipt["signature"], certs[receipt["node_id"]]
-                    )
+                    if lts and not receipt.get("cert"):
+                        receipt["cert"] = certs[receipt["node_id"]]
+                    verify_receipt(receipt, network.cert, not lts)
                     if s == max_seqno:
                         # Always a signature receipt
-                        assert receipt["root"] == receipt["leaf"], receipt
                         assert receipt["proof"] == [], receipt
-                    print(f"Verified receipt for {view}.{s}")
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
                     time.sleep(0.5)
@@ -1296,11 +1322,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
+        network = test(network, args, verify=args.package != "libjs_generic")
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
@@ -1327,18 +1349,10 @@ def run(args):
             network = test_liveness(network, args)
             network = test_rekey(network, args)
             network = test_liveness(network, args)
-            network = test_random_receipts(network, args)
-        if args.package == "liblogging":
+            network = test_random_receipts(network, args, False)
+        if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
-
-
-def create_test_thread(prefix, target, args, **args_overrides):
-    args_ = copy.deepcopy(args)
-    for k, v in args_overrides.items():
-        setattr(args_, k, v)
-    args_.label = f"{prefix}_{args.label}"
-    return threading.Thread(name=prefix, target=target, args=[args_])
 
 
 if __name__ == "__main__":
@@ -1356,7 +1370,7 @@ if __name__ == "__main__":
     cr.add(
         "cpp",
         run,
-        package="liblogging",
+        package="samples/apps/logging/liblogging",
         js_app_bundle=None,
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,

@@ -96,6 +96,7 @@ namespace kv
      * @param[out]  plain             Decrypted plaintext
      * @param[in]   version           Version used to retrieve the corresponding
      * encryption key
+     * @param[out]   term             Term contained in header
      * @param[in]   historical_hint   If true, considers all ledger secrets for
      * decryption. Otherwise, try to use the latest used secret (defaults to
      * false)

@@ -20,22 +20,28 @@ namespace ccf::historical
     HistoryTree::Hash root = {};
     std::shared_ptr<ccf::HistoryTree::Path> path = {};
     ccf::NodeId node_id = {};
+    std::optional<crypto::Pem> cert = std::nullopt;
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
       const HistoryTree::Hash& r_,
       std::shared_ptr<ccf::HistoryTree::Path> p_,
-      const NodeId& n_) :
+      const NodeId& n_,
+      const std::optional<crypto::Pem>& c_) :
       signature(s_),
       root(r_),
       path(p_),
-      node_id(n_)
+      node_id(n_),
+      cert(c_)
     {}
 
-    void describe(ccf::Receipt& r)
+    void describe(ccf::Receipt& r, bool include_root = false)
     {
       r.signature = tls::b64_from_raw(signature);
-      r.root = root.to_string();
+      if (include_root)
+      {
+        r.root = root.to_string();
+      }
       if (path)
       {
         for (const auto& node : *path)
@@ -55,9 +61,11 @@ namespace ccf::historical
       }
       else
       {
-        r.leaf = r.root;
+        r.leaf = root.to_string();
       }
       r.node_id = node_id;
+      if (cert.has_value())
+        r.cert = cert->str();
     }
   };
 

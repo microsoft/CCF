@@ -9,7 +9,7 @@
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
-#include "js/oe.cpp"
+#include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -20,7 +20,7 @@
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 
-namespace js
+namespace ccf::js
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
@@ -43,6 +43,30 @@ namespace js
   JSClassDef network_class_def = {};
   JSClassDef rpc_class_def = {};
   JSClassDef host_class_def = {};
+
+  std::vector<FFIPlugin> ffi_plugins;
+
+  static void register_ffi_plugin(const FFIPlugin& plugin)
+  {
+    if (plugin.ccf_version != std::string(ccf::ccf_version))
+    {
+      throw std::runtime_error(fmt::format(
+        "CCF version mismatch in JS FFI plugin '{}': expected={} != actual={}",
+        plugin.name,
+        plugin.ccf_version,
+        ccf::ccf_version));
+    }
+    LOG_DEBUG_FMT("JS FFI plugin registered: {}", plugin.name);
+    ffi_plugins.push_back(plugin);
+  }
+
+  void register_ffi_plugins(const std::vector<FFIPlugin>& plugins)
+  {
+    for (const auto& plugin : plugins)
+    {
+      register_ffi_plugin(plugin);
+    }
+  }
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -1217,28 +1241,6 @@ namespace js
     JS_FreeValue(ctx, global_obj);
   }
 
-  static JSValue create_openenclave_obj(JSContext* ctx)
-  {
-    auto openenclave = JS_NewObject(ctx);
-
-    JS_SetPropertyStr(
-      ctx,
-      openenclave,
-      "verifyOpenEnclaveEvidence",
-      JS_NewCFunction(
-        ctx, js_verify_open_enclave_evidence, "verifyOpenEnclaveEvidence", 3));
-
-    return openenclave;
-  }
-
-  void populate_global_openenclave(JSContext* ctx)
-  {
-    auto global_obj = JS_GetGlobalObject(ctx);
-    JS_SetPropertyStr(
-      ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
-    JS_FreeValue(ctx, global_obj);
-  }
-
   JSValue create_ccf_obj(
     TxContext* txctx,
     enclave::RpcContext* rpc_ctx,
@@ -1369,8 +1371,12 @@ namespace js
         js_receipt,
         "signature",
         JS_NewString(ctx, receipt_out.signature.c_str()));
-      JS_SetPropertyStr(
-        ctx, js_receipt, "root", JS_NewString(ctx, receipt_out.root.c_str()));
+      if (receipt_out.cert.has_value())
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "cert",
+          JS_NewString(ctx, receipt_out.cert.value().c_str()));
       JS_SetPropertyStr(
         ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf.c_str()));
       JS_SetPropertyStr(
@@ -1525,6 +1531,33 @@ namespace js
         ctx));
 
     JS_FreeValue(ctx, global_obj);
+  }
+
+  void populate_global(
+    TxContext* txctx,
+    enclave::RpcContext* rpc_ctx,
+    const std::optional<ccf::TxID>& transaction_id,
+    ccf::historical::TxReceiptPtr receipt,
+    ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
+    ccf::NetworkState* network_state,
+    JSContext* ctx)
+  {
+    populate_global_console(ctx);
+    populate_global_ccf(
+      txctx,
+      rpc_ctx,
+      transaction_id,
+      receipt,
+      node_state,
+      host_node_state,
+      network_state,
+      ctx);
+
+    for (auto& plugin : ffi_plugins)
+    {
+      plugin.extend(ctx);
+    }
   }
 
   void Runtime::add_ccf_classdefs()

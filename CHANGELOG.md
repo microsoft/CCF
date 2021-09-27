@@ -9,7 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Receipts now include the endorsed certificate of the node, as well as its node id, for convenience.
+- `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
+
+## [2.0.0-dev4]
+
+### Added
+
 - Added `foreach_key` and `foreach_value` to C++ KV API, to iterate without deserializing both entries when only one is used (#2918).
+- `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 
 ### Changed
 
@@ -18,6 +26,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Updated `actions.js` constitution fragment to record service-endorsed node certificate on the `transition_node_to_trusted` action. The constitution should be updated using the existing `set_constitution` proposal (#2844).
 - Improved performance for lookup of path-templated endpoints (#2918).
 - Raised the minimum supported CMake version for building CCF to 3.16 (#2946).
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.17.1 to 0.17.2 (#2992)
 
 ## [2.0.0-dev3]
 
@@ -969,6 +981,9 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev4
+[ccf-2.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev3
+[ccf-2.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev2
 [ccf-2.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev1
 [ccf-2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
 [1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3

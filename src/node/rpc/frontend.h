@@ -619,6 +619,7 @@ namespace ccf
      * @param tx Transaction
      * @param prescribed_commit_version Prescribed commit version
      * @param max_conflict_version Maximum conflict version
+     * @param replicated_view Prescribed view
      */
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,

@@ -5,6 +5,7 @@ from contextlib import contextmanager, closing
 from enum import Enum, auto
 import infra.crypto
 import infra.remote
+import infra.remote_shim
 import infra.net
 import infra.path
 import ccf.clients
@@ -14,6 +15,9 @@ import socket
 import re
 import ipaddress
 import ssl
+
+# pylint: disable=import-error, no-name-in-module
+from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
@@ -66,6 +70,11 @@ def get_snapshot_seqnos(file_name):
     return int(seqnos[0]), int(seqnos[1])
 
 
+def strip_version(full_version):
+    dash_offset = 1 if full_version.startswith("ccf-") else 0
+    return full_version.split("-")[dash_offset]
+
+
 class Node:
     # Default to using httpx
     curl = False
@@ -94,35 +103,49 @@ class Node:
         self.node_client_host = None
         self.interfaces = []
         self.version = version
+        self.major_version = (
+            Version(strip_version(self.version)).release[0]
+            if self.version is not None
+            else None
+        )
         self.consensus = None
+
+        if os.getenv("CONTAINER_NODES"):
+            self.remote_shim = infra.remote_shim.DockerShim
+        else:
+            self.remote_shim = infra.remote_shim.PassThroughShim
 
         if isinstance(host, str):
             host = infra.e2e_args.HostSpec.from_str(host)
 
         if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
-            if not version or version > 1:
-                self.node_client_host = str(
-                    ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
-                )
+            # Node client address does not currently work with DockerShim
+            if self.remote_shim != infra.remote_shim.DockerShim:
+                if not self.major_version or self.major_version > 1:
+                    self.node_client_host = str(
+                        ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+                    )
         elif host.protocol == "ssh":
             self.remote_impl = infra.remote.SSHRemote
         else:
             assert False, f"{host} does not start with 'local://' or 'ssh://'"
 
         host_ = host.rpchost
-        self.host, *port = host_.split(":")
+        self.rpc_host, *port = host_.split(":")
         self.rpc_port = int(port[0]) if port else None
-        if self.host == "localhost":
-            self.host = infra.net.expand_localhost()
+        if self.rpc_host == "localhost":
+            self.rpc_host = infra.net.expand_localhost()
 
         pubhost_ = host.public_rpchost
         if pubhost_:
             self.pubhost, *pubport = pubhost_.split(":")
             self.pubport = int(pubport[0]) if pubport else self.rpc_port
         else:
-            self.pubhost = self.host
+            self.pubhost = self.rpc_host
             self.pubport = self.rpc_port
+
+        self.node_host = self.rpc_host
         self.node_port = node_port
 
         self.max_open_sessions = host.max_open_sessions
@@ -223,25 +246,28 @@ class Node:
         if self.max_open_sessions_hard:
             kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
-        self.remote = infra.remote.CCFRemote(
+
+        self.remote = self.remote_shim(
             start_type,
             lib_path,
-            self.local_node_id,
-            self.host,
-            self.pubhost,
-            self.node_port,
-            self.rpc_port,
-            self.node_client_host,
-            self.remote_impl,
             enclave_type,
+            self.remote_impl,
             workspace,
-            label,
             common_dir,
+            label=label,
+            local_node_id=self.local_node_id,
+            rpc_host=self.rpc_host,
+            node_host=self.node_host,
+            pub_host=self.pubhost,
+            node_port=self.node_port,
+            rpc_port=self.rpc_port,
+            node_client_host=self.node_client_host,
             target_rpc_address=target_rpc_address,
             members_info=members_info,
             snapshot_dir=snapshot_dir,
             binary_dir=self.binary_dir,
             additional_raw_node_args=self.additional_raw_node_args,
+            version=self.version,
             **kwargs,
         )
         self.remote.setup()
@@ -256,7 +282,7 @@ class Node:
             print("")
             print(
                 "================= Please run the below command on "
-                + self.host
+                + self.rpc_host
                 + " and press enter to continue ================="
             )
             print("")
@@ -267,7 +293,14 @@ class Node:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
-        self.remote.get_startup_files(self.common_dir)
+
+        try:
+            self.remote.get_startup_files(self.common_dir)
+        except Exception as e:
+            LOG.exception(e)
+            self.remote.get_logs(tail_lines_len=None)
+            raise
+
         self.consensus = kwargs.get("consensus")
 
         with open(
@@ -285,9 +318,10 @@ class Node:
         with open(node_address_path, "r", encoding="utf-8") as f:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
-            assert (
-                node_host == self.host
-            ), f"Unexpected change in node address from {self.host} to {node_host}"
+            if self.remote_shim != infra.remote_shim.DockerShim:
+                assert (
+                    node_host == self.node_host
+                ), f"Unexpected change in node address from {self.node_host} to {node_host}"
             if self.node_port is None and self.node_port != 0:
                 self.node_port = node_port
                 assert (
@@ -302,9 +336,10 @@ class Node:
             for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
                 rpc_port = int(rpc_port)
                 if i == 0:
-                    assert (
-                        rpc_host == self.host
-                    ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
+                    if self.remote_shim != infra.remote_shim.DockerShim:
+                        assert (
+                            rpc_host == self.rpc_host
+                        ), f"Unexpected change in RPC address from {self.rpc_host} to {rpc_host}"
                     if self.rpc_port is not None and self.rpc_port != 0:
                         assert (
                             rpc_port == self.rpc_port
@@ -412,9 +447,10 @@ class Node:
         }
 
     def signing_auth(self, name=None):
-        return {
-            "signing_auth": self.identity(name),
-        }
+        return {"signing_auth": self.identity(name)}
+
+    def get_public_rpc_host(self):
+        return self.remote.get_host()
 
     def client(
         self, identity=None, signing_identity=None, interface_idx=None, **kwargs
@@ -434,7 +470,9 @@ class Node:
             akwargs["curl"] = True
 
         if interface_idx is None:
-            return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
+            return ccf.clients.client(
+                self.get_public_rpc_host(), self.pubport, **akwargs
+            )
         else:
             try:
                 host, port = self.interfaces[interface_idx]
@@ -445,8 +483,13 @@ class Node:
                 raise
             return ccf.clients.client(host, port, **akwargs)
 
-    def get_tls_certificate_pem(self):
-        return ssl.get_server_certificate((self.host, self.rpc_port))
+    def get_tls_certificate_pem(self, use_public_rpc_host=True):
+        return ssl.get_server_certificate(
+            (
+                self.get_public_rpc_host() if use_public_rpc_host else self.rpc_host,
+                self.rpc_port,
+            )
+        )
 
     def suspend(self):
         assert not self.suspended

@@ -7,7 +7,6 @@
 #include "ds/net.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
-#include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "load_monitor.h"
@@ -44,7 +43,6 @@ int main(int argc, char** argv)
 {
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
-  stacktrace::init_sig_handlers();
 
   CLI::App app{"ccf"};
 
