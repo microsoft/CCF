@@ -50,7 +50,5 @@ namespace crypto
       CHECK1(ASN1_TIME_to_tm(time, &tm_time));
       return std::mktime(&tm_time);
     }
-
   }
-
 }

@@ -230,8 +230,8 @@ def test_node_cert_renewal(network, args):
 
     test_vectors = [
         (now, future_allowed, None),
-        (now, future_forbidden, infra.proposal.ProposalNotAccepted),
         (future_allowed, now, infra.proposal.ProposalNotCreated),
+        (now, future_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
     for (before_date, after_date, expected_exception) in test_vectors:
@@ -262,6 +262,7 @@ def test_node_cert_renewal(network, args):
                         expected_exception is None
                     ), "Proposal should have not succeeded"
 
+                # Verify that node certificate has been renewed
                 node_cert_tls_after = node.get_tls_certificate_pem()
                 assert (
                     node_cert_tls_before != node_cert_tls_after
@@ -278,28 +279,29 @@ def test_node_cert_renewal(network, args):
                     )
                     == node.node_id
                 )
+                LOG.info(
+                    f"Certificate for node {node.local_node_id} has successfully been renewed"
+                )
 
                 # Long-connected client is still connected after certificate renewal
                 c.get("/node/network/nodes")
 
 
 def gov(args):
-    args.node_cert_max_validity_days = 10
-
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
-        test_create_endpoint(network, args)
-        test_consensus_status(network, args)
-        test_node_ids(network, args)
-        test_member_data(network, args)
-        test_quote(network, args)
-        test_user(network, args)
-        test_no_quote(network, args)
-        test_ack_state_digest_update(network, args)
-        test_invalid_client_signature(network, args)
+        # test_create_endpoint(network, args)
+        # test_consensus_status(network, args)
+        # test_node_ids(network, args)
+        # test_member_data(network, args)
+        # test_quote(network, args)
+        # test_user(network, args)
+        # test_no_quote(network, args)
+        # test_ack_state_digest_update(network, args)
+        # test_invalid_client_signature(network, args)
         test_node_cert_renewal(network, args)
 
 
@@ -333,32 +335,32 @@ if __name__ == "__main__":
         authenticate_session=True,
     )
 
-    cr.add(
-        "session_noauth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=False,
-    )
+    # cr.add(
+    #     "session_noauth",
+    #     gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=False,
+    # )
 
-    cr.add(
-        "js",
-        js_gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
+    # cr.add(
+    #     "js",
+    #     js_gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=True,
+    # )
 
-    cr.add(
-        "history",
-        governance_history.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        # Higher snapshot interval as snapshots trigger new ledger chunks, which
-        # may result in latest chunk being partially written
-        snapshot_tx_interval=10000,
-    )
+    # cr.add(
+    #     "history",
+    #     governance_history.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     # Higher snapshot interval as snapshots trigger new ledger chunks, which
+    #     # may result in latest chunk being partially written
+    #     snapshot_tx_interval=10000,
+    # )
 
     cr.run(2)

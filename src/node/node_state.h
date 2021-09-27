@@ -1638,13 +1638,9 @@ namespace ccf
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
           network.consensus_type,
-          reconf_type};
+          reconf_type,
+          config.genesis.node_cert_maximum_validity_period_days};
 
-        ServiceConfiguration::Nodes nodes;
-        nodes.cert_maximum_validity_period_days =
-          config.genesis.node_cert_maximum_validity_period_days;
-
-        genesis_info.configuration.nodes = nodes;
         create_params.genesis_info = genesis_info;
       }
 

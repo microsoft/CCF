@@ -325,6 +325,7 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
+    // TODO: Use valid_from and valid_to
     MCHK(mbedtls_x509write_crt_set_validity(
       crt.get(), "20210311000000", "20230611235959"));
 

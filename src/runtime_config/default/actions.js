@@ -141,7 +141,7 @@ function validateCertificateValidityPeriod(from, to, from_field, to_field) {
   checkType(from, "string", from_field);
   checkType(to, "string", to_field);
   if (!ccf.validateCertificateValidityPeriod(from, to)) {
-    throw new Error(`Date ${from_field} must be before date ${to_field}`);
+    throw new Error(`Date ${to_field} must be after date ${from_field}`);
   }
 }
 
@@ -959,10 +959,12 @@ const actions = new Map([
           !ccf.validateCertificateValidityPeriod(
             args.valid_from,
             args.valid_to,
-            serviceConfig.nodes.cert_maximum_validity_period_days
+            serviceConfig.cert_maximum_validity_period_days
           )
         ) {
-          throw new Error(`Date valid_from must be before date valid_to`);
+          throw new Error(
+            `Date valid_to ${args.valid_to} must be after date valid_from ${args.valid_from}, and within ${serviceConfig.cert_maximum_validity_period_days} days `
+          );
         }
 
         const endorsed_node_cert = ccf.network.generateEndorsedCertificate(

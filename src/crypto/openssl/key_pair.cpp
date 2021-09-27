@@ -260,6 +260,7 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
+    // TODO: valid_from and valid_to should always have a value
     Unique_ASN1_TIME before(valid_from.value_or("20210311000000Z"));
     Unique_ASN1_TIME after(valid_to.value_or("20230611235959Z"));
 
