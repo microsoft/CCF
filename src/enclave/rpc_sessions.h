@@ -256,8 +256,8 @@ namespace enclave
       {
         LOG_DEBUG_FMT(
           "Accepting a session {} inside the enclave from interface {}",
-          listen_interface_id,
-          id);
+          id,
+          listen_interface_id);
         auto ctx = std::make_unique<tls::Server>(cert);
 
         auto session = std::make_shared<ServerEndpointImpl>(
