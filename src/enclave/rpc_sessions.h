@@ -219,11 +219,10 @@ namespace enclave
       {
         LOG_INFO_FMT(
           "Refusing TLS session {} inside the enclave - already have {} "
-          "sessions "
-          "from interface {} and limit is {}",
+          "sessions from interface {} and limit is {}",
           id,
-          listen_interface_id,
           per_listen_interface.open_sessions,
+          listen_interface_id,
           per_listen_interface.max_open_sessions_hard);
 
         RINGBUFFER_WRITE_MESSAGE(
@@ -235,11 +234,10 @@ namespace enclave
       {
         LOG_INFO_FMT(
           "Soft refusing session {} (returning 503) inside the enclave - "
-          "already have {} "
-          "sessions from interface {} and limit is {}",
+          "already have {} sessions from interface {} and limit is {}",
           id,
-          listen_interface_id,
           per_listen_interface.open_sessions,
+          listen_interface_id,
           per_listen_interface.max_open_sessions_soft);
 
         auto ctx = std::make_unique<tls::Server>(cert);
