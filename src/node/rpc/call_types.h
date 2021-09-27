@@ -91,24 +91,6 @@ namespace ccf
     using Out = nlohmann::json;
   };
 
-  struct EndpointMetrics
-  {
-    struct Entry
-    {
-      std::string path;
-      std::string method;
-      size_t calls = 0;
-      size_t errors = 0;
-      size_t failures = 0;
-      size_t retries = 0;
-    };
-
-    struct Out
-    {
-      std::vector<Entry> metrics;
-    };
-  };
-
   struct VerifyReceipt
   {
     struct In

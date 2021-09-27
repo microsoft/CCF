@@ -7,7 +7,18 @@
         ],
         "type": "string"
       },
-      "EndpointMetrics__Entry": {
+      "EndpointMetrics": {
+        "properties": {
+          "metrics": {
+            "$ref": "#/components/schemas/EndpointMetricsEntry_array"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "type": "object"
+      },
+      "EndpointMetricsEntry": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -38,22 +49,11 @@
         ],
         "type": "object"
       },
-      "EndpointMetrics__Entry_array": {
+      "EndpointMetricsEntry_array": {
         "items": {
-          "$ref": "#/components/schemas/EndpointMetrics__Entry"
+          "$ref": "#/components/schemas/EndpointMetricsEntry"
         },
         "type": "array"
-      },
-      "EndpointMetrics__Out": {
-        "properties": {
-          "metrics": {
-            "$ref": "#/components/schemas/EndpointMetrics__Entry_array"
-          }
-        },
-        "required": [
-          "metrics"
-        ],
-        "type": "object"
       },
       "EntityId": {
         "format": "hex",
@@ -494,7 +494,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.1.0"
+    "version": "2.2.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -521,7 +521,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics__Out"
+                  "$ref": "#/components/schemas/EndpointMetrics"
                 }
               }
             },

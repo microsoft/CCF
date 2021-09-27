@@ -197,29 +197,26 @@ namespace ccf
       .install();
 
     auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
-      std::lock_guard<std::mutex> guard(metrics_lock);
-      EndpointMetrics::Out out;
-      for (const auto& [path, verb_metrics] : metrics)
+      EndpointMetrics out;
+      const auto result = get_metrics_v1(out);
+      if (result == ccf::ApiResult::OK)
       {
-        for (const auto& [verb, metric] : verb_metrics)
-        {
-          out.metrics.push_back(
-            {path,
-             verb,
-             metric.calls,
-             metric.errors,
-             metric.failures,
-             metric.retries});
-        }
+        return make_success(out);
       }
-      return make_success(out);
+      else
+      {
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+      }
     };
     make_command_endpoint(
       "/api/metrics",
       HTTP_GET,
       json_command_adapter(endpoint_metrics_fn),
       no_auth_required)
-      .set_auto_schema<void, EndpointMetrics::Out>()
+      .set_auto_schema<void, EndpointMetrics>()
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
