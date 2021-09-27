@@ -307,24 +307,31 @@ namespace ccf
       {
         const auto time_since_initiated =
           enclave::get_enclave_time() - last_initiation_time;
-        if (
-          time_since_initiated >= min_gap_between_initiation_attempts)
+        if (time_since_initiated >= min_gap_between_initiation_attempts)
         {
-          // TODO: Doc this, there is now a timeout on this!
-
-          // If we try to initiate too early when a node starts up, they will
-          // never receive the init message (they drop it if it arrives too
-          // early in their state machine). So sometimes we need to re-initiate.
-          // Currently, this means if we try to send too fast during initial key
-          // exchange, we'll constantly generate new handshake attempts and
-          // never succeed! This should be handled by a timeout, timing out an
-          // INITIATED connection faster than a later one, but still slow enough
-          // that we give a roundtrip a chance.
+          // If this node attempts to initiate too early when the peer node
+          // starts up, they will never receive the init message (they drop it
+          // if it arrives too early in their state machine). The same state
+          // could also occur later, if the initiate message is lost in transit.
+          // So sometimes this node needs to re-initiate. However, if this node
+          // sends too fast before the channel is established, and each send
+          // generates a new handshake, it may constantly generate new handshake
+          // attempts and never succeed. Additionally, when talking to peers
+          // using the old channel behaviour, this node should try to avoid
+          // confusing them by sending multiple adjacent initiate requests -
+          // they will only process the first one they receive. To avoid these
+          // problems with initiation spam, we have a minimum delay between
+          // initiation attempts. This should be low enough to get reasonable
+          // liveness (re-attempt connections in the presence of dropped
+          // messages), but high enough to give successful roundtrips a chance
+          // to complete.
           initiate();
         }
         else
         {
-          LOG_INFO_FMT("Ignoring advance attempt! Only {} us have elapsed", time_since_initiated.count());
+          LOG_INFO_FMT(
+            "Ignoring advance attempt! Only {} us have elapsed",
+            time_since_initiated.count());
         }
       }
     }
