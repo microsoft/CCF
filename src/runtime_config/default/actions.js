@@ -963,7 +963,7 @@ const actions = new Map([
           )
         ) {
           throw new Error(
-            `Date valid_to ${args.valid_to} must be after date valid_from ${args.valid_from}, and within ${serviceConfig.cert_maximum_validity_period_days} days `
+            `Date valid_to ${args.valid_to} must be after date valid_from ${args.valid_from}, and within ${serviceConfig.cert_maximum_validity_period_days} days`
           );
         }
 

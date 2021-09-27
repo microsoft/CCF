@@ -636,19 +636,6 @@ TEST_CASE("AES-GCM convenience functions")
 
 TEST_CASE("ASN1 time")
 {
-  struct TimeTest
-  {
-    struct Input
-    {
-      std::tm from;
-      std::tm to;
-      std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
-    };
-    Input input;
-
-    bool expected_verification_result;
-  };
-
   auto current_time_t =
     std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
   auto time = *std::localtime(&current_time_t);
@@ -658,23 +645,61 @@ TEST_CASE("ASN1 time")
   auto next_year_time = time;
   next_year_time.tm_year++;
 
-  std::vector<TimeTest> test_vectors{
-    {{time, next_day_time}, true}, // Valid: Next day
-    {{time, time}, false}, // Invalid: Same date
-    {{next_day_time, time}, false}, // Invalid: to is before from
-    {{time, next_day_time, 100}, true}, // Valid: Next day within 100 days
-    {{time, next_year_time, 100}, false}, // Valid: Next day not within 100 days
-  };
+  auto current_time = crypto::OpenSSL::from_time_t(current_time_t);
+  auto next_day = crypto::OpenSSL::from_time_t(std::mktime(&next_day_time));
+  auto next_year = crypto::OpenSSL::from_time_t(std::mktime(&next_year_time));
 
-  for (auto& data : test_vectors)
+  INFO("Validate chronological times");
   {
-    auto* from = &data.input.from;
-    auto* to = &data.input.to;
-    REQUIRE(
-      crypto::OpenSSL::validate_chronological_times(
-        crypto::OpenSSL::from_time_t(std::mktime(from)),
-        crypto::OpenSSL::from_time_t(std::mktime(to)),
-        data.input.maximum_validity_period_days) ==
-      data.expected_verification_result);
+    struct TimeTest
+    {
+      struct Input
+      {
+        std::tm from;
+        std::tm to;
+        std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
+      };
+      Input input;
+
+      bool expected_verification_result;
+    };
+
+    std::vector<TimeTest> test_vectors{
+      {{time, next_day_time}, true}, // Valid: Next day
+      {{time, time}, false}, // Invalid: Same date
+      {{next_day_time, time}, false}, // Invalid: to is before from
+      {{time, next_day_time, 100}, true}, // Valid: Next day within 100 days
+      {{time, next_year_time, 100},
+       false}, // Valid: Next day not within 100 days
+    };
+
+    for (auto& data : test_vectors)
+    {
+      auto* from = &data.input.from;
+      auto* to = &data.input.to;
+      REQUIRE(
+        crypto::OpenSSL::validate_chronological_times(
+          crypto::OpenSSL::from_time_t(std::mktime(from)),
+          crypto::OpenSSL::from_time_t(std::mktime(to)),
+          data.input.maximum_validity_period_days) ==
+        data.expected_verification_result);
+    }
+  }
+
+  INFO("Adjust time");
+  {
+    std::vector<std::tm> times = {time, next_day_time, next_day_time};
+
+    for (auto& t : times)
+    {
+      size_t days_offset = 100;
+      time_t t_ = std::mktime(&t);
+      auto adjusted_time = crypto::OpenSSL::adjust_time(
+        crypto::OpenSSL::from_time_t(t_), days_offset);
+      auto days_diff =
+        std::difftime(crypto::OpenSSL::to_time_t(adjusted_time), t_) /
+        (60 * 60 * 24);
+      REQUIRE(days_diff == days_offset);
+    }
   }
 }
