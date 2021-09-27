@@ -59,8 +59,8 @@ namespace ccf
     }
   }
 
-  /** Extends the basic @ref EndpointRegistry with helper API methods for
-   * retrieving core CCF properties.
+  /** Extends the basic @ref ccf::endpoints::EndpointRegistry with helper API
+   * methods for retrieving core CCF properties.
    *
    * The API methods are versioned with a @c _vN suffix. App developers should
    * use the latest version which provides the values they need. Note that the
@@ -156,5 +156,10 @@ namespace ccf
     /** Get untrusted time from the host of the currently executing node.
      */
     ApiResult get_untrusted_host_time_v1(::timespec& time);
+
+    /** Get usage metrics from endpoints under the registry, including
+     * number of calls, errors, failures and retries.
+     */
+    ApiResult get_metrics_v1(EndpointMetrics& endpoint_metrics);
   };
 }
