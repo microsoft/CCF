@@ -687,6 +687,7 @@ def test_historical_query_range(network, args):
 
     id_a = 142
     id_b = 143
+    id_c = 144
 
     first_seqno = None
     last_seqno = None
@@ -698,7 +699,8 @@ def test_historical_query_range(network, args):
         logs = []
         with primary.client("user0") as c:
             timeout = 5
-            end_time = time.time() + timeout
+            start_time = time.time()
+            end_time = start_time + timeout
             entries = []
             path = f"/app/log/private/historical/range?id={target_id}"
             if from_seqno is not None:
@@ -715,7 +717,11 @@ def test_historical_query_range(network, args):
                         continue
                     else:
                         # No @nextLink means we've reached end of range
-                        return entries
+                        duration = time.time() - start_time
+                        LOG.info(
+                            f"Done! Fetched {len(entries)} entries in {duration:0.2f}s"
+                        )
+                        return entries, duration
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     # Ignore retry-after header, retry soon
                     time.sleep(0.1)
@@ -737,8 +743,16 @@ def test_historical_query_range(network, args):
         # time to retrieve the submitted transactions
         msgs = dict()
         n_entries = 100
+
+        def id_for(i):
+            if i == n_entries // 2:
+                return id_c
+            else:
+                return id_b if i % 3 == 0 else id_a
+
         for i in range(n_entries):
-            idx = id_b if i % 3 == 0 else id_a
+            idx = id_for(i)
+
             network.txs.issue(
                 network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
             )
@@ -755,26 +769,35 @@ def test_historical_query_range(network, args):
 
         ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        entries_a = get_all_entries(id_a)
-        entries_b = get_all_entries(id_b)
+        entries_a, duration_a = get_all_entries(id_a)
+        entries_b, duration_b = get_all_entries(id_b)
+        entries_c, duration_c = get_all_entries(id_c)
+
+        # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
+        assert duration_c < duration_a
+        assert duration_c < duration_b
 
         # Confirm that we can retrieve these with more specific queries, and we end up with the same result
-        alt_a = get_all_entries(id_a, from_seqno=first_seqno)
+        alt_a, _ = get_all_entries(id_a, from_seqno=first_seqno)
         assert alt_a == entries_a
-        alt_a = get_all_entries(id_a, to_seqno=last_seqno)
+        alt_a, _ = get_all_entries(id_a, to_seqno=last_seqno)
         assert alt_a == entries_a
-        alt_a = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
+        alt_a, _ = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
         assert alt_a == entries_a
 
-        actual_len = len(entries_a) + len(entries_b)
+        actual_len = len(entries_a) + len(entries_b) + len(entries_c)
         assert (
             n_entries == actual_len
         ), f"Expected {n_entries} total entries, got {actual_len}"
 
         # Iterate through both lists, by i, checking retrieved entries match expectations
         for i in range(n_entries):
-            entries = entries_b if i % 3 == 0 else entries_a
-            expected_id = id_b if i % 3 == 0 else id_a
+            expected_id = id_for(i)
+            entries = (
+                entries_a
+                if expected_id == id_a
+                else (entries_b if expected_id == id_b else entries_c)
+            )
             entry = entries.pop(0)
             assert entry["id"] == expected_id
             assert entry["msg"] == msgs[entry["seqno"]]
@@ -782,6 +805,7 @@ def test_historical_query_range(network, args):
         # Make sure this has checked every entry
         assert len(entries_a) == 0
         assert len(entries_b) == 0
+        assert len(entries_c) == 0
 
     return network
 
