@@ -943,7 +943,6 @@ class Network:
         timeout = self.election_duration * timeout_multiplier
         LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
         end_time = time.time() + timeout
-        logs = []
 
         primaries = []
         while time.time() < end_time:
