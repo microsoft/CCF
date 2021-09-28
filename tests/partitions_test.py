@@ -10,6 +10,8 @@ from infra.checker import check_can_progress, check_does_not_progress
 import pprint
 from ccf.tx_status import TxStatus
 
+from loguru import logger as LOG
+
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -55,15 +57,24 @@ def test_partition_majority(network, args):
 
     # The primary should remain stable while the partition is active
     # Note: Context manager
+    initial_view = None
     with network.partitioner.partition(partition):
         try:
             network.wait_for_new_primary(primary)
             assert False, "No new primary should be elected when partitioning majority"
         except TimeoutError:
-            pass
+            LOG.info("No new primary, as expected")
+            with primary.client() as c:
+                resp = c.get(
+                    "/node/network/nodes/self"
+                )  # Well-known read-only endpoint
+                initial_view = resp.view
 
-    # A new leader should be elected once the partition is dropped
-    network.wait_for_new_primary(primary)
+    # The partitioned nodes will have called elections, increasing their view.
+    # When the partition is lifted, the nodes must elect a new leader, in at least this
+    # increased term. The winning node could come from either partition, and could even
+    # be the original primary.
+    network.wait_for_primary_agreement(min_view=initial_view)
 
     return network
 
@@ -117,6 +128,8 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
     # Check reconnected former primary has caught up
     with primary.client() as c:
         try:
+            # TODO: This timeout is too short. Actually need at least one unsuccessful election
+            # (by the partitoned node), then however rounds many to elect someone who _is_ up-to-date
             c.wait_for_commit(new_tx_resp, timeout=5)
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
