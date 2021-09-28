@@ -39,10 +39,10 @@ jobs:
         displayName: "Publish V8 Artifact"
         inputs:
           command: publish
-          publishDirectory: '$(Build.ArtifactStagingDirectory)'
-          vstsFeedPublish: 'CCF/V8'
-          vstsFeedPackagePublish: 'ccf-v8-$(pkg-ver).tar.xz'
+          publishDirectory: "$(Build.ArtifactStagingDirectory)"
+          vstsFeedPublish: "CCF/V8"
+          vstsFeedPackagePublish: "ccf-v8-$(pkg-ver).tar.xz"
           versionOption: custom
-          versionPublish: '$(pkg-ver)'
-          packagePublishDescription: 'CCF build of monolith V8'
+          versionPublish: "$(pkg-ver)"
+          packagePublishDescription: "CCF build of monolith V8"
         condition: eq(variables.pushArtifact, 'true')
