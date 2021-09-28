@@ -5,7 +5,7 @@
 SYNTAX="build-v8.sh <version (ex. 9.4.146.17)> [publish (true|false)]"
 if [ "$1" == "" ]; then
   echo "ERROR: Missing expected argument 'version'"
-  echo $SYNTAX
+  echo "$SYNTAX"
   exit 1
 fi
 EXPECTED_VERSION="$1"
@@ -16,7 +16,7 @@ if [ "$2" != "" ]; then
     PUBLISH="$2"
   elif [ "$2" != "false" ]; then
     echo "ERROR: Publis can only be 'true' or 'false'"
-    echo $SYNTAX
+    echo "$SYNTAX"
     exit 1
   fi
 fi
@@ -24,24 +24,27 @@ fi
 echo " + Cleaning up environment..."
 rm -rf build-v8
 mkdir build-v8
-cd build-v8
+# This should never fail but CI lint requires it
+cd build-v8 || exit
 
 echo " + Checking V8 build dependencies..."
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 export PATH=$PATH:$PWD/depot_tools
-if [ "$(which gn)" == "" ] ||
-   [ "$(which fetch)" == "" ] ||
-   [ "$(which gclient)" == "" ]; then
+if command -v gn > /dev/null &&
+   command -v fetch > /dev/null &&
+   command -v gclient > /dev/null; then
+  echo "depot_tools installation successful"
+else
   echo "ERROR: depot_tools installation unsuccessful"
   exit 1
 fi
 
 echo " + Fetching V8 on known stable branch..."
 fetch v8
-cd v8
+cd v8 || exit
 # This is known stable on all platforms according to omahaproxy.appspot.com
-CHECKOUT_BANCH=branch-heads/$MAJOR_VERSION
-git checkout $CHECKOUT_BANCH
+CHECKOUT_BANCH="branch-heads/$MAJOR_VERSION"
+git checkout "$CHECKOUT_BANCH"
 VERSION=$(git show | grep -o "$EXPECTED_VERSION")
 if [ "$VERSION" != "$EXPECTED_VERSION" ]; then
   echo "ERROR: Invalid version $VERSION for checkout $CHECKOUT_BANCH"
