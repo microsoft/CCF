@@ -46,6 +46,27 @@ def verify_receipt(receipt, network_cert, check_endorsement=True):
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
+def add_jwt(network):
+    jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+    jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+    jwt_kid = "my_key_id"
+    jwt_issuer = "https://example.issuer"
+    # Add JWT issuer
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": jwt_issuer,
+            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        primary, _ = network.find_primary()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    return infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+
+
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
@@ -432,26 +453,9 @@ def test_multi_auth(network, args):
                 require_new_response(r)
 
             LOG.info("Authenticate via JWT token")
-            jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-            jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-            jwt_kid = "my_key_id"
-            jwt_issuer = "https://example.issuer"
-            # Add JWT issuer
-            with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-                jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-                der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-                data = {
-                    "issuer": jwt_issuer,
-                    "jwks": {
-                        "keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]
-                    },
-                }
-                json.dump(data, metadata_fp)
-                metadata_fp.flush()
-                network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+            jwt = add_jwt(network)
 
             with primary.client() as c:
-                jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
                 r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
                 require_new_response(r)
 
@@ -688,12 +692,14 @@ def test_historical_query_range(network, args):
     first_seqno = None
     last_seqno = None
 
+    jwt = add_jwt(network)
+
     def get_all_entries(target_id, from_seqno=None, to_seqno=None):
         LOG.info(
             f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {last_seqno}' if to_seqno is not None else ''} for id {target_id}"
         )
         logs = []
-        with primary.client("user0") as c:
+        with primary.client() as c:
             timeout = 800
             start_time = time.time()
             end_time = start_time + timeout
@@ -704,7 +710,7 @@ def test_historical_query_range(network, args):
             if to_seqno is not None:
                 path += f"&to_seqno={to_seqno}"
             while time.time() < end_time:
-                r = c.get(path, log_capture=logs)
+                r = c.get(path, log_capture=logs, headers={"authorization": f"Bearer {jwt}"})
                 if r.status_code == http.HTTPStatus.OK:
                     j_body = r.body.json()
                     entries += j_body["entries"]
@@ -760,13 +766,13 @@ def test_historical_query_range(network, args):
 
             msg = f"Unique message {i}"
             r = c.post(
-                    "/app/log/private",
-                    {
-                        "id": idx,
-                        "msg": msg,
-                    },
-                    log_capture= None if i % 1000 == 0 else [],
-                )
+                "/app/log/private",
+                {
+                    "id": idx,
+                    "msg": msg,
+                },
+                log_capture=None if i % 1000 == 0 else [],
+            )
             assert r.status_code == http.HTTPStatus.OK
 
             seqno = r.seqno
@@ -780,7 +786,9 @@ def test_historical_query_range(network, args):
 
         ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        LOG.info(f"Total ledger contains {last_seqno} entries, of which we expect to examine {last_seqno - first_seqno}")
+        LOG.info(
+            f"Total ledger contains {last_seqno} entries, of which we expect to examine {last_seqno - first_seqno}"
+        )
 
         entries = {}
         entries[id_a], duration_a = get_all_entries(id_a)
@@ -801,7 +809,12 @@ def test_historical_query_range(network, args):
         alt_a, _ = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
         assert alt_a == entries[id_a]
 
-        actual_len = len(entries[id_a]) + len(entries[id_b]) + len(entries[id_c]) + len(entries[id_single])
+        actual_len = (
+            len(entries[id_a])
+            + len(entries[id_b])
+            + len(entries[id_c])
+            + len(entries[id_single])
+        )
         assert (
             n_entries == actual_len
         ), f"Expected {n_entries} total entries, got {actual_len}"
