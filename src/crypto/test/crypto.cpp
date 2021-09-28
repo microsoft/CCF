@@ -638,7 +638,7 @@ TEST_CASE("ASN1 time")
 {
   auto current_time_t =
     std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-  auto time = *std::localtime(&current_time_t);
+  auto time = *std::gmtime(&current_time_t);
 
   auto next_day_time = time;
   next_day_time.tm_mday++;
@@ -689,10 +689,10 @@ TEST_CASE("ASN1 time")
   INFO("Adjust time");
   {
     std::vector<std::tm> times = {time, next_day_time, next_day_time};
+    size_t days_offset = 100;
 
     for (auto& t : times)
     {
-      size_t days_offset = 100;
       time_t t_ = std::mktime(&t);
       auto adjusted_time = crypto::OpenSSL::adjust_time(
         crypto::OpenSSL::from_time_t(t_), days_offset);
@@ -700,6 +700,23 @@ TEST_CASE("ASN1 time")
         std::difftime(crypto::OpenSSL::to_time_t(adjusted_time), t_) /
         (60 * 60 * 24);
       REQUIRE(days_diff == days_offset);
+    }
+  }
+
+  INFO("String to time conversion and back");
+  {
+    std::vector<size_t> days_offsets = {0, 1, 10, 100, 365, 1000, 10000};
+
+    for (auto const& days_offset : days_offsets)
+    {
+      auto adjusted_time = crypto::OpenSSL::adjust_time(
+        crypto::OpenSSL::from_time_t(current_time_t), days_offset);
+      auto adjusted_time_t = crypto::OpenSSL::to_time_t(adjusted_time);
+
+      auto x509_str = crypto::OpenSSL::to_x509_time_string(adjusted_time_t);
+      auto asn1_time = crypto::OpenSSL::Unique_ASN1_TIME(x509_str);
+      auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
+      REQUIRE(converted_time_t == adjusted_time_t);
     }
   }
 }

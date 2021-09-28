@@ -4,6 +4,7 @@
 
 #include "openssl_wrappers.h"
 
+#include <fmt/format.h>
 #include <time.h>
 
 namespace crypto
@@ -54,10 +55,17 @@ namespace crypto
     }
 
     static inline Unique_ASN1_TIME adjust_time(
-      const Unique_ASN1_TIME& time, size_t offset_days)
+      const Unique_ASN1_TIME& time, size_t offset_days, int64_t offset_secs = 0)
     {
       return Unique_ASN1_TIME(
-        ASN1_TIME_adj(nullptr, to_time_t(time), offset_days, 0));
+        ASN1_TIME_adj(nullptr, to_time_t(time), offset_days, offset_secs));
+    }
+
+    static inline std::string to_x509_time_string(const time_t& time)
+    {
+      // Returns ASN1 time string (YYYYMMDDHHMMSSZ) from time_t, as per
+      // https://www.openssl.org/docs/man1.1.1/man3/ASN1_UTCTIME_set.html
+      return fmt::format("{:%Y%m%d%H%M%SZ}", fmt::gmtime(time));
     }
   }
 }

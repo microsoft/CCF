@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -786,10 +787,12 @@ int main(int argc, char** argv)
 
     ccf_config.node_certificate_subject_identity =
       node_certificate_subject_identity;
-
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
-
     ccf_config.curve_id = curve_id;
+    ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
+      std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+
+    LOG_FAIL_FMT("Current host time: {}", ccf_config.startup_host_time);
 
     if (*start)
     {

@@ -334,6 +334,7 @@ namespace ccf
 
       js::register_class_ids();
       self_signed_node_cert = create_self_signed_node_cert();
+      LOG_FAIL_FMT("{}", self_signed_node_cert.str());
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
@@ -1552,7 +1553,19 @@ namespace ccf
 
     Pem create_self_signed_node_cert()
     {
-      return node_sign_kp->self_sign(config.node_certificate_subject_identity);
+      // TODO: Determine valid_to
+      auto valid_to = crypto::OpenSSL::adjust_time(
+        config.startup_host_time,
+        config.genesis.node_cert_maximum_validity_period_days,
+        -1);
+      auto valid_to_str = crypto::OpenSSL::to_x509_time_string(
+        crypto::OpenSSL::to_time_t(valid_to));
+
+      return node_sign_kp->self_sign(
+        config.node_certificate_subject_identity,
+        true,
+        config.startup_host_time,
+        valid_to_str);
     }
 
     Pem create_endorsed_node_cert()
