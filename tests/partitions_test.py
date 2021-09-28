@@ -104,7 +104,7 @@ def test_isolate_primary_from_one_backup(network, args):
 
 
 @reqs.description("Isolate and reconnect primary")
-def test_isolate_and_reconnect_primary(network, args):
+def test_isolate_and_reconnect_primary(network, args, **kwargs):
     primary, backups = network.find_nodes()
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
@@ -147,8 +147,8 @@ def run(args):
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        for _ in range(5):
-            test_isolate_and_reconnect_primary(network, args)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@
 #include "network_state.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
+#include "node/node_to_node_channel_manager.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
@@ -306,7 +307,8 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<ccf::NodeToNodeImpl>(writer_factory);
+      n2n_channels =
+        std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
@@ -1363,6 +1365,9 @@ namespace ccf
           !sm.check(State::partOfPublicNetwork) &&
           !sm.check(State::readingPrivateLedger))
         {
+          LOG_DEBUG_FMT(
+            "Ignoring node msg received too early - current state is {}",
+            sm.value());
           return;
         }
 
@@ -1370,9 +1375,11 @@ namespace ccf
         {
           case channel_msg:
           {
-            n2n_channels->recv_message(from, payload_data, payload_size);
+            n2n_channels->recv_channel_message(
+              from, payload_data, payload_size);
             break;
           }
+
           case consensus_msg:
           {
             consensus->recv_message(from, payload_data, payload_size);
