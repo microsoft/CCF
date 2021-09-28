@@ -63,7 +63,6 @@ struct CCFConfig
     std::vector<ccf::NewMember> members_info;
     std::string constitution;
     size_t recovery_threshold;
-    size_t node_cert_maximum_validity_period_days;
   };
   Genesis genesis = {};
 
@@ -77,11 +76,10 @@ struct CCFConfig
   Joining joining = {};
 
   crypto::CertificateSubjectIdentity node_certificate_subject_identity;
-
   size_t jwt_key_refresh_interval_s;
-
   crypto::CurveID curve_id;
 
+  size_t node_cert_maximum_validity_period_days;
   std::string startup_host_time;
 };
 
@@ -91,11 +89,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(CCFConfig::Genesis);
 DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Genesis,
-  members_info,
-  constitution,
-  recovery_threshold,
-  node_cert_maximum_validity_period_days);
+  CCFConfig::Genesis, members_info, constitution, recovery_threshold);
 
 DECLARE_JSON_TYPE(CCFConfig::Joining);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -115,6 +109,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   node_certificate_subject_identity,
   jwt_key_refresh_interval_s,
   curve_id,
+  node_cert_maximum_validity_period_days,
   startup_host_time);
 
 /// General administrative messages

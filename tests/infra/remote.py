@@ -705,6 +705,9 @@ class CCFRemote(object):
         if client_connection_timeout_ms:
             cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
+        if node_cert_max_validity_days:
+            cmd += [f"--node-cert-max-validity-days={node_cert_max_validity_days}"]
+
         if additional_raw_node_args:
             for s in additional_raw_node_args:
                 cmd += [str(s)]
@@ -716,9 +719,6 @@ class CCFRemote(object):
                 data_files += [
                     os.path.join(self.common_dir, os.path.basename(fragment))
                 ]
-
-            if node_cert_max_validity_days:
-                cmd += [f"--node-cert-max-validity-days={node_cert_max_validity_days}"]
 
             if members_info is None:
                 raise ValueError(

@@ -274,10 +274,11 @@ def check_key_pair_pem(private: str, public: str, password=None) -> bool:
     pub_der = pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     return prv_pub_der == pub_der
 
-def get_validity_period_from_pem_cert(pem:str):
+
+def get_validity_period_from_pem_cert(pem: str):
     cert = load_pem_x509_certificate(pem.encode(), default_backend())
     return cert.not_valid_before, cert.not_valid_after
 
-def datetime_as_UTCtime(datetime:datetime):
-    return UTCTime.fromDateTime(datetime)
 
+def datetime_as_UTCtime(datetime: datetime):
+    return UTCTime.fromDateTime(datetime)

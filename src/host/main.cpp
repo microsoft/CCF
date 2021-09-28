@@ -401,6 +401,15 @@ int main(int argc, char** argv)
     ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
 
+  size_t node_cert_maximum_validity_period_days = 365;
+  app
+    .add_option(
+      "--node-cert-max-validity-days",
+      node_cert_maximum_validity_period_days,
+      "Maximum number of days node certificates must be valid for.")
+    ->check(CLI::PositiveNumber)
+    ->type_name("UINT");
+
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
@@ -442,15 +451,6 @@ int main(int argc, char** argv)
       recovery_threshold,
       "Number of member shares required for recovery. Defaults to total number "
       "of initial consortium members with a public encryption key.")
-    ->check(CLI::PositiveNumber)
-    ->type_name("UINT");
-
-  size_t node_cert_maximum_validity_period_days = 365;
-  start
-    ->add_option(
-      "--node-cert-max-validity-days",
-      node_cert_maximum_validity_period_days,
-      "Maximum number of days node certificates must be valid for.")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -789,10 +789,14 @@ int main(int argc, char** argv)
       node_certificate_subject_identity;
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
     ccf_config.curve_id = curve_id;
-    ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
-      std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+    ccf_config.node_cert_maximum_validity_period_days =
+      node_cert_maximum_validity_period_days;
 
-    LOG_FAIL_FMT("Current host time: {}", ccf_config.startup_host_time);
+    auto current_host_time = std::chrono::system_clock::now();
+    LOG_INFO_FMT("Current host time: {}", current_host_time);
+
+    ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
+      std::chrono::system_clock::to_time_t(current_host_time));
 
     if (*start)
     {
@@ -831,8 +835,6 @@ int main(int argc, char** argv)
           files::slurp_string(constitution_path);
       }
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
-      ccf_config.genesis.node_cert_maximum_validity_period_days =
-        node_cert_maximum_validity_period_days;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",

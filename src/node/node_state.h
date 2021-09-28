@@ -20,6 +20,7 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/certs.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
@@ -333,8 +334,13 @@ namespace ccf
         get_subject_alternative_names();
 
       js::register_class_ids();
-      self_signed_node_cert = create_self_signed_node_cert();
+      self_signed_node_cert = create_self_signed_cert(
+        node_sign_kp,
+        config.node_certificate_subject_identity,
+        config.startup_host_time,
+        config.node_cert_maximum_validity_period_days);
       LOG_FAIL_FMT("{}", self_signed_node_cert.str());
+
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
@@ -1551,23 +1557,6 @@ namespace ccf
       }
     }
 
-    Pem create_self_signed_node_cert()
-    {
-      // TODO: Determine valid_to
-      auto valid_to = crypto::OpenSSL::adjust_time(
-        config.startup_host_time,
-        config.genesis.node_cert_maximum_validity_period_days,
-        -1);
-      auto valid_to_str = crypto::OpenSSL::to_x509_time_string(
-        crypto::OpenSSL::to_time_t(valid_to));
-
-      return node_sign_kp->self_sign(
-        config.node_certificate_subject_identity,
-        true,
-        config.startup_host_time,
-        valid_to_str);
-    }
-
     Pem create_endorsed_node_cert()
     {
       // Only used by a 2.x node joining an existing 1.x service which will not
@@ -1575,7 +1564,13 @@ namespace ccf
       auto nw = crypto::make_key_pair(network.identity->priv_key);
       auto csr =
         node_sign_kp->create_csr(config.node_certificate_subject_identity);
-      return nw->sign_csr(network.identity->cert, csr);
+      return nw->sign_csr(
+        network.identity->cert,
+        csr,
+        false,
+        compute_cert_valid_to_string(
+          config.startup_host_time,
+          config.node_cert_maximum_validity_period_days));
     }
 
     crypto::Pem generate_endorsed_certificate(
@@ -1652,7 +1647,7 @@ namespace ccf
           config.genesis.recovery_threshold,
           network.consensus_type,
           reconf_type,
-          config.genesis.node_cert_maximum_validity_period_days};
+          config.node_cert_maximum_validity_period_days};
 
         create_params.genesis_info = genesis_info;
       }
@@ -1666,6 +1661,7 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
+      create_params.node_cert_valid_from = config.startup_host_time;
 
       // Record self-signed certificate in create request if the node does not
       // require endorsement by the service (i.e. BFT)

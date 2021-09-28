@@ -10,6 +10,7 @@
 #include "crypto/csr.h"
 #include "crypto/hash.h"
 #include "frontend.h"
+#include "node/certs.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
@@ -1160,7 +1161,13 @@ namespace ccf
             context.get_node_state().generate_endorsed_certificate(
               in.certificate_signing_request,
               this->network.identity->priv_key,
-              this->network.identity->cert));
+              this->network.identity->cert,
+              in.node_cert_valid_from,
+              compute_cert_valid_to_string(
+                in.node_cert_valid_from,
+                in.genesis_info->configuration.cert_maximum_validity_period_days
+                  .value())));
+          // TODO: What to do for recovery? Read existing value from store?
         }
         else
         {

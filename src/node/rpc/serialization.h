@@ -85,7 +85,8 @@ namespace ccf
     quote_info,
     public_encryption_key,
     code_digest,
-    node_info_network)
+    node_info_network,
+    node_cert_valid_from)
   DECLARE_JSON_OPTIONAL_FIELDS(
     CreateNetworkNodeToNode::In, node_cert, genesis_info)
 
