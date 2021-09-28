@@ -128,8 +128,6 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
     # Check reconnected former primary has caught up
     with primary.client() as c:
         try:
-            # TODO: This timeout is too short. Actually need at least one unsuccessful election
-            # (by the partitoned node), then however rounds many to elect someone who _is_ up-to-date
             c.wait_for_commit(new_tx_resp, timeout=5)
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
