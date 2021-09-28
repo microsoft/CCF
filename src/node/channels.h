@@ -327,12 +327,6 @@ namespace ccf
           // to complete.
           initiate();
         }
-        else
-        {
-          LOG_INFO_FMT(
-            "Ignoring advance attempt! Only {} us have elapsed",
-            time_since_initiated.count());
-        }
       }
     }
 
