@@ -15,7 +15,7 @@ if [ "$2" != "" ]; then
   if [ "$2" == "true" ]; then
     PUBLISH="$2"
   elif [ "$2" != "false" ]; then
-    echo "ERROR: Publis can only be 'true' or 'false'"
+    echo "ERROR: Publish can only be 'true' or 'false'"
     echo "$SYNTAX"
     exit 1
   fi
