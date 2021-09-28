@@ -1,0 +1,48 @@
+trigger:
+  batch: false
+
+variables:
+  pushArtifact: $(PUSH_ARTIFACT)
+  pkg-ver: $(VERSION)
+
+jobs:
+  - job: build_v8
+    container: ccfciteam/ccf-ci:oe0.17.2-docker-cli
+    pool: 1es-dv4-focal
+
+    steps:
+      - checkout: self
+        clean: true
+
+      - script: |
+          sudo apt update
+          sudo apt install -y pkg-config
+        displayName: "Install dependencies"
+
+      - script: scripts/build-v8.sh $(VERSION) $(PUSH_ARTIFACT)
+        displayName: "Build V8"
+
+      - script: |
+          # Universal Packages versions only take three sections X.Y.Z.
+          # V8 versions have four sections, with the first two as the chromium version.
+          #   Ex: 9.4.146.17 (Chromium version 94)
+          export MAJOR=$(echo $(VERSION) | cut -d "." -f 1,2 | sed 's/\.//')
+          # We also want our build version to increment, so we also join the last two.
+          #   Ex: 9.4.146.17 -> 94.14617.$(Build.BuildId)
+          export MINOR=$(echo $(VERSION) | cut -d "." -f 3,4 | sed 's/\.//')
+          echo '##vso[task.setvariable variable=pkg-ver]'$MAJOR.$MINOR.$(Build.BuildId)
+          mv build-v8/v8.tar.xz $(Build.ArtifactStagingDirectory)/v8-$(pkg-ver).tar.xz
+        displayName: "Prepare Artifact Staging Directory"
+        condition: eq(variables.pushArtifact, 'true')
+
+      - task: UniversalPackages@0
+        displayName: "Publish V8 Artifact"
+        inputs:
+          command: publish
+          publishDirectory: "$(Build.ArtifactStagingDirectory)"
+          vstsFeedPublish: "CCF/V8"
+          vstsFeedPackagePublish: "ccf-v8-$(pkg-ver).tar.xz"
+          versionOption: custom
+          versionPublish: "$(pkg-ver)"
+          packagePublishDescription: "CCF build of monolith V8"
+        condition: eq(variables.pushArtifact, 'true')
