@@ -15,8 +15,6 @@ import socket
 import os
 from collections import defaultdict
 import time
-import tempfile
-import base64
 import json
 import hashlib
 import ccf.clients
