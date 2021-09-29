@@ -8,6 +8,7 @@
 #include "kv/serialised_entry_format.h"
 
 #include <doctest/doctest.h>
+#include <random>
 #include <string>
 
 using namespace asynchost;
@@ -1038,6 +1039,95 @@ TEST_CASE("Delete committed file from main directory")
   }
 }
 
+TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
+{
+  std::random_device rd;
+  std::mt19937 rgen(rd());
+
+  std::vector<size_t> snapshot_idx_interval_ranges = {
+    10, 1000, 10000, std::numeric_limits<size_t>::max() - 2};
+
+  for (auto const& snapshot_idx_interval_range : snapshot_idx_interval_ranges)
+  {
+    std::uniform_int_distribution<size_t> dist(1, snapshot_idx_interval_range);
+    size_t snapshot_idx = dist(rgen);
+    size_t evidence_idx = snapshot_idx + 1;
+    size_t commit_idx = evidence_idx + 1;
+
+    auto snap = fmt::format("snapshot_{}_{}", snapshot_idx, evidence_idx);
+    auto snap_committed = fmt::format("{}.committed", snap);
+    auto snap_committed_1_x = fmt::format("{}.committed_{}", snap, commit_idx);
+    auto snapshot_invalid_suffix =
+      fmt::format("{}invalidsuffix", snap_committed_1_x);
+
+    LOG_DEBUG_FMT("Snapshot file name: {}", snap_committed_1_x);
+
+    INFO("Identify snapshot files");
+    {
+      REQUIRE(is_snapshot_file(snap));
+      REQUIRE(is_snapshot_file(snap_committed));
+      REQUIRE(is_snapshot_file(snap_committed_1_x));
+      REQUIRE_FALSE(is_snapshot_file("ledger_1-2"));
+      REQUIRE_FALSE(is_snapshot_file("ledger_1-2.committed"));
+    }
+
+    INFO("Identify committed files");
+    {
+      REQUIRE_FALSE(is_snapshot_file_committed(snap));
+      REQUIRE(is_snapshot_file_committed(snap_committed));
+      REQUIRE(is_snapshot_file_committed(snap_committed_1_x));
+    }
+
+    INFO("Identify 1.x files");
+    {
+      REQUIRE_THROWS(
+        is_snapshot_file_1_x(snap)); // Snapshot is not yet committed
+      REQUIRE_FALSE(is_snapshot_file_1_x(snap_committed));
+      REQUIRE(is_snapshot_file_1_x(snap_committed_1_x));
+    }
+
+    INFO("Get 1.x evidence commit idx");
+    {
+      REQUIRE_THROWS(get_evidence_commit_idx_from_file_name(
+        snap)); // Snapshot is not yet committed
+      REQUIRE_FALSE(get_evidence_commit_idx_from_file_name(snap_committed)
+                      .has_value()); // 2.x
+      auto evidence_commit_idx_1_x =
+        get_evidence_commit_idx_from_file_name(snap_committed_1_x);
+      REQUIRE(evidence_commit_idx_1_x.has_value());
+      REQUIRE(evidence_commit_idx_1_x.value() == commit_idx);
+
+      REQUIRE_THROWS(
+        get_evidence_commit_idx_from_file_name(snapshot_invalid_suffix));
+    }
+
+    INFO("Get snapshot idx");
+    {
+      REQUIRE(get_snapshot_idx_from_file_name(snap) == snapshot_idx);
+      REQUIRE(get_snapshot_idx_from_file_name(snap_committed) == snapshot_idx);
+      REQUIRE(
+        get_snapshot_idx_from_file_name(snap_committed_1_x) == snapshot_idx);
+      REQUIRE(
+        get_snapshot_idx_from_file_name(snapshot_invalid_suffix) ==
+        snapshot_idx);
+    }
+
+    INFO("Get evidence idx");
+    {
+      REQUIRE(get_snapshot_evidence_idx_from_file_name(snap) == evidence_idx);
+      REQUIRE(
+        get_snapshot_evidence_idx_from_file_name(snap_committed) ==
+        evidence_idx);
+      REQUIRE(
+        get_snapshot_evidence_idx_from_file_name(snap_committed_1_x) ==
+        evidence_idx);
+      REQUIRE(
+        get_snapshot_evidence_idx_from_file_name(snapshot_invalid_suffix) ==
+        evidence_idx);
+    }
+  }
+}
+
 TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 {
   auto dir = AutoDeleteFolder(ledger_dir);
@@ -1121,7 +1211,7 @@ std::optional<std::string> commit_1_x_snapshot(
       get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
     {
       const auto committed_file_name = fmt::format(
-        "{}.{}_{}", file_name, snapshot_committed_suffix, snapshot_idx + 2);
+        "{}{}_{}", file_name, snapshot_committed_suffix, snapshot_idx + 2);
 
       fs::rename(
         fs::path(snapshot_dir) / fs::path(file_name),

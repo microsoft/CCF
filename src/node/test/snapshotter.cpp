@@ -112,7 +112,7 @@ TEST_CASE("Regular snapshotting")
   size_t commit_idx = 0;
   size_t snapshot_idx = snapshot_tx_interval;
 
-  INFO("Generate snapshot before interval as no effect");
+  INFO("Generate snapshot before interval has no effect");
   {
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx - 1));
     commit_idx = snapshot_idx - 1;

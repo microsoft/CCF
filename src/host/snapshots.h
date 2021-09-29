@@ -19,19 +19,40 @@ namespace asynchost
 {
   static constexpr auto snapshot_file_prefix = "snapshot";
   static constexpr auto snapshot_idx_delimiter = "_";
-  static constexpr auto snapshot_committed_suffix = "committed";
+  static constexpr auto snapshot_committed_suffix = ".committed";
 
-  bool is_snapshot_file(const std::string& file_name)
+  static bool is_snapshot_file(const std::string& file_name)
   {
     return nonstd::starts_with(file_name, snapshot_file_prefix);
   }
 
-  bool is_snapshot_file_committed(const std::string& file_name)
+  static bool is_snapshot_file_committed(const std::string& file_name)
   {
     return file_name.find(snapshot_committed_suffix) != std::string::npos;
   }
 
-  std::optional<size_t> get_evidence_commit_idx_from_file_name(
+  static size_t read_idx(const std::string& str)
+  {
+    size_t idx = 0;
+    auto end_ptr = str.data() + str.size();
+
+    auto res = std::from_chars(str.data(), end_ptr, idx);
+    if (res.ec != std::errc())
+    {
+      throw std::logic_error(
+        fmt::format("Could not read idx from string \"{}\": {}", str, res.ec));
+    }
+    else if (res.ptr != end_ptr)
+    {
+      throw std::logic_error(fmt::format(
+        "Trailing characters in \"{}\" cannot be converted to idx: \"{}\"",
+        str,
+        std::string(res.ptr, end_ptr)));
+    }
+    return idx;
+  }
+
+  static std::optional<size_t> get_evidence_commit_idx_from_file_name(
     const std::string& file_name)
   {
     // Only returns an evidence commit index for 1.x committed snapshots.
@@ -52,28 +73,43 @@ namespace asynchost
       return std::nullopt;
     }
 
-    return std::stoi(file_name.substr(pos + 1));
+    return read_idx(file_name.substr(pos + 1));
   }
 
-  bool is_snapshot_file_1_x(const std::string& file_name)
+  static bool is_snapshot_file_1_x(const std::string& file_name)
   {
     return get_evidence_commit_idx_from_file_name(file_name).has_value();
   }
 
-  size_t get_snapshot_idx_from_file_name(const std::string& file_name)
+  static size_t get_snapshot_idx_from_file_name(const std::string& file_name)
   {
-    auto pos = file_name.find(snapshot_idx_delimiter);
-    if (pos == std::string::npos)
+    if (!is_snapshot_file(file_name))
+    {
+      throw std::logic_error(
+        fmt::format("File \"{}\" is not a valid snapshot file", file_name));
+    }
+
+    auto idx_pos = file_name.find_first_of(snapshot_idx_delimiter);
+    if (idx_pos == std::string::npos)
     {
       throw std::logic_error(fmt::format(
         "Snapshot file name {} does not contain snapshot seqno", file_name));
     }
 
-    // stol: unconverted suffix is ignored
-    return std::stol(file_name.substr(pos + 1));
+    auto evidence_idx_pos =
+      file_name.find_first_of(snapshot_idx_delimiter, idx_pos + 1);
+    if (evidence_idx_pos == std::string::npos)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot file \"{}\" does not contain evidence index", file_name));
+    }
+
+    return read_idx(
+      file_name.substr(idx_pos + 1, evidence_idx_pos - idx_pos - 1));
   }
 
-  size_t get_snapshot_evidence_idx_from_file_name(const std::string& file_name)
+  static size_t get_snapshot_evidence_idx_from_file_name(
+    const std::string& file_name)
   {
     if (!is_snapshot_file(file_name))
     {
@@ -96,8 +132,16 @@ namespace asynchost
         "Snapshot file \"{}\" does not contain evidence index", file_name));
     }
 
-    // stol: unconverted suffix is ignored
-    return std::stol(file_name.substr(evidence_idx_pos + 1));
+    // Note: Snapshot file may not be committed
+    size_t end_str = std::string::npos;
+    auto commit_suffix_pos =
+      file_name.find_first_of(snapshot_committed_suffix, evidence_idx_pos + 1);
+    if (commit_suffix_pos != std::string::npos)
+    {
+      end_str = commit_suffix_pos - evidence_idx_pos - 1;
+    }
+
+    return read_idx(file_name.substr(evidence_idx_pos + 1, end_str));
   }
 
   class SnapshotManager
@@ -105,10 +149,6 @@ namespace asynchost
   private:
     const std::string snapshot_dir;
     const Ledger& ledger;
-
-    static constexpr auto snapshot_file_prefix = "snapshot";
-    static constexpr auto snapshot_idx_delimiter = "_";
-    static constexpr auto snapshot_committed_suffix = "committed";
 
   public:
     SnapshotManager(const std::string& snapshot_dir_, const Ledger& ledger_) :
@@ -185,7 +225,7 @@ namespace asynchost
             auto full_snapshot_path =
               fs::path(snapshot_dir) / fs::path(file_name);
             const auto committed_file_name =
-              fmt::format("{}.{}", file_name, snapshot_committed_suffix);
+              fmt::format("{}{}", file_name, snapshot_committed_suffix);
 
             LOG_INFO_FMT(
               "Committing snapshot file \"{}\" [{}]",
