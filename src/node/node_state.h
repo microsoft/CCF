@@ -188,7 +188,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       startup_snapshot_info = initialise_from_snapshot(
         snapshot_store,
-        config.startup_snapshot,
+        std::move(config.startup_snapshot),
         hooks,
         &view_history,
         true,

@@ -17,7 +17,7 @@ namespace ccf
 {
   struct StartupSnapshotInfo
   {
-    std::vector<uint8_t>& raw;
+    std::vector<uint8_t> raw;
     kv::Version seqno;
     std::optional<kv::Version> evidence_seqno = std::nullopt;
 
@@ -34,10 +34,10 @@ namespace ccf
 
     StartupSnapshotInfo(
       const std::shared_ptr<kv::Store>& store_,
-      std::vector<uint8_t>& raw_,
+      std::vector<uint8_t>&& raw_,
       kv::Version seqno_,
       std::optional<kv::Version> evidence_seqno_) :
-      raw(raw_),
+      raw(std::move(raw_)),
       seqno(seqno_),
       evidence_seqno(evidence_seqno_),
       store(store_)
@@ -54,17 +54,11 @@ namespace ccf
       // whose evidence need to be verified in the ledger suffix on startup
       return evidence_seqno.has_value();
     }
-
-    ~StartupSnapshotInfo()
-    {
-      raw.clear();
-      raw.shrink_to_fit();
-    }
   };
 
   static void deserialise_snapshot(
     const std::shared_ptr<kv::Store>& store,
-    std::vector<uint8_t>& snapshot,
+    const std::vector<uint8_t>& snapshot,
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
@@ -136,7 +130,7 @@ namespace ccf
 
   static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
     const std::shared_ptr<kv::Store>& store,
-    std::vector<uint8_t>& snapshot,
+    std::vector<uint8_t>&& snapshot,
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
@@ -145,7 +139,7 @@ namespace ccf
     deserialise_snapshot(
       store, snapshot, hooks, view_history, public_only, evidence_seqno);
     return std::make_unique<StartupSnapshotInfo>(
-      store, snapshot, store->current_version(), evidence_seqno);
+      store, std::move(snapshot), store->current_version(), evidence_seqno);
   }
 
   static std::vector<uint8_t> build_and_serialise_receipt(
