@@ -939,7 +939,7 @@ class Network:
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
-    def wait_for_primary_agreement(self, timeout_multiplier=2, min_view=None):
+    def wait_for_primary_unanimity(self, timeout_multiplier=2, min_view=None):
         timeout = self.election_duration * timeout_multiplier
         LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
         end_time = time.time() + timeout

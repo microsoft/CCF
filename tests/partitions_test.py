@@ -74,7 +74,7 @@ def test_partition_majority(network, args):
     # When the partition is lifted, the nodes must elect a new leader, in at least this
     # increased term. The winning node could come from either partition, and could even
     # be the original primary.
-    network.wait_for_primary_agreement(min_view=initial_view)
+    network.wait_for_primary_unanimity(min_view=initial_view)
 
     return network
 
