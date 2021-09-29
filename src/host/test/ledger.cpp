@@ -42,6 +42,18 @@ void move_all_from_to(
   }
 }
 
+struct AutoDeleteFolder
+{
+  std::string name;
+
+  AutoDeleteFolder(const std::string& name) : name(name) {}
+
+  ~AutoDeleteFolder()
+  {
+    fs::remove_all(name);
+  }
+};
+
 // Ledger entry type
 template <typename T>
 struct LedgerEntry
@@ -229,7 +241,7 @@ size_t initialise_ledger(
 
 TEST_CASE("Regular chunking")
 {
-  fs::remove_all(ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   INFO("Cannot create a ledger with a chunk threshold of 0");
   {
@@ -385,7 +397,7 @@ TEST_CASE("Regular chunking")
 
 TEST_CASE("Truncation")
 {
-  fs::remove_all(ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
   Ledger ledger(ledger_dir, wf, chunk_threshold);
@@ -460,7 +472,7 @@ TEST_CASE("Truncation")
 
 TEST_CASE("Commit")
 {
-  fs::remove_all(ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
   Ledger ledger(ledger_dir, wf, chunk_threshold);
@@ -539,7 +551,7 @@ TEST_CASE("Commit")
 
 TEST_CASE("Restore existing ledger")
 {
-  fs::remove_all(ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
   size_t last_idx = 0;
@@ -689,7 +701,7 @@ size_t number_open_fd()
 
 TEST_CASE("Limit number of open files")
 {
-  fs::remove_all(ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
@@ -777,9 +789,9 @@ TEST_CASE("Multiple ledger paths")
   static constexpr auto ledger_dir_2 = "ledger_dir_2";
   static constexpr auto empty_write_ledger_dir = "ledger_dir_empty";
 
-  fs::remove_all(ledger_dir);
-  fs::remove_all(ledger_dir_2);
-  fs::remove_all(empty_write_ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto dir2 = AutoDeleteFolder(ledger_dir_2);
+  auto dir3 = AutoDeleteFolder(empty_write_ledger_dir);
 
   size_t max_read_cache_size = 2;
   size_t chunk_threshold = 30;
@@ -867,8 +879,8 @@ TEST_CASE("Recover from read-only ledger directory only")
 {
   static constexpr auto ledger_dir_2 = "ledger_dir_2";
 
-  fs::remove_all(ledger_dir);
-  fs::remove_all(ledger_dir_2);
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto dir2 = AutoDeleteFolder(ledger_dir_2);
 
   size_t max_read_cache_size = 2;
   size_t chunk_threshold = 30;
@@ -909,7 +921,7 @@ TEST_CASE("Recover from read-only ledger directory only")
 
 TEST_CASE("Invalid ledger file resilience")
 {
-  fs::remove_all(ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t max_read_cache_size = 2;
   size_t chunk_threshold = 30;
@@ -967,9 +979,9 @@ TEST_CASE("Delete committed file from main directory")
   // Used to temporarily copy committed ledger files
   static constexpr auto ledger_dir_tmp = "ledger_dir_tmp";
 
-  fs::remove_all(ledger_dir);
-  fs::remove_all(ledger_dir_read_only);
-  fs::remove_all(ledger_dir_tmp);
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto dir2 = AutoDeleteFolder(ledger_dir_read_only);
+  auto dir3 = AutoDeleteFolder(ledger_dir_tmp);
 
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
@@ -1028,8 +1040,8 @@ TEST_CASE("Delete committed file from main directory")
 
 TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
 {
-  fs::remove_all(ledger_dir);
-  fs::remove_all(snapshot_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto snap_dir = AutoDeleteFolder(snapshot_dir);
 
   Ledger ledger(ledger_dir, wf, 1);
   SnapshotManager snapshots(snapshot_dir, ledger);
@@ -1126,8 +1138,8 @@ TEST_CASE(
   doctest::test_suite("snapshot"))
 {
   // To be removed as part of https://github.com/microsoft/CCF/issues/2981
-  fs::remove_all(ledger_dir);
-  fs::remove_all(snapshot_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto snap_dir = AutoDeleteFolder(snapshot_dir);
 
   Ledger ledger(ledger_dir, wf, 1);
   TestEntrySubmitter entry_submitter(ledger);
@@ -1222,8 +1234,8 @@ TEST_CASE(
   "Find latest snapshot with corresponding ledger chunk (1.x only)" *
   doctest::test_suite("snapshot"))
 {
-  fs::remove_all(ledger_dir);
-  fs::remove_all(snapshot_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto snap_dir = AutoDeleteFolder(snapshot_dir);
 
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
