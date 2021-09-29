@@ -1167,7 +1167,7 @@ namespace ccf
                 in.node_cert_valid_from,
                 in.genesis_info->configuration.cert_maximum_validity_period_days
                   .value())));
-          // TODO: What to do for recovery? Read existing value from store?
+          // TODO: What to do for recovery? Read existing value from store!
         }
         else
         {
