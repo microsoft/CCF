@@ -280,4 +280,25 @@ namespace ccf
 
     return ApiResult::OK;
   }
+
+  ApiResult BaseEndpointRegistry::get_metrics_v1(
+    EndpointMetrics& endpoint_metrics)
+  {
+    endpoint_metrics.metrics.clear();
+    std::lock_guard<std::mutex> guard(metrics_lock);
+    for (const auto& [path, verb_metrics] : metrics)
+    {
+      for (const auto& [verb, metric] : verb_metrics)
+      {
+        endpoint_metrics.metrics.push_back(
+          {path,
+           verb,
+           metric.calls,
+           metric.errors,
+           metric.failures,
+           metric.retries});
+      }
+    }
+    return ApiResult::OK;
+  }
 }
