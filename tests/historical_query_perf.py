@@ -24,6 +24,10 @@ def test_historical_query_range(network, args):
 
     n_entries = 3001
 
+    jwt_issuer = infra.jwt_issuer.JwtIssuer()
+    jwt_issuer.register(network)
+    jwt = jwt_issuer.issue_jwt()
+
     primary, _ = network.find_primary()
     with primary.client("user0") as c:
         # Submit many transactions, overwriting the same IDs
@@ -76,9 +80,6 @@ def test_historical_query_range(network, args):
 
     entries = {}
     node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
-    jwt_issuer = infra.jwt_issuer.JwtIssuer()
-    jwt_issuer.register(network)
-    jwt = jwt_issuer.issue_jwt()
     with node.client(common_headers={"authorization": f"Bearer {jwt}"}) as c:
         entries[id_a], duration_a = get_all_entries(c, id_a, timeout=timeout)
         entries[id_b], duration_b = get_all_entries(c, id_b, timeout=timeout)
