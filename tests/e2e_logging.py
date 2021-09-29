@@ -46,27 +46,6 @@ def verify_receipt(receipt, network_cert, check_endorsement=True):
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
-def add_jwt(network):
-    jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-    jwt_kid = "my_key_id"
-    jwt_issuer = "https://example.issuer"
-    # Add JWT issuer
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": jwt_issuer,
-            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        primary, _ = network.find_primary()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
-
-    return infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-
-
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
@@ -453,7 +432,9 @@ def test_multi_auth(network, args):
                 require_new_response(r)
 
             LOG.info("Authenticate via JWT token")
-            jwt = add_jwt(network)
+            jwt_issuer = infra.jwt_issuer.JwtIssuer()
+            jwt_issuer.register(network)
+            jwt = jwt_issuer.issue_jwt()
 
             with primary.client() as c:
                 r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
