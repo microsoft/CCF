@@ -432,10 +432,19 @@ def test_multi_auth(network, args):
             LOG.info("Authenticate via JWT token")
             jwt_issuer = infra.jwt_issuer.JwtIssuer()
             jwt_issuer.register(network)
-            jwt = jwt_issuer.issue_jwt()
+            jwt = jwt_issuer.issue_jwt(claims={"user": "Alice"})
 
             with primary.client() as c:
                 r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
+                require_new_response(r)
+
+            LOG.info("Authenticate via second JWT token")
+            jwt2 = jwt_issuer.issue_jwt(claims={"user": "Bob"})
+
+            with primary.client(
+                common_headers={"authorization": "Bearer " + jwt2}
+            ) as c:
+                r = c.get("/app/multi_auth")
                 require_new_response(r)
 
         else:
