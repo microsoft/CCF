@@ -692,14 +692,12 @@ def test_historical_query_range(network, args):
     first_seqno = None
     last_seqno = None
 
-    jwt = add_jwt(network)
-
     def get_all_entries(target_id, from_seqno=None, to_seqno=None):
         LOG.info(
             f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {last_seqno}' if to_seqno is not None else ''} for id {target_id}"
         )
         logs = []
-        with primary.client() as c:
+        with primary.client("user0") as c:
             timeout = 800
             start_time = time.time()
             end_time = start_time + timeout
@@ -710,7 +708,7 @@ def test_historical_query_range(network, args):
             if to_seqno is not None:
                 path += f"&to_seqno={to_seqno}"
             while time.time() < end_time:
-                r = c.get(path, log_capture=logs, headers={"authorization": f"Bearer {jwt}"})
+                r = c.get(path, log_capture=logs)
                 if r.status_code == http.HTTPStatus.OK:
                     j_body = r.body.json()
                     entries += j_body["entries"]
@@ -752,7 +750,7 @@ def test_historical_query_range(network, args):
         # time to retrieve the submitted transactions
         # TODO: That's slow, so I'm submitting directly. Work out if that's safe with full test?
         msgs = dict()
-        n_entries = 30001
+        n_entries = 3001
 
         def id_for(i):
             if i == n_entries // 2:
