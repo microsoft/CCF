@@ -160,6 +160,7 @@ namespace ccf
 #endif
     }
 
+    // Returns true if the snapshot is already verified (via embedded receipt)
     bool initialise_startup_snapshot(bool recovery = false)
     {
       std::shared_ptr<kv::Store> snapshot_store;

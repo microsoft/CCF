@@ -39,6 +39,7 @@ namespace ccf
     {
       if (element.left.has_value())
       {
+        assert(!element.right.has_value());
         crypto::Sha256Hash left = element.left.value();
         current = crypto::Sha256Hash(left, current);
       }
