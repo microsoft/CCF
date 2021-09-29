@@ -6,6 +6,7 @@ import infra.proc
 import ccf.commit
 import http
 from e2e_logging import get_all_entries
+import cimetrics.upload
 
 from loguru import logger as LOG
 
@@ -23,8 +24,8 @@ def test_historical_query_range(network, args):
 
     n_entries = 3001
 
-    node = network.find_node_by_role(log_capture=[])
-    with node.client("user0") as c:
+    primary, _ = network.find_primary()
+    with primary.client("user0") as c:
         # Submit many transactions, overwriting the same IDs
         msgs = dict()
 
@@ -62,21 +63,34 @@ def test_historical_query_range(network, args):
 
         ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        LOG.info(
-            f"Total ledger contains {last_seqno} entries, of which we expect to examine {last_seqno - first_seqno}"
-        )
+    LOG.info(
+        f"Total ledger contains {last_seqno} entries, of which we expect our transactions to be spread over a range of ~{last_seqno - first_seqno} transactions"
+    )
 
-        # Total fetch time depends on number of entries. We expect to be much faster than this, but
-        # to set a safe timeout allow for a rate as low as 100 fetches per second
-        timeout = n_entries / 100
+    # Total fetch time depends on number of entries. We expect to be much faster than this, but
+    # to set a safe timeout allow for a rate as low as 100 fetches per second
+    timeout = n_entries / 100
 
-        entries = {}
+    # Ensure all nodes have reached committed state before querying a backup for historical state
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    entries = {}
+    node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
+    with node.client("user0") as c:
         entries[id_a], duration_a = get_all_entries(c, id_a, timeout=timeout)
         entries[id_b], duration_b = get_all_entries(c, id_b, timeout=timeout)
         entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
-        entries[id_single], duration_single = get_all_entries(
-            c, id_single, timeout=timeout
-        )
+
+    id_a_fetch_rate = duration_a / len(entries[id_a])
+    id_b_fetch_rate = duration_b / len(entries[id_b])
+    id_c_fetch_rate = duration_c / len(entries[id_c])
+
+    average_fetch_rate = (id_a_fetch_rate + id_b_fetch_rate + id_c_fetch_rate) / 3
+
+    with cimetrics.upload.metrics(complete=False) as metrics:
+        upload_name = "hist_fetch_rate"
+        LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
+        metrics.put(upload_name, average_fetch_rate)
 
     # NB: The similar test in e2e_logging checks correctness, so we make no duplicate
     # assertions here
@@ -90,7 +104,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_historical_query_range(network, args)
+        network = test_historical_query_range(network, args)
 
 
 if __name__ == "__main__":
