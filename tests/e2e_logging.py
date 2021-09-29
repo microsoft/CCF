@@ -721,7 +721,7 @@ def test_historical_query_range(network, args):
         # Submit many transactions, overwriting the same IDs
         # Need to submit through network.txs so these can be verified at shutdown, but also need to submit one at a
         # time to retrieve the submitted transactions
-        msgs = dict()
+        msgs = {}
         n_entries = 100
 
         def id_for(i):

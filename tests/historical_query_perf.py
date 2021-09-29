@@ -27,7 +27,7 @@ def test_historical_query_range(network, args):
     primary, _ = network.find_primary()
     with primary.client("user0") as c:
         # Submit many transactions, overwriting the same IDs
-        msgs = dict()
+        msgs = {}
 
         def id_for(i):
             # id_single is used for a single entry, in the middle of the range
