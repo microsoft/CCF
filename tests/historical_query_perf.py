@@ -76,19 +76,22 @@ def test_historical_query_range(network, args):
 
     entries = {}
     node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
-    with node.client("user0") as c:
+    jwt_issuer = infra.jwt_issuer.JwtIssuer()
+    jwt_issuer.register(network)
+    jwt = jwt_issuer.issue_jwt()
+    with node.client(common_headers={"authorization": f"Bearer {jwt}"}) as c:
         entries[id_a], duration_a = get_all_entries(c, id_a, timeout=timeout)
         entries[id_b], duration_b = get_all_entries(c, id_b, timeout=timeout)
         entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
 
-    id_a_fetch_rate = duration_a / len(entries[id_a])
-    id_b_fetch_rate = duration_b / len(entries[id_b])
-    id_c_fetch_rate = duration_c / len(entries[id_c])
+    id_a_fetch_rate = len(entries[id_a]) / duration_a
+    id_b_fetch_rate = len(entries[id_b]) / duration_b
+    id_c_fetch_rate = len(entries[id_c]) / duration_c
 
     average_fetch_rate = (id_a_fetch_rate + id_b_fetch_rate + id_c_fetch_rate) / 3
 
     with cimetrics.upload.metrics(complete=False) as metrics:
-        upload_name = "hist_fetch_rate"
+        upload_name = "Historical query (/s)"
         LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
         metrics.put(upload_name, average_fetch_rate)
 
