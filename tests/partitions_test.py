@@ -10,6 +10,8 @@ from infra.checker import check_can_progress, check_does_not_progress
 import pprint
 from ccf.tx_status import TxStatus
 
+from loguru import logger as LOG
+
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -55,15 +57,24 @@ def test_partition_majority(network, args):
 
     # The primary should remain stable while the partition is active
     # Note: Context manager
+    initial_view = None
     with network.partitioner.partition(partition):
         try:
             network.wait_for_new_primary(primary)
             assert False, "No new primary should be elected when partitioning majority"
         except TimeoutError:
-            pass
+            LOG.info("No new primary, as expected")
+            with primary.client() as c:
+                resp = c.get(
+                    "/node/network/nodes/self"
+                )  # Well-known read-only endpoint
+                initial_view = resp.view
 
-    # A new leader should be elected once the partition is dropped
-    network.wait_for_new_primary(primary)
+    # The partitioned nodes will have called elections, increasing their view.
+    # When the partition is lifted, the nodes must elect a new leader, in at least this
+    # increased term. The winning node could come from either partition, and could even
+    # be the original primary.
+    network.wait_for_primary_unanimity(min_view=initial_view)
 
     return network
 
@@ -104,7 +115,7 @@ def test_isolate_primary_from_one_backup(network, args):
 
 
 @reqs.description("Isolate and reconnect primary")
-def test_isolate_and_reconnect_primary(network, args):
+def test_isolate_and_reconnect_primary(network, args, **kwargs):
     primary, backups = network.find_nodes()
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
@@ -147,8 +158,8 @@ def run(args):
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        for _ in range(5):
-            test_isolate_and_reconnect_primary(network, args)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":
