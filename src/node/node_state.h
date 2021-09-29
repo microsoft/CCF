@@ -192,7 +192,7 @@ namespace ccf
         hooks,
         &view_history,
         true,
-        config.startup_snapshot_evidence_seqno);
+        config.startup_snapshot_evidence_seqno_for_1_x);
 
       startup_seqno = startup_snapshot_info->seqno;
       ledger_idx = startup_seqno.value();

@@ -149,16 +149,16 @@ namespace ccf
   }
 
   static std::vector<uint8_t> build_and_serialise_receipt(
-    const std::vector<uint8_t>& s,
-    const std::vector<uint8_t>& t,
-    const NodeId& n,
-    const crypto::Pem& c,
+    const std::vector<uint8_t>& sig,
+    const std::vector<uint8_t>& tree,
+    const NodeId& node_id,
+    const crypto::Pem& node_cert,
     kv::Version seqno)
   {
-    ccf::MerkleTreeHistory tree(t);
-    auto proof = tree.get_proof(seqno);
-    auto tx_receipt =
-      ccf::TxReceipt(s, proof.get_root(), proof.get_path(), n, c);
+    ccf::MerkleTreeHistory history(tree);
+    auto proof = history.get_proof(seqno);
+    auto tx_receipt = ccf::TxReceipt(
+      sig, proof.get_root(), proof.get_path(), node_id, node_cert);
 
     Receipt receipt;
     tx_receipt.describe(receipt);

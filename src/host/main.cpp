@@ -860,7 +860,7 @@ int main(int argc, char** argv)
         {
           // Snapshot evidence seqno is only specified for 1.x snapshots which
           // need to be verified by deserialising the ledger suffix.
-          ccf_config.startup_snapshot_evidence_seqno =
+          ccf_config.startup_snapshot_evidence_seqno_for_1_x =
             asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
         }
 

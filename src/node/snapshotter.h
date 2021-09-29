@@ -11,7 +11,7 @@
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/snapshot_evidence.h"
-#include "node/snapshot_serialise.h"
+#include "node/snapshot_serdes.h"
 
 #include <deque>
 #include <optional>

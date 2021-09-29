@@ -225,10 +225,10 @@ class PublicDomain:
         return self._version
 
 
-def _byte_read_safe(file, num_of_bytes=None):
+def _byte_read_safe(file, num_of_bytes):
     offset = file.tell()
     ret = file.read(num_of_bytes)
-    if num_of_bytes is not None and len(ret) != num_of_bytes:
+    if len(ret) != num_of_bytes:
         raise ValueError(
             f"Failed to read precise number of bytes in {file.name} at offset {offset}: {len(ret)}/{num_of_bytes}"
         )
@@ -240,6 +240,15 @@ def _peek(file, num_bytes, pos=None):
     if pos is not None:
         file.seek(pos)
     buffer = _byte_read_safe(file, num_bytes)
+    file.seek(save_pos)
+    return buffer
+
+
+def _peek_all(file, pos=None):
+    save_pos = file.tell()
+    if pos is not None:
+        file.seek(pos)
+    buffer = file.read()
     file.seek(save_pos)
     return buffer
 
@@ -612,7 +621,7 @@ class Snapshot(Entry):
         # Snapshots embed evidence receipt since 2.x
         if self.is_committed() and not self.is_snapshot_file_1_x():
             receipt_pos = entry_start_pos + self._header.size
-            receipt_bytes = _peek(self._file, num_bytes=None, pos=receipt_pos)
+            receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
             receipt = json.loads(receipt_bytes.decode("utf-8"))
             root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
