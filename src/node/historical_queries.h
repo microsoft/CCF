@@ -879,13 +879,13 @@ namespace ccf::historical
         deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
       if (is_signature)
       {
-        // // This looks like a signature - check that we trust it
-        // if (!verify_signature(store, seqno))
-        // {
-        //   LOG_FAIL_FMT("Bad signature at {}", seqno);
-        //   delete_all_interested_requests(seqno);
-        //   return false;
-        // }
+        // This looks like a signature - check that we trust it
+        if (!verify_signature(store, seqno))
+        {
+          LOG_FAIL_FMT("Bad signature at {}", seqno);
+          delete_all_interested_requests(seqno);
+          return false;
+        }
       }
 
       LOG_DEBUG_FMT(
