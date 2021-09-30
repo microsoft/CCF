@@ -5,6 +5,7 @@
 #include "blit.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
+#include "crypto/certs.h"
 #include "crypto/entropy.h"
 #include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
@@ -20,7 +21,6 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
-#include "node/certs.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
@@ -1558,37 +1558,17 @@ namespace ccf
       }
     }
 
-    // TODO: Move to certs.h
-    Pem create_endorsed_node_cert()
+    crypto::Pem create_endorsed_node_cert()
     {
       // Only used by a 2.x node joining an existing 1.x service which will not
       // endorsed the identity of the new joiner.
-      auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto csr =
-        node_sign_kp->create_csr(config.node_certificate_subject_identity);
-      return nw->sign_csr(
-        network.identity->cert,
-        csr,
-        false,
-        compute_cert_valid_to_string(
-          config.startup_host_time,
-          config.node_cert_maximum_validity_period_days));
-    }
-
-    crypto::Pem generate_endorsed_certificate(
-      const crypto::Pem& subject_csr,
-      const crypto::Pem& endorser_private_key,
-      const crypto::Pem& endorser_cert,
-      const std::string& valid_from,
-      size_t validity_period_days) override
-    {
-      return crypto::make_key_pair(endorser_private_key)
-        ->sign_csr(
-          endorser_cert,
-          subject_csr,
-          false,
-          valid_from,
-          compute_cert_valid_to_string(valid_from, validity_period_days));
+      return create_endorsed_cert(
+        node_sign_kp,
+        config.node_certificate_subject_identity,
+        config.startup_host_time,
+        config.node_cert_maximum_validity_period_days,
+        network.identity->priv_key,
+        network.identity->cert);
     }
 
     void accept_node_tls_connections()

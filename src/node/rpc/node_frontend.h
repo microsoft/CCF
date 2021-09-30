@@ -7,10 +7,10 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
+#include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/hash.h"
 #include "frontend.h"
-#include "node/certs.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
@@ -257,14 +257,13 @@ namespace ccf
           in.certificate_signing_request.has_value() &&
           this->network.consensus_type == ConsensusType::CFT)
         {
-          endorsed_certificate =
-            context.get_node_state().generate_endorsed_certificate(
-              in.certificate_signing_request.value(),
-              this->network.identity->priv_key,
-              this->network.identity->cert,
-              in.node_cert_valid_from.value(),
-              config->node_cert_allowed_validity_period_days.value_or(
-                default_node_cert_validity_period_days));
+          endorsed_certificate = create_endorsed_cert(
+            in.certificate_signing_request.value(),
+            in.node_cert_valid_from.value(),
+            config->node_cert_allowed_validity_period_days.value_or(
+              default_node_cert_validity_period_days),
+            this->network.identity->priv_key,
+            this->network.identity->cert);
 
           node_endorsed_certificates->put(
             joining_node_id, {endorsed_certificate.value()});
@@ -1166,13 +1165,13 @@ namespace ccf
             ctx.tx.rw(network.node_endorsed_certificates);
           endorsed_certificates->put(
             in.node_id,
-            context.get_node_state().generate_endorsed_certificate(
+            create_endorsed_cert(
               in.certificate_signing_request,
-              this->network.identity->priv_key,
-              this->network.identity->cert,
               in.node_cert_valid_from,
               config->node_cert_allowed_validity_period_days.value_or(
-                default_node_cert_validity_period_days)));
+                default_node_cert_validity_period_days),
+              this->network.identity->priv_key,
+              this->network.identity->cert));
         }
         else
         {

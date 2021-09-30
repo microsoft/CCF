@@ -4,6 +4,7 @@
 
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
+#include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
@@ -535,16 +536,6 @@ namespace ccf::js
     auto global_obj = Context::JSWrappedValue(ctx, JS_GetGlobalObject(ctx));
     auto ccf =
       Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
-    auto node_ =
-      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, ccf, "node"));
-
-    auto node =
-      static_cast<ccf::AbstractNodeState*>(JS_GetOpaque(node_, node_class_id));
-
-    if (node == nullptr)
-    {
-      return JS_ThrowInternalError(ctx, "Node state is not set");
-    }
 
     auto csr_cstr = JS_ToCString(ctx, argv[0]);
     if (csr_cstr == nullptr)
@@ -569,12 +560,12 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    auto endorsed_cert = node->generate_endorsed_certificate(
+    auto endorsed_cert = create_endorsed_cert(
       csr,
-      network->identity->priv_key,
-      network->identity->cert,
       valid_from,
-      validity_period_days);
+      validity_period_days,
+      network->identity->priv_key,
+      network->identity->cert);
 
     return JS_NewString(ctx, endorsed_cert.str().c_str());
   }
@@ -1464,19 +1455,15 @@ namespace ccf::js
           js_network_latest_ledger_secret_seqno,
           "getLatestLedgerSecretSeqno",
           0));
-
-      if (node_state != nullptr)
-      {
-        JS_SetPropertyStr(
+      JS_SetPropertyStr(
+        ctx,
+        network,
+        "generateEndorsedCertificate",
+        JS_NewCFunction(
           ctx,
-          network,
+          js_network_generate_endorsed_certificate,
           "generateEndorsedCertificate",
-          JS_NewCFunction(
-            ctx,
-            js_network_generate_endorsed_certificate,
-            "generateEndorsedCertificate",
-            0));
-      }
+          0));
     }
 
     if (rpc_ctx != nullptr)
