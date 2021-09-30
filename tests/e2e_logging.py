@@ -758,9 +758,9 @@ def test_historical_query_range(network, args):
 
         ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        entries_a, duration_a = get_all_entries(c, id_a)
-        entries_b, duration_b = get_all_entries(c, id_b)
-        entries_c, duration_c = get_all_entries(c, id_c)
+        entries_a, _ = get_all_entries(c, id_a)
+        entries_b, _ = get_all_entries(c, id_b)
+        entries_c, _ = get_all_entries(c, id_c)
 
         # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
         # NB: With larger page size, this is not necessarily true! Small range means _all_ responses fit in a single response page
