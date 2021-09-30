@@ -763,8 +763,9 @@ def test_historical_query_range(network, args):
         entries_c, duration_c = get_all_entries(c, id_c)
 
         # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
-        assert duration_c < duration_a
-        assert duration_c < duration_b
+        # NB: With larger page size, this is not necessarily true! Small range means _all_ responses fit in a single response page
+        # assert duration_c < duration_a
+        # assert duration_c < duration_b
 
         # Confirm that we can retrieve these with more specific queries, and we end up with the same result
         alt_a, _ = get_all_entries(c, id_a, from_seqno=first_seqno)
