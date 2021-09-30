@@ -59,8 +59,6 @@ namespace crypto
       const std::optional<std::string>& valid_from = std::nullopt,
       const std::optional<std::string>& valid_to = std::nullopt) const = 0;
 
-    // TODO: Self-signed cert should also include valid_from and valid_to as
-    // arguments
     Pem self_sign(
       const std::string& name,
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
