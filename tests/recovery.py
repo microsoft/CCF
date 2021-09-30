@@ -7,6 +7,8 @@ import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
 
+import reconfiguration
+
 from loguru import logger as LOG
 
 
@@ -118,6 +120,9 @@ def run(args):
             # when the network is shutdown
             network.txs.issue(network, number_txs=1)
             network.txs.issue(network, number_txs=1, repeat=True)
+
+            # TODO: Delete
+            reconfiguration.test_node_certificates_validity_period(network, args)
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots

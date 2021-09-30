@@ -21,13 +21,16 @@ namespace ccf
 
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
-    std::optional<size_t> cert_maximum_validity_period_days = std::nullopt;
+    std::optional<size_t> cert_maximum_validity_period_days =
+      std::nullopt; // TODO: Simply rename to cert_validity_period_days?
 
     bool operator==(const ServiceConfiguration& other) const
     {
       return recovery_threshold == other.recovery_threshold &&
         consensus == other.consensus &&
-        reconfiguration_type == other.reconfiguration_type;
+        reconfiguration_type == other.reconfiguration_type &&
+        cert_maximum_validity_period_days ==
+        other.cert_maximum_validity_period_days;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)

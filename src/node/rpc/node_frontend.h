@@ -1161,6 +1161,7 @@ namespace ccf
           g.set_constitution(in.genesis_info->constitution);
         }
 
+        auto config = ctx.tx.ro(this->network.config)->get();
         if (!in.node_cert.has_value())
         {
           auto endorsed_certificates =
@@ -1172,9 +1173,7 @@ namespace ccf
               this->network.identity->priv_key,
               this->network.identity->cert,
               in.node_cert_valid_from,
-              in.genesis_info->configuration.cert_maximum_validity_period_days
-                .value()));
-          // TODO: What to do for recovery? Read existing value from store!
+              config->cert_maximum_validity_period_days.value_or(10)));
         }
         else
         {
