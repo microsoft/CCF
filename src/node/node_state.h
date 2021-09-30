@@ -1575,23 +1575,20 @@ namespace ccf
           config.node_cert_maximum_validity_period_days));
     }
 
-    // TODO: Remove optional?
     crypto::Pem generate_endorsed_certificate(
       const crypto::Pem& subject_csr,
       const crypto::Pem& endorser_private_key,
       const crypto::Pem& endorser_cert,
-      const std::optional<std::string>& valid_from = std::nullopt,
-      const std::optional<size_t>& validity_period_days = std::nullopt) override
+      const std::string& valid_from,
+      size_t validity_period_days) override
     {
-      std::optional<std::string> valid_to = std::nullopt;
-      if (validity_period_days.has_value())
-      {
-        valid_to = compute_cert_valid_to_string(
-          valid_from.value(), validity_period_days.value());
-      }
-
       return crypto::make_key_pair(endorser_private_key)
-        ->sign_csr(endorser_cert, subject_csr, false, valid_from, valid_to);
+        ->sign_csr(
+          endorser_cert,
+          subject_csr,
+          false,
+          valid_from,
+          compute_cert_valid_to_string(valid_from, validity_period_days));
     }
 
     void accept_node_tls_connections()

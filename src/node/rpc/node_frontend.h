@@ -150,6 +150,7 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
+      auto config = tx.ro(network.config)->get();
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -256,12 +257,17 @@ namespace ccf
           in.certificate_signing_request.has_value() &&
           this->network.consensus_type == ConsensusType::CFT)
         {
-          // TODO: Add validity period
+          // TODO: What if the configuration has no validity period (i.e. 1.x
+          // ledger)? Default to 365 days?
+          assert(config->cert_maximum_validity_period_days.has_value());
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(
               in.certificate_signing_request.value(),
               this->network.identity->priv_key,
-              this->network.identity->cert);
+              this->network.identity->cert,
+              in.node_cert_valid_from.value(),
+              config->cert_maximum_validity_period_days.value());
+
           node_endorsed_certificates->put(
             joining_node_id, {endorsed_certificate.value()});
         }

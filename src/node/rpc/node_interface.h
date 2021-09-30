@@ -54,7 +54,7 @@ namespace ccf
       const crypto::Pem& subject_csr,
       const crypto::Pem& endorser_private_key,
       const crypto::Pem& endorser_cert,
-      const std::optional<std::string>& valid_from = std::nullopt,
-      const std::optional<size_t>& validity_period_days = std::nullopt) = 0;
+      const std::string& valid_from,
+      size_t validity_period_days) = 0;
   };
 }

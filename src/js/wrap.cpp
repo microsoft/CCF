@@ -569,8 +569,6 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    LOG_FAIL_FMT("Validity period: {}", validity_period_days);
-
     auto endorsed_cert = node->generate_endorsed_certificate(
       csr,
       network->identity->priv_key,
