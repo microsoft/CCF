@@ -753,22 +753,24 @@ class Network:
 
         return (self._get_node_by_service_id(primary_id), view)
 
-    def find_backups(self, primary=None, timeout=3):
+    def find_backups(self, primary=None, timeout=3, log_capture=None):
         if primary is None:
-            primary, _ = self.find_primary(timeout=timeout)
+            primary, _ = self.find_primary(timeout=timeout, log_capture=log_capture)
         return [n for n in self.get_joined_nodes() if n != primary]
 
-    def find_any_backup(self, primary=None, timeout=3):
-        return random.choice(self.find_backups(primary=primary, timeout=timeout))
+    def find_any_backup(self, primary=None, timeout=3, log_capture=None):
+        return random.choice(
+            self.find_backups(primary=primary, timeout=timeout, log_capture=log_capture)
+        )
 
-    def find_node_by_role(self, role=NodeRole.ANY):
+    def find_node_by_role(self, role=NodeRole.ANY, log_capture=None):
         role_ = (
             random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
         )
         if role_ == NodeRole.PRIMARY:
-            return self.find_primary()[0]
+            return self.find_primary(log_capture=log_capture)[0]
         else:
-            return self.find_any_backup()
+            return self.find_any_backup(log_capture=log_capture)
 
     def find_random_node(self):
         return random.choice(self.get_joined_nodes())
