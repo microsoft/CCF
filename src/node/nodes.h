@@ -62,6 +62,9 @@ namespace ccf
     /// Public key
     std::optional<crypto::Pem> public_key = std::nullopt;
 
+    /// Initial node certificate valid from
+    std::optional<std::string> certificate_initial_valid_from = std::nullopt;
+
     /**
      * Fields below are deprecated
      */
@@ -81,7 +84,8 @@ namespace ccf
     ledger_secret_seqno,
     code_digest,
     certificate_signing_request,
-    public_key);
+    public_key,
+    certificate_initial_valid_from);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
   using NodeEndorsedCertificates =

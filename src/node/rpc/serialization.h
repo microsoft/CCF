@@ -37,7 +37,9 @@ namespace ccf
     consensus_type,
     startup_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::In, certificate_signing_request)
+    JoinNetworkNodeToNode::In,
+    certificate_signing_request,
+    node_cert_valid_from)
 
   DECLARE_JSON_ENUM(
     ccf::IdentityType,

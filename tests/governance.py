@@ -225,16 +225,16 @@ def test_node_cert_renewal(network, args):
     now = datetime.now().replace(
         microsecond=0
     )  # Truncate microseconds which are not reflected in RFC5280 UTCTime
-    future_allowed = now + timedelta(days=args.node_cert_max_validity_days - 1)
-    future_forbidden = now + timedelta(days=args.node_cert_max_validity_days + 1)
+    validity_period_allowed = args.node_cert_max_validity_days - 1
+    validity_period_forbidden = args.node_cert_max_validity_days + 1
 
     test_vectors = [
-        (now, future_allowed, None),
-        (future_allowed, now, infra.proposal.ProposalNotCreated),
-        (now, future_forbidden, infra.proposal.ProposalNotAccepted),
+        (now, validity_period_allowed, None),
+        (now, -1, infra.proposal.ProposalNotCreated),
+        (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
-    for (before_date, after_date, expected_exception) in test_vectors:
+    for (valid_from, validity_period_days, expected_exception) in test_vectors:
         for node in network.get_joined_nodes():
             with node.client() as c:
                 c.get("/node/network/nodes")
@@ -251,8 +251,8 @@ def test_node_cert_renewal(network, args):
                     network.consortium.renew_node_certificate(
                         node,
                         node.node_id,
-                        valid_from=str(infra.crypto.datetime_as_UTCtime(before_date)),
-                        valid_to=str(infra.crypto.datetime_as_UTCtime(after_date)),
+                        valid_from=str(infra.crypto.datetime_as_UTCtime(valid_from)),
+                        validity_period_days=validity_period_days,
                     )
                 except Exception as e:
                     assert isinstance(e, expected_exception)
@@ -267,11 +267,20 @@ def test_node_cert_renewal(network, args):
                 assert (
                     node_cert_tls_before != node_cert_tls_after
                 ), "Node TLS certificate should be updated after renewal"
-                valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
-                    node_cert_tls_after
+                (
+                    cert_valid_from,
+                    cert_valid_to,
+                ) = infra.crypto.get_validity_period_from_pem_cert(node_cert_tls_after)
+                # Note: CCF automatically substracts one second from validity period
+                expected_valid_to = valid_from + timedelta(
+                    days=validity_period_days, seconds=-1
                 )
-                assert valid_from == before_date, f"{valid_from} != {before_date}"
-                assert valid_to == after_date, f"{valid_to} != {after_date}"
+                assert (
+                    cert_valid_from == valid_from
+                ), f"{cert_valid_from} != {valid_from}"
+                assert (
+                    cert_valid_to == expected_valid_to
+                ), f"{cert_valid_to} != {expected_valid_to}"
 
                 assert (
                     infra.crypto.compute_public_key_der_hash_hex_from_pem(

@@ -137,16 +137,7 @@ function checkX509CertBundle(value, field) {
   }
 }
 
-function validateCertificateValidityPeriod(from, to, from_field, to_field) {
-  checkType(from, "string", from_field);
-  checkType(to, "string", to_field);
-  if (!ccf.validateCertificateValidityPeriod(from, to)) {
-    throw new Error(`Date ${to_field} must be after date ${from_field}`);
-  }
-}
-
 function invalidateOtherOpenProposals(proposalIdToRetain) {
-  let proposals = ccf.kv["public:ccf.gov.proposals_info"];
   const proposalsMap = ccf.kv["public:ccf.gov.proposals_info"];
   proposalsMap.forEach((v, k) => {
     let proposalId = ccf.bufToStr(k);
@@ -792,7 +783,9 @@ const actions = new Map([
           ) {
             // Note: CSR is only present from 2.x
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
-              nodeInfo.certificate_signing_request
+              nodeInfo.certificate_signing_request,
+              nodeInfo.certificate_initial_valid_from,
+              serviceConfig.cert_maximum_validity_period_days
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),
@@ -922,12 +915,9 @@ const actions = new Map([
     new Action(
       function (args) {
         checkEntityId(args.node_id, "node_id");
-        validateCertificateValidityPeriod(
-          args.valid_from,
-          args.valid_to,
-          "valid_from",
-          "valid_to"
-        );
+        checkType(args.valid_from, "string", "valid_from");
+        checkType(args.validity_period_days, "integer", "validity_period_days");
+        checkBounds(args.validity_period_days, 0, null, "validity_period_days");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
@@ -956,21 +946,18 @@ const actions = new Map([
         const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
 
         if (
-          !ccf.validateCertificateValidityPeriod(
-            args.valid_from,
-            args.valid_to,
-            serviceConfig.cert_maximum_validity_period_days
-          )
+          args.validity_period_days >
+          serviceConfig.cert_maximum_validity_period_days
         ) {
           throw new Error(
-            `Date valid_to ${args.valid_to} must be after date valid_from ${args.valid_from}, and within ${serviceConfig.cert_maximum_validity_period_days} days`
+            `Validity period ${args.validity_period_days} (days) must be less than or equal to service node certificate maximum validity period ${serviceConfig.cert_maximum_validity_period_days} (days)`
           );
         }
 
         const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
           nodeInfo.certificate_signing_request,
           args.valid_from,
-          args.valid_to
+          args.validity_period_days
         );
         ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
           ccf.strToBuf(args.node_id),

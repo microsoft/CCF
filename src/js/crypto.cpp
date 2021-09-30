@@ -483,54 +483,6 @@ namespace ccf::js
     }
   }
 
-  JSValue js_validate_certificate_validity_period(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    if (argc < 2 || argc > 3)
-    {
-      return JS_ThrowTypeError(
-        ctx,
-        "Passed %d arguments but expected at least 2 and less than 3",
-        argc);
-    }
-
-    auto valid_from_cstr = JS_ToCString(ctx, argv[0]);
-    if (valid_from_cstr == nullptr)
-    {
-      throw JS_ThrowTypeError(ctx, "valid_from argument is not a string");
-    }
-    auto valid_from = std::string(valid_from_cstr);
-    JS_FreeCString(ctx, valid_from_cstr);
-
-    auto valid_to_cstr = JS_ToCString(ctx, argv[1]);
-    if (valid_to_cstr == nullptr)
-    {
-      throw JS_ThrowTypeError(ctx, "valid_to argument is not a string");
-    }
-    auto valid_to = std::string(valid_to_cstr);
-    JS_FreeCString(ctx, valid_to_cstr);
-
-    std::optional<uint32_t> allowed_validity_period_days = std::nullopt;
-    if (argc > 2 && !JS_IsUndefined(argv[2]))
-    {
-      uint32_t allowed_validity_period_days_ = 0;
-      if (JS_ToUint32(ctx, &allowed_validity_period_days_, argv[2]) < 0)
-      {
-        js::js_dump_error(ctx);
-        return JS_EXCEPTION;
-      }
-      allowed_validity_period_days = allowed_validity_period_days_;
-    }
-
-    return JS_NewBool(
-      ctx,
-      crypto::OpenSSL::validate_chronological_times(
-        valid_from, valid_to, allowed_validity_period_days));
-  }
-
 #pragma clang diagnostic pop
 
 }

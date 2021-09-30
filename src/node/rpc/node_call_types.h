@@ -100,6 +100,7 @@ namespace ccf
       ConsensusType consensus_type = ConsensusType::CFT;
       std::optional<kv::Version> startup_seqno = std::nullopt;
       std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
+      std::optional<std::string> node_cert_valid_from = std::nullopt;
     };
 
     struct Out

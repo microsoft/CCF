@@ -42,12 +42,22 @@ def verify_node_certificate_validity_period(node, args):
     valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
         node.get_tls_certificate_pem()
     )
+
+    # Node certificate should have been issued within this test run (generous window in case
+    # the node was spun a while ago)
+    if valid_from < datetime.utcnow() - timedelta(hours=3):
+        raise ValueError(
+            f'Node {node.local_node_id} certificate is too old: valid from "{valid_from}"'
+        )
+
+    # Note: CCF substracts one second from validity period since x509
+    # specifies that validity dates are inclusive.
     expected_valid_to = valid_from + timedelta(
         days=args.node_cert_max_validity_days, seconds=-1
     )
     if valid_to != expected_valid_to:
         raise ValueError(
-            f"Node {node.local_node_id}: validity period for certiticate is not as expected: from {valid_from} to {valid_to} but expected to {expected_valid_to}"
+            f'Validity period for node {node.local_node_id} certiticate is not as expected: from "{valid_from}"" to "{valid_to}"" but expected to "{expected_valid_to}"'
         )
 
 

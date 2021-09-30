@@ -401,6 +401,10 @@ int main(int argc, char** argv)
     ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
 
+  // TODO: Should this be under a different name?
+  // Also, because there's no way to renew a self-signed cert, should this be
+  // hardcoded instead, assuming that the self-signed certificate gets
+  // overridden by the service-endorsed one pretty quickly?
   size_t node_cert_maximum_validity_period_days = 365;
   app
     .add_option(

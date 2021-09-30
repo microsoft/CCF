@@ -562,20 +562,21 @@ namespace ccf::js
     auto valid_from = std::string(valid_from_cstr);
     JS_FreeCString(ctx, valid_from_cstr);
 
-    auto valid_to_cstr = JS_ToCString(ctx, argv[2]);
-    if (valid_to_cstr == nullptr)
+    size_t validity_period_days = 0;
+    if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
     {
-      throw JS_ThrowTypeError(ctx, "valid to argument is not a string");
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
     }
-    auto valid_to = std::string(valid_to_cstr);
-    JS_FreeCString(ctx, valid_to_cstr);
+
+    LOG_FAIL_FMT("Validity period: {}", validity_period_days);
 
     auto endorsed_cert = node->generate_endorsed_certificate(
       csr,
       network->identity->priv_key,
       network->identity->cert,
       valid_from,
-      valid_to);
+      validity_period_days);
 
     return JS_NewString(ctx, endorsed_cert.str().c_str());
   }
@@ -1303,15 +1304,6 @@ namespace ccf::js
       "refreshAppBytecodeCache",
       JS_NewCFunction(
         ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "validateCertificateValidityPeriod",
-      JS_NewCFunction(
-        ctx,
-        js_validate_certificate_validity_period,
-        "validateCertificateValidityPeriod",
-        0));
 
     auto crypto = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);

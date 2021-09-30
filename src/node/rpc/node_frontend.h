@@ -197,7 +197,7 @@ namespace ccf
       auto client_public_key_pem = crypto::public_key_pem_from_cert(node_der);
       if (in.certificate_signing_request.has_value())
       {
-        // Verify that client's public key matches the one specified in the CSR)
+        // Verify that client's public key matches the one specified in the CSR
         auto csr_public_key_pem = crypto::public_key_pem_from_csr(
           in.certificate_signing_request.value());
         if (client_public_key_pem != csr_public_key_pem)
@@ -217,7 +217,8 @@ namespace ccf
         ledger_secret_seqno,
         ds::to_hex(code_digest.data),
         in.certificate_signing_request,
-        client_public_key_pem};
+        client_public_key_pem,
+        in.node_cert_valid_from};
 
       // Because the certificate signature scheme is non-deterministic, only
       // self-signed node certificate is recorded in the node info table
@@ -255,6 +256,7 @@ namespace ccf
           in.certificate_signing_request.has_value() &&
           this->network.consensus_type == ConsensusType::CFT)
         {
+          // TODO: Add validity period
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(
               in.certificate_signing_request.value(),
@@ -429,7 +431,8 @@ namespace ccf
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
-          auto node_status = nodes->get(existing_node_info->node_id)->status;
+          auto node_info = nodes->get(existing_node_info->node_id);
+          auto node_status = node_info->status;
           rep.node_status = node_status;
           if (
             node_status == NodeStatus::TRUSTED ||
@@ -1163,10 +1166,8 @@ namespace ccf
               this->network.identity->priv_key,
               this->network.identity->cert,
               in.node_cert_valid_from,
-              compute_cert_valid_to_string(
-                in.node_cert_valid_from,
-                in.genesis_info->configuration.cert_maximum_validity_period_days
-                  .value())));
+              in.genesis_info->configuration.cert_maximum_validity_period_days
+                .value()));
           // TODO: What to do for recovery? Read existing value from store!
         }
         else

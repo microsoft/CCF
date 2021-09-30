@@ -63,6 +63,7 @@ namespace crypto
 
     static inline std::string to_x509_time_string(const time_t& time)
     {
+      // TODO: Change format to YY instead of YYYY
       // Returns ASN1 time string (YYYYMMDDHHMMSSZ) from time_t, as per
       // https://www.openssl.org/docs/man1.1.1/man3/ASN1_UTCTIME_set.html
       return fmt::format("{:%Y%m%d%H%M%SZ}", fmt::gmtime(time));
