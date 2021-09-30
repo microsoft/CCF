@@ -785,7 +785,7 @@ const actions = new Map([
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
               nodeInfo.certificate_initial_valid_from,
-              serviceConfig.cert_maximum_validity_period_days
+              serviceConfig.node_cert_allowed_validity_period_days
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),
@@ -947,10 +947,10 @@ const actions = new Map([
 
         if (
           args.validity_period_days >
-          serviceConfig.cert_maximum_validity_period_days
+          serviceConfig.node_cert_allowed_validity_period_days
         ) {
           throw new Error(
-            `Validity period ${args.validity_period_days} (days) must be less than or equal to service node certificate maximum validity period ${serviceConfig.cert_maximum_validity_period_days} (days)`
+            `Validity period ${args.validity_period_days} (days) must be less than or equal to service node certificate maximum validity period ${serviceConfig.node_cert_allowed_validity_period_days} (days)`
           );
         }
 

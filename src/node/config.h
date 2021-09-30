@@ -10,7 +10,7 @@
 
 namespace ccf
 {
-  static constexpr auto default_node_certificate_validity_period_days = 365;
+  static constexpr auto default_node_cert_validity_period_days = 365;
 
   struct ServiceConfiguration
   {
@@ -21,16 +21,15 @@ namespace ccf
 
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
-    std::optional<size_t> cert_maximum_validity_period_days =
-      std::nullopt; // TODO: Simply rename to cert_validity_period_days?
+    std::optional<size_t> node_cert_allowed_validity_period_days = std::nullopt;
 
     bool operator==(const ServiceConfiguration& other) const
     {
       return recovery_threshold == other.recovery_threshold &&
         consensus == other.consensus &&
         reconfiguration_type == other.reconfiguration_type &&
-        cert_maximum_validity_period_days ==
-        other.cert_maximum_validity_period_days;
+        node_cert_allowed_validity_period_days ==
+        other.node_cert_allowed_validity_period_days;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
@@ -39,7 +38,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     ServiceConfiguration,
     reconfiguration_type,
-    cert_maximum_validity_period_days)
+    node_cert_allowed_validity_period_days)
 
   // The there is always only one active configuration, so this is a single
   // Value

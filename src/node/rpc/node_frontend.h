@@ -257,16 +257,14 @@ namespace ccf
           in.certificate_signing_request.has_value() &&
           this->network.consensus_type == ConsensusType::CFT)
         {
-          // TODO: What if the configuration has no validity period (i.e. 1.x
-          // ledger)? Default to 365 days?
-          assert(config->cert_maximum_validity_period_days.has_value());
           endorsed_certificate =
             context.get_node_state().generate_endorsed_certificate(
               in.certificate_signing_request.value(),
               this->network.identity->priv_key,
               this->network.identity->cert,
               in.node_cert_valid_from.value(),
-              config->cert_maximum_validity_period_days.value());
+              config->node_cert_allowed_validity_period_days.value_or(
+                default_node_cert_validity_period_days));
 
           node_endorsed_certificates->put(
             joining_node_id, {endorsed_certificate.value()});
@@ -1173,7 +1171,8 @@ namespace ccf
               this->network.identity->priv_key,
               this->network.identity->cert,
               in.node_cert_valid_from,
-              config->cert_maximum_validity_period_days.value_or(10)));
+              config->node_cert_allowed_validity_period_days.value_or(
+                default_node_cert_validity_period_days)));
         }
         else
         {
