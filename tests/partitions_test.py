@@ -128,7 +128,12 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
     # Check reconnected former primary has caught up
     with primary.client() as c:
         try:
-            c.wait_for_commit(new_tx_resp, timeout=5)
+            # There will be at least one full election cycle for nothing, where the
+            # re-joining node fails to get elected but causes others to rev up their
+            # term. After that, a successful election needs to take place, and we
+            # arbitrarily allow 3 time periods to avoid being too brittle when
+            # raft timeouts line up badly.
+            c.wait_for_commit(new_tx_resp, timeout=(network.election_duration * 4))
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
             assert (
