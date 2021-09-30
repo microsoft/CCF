@@ -15,8 +15,6 @@ import socket
 import os
 from collections import defaultdict
 import time
-import tempfile
-import base64
 import json
 import hashlib
 import ccf.clients
@@ -432,27 +430,21 @@ def test_multi_auth(network, args):
                 require_new_response(r)
 
             LOG.info("Authenticate via JWT token")
-            jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-            jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-            jwt_kid = "my_key_id"
-            jwt_issuer = "https://example.issuer"
-            # Add JWT issuer
-            with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-                jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-                der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-                data = {
-                    "issuer": jwt_issuer,
-                    "jwks": {
-                        "keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]
-                    },
-                }
-                json.dump(data, metadata_fp)
-                metadata_fp.flush()
-                network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+            jwt_issuer = infra.jwt_issuer.JwtIssuer()
+            jwt_issuer.register(network)
+            jwt = jwt_issuer.issue_jwt(claims={"user": "Alice"})
 
             with primary.client() as c:
-                jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
                 r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
+                require_new_response(r)
+
+            LOG.info("Authenticate via second JWT token")
+            jwt2 = jwt_issuer.issue_jwt(claims={"user": "Bob"})
+
+            with primary.client(
+                common_headers={"authorization": "Bearer " + jwt2}
+            ) as c:
+                r = c.get("/app/multi_auth")
                 require_new_response(r)
 
         else:
@@ -674,6 +666,49 @@ def test_historical_receipts(network, args):
     return network
 
 
+def get_all_entries(client, target_id, from_seqno=None, to_seqno=None, timeout=5):
+    LOG.info(
+        f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
+    )
+    logs = []
+
+    start_time = time.time()
+    end_time = start_time + timeout
+    entries = []
+    path = f"/app/log/private/historical/range?id={target_id}"
+    if from_seqno is not None:
+        path += f"&from_seqno={from_seqno}"
+    if to_seqno is not None:
+        path += f"&to_seqno={to_seqno}"
+    while time.time() < end_time:
+        r = client.get(path, log_capture=logs)
+        if r.status_code == http.HTTPStatus.OK:
+            j_body = r.body.json()
+            entries += j_body["entries"]
+            if "@nextLink" in j_body:
+                path = j_body["@nextLink"]
+                continue
+            else:
+                # No @nextLink means we've reached end of range
+                duration = time.time() - start_time
+                LOG.info(f"Done! Fetched {len(entries)} entries in {duration:0.2f}s")
+                return entries, duration
+        elif r.status_code == http.HTTPStatus.ACCEPTED:
+            # Ignore retry-after header, retry soon
+            time.sleep(0.1)
+            continue
+        else:
+            LOG.error("Printing historical/range logs on unexpected status")
+            flush_info(logs, None)
+            raise ValueError(
+                f"Unexpected status code from historical range query: {r.status_code}"
+            )
+
+    LOG.error("Printing historical/range logs on timeout")
+    flush_info(logs, None)
+    raise TimeoutError(f"Historical range not available after {timeout}s")
+
+
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("log/private", "log/private/historical/range")
 def test_historical_query_range(network, args):
@@ -683,8 +718,6 @@ def test_historical_query_range(network, args):
         )
         return network
 
-    primary, _ = network.find_primary()
-
     id_a = 142
     id_b = 143
     id_c = 144
@@ -692,56 +725,12 @@ def test_historical_query_range(network, args):
     first_seqno = None
     last_seqno = None
 
-    def get_all_entries(target_id, from_seqno=None, to_seqno=None):
-        LOG.info(
-            f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {last_seqno}' if to_seqno is not None else ''} for id {target_id}"
-        )
-        logs = []
-        with primary.client("user0") as c:
-            timeout = 5
-            start_time = time.time()
-            end_time = start_time + timeout
-            entries = []
-            path = f"/app/log/private/historical/range?id={target_id}"
-            if from_seqno is not None:
-                path += f"&from_seqno={first_seqno}"
-            if to_seqno is not None:
-                path += f"&to_seqno={to_seqno}"
-            while time.time() < end_time:
-                r = c.get(path, log_capture=logs)
-                if r.status_code == http.HTTPStatus.OK:
-                    j_body = r.body.json()
-                    entries += j_body["entries"]
-                    if "@nextLink" in j_body:
-                        path = j_body["@nextLink"]
-                        continue
-                    else:
-                        # No @nextLink means we've reached end of range
-                        duration = time.time() - start_time
-                        LOG.info(
-                            f"Done! Fetched {len(entries)} entries in {duration:0.2f}s"
-                        )
-                        return entries, duration
-                elif r.status_code == http.HTTPStatus.ACCEPTED:
-                    # Ignore retry-after header, retry soon
-                    time.sleep(0.1)
-                    continue
-                else:
-                    LOG.error("Printing historical/range logs on unexpected status")
-                    flush_info(logs, None)
-                    raise ValueError(
-                        f"Unexpected status code from historical range query: {r.status_code}"
-                    )
-
-        LOG.error("Printing historical/range logs on timeout")
-        flush_info(logs, None)
-        raise TimeoutError(f"Historical range not available after {timeout}s")
-
+    primary, _ = network.find_primary()
     with primary.client("user0") as c:
         # Submit many transactions, overwriting the same IDs
         # Need to submit through network.txs so these can be verified at shutdown, but also need to submit one at a
         # time to retrieve the submitted transactions
-        msgs = dict()
+        msgs = {}
         n_entries = 100
 
         def id_for(i):
@@ -769,20 +758,21 @@ def test_historical_query_range(network, args):
 
         ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        entries_a, duration_a = get_all_entries(id_a)
-        entries_b, duration_b = get_all_entries(id_b)
-        entries_c, duration_c = get_all_entries(id_c)
+        entries_a, _ = get_all_entries(c, id_a)
+        entries_b, _ = get_all_entries(c, id_b)
+        entries_c, _ = get_all_entries(c, id_c)
 
         # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
-        assert duration_c < duration_a
-        assert duration_c < duration_b
+        # NB: With larger page size, this is not necessarily true! Small range means _all_ responses fit in a single response page
+        # assert duration_c < duration_a
+        # assert duration_c < duration_b
 
         # Confirm that we can retrieve these with more specific queries, and we end up with the same result
-        alt_a, _ = get_all_entries(id_a, from_seqno=first_seqno)
+        alt_a, _ = get_all_entries(c, id_a, from_seqno=first_seqno)
         assert alt_a == entries_a
-        alt_a, _ = get_all_entries(id_a, to_seqno=last_seqno)
+        alt_a, _ = get_all_entries(c, id_a, to_seqno=last_seqno)
         assert alt_a == entries_a
-        alt_a, _ = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
+        alt_a, _ = get_all_entries(c, id_a, from_seqno=first_seqno, to_seqno=last_seqno)
         assert alt_a == entries_a
 
         actual_len = len(entries_a) + len(entries_b) + len(entries_c)
