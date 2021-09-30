@@ -953,7 +953,7 @@ namespace loggingapp
         }
 
         // Set a maximum range, paginate larger requests
-        static constexpr size_t max_seqno_per_page = 20;
+        static constexpr size_t max_seqno_per_page = 2000;
         const auto range_begin = from_seqno;
         const auto range_end =
           std::min(to_seqno, range_begin + max_seqno_per_page);
