@@ -406,7 +406,10 @@ namespace ccf
       {
         // Whatever else we _were_ doing, we've received a valid init from them
         // - reset to use it
-        kex_ctx.reset();
+        if (status.check(ESTABLISHED))
+        {
+          kex_ctx.reset();
+        }
         peer_cert = cert;
         peer_cv = verifier;
       }
