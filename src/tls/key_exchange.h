@@ -163,10 +163,15 @@ namespace tls
 
     std::vector<uint8_t> compute_shared_secret()
     {
-      int rc = mbedtls_ecdh_read_public(ctx.get(), peer_key_share.data(), peer_key_share.size());
-      if (rc != 0)
+      int rc;
+      if (peer_key_share.size() > 0)
       {
-        throw std::logic_error(error_string(rc));
+        rc = mbedtls_ecdh_read_public(
+          ctx.get(), peer_key_share.data(), peer_key_share.size());
+        if (rc != 0)
+        {
+          throw std::logic_error(error_string(rc));
+        }
       }
 
       crypto::EntropyPtr entropy = crypto::create_entropy();
