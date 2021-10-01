@@ -516,8 +516,6 @@ TEST_CASE("StateCache range queries")
       REQUIRE(stores.empty());
     }
 
-    const auto proof_end = signing_version(range_end);
-
     // Cache is robust to receiving these out-of-order, so stress that by
     // submitting out-of-order
     std::vector<size_t> to_provide(1 + range_end - range_start);
@@ -532,17 +530,11 @@ TEST_CASE("StateCache range queries")
       provide_ledger_entry(seqno);
     }
 
-    // Then provide trailing proof after the requested indices
-    for (auto seqno = range_end + 1; seqno <= proof_end; ++seqno)
-    {
-      provide_ledger_entry(seqno);
-    }
-
     {
       auto stores = cache.get_store_range(this_handle, range_start, range_end);
       REQUIRE(!stores.empty());
 
-      const auto range_size = (range_end - range_start) + 1;
+      const auto range_size = to_provide.size();
       REQUIRE(stores.size() == range_size);
       for (size_t i = 0; i < stores.size(); ++i)
       {
