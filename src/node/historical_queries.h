@@ -386,47 +386,6 @@ namespace ccf::historical
       }
     }
 
-    // Returns true if this is a valid signature that passes our verification
-    // checks
-    bool verify_signature(const StorePtr& sig_store, ccf::SeqNo sig_seqno)
-    {
-      const auto sig = get_signature(sig_store);
-      if (!sig.has_value())
-      {
-        LOG_FAIL_FMT("Signature at {}: Missing signature value", sig_seqno);
-        return false;
-      }
-
-      const auto tree_ = get_tree(sig_store);
-      if (!tree_.has_value())
-      {
-        LOG_FAIL_FMT("Signature at {}: Missing tree value", sig_seqno);
-        return false;
-      }
-
-      // Build tree from signature
-      ccf::MerkleTreeHistory tree(tree_.value());
-      const auto real_root = tree.get_root();
-      if (real_root != sig->root)
-      {
-        LOG_FAIL_FMT("Signature at {}: Invalid root", sig_seqno);
-        return false;
-      }
-
-      // Current solution: Use current state of Nodes tables from real store.
-      // This only works while entries are never deleted from this table, and
-      // makes no check that the signing node was active at the point it
-      // produced this signature
-      auto tx = source_store.create_read_only_tx();
-      if (!verify_node_signature(tx, sig->node, sig->sig, real_root))
-      {
-        LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_seqno);
-        return false;
-      }
-
-      return true;
-    }
-
     std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
       ccf::SeqNo seqno)
     {
@@ -875,18 +834,44 @@ namespace ccf::historical
         return false;
       }
 
-      const auto is_signature =
-        deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
-      if (is_signature)
       {
-        // This looks like a signature - check that we trust it
-        if (!verify_signature(store, seqno))
+        // Confirm this entry is from a precursor of the current state, and not
+        // a fork
+        const auto tx_id = store->current_txid();
+        if (tx_id.version != seqno)
         {
-          LOG_FAIL_FMT("Bad signature at {}", seqno);
-          delete_all_interested_requests(seqno);
+          LOG_FAIL_FMT(
+            "Corrupt ledger entry received - claims to be {} but is actually "
+            "{}.{}",
+            seqno,
+            tx_id.term,
+            tx_id.version);
+          return false;
+        }
+
+        auto consensus = source_store.get_consensus();
+        if (consensus == nullptr)
+        {
+          LOG_FAIL_FMT("No consensus on source store");
+          return false;
+        }
+
+        const auto actual_view = consensus->get_view(seqno);
+        if (actual_view != tx_id.term)
+        {
+          LOG_FAIL_FMT(
+            "Ledger entry comes from fork - contains {}.{} but this service "
+            "expected {}.{}",
+            tx_id.term,
+            tx_id.version,
+            actual_view,
+            seqno);
           return false;
         }
       }
+
+      const auto is_signature =
+        deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
 
       LOG_DEBUG_FMT(
         "Processing historical store at {} ({})",
