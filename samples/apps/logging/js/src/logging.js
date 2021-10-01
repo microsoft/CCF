@@ -1,12 +1,18 @@
-function get_id_from_request_query(request) {
+function parse_request_query(request) {
   const elements = request.query.split("&");
+  const obj = {};
   for (const kv of elements) {
     const [k, v] = kv.split("=");
-    if (k == "id") {
-      return ccf.strToBuf(v);
-    }
+    obj[k] = v;
   }
-  throw new Error("Could not find 'id' in query");
+  return obj;
+}
+
+function get_id_from_query(parsedQuery) {
+  if (parsedQuery.id === undefined) {
+    throw new Error("Could not find 'id' in query");
+  }
+  return ccf.strToBuf(parsedQuery.id);
 }
 
 function get_record(map, id) {
@@ -25,7 +31,8 @@ function delete_record(map, id) {
 }
 
 export function get_private(request) {
-  const id = get_id_from_request_query(request);
+  const parsedQuery = parse_request_query(request);
+  const id = get_id_from_query(parsedQuery);
   return get_record(ccf.kv["records"], id);
 }
 
@@ -39,8 +46,158 @@ export function get_historical_with_receipt(request) {
   return result;
 }
 
+function get_first_write_version(id) {
+  const version = ccf.kv["first_write_version"].get(id);
+  if (version !== undefined) {
+    version = ccf.bufToJsonCompatible(version);
+  }
+  return version;
+}
+
+function get_last_write_version(id) {
+  const version = ccf.kv["records"].getVersionOfPreviousWrite(id);
+  return version;
+}
+
+export function get_historical_range(request) {
+  const parsedQuery = parse_request_query(request);
+  const id = get_id_from_query(parsedQuery);
+  let {from_seqno, to_seqno} = parsedQuery;
+  if (from_seqno !== undefined) {
+    from_seqno = parseInt(from_seqno);
+    if (isNaN(from_seqno)) {
+      throw new Error("from_seqno is not an integer");
+    }
+  } else {
+    // If no start point is specified, use the first time this ID was
+    // written to
+    const firstWriteVersion = get_first_write_version(id);
+    if (firstWriteVersion !== undefined) {
+      from_seqno = firstWriteVersion;
+    } else {
+      // It's possible there's been a single write but no subsequent
+      // transaction to write this to the FirstWritesMap - check version
+      // of previous write
+      const lastWrittenVersion = get_last_write_version(id);
+      if (lastWrittenVersion !== undefined) {
+        from_seqno = lastWrittenVersion;
+      } else {
+        // This key has never been written to. Return the empty response now
+        return {
+          body: {
+            entries: [],
+          }
+        };
+      }
+    }
+  }
+
+  if (to_seqno !== undefined) {
+    to_seqno = parseInt(to_seqno);
+    if (isNaN(to_seqno)) {
+      throw new Error("to_seqno is not an integer");
+    }
+  } else {
+    // If no end point is specified, use the last time this ID was
+    // written to
+    const lastWriteVersion = get_last_write_version(id);
+    if (lastWriteVersion !== undefined) {
+      to_seqno = lastWriteVersion;
+    } else {
+      // If there's no last written version, it may have never been
+      // written but may simply be currently deleted. Use current commit
+      // index as end point to ensure we include any deleted entries.
+      to_seqno = ccf.consensus.getLastCommittedTxId().seqno;
+    }
+  }
+
+  // Range must be in order
+  if (to_seqno < from_seqno) {
+    throw new Error("to_seqno must be >= from_seqno");
+  }
+
+  // End of range must be committed
+  const viewOfFinalSeqno = ccf.consensus.getViewForSeqno(to_seqno);
+  const txStatus = ccf.consensus.getStatusForTxId(viewOfFinalSeqno, to_seqno);
+  if (txStatus !== 'Committed') {
+    throw new Error("End of range must be committed");
+  }
+
+  const max_seqno_per_page = 2000;
+  const range_begin = from_seqno;
+  const range_end = Math.min(to_seqno, range_begin + max_seqno_per_page);
+
+  // Compute a deterministic handle for the range request.
+  // Note: Instead of ccf.digest, an equivalent of std::hash should be used.
+  const makeHandle = (begin, end, id) => {
+    const cacheKey = `${begin}-${end}-${id}`;
+    const digest = ccf.digest('SHA-256', ccf.strToBuf(cacheKey));
+    const handle = new DataView(digest).getUint32(0);
+    return handle;
+  };
+  const handle = makeHandle(range_begin, range_end, parsedQuery.id);
+
+  // Fetch the requested range
+  const states = ccf.historical.getStateRange(handle, range_begin, range_end);
+  if (states === undefined) {
+    return {
+      statusCode: 202,
+      headers: {
+        'retry-after': '3'
+      },
+      body: `Historical transactions from ${range_begin} to ${range_end} are not yet available, fetching now`,
+    };
+  }
+
+  // Process the fetched states
+  const entries = [];
+  for (const state of states) {
+    const msg = state.kv["records"].get(id);
+    if (msg !== undefined) {
+      entries.push({
+        txid: state.transactionId,
+        id: parsedQuery.id,
+        msg: ccf.bufToStr(msg)
+      });
+    }
+    // This response does not include any entry when the given key wasn't
+    // modified at this seqno. It could instead indicate that the store
+    // was checked with an empty tombstone object, but this approach gives
+    // smaller responses.
+  }
+
+  // If this didn't cover the total requested range, begin fetching the
+  // next page and tell the caller how to retrieve it
+  let nextLink;
+  if (range_end != to_seqno)
+  {
+    const next_page_start = range_end + 1;
+    const next_page_end = Math.min(to_seqno, next_page_start + max_seqno_per_page);
+    const next_page_handle = makeHandle(range_begin, range_end, parsedQuery.id);
+    ccf.historical.getStateRange(next_page_handle, next_page_start, next_page_end);
+
+    // NB: This path tells the caller to continue to ask until the end of
+    // the range, even if the next response is paginated
+    nextLink = 
+      `/app/log/private/historical/range?from_seqno=${next_page_start}&to_seqno=${to_seqno}&id=${parsedQuery.id}`;
+  }
+
+  // Assume this response makes it all the way to the client, and
+  // they're finished with it, so we can drop the retrieved state. In a
+  // real app this may be driven by a separate client request or an LRU
+  ccf.historical.dropCachedStateRange(handle);
+
+  return {
+    body: {
+      'entries': entries,
+      '@nextLink': nextLink,
+    }
+  };  
+}
+
 export function get_public(request) {
-  const id = get_id_from_request_query(request);
+  const parsedQuery = parse_request_query(request);
+  const id = get_id_from_query(parsedQuery);
   return get_record(ccf.kv["public:records"], id);
 }
 
@@ -63,12 +220,14 @@ export function post_public(request) {
 }
 
 export function delete_private(request) {
-  const id = get_id_from_request_query(request);
+  const parsedQuery = parse_request_query(request);
+  const id = get_id_from_query(parsedQuery);
   return delete_record(ccf.kv["records"], id);
 }
 
 export function delete_public(request) {
-  const id = get_id_from_request_query(request);
+  const parsedQuery = parse_request_query(request);
+  const id = get_id_from_query(parsedQuery);
   return delete_record(ccf.kv["public:records"], id);
 }
 

@@ -110,7 +110,7 @@ class Int32Converter implements DataConverter<number> {
 class Uint32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
     if (val < 0 || val > 4294967295) {
-      throw new RangeError("value is not within int32 range");
+      throw new RangeError("value is not within uint32 range");
     }
     const buf = new ArrayBuffer(4);
     new DataView(buf).setUint32(0, val, true);

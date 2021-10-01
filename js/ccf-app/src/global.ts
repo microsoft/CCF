@@ -39,6 +39,7 @@ export type JsonCompatible<T> = any;
 export interface KvMap {
   has(key: ArrayBuffer): boolean;
   get(key: ArrayBuffer): ArrayBuffer | undefined;
+  getVersionOfPreviousWrite(key: ArrayBuffer): number | undefined;
   set(key: ArrayBuffer, value: ArrayBuffer): KvMap;
   delete(key: ArrayBuffer): boolean;
   clear(): void;
@@ -102,7 +103,7 @@ export interface Receipt {
  */
 export interface HistoricalState {
   /**
-   * The ID of the transaction.
+   * The ID of the transaction, formatted as '<view>.<seqno>' string.
    */
   transactionId: string;
 
@@ -110,7 +111,21 @@ export interface HistoricalState {
    * The receipt for the historic transaction.
    */
   receipt: Receipt;
+
+  /**
+   * An object that provides access to the maps of the Key-Value Store
+   * associated with the historic transaction.
+   * Fields are map names and values are {@linkcode KvMap} objects.
+   */
+  kv: KvMaps;
 }
+
+export interface TransactionId {
+  view: number;
+  seqno: number;
+}
+
+export type TransactionStatus = "Committed" | "Invalid" | "Pending" | "Unknown";
 
 /**
  * [RSA-OAEP](https://datatracker.ietf.org/doc/html/rfc8017)
@@ -301,6 +316,26 @@ export interface CCF {
     setApplyWrites(force: boolean): void;
   };
 
+  consensus: {
+    /**
+     * Get the ID of latest transaction known to be committed.
+     */
+    getLastCommittedTxId(): TransactionId;
+
+    /**
+     * Get the status of a transaction by ID, provided as a view+seqno pair.
+     * This is a node-local property - while it will converge on all nodes in
+     * a healthy network, it is derived from distributed state rather than
+     * distributed itself.
+     */
+    getStatusForTxId(view: number, seqno: number): TransactionStatus;
+
+    /**
+     * Get the view associated with a given seqno, to construct a valid TxID.
+     */
+    getViewForSeqno(seqno: number): number;
+  };
+
   /**
    * An object that provides access to the maps of the Key-Value Store of CCF.
    * Fields are map names and values are {@linkcode KvMap} objects.
@@ -312,6 +347,40 @@ export interface CCF {
    * Only defined for endpoints with "mode" set to "historical".
    */
   historicalState?: HistoricalState;
+
+  historical: {
+    /**
+     * Retrieve a range of historical states containing the state written at the given
+     * indices.
+     *
+     * If this is not currently available, this function returns `undefined`
+     * and begins fetching the ledger entry asynchronously. This will generally
+     * be true for the first call for a given seqno, and it may take some time
+     * to completely fetch and validate. The call should be repeated later with
+     * the same arguments to retrieve the requested entries. This state is kept
+     * until it is deleted for one of the following reasons:
+     *  - A call to {@link CCF.historical.drop_request}
+     *  - `seconds_until_expiry` seconds elapse without calling this function
+     *  - This handle is used to request a different seqno or range
+     *
+     * The range is inclusive of both start_seqno and end_seqno. If a non-empty
+     * array is returned, it will always contain the full requested range; the
+     * array will be of length (end_seqno - start_seqno + 1).
+     */
+    getStateRange(
+      handle: number,
+      start_seqno: number,
+      end_seqno: number,
+      seconds_until_expiry: number
+    ): HistoricalState[] | undefined;
+
+    /** Drop cached states for the given handle.
+     *
+     * May be used to free up space once a historical query has been resolved,
+     * more aggressively than waiting for the requests to expire.
+     */
+    dropCachedStateRange(handle: number): void;
+  };
 }
 
 export const openenclave: OpenEnclave = (<any>globalThis).openenclave;
