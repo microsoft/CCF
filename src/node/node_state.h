@@ -1842,12 +1842,13 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
-      network.tables->set_global_hook(
+      // TODO: Should be global hook
+      network.tables->set_map_hook(
         network.node_endorsed_certificates.get_name(),
-        network.node_endorsed_certificates.wrap_commit_hook(
+        network.node_endorsed_certificates.wrap_map_hook(
           [this](
             kv::Version hook_version,
-            const NodeEndorsedCertificates::Write& w) {
+            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
@@ -1869,6 +1870,8 @@ namespace ccf
               open_frontend(ActorsType::members);
               open_user_frontend();
             }
+
+            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 

@@ -911,7 +911,7 @@ const actions = new Map([
     ),
   ],
   [
-    "renew_node_certificate",
+    "trigger_node_certificate_renewal",
     new Action(
       function (args) {
         checkEntityId(args.node_id, "node_id");
