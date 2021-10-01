@@ -210,7 +210,7 @@ def run_code_upgrade_from(
             jwt_issuer.refresh_keys()
             # Note: /gov/jwt_keys/all endpoint was added in 2.x
             primary, _ = network.find_nodes()
-            if not primary.major_version or primary.version > 1:
+            if not primary.major_version or primary.major_version > 1:
                 jwt_issuer.wait_for_refresh(network)
             else:
                 time.sleep(3)
