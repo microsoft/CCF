@@ -796,11 +796,11 @@ int main(int argc, char** argv)
     ccf_config.node_cert_maximum_validity_period_days =
       node_cert_maximum_validity_period_days;
 
-    auto current_host_time = std::chrono::system_clock::now();
-    LOG_INFO_FMT("Current host time: {}", current_host_time);
+    auto startup_host_time = std::chrono::system_clock::now();
+    LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
-      std::chrono::system_clock::to_time_t(current_host_time));
+      std::chrono::system_clock::to_time_t(startup_host_time));
 
     if (*start)
     {

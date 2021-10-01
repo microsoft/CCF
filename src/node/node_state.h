@@ -339,7 +339,6 @@ namespace ccf
         config.node_certificate_subject_identity,
         config.startup_host_time,
         config.node_cert_maximum_validity_period_days);
-      LOG_FAIL_FMT("{}", self_signed_node_cert.str());
 
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -655,7 +654,6 @@ namespace ccf
       join_params.startup_seqno = startup_seqno;
       join_params.certificate_signing_request =
         node_sign_kp->create_csr(config.node_certificate_subject_identity);
-      join_params.node_cert_valid_from = config.startup_host_time;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -1844,6 +1842,7 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
+      // TODO: Should be global hook
       network.tables->set_map_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_map_hook(

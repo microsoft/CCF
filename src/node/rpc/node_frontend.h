@@ -218,8 +218,7 @@ namespace ccf
         ledger_secret_seqno,
         ds::to_hex(code_digest.data),
         in.certificate_signing_request,
-        client_public_key_pem,
-        in.node_cert_valid_from};
+        client_public_key_pem};
 
       // Because the certificate signature scheme is non-deterministic, only
       // self-signed node certificate is recorded in the node info table
@@ -257,9 +256,20 @@ namespace ccf
           in.certificate_signing_request.has_value() &&
           this->network.consensus_type == ConsensusType::CFT)
         {
+          ::timespec time;
+          ccf::ApiResult result = get_untrusted_host_time_v1(time);
+          if (result != ccf::ApiResult::OK)
+          {
+            return ccf::make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Unable to get time: {}", ccf::api_result_to_str(result)));
+          }
+
           endorsed_certificate = create_endorsed_cert(
             in.certificate_signing_request.value(),
-            in.node_cert_valid_from.value(),
+            crypto::OpenSSL::to_x509_time_string(time.tv_sec),
             config->node_cert_allowed_validity_period_days.value_or(
               default_node_cert_validity_period_days),
             this->network.identity->priv_key,

@@ -784,7 +784,7 @@ const actions = new Map([
             // Note: CSR is only present from 2.x
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
-              nodeInfo.certificate_initial_valid_from,
+              "211001100000Z", // TODO: Change to host time then
               serviceConfig.node_cert_allowed_validity_period_days
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
