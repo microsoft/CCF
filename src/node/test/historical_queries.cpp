@@ -339,7 +339,8 @@ TEST_CASE("StateCache point queries")
       "entries");
     // NB: This is _a_ valid entry, but not at this seqno.
     REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
-    REQUIRE_FALSE(cache.handle_ledger_entry(low_seqno, ledger.at(low_seqno + 1)));
+    REQUIRE_FALSE(
+      cache.handle_ledger_entry(low_seqno, ledger.at(low_seqno + 1)));
   }
 
   {
