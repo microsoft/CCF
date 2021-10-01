@@ -337,24 +337,9 @@ TEST_CASE("StateCache point queries")
     INFO(
       "Cache accepts _wrong_ requested entry, and the range of supporting "
       "entries");
-    // NB: This is _a_ valid entry, but not at this seqno. In fact this stage
-    // will accept anything that looks quite like a valid entry, even if it
-    // never came from a legitimate node - they should all fail at the signature
-    // check
+    // NB: This is _a_ valid entry, but not at this seqno.
     REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
-    REQUIRE(cache.handle_ledger_entry(low_seqno, ledger.at(low_seqno + 1)));
-
-    // Count up to next signature
-    for (size_t i = low_seqno + 1; i < high_signature_transaction; ++i)
-    {
-      REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
-    }
-
-    // Signature is good
-    REQUIRE(provide_ledger_entry(high_signature_transaction));
-    // Junk entry is still not available
-    REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
+    REQUIRE_FALSE(cache.handle_ledger_entry(low_seqno, ledger.at(low_seqno + 1)));
   }
 
   {
