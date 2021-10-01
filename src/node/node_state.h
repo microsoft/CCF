@@ -629,10 +629,6 @@ namespace ccf
               "Node has now joined the network as node {}: {}",
               self,
               (resp.network_info->public_only ? "public only" : "all domains"));
-
-            // TODO: Remove this before committing
-            LOG_FAIL_FMT("Sleeping for an extremely long time!");
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
           }
           else if (resp.node_status == NodeStatus::PENDING)
           {
