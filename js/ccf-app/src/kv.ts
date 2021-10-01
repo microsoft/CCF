@@ -103,8 +103,7 @@ export class TypedKvMap<K, V> {
 export function typedKv<K, V>(
   nameOrMap: string | KvMap,
   kt: DataConverter<K>,
-  vt: DataConverter<V>,
-
+  vt: DataConverter<V>
 ) {
   const kvMap = typeof nameOrMap === "string" ? ccf.kv[nameOrMap] : nameOrMap;
   return new TypedKvMap(kvMap, kt, vt);

@@ -3,7 +3,7 @@
 
 /**
  * TODO change this
- * 
+ *
  * This module provides access to the historical state
  * in historic endpoints, corresponding to a specific transaction.
  *
@@ -21,13 +21,13 @@ import { ccf } from "./global.js";
 export const historicalState = ccf.historicalState;
 
 /**
- * @inheritDoc CCF.historical.get_state_range;
+ * @inheritDoc CCF.historical.getStateRange;
  */
-export const get_state_range = ccf.historical.get_state_range;
+export const getStateRange = ccf.historical.getStateRange;
 
 /**
- * @inheritDoc CCF.historical.drop_cached_state_range;
+ * @inheritDoc CCF.historical.dropCachedStateRange;
  */
-export const drop_cached_state_range = ccf.historical.drop_cached_state_range;
+export const dropCachedStateRange = ccf.historical.dropCachedStateRange;
 
 export { HistoricalState, Receipt, Proof, ProofElement } from "./global";

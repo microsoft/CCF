@@ -62,7 +62,7 @@ function get_last_write_version(id) {
 export function get_historical_range(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
-  let {from_seqno, to_seqno} = parsedQuery;
+  let { from_seqno, to_seqno } = parsedQuery;
   if (from_seqno !== undefined) {
     from_seqno = parseInt(from_seqno);
     if (isNaN(from_seqno)) {
@@ -86,7 +86,7 @@ export function get_historical_range(request) {
         return {
           body: {
             entries: [],
-          }
+          },
         };
       }
     }
@@ -119,7 +119,7 @@ export function get_historical_range(request) {
   // End of range must be committed
   const viewOfFinalSeqno = ccf.consensus.getViewForSeqno(to_seqno);
   const txStatus = ccf.consensus.getStatusForTxId(viewOfFinalSeqno, to_seqno);
-  if (txStatus !== 'Committed') {
+  if (txStatus !== "Committed") {
     throw new Error("End of range must be committed");
   }
 
@@ -131,7 +131,7 @@ export function get_historical_range(request) {
   // Note: Instead of ccf.digest, an equivalent of std::hash should be used.
   const makeHandle = (begin, end, id) => {
     const cacheKey = `${begin}-${end}-${id}`;
-    const digest = ccf.digest('SHA-256', ccf.strToBuf(cacheKey));
+    const digest = ccf.digest("SHA-256", ccf.strToBuf(cacheKey));
     const handle = new DataView(digest).getUint32(0);
     return handle;
   };
@@ -143,7 +143,7 @@ export function get_historical_range(request) {
     return {
       statusCode: 202,
       headers: {
-        'retry-after': '3'
+        "retry-after": "3",
       },
       body: `Historical transactions from ${range_begin} to ${range_end} are not yet available, fetching now`,
     };
@@ -157,7 +157,7 @@ export function get_historical_range(request) {
       entries.push({
         txid: state.transactionId,
         id: parsedQuery.id,
-        msg: ccf.bufToStr(msg)
+        msg: ccf.bufToStr(msg),
       });
     }
     // This response does not include any entry when the given key wasn't
@@ -169,17 +169,22 @@ export function get_historical_range(request) {
   // If this didn't cover the total requested range, begin fetching the
   // next page and tell the caller how to retrieve it
   let nextLink;
-  if (range_end != to_seqno)
-  {
+  if (range_end != to_seqno) {
     const next_page_start = range_end + 1;
-    const next_page_end = Math.min(to_seqno, next_page_start + max_seqno_per_page);
+    const next_page_end = Math.min(
+      to_seqno,
+      next_page_start + max_seqno_per_page
+    );
     const next_page_handle = makeHandle(range_begin, range_end, parsedQuery.id);
-    ccf.historical.getStateRange(next_page_handle, next_page_start, next_page_end);
+    ccf.historical.getStateRange(
+      next_page_handle,
+      next_page_start,
+      next_page_end
+    );
 
     // NB: This path tells the caller to continue to ask until the end of
     // the range, even if the next response is paginated
-    nextLink = 
-      `/app/log/private/historical/range?from_seqno=${next_page_start}&to_seqno=${to_seqno}&id=${parsedQuery.id}`;
+    nextLink = `/app/log/private/historical/range?from_seqno=${next_page_start}&to_seqno=${to_seqno}&id=${parsedQuery.id}`;
   }
 
   // Assume this response makes it all the way to the client, and
@@ -189,10 +194,10 @@ export function get_historical_range(request) {
 
   return {
     body: {
-      'entries': entries,
-      '@nextLink': nextLink,
-    }
-  };  
+      entries: entries,
+      "@nextLink": nextLink,
+    },
+  };
 }
 
 export function get_public(request) {
