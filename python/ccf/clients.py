@@ -394,6 +394,7 @@ class RequestClient:
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        common_headers: Optional[dict] = None,
         **kwargs,
     ):
         self.host = host
@@ -401,6 +402,7 @@ class RequestClient:
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
+        self.common_headers = common_headers
         self.key_id = None
         cert = None
         if self.session_auth:
@@ -422,6 +424,9 @@ class RequestClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
         extra_headers = {}
+        if self.common_headers is not None:
+            extra_headers.update(self.common_headers)
+
         extra_headers.update(request.headers)
 
         auth = None
@@ -503,6 +508,7 @@ class CCFClient:
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
+    :param dict common_headers: Headers which should be added to every request.
     :param dict kwargs: Keyword args to be forwarded to the client implementation.
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
@@ -520,6 +526,7 @@ class CCFClient:
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
         curl: bool = False,
+        common_headers: Optional[dict] = None,
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
@@ -533,7 +540,7 @@ class CCFClient:
             self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
         else:
             self.client_impl = RequestClient(
-                host, port, ca, session_auth, signing_auth, **kwargs
+                host, port, ca, session_auth, signing_auth, common_headers, **kwargs
             )
 
     def _response(self, response: Response) -> Response:

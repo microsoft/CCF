@@ -753,22 +753,24 @@ class Network:
 
         return (self._get_node_by_service_id(primary_id), view)
 
-    def find_backups(self, primary=None, timeout=3):
+    def find_backups(self, primary=None, timeout=3, log_capture=None):
         if primary is None:
-            primary, _ = self.find_primary(timeout=timeout)
+            primary, _ = self.find_primary(timeout=timeout, log_capture=log_capture)
         return [n for n in self.get_joined_nodes() if n != primary]
 
-    def find_any_backup(self, primary=None, timeout=3):
-        return random.choice(self.find_backups(primary=primary, timeout=timeout))
+    def find_any_backup(self, primary=None, timeout=3, log_capture=None):
+        return random.choice(
+            self.find_backups(primary=primary, timeout=timeout, log_capture=log_capture)
+        )
 
-    def find_node_by_role(self, role=NodeRole.ANY):
+    def find_node_by_role(self, role=NodeRole.ANY, log_capture=None):
         role_ = (
             random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
         )
         if role_ == NodeRole.PRIMARY:
-            return self.find_primary()[0]
+            return self.find_primary(log_capture=log_capture)[0]
         else:
-            return self.find_any_backup()
+            return self.find_any_backup(log_capture=log_capture)
 
     def find_random_node(self):
         return random.choice(self.get_joined_nodes())
@@ -863,8 +865,9 @@ class Network:
         expected = [commits[0]] * len(commits)
         if expected != commits:
             for node in self.get_joined_nodes():
-                r = c.get("/node/consensus")
-                pprint.pprint(r.body.json())
+                with node.client() as c:
+                    r = c.get("/node/consensus")
+                    pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
     def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
@@ -937,6 +940,30 @@ class Network:
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
+
+    def wait_for_primary_unanimity(self, timeout_multiplier=2, min_view=None):
+        timeout = self.election_duration * timeout_multiplier
+        LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
+        end_time = time.time() + timeout
+
+        primaries = []
+        while time.time() < end_time:
+            for node in self.get_joined_nodes():
+                logs = []
+                primary, view = self.find_primary(nodes=[node], log_capture=logs)
+                if min_view is None or view > min_view:
+                    primaries.append(primary)
+            if [primaries[0]] * len(primaries) == primaries:
+                break
+            time.sleep(0.1)
+        expected = [primaries[0]] * len(primaries)
+        if expected != primaries:
+            for node in self.get_joined_nodes():
+                with node.client() as c:
+                    r = c.get("/node/consensus")
+                    pprint.pprint(r.body.json())
+        assert expected == primaries, f"Multiple primaries: {primaries}"
+        return primaries[0]
 
     def wait_for_commit_proof(self, node, seqno, timeout=3):
         # Wait that the target seqno has a commit proof on a specific node.
