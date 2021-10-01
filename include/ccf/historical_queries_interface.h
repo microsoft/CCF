@@ -152,12 +152,15 @@ namespace ccf::historical
     /** Retrieve a full state at a given seqno, including the Store, the TxID
      * assigned by consensus, and an offline-verifiable receipt for the Tx.
      */
-    virtual StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) = 0;
-
     virtual StatePtr get_state_at(
       RequestHandle handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) = 0;
+
+    /** Same as @c get_state_at but uses default expiry value.
+     * @see get_state_at
+     */
+    virtual StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) = 0;
 
     /** Retrieve a range of Stores containing the state written at the given
      * indices.
@@ -187,6 +190,22 @@ namespace ccf::historical
      * @see get_store_range
      */
     virtual std::vector<StorePtr> get_store_range(
+      RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
+
+    /** Retrieve a range of states at the given indices, including the Store,
+     * the TxID assigned by consensus, and an offline-verifiable receipt for
+     * the Tx.
+     */
+    virtual std::vector<StatePtr> get_state_range(
+      RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno,
+      ExpiryDuration seconds_until_expiry) = 0;
+
+    /** Same as @c get_state_range but uses default expiry value.
+     * @see get_state_range
+     */
+    virtual std::vector<StatePtr> get_state_range(
       RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
 
     /** Drop state for the given handle.
