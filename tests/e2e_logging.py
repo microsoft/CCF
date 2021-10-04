@@ -1348,6 +1348,7 @@ def run(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
+    """
     cr.add(
         "js",
         run,
@@ -1362,6 +1363,16 @@ if __name__ == "__main__":
         run,
         package="samples/apps/logging/liblogging",
         js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
+    """
+
+    cr.add(
+        "js_v8",
+        run,
+        package="libjs_v8",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,

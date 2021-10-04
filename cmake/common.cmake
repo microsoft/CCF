@@ -397,6 +397,34 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 endif()
 if("virtual" IN_LIST COMPILE_TARGETS)
+  if (ENABLE_V8)
+    message(STATUS "WARNING: V8 utilisation is experimental")
+    add_library(
+      js_v8_base.virtual STATIC
+      ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
+    )
+    add_san(js_v8_base.virtual)
+    add_warning_checks(js_v8_base.virtual)
+    target_include_directories(js_v8_base.virtual PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/build-v8/install/include)
+    target_link_directories(js_v8_base.virtual PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/build-v8/install/lib)
+    target_link_libraries(js_v8_base.virtual PUBLIC ccf.virtual)
+    # TODO: Make sure the V8 build uses the same libc++ version
+    target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
+    target_compile_definitions(
+      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                     _LIBCPP_HAS_THREAD_API_PTHREAD
+    )
+    set_property(
+      TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+    )
+    use_client_mbedtls(js_v8_base.virtual)
+    install(
+      TARGETS js_v8_base.virtual
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+
   add_library(
     js_generic_base.virtual STATIC
     ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
@@ -432,6 +460,20 @@ sign_app_library(
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
+
+if (ENABLE_V8)
+  add_ccf_app(
+    js_v8
+    SRCS ${CCF_DIR}/src/apps/js_v8/js_v8.cpp
+    LINK_LIBS_ENCLAVE js_v8_base.enclave js_openenclave.enclave
+    LINK_LIBS_VIRTUAL js_v8_base.virtual js_openenclave.virtual INSTALL_LIBS
+                      ON
+  )
+  sign_app_library(
+    js_v8.enclave ${CCF_DIR}/src/apps/js_v8/oe_sign.conf
+    ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
+  )
+endif()
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
         DESTINATION samples/logging
