@@ -518,14 +518,24 @@ namespace ccf::historical
       return true;
     }
 
-    std::vector<StatePtr> get_store_range_internal(
+    std::vector<StatePtr> get_state_range_internal(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
-      size_t num_following_indices,
+      ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry,
       bool include_receipts)
     {
       std::lock_guard<std::mutex> guard(requests_lock);
+
+      if (end_seqno < start_seqno)
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid range for historical query: end {} is before start {}",
+          end_seqno,
+          start_seqno));
+      }
+
+      const auto tail_length = end_seqno - start_seqno;
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -655,19 +665,12 @@ namespace ccf::historical
       return get_store_at(handle, seqno, default_expiry_duration);
     }
 
-    StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
-    {
-      return get_state_at(handle, seqno, default_expiry_duration);
-    }
-
     StatePtr get_state_at(
       RequestHandle handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      auto range =
-        get_store_range_internal(handle, seqno, 0, seconds_until_expiry, true);
-
+      auto range = get_state_range(handle, seqno, seqno, seconds_until_expiry);
       if (range.empty())
       {
         return nullptr;
@@ -676,23 +679,19 @@ namespace ccf::historical
       return range[0];
     }
 
+    StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
+    {
+      return get_state_at(handle, seqno, default_expiry_duration);
+    }
+
     std::vector<StorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      if (end_seqno < start_seqno)
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid range for historical query: end {} is before start {}",
-          end_seqno,
-          start_seqno));
-      }
-
-      const auto tail_length = end_seqno - start_seqno;
-      auto range = get_store_range_internal(
-        handle, start_seqno, tail_length, seconds_until_expiry, false);
+      auto range = get_state_range_internal(
+        handle, start_seqno, end_seqno, seconds_until_expiry, false);
       std::vector<StorePtr> stores;
       for (size_t i = 0; i < range.size(); i++)
       {
@@ -707,6 +706,26 @@ namespace ccf::historical
       ccf::SeqNo end_seqno) override
     {
       return get_store_range(
+        handle, start_seqno, end_seqno, default_expiry_duration);
+    }
+
+    std::vector<StatePtr> get_state_range(
+      RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno,
+      ExpiryDuration seconds_until_expiry) override
+    {
+      auto range = get_state_range_internal(
+        handle, start_seqno, end_seqno, seconds_until_expiry, true);
+      return range;
+    }
+
+    std::vector<StatePtr> get_state_range(
+      RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno) override
+    {
+      return get_state_range(
         handle, start_seqno, end_seqno, default_expiry_duration);
     }
 
