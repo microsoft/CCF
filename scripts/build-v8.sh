@@ -8,8 +8,7 @@ if [ "$1" == "" ]; then
   echo "$SYNTAX"
   exit 1
 fi
-EXPECTED_VERSION="$1"
-MAJOR_VERSION="${1%.*.*}"
+VERSION="$1"
 PUBLISH=false
 if [ "$2" != "" ]; then
   if [ "$2" == "true" ]; then
@@ -42,12 +41,10 @@ fi
 echo " + Fetching V8 on known stable branch..."
 fetch v8
 cd v8 || exit
-# This is known stable on all platforms according to omahaproxy.appspot.com
-CHECKOUT_BANCH="branch-heads/$MAJOR_VERSION"
-git checkout "$CHECKOUT_BANCH"
-VERSION=$(git show | grep -o "$EXPECTED_VERSION")
-if [ "$VERSION" != "$EXPECTED_VERSION" ]; then
-  echo "ERROR: Invalid version $VERSION for checkout $CHECKOUT_BANCH"
+# Check omahaproxy.appspot.com for known stable versions
+git checkout "refs/tags/$VERSION"
+if [ $? -ne 0 ]; then
+  echo "ERROR: Invalid version $VERSION for checkout"
   exit 1
 fi
 
@@ -94,5 +91,5 @@ fi
 # Creates in .../build-v8/ root
 if [ "$PUBLISH" == "true" ]; then
   echo " + Generate the tarball..."
-  tar Jcf ../v8.tar.xz install
+  tar Jcf ../v8-"$VERSION".tar.xz install
 fi
