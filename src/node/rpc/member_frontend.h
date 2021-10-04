@@ -216,6 +216,8 @@ namespace ccf
           nullptr,
           nullptr,
           nullptr,
+          nullptr,
+          nullptr,
           context);
         auto ballot_func = context.function(
           mb,
@@ -260,6 +262,8 @@ namespace ccf
           &txctx,
           nullptr,
           std::nullopt,
+          nullptr,
+          nullptr,
           nullptr,
           nullptr,
           nullptr,
@@ -375,6 +379,8 @@ namespace ccf
               &context.get_node_state(),
               nullptr,
               &network,
+              nullptr,
+              this,
               js_context);
             auto apply_func = js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
@@ -881,6 +887,8 @@ namespace ccf
           nullptr,
           nullptr,
           std::nullopt,
+          nullptr,
+          nullptr,
           nullptr,
           nullptr,
           nullptr,

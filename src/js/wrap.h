@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/base_endpoint_registry.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/js_plugin.h"
 #include "ccf/tx.h"
@@ -22,6 +23,9 @@ namespace ccf::js
   extern JSClassID body_class_id;
   extern JSClassID node_class_id;
   extern JSClassID network_class_id;
+  extern JSClassID consensus_class_id;
+  extern JSClassID historical_class_id;
+  extern JSClassID historical_state_class_id;
 
   extern JSClassDef kv_class_def;
   extern JSClassExoticMethods kv_exotic_methods;
@@ -43,6 +47,13 @@ namespace ccf::js
     TxAccess access = js::TxAccess::APP;
   };
 
+  struct HistoricalStateContext
+  {
+    ccf::historical::StatePtr state;
+    kv::CommittableTx tx;
+    TxContext tx_ctx;
+  };
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -57,6 +68,8 @@ namespace ccf::js
     ccf::AbstractNodeState* node_state,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
+    ccf::historical::AbstractStateCache* historical_state,
+    ccf::BaseEndpointRegistry* endpoint_registry,
     JSContext* ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);

@@ -353,7 +353,7 @@ export interface CCF {
      * Retrieve a range of historical states containing the state written at the given
      * indices.
      *
-     * If this is not currently available, this function returns `undefined`
+     * If this is not currently available, this function returns `null`
      * and begins fetching the ledger entry asynchronously. This will generally
      * be true for the first call for a given seqno, and it may take some time
      * to completely fetch and validate. The call should be repeated later with
@@ -372,7 +372,7 @@ export interface CCF {
       start_seqno: number,
       end_seqno: number,
       seconds_until_expiry: number
-    ): HistoricalState[] | undefined;
+    ): HistoricalState[] | null;
 
     /** Drop cached states for the given handle.
      *

@@ -30,6 +30,21 @@ function delete_record(map, id) {
   return { body: true };
 }
 
+function update_first_write(id)
+{
+  const first_writes = ccf.kv["first_write_version"];
+  if (!first_writes.has(id))
+  {
+    const private_records = ccf.kv["records"];
+    const prev_version =
+      private_records.getVersionOfPreviousWrite(id);
+    if (prev_version)
+    {
+      first_writes.set(id, ccf.jsonCompatibleToBuf(prev_version));
+    }
+  }
+}
+
 export function get_private(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
@@ -47,7 +62,7 @@ export function get_historical_with_receipt(request) {
 }
 
 function get_first_write_version(id) {
-  const version = ccf.kv["first_write_version"].get(id);
+  let version = ccf.kv["first_write_version"].get(id);
   if (version !== undefined) {
     version = ccf.bufToJsonCompatible(version);
   }
@@ -138,8 +153,14 @@ export function get_historical_range(request) {
   const handle = makeHandle(range_begin, range_end, parsedQuery.id);
 
   // Fetch the requested range
-  const states = ccf.historical.getStateRange(handle, range_begin, range_end);
-  if (states === undefined) {
+  const expiry = 1800;
+  const states = ccf.historical.getStateRange(
+    handle,
+    range_begin,
+    range_end,
+    expiry
+  );
+  if (states === null) {
     return {
       statusCode: 202,
       headers: {
@@ -155,8 +176,8 @@ export function get_historical_range(request) {
     const msg = state.kv["records"].get(id);
     if (msg !== undefined) {
       entries.push({
-        txid: state.transactionId,
-        id: parsedQuery.id,
+        seqno: parseInt(state.transactionId.split(".")[1]),
+        id: parseInt(parsedQuery.id),
         msg: ccf.bufToStr(msg),
       });
     }
@@ -208,17 +229,20 @@ export function get_public(request) {
 
 export function post_private(request) {
   let params = request.body.json();
+  const id = ccf.strToBuf(params.id.toString());
   ccf.kv["records"].set(
-    ccf.strToBuf(params.id.toString()),
+    id,
     ccf.strToBuf(params.msg)
   );
+  update_first_write(id);
   return { body: true };
 }
 
 export function post_public(request) {
   let params = request.body.json();
+  const id = ccf.strToBuf(params.id.toString());
   ccf.kv["public:records"].set(
-    ccf.strToBuf(params.id.toString()),
+    id,
     ccf.strToBuf(params.msg)
   );
   return { body: true };
@@ -227,6 +251,7 @@ export function post_public(request) {
 export function delete_private(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
+  update_first_write(id);
   return delete_record(ccf.kv["records"], id);
 }
 
@@ -237,6 +262,9 @@ export function delete_public(request) {
 }
 
 export function clear_private(request) {
+  ccf.kv["records"].forEach((_, id) => {
+    update_first_write(id);
+  });
   ccf.kv["records"].clear();
   return { body: true };
 }

@@ -277,6 +277,8 @@ namespace ccfapp
         nullptr,
         &context.get_node_state(),
         nullptr,
+        &context.get_historical_state(),
+        this,
         ctx);
 
       JSValue export_func;
