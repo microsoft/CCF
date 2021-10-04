@@ -9,7 +9,7 @@
 | Continuous Integration | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=main)    |
 | Daily Build            | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=7&branchName=main) |
 | Documentation          | [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=4&branchName=main)         |
-| Containers             | ![Build and Publish Release Containers](https://github.com/microsoft/CCF/workflows/Build%20and%20Publish%20Release%20Containers/badge.svg)                                                     |
+| Containers             | [![Build and Publish Release Containers](https://github.com/microsoft/CCF/actions/workflows/containers.yml/badge.svg)](https://github.com/microsoft/CCF/actions/workflows/containers.yml)      |
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
 and performant applications that focus on multi-party compute and data.
