@@ -102,7 +102,7 @@ class CCFPolyfill implements CCF {
       start_seqno: number,
       end_seqno: number,
       seconds_until_expiry: number
-    ): HistoricalState[] | undefined {
+    ): HistoricalState[] | null {
       throw new Error("Not implemented");
     },
 
