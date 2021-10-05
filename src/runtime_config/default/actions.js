@@ -151,6 +151,11 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
   });
 }
 
+// TODO: Only implement non-ACL-specific proposals for now
+// 1. [DONE] Rename proposal to `set_node_certificate_validity`
+// 2. Pass `valid_to` to `transition_node_to_trusted`
+// 3. Rename things and set initial default period to 24h
+
 const actions = new Map([
   [
     "set_constitution",
@@ -911,7 +916,7 @@ const actions = new Map([
     ),
   ],
   [
-    "trigger_node_certificate_renewal",
+    "set_node_certificate_validity",
     new Action(
       function (args) {
         checkEntityId(args.node_id, "node_id");
@@ -937,6 +942,7 @@ const actions = new Map([
           );
         }
 
+        // TODO: Do we still need a service-wide configuration value?
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
           getSingletonKvKey()
         );

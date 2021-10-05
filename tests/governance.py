@@ -248,7 +248,7 @@ def test_node_cert_renewal(network, args):
                 )
 
                 try:
-                    network.consortium.trigger_node_certificate_renewal(
+                    network.consortium.set_node_certificate_validity(
                         node,
                         node.node_id,
                         valid_from=str(infra.crypto.datetime_as_UTCtime(valid_from)),

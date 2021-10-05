@@ -535,9 +535,9 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def trigger_node_certificate_renewal(self, remote_node, *args, **kwargs):
+    def set_node_certificate_validity(self, remote_node, *args, **kwargs):
         proposal_body, careful_vote = self.make_proposal(
-            "trigger_node_certificate_renewal", *args, **kwargs
+            "set_node_certificate_validity", *args, **kwargs
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

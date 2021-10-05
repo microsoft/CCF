@@ -326,11 +326,11 @@ def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
 
 
 @cli_proposal
-def trigger_node_certificate_renewal(
+def set_node_certificate_validity(
     node_id: str, valid_from: str, validity_period_days: int, **kwargs
 ):
     return build_proposal(
-        "trigger_node_certificate_renewal",
+        "set_node_certificate_validity",
         {
             "node_id": node_id,
             "valid_from": valid_from,
