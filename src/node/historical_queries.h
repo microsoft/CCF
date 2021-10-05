@@ -535,7 +535,7 @@ namespace ccf::historical
           start_seqno));
       }
 
-      const auto tail_length = end_seqno - start_seqno;
+      const auto num_following_indices = end_seqno - start_seqno;
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
