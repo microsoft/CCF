@@ -152,8 +152,8 @@ namespace ccf::js
       return JS_ThrowRangeError(
         ctx, "Invalid handle: cannot be negative");
 
-    historical_state->drop_request(handle);
-    return JS_UNDEFINED;
+    auto found = historical_state->drop_request(handle);
+    return JS_NewBool(ctx, found);
   }
 
 #pragma clang diagnostic pop

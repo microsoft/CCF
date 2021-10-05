@@ -379,8 +379,10 @@ export interface CCF {
      *
      * May be used to free up space once a historical query has been resolved,
      * more aggressively than waiting for the requests to expire.
+     * 
+     * Returns `true` if the handle was found and dropped, `false` otherwise.
      */
-    dropCachedStateRange(handle: number): void;
+    dropCachedStateRange(handle: number): boolean;
   };
 }
 
