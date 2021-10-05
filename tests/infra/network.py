@@ -336,7 +336,10 @@ class Network:
             args.bft_view_change_timeout_ms / 1000
             if args.consensus == "bft"
             else args.raft_election_timeout_ms / 1000
-        ) * 2
+        )
+        # After an election timeout, we need some additional roundtrips to complete before
+        # the nodes _observe_ that an election has occurred
+        self.observed_election_duration = self.election_duration + 1
 
         LOG.info("All nodes started")
 
@@ -873,7 +876,7 @@ class Network:
     def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * timeout_multiplier
+        timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
@@ -916,7 +919,7 @@ class Network:
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * timeout_multiplier
+        timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary in {expected_node_ids} to be elected..."
         )
@@ -942,21 +945,26 @@ class Network:
         raise error(f"A new primary was not elected after {timeout} seconds")
 
     def wait_for_primary_unanimity(self, timeout_multiplier=2, min_view=None):
-        timeout = self.election_duration * timeout_multiplier
+        timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
         end_time = time.time() + timeout
 
         primaries = []
         while time.time() < end_time:
+            primaries = []
             for node in self.get_joined_nodes():
                 logs = []
-                primary, view = self.find_primary(nodes=[node], log_capture=logs)
-                if min_view is None or view > min_view:
-                    primaries.append(primary)
-            if [primaries[0]] * len(primaries) == primaries:
+                try:
+                    primary, view = self.find_primary(nodes=[node], log_capture=logs)
+                    if min_view is None or view > min_view:
+                        primaries.append(primary)
+                except PrimaryNotFound:
+                    pass
+            # Stop checking once all primaries are the same
+            if primaries == [primaries[0]] * len(self.get_joined_nodes()):
                 break
             time.sleep(0.1)
-        expected = [primaries[0]] * len(primaries)
+        expected = [primaries[0]] * len(self.get_joined_nodes())
         if expected != primaries:
             for node in self.get_joined_nodes():
                 with node.client() as c:
