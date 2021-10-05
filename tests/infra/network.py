@@ -143,6 +143,7 @@ class Network:
         self.library_dir = library_dir
         self.common_dir = None
         self.election_duration = None
+        self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
         self.share_script = os.path.join(binary_dir, self.SHARE_SCRIPT)
         if not os.path.isfile(self.key_generator):

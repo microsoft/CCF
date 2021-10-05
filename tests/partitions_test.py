@@ -65,9 +65,7 @@ def test_partition_majority(network, args):
         except TimeoutError:
             LOG.info("No new primary, as expected")
             with primary.client() as c:
-                res = c.get(
-                    "/node/network"
-                )  # Well-known read-only endpoint
+                res = c.get("/node/network")  # Well-known read-only endpoint
                 body = res.body.json()
                 initial_view = body["current_view"]
 
