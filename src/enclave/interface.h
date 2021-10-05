@@ -79,7 +79,7 @@ struct CCFConfig
   size_t jwt_key_refresh_interval_s;
   crypto::CurveID curve_id;
 
-  size_t node_cert_maximum_validity_period_days;
+  size_t initial_node_certificate_validity_period_days;
   std::string startup_host_time;
 };
 
@@ -109,7 +109,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   node_certificate_subject_identity,
   jwt_key_refresh_interval_s,
   curve_id,
-  node_cert_maximum_validity_period_days,
+  initial_node_certificate_validity_period_days,
   startup_host_time);
 
 /// General administrative messages

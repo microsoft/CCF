@@ -53,7 +53,7 @@ def verify_node_certificate_validity_period(node, args):
     # Note: CCF substracts one second from validity period since x509
     # specifies that validity dates are inclusive.
     expected_valid_to = valid_from + timedelta(
-        days=args.node_cert_max_validity_days, seconds=-1
+        days=args.initial_node_cert_validity_days, seconds=-1
     )
     if valid_to != expected_valid_to:
         raise ValueError(

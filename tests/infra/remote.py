@@ -578,7 +578,7 @@ class CCFRemote(object):
         jwt_key_refresh_interval_s=None,
         curve_id=None,
         client_connection_timeout_ms=None,
-        node_cert_max_validity_days=None,
+        initial_node_cert_validity_days=None,
         version=None,
         include_addresses=True,
         additional_raw_node_args=None,
@@ -705,8 +705,10 @@ class CCFRemote(object):
         if client_connection_timeout_ms:
             cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
-        if node_cert_max_validity_days:
-            cmd += [f"--node-cert-max-validity-days={node_cert_max_validity_days}"]
+        if initial_node_cert_validity_days:
+            cmd += [
+                f"--initial-node-cert-validity-days={initial_node_cert_validity_days}"
+            ]
 
         if additional_raw_node_args:
             for s in additional_raw_node_args:

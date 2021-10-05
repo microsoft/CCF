@@ -351,8 +351,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=None,
     )
     parser.add_argument(
-        "--node-cert-max-validity-days",
-        help="Maximum number of days node certificates must be valid for",
+        "--initial-node-cert-validity-days",
+        help="Number of days node certificates are initially valid for",
         type=int,
         default=365,
     )

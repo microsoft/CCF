@@ -104,7 +104,7 @@ class Network:
         "common_read_only_ledger_dir",
         "curve_id",
         "client_connection_timeout_ms",
-        "node_cert_max_validity_days",
+        "initial_node_cert_validity_days",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

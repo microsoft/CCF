@@ -225,8 +225,8 @@ def test_node_cert_renewal(network, args):
     now = datetime.now().replace(
         microsecond=0
     )  # Truncate microseconds which are not reflected in RFC5280 UTCTime
-    validity_period_allowed = args.node_cert_max_validity_days - 1
-    validity_period_forbidden = args.node_cert_max_validity_days + 1
+    validity_period_allowed = args.initial_node_cert_validity_days - 1
+    validity_period_forbidden = args.initial_node_cert_validity_days + 1
 
     test_vectors = [
         (now, validity_period_allowed, None),

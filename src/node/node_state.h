@@ -338,7 +338,7 @@ namespace ccf
         node_sign_kp,
         config.node_certificate_subject_identity,
         config.startup_host_time,
-        config.node_cert_maximum_validity_period_days);
+        config.initial_node_certificate_validity_period_days);
 
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -1564,7 +1564,7 @@ namespace ccf
         node_sign_kp,
         config.node_certificate_subject_identity,
         config.startup_host_time,
-        config.node_cert_maximum_validity_period_days,
+        config.initial_node_certificate_validity_period_days,
         network.identity->priv_key,
         network.identity->cert);
     }
@@ -1631,7 +1631,8 @@ namespace ccf
           config.genesis.recovery_threshold,
           network.consensus_type,
           reconf_type,
-          config.node_cert_maximum_validity_period_days};
+          config.initial_node_certificate_validity_period_days}; // TODO: Change
+                                                                 // this
 
         create_params.genesis_info = genesis_info;
       }

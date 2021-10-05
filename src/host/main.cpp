@@ -401,16 +401,15 @@ int main(int argc, char** argv)
     ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
 
-  // TODO: Should this be under a different name?
   // By default, node certificates are only valid for one day. It is expected
   // that members will submit a proposal to renew the node certificates before
   // expiry, at the point the service is open.
-  size_t node_cert_maximum_validity_period_days = 1;
+  size_t initial_node_certificate_validity_period_days = 1;
   app
     .add_option(
-      "--node-cert-max-validity-days",
-      node_cert_maximum_validity_period_days,
-      "Maximum number of days node certificates must be valid for.")
+      "--initial-node-cert-validity-days",
+      initial_node_certificate_validity_period_days,
+      "Number of days node certificates are initially valid for")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -793,8 +792,8 @@ int main(int argc, char** argv)
       node_certificate_subject_identity;
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
     ccf_config.curve_id = curve_id;
-    ccf_config.node_cert_maximum_validity_period_days =
-      node_cert_maximum_validity_period_days;
+    ccf_config.initial_node_certificate_validity_period_days =
+      initial_node_certificate_validity_period_days;
 
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
