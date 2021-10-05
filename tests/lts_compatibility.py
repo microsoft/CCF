@@ -84,7 +84,7 @@ def test_new_service(network, args, install_path, binary_dir, library_dir, versi
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
-    test_random_receipts(network, args, lts=True)
+    # test_random_receipts(network, args, lts=True)
 
 
 # Local build and install bin/ and lib/ directories differ
@@ -376,7 +376,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 ledger_dir, committed_ledger_dir = primary.get_ledger(
                     include_read_only_dirs=True
                 )
-                network.stop_all_nodes(verbose_verification=False)
+                network.stop_all_nodes(verbose_verification=True)
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
@@ -418,18 +418,18 @@ if __name__ == "__main__":
         LOG.warning("Dry run: no compatibility check")
 
     compatibility_report = {}
-    compatibility_report["version"] = args.ccf_version
-    compatibility_report["live compatibility"] = {}
-    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
-    following_lts_version = run_live_compatibility_with_following(
-        args, repo, env.branch
-    )
-    compatibility_report["live compatibility"].update(
-        {"with latest": latest_lts_version}
-    )
-    compatibility_report["live compatibility"].update(
-        {"with following": following_lts_version}
-    )
+    # compatibility_report["version"] = args.ccf_version
+    # compatibility_report["live compatibility"] = {}
+    # latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+    # following_lts_version = run_live_compatibility_with_following(
+    #     args, repo, env.branch
+    # )
+    # compatibility_report["live compatibility"].update(
+    #     {"with latest": latest_lts_version}
+    # )
+    # compatibility_report["live compatibility"].update(
+    #     {"with following": following_lts_version}
+    # )
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
@@ -439,12 +439,12 @@ if __name__ == "__main__":
         compatibility_report["data compatibility"].update(
             {"with previous ledger": lts_versions}
         )
-        lts_versions = run_ledger_compatibility_since_first(
-            args, env.branch, use_snapshot=True
-        )
-        compatibility_report["data compatibility"].update(
-            {"with previous snapshots": lts_versions}
-        )
+        # lts_versions = run_ledger_compatibility_since_first(
+        #     args, env.branch, use_snapshot=True
+        # )
+        # compatibility_report["data compatibility"].update(
+        #     {"with previous snapshots": lts_versions}
+        # )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:

@@ -520,10 +520,10 @@ class Network:
         if not skip_verification:
             # Verify that all txs committed on the service can be read
             if self.txs is not None:
-                log_capture = None if verbose_verification else []
-                self.txs.verify(self, log_capture=log_capture)
-                if verbose_verification:
-                    flush_info(log_capture, None)
+                logs = None  # []
+                self.txs.verify(self, log_capture=logs)
+                # if verbose_verification:
+                #     flush_info(logs, None)
 
         fatal_error_found = False
 
