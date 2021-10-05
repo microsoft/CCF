@@ -237,8 +237,6 @@ namespace ccf::historical
                   proof.get_path(),
                   sig->node,
                   sig->cert);
-                // TODO: I think we can set this earlier, since we derive this
-                // from GCM header during deserialisation?
                 details->transaction_id = {sig->view, seqno};
               }
             }
