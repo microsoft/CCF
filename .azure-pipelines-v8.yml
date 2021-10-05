@@ -18,9 +18,11 @@ jobs:
           sudo apt update
           sudo apt install -y pkg-config
         displayName: "Install dependencies"
+        continueOnError: false
 
       - script: scripts/build-v8.sh $(VERSION) $(PUSH_ARTIFACT)
         displayName: "Build V8"
+        continueOnError: false
 
       - script: |
           # Universal Packages versions only take three sections X.Y.Z.
@@ -31,9 +33,10 @@ jobs:
           #   Ex: 9.4.146.17 -> 94.14617.$(Build.BuildId)
           export MINOR=$(echo $(VERSION) | cut -d "." -f 3,4 | sed 's/\.//')
           echo '##vso[task.setvariable variable=pkg-ver]'$MAJOR.$MINOR.$(Build.BuildId)
-          mv build-v8/v8.tar.xz $(Build.ArtifactStagingDirectory)/v8-$(pkg-ver).tar.xz
+          mv build-v8/v8-$(VERSION).tar.xz $(Build.ArtifactStagingDirectory)
         displayName: "Prepare Artifact Staging Directory"
         condition: eq(variables.pushArtifact, 'true')
+        continueOnError: false
 
       - task: UniversalPackages@0
         displayName: "Publish V8 Artifact"
@@ -41,7 +44,7 @@ jobs:
           command: publish
           publishDirectory: "$(Build.ArtifactStagingDirectory)"
           vstsFeedPublish: "CCF/V8"
-          vstsFeedPackagePublish: "ccf-v8-$(pkg-ver).tar.xz"
+          vstsFeedPackagePublish: "v8-monolith"
           versionOption: custom
           versionPublish: "$(pkg-ver)"
           packagePublishDescription: "CCF build of monolith V8"
