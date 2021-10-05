@@ -22,7 +22,7 @@ def test_historical_query_range(network, args):
 
     id_pattern = [id_a, id_a, id_a, id_b, id_b, id_c]
 
-    n_entries = 3001
+    n_entries = 10000
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer()
     jwt_issuer.register(network)
@@ -92,7 +92,7 @@ def test_historical_query_range(network, args):
     average_fetch_rate = (id_a_fetch_rate + id_b_fetch_rate + id_c_fetch_rate) / 3
 
     with cimetrics.upload.metrics(complete=False) as metrics:
-        upload_name = "Historical query (/s)"
+        upload_name = "Historical query (/s)^"
         LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
         metrics.put(upload_name, average_fetch_rate)
 
