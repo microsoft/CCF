@@ -367,6 +367,11 @@ export interface CCF {
      * The range is inclusive of both start_seqno and end_seqno. If a non-empty
      * array is returned, it will always contain the full requested range; the
      * array will be of length (end_seqno - start_seqno + 1).
+     * 
+     * If the requested range failed to be retrieved then `null` is returned.
+     * This may happen if the range is not known to the node (see also
+     * {@link CCF.consensus.getStatusForTxId}) or not available for
+     * other reasons (for example, the node is missing ledger files on disk).
      */
     getStateRange(
       handle: number,
