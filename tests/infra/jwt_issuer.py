@@ -184,6 +184,7 @@ class JwtIssuer:
                 stored_cert = r.body.json()[kid]
                 if self.cert_pem == stored_cert:
                     return
+                time.sleep(0.1)
         raise TimeoutError(
             f"JWT public signing keys were not refreshed after {timeout}s"
         )
