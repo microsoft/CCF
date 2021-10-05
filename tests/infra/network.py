@@ -30,6 +30,9 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
 
+# If it takes a node n seconds to call an election, how long should we wait for an election to succeed?
+DEFAULT_TIMEOUT_MULTIPLIER = 3
+
 COMMON_FOLDER = "common"
 
 
@@ -874,7 +877,9 @@ class Network:
                     pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
+    def wait_for_new_primary(
+        self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER
+    ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.observed_election_duration * timeout_multiplier
@@ -916,7 +921,10 @@ class Network:
         raise error(f"A new primary was not elected after {timeout} seconds")
 
     def wait_for_new_primary_in(
-        self, expected_node_ids, nodes=None, timeout_multiplier=2
+        self,
+        expected_node_ids,
+        nodes=None,
+        timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER,
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
@@ -945,7 +953,9 @@ class Network:
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
-    def wait_for_primary_unanimity(self, timeout_multiplier=2, min_view=None):
+    def wait_for_primary_unanimity(
+        self, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
+    ):
         timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
         end_time = time.time() + timeout
