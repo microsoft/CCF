@@ -10,6 +10,7 @@ from contextlib import AbstractContextManager
 import tempfile
 import json
 import time
+from ccf.log_capture import flush_info
 from loguru import logger as LOG
 
 
@@ -179,11 +180,14 @@ class JwtIssuer:
         end_time = time.time() + timeout
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
             while time.time() < end_time:
-                r = c.get("/gov/jwt_keys/all")
+                logs = []
+                r = c.get("/gov/jwt_keys/all", log_capture=logs)
                 assert r.status_code == 200, r
                 stored_cert = r.body.json()[kid]
                 if self.cert_pem == stored_cert:
+                    flush_info(logs)
                     return
+        flush_info(logs)
         raise TimeoutError(
             f"JWT public signing keys were not refreshed after {timeout}s"
         )
