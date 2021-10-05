@@ -91,6 +91,8 @@ namespace ccf::js
 
     ccf::View view;
     auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
+    if (result == ccf::ApiResult::NotFound)
+      return JS_NULL;
     if (result != ccf::ApiResult::OK)
       return JS_ThrowInternalError(
         ctx, "Failed to get view for seqno: %s",

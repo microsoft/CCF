@@ -91,7 +91,7 @@ class CCFPolyfill implements CCF {
     getStatusForTxId(view: number, seqno: number) {
       throw new Error("Not implemented");
     },
-    getViewForSeqno(seqno: number): number {
+    getViewForSeqno(seqno: number) {
       throw new Error("Not implemented");
     },
   };
@@ -99,14 +99,14 @@ class CCFPolyfill implements CCF {
   historical = {
     getStateRange(
       handle: number,
-      start_seqno: number,
-      end_seqno: number,
-      seconds_until_expiry: number
-    ): HistoricalState[] | null {
+      startSeqno: number,
+      endSeqno: number,
+      secondsUntilExpiry: number
+    ) {
       throw new Error("Not implemented");
     },
 
-    dropCachedStateRange(handle: number): void {
+    dropCachedStateRange(handle: number) {
       throw new Error("Not implemented");
     },
   };

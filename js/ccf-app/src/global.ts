@@ -332,8 +332,9 @@ export interface CCF {
 
     /**
      * Get the view associated with a given seqno, to construct a valid TxID.
+     * If the seqno is not known by the node, `null` is returned.
      */
-    getViewForSeqno(seqno: number): number;
+    getViewForSeqno(seqno: number): number | null;
   };
 
   /**
@@ -369,9 +370,9 @@ export interface CCF {
      */
     getStateRange(
       handle: number,
-      start_seqno: number,
-      end_seqno: number,
-      seconds_until_expiry: number
+      startSeqno: number,
+      endSeqno: number,
+      secondsUntilExpiry: number
     ): HistoricalState[] | null;
 
     /** Drop cached states for the given handle.

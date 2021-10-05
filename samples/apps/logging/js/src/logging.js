@@ -132,12 +132,16 @@ export function get_historical_range(request) {
   }
 
   // End of range must be committed
+  let isCommitted = false;
   const viewOfFinalSeqno = ccf.consensus.getViewForSeqno(to_seqno);
-  const txStatus = ccf.consensus.getStatusForTxId(viewOfFinalSeqno, to_seqno);
-  if (txStatus !== "Committed") {
+  if (viewOfFinalSeqno !== null) {
+    const txStatus = ccf.consensus.getStatusForTxId(viewOfFinalSeqno, to_seqno);
+    isCommitted = txStatus === "Committed";
+  }
+  if (!isCommitted) {
     throw new Error("End of range must be committed");
   }
-
+  
   const max_seqno_per_page = 2000;
   const range_begin = from_seqno;
   const range_end = Math.min(to_seqno, range_begin + max_seqno_per_page);
