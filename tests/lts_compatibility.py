@@ -31,7 +31,7 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 
 
 def issue_activity_on_live_service(network, args):
-    log_capture = []
+    log_capture = None
     network.txs.issue(
         network, number_txs=args.snapshot_tx_interval * 2, log_capture=log_capture
     )
