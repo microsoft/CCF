@@ -1631,9 +1631,7 @@ namespace ccf
           config.genesis.recovery_threshold,
           network.consensus_type,
           reconf_type,
-          config.initial_node_certificate_validity_period_days}; // TODO: Change
-                                                                 // this
-
+          config.genesis.max_allowed_node_cert_validity_days};
         create_params.genesis_info = genesis_info;
       }
 

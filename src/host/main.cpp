@@ -409,7 +409,8 @@ int main(int argc, char** argv)
     .add_option(
       "--initial-node-cert-validity-days",
       initial_node_certificate_validity_period_days,
-      "Number of days node certificates are initially valid for")
+      "Initial validity period (days) for certificates of nodes before the "
+      "service is open by members")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -454,6 +455,15 @@ int main(int argc, char** argv)
       recovery_threshold,
       "Number of member shares required for recovery. Defaults to total number "
       "of initial consortium members with a public encryption key.")
+    ->check(CLI::PositiveNumber)
+    ->type_name("UINT");
+
+  size_t max_allowed_node_cert_validity_days = 365;
+  start
+    ->add_option(
+      "--max-allowed-node-cert-validity-days",
+      max_allowed_node_cert_validity_days,
+      "Maximum validity period (days) for certificates of trusted nodes")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -838,6 +848,8 @@ int main(int argc, char** argv)
           files::slurp_string(constitution_path);
       }
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
+      ccf_config.genesis.max_allowed_node_cert_validity_days =
+        max_allowed_node_cert_validity_days;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",

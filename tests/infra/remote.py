@@ -579,6 +579,7 @@ class CCFRemote(object):
         curve_id=None,
         client_connection_timeout_ms=None,
         initial_node_cert_validity_days=None,
+        max_allowed_node_cert_validity_days=None,
         version=None,
         include_addresses=True,
         additional_raw_node_args=None,
@@ -738,6 +739,11 @@ class CCFRemote(object):
                     if mf is not None:
                         data_files.append(os.path.join(self.common_dir, mf))
                 cmd += [member_info_cmd]
+
+            if max_allowed_node_cert_validity_days:
+                cmd += [
+                    f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
+                ]
 
         elif start_type == StartType.join:
             cmd += [
