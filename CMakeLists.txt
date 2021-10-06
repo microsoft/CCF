@@ -675,13 +675,15 @@ if(BUILD_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
 
-  add_e2e_test(
-    NAME lts_compatibility
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-    CONSENSUS cft
-    LABEL e2e
-    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-  )
+  foreach(ITERATION IN LISTS a b c d)
+    add_e2e_test(
+      NAME lts_compatibility_${ITERATION}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      CONSENSUS cft
+      LABEL e2e
+      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+    )
+  endforeach()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
