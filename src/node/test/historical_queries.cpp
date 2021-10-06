@@ -71,6 +71,7 @@ struct TestState
 {
   std::shared_ptr<kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
+  crypto::KeyPairPtr node_kp = nullptr;
 };
 
 TestState create_and_init_state(bool initialise_ledger_rekey = true)
@@ -80,17 +81,12 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   ts.kv_store =
     std::make_shared<kv::Store>(std::make_shared<kv::test::StubConsensus>());
 
-  // Generate node's keypair once, on first call to this function
-  static crypto::KeyPairPtr node_kp = nullptr;
-  if (node_kp == nullptr)
-  {
-    node_kp = crypto::make_key_pair();
-  }
+  ts.node_kp = crypto::make_key_pair();
 
   // Make history to produce signatures
   const ccf::NodeId node_id = std::string("node_id");
   auto h =
-    std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *node_kp);
+    std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *ts.node_kp);
   h->set_endorsed_certificate({});
   ts.kv_store->set_history(h);
 
@@ -99,7 +95,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto tx = ts.kv_store->create_tx();
     auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
     ccf::NodeInfo ni;
-    ni.cert = node_kp->self_sign("CN=Test node");
+    ni.cert = ts.node_kp->self_sign("CN=Test node");
     ni.status = ccf::NodeStatus::TRUSTED;
     nodes->put(node_id, ni);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
