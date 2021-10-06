@@ -158,23 +158,28 @@ namespace tls
         throw std::runtime_error("Missing peer key share");
       }
 
-      int rc = mbedtls_ecdh_read_public(ctx.get(), ks.p, ks.n);
-      if (rc != 0)
-      {
-        throw std::logic_error(error_string(rc));
-      }
-
       peer_key_share = {ks.p, ks.p + ks.n};
     }
 
     std::vector<uint8_t> compute_shared_secret()
     {
+      int rc;
+      if (peer_key_share.size() > 0)
+      {
+        rc = mbedtls_ecdh_read_public(
+          ctx.get(), peer_key_share.data(), peer_key_share.size());
+        if (rc != 0)
+        {
+          throw std::logic_error(error_string(rc));
+        }
+      }
+
       crypto::EntropyPtr entropy = crypto::create_entropy();
 
       // Should only be called once, when peer public has been loaded.
       std::vector<uint8_t> shared_secret(len_shared_secret);
       size_t len;
-      int rc = mbedtls_ecdh_calc_secret(
+      rc = mbedtls_ecdh_calc_secret(
         ctx.get(),
         &len,
         shared_secret.data(),

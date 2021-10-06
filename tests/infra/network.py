@@ -30,6 +30,9 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
 
+# If it takes a node n seconds to call an election, how long should we wait for an election to succeed?
+DEFAULT_TIMEOUT_MULTIPLIER = 3
+
 COMMON_FOLDER = "common"
 
 
@@ -145,6 +148,7 @@ class Network:
         self.library_dir = library_dir
         self.common_dir = None
         self.election_duration = None
+        self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
         self.share_script = os.path.join(binary_dir, self.SHARE_SCRIPT)
         if not os.path.isfile(self.key_generator):
@@ -338,7 +342,10 @@ class Network:
             args.bft_view_change_timeout_ms / 1000
             if args.consensus == "bft"
             else args.raft_election_timeout_ms / 1000
-        ) * 2
+        )
+        # After an election timeout, we need some additional roundtrips to complete before
+        # the nodes _observe_ that an election has occurred
+        self.observed_election_duration = self.election_duration + 1
 
         LOG.info("All nodes started")
 
@@ -755,22 +762,24 @@ class Network:
 
         return (self._get_node_by_service_id(primary_id), view)
 
-    def find_backups(self, primary=None, timeout=3):
+    def find_backups(self, primary=None, timeout=3, log_capture=None):
         if primary is None:
-            primary, _ = self.find_primary(timeout=timeout)
+            primary, _ = self.find_primary(timeout=timeout, log_capture=log_capture)
         return [n for n in self.get_joined_nodes() if n != primary]
 
-    def find_any_backup(self, primary=None, timeout=3):
-        return random.choice(self.find_backups(primary=primary, timeout=timeout))
+    def find_any_backup(self, primary=None, timeout=3, log_capture=None):
+        return random.choice(
+            self.find_backups(primary=primary, timeout=timeout, log_capture=log_capture)
+        )
 
-    def find_node_by_role(self, role=NodeRole.ANY):
+    def find_node_by_role(self, role=NodeRole.ANY, log_capture=None):
         role_ = (
             random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
         )
         if role_ == NodeRole.PRIMARY:
-            return self.find_primary()[0]
+            return self.find_primary(log_capture=log_capture)[0]
         else:
-            return self.find_any_backup()
+            return self.find_any_backup(log_capture=log_capture)
 
     def find_random_node(self):
         return random.choice(self.get_joined_nodes())
@@ -865,14 +874,17 @@ class Network:
         expected = [commits[0]] * len(commits)
         if expected != commits:
             for node in self.get_joined_nodes():
-                r = c.get("/node/consensus")
-                pprint.pprint(r.body.json())
+                with node.client() as c:
+                    r = c.get("/node/consensus")
+                    pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
+    def wait_for_new_primary(
+        self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER
+    ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * timeout_multiplier
+        timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
@@ -911,11 +923,14 @@ class Network:
         raise error(f"A new primary was not elected after {timeout} seconds")
 
     def wait_for_new_primary_in(
-        self, expected_node_ids, nodes=None, timeout_multiplier=2
+        self,
+        expected_node_ids,
+        nodes=None,
+        timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER,
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * timeout_multiplier
+        timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary in {expected_node_ids} to be elected..."
         )
@@ -939,6 +954,37 @@ class Network:
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
+
+    def wait_for_primary_unanimity(
+        self, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
+    ):
+        timeout = self.observed_election_duration * timeout_multiplier
+        LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
+        end_time = time.time() + timeout
+
+        primaries = []
+        while time.time() < end_time:
+            primaries = []
+            for node in self.get_joined_nodes():
+                logs = []
+                try:
+                    primary, view = self.find_primary(nodes=[node], log_capture=logs)
+                    if min_view is None or view > min_view:
+                        primaries.append(primary)
+                except PrimaryNotFound:
+                    pass
+            # Stop checking once all primaries are the same
+            if primaries == [primaries[0]] * len(self.get_joined_nodes()):
+                break
+            time.sleep(0.1)
+        expected = [primaries[0]] * len(self.get_joined_nodes())
+        if expected != primaries:
+            for node in self.get_joined_nodes():
+                with node.client() as c:
+                    r = c.get("/node/consensus")
+                    pprint.pprint(r.body.json())
+        assert expected == primaries, f"Multiple primaries: {primaries}"
+        return primaries[0]
 
     def wait_for_commit_proof(self, node, seqno, timeout=3):
         # Wait that the target seqno has a commit proof on a specific node.

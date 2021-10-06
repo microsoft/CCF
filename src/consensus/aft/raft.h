@@ -943,6 +943,7 @@ namespace aft
               std::make_unique<NonceRevealCallback>(*this, from, std::move(r));
             break;
           }
+
           case bft_view_change:
           {
             RequestViewChangeMsg r =
@@ -1447,10 +1448,12 @@ namespace aft
         (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       LOG_DEBUG_FMT(
-        "Send append entries from {} to {}: {} to {} ({})",
+        "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
         state->my_node_id,
         to,
-        start_idx,
+        prev_term,
+        prev_idx,
+        term_of_idx,
         end_idx,
         state->commit_idx);
 
@@ -2869,10 +2872,6 @@ namespace aft
       {
         for (auto it = nodes.begin(); it != nodes.end(); ++it)
         {
-          channels->create_channel(
-            it->first,
-            it->second.node_info.hostname,
-            it->second.node_info.port);
           send_request_vote(it->first);
         }
       }
@@ -3477,22 +3476,19 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (
-            replica_state == kv::ReplicaState::Leader ||
-            consensus_type == ConsensusType::BFT)
-          {
-            channels->create_channel(
-              node_info.first,
-              node_info.second.hostname,
-              node_info.second.port);
-          }
+          channels->associate_node_address(
+            node_info.first, node_info.second.hostname, node_info.second.port);
 
           if (replica_state == kv::ReplicaState::Leader)
           {
             send_append_entries(node_info.first, index);
           }
 
-          LOG_INFO_FMT("Added raft node {}", node_info.first);
+          LOG_INFO_FMT(
+            "Added raft node {} ({}:{})",
+            node_info.first,
+            node_info.second.hostname,
+            node_info.second.port);
         }
       }
     }

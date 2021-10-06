@@ -153,12 +153,10 @@ def run_code_upgrade_from(
             )
             network.consortium.add_new_code(primary, new_code_id)
 
-            # Add one more node than the current count so that at least one new
-            # node is required to reach consensus
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
             from_snapshot = True
-            for _ in range(0, len(network.get_joined_nodes()) + 1):
+            for _ in range(0, len(old_nodes)):
                 new_node = network.create_node(
                     "local://localhost",
                     binary_dir=to_binary_dir,
@@ -187,38 +185,6 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
-            # Test that new nodes can become primary with old nodes as backups
-            # Note: Force a new node as primary by isolating old nodes
-            primary, _ = network.find_primary()
-            for node in old_nodes:
-                node.suspend()
-
-            new_primary, _ = network.wait_for_new_primary(primary, nodes=new_nodes)
-            assert (
-                new_primary in new_nodes
-            ), "New node should have been elected as new primary"
-
-            for node in old_nodes:
-                node.resume()
-
-            # Retire one new node, so that at least one old node is required to reach consensus
-            other_new_nodes = [node for node in new_nodes if (node is not new_primary)]
-            network.retire_node(new_primary, other_new_nodes[0])
-
-            # Rollover JWKS so that new primary must read historical CA bundle table
-            # and retrieve new keys via auto refresh
-            jwt_issuer.refresh_keys()
-            # Note: /gov/jwt_keys/all endpoint was added in 2.x
-            primary, _ = network.find_nodes()
-            if not primary.major_version or primary.version > 1:
-                jwt_issuer.wait_for_refresh(network)
-            else:
-                time.sleep(3)
-
-            LOG.info("Apply transactions to hybrid network, with primary as new node")
-            issue_activity_on_live_service(network, args)
-
-            # Finally, retire old nodes and code id
             old_code_id = infra.utils.get_code_id(
                 args.enclave_type,
                 args.oe_binary,
@@ -227,8 +193,20 @@ def run_code_upgrade_from(
             )
             network.consortium.retire_code(primary, old_code_id)
             for node in old_nodes:
-                network.retire_node(new_primary, node)
+                network.retire_node(primary, node)
+                if primary == node:
+                    primary, _ = network.wait_for_new_primary(primary)
                 node.stop()
+
+            # Rollover JWKS so that new primary must read historical CA bundle table
+            # and retrieve new keys via auto refresh
+            jwt_issuer.refresh_keys()
+            # Note: /gov/jwt_keys/all endpoint was added in 2.x
+            primary, _ = network.find_nodes()
+            if not primary.major_version or primary.major_version > 1:
+                jwt_issuer.wait_for_refresh(network)
+            else:
+                time.sleep(3)
 
             # From here onwards, service is only made of new nodes
             test_new_service(

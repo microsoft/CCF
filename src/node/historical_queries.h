@@ -100,8 +100,10 @@ namespace ccf::historical
       std::vector<StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
 
+      bool include_receipts;
+
       // Entries from outside the requested range (such as the next signature)
-      // may be needed to trust this range. They are stored here, distinct from
+      // may be needed to produce receipts. They are stored here, distinct from
       // user-requested stores.
       std::optional<std::pair<ccf::SeqNo, StoreDetailsPtr>>
         supporting_signature;
@@ -180,8 +182,8 @@ namespace ccf::historical
         // If the final entry in the new range is known and not a signature,
         // then we may need a subsequent signature to support it (or an earlier
         // entry received out-of-order!) So start fetching subsequent entries to
-        // find supporting signature. Its possible this was the supporting entry
-        // we already had, or a signature in the range we already had, but
+        // find supporting signature. It's possible this was the supporting
+        // entry we already had, or a signature in the range we already had, but
         // working that out is tricky so be pessimistic and refetch instead.
         supporting_signature.reset();
         const auto last_details = get_store_details(last_requested_seqno);
@@ -200,30 +202,24 @@ namespace ccf::historical
         return ret;
       }
 
-      enum class UpdateTrustedResult
+      enum class PopulateReceiptsResult
       {
-        // Common result. The new seqno may have transitioned some entries to
-        // Trusted
+        // Common result. The new seqno may have added receipts for some entries
         Continue,
 
         // Occasional result. The new seqno was at the end of the sequence (or
         // an attempt at retrieving a trailing supporting signature), but we
-        // still have untrusted entries, so attempt to fetch the next
+        // still have receiptless entries, so attempt to fetch the next
         FetchNext,
-
-        // Error result. The new entry exposed a mismatch between a signature's
-        // claim at a certain seqno and the entry we received there. Invalidate
-        // entire request, it can be re-requested if necessary
-        Invalidated,
       };
 
-      UpdateTrustedResult update_trusted(ccf::SeqNo new_seqno)
+      PopulateReceiptsResult populate_receipts(ccf::SeqNo new_seqno)
       {
         auto new_details = get_store_details(new_seqno);
         if (new_details->is_signature)
         {
-          // Iterate through earlier indices. If this signature covers them (and
-          // the digests match), move them to Trusted
+          // Iterate through earlier indices. If this signature covers them
+          // then create a receipt for them
           const auto sig = get_signature(new_details->store);
           ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
 
@@ -234,45 +230,19 @@ namespace ccf::historical
               auto details = get_store_details(seqno);
               if (details != nullptr)
               {
-                if (details->current_stage == RequestStage::Untrusted)
-                {
-                  // Compare signed digest, from signature mini-tree, with
-                  // digest of the entry which was used to construct this store
-                  const auto& untrusted_digest = details->entry_digest;
-                  const auto trusted_digest = tree.get_leaf(seqno);
-                  if (trusted_digest != untrusted_digest)
-                  {
-                    LOG_FAIL_FMT(
-                      "Signature at {} has a different transaction at {} than "
-                      "previously received",
-                      new_seqno,
-                      seqno);
-
-                    // We trust the signature (since it comes from a trusted
-                    // node), and it disagrees with one of the entries we
-                    // previously retrieved and deserialised. This generally
-                    // means a malicious host gave us a bad transaction but a
-                    // good signature. Delete the entire original request
-                    // - if it is re-requested, maybe the host will give us a
-                    // valid pair of transaction+sig next time
-                    return UpdateTrustedResult::Invalidated;
-                  }
-
-                  auto proof = tree.get_proof(seqno);
-                  details->receipt = std::make_shared<TxReceipt>(
-                    sig->sig,
-                    proof.get_root(),
-                    proof.get_path(),
-                    sig->node,
-                    sig->cert);
-                  details->transaction_id = {sig->view, seqno};
-                  details->current_stage = RequestStage::Trusted;
-                }
+                auto proof = tree.get_proof(seqno);
+                details->receipt = std::make_shared<TxReceipt>(
+                  sig->sig,
+                  proof.get_root(),
+                  proof.get_path(),
+                  sig->node,
+                  sig->cert);
+                details->transaction_id = {sig->view, seqno};
               }
             }
           }
         }
-        else if (new_details->current_stage == RequestStage::Untrusted)
+        else if (new_details->receipt == nullptr)
         {
           // Iterate through later indices, see if there's a signature that
           // covers this one
@@ -290,12 +260,6 @@ namespace ccf::historical
                 ccf::MerkleTreeHistory tree(get_tree(details->store).value());
                 if (tree.in_range(new_seqno))
                 {
-                  const auto trusted_digest = tree.get_leaf(new_seqno);
-                  if (trusted_digest != untrusted_digest)
-                  {
-                    return UpdateTrustedResult::Invalidated;
-                  }
-
                   auto proof = tree.get_proof(new_seqno);
                   details->receipt = std::make_shared<TxReceipt>(
                     sig->sig,
@@ -304,11 +268,10 @@ namespace ccf::historical
                     sig->node,
                     sig->cert);
                   details->transaction_id = {sig->view, new_seqno};
-                  new_details->current_stage = RequestStage::Trusted;
                 }
 
-                // Break here - if this signature doesn't cover us, no later one
-                // can
+                // Break here - if this signature doesn't cover us, no later
+                // one can
                 sig_seen = true;
                 break;
               }
@@ -324,12 +287,6 @@ namespace ccf::historical
               ccf::MerkleTreeHistory tree(get_tree(details->store).value());
               if (tree.in_range(new_seqno))
               {
-                const auto trusted_digest = tree.get_leaf(new_seqno);
-                if (trusted_digest != untrusted_digest)
-                {
-                  return UpdateTrustedResult::Invalidated;
-                }
-
                 auto proof = tree.get_proof(new_seqno);
                 details->receipt = std::make_shared<TxReceipt>(
                   sig->sig,
@@ -338,27 +295,26 @@ namespace ccf::historical
                   sig->node,
                   sig->cert);
                 details->transaction_id = {sig->view, new_seqno};
-                new_details->current_stage = RequestStage::Trusted;
               }
             }
           }
 
-          // If still untrusted, and this non-signature is the last requested
-          // seqno, or previous attempt at finding supporting signature, request
-          // the _next_ seqno to find supporting signature
-          if (new_details->current_stage == RequestStage::Untrusted)
+          // If still have no receipt, and this non-signature is the last
+          // requested seqno, or a previous attempt at finding supporting
+          // signature, request the _next_ seqno to find supporting signature
+          if (new_details->receipt == nullptr)
           {
             if (
               new_seqno == last_requested_seqno ||
               (supporting_signature.has_value() &&
                supporting_signature->first == new_seqno))
             {
-              return UpdateTrustedResult::FetchNext;
+              return PopulateReceiptsResult::FetchNext;
             }
           }
         }
 
-        return UpdateTrustedResult::Continue;
+        return PopulateReceiptsResult::Continue;
       }
     };
 
@@ -384,47 +340,6 @@ namespace ccf::historical
           static_cast<consensus::Index>(seqno),
           consensus::LedgerRequestPurpose::HistoricalQuery);
       }
-    }
-
-    // Returns true if this is a valid signature that passes our verification
-    // checks
-    bool verify_signature(const StorePtr& sig_store, ccf::SeqNo sig_seqno)
-    {
-      const auto sig = get_signature(sig_store);
-      if (!sig.has_value())
-      {
-        LOG_FAIL_FMT("Signature at {}: Missing signature value", sig_seqno);
-        return false;
-      }
-
-      const auto tree_ = get_tree(sig_store);
-      if (!tree_.has_value())
-      {
-        LOG_FAIL_FMT("Signature at {}: Missing tree value", sig_seqno);
-        return false;
-      }
-
-      // Build tree from signature
-      ccf::MerkleTreeHistory tree(tree_.value());
-      const auto real_root = tree.get_root();
-      if (real_root != sig->root)
-      {
-        LOG_FAIL_FMT("Signature at {}: Invalid root", sig_seqno);
-        return false;
-      }
-
-      // Current solution: Use current state of Nodes tables from real store.
-      // This only works while entries are never deleted from this table, and
-      // makes no check that the signing node was active at the point it
-      // produced this signature
-      auto tx = source_store.create_read_only_tx();
-      if (!verify_node_signature(tx, sig->node, sig->sig, real_root))
-      {
-        LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_seqno);
-        return false;
-      }
-
-      return true;
     }
 
     std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
@@ -517,16 +432,9 @@ namespace ccf::historical
           details != nullptr &&
           details->current_stage == RequestStage::Fetching)
         {
-          if (is_signature)
-          {
-            // Signatures have already been verified by the time we get here, so
-            // we trust them already
-            details->current_stage = RequestStage::Trusted;
-          }
-          else
-          {
-            details->current_stage = RequestStage::Untrusted;
-          }
+          // Deserialisation includes a GCM integrity check, so all entries have
+          // been verified by the time we get here.
+          details->current_stage = RequestStage::Trusted;
 
           details->entry_digest = entry_digest;
 
@@ -538,7 +446,7 @@ namespace ccf::historical
           details->store = store;
 
           details->is_signature = is_signature;
-          if (is_signature)
+          if (is_signature && request.include_receipts)
           {
             // Construct a signature receipt
             const auto sig = get_signature(details->store);
@@ -548,27 +456,25 @@ namespace ccf::historical
             details->transaction_id = {sig->view, sig->seqno};
           }
 
-          const auto result = request.update_trusted(seqno);
-          switch (result)
+          if (request.include_receipts)
           {
-            case (Request::UpdateTrustedResult::Continue):
+            const auto result = request.populate_receipts(seqno);
+            switch (result)
             {
-              ++request_it;
-              break;
-            }
-            case (Request::UpdateTrustedResult::Invalidated):
-            {
-              request_it = requests.erase(request_it);
-              break;
-            }
-            case (Request::UpdateTrustedResult::FetchNext):
-            {
-              const auto next_seqno = seqno + 1;
-              fetch_entry_at(next_seqno);
-              request.supporting_signature =
-                std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-              ++request_it;
-              break;
+              case (Request::PopulateReceiptsResult::Continue):
+              {
+                ++request_it;
+                break;
+              }
+              case (Request::PopulateReceiptsResult::FetchNext):
+              {
+                const auto next_seqno = seqno + 1;
+                fetch_entry_at(next_seqno);
+                request.supporting_signature =
+                  std::make_pair(next_seqno, std::make_shared<StoreDetails>());
+                ++request_it;
+                break;
+              }
             }
           }
         }
@@ -610,13 +516,24 @@ namespace ccf::historical
       return true;
     }
 
-    std::vector<StatePtr> get_store_range_internal(
+    std::vector<StatePtr> get_state_range_internal(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
-      size_t num_following_indices,
-      ExpiryDuration seconds_until_expiry)
+      ccf::SeqNo end_seqno,
+      ExpiryDuration seconds_until_expiry,
+      bool include_receipts)
     {
       std::lock_guard<std::mutex> guard(requests_lock);
+
+      if (end_seqno < start_seqno)
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid range for historical query: end {} is before start {}",
+          end_seqno,
+          start_seqno));
+      }
+
+      const auto num_following_indices = end_seqno - start_seqno;
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -630,6 +547,7 @@ namespace ccf::historical
       }
 
       Request& request = it->second;
+      request.include_receipts = include_receipts;
 
       // Update this Request to represent the currently requested range,
       // returning any newly requested indices
@@ -672,7 +590,9 @@ namespace ccf::historical
            ++seqno)
       {
         auto target_details = request.get_store_details(seqno);
-        if (target_details->current_stage == RequestStage::Trusted)
+        if (
+          target_details->current_stage == RequestStage::Trusted &&
+          (!request.include_receipts || target_details->receipt != nullptr))
         {
           // Have this store, associated txid and receipt and trust it - add it
           // to return list
@@ -743,19 +663,12 @@ namespace ccf::historical
       return get_store_at(handle, seqno, default_expiry_duration);
     }
 
-    StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
-    {
-      return get_state_at(handle, seqno, default_expiry_duration);
-    }
-
     StatePtr get_state_at(
       RequestHandle handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      auto range =
-        get_store_range_internal(handle, seqno, 0, seconds_until_expiry);
-
+      auto range = get_state_range(handle, seqno, seqno, seconds_until_expiry);
       if (range.empty())
       {
         return nullptr;
@@ -764,23 +677,19 @@ namespace ccf::historical
       return range[0];
     }
 
+    StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
+    {
+      return get_state_at(handle, seqno, default_expiry_duration);
+    }
+
     std::vector<StorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      if (end_seqno < start_seqno)
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid range for historical query: end {} is before start {}",
-          end_seqno,
-          start_seqno));
-      }
-
-      const auto tail_length = end_seqno - start_seqno;
-      auto range = get_store_range_internal(
-        handle, start_seqno, tail_length, seconds_until_expiry);
+      auto range = get_state_range_internal(
+        handle, start_seqno, end_seqno, seconds_until_expiry, false);
       std::vector<StorePtr> stores;
       for (size_t i = 0; i < range.size(); i++)
       {
@@ -795,6 +704,26 @@ namespace ccf::historical
       ccf::SeqNo end_seqno) override
     {
       return get_store_range(
+        handle, start_seqno, end_seqno, default_expiry_duration);
+    }
+
+    std::vector<StatePtr> get_state_range(
+      RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno,
+      ExpiryDuration seconds_until_expiry) override
+    {
+      auto range = get_state_range_internal(
+        handle, start_seqno, end_seqno, seconds_until_expiry, true);
+      return range;
+    }
+
+    std::vector<StatePtr> get_state_range(
+      RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno) override
+    {
+      return get_state_range(
         handle, start_seqno, end_seqno, default_expiry_duration);
     }
 
@@ -875,18 +804,44 @@ namespace ccf::historical
         return false;
       }
 
-      const auto is_signature =
-        deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
-      if (is_signature)
       {
-        // This looks like a signature - check that we trust it
-        if (!verify_signature(store, seqno))
+        // Confirm this entry is from a precursor of the current state, and not
+        // a fork
+        const auto tx_id = store->current_txid();
+        if (tx_id.version != seqno)
         {
-          LOG_FAIL_FMT("Bad signature at {}", seqno);
-          delete_all_interested_requests(seqno);
+          LOG_FAIL_FMT(
+            "Corrupt ledger entry received - claims to be {} but is actually "
+            "{}.{}",
+            seqno,
+            tx_id.term,
+            tx_id.version);
+          return false;
+        }
+
+        auto consensus = source_store.get_consensus();
+        if (consensus == nullptr)
+        {
+          LOG_FAIL_FMT("No consensus on source store");
+          return false;
+        }
+
+        const auto actual_view = consensus->get_view(seqno);
+        if (actual_view != tx_id.term)
+        {
+          LOG_FAIL_FMT(
+            "Ledger entry comes from fork - contains {}.{} but this service "
+            "expected {}.{}",
+            tx_id.term,
+            tx_id.version,
+            actual_view,
+            seqno);
           return false;
         }
       }
+
+      const auto is_signature =
+        deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
 
       LOG_DEBUG_FMT(
         "Processing historical store at {} ({})",

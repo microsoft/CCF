@@ -162,18 +162,13 @@ namespace aft
       return std::nullopt;
     }
 
-    void create_channel(
+    void associate_node_address(
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service,
-      size_t message_limit = ccf::Channel::default_message_limit) override
+      const std::string& peer_service) override
     {}
 
-    void destroy_channel(const ccf::NodeId& peer_id) override {}
-
-    void destroy_all_channels() override {}
-
-    void close_all_outgoing() override {}
+    void close_channel(const ccf::NodeId& peer_id) override {}
 
     void set_endorsed_node_cert(const crypto::Pem&) override {}
 
@@ -202,9 +197,11 @@ namespace aft
       return true;
     }
 
-    void recv_message(
+    bool recv_channel_message(
       const ccf::NodeId& from, const uint8_t* data, size_t size) override
-    {}
+    {
+      return true;
+    }
 
     void initialize(
       const ccf::NodeId& self_id,

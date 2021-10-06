@@ -40,6 +40,7 @@ setup(
     scripts=[
         path.join(PACKAGE_NAME, "proposal_generator.py"),
         path.join(PACKAGE_NAME, "read_ledger.py"),
+        path.join(PACKAGE_NAME, "ledger_viz.py"),
         path.join(UTILITIES_PATH, "keygenerator.sh"),
         path.join(UTILITIES_PATH, "scurl.sh"),
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),
