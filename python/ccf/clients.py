@@ -560,7 +560,6 @@ class CCFClient:
         if headers is None:
             headers = {}
         r = Request(path, body, http_verb, headers, allow_redirects)
-
         flush_info([f"{self.description} {r}"], log_capture, 3)
         response = self.client_impl.request(r, timeout)
         flush_info([str(response)], log_capture, 3)
