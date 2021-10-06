@@ -1,11 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from ccf.ledger import NodeStatus
 import functools
 
 from loguru import logger as LOG
-import infra.e2e_args
 
 
 class TestRequirementsNotMet(Exception):
