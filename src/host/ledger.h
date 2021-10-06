@@ -645,33 +645,39 @@ namespace asynchost
       }
 
       // Recover last idx from read-only ledger directories
-      for (const auto& read_dir : read_ledger_dirs)
-      {
-        LOG_DEBUG_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
-        if (!fs::is_directory(read_dir))
-        {
-          throw std::logic_error(fmt::format(
-            "\"{}\" read-only ledger is not a directory", read_dir));
-        }
+      // TODO: Delete all of this??
+      // TODO: I see two options:
+      // 1. Don't restore `last_idx` from the read-only ledger dir
 
-        for (auto const& f : fs::directory_iterator(read_dir))
-        {
-          auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
-          if (!last_idx_.has_value())
-          {
-            LOG_DEBUG_FMT(
-              "Read-only ledger file {} is ignored as not committed",
-              f.path().filename());
-            continue;
-          }
+      // 2. Restore all available entries from ledger before joining (big
+      // change)
+      // for (const auto& read_dir : read_ledger_dirs)
+      // {
+      //   LOG_INFO_FMT("Recovering read-only ledger directory \"{}\"",
+      //   read_dir); if (!fs::is_directory(read_dir))
+      //   {
+      //     throw std::logic_error(fmt::format(
+      //       "\"{}\" read-only ledger is not a directory", read_dir));
+      //   }
 
-          if (last_idx_.value() > last_idx)
-          {
-            last_idx = last_idx_.value();
-            committed_idx = last_idx;
-          }
-        }
-      }
+      //   for (auto const& f : fs::directory_iterator(read_dir))
+      //   {
+      //     auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
+      //     if (!last_idx_.has_value())
+      //     {
+      //       LOG_DEBUG_FMT(
+      //         "Read-only ledger file {} is ignored as not committed",
+      //         f.path().filename());
+      //       continue;
+      //     }
+
+      //     if (last_idx_.value() > last_idx)
+      //     {
+      //       // last_idx = last_idx_.value();
+      //       // committed_idx = last_idx;
+      //     }
+      //   }
+      // }
 
       if (fs::is_directory(ledger_dir))
       {
@@ -795,6 +801,10 @@ namespace asynchost
       // i.e. snapshot. It is assumed that idx is included in a committed ledger
       // file
 
+      // TODO: Make sure we have all entries before idx? No! Since the read-only
+      // ledger dir could be copied afterwards!
+
+      // TODO: Fix this too!
       // As it is possible that some ledger files containing indices later than
       // snapshot index already exist (e.g. to verify the snapshot evidence),
       // delete those so that ledger can restart neatly.
