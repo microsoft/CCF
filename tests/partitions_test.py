@@ -65,10 +65,9 @@ def test_partition_majority(network, args):
         except TimeoutError:
             LOG.info("No new primary, as expected")
             with primary.client() as c:
-                resp = c.get(
-                    "/node/network/nodes/self"
-                )  # Well-known read-only endpoint
-                initial_view = resp.view
+                res = c.get("/node/network")  # Well-known read-only endpoint
+                body = res.body.json()
+                initial_view = body["current_view"]
 
     # The partitioned nodes will have called elections, increasing their view.
     # When the partition is lifted, the nodes must elect a new leader, in at least this

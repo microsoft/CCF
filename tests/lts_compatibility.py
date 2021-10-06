@@ -156,7 +156,7 @@ def run_code_upgrade_from(
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
             from_snapshot = True
-            for _ in range(0, len(network.get_joined_nodes())):
+            for _ in range(0, len(old_nodes)):
                 new_node = network.create_node(
                     "local://localhost",
                     binary_dir=to_binary_dir,
@@ -194,9 +194,9 @@ def run_code_upgrade_from(
             network.consortium.retire_code(primary, old_code_id)
             for node in old_nodes:
                 network.retire_node(primary, node)
-                node.stop()
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
+                node.stop()
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
