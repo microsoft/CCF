@@ -460,6 +460,144 @@ TEST_CASE("StateCache point queries")
   }
 }
 
+TEST_CASE("StateCache get store vs get state")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  kv::Version signature_transaction;
+
+  {
+    INFO("Build some interesting state in the store");
+    signature_transaction = write_transactions_and_signature(kv_store, 20);
+    REQUIRE(kv_store.current_version() == signature_transaction);
+  }
+
+  const auto seqno_a = signature_transaction / 3;
+  const auto seqno_b = signature_transaction / 2;
+
+  auto ledger = construct_host_ledger(kv_store.get_consensus());
+  REQUIRE(ledger.size() == signature_transaction);
+
+  // Now we actually get to the historical queries
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  static const ccf::historical::RequestHandle default_handle = 0;
+
+  auto provide_ledger_entry = [&](size_t i) {
+    bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
+    return accepted;
+  };
+
+  auto provide_ledger_entry_range = [&](size_t a, size_t b) {
+    for (size_t i = a; i <= b; ++i)
+    {
+      bool accepted = provide_ledger_entry(i);
+      if (!accepted)
+      {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  {
+    INFO("Stores can be retrieved directly");
+    REQUIRE(cache.get_store_at(default_handle, seqno_a) == nullptr);
+    REQUIRE(provide_ledger_entry(seqno_a));
+    REQUIRE(cache.get_store_at(default_handle, seqno_a) != nullptr);
+    cache.drop_request(default_handle);
+
+    REQUIRE(cache.get_store_at(default_handle, seqno_b) == nullptr);
+    REQUIRE(provide_ledger_entry(seqno_b));
+    REQUIRE(cache.get_store_at(default_handle, seqno_b) != nullptr);
+    cache.drop_request(default_handle);
+
+    REQUIRE(
+      cache.get_store_at(default_handle, signature_transaction) == nullptr);
+    REQUIRE(provide_ledger_entry(signature_transaction));
+    REQUIRE(
+      cache.get_store_at(default_handle, signature_transaction) != nullptr);
+    cache.drop_request(default_handle);
+  }
+
+  {
+    INFO("States require additional context");
+    REQUIRE(cache.get_state_at(default_handle, seqno_a) == nullptr);
+    REQUIRE(provide_ledger_entry(seqno_a));
+    REQUIRE(cache.get_state_at(default_handle, seqno_a) == nullptr);
+    REQUIRE(provide_ledger_entry_range(seqno_a + 1, signature_transaction));
+    auto state_a = cache.get_state_at(default_handle, seqno_a);
+    REQUIRE(state_a != nullptr);
+    REQUIRE(state_a->receipt != nullptr);
+    cache.drop_request(default_handle);
+
+    REQUIRE(cache.get_state_at(default_handle, seqno_b) == nullptr);
+    REQUIRE(provide_ledger_entry(seqno_b));
+    REQUIRE(cache.get_state_at(default_handle, seqno_b) == nullptr);
+    REQUIRE(provide_ledger_entry_range(seqno_b + 1, signature_transaction));
+    auto state_b = cache.get_state_at(default_handle, seqno_b);
+    REQUIRE(state_b != nullptr);
+    REQUIRE(state_b->receipt != nullptr);
+    cache.drop_request(default_handle);
+
+    REQUIRE(
+      cache.get_state_at(default_handle, signature_transaction) == nullptr);
+    REQUIRE(provide_ledger_entry(signature_transaction));
+    auto state_sig = cache.get_state_at(default_handle, signature_transaction);
+    REQUIRE(state_sig != nullptr);
+    REQUIRE(state_sig->receipt != nullptr);
+    cache.drop_request(default_handle);
+  }
+
+  {
+    INFO("Switching between store requests and state requests");
+    {
+      REQUIRE(cache.get_store_at(default_handle, seqno_a) == nullptr);
+      REQUIRE(provide_ledger_entry(seqno_a));
+      REQUIRE(cache.get_store_at(default_handle, seqno_a) != nullptr);
+
+      REQUIRE(cache.get_state_at(default_handle, seqno_a) == nullptr);
+      REQUIRE(provide_ledger_entry_range(seqno_a + 1, signature_transaction));
+      auto state_a = cache.get_state_at(default_handle, seqno_a);
+      REQUIRE(state_a != nullptr);
+      REQUIRE(state_a->receipt != nullptr);
+      cache.drop_request(default_handle);
+    }
+
+    {
+      REQUIRE(cache.get_state_at(default_handle, seqno_b) == nullptr);
+      REQUIRE(provide_ledger_entry_range(seqno_b, signature_transaction));
+      auto state_b = cache.get_state_at(default_handle, seqno_b);
+      REQUIRE(state_b != nullptr);
+      REQUIRE(state_b->receipt != nullptr);
+
+      REQUIRE(cache.get_store_at(default_handle, seqno_b) != nullptr);
+
+      state_b = cache.get_state_at(default_handle, seqno_b);
+      REQUIRE(state_b != nullptr);
+      REQUIRE(state_b->receipt != nullptr);
+      cache.drop_request(default_handle);
+    }
+
+    {
+      REQUIRE(
+        cache.get_store_at(default_handle, signature_transaction) == nullptr);
+      REQUIRE(provide_ledger_entry(signature_transaction));
+      REQUIRE(
+        cache.get_store_at(default_handle, signature_transaction) != nullptr);
+
+      auto state_sig =
+        cache.get_state_at(default_handle, signature_transaction);
+      REQUIRE(state_sig != nullptr);
+      REQUIRE(state_sig->receipt != nullptr);
+      cache.drop_request(default_handle);
+    }
+  }
+}
+
 TEST_CASE("StateCache range queries")
 {
   auto state = create_and_init_state();
