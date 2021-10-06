@@ -187,6 +187,7 @@ class JwtIssuer:
                 if self.cert_pem == stored_cert:
                     flush_info(logs)
                     return
+                time.sleep(0.1)
         flush_info(logs)
         raise TimeoutError(
             f"JWT public signing keys were not refreshed after {timeout}s"
