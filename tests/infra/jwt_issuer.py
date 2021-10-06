@@ -49,7 +49,6 @@ class OpenIDProviderServer(AbstractContextManager):
         self.jwks = jwks
         self.tls_key_pem = tls_key_pem
         self.tls_cert_pem = tls_cert_pem
-        self.self_ = self
         self.bind_port = None
         self.start(self.port)
 
