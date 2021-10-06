@@ -5,7 +5,7 @@ from ccf.ledger import NodeStatus
 import functools
 
 from loguru import logger as LOG
-from math import ceil
+import infra.e2e_args
 
 
 class TestRequirementsNotMet(Exception):
@@ -112,10 +112,10 @@ def can_kill_n_nodes(nodes_to_kill_count):
             )
             running_nodes_count = len(network.get_joined_nodes())
             would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
-            minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
-            if args.consensus == "cft" and (
-                would_leave_nodes_count < minimum_nodes_to_run_count
-            ):
+            minimum_nodes_to_run_count = trusted_nodes_count - infra.e2e_args.max_f(
+                args, trusted_nodes_count
+            )
+            if would_leave_nodes_count < minimum_nodes_to_run_count:
                 raise TestRequirementsNotMet(
                     f"Cannot kill {nodes_to_kill_count} node(s) as the network would not be able to make progress"
                     f" (would leave {would_leave_nodes_count} nodes but requires {minimum_nodes_to_run_count} nodes to make progress) "

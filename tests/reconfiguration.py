@@ -236,21 +236,16 @@ def test_version(network, args):
 
 
 @reqs.description("Replace a node on the same addresses")
-@reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
     primary, backups = network.find_nodes()
 
-    nodes = network.get_joined_nodes()
     node_to_replace = backups[-1]
-    f = infra.e2e_args.max_f(args, len(nodes))
-    f_backups = backups[:f]
-
-    # Retire one node
+    LOG.info(f"Retiring node {node_to_replace.local_node_id}")
     network.retire_node(primary, node_to_replace)
     node_to_replace.stop()
     check_can_progress(primary)
 
-    # Add in a node using the same address
+    LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
         f"local://{node_to_replace.rpc_host}:{node_to_replace.rpc_port}",
         node_port=node_to_replace.node_port,
@@ -262,8 +257,13 @@ def test_node_replacement(network, args):
     assert replacement_node.rpc_host == node_to_replace.rpc_host
     assert replacement_node.node_port == node_to_replace.node_port
     assert replacement_node.rpc_port == node_to_replace.rpc_port
+
+    f = infra.e2e_args.max_f(args, len(network.nodes)) - len(
+        network.get_stopped_nodes()
+    )
+    f_backups = backups[:f]
     LOG.info(
-        f"Stopping {len(f_backups)} other nodes to make progress depend on the replacement"
+        f"Suspending {len(f_backups)} other nodes to make progress depend on the replacement"
     )
     for other_backup in f_backups:
         other_backup.suspend()

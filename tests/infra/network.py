@@ -684,6 +684,9 @@ class Network:
     def get_joined_nodes(self):
         return [node for node in self.nodes if node.is_joined()]
 
+    def get_stopped_nodes(self):
+        return [node for node in self.nodes if node.is_stopped()]
+
     def wait_for_state(self, node, state, timeout=3):
         end_time = time.time() + timeout
         while time.time() < end_time:
