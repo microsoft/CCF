@@ -165,7 +165,7 @@ class LoggingTxs:
 
             for priv_idx, priv_value in self.priv.items():
                 # Verifying all historical transactions is expensive, verify only a sample
-                for v in sample_list(priv_value, sample_count):
+                for v in priv_value:  # sample_list(priv_value, sample_count):
                     self._verify_tx(
                         node,
                         priv_idx,
@@ -247,7 +247,7 @@ class LoggingTxs:
 
         if not found:
             raise LoggingTxsVerifyException(
-                f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
+                f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
 
     def get_receipt(self, node, idx, seqno, view, timeout=3):
@@ -292,5 +292,5 @@ class LoggingTxs:
 
         if not found:
             raise LoggingTxsVerifyException(
-                f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
+                f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
