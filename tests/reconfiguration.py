@@ -258,9 +258,7 @@ def test_node_replacement(network, args):
     assert replacement_node.node_port == node_to_replace.node_port
     assert replacement_node.rpc_port == node_to_replace.rpc_port
 
-    allowed_to_suspend_count = infra.e2e_args.max_f(args, len(network.nodes)) - len(
-        network.get_stopped_nodes()
-    )
+    allowed_to_suspend_count = network.get_f() - len(network.get_stopped_nodes())
     backups_to_suspend = backups[:allowed_to_suspend_count]
     LOG.info(
         f"Suspending {len(backups_to_suspend)} other nodes to make progress depend on the replacement"

@@ -156,6 +156,7 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
         self.version = version
+        self.args = None
 
         # Requires admin privileges
         self.partitioner = (
@@ -279,6 +280,7 @@ class Network:
         read_only_ledger_dir=None,
         snapshot_dir=None,
     ):
+        self.args = args
         hosts = self.hosts
 
         if not args.package:
@@ -686,6 +688,9 @@ class Network:
 
     def get_stopped_nodes(self):
         return [node for node in self.nodes if node.is_stopped()]
+
+    def get_f(self):
+        return infra.e2e_args.max_f(self.args, len(self.nodes))
 
     def wait_for_state(self, node, state, timeout=3):
         end_time = time.time() + timeout
