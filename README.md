@@ -1,4 +1,4 @@
-# The Confidential Consortium Framework  
+# The Confidential Consortium Framework    
 
 <img alt="ccf" align="right" src="https://microsoft.github.io/CCF/main/_images/ccf.svg" width="300">
 
