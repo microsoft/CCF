@@ -675,7 +675,12 @@ if(BUILD_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
 
-  foreach(ITERATION IN LISTS a b c d)
+  set(LTS_ITERATIONS "a")
+  if(LONG_TESTS)
+    set(LTS_ITERATIONS "a;b;c;d")
+  endif()
+
+  foreach(ITERATION ${LTS_ITERATIONS})
     add_e2e_test(
       NAME lts_compatibility_${ITERATION}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
