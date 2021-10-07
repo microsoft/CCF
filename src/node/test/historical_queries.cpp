@@ -162,7 +162,6 @@ kv::Version write_transactions_and_signature(
   write_transactions(kv_store, tx_count);
 
   kv_store.get_history()->emit_signature();
-  kv_store.compact(kv_store.current_version());
 
   return kv_store.current_version();
 }
@@ -711,6 +710,101 @@ TEST_CASE("StateCache range queries")
         fetch_and_validate_range(range_start, range_end);
       }
     }
+  }
+}
+
+TEST_CASE("StateCache fork protection")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+  constexpr size_t handle = 0;
+
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+
+  const auto begin_seqno = kv_store.current_version() + 1;
+
+  {
+    INFO("Build a shared initial prefix");
+    write_transactions_and_signature(kv_store, 20);
+  }
+
+  const auto end_of_shared = kv_store.current_txid();
+  const auto start_of_fork = end_of_shared.version + 1;
+  auto shared_ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  {
+    INFO("Continue with some transactions in current term");
+    write_transactions_and_signature(kv_store, 5);
+
+    INFO("Continue with some transactions in next term");
+    const auto txid = kv_store.current_txid();
+    kv_store.rollback(txid, txid.term + 1);
+    write_transactions_and_signature(kv_store, 5);
+  }
+
+  const auto end_of_fork = kv_store.current_txid().version;
+  auto forked_ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  {
+    INFO("Rollback and produce newer branch");
+    auto txid = kv_store.current_txid();
+    kv_store.rollback(end_of_shared, txid.term + 1);
+    write_transactions_and_signature(kv_store, 5);
+
+    txid = kv_store.current_txid();
+    kv_store.rollback(txid, txid.term + 1);
+    write_transactions_and_signature(kv_store, 5);
+  }
+
+  auto correct_ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  REQUIRE(forked_ledger.size() == correct_ledger.size());
+  for (const auto& [k, _] : forked_ledger)
+  {
+    REQUIRE(correct_ledger.find(k) != correct_ledger.end());
+  }
+
+  {
+    INFO("Range from shared prefix can be retrieved");
+    auto stores =
+      cache.get_store_range(handle, begin_seqno, end_of_shared.version);
+    REQUIRE(stores.empty());
+    for (size_t i = begin_seqno; i <= end_of_shared.version; ++i)
+    {
+      REQUIRE(cache.handle_ledger_entry(i, shared_ledger.at(i)));
+    }
+    stores = cache.get_store_range(handle, begin_seqno, end_of_shared.version);
+    REQUIRE(!stores.empty());
+  }
+
+  {
+    INFO("Anything that comes from the forked ledger is refused");
+    REQUIRE(cache.get_store_at(handle, start_of_fork) == nullptr);
+    REQUIRE_FALSE(
+      cache.handle_ledger_entry(start_of_fork, forked_ledger.at(start_of_fork)));
+    REQUIRE(cache.get_store_at(handle, start_of_fork) == nullptr);
+
+    REQUIRE(cache.get_store_range(handle, start_of_fork, end_of_fork).empty());
+    for (auto i = start_of_fork; i <= end_of_fork; ++i)
+    {
+      REQUIRE_FALSE(cache.handle_ledger_entry(i, forked_ledger.at(i)));
+    }
+    REQUIRE(cache.get_store_range(handle, start_of_fork, end_of_fork).empty());
+
+    REQUIRE(cache.get_store_range(handle, begin_seqno, end_of_fork).empty());
+    for (auto i = begin_seqno; i <= end_of_fork; ++i)
+    {
+      if (i < end_of_fork)
+      {
+        REQUIRE(cache.handle_ledger_entry(i, shared_ledger.at(i)));
+      }
+      else
+      {
+        REQUIRE_FALSE(cache.handle_ledger_entry(i, forked_ledger.at(i)));
+      }
+    }
+    REQUIRE(cache.get_store_range(handle, begin_seqno, end_of_fork).empty());
   }
 }
 
