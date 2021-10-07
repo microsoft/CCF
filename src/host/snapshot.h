@@ -88,7 +88,7 @@ namespace asynchost
   {
   private:
     const std::string snapshot_dir;
-    Ledger& ledger;
+    const Ledger& ledger;
 
     static constexpr auto snapshot_file_prefix = "snapshot";
     static constexpr auto snapshot_idx_delimiter = "_";
@@ -108,7 +108,7 @@ namespace asynchost
     }
 
   public:
-    SnapshotManager(const std::string& snapshot_dir_, Ledger& ledger_) :
+    SnapshotManager(const std::string& snapshot_dir_, const Ledger& ledger_) :
       snapshot_dir(snapshot_dir_),
       ledger(ledger_)
     {
@@ -214,6 +214,8 @@ namespace asynchost
       std::optional<std::string> snapshot_file = std::nullopt;
       size_t latest_idx = 0;
 
+      auto last_recovered_ledger_idx = ledger.get_last_recovered_idx();
+
       for (auto& f : fs::directory_iterator(snapshot_dir))
       {
         auto file_name = f.path().filename().string();
@@ -234,13 +236,14 @@ namespace asynchost
           continue;
         }
 
-        if (!ledger.read_entry(evidence_indices->second).has_value())
+        if (evidence_indices->second > last_recovered_ledger_idx)
         {
           LOG_INFO_FMT(
-            "Ignoring \"{}\" because ledger does not contain evidence commit "
-            "seqno: evidence commit seqno {}",
+            "Ignoring \"{}\": ledger does not contain evidence commit seqno ("
+            "evidence commit seqno {} > last recovered ledger seqno {})",
             file_name,
-            evidence_indices->second);
+            evidence_indices->second,
+            last_recovered_ledger_idx);
           continue;
         }
 

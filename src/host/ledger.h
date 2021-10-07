@@ -316,6 +316,12 @@ namespace asynchost
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
     {
+      LOG_FAIL_FMT(
+        "Read entry at {} in {}, start: {}/ end: {}",
+        idx,
+        file_name,
+        start_idx,
+        get_last_idx());
       if ((idx < start_idx) || (idx > get_last_idx()))
       {
         return std::nullopt;
@@ -514,6 +520,10 @@ namespace asynchost
     size_t last_idx = 0;
     size_t committed_idx = 0;
 
+    // Set when ledger is started from existing files
+    size_t recovered_last_idx = 0;
+    size_t recovered_committed_idx = 0;
+
     // True if a new file should be created when writing an entry
     bool require_new_file;
 
@@ -629,7 +639,7 @@ namespace asynchost
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
-      bool recover_existing_entries,
+      bool recover_existing_entries = true,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
       std::vector<std::string> read_ledger_dirs = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
@@ -646,48 +656,44 @@ namespace asynchost
       }
 
       // Recover last idx from read-only ledger directories
-      // TODO: Delete all of this??
-      // TODO: I see two options:
-      // 1. Don't restore `last_idx` from the read-only ledger dir
-
-      // 2. Restore all available entries from ledger before joining (big
-      // change)
-      if (recover_existing_entries)
+      for (const auto& read_dir : read_ledger_dirs)
       {
-        for (const auto& read_dir : read_ledger_dirs)
+        LOG_INFO_FMT("Reading read-only ledger directory \"{}\"", read_dir);
+        if (!fs::is_directory(read_dir))
         {
-          LOG_INFO_FMT(
-            "Recovering read-only ledger directory \"{}\"", read_dir);
-          if (!fs::is_directory(read_dir))
+          throw std::logic_error(fmt::format(
+            "\"{}\" read-only ledger is not a directory", read_dir));
+        }
+
+        for (auto const& f : fs::directory_iterator(read_dir))
+        {
+          auto recovered_last_idx_ =
+            get_last_idx_from_file_name(f.path().filename());
+          if (!recovered_last_idx_.has_value())
           {
-            throw std::logic_error(fmt::format(
-              "\"{}\" read-only ledger is not a directory", read_dir));
+            LOG_DEBUG_FMT(
+              "Read-only ledger file {} is ignored as not committed",
+              f.path().filename());
+            continue;
           }
 
-          for (auto const& f : fs::directory_iterator(read_dir))
+          if (recovered_last_idx_.value() > recovered_last_idx)
           {
-            auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
-            if (!last_idx_.has_value())
-            {
-              LOG_DEBUG_FMT(
-                "Read-only ledger file {} is ignored as not committed",
-                f.path().filename());
-              continue;
-            }
-
-            if (last_idx_.value() > last_idx)
-            {
-              last_idx = last_idx_.value();
-              committed_idx = last_idx;
-            }
+            recovered_last_idx = recovered_last_idx_.value();
+            recovered_committed_idx = recovered_last_idx;
           }
         }
       }
 
+      LOG_INFO_FMT(
+        "Read read-only ledgder directories to {}, committed to {}",
+        recovered_last_idx,
+        recovered_committed_idx);
+
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
-        LOG_INFO_FMT("Recovering main ledger directory \"{}\"", ledger_dir);
+        LOG_INFO_FMT("Reading main ledger directory \"{}\"", ledger_dir);
 
         std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
@@ -752,17 +758,18 @@ namespace asynchost
         });
 
         auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
-        if (main_ledger_dir_last_idx < last_idx)
+        if (main_ledger_dir_last_idx < recovered_last_idx)
         {
           throw std::logic_error(fmt::format(
             "Main ledger directory last idx ({}) is less than read-only "
             "ledger directories last idx ({})",
             main_ledger_dir_last_idx,
-            last_idx));
+            recovered_last_idx));
         }
 
-        last_idx = main_ledger_dir_last_idx;
+        recovered_last_idx = main_ledger_dir_last_idx;
 
+        // Remove committed files from list of writable files
         for (auto f = files.begin(); f != files.end();)
         {
           if ((*f)->is_committed())
@@ -799,6 +806,12 @@ namespace asynchost
         require_new_file = true;
       }
 
+      if (recover_existing_entries)
+      {
+        last_idx = recovered_last_idx;
+        committed_idx = recovered_committed_idx;
+      }
+
       LOG_INFO_FMT(
         "Recovered ledger entries up to {}, committed to {}",
         last_idx,
@@ -813,10 +826,6 @@ namespace asynchost
       // i.e. snapshot. It is assumed that idx is included in a committed ledger
       // file
 
-      // TODO: Make sure we have all entries before idx? No! Since the read-only
-      // ledger dir could be copied afterwards!
-
-      // TODO: Fix this too!
       // As it is possible that some ledger files containing indices later than
       // snapshot index already exist (e.g. to verify the snapshot evidence),
       // delete those so that ledger can restart neatly.
@@ -849,6 +858,11 @@ namespace asynchost
     size_t get_last_idx() const
     {
       return last_idx;
+    }
+
+    size_t get_last_recovered_idx() const
+    {
+      return recovered_last_idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
