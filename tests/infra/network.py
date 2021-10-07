@@ -219,8 +219,8 @@ class Network:
             )
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
-        committed_ledger_dir = ledger_dir
-        current_ledger_dir = read_only_ledger_dir
+        committed_ledger_dir = read_only_ledger_dir
+        current_ledger_dir = ledger_dir
 
         if copy_ledger_read_only and read_only_ledger_dir is None:
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
