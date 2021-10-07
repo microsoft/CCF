@@ -40,7 +40,7 @@ namespace kv::test
         replica.push_back(entry);
 
         // Simplification: all entries are replicated in the same term
-        view_history.update(std::get<0>(entry), 2);
+        view_history.update(std::get<0>(entry), 0);
       }
       return true;
     }
@@ -83,7 +83,7 @@ namespace kv::test
 
     std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
     {
-      return {2, 0};
+      return {0, 0};
     }
 
     std::optional<SignableTxIndices> get_signable_txid() override
@@ -123,12 +123,12 @@ namespace kv::test
 
     ccf::View get_view(ccf::SeqNo seqno) override
     {
-      return 2;
+      return 0;
     }
 
     ccf::View get_view() override
     {
-      return 2;
+      return 0;
     }
 
     std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo seqno) override
