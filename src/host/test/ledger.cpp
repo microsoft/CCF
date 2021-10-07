@@ -905,13 +905,27 @@ TEST_CASE("Recover from read-only ledger directory only")
     ledger.commit(last_idx);
   }
 
+  INFO("Start from existing ledger directory, but no recovery");
+  {
+    Ledger ledger(
+      ledger_dir_2,
+      wf,
+      chunk_threshold,
+      false /* No recovery */,
+      max_read_cache_size,
+      {ledger_dir});
+
+    REQUIRE(ledger.get_last_idx() == 0);
+    REQUIRE(ledger.get_last_recovered_idx() == last_idx);
+  }
+
   INFO("Recover from read-only ledger entry only");
   {
     Ledger ledger(
       ledger_dir_2,
       wf,
       chunk_threshold,
-      true,
+      true /* Recover */,
       max_read_cache_size,
       {ledger_dir});
 

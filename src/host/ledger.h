@@ -741,8 +741,6 @@ namespace asynchost
           LOG_DEBUG_FMT(
             "Main ledger directory \"{}\" is empty: no ledger file to recover",
             ledger_dir);
-          require_new_file = true;
-          return;
         }
 
         files.sort([](
@@ -751,17 +749,19 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
-        if (main_ledger_dir_last_idx < recovered_last_idx)
+        if (!files.empty())
         {
-          throw std::logic_error(fmt::format(
-            "Main ledger directory last idx ({}) is less than read-only "
-            "ledger directories last idx ({})",
-            main_ledger_dir_last_idx,
-            recovered_last_idx));
+          auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
+          if (main_ledger_dir_last_idx < recovered_last_idx)
+          {
+            throw std::logic_error(fmt::format(
+              "Main ledger directory last idx ({}) is less than read-only "
+              "ledger directories last idx ({})",
+              main_ledger_dir_last_idx,
+              recovered_last_idx));
+          }
+          recovered_last_idx = main_ledger_dir_last_idx;
         }
-
-        recovered_last_idx = main_ledger_dir_last_idx;
 
         // Remove committed files from list of writable files
         for (auto f = files.begin(); f != files.end();)
@@ -781,7 +781,7 @@ namespace asynchost
 
         // Continue writing at the end of last file only if that file is not
         // complete
-        if (files.size() > 0 && !files.back()->is_complete())
+        if (!files.empty() && !files.back()->is_complete())
         {
           require_new_file = false;
         }
