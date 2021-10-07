@@ -916,7 +916,7 @@ TEST_CASE("Recover from read-only ledger directory only")
       {ledger_dir});
 
     REQUIRE(ledger.get_last_idx() == 0);
-    REQUIRE(ledger.get_last_recovered_idx() == last_idx);
+    REQUIRE(ledger.get_startup_last_idx() == last_idx);
   }
 
   INFO("Recover from read-only ledger entry only");

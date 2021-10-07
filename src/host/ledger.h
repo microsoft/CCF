@@ -515,8 +515,8 @@ namespace asynchost
     size_t committed_idx = 0;
 
     // Set when ledger is started from existing files
-    size_t recovered_last_idx = 0;
-    size_t recovered_committed_idx = 0;
+    size_t startup_last_idx = 0;
+    size_t startup_committed_idx = 0;
 
     // True if a new file should be created when writing an entry
     bool require_new_file;
@@ -661,9 +661,9 @@ namespace asynchost
 
         for (auto const& f : fs::directory_iterator(read_dir))
         {
-          auto recovered_last_idx_ =
+          auto startup_last_idx_ =
             get_last_idx_from_file_name(f.path().filename());
-          if (!recovered_last_idx_.has_value())
+          if (!startup_last_idx_.has_value())
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
@@ -671,18 +671,18 @@ namespace asynchost
             continue;
           }
 
-          if (recovered_last_idx_.value() > recovered_last_idx)
+          if (startup_last_idx_.value() > startup_last_idx)
           {
-            recovered_last_idx = recovered_last_idx_.value();
-            recovered_committed_idx = recovered_last_idx;
+            startup_last_idx = startup_last_idx_.value();
+            startup_committed_idx = startup_last_idx;
           }
         }
       }
 
       LOG_INFO_FMT(
-        "Read read-only ledgder directories to {}, committed to {}",
-        recovered_last_idx,
-        recovered_committed_idx);
+        "Startup read-only ledgder directories to {}, committed to {}",
+        startup_last_idx,
+        startup_committed_idx);
 
       if (fs::is_directory(ledger_dir))
       {
@@ -752,15 +752,15 @@ namespace asynchost
         if (!files.empty())
         {
           auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
-          if (main_ledger_dir_last_idx < recovered_last_idx)
+          if (main_ledger_dir_last_idx < startup_last_idx)
           {
             throw std::logic_error(fmt::format(
               "Main ledger directory last idx ({}) is less than read-only "
               "ledger directories last idx ({})",
               main_ledger_dir_last_idx,
-              recovered_last_idx));
+              startup_last_idx));
           }
-          recovered_last_idx = main_ledger_dir_last_idx;
+          startup_last_idx = main_ledger_dir_last_idx;
         }
 
         // Remove committed files from list of writable files
@@ -802,8 +802,8 @@ namespace asynchost
 
       if (recover_existing_entries)
       {
-        last_idx = recovered_last_idx;
-        committed_idx = recovered_committed_idx;
+        last_idx = startup_last_idx;
+        committed_idx = startup_committed_idx;
       }
 
       LOG_INFO_FMT(
@@ -854,9 +854,9 @@ namespace asynchost
       return last_idx;
     }
 
-    size_t get_last_recovered_idx() const
+    size_t get_startup_last_idx() const
     {
-      return recovered_last_idx;
+      return startup_last_idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)

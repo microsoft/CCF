@@ -214,7 +214,7 @@ namespace asynchost
       std::optional<std::string> snapshot_file = std::nullopt;
       size_t latest_idx = 0;
 
-      auto last_recovered_ledger_idx = ledger.get_last_recovered_idx();
+      auto startup_last_idx = ledger.get_startup_last_idx();
 
       for (auto& f : fs::directory_iterator(snapshot_dir))
       {
@@ -236,14 +236,14 @@ namespace asynchost
           continue;
         }
 
-        if (evidence_indices->second > last_recovered_ledger_idx)
+        if (evidence_indices->second > startup_last_idx)
         {
           LOG_INFO_FMT(
             "Ignoring \"{}\": ledger does not contain evidence commit seqno ("
-            "evidence commit seqno {} > last recovered ledger seqno {})",
+            "evidence commit seqno {} > ledger startup last seqno {})",
             file_name,
             evidence_indices->second,
-            last_recovered_ledger_idx);
+            startup_last_idx);
           continue;
         }
 
