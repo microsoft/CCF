@@ -424,15 +424,6 @@ def test_add_node_with_read_only_ledger(network, args):
     )
     network.trust_node(new_node, args)
 
-    network.retire_node(primary, new_node)
-    new_node.stop()
-
-    paths = new_node.remote.ledger_paths()
-    LOG.error(paths)
-    for chunk in ccf.ledger.Ledger([paths[0]]):
-        for tx in chunk:
-            LOG.error(tx.get_public_domain().get_seqno())
-
 
 def run(args):
     txs = app.LoggingTxs("user0")
