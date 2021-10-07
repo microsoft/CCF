@@ -1014,7 +1014,25 @@ namespace asynchost
           auto [idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get>(data, size);
 
+          using TClock = std::chrono::high_resolution_clock;
+          const auto before = TClock::now();
           auto entry = read_entry(idx);
+          const auto after = TClock::now();
+
+          const auto duration = after - before;
+          static TClock::duration max_duration(0);
+          if (
+            duration > max_duration ||
+            std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+                .count() > 5)
+          {
+            LOG_INFO_FMT(
+              "Slow read of {}: {}ns",
+              idx,
+              std::chrono::duration_cast<std::chrono::nanoseconds>(duration)
+                .count());
+            max_duration = std::max(duration, max_duration);
+          }
 
           if (entry.has_value())
           {
