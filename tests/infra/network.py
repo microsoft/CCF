@@ -462,9 +462,6 @@ class Network:
         if committed_ledger_dir:
             ledger_dirs.append(committed_ledger_dir)
 
-        ledger = Ledger(ledger_dirs, committed_only=False)
-        public_state, _ = ledger.get_latest_public_state()
-
         primary = self._start_all_nodes(
             args,
             recovery=True,
@@ -474,7 +471,10 @@ class Network:
         )
 
         # If a common directory was passed in, initialise the consortium from it
-        if common_dir is not None:
+        if not self.consortium and common_dir is not None:
+            ledger = Ledger(ledger_dirs, committed_only=False)
+            public_state, _ = ledger.get_latest_public_state()
+
             self.consortium = infra.consortium.Consortium(
                 common_dir,
                 self.key_generator,
