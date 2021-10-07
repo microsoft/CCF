@@ -69,6 +69,7 @@ public:
 
 struct TestState
 {
+  std::shared_ptr<kv::test::StubConsensus> consensus = nullptr;
   std::shared_ptr<kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
   crypto::KeyPairPtr node_kp = nullptr;
@@ -78,8 +79,9 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
 {
   TestState ts;
 
-  ts.kv_store =
-    std::make_shared<kv::Store>(std::make_shared<kv::test::StubConsensus>());
+  ts.consensus = std::make_shared<kv::test::StubConsensus>();
+
+  ts.kv_store = std::make_shared<kv::Store>(ts.consensus);
 
   ts.node_kp = crypto::make_key_pair();
 
@@ -740,6 +742,8 @@ TEST_CASE("StateCache fork protection")
     INFO("Continue with some transactions in next term");
     const auto txid = kv_store.current_txid();
     kv_store.rollback(txid, txid.term + 1);
+    state.consensus->view_history.rollback(txid.version);
+
     write_transactions_and_signature(kv_store, 5);
   }
 
@@ -750,10 +754,12 @@ TEST_CASE("StateCache fork protection")
     INFO("Rollback and produce newer branch");
     auto txid = kv_store.current_txid();
     kv_store.rollback(end_of_shared, txid.term + 1);
+    state.consensus->view_history.rollback(end_of_shared.version);
     write_transactions_and_signature(kv_store, 5);
 
     txid = kv_store.current_txid();
     kv_store.rollback(txid, txid.term + 1);
+    state.consensus->view_history.rollback(txid.version);
     write_transactions_and_signature(kv_store, 5);
   }
 
@@ -781,8 +787,8 @@ TEST_CASE("StateCache fork protection")
   {
     INFO("Anything that comes from the forked ledger is refused");
     REQUIRE(cache.get_store_at(handle, start_of_fork) == nullptr);
-    REQUIRE_FALSE(
-      cache.handle_ledger_entry(start_of_fork, forked_ledger.at(start_of_fork)));
+    REQUIRE_FALSE(cache.handle_ledger_entry(
+      start_of_fork, forked_ledger.at(start_of_fork)));
     REQUIRE(cache.get_store_at(handle, start_of_fork) == nullptr);
 
     REQUIRE(cache.get_store_range(handle, start_of_fork, end_of_fork).empty());
@@ -795,7 +801,7 @@ TEST_CASE("StateCache fork protection")
     REQUIRE(cache.get_store_range(handle, begin_seqno, end_of_fork).empty());
     for (auto i = begin_seqno; i <= end_of_fork; ++i)
     {
-      if (i < end_of_fork)
+      if (i < start_of_fork)
       {
         REQUIRE(cache.handle_ledger_entry(i, shared_ledger.at(i)));
       }
@@ -805,6 +811,35 @@ TEST_CASE("StateCache fork protection")
       }
     }
     REQUIRE(cache.get_store_range(handle, begin_seqno, end_of_fork).empty());
+  }
+
+  {
+    INFO("Anything from the local suffix can be retrieved");
+    REQUIRE(cache.get_store_at(handle, start_of_fork) == nullptr);
+    REQUIRE(cache.handle_ledger_entry(
+      start_of_fork, correct_ledger.at(start_of_fork)));
+    REQUIRE_FALSE(cache.get_store_at(handle, start_of_fork) == nullptr);
+
+    REQUIRE(cache.get_store_range(handle, start_of_fork, end_of_fork).empty());
+    for (auto i = start_of_fork; i <= end_of_fork; ++i)
+    {
+      REQUIRE(cache.handle_ledger_entry(i, correct_ledger.at(i)));
+    }
+    REQUIRE_FALSE(cache.get_store_range(handle, start_of_fork, end_of_fork).empty());
+
+    REQUIRE(cache.get_store_range(handle, begin_seqno, end_of_fork).empty());
+    for (auto i = begin_seqno; i <= end_of_fork; ++i)
+    {
+      if (i < start_of_fork)
+      {
+        REQUIRE(cache.handle_ledger_entry(i, shared_ledger.at(i)));
+      }
+      else
+      {
+        REQUIRE(cache.handle_ledger_entry(i, correct_ledger.at(i)));
+      }
+    }
+    REQUIRE_FALSE(cache.get_store_range(handle, begin_seqno, end_of_fork).empty());
   }
 }
 
