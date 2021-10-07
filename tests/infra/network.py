@@ -230,18 +230,25 @@ class Network:
 
         committed_ledger_dir = None
         current_ledger_dir = None
+
+        if copy_ledger_read_only and read_only_ledger_dir is None:
+            current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
+                include_read_only_dirs=True
+            )
+
         if from_snapshot:
             if os.listdir(snapshot_dir):
                 LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
+                # TODO: Fix
                 # Only when joining from snapshot, retrieve ledger dirs from target node
                 # if the ledger directories are not specified. When joining without snapshot,
                 # the entire ledger will be retransmitted by primary node
                 current_ledger_dir = ledger_dir or None
                 committed_ledger_dir = read_only_ledger_dir or None
-                if copy_ledger_read_only and read_only_ledger_dir is None:
-                    current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
-                        include_read_only_dirs=True
-                    )
+                # if copy_ledger_read_only and read_only_ledger_dir is None:
+                #     current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
+                #         include_read_only_dirs=True
+                #     )
             else:
                 LOG.warning(
                     f"Attempting to join from snapshot but {snapshot_dir} is empty: defaulting to complete replay of transaction history"
@@ -526,7 +533,9 @@ class Network:
     def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
         if not skip_verification:
             # Verify that all txs committed on the service can be read
+            LOG.error(self.txs)
             if self.txs is not None:
+                LOG.info("Verifying that all committed txs can be read before shutdown")
                 log_capture = None  # [] if verbose_verification else None
                 self.txs.verify(self, log_capture=log_capture)
                 # if verbose_verification:
@@ -1144,6 +1153,6 @@ def network(
             raise
     finally:
         LOG.info("Stopping network")
-        net.stop_all_nodes(skip_verification=True)
+        net.stop_all_nodes(skip_verification=False)
         if init_partitioner:
             net.partitioner.cleanup()
