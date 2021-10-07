@@ -677,7 +677,7 @@ class Ledger:
                 if committed_only and not path.endswith(".committed"):
                     continue
                 chunk = os.path.join(directory, path)
-                if os.path.isfile(chunk):
+                if os.path.isfile(chunk) and not path.endswith(".corrupted"):
                     ledger_files.append(chunk)
 
         # Sorts the list based off the first number after ledger_ so that

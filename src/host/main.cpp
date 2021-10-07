@@ -683,6 +683,7 @@ int main(int argc, char** argv)
       ledger_dir,
       writer_factory,
       ledger_chunk_bytes,
+      recover->parsed(),
       asynchost::ledger_max_read_cache_files_default,
       read_only_ledger_dirs);
     ledger.register_message_handlers(bp.get_dispatcher());

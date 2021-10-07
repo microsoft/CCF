@@ -629,6 +629,7 @@ namespace asynchost
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
+      bool recover_existing_entries,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
       std::vector<std::string> read_ledger_dirs = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
@@ -651,37 +652,43 @@ namespace asynchost
 
       // 2. Restore all available entries from ledger before joining (big
       // change)
-      // for (const auto& read_dir : read_ledger_dirs)
-      // {
-      //   LOG_INFO_FMT("Recovering read-only ledger directory \"{}\"",
-      //   read_dir); if (!fs::is_directory(read_dir))
-      //   {
-      //     throw std::logic_error(fmt::format(
-      //       "\"{}\" read-only ledger is not a directory", read_dir));
-      //   }
+      if (recover_existing_entries)
+      {
+        for (const auto& read_dir : read_ledger_dirs)
+        {
+          LOG_INFO_FMT(
+            "Recovering read-only ledger directory \"{}\"", read_dir);
+          if (!fs::is_directory(read_dir))
+          {
+            throw std::logic_error(fmt::format(
+              "\"{}\" read-only ledger is not a directory", read_dir));
+          }
 
-      //   for (auto const& f : fs::directory_iterator(read_dir))
-      //   {
-      //     auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
-      //     if (!last_idx_.has_value())
-      //     {
-      //       LOG_DEBUG_FMT(
-      //         "Read-only ledger file {} is ignored as not committed",
-      //         f.path().filename());
-      //       continue;
-      //     }
+          for (auto const& f : fs::directory_iterator(read_dir))
+          {
+            auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
+            if (!last_idx_.has_value())
+            {
+              LOG_DEBUG_FMT(
+                "Read-only ledger file {} is ignored as not committed",
+                f.path().filename());
+              continue;
+            }
 
-      //     if (last_idx_.value() > last_idx)
-      //     {
-      //       // last_idx = last_idx_.value();
-      //       // committed_idx = last_idx;
-      //     }
-      //   }
-      // }
+            if (last_idx_.value() > last_idx)
+            {
+              last_idx = last_idx_.value();
+              committed_idx = last_idx;
+            }
+          }
+        }
+      }
 
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
+        LOG_INFO_FMT("Recovering main ledger directory \"{}\"", ledger_dir);
+
         std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
@@ -699,7 +706,12 @@ namespace asynchost
             continue;
           }
 
-          files.emplace_back(std::move(ledger_file));
+          if (recover_existing_entries)
+          {
+            LOG_DEBUG_FMT(
+              "Recovering file from main ledger directory: {}", file_name);
+            files.emplace_back(std::move(ledger_file));
+          }
         }
 
         // Rename corrupt files so that they are not considered for reading
@@ -712,22 +724,22 @@ namespace asynchost
               "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
             fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
 
-            LOG_FAIL_FMT(
+            LOG_INFO_FMT(
               "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
               f.filename(),
               new_file_name);
           }
           else
           {
-            LOG_TRACE_FMT(
+            LOG_DEBUG_FMT(
               "Corrupted ledger file {} will be ignored", f.filename());
           }
         }
 
         if (files.empty())
         {
-          LOG_TRACE_FMT(
-            "Ledger directory \"{}\" is empty: no ledger file to recover",
+          LOG_DEBUG_FMT(
+            "Main ledger directory \"{}\" is empty: no ledger file to recover",
             ledger_dir);
           require_new_file = true;
           return;
@@ -743,7 +755,7 @@ namespace asynchost
         if (main_ledger_dir_last_idx < last_idx)
         {
           throw std::logic_error(fmt::format(
-            "Ledger directory last idx ({}) is less than read-only "
+            "Main ledger directory last idx ({}) is less than read-only "
             "ledger directories last idx ({})",
             main_ledger_dir_last_idx,
             last_idx));
