@@ -523,14 +523,12 @@ class Network:
 
     def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
         if not skip_verification:
-            # Verify that all txs committed on the service can be read
-            LOG.error(self.txs)
             if self.txs is not None:
                 LOG.info("Verifying that all committed txs can be read before shutdown")
-                log_capture = None  # [] if verbose_verification else None
+                log_capture = []
                 self.txs.verify(self, log_capture=log_capture)
-                # if verbose_verification:
-                #     flush_info(log_capture, None)
+                if verbose_verification:
+                    flush_info(log_capture, None)
 
         fatal_error_found = False
 

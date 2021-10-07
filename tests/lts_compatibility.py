@@ -31,12 +31,12 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 
 
 def issue_activity_on_live_service(network, args):
-    log_capture = None  # TODO: Don't swallow everything
+    log_capture = None
     network.txs.issue(
         network, number_txs=args.snapshot_tx_interval * 2, log_capture=log_capture
     )
     # At least one transaction that will require historical fetching
-    network.txs.issue(network, number_txs=1, repeat=True, log_capture=log_capture)
+    network.txs.issue(network, number_txs=1, repeat=True)
 
 
 def get_new_constitution_for_install(args, install_path):
@@ -419,17 +419,17 @@ if __name__ == "__main__":
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
-    # compatibility_report["live compatibility"] = {}
-    # latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
-    # following_lts_version = run_live_compatibility_with_following(
-    #     args, repo, env.branch
-    # )
-    # compatibility_report["live compatibility"].update(
-    #     {"with latest": latest_lts_version}
-    # )
-    # compatibility_report["live compatibility"].update(
-    #     {"with following": following_lts_version}
-    # )
+    compatibility_report["live compatibility"] = {}
+    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+    following_lts_version = run_live_compatibility_with_following(
+        args, repo, env.branch
+    )
+    compatibility_report["live compatibility"].update(
+        {"with latest": latest_lts_version}
+    )
+    compatibility_report["live compatibility"].update(
+        {"with following": following_lts_version}
+    )
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
@@ -439,12 +439,12 @@ if __name__ == "__main__":
         compatibility_report["data compatibility"].update(
             {"with previous ledger": lts_versions}
         )
-        # lts_versions = run_ledger_compatibility_since_first(
-        #     args, env.branch, use_snapshot=True
-        # )
-        # compatibility_report["data compatibility"].update(
-        #     {"with previous snapshots": lts_versions}
-        # )
+        lts_versions = run_ledger_compatibility_since_first(
+            args, env.branch, use_snapshot=True
+        )
+        compatibility_report["data compatibility"].update(
+            {"with previous snapshots": lts_versions}
+        )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:

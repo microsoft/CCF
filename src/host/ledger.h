@@ -316,12 +316,6 @@ namespace asynchost
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
     {
-      LOG_FAIL_FMT(
-        "Read entry at {} in {}, start: {}/ end: {}",
-        idx,
-        file_name,
-        start_idx,
-        get_last_idx());
       if ((idx < start_idx) || (idx > get_last_idx()))
       {
         return std::nullopt;
