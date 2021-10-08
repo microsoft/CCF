@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Receipts now include the endorsed certificate of the node, as well as its node id, for convenience.
 - `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
+- Slow ledger IO operations will now be logged at level FAIL. The threshold over which logging will activate can be adjusted by the `--io-logging-threshold` CLI argument to cchost (#3067).
 
 ## [2.0.0-dev4]
 
