@@ -202,6 +202,15 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
+  size_t io_logging_threshold_ms = 100;
+  app
+    .add_option(
+      "--io-logging-threshold",
+      io_logging_threshold_ms,
+      "Any IO step that takes longer than this time will be logged at level "
+      "FAIL. This time is given in milliseconds.")
+    ->capture_default_str();
+
   size_t snapshot_tx_interval = 10'000;
   app
     .add_option(
@@ -684,7 +693,8 @@ int main(int argc, char** argv)
       writer_factory,
       ledger_chunk_bytes,
       asynchost::ledger_max_read_cache_files_default,
-      read_only_ledger_dirs);
+      read_only_ledger_dirs,
+      io_logging_threshold_ms);
     ledger.register_message_handlers(bp.get_dispatcher());
 
     asynchost::SnapshotManager snapshots(snapshot_dir, ledger);
