@@ -671,7 +671,7 @@ class Ledger:
 
         self._filenames = []
 
-        ledger_files = []
+        ledger_files: List[str] = []
         for directory in directories:
             for path in os.listdir(directory):
                 if committed_only and not path.endswith(".committed"):
