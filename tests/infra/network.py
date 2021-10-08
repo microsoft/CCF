@@ -156,6 +156,7 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
         self.version = version
+        self.args = None
 
         # Requires admin privileges
         self.partitioner = (
@@ -279,6 +280,7 @@ class Network:
         read_only_ledger_dir=None,
         snapshot_dir=None,
     ):
+        self.args = args
         hosts = self.hosts
 
         if not args.package:
@@ -464,9 +466,6 @@ class Network:
         if committed_ledger_dir:
             ledger_dirs.append(committed_ledger_dir)
 
-        ledger = Ledger(ledger_dirs, committed_only=False)
-        public_state, _ = ledger.get_latest_public_state()
-
         primary = self._start_all_nodes(
             args,
             recovery=True,
@@ -476,7 +475,10 @@ class Network:
         )
 
         # If a common directory was passed in, initialise the consortium from it
-        if common_dir is not None:
+        if not self.consortium and common_dir is not None:
+            ledger = Ledger(ledger_dirs, committed_only=False)
+            public_state, _ = ledger.get_latest_public_state()
+
             self.consortium = infra.consortium.Consortium(
                 common_dir,
                 self.key_generator,
@@ -683,6 +685,12 @@ class Network:
 
     def get_joined_nodes(self):
         return [node for node in self.nodes if node.is_joined()]
+
+    def get_stopped_nodes(self):
+        return [node for node in self.nodes if node.is_stopped()]
+
+    def get_f(self):
+        return infra.e2e_args.max_f(self.args, len(self.nodes))
 
     def wait_for_state(self, node, state, timeout=3):
         end_time = time.time() + timeout
