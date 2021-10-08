@@ -110,7 +110,6 @@ class LoggingTxs:
                     headers=self._get_headers_base(),
                     log_capture=log_capture,
                 )
-                # TODO: Assert that status is 200!
                 self.priv[target_idx].append(
                     {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
                 )
@@ -166,7 +165,7 @@ class LoggingTxs:
 
             for priv_idx, priv_value in self.priv.items():
                 # Verifying all historical transactions is expensive, verify only a sample
-                for v in priv_value:  # sample_list(priv_value, sample_count):
+                for v in sample_list(priv_value, sample_count):
                     self._verify_tx(
                         node,
                         priv_idx,
