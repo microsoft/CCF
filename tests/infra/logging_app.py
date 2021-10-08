@@ -110,6 +110,7 @@ class LoggingTxs:
                     headers=self._get_headers_base(),
                     log_capture=log_capture,
                 )
+                # TODO: Assert that status is 200!
                 self.priv[target_idx].append(
                     {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
                 )

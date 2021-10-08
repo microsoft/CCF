@@ -125,7 +125,9 @@ def run_code_upgrade_from(
 
     set_js_args(args, from_install_path)
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
+    )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
@@ -294,7 +296,9 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     # Note: dicts are ordered from Python3.7
     lts_releases[None] = None
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
+    )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -404,7 +408,7 @@ if __name__ == "__main__":
     # JS generic is the only app included in CCF install
     args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.jwt_key_refresh_interval_s = 1
+    args.jwt_key_refresh_interval_s = 3
 
     # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"

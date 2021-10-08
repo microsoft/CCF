@@ -108,9 +108,12 @@ class JwtIssuer:
         cert = infra.crypto.generate_cert(key_priv, cn=cn)
         return (key_priv, key_pub), cert
 
-    def __init__(self, name=TEST_JWT_ISSUER_NAME, cert=None, cn=None):
+    def __init__(
+        self, name=TEST_JWT_ISSUER_NAME, refresh_interval=3, cert=None, cn=None
+    ):
         self.name = name
         self.server = None
+        self.refresh_interval = refresh_interval
         # Auto-refresh ON if issuer name starts with "https://"
         self.auto_refresh = self.name.startswith("https://")
         stripped_host = self.name[len("https://") :] if self.auto_refresh else None
@@ -173,7 +176,8 @@ class JwtIssuer:
     def issue_jwt(self, kid=TEST_JWT_KID, claims=None):
         return infra.crypto.create_jwt(claims or {}, self.key_priv_pem, kid)
 
-    def wait_for_refresh(self, network, kid=TEST_JWT_KID, timeout=3):
+    def wait_for_refresh(self, network, kid=TEST_JWT_KID):
+        timeout = self.refresh_interval * 3
         LOG.info(f"Waiting {timeout}s for JWT key refresh")
         primary, _ = network.find_nodes()
         end_time = time.time() + timeout
