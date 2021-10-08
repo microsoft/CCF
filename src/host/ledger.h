@@ -22,6 +22,54 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
+  constexpr std::chrono::microseconds max_delay(1);
+
+  struct TimeBoundLogger
+  {
+    using TClock = std::chrono::steady_clock;
+    static std::string human_time(const TClock::duration& d)
+    {
+      const auto ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(d).count();
+      if (ns < 1000)
+        return fmt::format("{}ns", ns);
+
+      const auto us = ns / 1000.0f;
+      if (us < 1000)
+        return fmt::format("{: 3.2f}us", us);
+
+      const auto ms = us / 1000.0f;
+      if (ms < 1000)
+        return fmt::format("{: 3.2f}ms", ms);
+
+      const auto s = ms / 1000.0f;
+      return fmt::format("{: 3.2f}s", s);
+    }
+
+    TClock::duration max_time;
+    std::string message;
+    TClock::time_point start_time;
+
+    template <class Rep, class Period>
+    TimeBoundLogger(
+      const std::chrono::duration<Rep, Period>& mt, const std::string& m) :
+      max_time(std::chrono::duration_cast<TClock::duration>(mt)),
+      message(m),
+      start_time(TClock::now())
+    {}
+
+    ~TimeBoundLogger()
+    {
+      const auto end_time = TClock::now();
+      const auto elapsed = end_time - start_time;
+      if (elapsed > max_time)
+      {
+        LOG_FAIL_FMT(
+          "Operation took too long ({}): {}", human_time(elapsed), message);
+      }
+    }
+  };
+
   static constexpr size_t ledger_max_read_cache_files_default = 5;
 
   static constexpr auto ledger_committed_suffix = "committed";
@@ -444,6 +492,9 @@ namespace asynchost
 
     bool commit(size_t idx)
     {
+      TimeBoundLogger log_if_slow(
+        max_delay, fmt::format("Committing ledger entry {}", idx));
+
       if (!completed || committed || (idx != get_last_idx()))
       {
         // No effect if commit idx is not last idx
@@ -791,6 +842,9 @@ namespace asynchost
 
     void init(size_t idx)
     {
+      TimeBoundLogger log_if_slow(
+        max_delay, fmt::format("Initing ledger - idx={}", idx));
+
       // Used to initialise the ledger when starting from a non-empty state,
       // i.e. snapshot. It is assumed that idx is included in a committed ledger
       // file
@@ -831,6 +885,9 @@ namespace asynchost
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
+      TimeBoundLogger log_if_slow(
+        max_delay, fmt::format("Reading ledger entry at {}", idx));
+
       auto f = get_file_from_idx(idx);
       if (f == nullptr)
       {
@@ -875,6 +932,14 @@ namespace asynchost
     size_t write_entry(
       const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
+      TimeBoundLogger log_if_slow(
+        max_delay,
+        fmt::format(
+          "Writing ledger entry - {} bytes, committable={}, force_chunk={}",
+          size,
+          committable,
+          force_chunk));
+
       if (require_new_file)
       {
         files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
@@ -903,6 +968,9 @@ namespace asynchost
 
     void truncate(size_t idx)
     {
+      TimeBoundLogger log_if_slow(
+        max_delay, fmt::format("Truncating ledger at {}", idx));
+
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
       if (idx >= last_idx || idx < committed_idx)
@@ -1014,25 +1082,7 @@ namespace asynchost
           auto [idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get>(data, size);
 
-          using TClock = std::chrono::high_resolution_clock;
-          const auto before = TClock::now();
           auto entry = read_entry(idx);
-          const auto after = TClock::now();
-
-          const auto duration = after - before;
-          static TClock::duration max_duration(0);
-          if (
-            duration > max_duration ||
-            std::chrono::duration_cast<std::chrono::milliseconds>(duration)
-                .count() > 5)
-          {
-            LOG_INFO_FMT(
-              "Slow read of {}: {}ns",
-              idx,
-              std::chrono::duration_cast<std::chrono::nanoseconds>(duration)
-                .count());
-            max_duration = std::max(duration, max_duration);
-          }
 
           if (entry.has_value())
           {
