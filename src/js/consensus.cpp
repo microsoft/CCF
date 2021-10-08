@@ -25,7 +25,8 @@ namespace ccf::js
     auto result = endpoint_registry->get_last_committed_txid_v1(view, seqno);
     if (result != ccf::ApiResult::OK)
       return JS_ThrowInternalError(
-        ctx, "Failed to get last committed txid: %s",
+        ctx,
+        "Failed to get last committed txid: %s",
         ccf::api_result_to_str(result));
 
     auto obj = JS_NewObject(ctx);
@@ -58,10 +59,12 @@ namespace ccf::js
         ctx, "Failed to get endpoint registry object");
 
     ccf::TxStatus status;
-    auto result = endpoint_registry->get_status_for_txid_v1(view, seqno, status);
+    auto result =
+      endpoint_registry->get_status_for_txid_v1(view, seqno, status);
     if (result != ccf::ApiResult::OK)
       return JS_ThrowInternalError(
-        ctx, "Failed to get status for txid: %s",
+        ctx,
+        "Failed to get status for txid: %s",
         ccf::api_result_to_str(result));
     auto status_str = ccf::tx_status_to_str(status);
 
@@ -80,8 +83,7 @@ namespace ccf::js
     if (JS_ToInt64(ctx, &seqno, argv[0]) < 0)
       return JS_EXCEPTION;
     if (seqno < 0)
-      return JS_ThrowRangeError(
-        ctx, "Invalid seqno: cannot be negative");
+      return JS_ThrowRangeError(ctx, "Invalid seqno: cannot be negative");
 
     auto endpoint_registry = static_cast<ccf::BaseEndpointRegistry*>(
       JS_GetOpaque(this_val, consensus_class_id));
@@ -95,9 +97,10 @@ namespace ccf::js
       return JS_NULL;
     if (result != ccf::ApiResult::OK)
       return JS_ThrowInternalError(
-        ctx, "Failed to get view for seqno: %s",
+        ctx,
+        "Failed to get view for seqno: %s",
         ccf::api_result_to_str(result));
-    
+
     auto view_js = JS_NewFloat64(ctx, view);
     return view_js;
   }

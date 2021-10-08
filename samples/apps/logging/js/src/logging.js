@@ -30,16 +30,12 @@ function delete_record(map, id) {
   return { body: true };
 }
 
-function update_first_write(id)
-{
+function update_first_write(id) {
   const first_writes = ccf.kv["first_write_version"];
-  if (!first_writes.has(id))
-  {
+  if (!first_writes.has(id)) {
     const private_records = ccf.kv["records"];
-    const prev_version =
-      private_records.getVersionOfPreviousWrite(id);
-    if (prev_version)
-    {
+    const prev_version = private_records.getVersionOfPreviousWrite(id);
+    if (prev_version) {
       first_writes.set(id, ccf.jsonCompatibleToBuf(prev_version));
     }
   }
@@ -141,7 +137,7 @@ export function get_historical_range(request) {
   if (!isCommitted) {
     throw new Error("End of range must be committed");
   }
-  
+
   const max_seqno_per_page = 2000;
   const range_begin = from_seqno;
   const range_end = Math.min(to_seqno, range_begin + max_seqno_per_page);
@@ -234,10 +230,7 @@ export function get_public(request) {
 export function post_private(request) {
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
-  ccf.kv["records"].set(
-    id,
-    ccf.strToBuf(params.msg)
-  );
+  ccf.kv["records"].set(id, ccf.strToBuf(params.msg));
   update_first_write(id);
   return { body: true };
 }
@@ -245,10 +238,7 @@ export function post_private(request) {
 export function post_public(request) {
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
-  ccf.kv["public:records"].set(
-    id,
-    ccf.strToBuf(params.msg)
-  );
+  ccf.kv["public:records"].set(id, ccf.strToBuf(params.msg));
   return { body: true };
 }
 

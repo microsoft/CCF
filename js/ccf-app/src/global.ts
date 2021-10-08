@@ -217,6 +217,95 @@ export type SigningAlgorithm = RsaPkcsParams | EcdsaParams;
 
 export type DigestAlgorithm = "SHA-256";
 
+export interface CCFCrypto {
+  /**
+   * Returns whether digital signature is valid.
+   *
+   * @param algorithm Signing algorithm and parameters
+   * @param key A PEM-encoded public key or X.509 certificate
+   * @param signature Signature to verify
+   * @param data Data that was signed
+   * @throws Will throw an error if the key is not compatible with the
+   *  signing algorithm or if an unknown algorithm is used.
+   */
+  verifySignature(
+    algorithm: SigningAlgorithm,
+    key: string,
+    signature: ArrayBuffer,
+    data: ArrayBuffer
+  ): boolean;
+}
+
+export interface CCFRpc {
+  /**
+   * Set whether KV writes should be applied even if the response status is not 2xx.
+   * The default is `false`.
+   */
+  setApplyWrites(force: boolean): void;
+}
+
+export interface CCFConsensus {
+  /**
+   * Get the ID of latest transaction known to be committed.
+   */
+  getLastCommittedTxId(): TransactionId;
+
+  /**
+   * Get the status of a transaction by ID, provided as a view+seqno pair.
+   * This is a node-local property - while it will converge on all nodes in
+   * a healthy network, it is derived from distributed state rather than
+   * distributed itself.
+   */
+  getStatusForTxId(view: number, seqno: number): TransactionStatus;
+
+  /**
+   * Get the view associated with a given seqno, to construct a valid TxID.
+   * If the seqno is not known by the node, `null` is returned.
+   */
+  getViewForSeqno(seqno: number): number | null;
+}
+
+export interface CCFHistorical {
+  /**
+   * Retrieve a range of historical states containing the state written at the given
+   * indices.
+   *
+   * If this is not currently available, this function returns `null`
+   * and begins fetching the ledger entry asynchronously. This will generally
+   * be true for the first call for a given seqno, and it may take some time
+   * to completely fetch and validate. The call should be repeated later with
+   * the same arguments to retrieve the requested entries. This state is kept
+   * until it is deleted for one of the following reasons:
+   *  - A call to {@linkcode dropCachedStateRange}
+   *  - `seconds_until_expiry` seconds elapse without calling this function
+   *  - This handle is used to request a different seqno or range
+   *
+   * The range is inclusive of both start_seqno and end_seqno. If a non-empty
+   * array is returned, it will always contain the full requested range; the
+   * array will be of length (end_seqno - start_seqno + 1).
+   *
+   * If the requested range failed to be retrieved then `null` is returned.
+   * This may happen if the range is not known to the node (see also
+   * {@linkcode CCFConsensus.getStatusForTxId | getStatusForTxId}) or not available for
+   * other reasons (for example, the node is missing ledger files on disk).
+   */
+  getStateRange(
+    handle: number,
+    startSeqno: number,
+    endSeqno: number,
+    secondsUntilExpiry: number
+  ): HistoricalState[] | null;
+
+  /** Drop cached states for the given handle.
+   *
+   * May be used to free up space once a historical query has been resolved,
+   * more aggressively than waiting for the requests to expire.
+   *
+   * Returns `true` if the handle was found and dropped, `false` otherwise.
+   */
+  dropCachedStateRange(handle: number): boolean;
+}
+
 export interface CCF {
   /**
    * Convert a string into an ArrayBuffer.
@@ -289,53 +378,11 @@ export interface CCF {
    */
   isValidX509CertChain(chain: string, trusted: string): boolean;
 
-  crypto: {
-    /**
-     * Returns whether digital signature is valid.
-     *
-     * @param algorithm Signing algorithm and parameters
-     * @param key A PEM-encoded public key or X.509 certificate
-     * @param signature Signature to verify
-     * @param data Data that was signed
-     * @throws Will throw an error if the key is not compatible with the
-     *  signing algorithm or if an unknown algorithm is used.
-     */
-    verifySignature(
-      algorithm: SigningAlgorithm,
-      key: string,
-      signature: ArrayBuffer,
-      data: ArrayBuffer
-    ): boolean;
-  };
+  crypto: CCFCrypto;
 
-  rpc: {
-    /**
-     * Set whether KV writes should be applied even if the response status is not 2xx.
-     * The default is `false`.
-     */
-    setApplyWrites(force: boolean): void;
-  };
+  rpc: CCFRpc;
 
-  consensus: {
-    /**
-     * Get the ID of latest transaction known to be committed.
-     */
-    getLastCommittedTxId(): TransactionId;
-
-    /**
-     * Get the status of a transaction by ID, provided as a view+seqno pair.
-     * This is a node-local property - while it will converge on all nodes in
-     * a healthy network, it is derived from distributed state rather than
-     * distributed itself.
-     */
-    getStatusForTxId(view: number, seqno: number): TransactionStatus;
-
-    /**
-     * Get the view associated with a given seqno, to construct a valid TxID.
-     * If the seqno is not known by the node, `null` is returned.
-     */
-    getViewForSeqno(seqno: number): number | null;
-  };
+  consensus: CCFConsensus;
 
   /**
    * An object that provides access to the maps of the Key-Value Store of CCF.
@@ -349,46 +396,7 @@ export interface CCF {
    */
   historicalState?: HistoricalState;
 
-  historical: {
-    /**
-     * Retrieve a range of historical states containing the state written at the given
-     * indices.
-     *
-     * If this is not currently available, this function returns `null`
-     * and begins fetching the ledger entry asynchronously. This will generally
-     * be true for the first call for a given seqno, and it may take some time
-     * to completely fetch and validate. The call should be repeated later with
-     * the same arguments to retrieve the requested entries. This state is kept
-     * until it is deleted for one of the following reasons:
-     *  - A call to {@link CCF.historical.dropCachedStateRange}
-     *  - `seconds_until_expiry` seconds elapse without calling this function
-     *  - This handle is used to request a different seqno or range
-     *
-     * The range is inclusive of both start_seqno and end_seqno. If a non-empty
-     * array is returned, it will always contain the full requested range; the
-     * array will be of length (end_seqno - start_seqno + 1).
-     * 
-     * If the requested range failed to be retrieved then `null` is returned.
-     * This may happen if the range is not known to the node (see also
-     * {@link CCF.consensus.getStatusForTxId}) or not available for
-     * other reasons (for example, the node is missing ledger files on disk).
-     */
-    getStateRange(
-      handle: number,
-      startSeqno: number,
-      endSeqno: number,
-      secondsUntilExpiry: number
-    ): HistoricalState[] | null;
-
-    /** Drop cached states for the given handle.
-     *
-     * May be used to free up space once a historical query has been resolved,
-     * more aggressively than waiting for the requests to expire.
-     * 
-     * Returns `true` if the handle was found and dropped, `false` otherwise.
-     */
-    dropCachedStateRange(handle: number): boolean;
-  };
+  historical: CCFHistorical;
 }
 
 export const openenclave: OpenEnclave = (<any>globalThis).openenclave;
