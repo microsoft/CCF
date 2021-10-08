@@ -27,7 +27,7 @@
  * ```
  * import * as ccfapp from '@microsoft/ccf-app';
  *
- * const states = ccfapp.getStateRange(handle, begin, end);
+ * const states = ccfapp.getStateRange(handle, begin, end, expiry);
  * // ... error handling ...
  * const firstKv = states[0].kv;
  * const foo = ccfapp.typedKv(firstKv['foo'], ccfapp.string, ccfapp.json);
