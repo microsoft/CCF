@@ -5,6 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
 #include "host/ledger.h"
+#include "time_bound_logger.h"
 
 #include <charconv>
 #include <filesystem>
@@ -135,6 +136,12 @@ namespace asynchost
       const uint8_t* snapshot_data,
       size_t snapshot_size)
     {
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Writing snapshot - idx={}, evidence_idx={}, size={}",
+        idx,
+        evidence_idx,
+        snapshot_size));
+
       auto snapshot_file_name = fmt::format(
         "{}{}{}{}{}",
         snapshot_file_prefix,
@@ -165,6 +172,11 @@ namespace asynchost
     void commit_snapshot(
       consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
     {
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Committing snapshot - snapshot_idx={}, evidence_commit_idx={}",
+        snapshot_idx,
+        evidence_commit_idx));
+
       try
       {
         // Find previously-generated snapshot for snapshot_idx and rename file,

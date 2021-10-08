@@ -7,6 +7,7 @@
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
 #include "kv/serialised_entry_format.h"
+#include "time_bound_logger.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -816,6 +817,8 @@ namespace asynchost
 
     void init(size_t idx)
     {
+      TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
+
       // Used to initialise the ledger when starting from a non-empty state,
       // i.e. snapshot. It is assumed that idx is included in a committed ledger
       // file
@@ -861,6 +864,9 @@ namespace asynchost
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
+      TimeBoundLogger log_if_slow(
+        fmt::format("Reading ledger entry at {}", idx));
+
       auto f = get_file_from_idx(idx);
       if (f == nullptr)
       {
@@ -905,6 +911,12 @@ namespace asynchost
     size_t write_entry(
       const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Writing ledger entry - {} bytes, committable={}, force_chunk={}",
+        size,
+        committable,
+        force_chunk));
+
       if (require_new_file)
       {
         files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
@@ -933,6 +945,8 @@ namespace asynchost
 
     void truncate(size_t idx)
     {
+      TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
+
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
       if (idx >= last_idx || idx < committed_idx)
@@ -971,6 +985,9 @@ namespace asynchost
 
     void commit(size_t idx)
     {
+      TimeBoundLogger log_if_slow(
+        fmt::format("Committing ledger entry {}", idx));
+
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
 
       if (idx <= committed_idx)
