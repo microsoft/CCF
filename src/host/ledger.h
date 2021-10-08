@@ -7,6 +7,7 @@
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
 #include "kv/serialised_entry_format.h"
+#include "time_bound_logger.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -22,52 +23,6 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
-  struct TimeBoundLogger
-  {
-    using TClock = std::chrono::steady_clock;
-    static std::string human_time(const TClock::duration& d)
-    {
-      const auto ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(d).count();
-      if (ns < 1000)
-        return fmt::format("{}ns", ns);
-
-      const auto us = ns / 1000.0f;
-      if (us < 1000)
-        return fmt::format("{: 3.2f}us", us);
-
-      const auto ms = us / 1000.0f;
-      if (ms < 1000)
-        return fmt::format("{: 3.2f}ms", ms);
-
-      const auto s = ms / 1000.0f;
-      return fmt::format("{: 3.2f}s", s);
-    }
-
-    TClock::duration max_time;
-    std::string message;
-    TClock::time_point start_time;
-
-    template <class Rep, class Period>
-    TimeBoundLogger(
-      const std::chrono::duration<Rep, Period>& mt, const std::string& m) :
-      max_time(std::chrono::duration_cast<TClock::duration>(mt)),
-      message(m),
-      start_time(TClock::now())
-    {}
-
-    ~TimeBoundLogger()
-    {
-      const auto end_time = TClock::now();
-      const auto elapsed = end_time - start_time;
-      if (elapsed > max_time)
-      {
-        LOG_FAIL_FMT(
-          "Operation took too long ({}): {}", human_time(elapsed), message);
-      }
-    }
-  };
-
   static constexpr size_t ledger_max_read_cache_files_default = 5;
 
   static constexpr auto ledger_committed_suffix = "committed";
@@ -556,9 +511,6 @@ namespace asynchost
     size_t max_read_cache_files;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
 
-    // Log any slow operations
-    std::chrono::milliseconds io_logging_threshold;
-
     const size_t chunk_threshold;
     size_t last_idx = 0;
     size_t committed_idx = 0;
@@ -679,13 +631,11 @@ namespace asynchost
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
-      std::vector<std::string> read_ledger_dirs = {},
-      size_t io_logging_threshold_ms = 100) :
+      std::vector<std::string> read_ledger_dirs = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
       read_ledger_dirs(read_ledger_dirs),
       max_read_cache_files(max_read_cache_files),
-      io_logging_threshold(io_logging_threshold_ms),
       chunk_threshold(chunk_threshold)
     {
       if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
@@ -842,8 +792,7 @@ namespace asynchost
 
     void init(size_t idx)
     {
-      TimeBoundLogger log_if_slow(
-        io_logging_threshold, fmt::format("Initing ledger - idx={}", idx));
+      TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
 
       // Used to initialise the ledger when starting from a non-empty state,
       // i.e. snapshot. It is assumed that idx is included in a committed ledger
@@ -886,7 +835,6 @@ namespace asynchost
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
       TimeBoundLogger log_if_slow(
-        io_logging_threshold,
         fmt::format("Reading ledger entry at {}", idx));
 
       auto f = get_file_from_idx(idx);
@@ -933,13 +881,11 @@ namespace asynchost
     size_t write_entry(
       const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
-      TimeBoundLogger log_if_slow(
-        io_logging_threshold,
-        fmt::format(
-          "Writing ledger entry - {} bytes, committable={}, force_chunk={}",
-          size,
-          committable,
-          force_chunk));
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Writing ledger entry - {} bytes, committable={}, force_chunk={}",
+        size,
+        committable,
+        force_chunk));
 
       if (require_new_file)
       {
@@ -969,8 +915,7 @@ namespace asynchost
 
     void truncate(size_t idx)
     {
-      TimeBoundLogger log_if_slow(
-        io_logging_threshold, fmt::format("Truncating ledger at {}", idx));
+      TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
@@ -1011,7 +956,6 @@ namespace asynchost
     void commit(size_t idx)
     {
       TimeBoundLogger log_if_slow(
-        io_logging_threshold,
         fmt::format("Committing ledger entry {}", idx));
 
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
