@@ -12,7 +12,7 @@ User-facing API
 As defined under :ref:`use_apps/rpc_api:Built-ins`.
 
 These endpoints are expected to be quite stable across releases, but it is difficult for CCF itself to version them because its own versioning scheme may not be in-sync with a given application: release dates and numbers will differ.
-It is instead recommanded that applications programmatically disable these endpoints as exposed by CCF now, and replace them with their own as illustrated in :ref:`build_apps/logging_cpp:Default Endpoints`.
+It is instead recommended that applications programmatically disable these endpoints as exposed by CCF now, and replace them with their own as illustrated in :ref:`build_apps/logging_cpp:Default Endpoints`. This is currently only supported for C++ applications.
 
 CCF exposes its implementation of the user built-in endpoints as a public, versioned C++ API and application code can dispatch to the chosen implementation for each of its own versions.  
 
@@ -31,12 +31,14 @@ New CCF release adds CCF::commit_v2
 
 APIs use ``_v${INCREMENTING_INTEGER}`` as a symbol suffix, starting at 1. Symbol versions are connected with CCF releases by release notes “eg. CCF release X.Y.Z introduces call_v2”.
 
+A subset of the C++ API is exposed to JavaScript applications, as detailed in :ref:`build_apps/js_app_bundle:JavaScript API`. Symbols are not versioned as more mechanisms exist for backwards-compatible evolution. APIs, while they exist, are guaranteed to be backwards-compatible but may be deprecated and eventually removed.
+
 Operator-facing API
 ~~~~~~~~~~~~~~~~~~~
 
 As defined under :ref:`operations/operator_rpc_api:Operator RPC API`.
 
-This is the API used to monitor the network topology, memory usage, endpoint metrics etc. The intention is to keep this API compatible without explicit versioning, by making sure that all changes are strict additions (ie. new fields, new arguments with default values that behave identically to the old call).
+This is the API used to monitor the network topology, memory usage, endpoint metrics etc. The intention is to keep this API compatible without explicit versioning, by making sure that all changes are strict additions (i.e. new fields, new arguments with default values that behave identically to the old call).
 Fields/input arguments will never be modified/deleted unless exceptionally and explicitly notified in advance to users.
 
 Member-facing API
@@ -49,7 +51,7 @@ Same as operator-facing API.
 Operations compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-- Patches are compatible: nodes built from the same major release but different patches releases can run within the same service (backward and forward compatibility between these).
+- Patches are compatible: nodes built from the same major release but different patch releases can run within the same service (backward and forward compatibility between these).
 - The last patch in a major release (`N.0.final`) is compatible with the first patch of the next major release (`N+1.0.0`): nodes built against both versions can be run within the same service.
 - Open-ended ledger backward compatibility: a ledger produced by version `N.0.x` can be read by all versions `> N.0.x`.
 - Forward compatibility of the ledger across patches: a ledger produced by version `N.0.x` can be read by all `N.0.*` patches in the same major release. 
