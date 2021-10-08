@@ -413,8 +413,6 @@ def test_learner_does_not_take_part(network, args):
 
 @reqs.description("Add a new node without a snapshot but with the historical ledger")
 def test_add_node_with_read_only_ledger(network, args):
-    primary, _ = network.find_primary()
-
     network.txs.issue(network, number_txs=10)
     network.txs.issue(network, number_txs=2, repeat=True)
 
