@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Receipts now include the endorsed certificate of the node, as well as its node id, for convenience.
 - `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
 
+### Fixed
+
+- Fixed issue with ledger inconsistency when starting a new joiner node without a snapshot but with an existing ledger prefix (#3064).
+
 ## [2.0.0-dev4]
 
 ### Added
