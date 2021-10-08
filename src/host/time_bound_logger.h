@@ -22,14 +22,14 @@ namespace asynchost
 
       const auto us = ns / 1000.0f;
       if (us < 1000)
-        return fmt::format("{: 3.2f}us", us);
+        return fmt::format("{:>7.03f}us", us);
 
       const auto ms = us / 1000.0f;
       if (ms < 1000)
-        return fmt::format("{: 3.2f}ms", ms);
+        return fmt::format("{:>7.03f}ms", ms);
 
       const auto s = ms / 1000.0f;
-      return fmt::format("{: 3.2f}s", s);
+      return fmt::format("{:>7.03f}s", s);
     }
 
     static std::chrono::nanoseconds default_max_time;
