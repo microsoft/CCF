@@ -919,7 +919,7 @@ class Network:
                     flush_info(logs, None)
                     delay = time.time() - start_time
                     LOG.info(
-                        f"New primary after {delay}s {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
