@@ -193,6 +193,7 @@ def run_code_upgrade_from(
                 args.package,
                 library_dir=from_library_dir,
             )
+            primary, _ = network.find_primary()
             network.consortium.retire_code(primary, old_code_id)
             for node in old_nodes:
                 network.retire_node(primary, node)
