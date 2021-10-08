@@ -129,6 +129,7 @@ namespace ccf
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "RPC could not be redirected to unknown primary.");
+            return ctx->serialise_response();
           }
 
           auto nodes = tx.ro<Nodes>(Tables::NODES);
