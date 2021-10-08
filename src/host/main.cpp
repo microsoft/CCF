@@ -211,7 +211,7 @@ int main(int argc, char** argv)
       .count();
   app
     .add_option(
-      "--io-logging-threshold",
+      "--io-logging-threshold-ns",
       io_logging_threshold_ns,
       "Any IO step that takes longer than this time will be logged at level "
       "FAIL. This time is given in nanoseconds.")
