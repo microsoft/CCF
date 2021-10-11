@@ -32,42 +32,42 @@ namespace ccfapp
     ccfapp::AbstractNodeContext& context;
     metrics::Tracker metrics_tracker;
 
-    static JSValue create_json_obj(const nlohmann::json& j, JSContext* ctx)
+    static JSValue create_json_obj(const nlohmann::json& j, v8::Isolate* iso)
     {
       const auto buf = j.dump();
-      return V8_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
+      return V8_ParseJSON(iso, buf.data(), buf.size(), "<json>");
     }
 
     JSValue create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
+      ccf::endpoints::EndpointContext& endpoint_ctx, v8::Isolate* iso)
     {
       if (endpoint_ctx.caller == nullptr)
       {
-        return V8_NULL;
+        return v8::Null(iso);
       }
 
-      auto caller = V8_NewObject(ctx);
+      auto caller = v8::Object::New(iso);
 
       if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
       {
         V8_SetPropertyStr(
-          ctx,
+          iso,
           caller,
           "policy",
-          V8_NewString(ctx, get_policy_name_from_ident(jwt_ident)));
+          v8::String(iso, get_policy_name_from_ident(jwt_ident)));
 
-        auto jwt = V8_NewObject(ctx);
+        auto jwt = v8::Object::New(iso);
         V8_SetPropertyStr(
-          ctx,
+          iso,
           jwt,
           "keyIssuer",
-          V8_NewStringLen(
-            ctx, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
+          v8::StringLen(
+            iso, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
         V8_SetPropertyStr(
-          ctx, jwt, "header", create_json_obj(jwt_ident->header, ctx));
+          iso, jwt, "header", create_json_obj(jwt_ident->header, iso));
         V8_SetPropertyStr(
-          ctx, jwt, "payload", create_json_obj(jwt_ident->payload, ctx));
-        V8_SetPropertyStr(ctx, caller, "jwt", jwt);
+          iso, jwt, "payload", create_json_obj(jwt_ident->payload, iso));
+        V8_SetPropertyStr(iso, caller, "jwt", jwt);
 
         return caller;
       }
@@ -76,10 +76,10 @@ namespace ccfapp
           endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
       {
         V8_SetPropertyStr(
-          ctx,
+          iso,
           caller,
           "policy",
-          V8_NewString(ctx, get_policy_name_from_ident(empty_ident)));
+          v8::String(iso, get_policy_name_from_ident(empty_ident)));
         return caller;
       }
 
@@ -160,25 +160,25 @@ namespace ccfapp
           fmt::format("Failed to get certificate for caller {}", id));
       }
 
-      V8_SetPropertyStr(ctx, caller, "policy", V8_NewString(ctx, policy_name));
+      V8_SetPropertyStr(iso, caller, "policy", v8::String(iso, policy_name));
       V8_SetPropertyStr(
-        ctx, caller, "id", V8_NewStringLen(ctx, id.data(), id.size()));
-      V8_SetPropertyStr(ctx, caller, "data", create_json_obj(data, ctx));
+        iso, caller, "id", v8::StringLen(iso, id.data(), id.size()));
+      V8_SetPropertyStr(iso, caller, "data", create_json_obj(data, iso));
       V8_SetPropertyStr(
-        ctx,
+        iso,
         caller,
         "cert",
-        V8_NewStringLen(ctx, cert.str().data(), cert.size()));
+        v8::StringLen(iso, cert.str().data(), cert.size()));
 
       return caller;
     }
 
     JSValue create_request_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
+      ccf::endpoints::EndpointContext& endpoint_ctx, v8::Isolate* iso)
     {
-      auto request = V8_NewObject(ctx);
+      auto request = v8::Object::New(ctx);
 
-      auto headers = V8_NewObject(ctx);
+      auto headers = v8::Object::New(ctx);
       for (auto& [header_name, header_value] :
            endpoint_ctx.rpc_ctx->get_request_headers())
       {
@@ -186,16 +186,16 @@ namespace ccfapp
           ctx,
           headers,
           header_name.c_str(),
-          V8_NewStringLen(ctx, header_value.c_str(), header_value.size()));
+          v8::StringLen(ctx, header_value.c_str(), header_value.size()));
       }
       V8_SetPropertyStr(ctx, request, "headers", headers);
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
       auto query_str =
-        V8_NewStringLen(ctx, request_query.c_str(), request_query.size());
+        v8::StringLen(ctx, request_query.c_str(), request_query.size());
       V8_SetPropertyStr(ctx, request, "query", query_str);
 
-      auto params = V8_NewObject(ctx);
+      auto params = v8::Object::New(ctx);
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
       {
@@ -203,12 +203,12 @@ namespace ccfapp
           ctx,
           params,
           param_name.c_str(),
-          V8_NewStringLen(ctx, param_value.c_str(), param_value.size()));
+          v8::StringLen(ctx, param_value.c_str(), param_value.size()));
       }
       V8_SetPropertyStr(ctx, request, "params", params);
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
-      auto body_ = V8_NewObjectClass(ctx, js::body_class_id);
+      auto body_ = v8::Object::NewClass(ctx, js::body_class_id);
       V8_SetOpaque(body_, (void*)&request_body);
       V8_SetPropertyStr(ctx, request, "body", body_);
 
@@ -463,6 +463,11 @@ namespace ccfapp
     struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
+    /// Processor options (like --jitless?)
+    map<string, string> options;
+    /// Isolate Cache (TODO: this needs to detect new programs, not new functions
+    unordered_map<string, v8::Isolate> isolate_cache;
+
   public:
     JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
@@ -470,6 +475,12 @@ namespace ccfapp
       context(context)
     {
       metrics_tracker.install_endpoint(*this);
+      // Initialize V8 target, once per execution, not per program
+      v8::V8::InitializeICUDefaultLocation(argv[0]);
+      v8::V8::InitializeExternalStartupData(argv[0]);
+      std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
+      v8::V8::InitializePlatform(platform.get());
+      v8::V8::Initialize();
     }
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
