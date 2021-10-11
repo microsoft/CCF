@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../champ_map.h"
+#include "../rb_map.h"
+#include "ds/logger.h"
 
 #include <doctest/doctest.h>
 #include <random>
@@ -287,7 +289,7 @@ TEST_CASE("serialize map")
     REQUIRE_EQ(s_1, s_2);
   }
 
-  INFO("Serialize map with different key sizes");
+  INFO("Serialize map with different value sizes");
   {
     using SerialisedKey = champ::serialisers::SerialisedEntry;
     using SerialisedValue = champ::serialisers::SerialisedEntry;
@@ -303,5 +305,40 @@ TEST_CASE("serialize map")
     champ::Snapshot<SerialisedKey, SerialisedValue> snapshot(map);
     std::vector<uint8_t> s(map.get_serialized_size());
     snapshot.serialize(s.data());
+  }
+}
+
+TEST_CASE("Foreach order")
+{
+  constexpr auto entry_count = 50;
+
+  INFO("Champ");
+  {
+    champ::Map<K, V, H> map;
+
+    for (size_t n = 0; n < entry_count; n++)
+    {
+      map = map.put(n, 0);
+    }
+
+    map.foreach([&](const auto& k, const auto& v) {
+      LOG_FAIL_FMT("{}:{}", k, v);
+      return true;
+    });
+  }
+
+  INFO("RB");
+  {
+    RBMap<K, V> map;
+
+    for (size_t n = 0; n < entry_count; n++)
+    {
+      map = map.put(n, 0);
+    }
+
+    map.foreach([&](const auto& k, const auto& v) {
+      LOG_FAIL_FMT("{}:{}", k, v);
+      return true;
+    });
   }
 }
