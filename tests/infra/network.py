@@ -680,7 +680,7 @@ class Network:
         return self.consortium.members
 
     def get_joined_nodes(self):
-        return [node for node in self.nodes if node.is_joined()]
+        return [node for node in self.nodes if node.is_joined() and not node.suspended]
 
     def get_stopped_nodes(self):
         return [node for node in self.nodes if node.is_stopped()]
@@ -890,7 +890,8 @@ class Network:
         LOG.info(
             f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
-        end_time = time.time() + timeout
+        start_time = time.time()
+        end_time = start_time + timeout
         error = TimeoutError
         logs = []
 
@@ -912,8 +913,9 @@ class Network:
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)
+                    delay = time.time() - start_time
                     LOG.info(
-                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -936,7 +938,8 @@ class Network:
         LOG.info(
             f"Waiting up to {timeout}s for a new primary in {expected_node_ids} to be elected..."
         )
-        end_time = time.time() + timeout
+        start_time = time.time()
+        end_time = start_time + timeout
         error = TimeoutError
         logs = []
         while time.time() < end_time:
@@ -945,8 +948,9 @@ class Network:
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id in expected_node_ids:
                     flush_info(logs, None)
+                    delay = time.time() - start_time
                     LOG.info(
-                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -962,7 +966,8 @@ class Network:
     ):
         timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
-        end_time = time.time() + timeout
+        start_time = time.time()
+        end_time = start_time + timeout
 
         primaries = []
         while time.time() < end_time:
@@ -986,6 +991,10 @@ class Network:
                     r = c.get("/node/consensus")
                     pprint.pprint(r.body.json())
         assert expected == primaries, f"Multiple primaries: {primaries}"
+        delay = time.time() - start_time
+        LOG.info(
+            f"Primary unanimity after {delay}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
+        )
         return primaries[0]
 
     def wait_for_commit_proof(self, node, seqno, timeout=3):
