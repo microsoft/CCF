@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.13]
+
+- Bug fix. If `get_store_at(handle, seqno)` was called before `get_state_at(handle, seqno)`, it was possible to reach a state where the receipt would never be retrieved (#3070).
+
 ## [1.0.12]
 
 - Slow ledger IO operations will now be logged at level FAIL. The threshold over which logging will activate can be adjusted by the `--io-logging-threshold-ns` CLI argument to cchost (#3067).
@@ -940,6 +944,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.13
 [1.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.12
 [1.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.11
 [1.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.10
