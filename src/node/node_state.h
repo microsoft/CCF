@@ -613,6 +613,10 @@ namespace ccf
                 seqno,
                 sig->view);
             }
+            else
+            {
+              consensus->init_as_backup(0, 0, {});
+            }
 
             if (resp.network_info->public_only)
             {

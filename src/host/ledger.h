@@ -515,10 +515,6 @@ namespace asynchost
     size_t last_idx = 0;
     size_t committed_idx = 0;
 
-    // Set when ledger is started from existing files
-    size_t startup_last_idx = 0;
-    size_t startup_committed_idx = 0;
-
     // True if a new file should be created when writing an entry
     bool require_new_file;
 
@@ -634,7 +630,6 @@ namespace asynchost
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
-      bool recover_existing_entries = true,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
       std::vector<std::string> read_ledger_dirs = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
@@ -662,9 +657,8 @@ namespace asynchost
 
         for (auto const& f : fs::directory_iterator(read_dir))
         {
-          auto startup_last_idx_ =
-            get_last_idx_from_file_name(f.path().filename());
-          if (!startup_last_idx_.has_value())
+          auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
+          if (!last_idx_.has_value())
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
@@ -672,18 +666,13 @@ namespace asynchost
             continue;
           }
 
-          if (startup_last_idx_.value() > startup_last_idx)
+          if (last_idx_.value() > last_idx)
           {
-            startup_last_idx = startup_last_idx_.value();
-            startup_committed_idx = startup_last_idx;
+            last_idx = last_idx_.value();
+            committed_idx = last_idx;
           }
         }
       }
-
-      LOG_INFO_FMT(
-        "Startup read-only ledgder directories to {}, committed to {}",
-        startup_last_idx,
-        startup_committed_idx);
 
       if (fs::is_directory(ledger_dir))
       {
@@ -707,7 +696,7 @@ namespace asynchost
             continue;
           }
 
-          if (recover_existing_entries)
+          // if (recover_existing_entries)
           {
             LOG_DEBUG_FMT(
               "Recovering file from main ledger directory: {}", file_name);
@@ -742,6 +731,8 @@ namespace asynchost
           LOG_DEBUG_FMT(
             "Main ledger directory \"{}\" is empty: no ledger file to recover",
             ledger_dir);
+          require_new_file = true;
+          return;
         }
 
         files.sort([](
@@ -753,15 +744,15 @@ namespace asynchost
         if (!files.empty())
         {
           auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
-          if (main_ledger_dir_last_idx < startup_last_idx)
+          if (main_ledger_dir_last_idx < last_idx)
           {
             throw std::logic_error(fmt::format(
               "Main ledger directory last idx ({}) is less than read-only "
               "ledger directories last idx ({})",
               main_ledger_dir_last_idx,
-              startup_last_idx));
+              last_idx));
           }
-          startup_last_idx = main_ledger_dir_last_idx;
+          last_idx = main_ledger_dir_last_idx;
         }
 
         // Remove committed files from list of writable files
@@ -799,12 +790,6 @@ namespace asynchost
             "Error: Could not create ledger directory: {}", ledger_dir));
         }
         require_new_file = true;
-      }
-
-      if (recover_existing_entries)
-      {
-        last_idx = startup_last_idx;
-        committed_idx = startup_committed_idx;
       }
 
       LOG_INFO_FMT(
@@ -855,11 +840,6 @@ namespace asynchost
     size_t get_last_idx() const
     {
       return last_idx;
-    }
-
-    size_t get_startup_last_idx() const
-    {
-      return startup_last_idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
