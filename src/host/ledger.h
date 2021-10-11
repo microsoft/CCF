@@ -682,6 +682,15 @@ namespace asynchost
         }
       }
 
+      if (last_idx > 0)
+      {
+        LOG_INFO_FMT(
+          "Recovered read-only ledger directories up to {}, committed up to "
+          "{} ",
+          last_idx,
+          committed_idx);
+      }
+
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
@@ -731,11 +740,12 @@ namespace asynchost
             new_file_name);
         }
 
+        LOG_INFO_FMT(
+          "Main ledger directory \"{}\" is empty: no ledger file to recover",
+          ledger_dir);
+
         if (files.empty())
         {
-          LOG_DEBUG_FMT(
-            "Main ledger directory \"{}\" is empty: no ledger file to recover",
-            ledger_dir);
           require_new_file = true;
           return;
         }
@@ -817,7 +827,9 @@ namespace asynchost
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
-        if (get_start_idx_from_file_name(file_name) > idx)
+        if (
+          get_start_idx_from_file_name(file_name) > idx &&
+          !is_ledger_file_name_ignored(file_name))
         {
           auto new_file_name =
             fmt::format("{}.{}", file_name.string(), ledger_ignore_file_suffix);
