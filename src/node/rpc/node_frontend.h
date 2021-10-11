@@ -850,6 +850,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "Node info not available");
+        return;
       };
       make_read_only_endpoint(
         "/network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
@@ -869,6 +870,7 @@ namespace ccf
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Primary unknown");
+            return;
           }
 
           auto nodes = args.tx.ro(this->network.nodes);
@@ -893,6 +895,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "Primary unknown");
+        return;
       };
       make_read_only_endpoint(
         "/network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
@@ -918,6 +921,7 @@ namespace ccf
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "Primary unknown");
+              return;
             }
 
             auto nodes = args.tx.ro(this->network.nodes);

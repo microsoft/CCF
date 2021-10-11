@@ -52,7 +52,7 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-if(ENABLE_BFT)
+if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))
   set(CONSENSUSES cft bft)
   set(CONSENSUS_FILTER all)
 else()
@@ -675,13 +675,22 @@ if(BUILD_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
 
-  add_e2e_test(
-    NAME lts_compatibility
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-    CONSENSUS cft
-    LABEL e2e
-    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-  )
+  set(LTS_ITERATIONS "compatibility")
+  if(LONG_TESTS)
+    set(LTS_ITERATIONS
+        "compatibility_a;compatibility_b;compatibility_c;compatibility_d"
+    )
+  endif()
+
+  foreach(ITERATION ${LTS_ITERATIONS})
+    add_e2e_test(
+      NAME lts_${ITERATION}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      CONSENSUS cft
+      LABEL e2e
+      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+    )
+  endforeach()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
@@ -818,6 +827,13 @@ if(BUILD_TESTS)
       --use-jwt
       --msg-ser-fmt
       text
+  )
+
+  add_e2e_test(
+    NAME historical_query_perf_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+    CONSENSUS cft
+    LABEL perf
   )
 endif()
 

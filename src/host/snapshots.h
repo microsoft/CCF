@@ -6,6 +6,7 @@
 #include "ds/files.h"
 #include "ds/nonstd.h"
 #include "host/ledger.h"
+#include "time_bound_logger.h"
 
 #include <charconv>
 #include <filesystem>
@@ -178,6 +179,12 @@ namespace asynchost
       const uint8_t* snapshot_data,
       size_t snapshot_size)
     {
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Writing snapshot - idx={}, evidence_idx={}, size={}",
+        idx,
+        evidence_idx,
+        snapshot_size));
+
       auto snapshot_file_name = fmt::format(
         "{}{}{}{}{}",
         snapshot_file_prefix,
@@ -211,6 +218,9 @@ namespace asynchost
       const uint8_t* receipt_data,
       size_t receipt_size)
     {
+      TimeBoundLogger log_if_slow(
+        fmt::format("Committing snapshot - snapshot_idx={}", snapshot_idx));
+
       try
       {
         // Find previously-generated snapshot for snapshot_idx and rename file,

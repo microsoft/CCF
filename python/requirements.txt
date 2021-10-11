@@ -1,3 +1,4 @@
 loguru >= 0.5, == 0.*
 httpx == 0.19.*
 cryptography >= 3.2, == 3.*
+string-color >= 1.2.1
