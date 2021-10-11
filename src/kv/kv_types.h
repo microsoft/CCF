@@ -601,7 +601,7 @@ namespace kv
       KvStoreSerialiser& s,
       bool include_reads) = 0;
     virtual void compact(Version v) = 0;
-    virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
+    // virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
     virtual void lock() = 0;
@@ -697,14 +697,14 @@ namespace kv
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
 
-    virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
-    virtual std::vector<uint8_t> serialise_snapshot(
-      std::unique_ptr<AbstractSnapshot> snapshot) = 0;
-    virtual ApplyResult deserialise_snapshot(
-      const std::vector<uint8_t>& data,
-      ConsensusHookPtrs& hooks,
-      std::vector<Version>* view_history = nullptr,
-      bool public_only = false) = 0;
+    // virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
+    // virtual std::vector<uint8_t> serialise_snapshot(
+    //   std::unique_ptr<AbstractSnapshot> snapshot) = 0;
+    // virtual ApplyResult deserialise_snapshot(
+    //   const std::vector<uint8_t>& data,
+    //   ConsensusHookPtrs& hooks,
+    //   std::vector<Version>* view_history = nullptr,
+    //   bool public_only = false) = 0;
 
     virtual size_t commit_gap() = 0;
   };

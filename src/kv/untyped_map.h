@@ -69,7 +69,7 @@ namespace kv::untyped
     using V = SerialisedEntry;
     using H = SerialisedKeyHasher;
 
-    using StateSnapshot = kv::Snapshot<K, V, H>;
+    // using StateSnapshot = kv::Snapshot<K, V, H>;
 
     using CommitHook = CommitHook<Write>;
     using MapHook = MapHook<Write>;
@@ -322,42 +322,42 @@ namespace kv::untyped
       }
     };
 
-    class Snapshot : public AbstractMap::Snapshot
-    {
-    private:
-      const std::string name;
-      const SecurityDomain security_domain;
-      const kv::Version version;
+    // class Snapshot : public AbstractMap::Snapshot
+    // {
+    // private:
+    //   const std::string name;
+    //   const SecurityDomain security_domain;
+    //   const kv::Version version;
 
-      StateSnapshot map_snapshot;
+    //   StateSnapshot map_snapshot;
 
-    public:
-      Snapshot(
-        const std::string& name_,
-        SecurityDomain security_domain_,
-        kv::Version version_,
-        StateSnapshot&& map_snapshot_) :
-        name(name_),
-        security_domain(security_domain_),
-        version(version_),
-        map_snapshot(std::move(map_snapshot_))
-      {}
+    // public:
+    //   Snapshot(
+    //     const std::string& name_,
+    //     SecurityDomain security_domain_,
+    //     kv::Version version_,
+    //     StateSnapshot&& map_snapshot_) :
+    //     name(name_),
+    //     security_domain(security_domain_),
+    //     version(version_),
+    //     map_snapshot(std::move(map_snapshot_))
+    //   {}
 
-      void serialise(KvStoreSerialiser& s) override
-      {
-        s.start_map(name, security_domain);
-        s.serialise_entry_version(version);
+    //   void serialise(KvStoreSerialiser& s) override
+    //   {
+    //     s.start_map(name, security_domain);
+    //     s.serialise_entry_version(version);
 
-        std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
-        map_snapshot.serialize(ret.data());
-        s.serialise_raw(ret);
-      }
+    //     std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
+    //     map_snapshot.serialize(ret.data());
+    //     s.serialise_raw(ret);
+    //   }
 
-      SecurityDomain get_security_domain() override
-      {
-        return security_domain;
-      }
-    };
+    //   SecurityDomain get_security_domain() override
+    //   {
+    //     return security_domain;
+    //   }
+    // };
 
     // Public typedef for external consumption
     using Handle = kv::untyped::MapHandle;
@@ -460,73 +460,74 @@ namespace kv::untyped
       }
     }
 
-    class SnapshotHandleCommitter : public AbstractCommitter
-    {
-    private:
-      Map& map;
+    // class SnapshotHandleCommitter : public AbstractCommitter
+    // {
+    // private:
+    //   Map& map;
 
-      SnapshotChangeSet& change_set;
+    //   SnapshotChangeSet& change_set;
 
-    public:
-      SnapshotHandleCommitter(Map& m, SnapshotChangeSet& change_set_) :
-        map(m),
-        change_set(change_set_)
-      {}
+    // public:
+    //   SnapshotHandleCommitter(Map& m, SnapshotChangeSet& change_set_) :
+    //     map(m),
+    //     change_set(change_set_)
+    //   {}
 
-      bool has_writes() override
-      {
-        return true;
-      }
+    //   bool has_writes() override
+    //   {
+    //     return true;
+    //   }
 
-      bool prepare(bool, kv::Version&) override
-      {
-        // Snapshots never conflict
-        return true;
-      }
+    //   bool prepare(bool, kv::Version&) override
+    //   {
+    //     // Snapshots never conflict
+    //     return true;
+    //   }
 
-      void commit(Version, bool) override
-      {
-        // Version argument is ignored. The version of the roll after the
-        // snapshot is applied depends on the version of the map at which the
-        // snapshot was taken.
-        map.roll.reset_commits();
-        map.roll.rollback_counter++;
+    //   void commit(Version, bool) override
+    //   {
+    //     // Version argument is ignored. The version of the roll after the
+    //     // snapshot is applied depends on the version of the map at which the
+    //     // snapshot was taken.
+    //     map.roll.reset_commits();
+    //     map.roll.rollback_counter++;
 
-        auto r = map.roll.commits->get_head();
+    //     auto r = map.roll.commits->get_head();
 
-        r->state = change_set.state;
-        r->version = change_set.version;
+    //     r->state = change_set.state;
+    //     r->version = change_set.version;
 
-        // Executing hooks from snapshot requires copying the entire snapshotted
-        // state so only do it if there's a hook on the table
-        if (map.hook || map.global_hook)
-        {
-          r->state.foreach([&r](const K& k, const VersionV& v) {
-            if (!is_deleted(v.version))
-            {
-              r->writes[k] = v.value;
-            }
-            return true;
-          });
-        }
-      }
+    //     // Executing hooks from snapshot requires copying the entire
+    //     snapshotted
+    //     // state so only do it if there's a hook on the table
+    //     if (map.hook || map.global_hook)
+    //     {
+    //       r->state.foreach([&r](const K& k, const VersionV& v) {
+    //         if (!is_deleted(v.version))
+    //         {
+    //           r->writes[k] = v.value;
+    //         }
+    //         return true;
+    //       });
+    //     }
+    //   }
 
-      ConsensusHookPtr post_commit() override
-      {
-        auto r = map.roll.commits->get_head();
-        return map.trigger_map_hook(change_set.version, r->writes);
-      }
-    };
+    //   ConsensusHookPtr post_commit() override
+    //   {
+    //     auto r = map.roll.commits->get_head();
+    //     return map.trigger_map_hook(change_set.version, r->writes);
+    //   }
+    // };
 
-    ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
-    {
-      // Create a new empty change set, deserialising d's contents into it.
-      auto v = d.deserialise_entry_version();
-      auto map_snapshot = d.deserialise_raw();
+    // ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
+    // {
+    //   // Create a new empty change set, deserialising d's contents into it.
+    //   auto v = d.deserialise_entry_version();
+    //   auto map_snapshot = d.deserialise_raw();
 
-      return std::make_unique<SnapshotChangeSet>(
-        State::deserialize_map(map_snapshot), v);
-    }
+    //   return std::make_unique<SnapshotChangeSet>(
+    //     State::deserialize_map(map_snapshot), v);
+    // }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)
     {
@@ -590,12 +591,13 @@ namespace kv::untyped
         throw std::logic_error("Type confusion error");
       }
 
-      auto snapshot_change_set = dynamic_cast<SnapshotChangeSet*>(non_abstract);
-      if (snapshot_change_set != nullptr)
-      {
-        return std::make_unique<SnapshotHandleCommitter>(
-          *this, *snapshot_change_set);
-      }
+      // auto snapshot_change_set =
+      // dynamic_cast<SnapshotChangeSet*>(non_abstract); if (snapshot_change_set
+      // != nullptr)
+      // {
+      //   return std::make_unique<SnapshotHandleCommitter>(
+      //     *this, *snapshot_change_set);
+      // }
 
       return std::make_unique<HandleCommitter>(*this, *non_abstract);
     }
@@ -709,26 +711,27 @@ namespace kv::untyped
     }
 #endif
 
-    std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
-    {
-      // This takes a snapshot of the state of the map at the last entry
-      // committed at or before this version. The Map expects to be locked while
-      // taking the snapshot.
-      auto r = roll.commits->get_head();
+    // std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
+    // {
+    //   // This takes a snapshot of the state of the map at the last entry
+    //   // committed at or before this version. The Map expects to be locked
+    //   while
+    //   // taking the snapshot.
+    //   auto r = roll.commits->get_head();
 
-      for (auto current = roll.commits->get_tail(); current != nullptr;
-           current = current->prev)
-      {
-        if (current->version <= v)
-        {
-          r = current;
-          break;
-        }
-      }
+    //   for (auto current = roll.commits->get_tail(); current != nullptr;
+    //        current = current->prev)
+    //   {
+    //     if (current->version <= v)
+    //     {
+    //       r = current;
+    //       break;
+    //     }
+    //   }
 
-      return std::make_unique<Snapshot>(
-        name, security_domain, r->version, StateSnapshot(r->state));
-    }
+    //   return std::make_unique<Snapshot>(
+    //     name, security_domain, r->version, StateSnapshot(r->state));
+    // }
 
     void compact(Version v) override
     {

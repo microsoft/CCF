@@ -88,14 +88,19 @@ public:
   }
 
   template <class F>
-  void foreach(F&& f) const
+  bool foreach(F&& f) const
   {
     if (!empty())
     {
       left().foreach(std::forward<F>(f));
-      f(rootKey(), rootValue());
+      if (!f(rootKey(), rootValue()))
+      {
+        return false;
+      }
       right().foreach(std::forward<F>(f));
     }
+
+    return true;
   }
 
 private:

@@ -330,208 +330,210 @@ namespace kv
       return name.compare(ccf::Tables::AFT_REQUESTS) != 0;
     }
 
-    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
-    {
-      auto cv = compacted_version();
-      if (v < cv)
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot snapshot at version {} which is earlier than last "
-          "compacted version {} ",
-          v,
-          cv));
-      }
+    // std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
+    // {
+    //   auto cv = compacted_version();
+    //   if (v < cv)
+    //   {
+    //     throw std::logic_error(fmt::format(
+    //       "Cannot snapshot at version {} which is earlier than last "
+    //       "compacted version {} ",
+    //       v,
+    //       cv));
+    //   }
 
-      if (v > current_version())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot snapshot at version {} which is later than current "
-          "version {} ",
-          v,
-          current_version()));
-      }
+    //   if (v > current_version())
+    //   {
+    //     throw std::logic_error(fmt::format(
+    //       "Cannot snapshot at version {} which is later than current "
+    //       "version {} ",
+    //       v,
+    //       current_version()));
+    //   }
 
-      auto snapshot = std::make_unique<StoreSnapshot>(v);
+    //   auto snapshot = std::make_unique<StoreSnapshot>(v);
 
-      {
-        std::lock_guard<std::mutex> mguard(maps_lock);
+    //   {
+    //     std::lock_guard<std::mutex> mguard(maps_lock);
 
-        for (auto& it : maps)
-        {
-          auto& [_, map] = it.second;
-          map->lock();
-        }
+    //     for (auto& it : maps)
+    //     {
+    //       auto& [_, map] = it.second;
+    //       map->lock();
+    //     }
 
-        for (auto& it : maps)
-        {
-          auto& [_, map] = it.second;
-          snapshot->add_map_snapshot(map->snapshot(v));
-        }
+    //     for (auto& it : maps)
+    //     {
+    //       auto& [_, map] = it.second;
+    //       snapshot->add_map_snapshot(map->snapshot(v));
+    //     }
 
-        auto h = get_history();
-        if (h)
-        {
-          snapshot->add_hash_at_snapshot(h->get_raw_leaf(v));
-        }
+    //     auto h = get_history();
+    //     if (h)
+    //     {
+    //       snapshot->add_hash_at_snapshot(h->get_raw_leaf(v));
+    //     }
 
-        auto c = get_consensus();
-        if (c)
-        {
-          snapshot->add_view_history(c->get_view_history(v));
-        }
+    //     auto c = get_consensus();
+    //     if (c)
+    //     {
+    //       snapshot->add_view_history(c->get_view_history(v));
+    //     }
 
-        for (auto& it : maps)
-        {
-          auto& [_, map] = it.second;
-          map->unlock();
-        }
-      }
+    //     for (auto& it : maps)
+    //     {
+    //       auto& [_, map] = it.second;
+    //       map->unlock();
+    //     }
+    //   }
 
-      return snapshot;
-    }
+    //   return snapshot;
+    // }
 
-    std::vector<uint8_t> serialise_snapshot(
-      std::unique_ptr<AbstractSnapshot> snapshot) override
-    {
-      auto e = get_encryptor();
-      return snapshot->serialise(e);
-    }
+    // std::vector<uint8_t> serialise_snapshot(
+    //   std::unique_ptr<AbstractSnapshot> snapshot) override
+    // {
+    //   auto e = get_encryptor();
+    //   return snapshot->serialise(e);
+    // }
 
-    ApplyResult deserialise_snapshot(
-      const std::vector<uint8_t>& data,
-      kv::ConsensusHookPtrs& hooks,
-      std::vector<Version>* view_history = nullptr,
-      bool public_only = false) override
-    {
-      auto e = get_encryptor();
-      auto d = KvStoreDeserialiser(
-        e,
-        public_only ? kv::SecurityDomain::PUBLIC :
-                      std::optional<kv::SecurityDomain>());
+    // ApplyResult deserialise_snapshot(
+    //   const std::vector<uint8_t>& data,
+    //   kv::ConsensusHookPtrs& hooks,
+    //   std::vector<Version>* view_history = nullptr,
+    //   bool public_only = false) override
+    // {
+    //   auto e = get_encryptor();
+    //   auto d = KvStoreDeserialiser(
+    //     e,
+    //     public_only ? kv::SecurityDomain::PUBLIC :
+    //                   std::optional<kv::SecurityDomain>());
 
-      kv::Term term;
-      auto v_ = d.init(data.data(), data.size(), term, is_historical);
-      if (!v_.has_value())
-      {
-        LOG_FAIL_FMT("Initialisation of deserialise object failed");
-        return ApplyResult::FAIL;
-      }
-      auto [v, _] = v_.value();
+    //   kv::Term term;
+    //   auto v_ = d.init(data.data(), data.size(), term, is_historical);
+    //   if (!v_.has_value())
+    //   {
+    //     LOG_FAIL_FMT("Initialisation of deserialise object failed");
+    //     return ApplyResult::FAIL;
+    //   }
+    //   auto [v, _] = v_.value();
 
-      std::lock_guard<std::mutex> mguard(maps_lock);
+    //   std::lock_guard<std::mutex> mguard(maps_lock);
 
-      for (auto& it : maps)
-      {
-        auto& [_, map] = it.second;
-        map->lock();
-      }
+    //   for (auto& it : maps)
+    //   {
+    //     auto& [_, map] = it.second;
+    //     map->lock();
+    //   }
 
-      std::vector<uint8_t> hash_at_snapshot;
-      auto h = get_history();
-      if (h)
-      {
-        hash_at_snapshot = d.deserialise_raw();
-      }
+    //   std::vector<uint8_t> hash_at_snapshot;
+    //   auto h = get_history();
+    //   if (h)
+    //   {
+    //     hash_at_snapshot = d.deserialise_raw();
+    //   }
 
-      std::vector<Version> view_history_;
-      if (view_history)
-      {
-        view_history_ = d.deserialise_view_history();
-      }
+    //   std::vector<Version> view_history_;
+    //   if (view_history)
+    //   {
+    //     view_history_ = d.deserialise_view_history();
+    //   }
 
-      OrderedChanges changes;
-      MapCollection new_maps;
+    //   OrderedChanges changes;
+    //   MapCollection new_maps;
 
-      for (auto r = d.start_map(); r.has_value(); r = d.start_map())
-      {
-        const auto map_name = r.value();
+    //   for (auto r = d.start_map(); r.has_value(); r = d.start_map())
+    //   {
+    //     const auto map_name = r.value();
 
-        std::shared_ptr<kv::untyped::Map> map = nullptr;
+    //     std::shared_ptr<kv::untyped::Map> map = nullptr;
 
-        auto search = maps.find(map_name);
-        if (search == maps.end())
-        {
-          map = std::make_shared<kv::untyped::Map>(
-            this,
-            map_name,
-            get_security_domain(map_name),
-            is_map_replicated(map_name),
-            should_track_dependencies(map_name));
-          new_maps[map_name] = map;
-          LOG_DEBUG_FMT(
-            "Creating map {} while deserialising snapshot at version {}",
-            map_name,
-            v);
-        }
-        else
-        {
-          map = search->second.second;
-        }
+    //     auto search = maps.find(map_name);
+    //     if (search == maps.end())
+    //     {
+    //       map = std::make_shared<kv::untyped::Map>(
+    //         this,
+    //         map_name,
+    //         get_security_domain(map_name),
+    //         is_map_replicated(map_name),
+    //         should_track_dependencies(map_name));
+    //       new_maps[map_name] = map;
+    //       LOG_DEBUG_FMT(
+    //         "Creating map {} while deserialising snapshot at version {}",
+    //         map_name,
+    //         v);
+    //     }
+    //     else
+    //     {
+    //       map = search->second.second;
+    //     }
 
-        auto changes_search = changes.find(map_name);
-        if (changes_search != changes.end())
-        {
-          LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
-          LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
-          return ApplyResult::FAIL;
-        }
+    //     auto changes_search = changes.find(map_name);
+    //     if (changes_search != changes.end())
+    //     {
+    //       LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
+    //       LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
+    //       return ApplyResult::FAIL;
+    //     }
 
-        auto deserialised_snapshot_changes =
-          map->deserialise_snapshot_changes(d);
+    //     kv::untyped::ChangeSetPtr deserialised_snapshot_changes;
+    //     // auto deserialised_snapshot_changes =
+    //     //   map->deserialise_snapshot_changes(d);
 
-        // Take ownership of the produced change set, store it to be committed
-        // later
-        changes[map_name] = {map, std::move(deserialised_snapshot_changes)};
-      }
+    //     // Take ownership of the produced change set, store it to be
+    //     committed
+    //     // later
+    //     changes[map_name] = {map, std::move(deserialised_snapshot_changes)};
+    //   }
 
-      for (auto& it : maps)
-      {
-        auto& [_, map] = it.second;
-        map->unlock();
-      }
+    //   for (auto& it : maps)
+    //   {
+    //     auto& [_, map] = it.second;
+    //     map->unlock();
+    //   }
 
-      if (!d.end())
-      {
-        LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
-        return ApplyResult::FAIL;
-      }
+    //   if (!d.end())
+    //   {
+    //     LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
+    //     return ApplyResult::FAIL;
+    //   }
 
-      // Each map is committed at a different version, independently of the
-      // overall snapshot version. The commit versions for each map are
-      // contained in the snapshot and applied when the snapshot is committed.
-      auto r = apply_changes(
-        changes,
-        [](bool) { return std::make_tuple(NoVersion, NoVersion); },
-        hooks,
-        new_maps);
-      if (!r.has_value())
-      {
-        LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
-        return ApplyResult::FAIL;
-      }
+    //   // Each map is committed at a different version, independently of the
+    //   // overall snapshot version. The commit versions for each map are
+    //   // contained in the snapshot and applied when the snapshot is
+    //   committed. auto r = apply_changes(
+    //     changes,
+    //     [](bool) { return std::make_tuple(NoVersion, NoVersion); },
+    //     hooks,
+    //     new_maps);
+    //   if (!r.has_value())
+    //   {
+    //     LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}",
+    //     v); return ApplyResult::FAIL;
+    //   }
 
-      {
-        std::lock_guard<std::mutex> vguard(version_lock);
-        version = v;
-        last_replicated = v;
-        last_committable = v;
-      }
+    //   {
+    //     std::lock_guard<std::mutex> vguard(version_lock);
+    //     version = v;
+    //     last_replicated = v;
+    //     last_committable = v;
+    //   }
 
-      if (h)
-      {
-        if (!h->init_from_snapshot(hash_at_snapshot))
-        {
-          return ApplyResult::FAIL;
-        }
-      }
+    //   if (h)
+    //   {
+    //     if (!h->init_from_snapshot(hash_at_snapshot))
+    //     {
+    //       return ApplyResult::FAIL;
+    //     }
+    //   }
 
-      if (view_history)
-      {
-        *view_history = std::move(view_history_);
-      }
+    //   if (view_history)
+    //   {
+    //     *view_history = std::move(view_history_);
+    //   }
 
-      return ApplyResult::PASS;
-    }
+    //   return ApplyResult::PASS;
+    // }
 
     void compact(Version v) override
     {

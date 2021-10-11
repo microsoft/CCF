@@ -14,6 +14,7 @@ struct MapTypes
   using NumNum = kv::Map<size_t, size_t>;
 };
 
+/*
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
@@ -286,3 +287,4 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     }
   }
 }
+*/

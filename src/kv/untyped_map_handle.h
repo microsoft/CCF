@@ -19,8 +19,8 @@ namespace kv::untyped
   using ChangeSet =
     kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
   using ChangeSetPtr = std::unique_ptr<ChangeSet>;
-  using SnapshotChangeSet = kv::
-    SnapshotChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+  // using SnapshotChangeSet = kv::
+  //   SnapshotChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
   class MapHandle : public kv::AbstractHandle
   {

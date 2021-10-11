@@ -4,6 +4,7 @@
 
 #include "ds/champ_map.h"
 #include "ds/hash.h"
+#include "ds/rb_map.h"
 #include "kv/kv_types.h"
 
 #include <map>
@@ -13,9 +14,16 @@ namespace kv
   template <typename V>
   using VersionV = champ::VersionV<V>;
   template <typename K, typename V, typename H>
-  using State = champ::Map<K, VersionV<V>, H>;
-  template <typename K, typename V, typename H>
-  using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
+  using State = RBMap<K, VersionV<V>>;
+  // template <typename K, typename V, typename H>
+  // using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
+
+  // template <typename V>
+  // using VersionV = champ::VersionV<V>;
+  // template <typename K, typename V, typename H>
+  // using State = champ::Map<K, VersionV<V>, H>;
+  // template <typename K, typename V, typename H>
+  // using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
 
   // This is a map of keys and with a tuple of the key's write version and the
   // version of last transaction which read the key and committed successfully
@@ -64,26 +72,27 @@ namespace kv
     }
   };
 
-  // This is a container for a snapshot. It has no dependencies as the snapshot
-  // obliterates the current state.
-  template <typename K, typename V, typename H>
-  struct SnapshotChangeSet : public ChangeSet<K, V, H>
-  {
-    const State<K, V, H> state;
-    const Version version;
+  // // This is a container for a snapshot. It has no dependencies as the
+  // snapshot
+  // // obliterates the current state.
+  // template <typename K, typename V, typename H>
+  // struct SnapshotChangeSet : public ChangeSet<K, V, H>
+  // {
+  //   const State<K, V, H> state;
+  //   const Version version;
 
-    SnapshotChangeSet(State<K, V, H>&& snapshot_state, Version version_) :
-      state(std::move(snapshot_state)),
-      version(version_)
-    {}
+  //   SnapshotChangeSet(State<K, V, H>&& snapshot_state, Version version_) :
+  //     state(std::move(snapshot_state)),
+  //     version(version_)
+  //   {}
 
-    SnapshotChangeSet(SnapshotChangeSet&) = delete;
+  //   SnapshotChangeSet(SnapshotChangeSet&) = delete;
 
-    bool has_writes() const override
-    {
-      return true;
-    }
-  };
+  //   bool has_writes() const override
+  //   {
+  //     return true;
+  //   }
+  // };
 
   /// Signature for transaction commit handlers
   template <typename W>
