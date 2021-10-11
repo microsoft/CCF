@@ -33,6 +33,9 @@ using namespace std::chrono_literals;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
 
+std::chrono::nanoseconds asynchost::TimeBoundLogger::default_max_time(
+  10'000'000);
+
 void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
@@ -201,6 +204,18 @@ int main(int argc, char** argv)
       "Size (bytes) at which a new ledger chunk is created")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
+
+  size_t io_logging_threshold_ns =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(
+      asynchost::TimeBoundLogger::default_max_time)
+      .count();
+  app
+    .add_option(
+      "--io-logging-threshold-ns",
+      io_logging_threshold_ns,
+      "Any IO step that takes longer than this time will be logged at level "
+      "FAIL. This time is given in nanoseconds")
+    ->capture_default_str();
 
   size_t snapshot_tx_interval = 10'000;
   app
@@ -614,6 +629,11 @@ int main(int argc, char** argv)
     LOG_FATAL_FMT("{}. Exiting.", e.what());
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
+
+  asynchost::TimeBoundLogger::default_max_time =
+    std::chrono::duration_cast<decltype(
+      asynchost::TimeBoundLogger::default_max_time)>(
+      std::chrono::nanoseconds(io_logging_threshold_ns));
 
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), node_pid_file);
