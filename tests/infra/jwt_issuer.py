@@ -109,7 +109,7 @@ class JwtIssuer:
         return (key_priv, key_pub), cert
 
     def __init__(
-        self, name=TEST_JWT_ISSUER_NAME, refresh_interval=3, cert=None, cn=None
+        self, name=TEST_JWT_ISSUER_NAME, cert=None, refresh_interval=3, cn=None
     ):
         self.name = name
         self.server = None
