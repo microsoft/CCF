@@ -562,6 +562,8 @@ namespace ccf
               snapshotter->set_snapshot_generation(false);
             }
 
+            View view = VIEW_UNKNOWN;
+            std::vector<kv::Version> view_history = {};
             if (startup_snapshot_info)
             {
               // It is only possible to deserialise the entire snapshot then,
@@ -569,7 +571,7 @@ namespace ccf
               LOG_DEBUG_FMT(
                 "Deserialising snapshot ({})",
                 startup_snapshot_info->raw.size());
-              std::vector<kv::Version> view_history;
+
               kv::ConsensusHookPtrs hooks;
               auto rc = network.tables->deserialise_snapshot(
                 startup_snapshot_info->raw,
@@ -595,9 +597,7 @@ namespace ccf
                 throw std::logic_error(
                   fmt::format("No signatures found after applying snapshot"));
               }
-
-              auto seqno = network.tables->current_version();
-              consensus->init_as_backup(seqno, sig->view, view_history);
+              view = sig->view;
 
               if (!resp.network_info->public_only)
               {
@@ -610,13 +610,12 @@ namespace ccf
               LOG_INFO_FMT(
                 "Joiner successfully resumed from snapshot at seqno {} and "
                 "view {}",
-                seqno,
-                sig->view);
+                network.tables->current_version(),
+                view);
             }
-            else
-            {
-              consensus->init_as_backup(0, 0, {});
-            }
+
+            consensus->init_as_backup(
+              network.tables->current_version(), view, view_history);
 
             if (resp.network_info->public_only)
             {

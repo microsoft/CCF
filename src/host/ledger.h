@@ -656,7 +656,7 @@ namespace asynchost
       // Recover last idx from read-only ledger directories
       for (const auto& read_dir : read_ledger_dirs)
       {
-        LOG_INFO_FMT("Reading read-only ledger directory \"{}\"", read_dir);
+        LOG_INFO_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
         if (!fs::is_directory(read_dir))
         {
           throw std::logic_error(fmt::format(
@@ -685,12 +685,20 @@ namespace asynchost
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
-        LOG_INFO_FMT("Reading main ledger directory \"{}\"", ledger_dir);
+        LOG_INFO_FMT("Recovering main ledger directory \"{}\"", ledger_dir);
 
         std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           auto file_name = f.path().filename();
+          if (
+            is_ledger_file_name_corrupted(file_name) ||
+            is_ledger_file_name_ignored(file_name))
+          {
+            LOG_DEBUG_FMT("Ignoring ledger file {}", file_name);
+            continue;
+          }
+
           std::shared_ptr<LedgerFile> ledger_file = nullptr;
           try
           {
@@ -713,22 +721,14 @@ namespace asynchost
         // entries later on
         for (auto const& f : corrupt_files)
         {
-          if (!is_ledger_file_name_corrupted(f.filename()))
-          {
-            auto new_file_name = fmt::format(
-              "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
-            fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
+          auto new_file_name = fmt::format(
+            "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
+          fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
 
-            LOG_INFO_FMT(
-              "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
-              f.filename(),
-              new_file_name);
-          }
-          else
-          {
-            LOG_DEBUG_FMT(
-              "Corrupted ledger file {} will be ignored", f.filename());
-          }
+          LOG_INFO_FMT(
+            "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
+            f.filename(),
+            new_file_name);
         }
 
         if (files.empty())
@@ -819,12 +819,6 @@ namespace asynchost
         auto file_name = f.path().filename();
         if (get_start_idx_from_file_name(file_name) > idx)
         {
-          LOG_INFO_FMT(
-            "Renaming {} file as it is later than init index {}",
-            file_name,
-            idx);
-          // fs::remove(f);
-
           auto new_file_name =
             fmt::format("{}.{}", file_name.string(), ledger_ignore_file_suffix);
           fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
