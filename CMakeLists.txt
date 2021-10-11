@@ -702,7 +702,7 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL rotation
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )  
+  )
 
   add_e2e_test(
     NAME election_test
