@@ -448,7 +448,7 @@ namespace aft
       state->view_history.initialise(term_history);
 
       ledger->init(index);
-      snapshotter->set_last_snapshot_idx(index);
+      // snapshotter->set_last_snapshot_idx(index);
 
       become_aware_of_new_term(term);
     }
@@ -836,7 +836,7 @@ namespace aft
 
           // Only if globally committable, a snapshot requires a new ledger
           // chunk to be created
-          force_ledger_chunk = snapshotter->record_committable(index);
+          // force_ledger_chunk = snapshotter->record_committable(index);
         }
 
         state->last_idx = index;
@@ -1908,7 +1908,7 @@ namespace aft
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          force_ledger_chunk = snapshotter->record_committable(i);
+          // force_ledger_chunk = snapshotter->record_committable(i);
         }
 
         ledger->put_entry(
@@ -2031,7 +2031,7 @@ namespace aft
       bool force_ledger_chunk = false;
       if (globally_committable)
       {
-        force_ledger_chunk = snapshotter->record_committable(i);
+        // force_ledger_chunk = snapshotter->record_committable(i);
       }
 
       ledger->put_entry(
@@ -3215,10 +3215,10 @@ namespace aft
 
       LOG_DEBUG_FMT("Compacting...");
       // Snapshots are not yet supported with BFT
-      snapshotter->commit(
-        idx,
-        replica_state == kv::ReplicaState::Leader &&
-          consensus_type == ConsensusType::CFT);
+      // snapshotter->commit(
+      //   idx,
+      //   replica_state == kv::ReplicaState::Leader &&
+      //     consensus_type == ConsensusType::CFT);
 
       store->compact(idx);
       ledger->commit(idx);
@@ -3368,7 +3368,7 @@ namespace aft
         return;
       }
 
-      snapshotter->rollback(idx);
+      // snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);

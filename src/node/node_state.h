@@ -228,13 +228,13 @@ namespace ccf
         "Deserialising public snapshot ({})", config.startup_snapshot.size());
 
       kv::ConsensusHookPtrs hooks;
-      auto rc = snapshot_store->deserialise_snapshot(
-        config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::ApplyResult::PASS)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to apply public snapshot: {}", rc));
-      }
+      // auto rc = snapshot_store->deserialise_snapshot(
+      //   config.startup_snapshot, hooks, &view_history, true);
+      // if (rc != kv::ApplyResult::PASS)
+      // {
+      //   throw std::logic_error(
+      //     fmt::format("Failed to apply public snapshot: {}", rc));
+      // }
 
       LOG_INFO_FMT(
         "Public snapshot deserialised at seqno {}",
@@ -571,16 +571,16 @@ namespace ccf
                 startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
               kv::ConsensusHookPtrs hooks;
-              auto rc = network.tables->deserialise_snapshot(
-                startup_snapshot_info->raw,
-                hooks,
-                &view_history,
-                resp.network_info->public_only);
-              if (rc != kv::ApplyResult::PASS)
-              {
-                throw std::logic_error(
-                  fmt::format("Failed to apply snapshot on join: {}", rc));
-              }
+              // auto rc = network.tables->deserialise_snapshot(
+              //   startup_snapshot_info->raw,
+              //   hooks,
+              //   &view_history,
+              //   resp.network_info->public_only);
+              // if (rc != kv::ApplyResult::PASS)
+              // {
+              //   throw std::logic_error(
+              //     fmt::format("Failed to apply snapshot on join: {}", rc));
+              // }
 
               for (auto& hook : hooks)
               {
@@ -1192,13 +1192,13 @@ namespace ccf
           startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
         kv::ConsensusHookPtrs hooks;
-        auto rc = recovery_store->deserialise_snapshot(
-          startup_snapshot_info->raw, hooks, &view_history);
-        if (rc != kv::ApplyResult::PASS)
-        {
-          throw std::logic_error(fmt::format(
-            "Could not deserialise snapshot in recovery store: {}", rc));
-        }
+        // auto rc = recovery_store->deserialise_snapshot(
+        //   startup_snapshot_info->raw, hooks, &view_history);
+        // if (rc != kv::ApplyResult::PASS)
+        // {
+        //   throw std::logic_error(fmt::format(
+        //     "Could not deserialise snapshot in recovery store: {}", rc));
+        // }
 
         startup_snapshot_info.reset();
       }

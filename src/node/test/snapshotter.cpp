@@ -54,7 +54,7 @@ void issue_transactions(ccf::NetworkState& network, size_t tx_count)
   }
 }
 
-TEST_CASE("Regular snapshotting")
+/*TEST_CASE("Regular snapshotting")
 {
   ccf::NetworkState network;
 
@@ -257,3 +257,4 @@ TEST_CASE("Rollback before evidence is committed")
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
   }
 }
+*/

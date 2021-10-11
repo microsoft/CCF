@@ -89,7 +89,9 @@ namespace ccf
     {
       auto snapshot_version = snapshot->get_version();
 
-      auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
+      // auto serialised_snapshot =
+      // store->serialise_snapshot(std::move(snapshot));
+      std::vector<uint8_t> serialised_snapshot = {};
 
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
@@ -251,7 +253,7 @@ namespace ccf
           auto msg =
             std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
           msg->data.self = shared_from_this();
-          msg->data.snapshot = store->snapshot(snapshot_idx);
+          msg->data.snapshot = {}; // store->snapshot(snapshot_idx);
           static uint32_t generation_count = 0;
           threading::ThreadMessaging::thread_messaging.add_task(
             threading::ThreadMessaging::get_execution_thread(
