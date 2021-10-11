@@ -147,11 +147,14 @@ namespace ccf::historical
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
       std::set<ccf::SeqNo> adjust_range(
-        ccf::SeqNo start_seqno, size_t num_following_indices)
+        ccf::SeqNo start_seqno,
+        size_t num_following_indices,
+        bool should_include_receipts)
       {
         if (
           start_seqno == first_requested_seqno &&
-          (num_following_indices + 1) == requested_stores.size())
+          (num_following_indices + 1) == requested_stores.size() &&
+          should_include_receipts == include_receipts)
         {
           // This is precisely the range we're already tracking - do nothing
           return {};
@@ -186,18 +189,23 @@ namespace ccf::historical
         // entry we already had, or a signature in the range we already had, but
         // working that out is tricky so be pessimistic and refetch instead.
         supporting_signature.reset();
-        const auto last_details = get_store_details(last_requested_seqno);
-        if (last_details->store != nullptr && !last_details->is_signature)
+        if (should_include_receipts)
         {
-          const auto next_seqno = last_requested_seqno + 1;
-          supporting_signature =
-            std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-          ret.insert(next_seqno);
+          const auto last_details = get_store_details(last_requested_seqno);
+          if (last_details->store != nullptr && !last_details->is_signature)
+          {
+            const auto next_seqno = last_requested_seqno + 1;
+            supporting_signature =
+              std::make_pair(next_seqno, std::make_shared<StoreDetails>());
+            ret.insert(next_seqno);
+          }
         }
 
         // If the range has changed, forget what ledger secrets we may have been
         // fetching - the caller can begin asking for them again
         ledger_secret_recovery_info = nullptr;
+
+        include_receipts = should_include_receipts;
 
         return ret;
       }
@@ -446,9 +454,12 @@ namespace ccf::historical
           details->store = store;
 
           details->is_signature = is_signature;
-          if (is_signature && request.include_receipts)
+          if (is_signature)
           {
-            // Construct a signature receipt
+            // Construct a signature receipt.
+            // We do this whether it was requested or not, because we have all
+            // the state to do so already, and it's simpler than constructing
+            // the receipt _later_ for an already-fetched signature transaction.
             const auto sig = get_signature(details->store);
             assert(sig.has_value());
             details->receipt = std::make_shared<TxReceipt>(
@@ -547,12 +558,11 @@ namespace ccf::historical
       }
 
       Request& request = it->second;
-      request.include_receipts = include_receipts;
 
       // Update this Request to represent the currently requested range,
       // returning any newly requested indices
-      auto new_indices =
-        request.adjust_range(start_seqno, num_following_indices);
+      auto new_indices = request.adjust_range(
+        start_seqno, num_following_indices, include_receipts);
 
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
