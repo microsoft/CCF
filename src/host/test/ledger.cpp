@@ -11,7 +11,6 @@
 #include <string>
 
 using namespace asynchost;
-
 std::chrono::nanoseconds asynchost::TimeBoundLogger::default_max_time(
   10'000'000);
 
@@ -707,7 +706,7 @@ TEST_CASE("Limit number of open files")
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
   size_t max_read_cache_size = 2;
-  Ledger ledger(ledger_dir, wf, chunk_threshold, true, max_read_cache_size);
+  Ledger ledger(ledger_dir, wf, chunk_threshold, max_read_cache_size);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t initial_number_fd = number_open_fd();
@@ -775,7 +774,7 @@ TEST_CASE("Limit number of open files")
   INFO("Still possible to recover a new ledger");
   {
     initial_number_fd = number_open_fd();
-    Ledger ledger2(ledger_dir, wf, chunk_threshold, true, max_read_cache_size);
+    Ledger ledger2(ledger_dir, wf, chunk_threshold, max_read_cache_size);
 
     // Committed files are not open for write
     REQUIRE(number_open_fd() == initial_number_fd);
@@ -845,12 +844,7 @@ TEST_CASE("Multiple ledger paths")
   INFO("Restore ledger with previous directory");
   {
     Ledger ledger(
-      ledger_dir_2,
-      wf,
-      chunk_threshold,
-      true,
-      max_read_cache_size,
-      {ledger_dir});
+      ledger_dir_2, wf, chunk_threshold, max_read_cache_size, {ledger_dir});
 
     for (size_t i = 1; i <= last_committed_idx; i++)
     {
@@ -867,7 +861,6 @@ TEST_CASE("Multiple ledger paths")
       empty_write_ledger_dir,
       wf,
       chunk_threshold,
-      true,
       max_read_cache_size,
       {ledger_dir});
 
@@ -908,29 +901,10 @@ TEST_CASE("Recover from read-only ledger directory only")
     ledger.commit(last_idx);
   }
 
-  INFO("Start from existing ledger directory, but no recovery");
-  {
-    Ledger ledger(
-      ledger_dir_2,
-      wf,
-      chunk_threshold,
-      false /* No recovery */,
-      max_read_cache_size,
-      {ledger_dir});
-
-    REQUIRE(ledger.get_last_idx() == 0);
-    REQUIRE(ledger.get_startup_last_idx() == last_idx);
-  }
-
   INFO("Recover from read-only ledger entry only");
   {
     Ledger ledger(
-      ledger_dir_2,
-      wf,
-      chunk_threshold,
-      true /* Recover */,
-      max_read_cache_size,
-      {ledger_dir});
+      ledger_dir_2, wf, chunk_threshold, max_read_cache_size, {ledger_dir});
 
     read_entries_range_from_ledger(ledger, 1, last_idx);
 
@@ -984,7 +958,7 @@ TEST_CASE("Invalid ledger file resilience")
     for (auto const& f : invalid_ledger_file_names)
     {
       std::ofstream output(fs::path(ledger_dir) / fs::path(f));
-      Ledger ledger(ledger_dir, wf, chunk_threshold, true, max_read_cache_size);
+      Ledger ledger(ledger_dir, wf, chunk_threshold, max_read_cache_size);
 
       // Restarted ledger can read and write entries
       read_entries_range_from_ledger(ledger, 1, last_idx);
@@ -1026,7 +1000,6 @@ TEST_CASE("Delete committed file from main directory")
     ledger_dir,
     wf,
     chunk_threshold,
-    true,
     max_read_cache_size,
     {ledger_dir_read_only});
   TestEntrySubmitter entry_submitter(ledger);
@@ -1074,22 +1047,21 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
   size_t chunk_count = 5;
   size_t last_idx = 0;
 
-  Ledger src_ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(src_ledger);
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
+
+  SnapshotManager snapshots(snapshot_dir, ledger);
 
   INFO("Write many entries on first ledger");
   {
     // Writing some committed chunks
     initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
     last_idx = entry_submitter.get_last_idx();
-    src_ledger.commit(last_idx);
+    ledger.commit(last_idx);
   }
 
   INFO("Create, commit and retrieve latest snapshot");
   {
-    Ledger ledger(ledger_dir, wf, chunk_threshold);
-    SnapshotManager snapshots(snapshot_dir, ledger);
-
     size_t snapshot_idx = last_idx / 2;
     // Assumes evidence idx and evidence commit idx as next indices
     size_t snapshot_evidence_idx = snapshot_idx + 1;
@@ -1119,15 +1091,12 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
     fs::remove(snapshot_file_name);
   }
 
-  // Snapshot evidence commit idx is past last ledger idx
-  size_t snapshot_idx = last_idx - 1;
-  size_t snapshot_evidence_idx = snapshot_idx + 1; // Still covered by ledger
-  size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
-
   INFO("Snapshot evidence commit past last ledger index");
   {
-    Ledger ledger(ledger_dir, wf, chunk_threshold);
-    SnapshotManager snapshots(snapshot_dir, ledger);
+    // Snapshot evidence commit idx is past last ledger idx
+    size_t snapshot_idx = last_idx - 1;
+    size_t snapshot_evidence_idx = snapshot_idx + 1; // Still covered by ledger
+    size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
 
     snapshots.write_snapshot(
       snapshot_idx,
@@ -1140,15 +1109,10 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
     // Even though snapshot is committed, evidence commit is past last ledger
     // index
     REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
-  }
 
-  INFO("Snapshot evidence commit is now included in ledger");
-  {
+    // Add another entry to ledger, so that ledger's last idx ==
+    // snapshot_evidence_commit_idx
     entry_submitter.write(true); // note: is_committable flag does not matter
-
-    Ledger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
-    SnapshotManager snapshots(snapshot_dir, ledger);
 
     // Snapshot is now valid
     REQUIRE(
