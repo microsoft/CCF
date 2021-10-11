@@ -38,7 +38,7 @@ namespace kv::test
         replica.push_back(entry);
 
         // Simplification: all entries are replicated in the same term
-        view_history.update(std::get<0>(entry), 0);
+        view_history.update(std::get<0>(entry), view);
       }
       return true;
     }
@@ -121,7 +121,7 @@ namespace kv::test
 
     ccf::View get_view(ccf::SeqNo seqno) override
     {
-      return 0;
+      return view_history.view_at(seqno);
     }
 
     ccf::View get_view() override
