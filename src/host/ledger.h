@@ -746,19 +746,16 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        if (!files.empty())
+        auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
+        if (main_ledger_dir_last_idx < last_idx)
         {
-          auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
-          if (main_ledger_dir_last_idx < last_idx)
-          {
-            throw std::logic_error(fmt::format(
-              "Main ledger directory last idx ({}) is less than read-only "
-              "ledger directories last idx ({})",
-              main_ledger_dir_last_idx,
-              last_idx));
-          }
-          last_idx = main_ledger_dir_last_idx;
+          throw std::logic_error(fmt::format(
+            "Main ledger directory last idx ({}) is less than read-only "
+            "ledger directories last idx ({})",
+            main_ledger_dir_last_idx,
+            last_idx));
         }
+        last_idx = main_ledger_dir_last_idx;
 
         // Remove committed files from list of writable files
         for (auto f = files.begin(); f != files.end();)

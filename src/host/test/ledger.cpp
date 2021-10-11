@@ -11,6 +11,7 @@
 #include <string>
 
 using namespace asynchost;
+
 std::chrono::nanoseconds asynchost::TimeBoundLogger::default_max_time(
   10'000'000);
 
