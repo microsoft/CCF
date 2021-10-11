@@ -702,14 +702,7 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL rotation
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
-  add_e2e_test(
-    NAME reconfiguration_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
-  )
+  )  
 
   add_e2e_test(
     NAME election_test
@@ -735,6 +728,12 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
     )
 
+    add_e2e_test(
+      NAME reconfiguration_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+    )
   endforeach()
 
   add_perf_test(
