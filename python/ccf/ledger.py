@@ -677,13 +677,10 @@ class Ledger:
                 if committed_only and not path.endswith(".committed"):
                     continue
                 chunk = os.path.join(directory, path)
-                # The same ledger file may appear multiple times in different directories
-                # so ignore duplicates
                 if (
                     os.path.isfile(chunk)
                     and not path.endswith(".corrupted")
                     and not path.endswith(".ignored")
-                    and not any(os.path.basename(chunk) in f for f in ledger_files)
                 ):
                     ledger_files.append(chunk)
 
