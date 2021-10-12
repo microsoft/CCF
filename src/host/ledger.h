@@ -428,7 +428,7 @@ namespace asynchost
 
       size_t table_offset = 0;
       {
-        TimeBoundLogger log_if_slow("complete - new fseeko");
+        TimeBoundLogger log_if_slow("complete - fseeko end");
         fseeko(file, total_len, SEEK_SET);
         table_offset = ftello(file);
       }
@@ -449,7 +449,7 @@ namespace asynchost
 
       // Write positions table offset at start of file
       {
-        TimeBoundLogger log_if_slow("complete - fseeko 0");
+        TimeBoundLogger log_if_slow("complete - fseeko begin");
         if (fseeko(file, 0, SEEK_SET) != 0)
         {
           throw std::logic_error("Failed to set file offset to 0");
