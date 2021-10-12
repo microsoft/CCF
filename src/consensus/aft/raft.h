@@ -3373,7 +3373,7 @@ namespace aft
 
     void start_ticking_if_necessary()
     {
-      if (is_self_in_latest_config())
+      if (!ticking && is_self_in_latest_config())
       {
         ticking = true;
         using namespace std::chrono_literals;
