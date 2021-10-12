@@ -26,9 +26,19 @@ namespace ccfapp
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  class JSHandlers : public UserEndpointRegistry
+  /**
+   * V8 Handlers, holds the list of handlers from a JavaScript source to be
+   * called via RPC (through RPCFrontend).
+   */
+  class V8Handlers : public UserEndpointRegistry
   {
-  private:
+
+    /**
+     * V8 Endpoint definition
+     */
+    struct V8DynamicEndpoint : public ccf::endpoints::EndpointDefinition
+    {};
+
     NetworkTables& network;
     ccfapp::AbstractNodeContext& context;
     ::metrics::Tracker metrics_tracker;
@@ -37,9 +47,8 @@ namespace ccfapp
     {
       const auto buf = j.dump();
       HandleScope scope(iso);
-      Local<String> result = String::NewFromUtf8(
+      MaybeLocal<String> result = String::NewFromUtf8(
       iso, buf.c_str(), NewStringType::kNormal, static_cast<int>(buf.size()));
-      return Object::New(iso, buf.data(), buf.size(), "<json>");
     }
 
     JSValue create_caller_obj(
@@ -222,38 +231,7 @@ namespace ccfapp
       return request;
     }
 
-    void execute_request(
-      const ccf::endpoints::EndpointProperties& props,
-      ccf::endpoints::EndpointContext& endpoint_ctx)
-    {
-      if (props.mode == ccf::endpoints::Mode::Historical)
-      {
-        auto is_tx_committed =
-          [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
-            return ccf::historical::is_tx_committed_v2(
-              consensus, view, seqno, error_reason);
-          };
-
-        ccf::historical::adapter_v2(
-          [this, &props](
-            ccf::endpoints::EndpointContext& endpoint_ctx,
-            ccf::historical::StatePtr state) {
-            auto tx = state->store->create_tx();
-            auto tx_id = state->transaction_id;
-            auto receipt = state->receipt;
-            assert(receipt);
-            do_execute_request(props, endpoint_ctx, tx, tx_id, receipt);
-          },
-          context.get_historical_state(),
-          is_tx_committed)(endpoint_ctx);
-      }
-      else
-      {
-        do_execute_request(
-          props, endpoint_ctx, endpoint_ctx.tx, std::nullopt, nullptr);
-      }
-    }
-
+    /// Unpacks the request, load the JavaScript, executes the code
     void do_execute_request(
       const ccf::endpoints::EndpointProperties& props,
       ccf::endpoints::EndpointContext& endpoint_ctx,
@@ -464,14 +442,45 @@ namespace ccfapp
       return;
     }
 
-    struct V8DynamicEndpoint : public ccf::endpoints::EndpointDefinition
-    {};
+    /// Execute request
+    void execute_request(
+      const ccf::endpoints::EndpointProperties& props,
+      ccf::endpoints::EndpointContext& endpoint_ctx)
+    {
+      if (props.mode == ccf::endpoints::Mode::Historical)
+      {
+        auto is_tx_committed =
+          [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+            return ccf::historical::is_tx_committed_v2(
+              consensus, view, seqno, error_reason);
+          };
+
+        ccf::historical::adapter_v2(
+          [this, &props](
+            ccf::endpoints::EndpointContext& endpoint_ctx,
+            ccf::historical::StatePtr state) {
+            auto tx = state->store->create_tx();
+            auto tx_id = state->transaction_id;
+            auto receipt = state->receipt;
+            assert(receipt);
+            do_execute_request(props, endpoint_ctx, tx, tx_id, receipt);
+          },
+          context.get_historical_state(),
+          is_tx_committed)(endpoint_ctx);
+      }
+      else
+      {
+        do_execute_request(
+          props, endpoint_ctx, endpoint_ctx.tx, std::nullopt, nullptr);
+      }
+    }
 
     /// Processor options (like --jitless?)
     map<string, string> options;
     /// Isolate Cache (TODO: this needs to detect new programs, not new functions
     unordered_map<string, Isolate> isolate_cache;
 
+    /// Instantiate all auth policies from the endpoint
     void instantiate_authn_policies(V8DynamicEndpoint& endpoint)
     {
       for (const auto& policy_name : endpoint.properties.authn_policies)
@@ -487,13 +496,13 @@ namespace ccfapp
     }
 
   public:
-    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+    V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
       network(network),
       context(context)
     {
       metrics_tracker.install_endpoint(*this);
-      // Initialize V8 target, once per execution, not per program
+      // Initialize V8 target
       InitializeICUDefaultLocation(argv[0]);
       InitializeExternalStartupData(argv[0]);
       std::unique_ptr<Platform> platform = platform::NewDefaultPlatform();
@@ -501,6 +510,7 @@ namespace ccfapp
       Initialize();
     }
 
+    /// Find an endpoint with the parameters in `tx`
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
@@ -524,71 +534,72 @@ namespace ccfapp
       }
 
       // If that doesn't exist, look through _all_ the endpoints to find
-      // templated matches. If there is one, that's a match. More is an error,
-      // none means delegate to the base class.
-      {
-        std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
+      // templated matches.
+      std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
 
-        endpoints->foreach_key(
-          [this, &endpoints, &matches, &key, &rpc_ctx](const auto& other_key) {
-            if (key.verb == other_key.verb)
+      endpoints->foreach_key(
+        [this, &endpoints, &matches, &key, &rpc_ctx](const auto& other_key) {
+          if (key.verb == other_key.verb)
+          {
+            const auto opt_spec =
+              ccf::endpoints::parse_path_template(other_key.uri_path);
+            if (opt_spec.has_value())
             {
-              const auto opt_spec =
-                ccf::endpoints::parse_path_template(other_key.uri_path);
-              if (opt_spec.has_value())
+              const auto& template_spec = opt_spec.value();
+              // This endpoint has templates in its path, and the correct verb
+              // - now check if template matches the current request's path
+              std::smatch match;
+              if (std::regex_match(
+                    key.uri_path, match, template_spec.template_regex))
               {
-                const auto& template_spec = opt_spec.value();
-                // This endpoint has templates in its path, and the correct verb
-                // - now check if template matches the current request's path
-                std::smatch match;
-                if (std::regex_match(
-                      key.uri_path, match, template_spec.template_regex))
+                if (matches.empty())
                 {
-                  if (matches.empty())
+                  // Populate the request_path_params while we have the match,
+                  // though this will be discarded on error if we later find
+                  // multiple matches
+                  auto& path_params = rpc_ctx.get_request_path_params();
+                  for (size_t i = 0;
+                       i < template_spec.template_component_names.size();
+                       ++i)
                   {
-                    // Populate the request_path_params while we have the match,
-                    // though this will be discarded on error if we later find
-                    // multiple matches
-                    auto& path_params = rpc_ctx.get_request_path_params();
-                    for (size_t i = 0;
-                         i < template_spec.template_component_names.size();
-                         ++i)
-                    {
-                      const auto& template_name =
-                        template_spec.template_component_names[i];
-                      const auto& template_value = match[i + 1].str();
-                      path_params[template_name] = template_value;
-                    }
+                    const auto& template_name =
+                      template_spec.template_component_names[i];
+                    const auto& template_value = match[i + 1].str();
+                    path_params[template_name] = template_value;
                   }
-
-                  auto endpoint = std::make_shared<V8DynamicEndpoint>();
-                  endpoint->dispatch = other_key;
-                  endpoint->properties = endpoints->get(other_key).value();
-                  instantiate_authn_policies(*endpoint);
-                  matches.push_back(endpoint);
                 }
+
+                auto endpoint = std::make_shared<V8DynamicEndpoint>();
+                endpoint->dispatch = other_key;
+                endpoint->properties = endpoints->get(other_key).value();
+                instantiate_authn_policies(*endpoint);
+                matches.push_back(endpoint);
               }
             }
-            return true;
-          });
+          }
+          return true;
+        });
 
-        if (matches.size() > 1)
-        {
-          report_ambiguous_templated_path(key.uri_path, matches);
-        }
-        else if (matches.size() == 1)
-        {
-          return matches[0];
-        }
+      // If there is one, that's a match. More is an error,
+      // none means delegate to the base class.
+      if (matches.size() == 1)
+      {
+        return matches[0];
+      }
+      else if (matches.size() > 1)
+      {
+        report_ambiguous_templated_path(key.uri_path, matches);
       }
 
       return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
     }
 
+    /// Execute a V8 endpoint.
     void execute_endpoint(
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::EndpointContext& endpoint_ctx) override
     {
+      // If this is a V8 endpoint, execute.
       auto endpoint = dynamic_cast<const V8DynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
@@ -596,11 +607,11 @@ namespace ccfapp
         return;
       }
 
+      // Otherwise, delegate to the base class.
       ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
     }
 
-    // Since we do our own dispatch within the default handler, report the
-    // supported methods here
+    /// Override `build_api` to show supported local methods.
     void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override
     {
       UserEndpointRegistry::build_api(document, tx);
@@ -608,6 +619,8 @@ namespace ccfapp
       auto endpoints =
         tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
+      // Since we do our own dispatch within the default handler, report the
+      // supported methods here
       endpoints->foreach([&document](const auto& key, const auto& properties) {
         const auto http_verb = key.verb.get_http_method();
         if (!http_verb.has_value())
@@ -636,6 +649,7 @@ namespace ccfapp
       });
     }
 
+    /// Override `tick` to include `metrics_tracker` ticks.
     void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
     {
       metrics_tracker.tick(elapsed, tx_count);
@@ -646,21 +660,25 @@ namespace ccfapp
 
 #pragma clang diagnostic pop
 
-  class JS : public ccf::RpcFrontend
+  /**
+   * V8 Frontend for RPC calls
+   */
+  class V8Frontend : public ccf::RpcFrontend
   {
   private:
-    JSHandlers js_handlers;
+    V8Handlers handlers;
 
   public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, context)
+    V8Frontend(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
+      ccf::RpcFrontend(*network.tables, handlers),
+      handlers(network, context)
     {}
   };
 
+  /// Returns a new V8 Rpc Frontend
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
     NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<JS>(network, context);
+    return make_shared<V8Frontend>(network, context);
   }
 } // namespace ccfapp
