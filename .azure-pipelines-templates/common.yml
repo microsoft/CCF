@@ -2,6 +2,7 @@ jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
+    timeoutInMinutes: ${{ paramters.job_timeout }}
 
     ${{ insert }}: ${{ parameters.env }}
 

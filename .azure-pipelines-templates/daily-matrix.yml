@@ -44,7 +44,7 @@ jobs:
       artifact_name: "NoSGX_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "600"
-      timeoutInMinutes: 120
+      job_timeout: 120
 
   - template: common.yml
     parameters:
@@ -54,6 +54,8 @@ jobs:
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      ctest_timeout: "600"
+      job_timeout: 120
 
   - template: common.yml
     parameters:
@@ -63,3 +65,5 @@ jobs:
       suffix: "Release"
       artifact_name: "SGX_IceLake_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
+      ctest_timeout: "600"
+      job_timeout: 120
