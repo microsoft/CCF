@@ -1003,32 +1003,30 @@ class Network:
         # a write request and then waiting for a commit over that
         end_time = time.time() + timeout
         while time.time() < end_time:
-            with node.client() as c:
+            with node.client(self.consortium.get_any_active_member().local_id) as c:
                 r = c.get("/node/commit")
                 current_tx = TxID.from_str(r.body.json()["transaction_id"])
                 if current_tx.seqno >= seqno:
-                    with node.client(
-                        self.consortium.get_any_active_member().local_id
-                    ) as nc:
-                        # Using update_state_digest here as a convenient write tx
-                        # that is app agnostic
-                        r = nc.post("/gov/ack/update_state_digest")
-                        assert (
-                            r.status_code == http.HTTPStatus.OK.value
-                        ), f"Error ack/update_state_digest: {r}"
-                        c.wait_for_commit(r)
-                        return True
+                    # Using update_state_digest here as a convenient write tx
+                    # that is app agnostic
+                    r = c.post("/gov/ack/update_state_digest")
+                    assert (
+                        r.status_code == http.HTTPStatus.OK.value
+                    ), f"Error ack/update_state_digest: {r}"
+                    c.wait_for_commit(r)
+                    return True
             time.sleep(0.1)
         raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
 
     def wait_for_snapshot_committed_for(self, seqno, timeout=3):
         # Check that snapshot exists for target seqno and if so, wait until
-        # snapshot evidence has commit proof (= commit rule for snapshots)
+        # snapshot evidence is committed
         snapshot_evidence_seqno = None
         primary, _ = self.find_primary()
         for s in os.listdir(primary.get_snapshots()):
-            if infra.node.get_snapshot_seqnos(s)[0] > seqno:
-                snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)[1]
+            snapshot_seqno, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)
+            if snapshot_seqno > seqno:
+                break
         if snapshot_evidence_seqno is None:
             return False
 

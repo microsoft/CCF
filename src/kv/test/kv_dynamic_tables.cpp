@@ -419,7 +419,8 @@ TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))
     kv::ConsensusHookPtrs hooks;
     kv::Store new_store;
     new_store.set_encryptor(encryptor);
-    new_store.deserialise_snapshot(serialised_snapshot, hooks);
+    new_store.deserialise_snapshot(
+      serialised_snapshot.data(), serialised_snapshot.size(), hooks);
 
     auto tx = new_store.create_tx();
     auto handle = tx.rw<MapTypes::StringString>(map_name);

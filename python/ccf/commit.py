@@ -3,6 +3,7 @@
 
 import http
 import time
+import pprint
 
 from typing import Optional, List
 
@@ -47,4 +48,6 @@ def wait_for_commit(
         else:
             time.sleep(0.1)
     flush_info(logs, log_capture, 1)
-    raise TimeoutError("Timed out waiting for commit")
+    raise TimeoutError(
+        f'Timed out waiting for commit: {pprint.pformat(client.get("/node/consensus").body.json())}'
+    )

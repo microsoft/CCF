@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import utils, ec
 
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
+import ccf.receipt
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -31,6 +32,8 @@ LEDGER_HEADER_SIZE = 8
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
+
+COMMITTED_FILE_SUFFIX = ".committed"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -49,7 +52,7 @@ def to_uint_64(buffer):
 
 
 def is_ledger_chunk_committed(file_name):
-    return file_name.endswith(".committed")
+    return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
 def unpack(stream, fmt):
@@ -230,6 +233,24 @@ def _byte_read_safe(file, num_of_bytes):
             f"Failed to read precise number of bytes in {file.name} at offset {offset}: {len(ret)}/{num_of_bytes}"
         )
     return ret
+
+
+def _peek(file, num_bytes, pos=None):
+    save_pos = file.tell()
+    if pos is not None:
+        file.seek(pos)
+    buffer = _byte_read_safe(file, num_bytes)
+    file.seek(save_pos)
+    return buffer
+
+
+def _peek_all(file, pos=None):
+    save_pos = file.tell()
+    if pos is not None:
+        file.seek(pos)
+    buffer = file.read()
+    file.seek(save_pos)
+    return buffer
 
 
 class TxBundleInfo(NamedTuple):
@@ -483,6 +504,7 @@ class Entry:
         # read the transaction header
         buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
         self._header = TransactionHeader(buffer)
+        entry_start_pos = self._file.tell()
 
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
@@ -491,6 +513,8 @@ class Entry:
         # read the size of the public domain
         buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
+
+        return entry_start_pos
 
     def get_public_domain(self) -> PublicDomain:
         """
@@ -551,15 +575,11 @@ class Transaction(Entry):
         """
         assert self._file is not None
 
-        # remember where the pointer is in the file before we go back for the transaction bytes
-        save_pos = self._file.tell()
-        self._file.seek(self._tx_offset)
-        buffer = _byte_read_safe(
-            self._file, TransactionHeader.get_size() + self._header.size
+        return _peek(
+            self._file,
+            TransactionHeader.get_size() + self._header.size,
+            pos=self._tx_offset,
         )
-        # return to original filepointer and return the transaction bytes
-        self._file.seek(save_pos)
-        return buffer
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
@@ -595,14 +615,29 @@ class Snapshot(Entry):
         super().__init__(filename)
         self._filename = filename
         self._file_size = os.path.getsize(filename)
-        super()._read_header()
 
-    def commit_seqno(self):
-        try:
-            return int(self._filename.split("committed_")[1])
-        except IndexError:
-            # Snapshot is not yet committed
-            return None
+        entry_start_pos = super()._read_header()
+
+        # Snapshots embed evidence receipt since 2.x
+        if self.is_committed() and not self.is_snapshot_file_1_x():
+            receipt_pos = entry_start_pos + self._header.size
+            receipt_bytes = _peek_all(self._file, pos=receipt_pos)
+
+            receipt = json.loads(receipt_bytes.decode("utf-8"))
+            root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+            node_cert = load_pem_x509_certificate(
+                receipt["cert"].encode(), default_backend()
+            )
+            ccf.receipt.verify(root, receipt["signature"], node_cert)
+
+    def is_committed(self):
+        # Note: Also valid for 1.x snapshots which end in ".committed_Z"
+        return COMMITTED_FILE_SUFFIX in self._filename
+
+    def is_snapshot_file_1_x(self):
+        if not self.is_committed():
+            raise ValueError(f"Snapshot file {self._filename} is not yet committed")
+        return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
 
 
 class LedgerChunk:
@@ -656,7 +691,7 @@ class Ledger:
     def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
         elements = (
             os.path.basename(filename)
-            .replace(".committed", "")
+            .replace(COMMITTED_FILE_SUFFIX, "")
             .replace("ledger_", "")
             .split("-")
         )
@@ -674,7 +709,7 @@ class Ledger:
         ledger_files: List[str] = []
         for directory in directories:
             for path in os.listdir(directory):
-                if committed_only and not path.endswith(".committed"):
+                if committed_only and not path.endswith(COMMITTED_FILE_SUFFIX):
                     continue
                 chunk = os.path.join(directory, path)
                 # The same ledger file may appear multiple times in different directories
