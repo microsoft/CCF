@@ -142,6 +142,7 @@ namespace aft
     std::chrono::milliseconds election_timeout;
     std::chrono::milliseconds view_change_timeout;
     size_t sig_tx_interval;
+    bool ticking = false;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -266,6 +267,7 @@ namespace aft
         state->view_history.update(1, starting_view_change);
         use_two_tx_reconfig = true;
         require_identity_for_reconfig = true;
+        ticking = true;
       }
 
       if (require_identity_for_reconfig)
@@ -837,6 +839,9 @@ namespace aft
           // Only if globally committable, a snapshot requires a new ledger
           // chunk to be created
           force_ledger_chunk = snapshotter->record_committable(index);
+
+          if (!ticking)
+            ticking = is_self_in_latest_config();
         }
 
         state->last_idx = index;
@@ -1028,7 +1033,10 @@ namespace aft
     {
       {
         std::unique_lock<std::mutex> guard(state->lock);
-        timeout_elapsed += elapsed;
+        if (ticking)
+        {
+          timeout_elapsed += elapsed;
+        }
         if (is_execution_pending)
         {
           return;
@@ -1909,6 +1917,8 @@ namespace aft
         if (globally_committable)
         {
           force_ledger_chunk = snapshotter->record_committable(i);
+          if (!ticking)
+            ticking = is_self_in_latest_config();
         }
 
         ledger->put_entry(
@@ -2032,6 +2042,8 @@ namespace aft
       if (globally_committable)
       {
         force_ledger_chunk = snapshotter->record_committable(i);
+        if (!ticking)
+          ticking = is_self_in_latest_config();
       }
 
       ledger->put_entry(
@@ -3350,6 +3362,18 @@ namespace aft
         throw std::logic_error("Configurations is empty");
       }
       return configurations.back().nodes;
+    }
+
+    bool is_self_in_latest_config()
+    {
+      bool present = false;
+      if (!configurations.empty())
+      {
+        auto current_nodes = configurations.back().nodes;
+        present = current_nodes.find(state->my_node_id) != current_nodes.end();
+      }
+      LOG_FAIL_FMT("NODE IN LATEST COMMITTABLE CONFIG: {}", present);
+      return present;
     }
 
     void rollback(Index idx)
