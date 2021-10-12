@@ -2819,3 +2819,64 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 }
+
+std::string random_string(size_t length)
+{
+  auto randchar = []() -> char {
+    const char charset[] =
+      "0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      "abcdefghijklmnopqrstuvwxyz";
+    const size_t max_index = (sizeof(charset) - 1);
+    return charset[rand() % max_index];
+  };
+  std::string str(length, 0);
+  std::generate_n(str.begin(), length, randchar);
+  return str;
+}
+
+TEST_CASE("Experiment")
+{
+  std::string key = "a";
+  std::string end = "b";
+
+  const auto map_name = "public:map";
+  MapTypes::StringNum map(map_name);
+
+  using SerialisedEntry = kv::serialisers::SerialisedEntry;
+
+  kv::Store store;
+
+  constexpr size_t entry_count = 128;
+
+  for (size_t i = 0; i < entry_count; i++)
+  {
+    auto tx = store.create_tx();
+    auto h = tx.rw(map);
+    h->put(random_string(10), i);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  INFO("Display");
+  {
+    auto tx = store.create_tx();
+    auto h = tx.ro(map);
+
+    std::string start_range = "c";
+    std::string end_range = "z";
+
+    LOG_INFO_FMT("All:");
+    h->foreach([&](const auto& k, const auto& v) {
+      LOG_INFO_FMT("{}: {}", k, v);
+      return true;
+    });
+
+    auto range = h->range(start_range, end_range);
+
+    LOG_INFO_FMT("\n\n\nRange:");
+    for (auto const& e : range)
+    {
+      LOG_INFO_FMT("{}: {}", e.first, e.second);
+    }
+  }
+}

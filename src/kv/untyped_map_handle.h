@@ -249,6 +249,30 @@ namespace kv::untyped
       }
     }
 
+    std::map<KeyType, VersionV> range(const KeyType& start, const KeyType& end)
+    {
+      // Record a global read dependency.
+      tx_changes.read_version = tx_changes.start_version;
+
+      std::map<KeyType, VersionV> ret = {};
+
+      tx_changes.state.foreach(
+        [&start, &end, &ret](const KeyType& k, const VersionV& v) {
+          if (k < start)
+          {
+            return true;
+          }
+          else if (!(k < end))
+          {
+            return false;
+          }
+          ret.emplace(k, v);
+          return true;
+        });
+
+      return ret;
+    }
+
     size_t size()
     {
       size_t size_ = 0;

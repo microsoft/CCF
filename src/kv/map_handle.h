@@ -148,6 +148,22 @@ namespace kv
       read_handle.foreach(g);
     }
 
+    std::map<KeyType, ValueType> range(const K& start, const K& end)
+    {
+      auto ret = read_handle.range(
+        KSerialiser::to_serialised(start), KSerialiser::to_serialised(end));
+
+      std::map<KeyType, ValueType> typed_ret;
+      for (auto const& r : ret)
+      {
+        typed_ret.emplace(
+          KSerialiser::from_serialised(r.first),
+          VSerialiser::from_serialised(r.second.value));
+      }
+
+      return typed_ret;
+    }
+
     /** Iterate over all keys in the map.
      *
      * Similar to @c foreach but the functor takes a single key argument rather
