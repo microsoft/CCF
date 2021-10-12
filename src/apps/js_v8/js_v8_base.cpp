@@ -464,13 +464,27 @@ namespace ccfapp
       return;
     }
 
-    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
+    struct V8DynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
     /// Processor options (like --jitless?)
     map<string, string> options;
     /// Isolate Cache (TODO: this needs to detect new programs, not new functions
     unordered_map<string, Isolate> isolate_cache;
+
+    void instantiate_authn_policies(V8DynamicEndpoint& endpoint)
+    {
+      for (const auto& policy_name : endpoint.properties.authn_policies)
+      {
+        auto policy = get_policy_by_name(policy_name);
+        if (policy == nullptr)
+        {
+          throw std::logic_error(
+            fmt::format("Unknown auth policy: {}", policy_name));
+        }
+        endpoint.authn_policies.push_back(std::move(policy));
+      }
+    }
 
   public:
     JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
@@ -485,20 +499,6 @@ namespace ccfapp
       std::unique_ptr<Platform> platform = platform::NewDefaultPlatform();
       InitializePlatform(platform.get());
       Initialize();
-    }
-
-    void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
-    {
-      for (const auto& policy_name : endpoint.properties.authn_policies)
-      {
-        auto policy = get_policy_by_name(policy_name);
-        if (policy == nullptr)
-        {
-          throw std::logic_error(
-            fmt::format("Unknown auth policy: {}", policy_name));
-        }
-        endpoint.authn_policies.push_back(std::move(policy));
-      }
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
@@ -516,7 +516,7 @@ namespace ccfapp
       const auto it = endpoints->get(key);
       if (it.has_value())
       {
-        auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
+        auto endpoint_def = std::make_shared<V8DynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
         instantiate_authn_policies(*endpoint_def);
@@ -561,7 +561,7 @@ namespace ccfapp
                     }
                   }
 
-                  auto endpoint = std::make_shared<JSDynamicEndpoint>();
+                  auto endpoint = std::make_shared<V8DynamicEndpoint>();
                   endpoint->dispatch = other_key;
                   endpoint->properties = endpoints->get(other_key).value();
                   instantiate_authn_policies(*endpoint);
@@ -589,7 +589,7 @@ namespace ccfapp
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::EndpointContext& endpoint_ctx) override
     {
-      auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
+      auto endpoint = dynamic_cast<const V8DynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
         execute_request(endpoint->properties, endpoint_ctx);
