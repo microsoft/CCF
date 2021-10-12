@@ -3378,7 +3378,7 @@ namespace aft
         ticking = true;
         using namespace std::chrono_literals;
         timeout_elapsed = 0ms;
-        LOG_FAIL_FMT("Election timer has become active");
+        LOG_INFO_FMT("Election timer has become active");
       }
     }
 
