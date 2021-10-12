@@ -121,15 +121,15 @@ def test_add_node_from_snapshot(
     )
     network.trust_node(new_node, args)
 
-    if copy_ledger_read_only:
-        with new_node.client() as c:
-            r = c.get("/node/state")
-            assert (
-                r.body.json()["startup_seqno"] != 0
-            ), "Node started from snapshot but reports startup seqno of 0"
+    with new_node.client() as c:
+        r = c.get("/node/state")
+        assert (
+            r.body.json()["startup_seqno"] != 0
+        ), "Node started from snapshot but reports startup seqno of 0"
 
     # Finally, verify all app entries on the new node, including historical ones
-    network.txs.verify(node=new_node)
+    # from the historical ledger
+    network.txs.verify(node=new_node, include_historical=copy_ledger_read_only)
 
     return network
 
@@ -438,13 +438,6 @@ def run(args):
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-            latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
-            with open(latest_node_log, "r+", encoding="utf-8") as log:
-                assert any(
-                    "No snapshot found: Node will replay all historical transactions"
-                    in l
-                    for l in log.readlines()
-                ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
