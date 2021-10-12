@@ -279,13 +279,21 @@ namespace asynchost
       TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger entry - {} bytes, committable={}", size, committable));
 
-      fseeko(file, total_len, SEEK_SET);
+      {
+        TimeBoundLogger log_if_slow("Writing ledger entry - fseeko");
+        fseeko(file, total_len, SEEK_SET);
+      }
+
       positions.push_back(total_len);
       size_t new_idx = get_last_idx();
 
-      if (fwrite(data, size, 1, file) != 1)
       {
-        throw std::logic_error("Failed to write entry to ledger");
+        TimeBoundLogger log_if_slow(
+          fmt::format("Writing ledger entry - fwrite - {} bytes", size));
+        if (fwrite(data, size, 1, file) != 1)
+        {
+          throw std::logic_error("Failed to write entry to ledger");
+        }
       }
 
       // Committable entries get flushed straight away
@@ -293,7 +301,6 @@ namespace asynchost
       {
         TimeBoundLogger log_if_slow_flush(
           fmt::format("Flushing committable ledger entry - {} bytes", size));
-
         if (fflush(file) != 0)
         {
           throw std::logic_error(fmt::format(
