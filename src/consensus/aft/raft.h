@@ -620,6 +620,21 @@ namespace aft
       create_and_remove_node_state();
     }
 
+    void record_signature(
+      kv::Version version,
+      const std::vector<uint8_t>& sig,
+      const ccf::NodeId& node_id,
+      const crypto::Pem& node_cert)
+    {
+      snapshotter->record_signature(version, sig, node_id, node_cert);
+    }
+
+    void record_serialised_tree(
+      kv::Version version, const std::vector<uint8_t>& tree)
+    {
+      snapshotter->record_serialised_tree(version, tree);
+    }
+
     void reconfigure(
       ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig)
     {

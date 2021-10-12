@@ -135,6 +135,21 @@ namespace aft
       aft->add_configuration(seqno, conf, learners);
     }
 
+    void record_signature(
+      kv::Version version,
+      const std::vector<uint8_t>& sig,
+      const ccf::NodeId& node_id,
+      const crypto::Pem& node_cert) override
+    {
+      aft->record_signature(version, sig, node_id, node_cert);
+    }
+
+    void record_serialised_tree(
+      kv::Version version, const std::vector<uint8_t>& tree) override
+    {
+      aft->record_serialised_tree(version, tree);
+    }
+
     bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
       return aft->orc(rid, node_id);

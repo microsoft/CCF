@@ -14,7 +14,7 @@
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshot.h"
+#include "snapshots.h"
 #include "ticker.h"
 #include "time_updater.h"
 
@@ -873,24 +873,20 @@ int main(int argc, char** argv)
       if (snapshot_file.has_value())
       {
         auto& snapshot = snapshot_file.value();
-        auto snapshot_evidence_idx =
-          asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
-        if (!snapshot_evidence_idx.has_value())
+        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
+
+        if (asynchost::is_snapshot_file_1_x(snapshot))
         {
-          throw std::logic_error(fmt::format(
-            "Snapshot file \"{}\" does not include snapshot evidence seqno",
-            snapshot));
+          // Snapshot evidence seqno is only specified for 1.x snapshots which
+          // need to be verified by deserialising the ledger suffix.
+          ccf_config.startup_snapshot_evidence_seqno_for_1_x =
+            asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
         }
 
-        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
-        ccf_config.startup_snapshot_evidence_seqno =
-          snapshot_evidence_idx->first;
-
         LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
+          "Found latest snapshot file: {} (size: {})",
           snapshot,
-          ccf_config.startup_snapshot.size(),
-          ccf_config.startup_snapshot_evidence_seqno);
+          ccf_config.startup_snapshot.size());
       }
       else
       {

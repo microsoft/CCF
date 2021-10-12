@@ -150,7 +150,7 @@ def run(args_, tables_format_rules=None):
         snapshot_file = args.paths[0]
         with ccf.ledger.Snapshot(snapshot_file) as snapshot:
             LOG.info(
-                f"Reading snapshot from {snapshot_file} ({'' if snapshot.commit_seqno() else 'un'}committed)"
+                f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
             )
             dump_entry(snapshot, table_filter, tables_format_rules)
     else:
