@@ -272,9 +272,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 binary_dir = LOCAL_CHECKOUT_DIRECTORY
                 library_dir = LOCAL_CHECKOUT_DIRECTORY
                 major_version = 1
-                args.js_app_bundle = os.path.join(
-                    LOCAL_CHECKOUT_DIRECTORY, "samples/logging/js"
-                )
+                args.js_app_bundle = os.path.join("..", "samples/logging/js")
 
             if not args.dry_run:
                 network_args = {
