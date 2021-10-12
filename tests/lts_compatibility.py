@@ -239,15 +239,19 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
-    lts_releases = repo.get_lts_releases()
+    lts_releases_ = repo.get_lts_releases()
 
-    LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
+    LOG.info(f"LTS releases: {[r[1] for r in lts_releases_.items()]}")
 
     lts_versions = []
 
     # Add an empty entry to release to indicate local checkout
     # Note: dicts are ordered from Python3.7
-    lts_releases[None] = None
+    lts_releases_[None] = None
+
+    lts_releases = {}
+    for lts in reversed(lts_releases_):
+        lts_releases[lts] = lts_releases_[lts]
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
     with jwt_issuer.start_openid_server():
@@ -366,17 +370,17 @@ if __name__ == "__main__":
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
-    compatibility_report["live compatibility"] = {}
-    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
-    following_lts_version = run_live_compatibility_with_following(
-        args, repo, env.branch
-    )
-    compatibility_report["live compatibility"].update(
-        {"with latest": latest_lts_version}
-    )
-    compatibility_report["live compatibility"].update(
-        {"with following": following_lts_version}
-    )
+    # compatibility_report["live compatibility"] = {}
+    # latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+    # following_lts_version = run_live_compatibility_with_following(
+    #     args, repo, env.branch
+    # )
+    # compatibility_report["live compatibility"].update(
+    #     {"with latest": latest_lts_version}
+    # )
+    # compatibility_report["live compatibility"].update(
+    #     {"with following": following_lts_version}
+    # )
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
@@ -386,12 +390,12 @@ if __name__ == "__main__":
         compatibility_report["data compatibility"].update(
             {"with previous ledger": lts_versions}
         )
-        lts_versions = run_ledger_compatibility_since_first(
-            args, env.branch, use_snapshot=True
-        )
-        compatibility_report["data compatibility"].update(
-            {"with previous snapshots": lts_versions}
-        )
+        # lts_versions = run_ledger_compatibility_since_first(
+        #     args, env.branch, use_snapshot=True
+        # )
+        # compatibility_report["data compatibility"].update(
+        #     {"with previous snapshots": lts_versions}
+        # )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w") as f:
