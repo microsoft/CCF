@@ -840,8 +840,7 @@ namespace aft
           // chunk to be created
           force_ledger_chunk = snapshotter->record_committable(index);
 
-          if (!ticking)
-            ticking = is_self_in_latest_config();
+          start_ticking_if_necessary();
         }
 
         state->last_idx = index;
@@ -1033,10 +1032,7 @@ namespace aft
     {
       {
         std::unique_lock<std::mutex> guard(state->lock);
-        if (ticking)
-        {
-          timeout_elapsed += elapsed;
-        }
+        timeout_elapsed += elapsed;
         if (is_execution_pending)
         {
           return;
@@ -1135,7 +1131,9 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (can_endorse_primary() && timeout_elapsed >= election_timeout)
+        if (
+          can_endorse_primary() && ticking &&
+          timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -1917,8 +1915,7 @@ namespace aft
         if (globally_committable)
         {
           force_ledger_chunk = snapshotter->record_committable(i);
-          if (!ticking)
-            ticking = is_self_in_latest_config();
+          start_ticking_if_necessary();
         }
 
         ledger->put_entry(
@@ -2042,8 +2039,7 @@ namespace aft
       if (globally_committable)
       {
         force_ledger_chunk = snapshotter->record_committable(i);
-        if (!ticking)
-          ticking = is_self_in_latest_config();
+        start_ticking_if_necessary();
       }
 
       ledger->put_entry(
@@ -3374,6 +3370,16 @@ namespace aft
       }
       LOG_FAIL_FMT("NODE IN LATEST COMMITTABLE CONFIG: {}", present);
       return present;
+    }
+
+    void start_ticking_if_necessary()
+    {
+      if (is_self_in_latest_config())
+      {
+        ticking = true;
+        using namespace std::chrono_literals;
+        timeout_elapsed = 0ms;
+      }
     }
 
     void rollback(Index idx)
