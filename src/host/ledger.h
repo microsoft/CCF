@@ -284,6 +284,9 @@ namespace asynchost
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Writing ledger entry - {} bytes, committable={}", size, committable));
+
       fseeko(file, total_len, SEEK_SET);
       positions.push_back(total_len);
       size_t new_idx = get_last_idx();
@@ -294,10 +297,16 @@ namespace asynchost
       }
 
       // Committable entries get flushed straight away
-      if (committable && fflush(file) != 0)
+      if (committable)
       {
-        throw std::logic_error(
-          fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
+        TimeBoundLogger log_if_slow_flush(
+          fmt::format("Flushing committable ledger entry - {} bytes", size));
+
+        if (fflush(file) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to flush entry to ledger: {}", strerror(errno)));
+        }
       }
 
       total_len += size;
@@ -418,34 +427,51 @@ namespace asynchost
         return;
       }
 
-      fseeko(file, total_len, SEEK_SET);
-      size_t table_offset = ftello(file);
-
-      if (
-        fwrite(
-          reinterpret_cast<uint8_t*>(positions.data()),
-          sizeof(positions.at(0)),
-          positions.size(),
-          file) != positions.size())
+      size_t table_offset = 0;
       {
-        throw std::logic_error("Failed to write positions table to ledger");
+        TimeBoundLogger log_if_slow("complete - new fseeko");
+        fseeko(file, total_len, SEEK_SET);
+        table_offset = ftello(file);
+      }
+
+      {
+        TimeBoundLogger log_if_slow(
+          fmt::format("complete - write positions: {}", positions.size()));
+        if (
+          fwrite(
+            reinterpret_cast<uint8_t*>(positions.data()),
+            sizeof(positions.at(0)),
+            positions.size(),
+            file) != positions.size())
+        {
+          throw std::logic_error("Failed to write positions table to ledger");
+        }
       }
 
       // Write positions table offset at start of file
-      if (fseeko(file, 0, SEEK_SET) != 0)
       {
-        throw std::logic_error("Failed to set file offset to 0");
+        TimeBoundLogger log_if_slow("complete - fseeko 0");
+        if (fseeko(file, 0, SEEK_SET) != 0)
+        {
+          throw std::logic_error("Failed to set file offset to 0");
+        }
       }
 
-      if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
       {
-        throw std::logic_error("Failed to write positions table to ledger");
+        TimeBoundLogger log_if_slow("complete - write offset");
+        if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
+        {
+          throw std::logic_error("Failed to write positions table to ledger");
+        }
       }
 
-      if (fflush(file) != 0)
       {
-        throw std::logic_error(
-          fmt::format("Failed to flush ledger file: {}", strerror(errno)));
+        TimeBoundLogger log_if_slow("complete - fflush");
+        if (fflush(file) != 0)
+        {
+          throw std::logic_error(
+            fmt::format("Failed to flush ledger file: {}", strerror(errno)));
+        }
       }
 
       completed = true;
@@ -912,13 +938,16 @@ namespace asynchost
       const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
       TimeBoundLogger log_if_slow(fmt::format(
-        "Writing ledger entry - {} bytes, committable={}, force_chunk={}",
+        "Writing ledger entry - {} bytes, committable={}, force_chunk={}, "
+        "require_new_file={}",
         size,
         committable,
-        force_chunk));
+        force_chunk,
+        require_new_file));
 
       if (require_new_file)
       {
+        TimeBoundLogger log_if_slow_new_file("write_entry - new file");
         files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
         require_new_file = false;
       }
@@ -935,6 +964,7 @@ namespace asynchost
         committable &&
         (force_chunk || f->get_current_size() >= chunk_threshold))
       {
+        TimeBoundLogger log_if_slow_complete("write_entry - complete");
         f->complete();
         require_new_file = true;
         LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
