@@ -521,7 +521,6 @@ namespace ccf
             {
               // It is only possible to deserialise the entire snapshot then,
               // once the ledger secrets have been passed in by the network
-              std::vector<kv::Version> view_history;
               kv::ConsensusHookPtrs hooks;
               deserialise_snapshot(
                 network.tables,
