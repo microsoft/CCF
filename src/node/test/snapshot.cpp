@@ -106,7 +106,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       kv::ConsensusHookPtrs hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
-          serialised_snapshot, hooks, &view_history) == kv::ApplyResult::FAIL);
+          serialised_snapshot.data(),
+          serialised_snapshot.size(),
+          hooks,
+          &view_history) == kv::ApplyResult::FAIL);
     }
 
     INFO("Apply snapshot taken at signature");
@@ -119,7 +122,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       kv::ConsensusHookPtrs hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
-          serialised_snapshot, hooks, &view_history) == kv::ApplyResult::PASS);
+          serialised_snapshot.data(),
+          serialised_snapshot.size(),
+          hooks,
+          &view_history) == kv::ApplyResult::PASS);
 
       // Merkle history and view history thus far are restored when applying
       // snapshot

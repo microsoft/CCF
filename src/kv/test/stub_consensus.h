@@ -40,7 +40,7 @@ namespace kv::test
         replica.push_back(entry);
 
         // Simplification: all entries are replicated in the same term
-        view_history.update(std::get<0>(entry), 0);
+        view_history.update(std::get<0>(entry), view);
       }
       return true;
     }
@@ -123,7 +123,7 @@ namespace kv::test
 
     ccf::View get_view(ccf::SeqNo seqno) override
     {
-      return 0;
+      return view_history.view_at(seqno);
     }
 
     ccf::View get_view() override
@@ -160,6 +160,17 @@ namespace kv::test
     {
       return false;
     }
+
+    void record_signature(
+      kv::Version version,
+      const std::vector<uint8_t>& sig,
+      const NodeId& node_id,
+      const crypto::Pem& node_cert) override
+    {}
+
+    void record_serialised_tree(
+      kv::Version version, const std::vector<uint8_t>& tree) override
+    {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
