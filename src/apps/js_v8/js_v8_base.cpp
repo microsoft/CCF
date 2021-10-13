@@ -9,6 +9,7 @@
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
 #include "v8.h"
+#include "libplatform/libplatform.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 
@@ -495,6 +496,18 @@ namespace ccfapp
       }
     }
 
+    // Creates a new endpoint match from key/value pairs.
+    ccf::endpoints::EndpointDefinitionPtr new_endpoint_match(
+        const ccf::endpoints::EndpointKey& key,
+        const ccf::endpoints::EndpointProperties& value)
+    {
+      auto endpoint = std::make_shared<V8DynamicEndpoint>();
+      endpoint->dispatch = key;
+      endpoint->properties = value;
+      instantiate_authn_policies(*endpoint);
+      return endpoint;
+    }
+
   public:
     V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
@@ -503,34 +516,32 @@ namespace ccfapp
     {
       metrics_tracker.install_endpoint(*this);
       // Initialize V8 target
-      InitializeICUDefaultLocation(argv[0]);
-      InitializeExternalStartupData(argv[0]);
-      std::unique_ptr<Platform> platform = platform::NewDefaultPlatform();
-      InitializePlatform(platform.get());
-      Initialize();
+      V8::InitializeICUDefaultLocation("v8handler");
+      V8::InitializeExternalStartupData("v8handler");
+      std::unique_ptr<Platform> platform = v8::platform::NewDefaultPlatform();
+      V8::InitializePlatform(platform.get());
+      V8::Initialize();
     }
 
     /// Find an endpoint with the parameters in `tx`
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
-      const auto method = rpc_ctx.get_method();
-      const auto verb = rpc_ctx.get_request_verb();
-
+      // Read-only map handle to all endpoints
       auto endpoints =
         tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
+      // Prepare the endpoint key
+      const auto method = rpc_ctx.get_method();
+      const auto verb = rpc_ctx.get_request_verb();
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
       // Look for a direct match of the given path
       const auto it = endpoints->get(key);
       if (it.has_value())
       {
-        auto endpoint_def = std::make_shared<V8DynamicEndpoint>();
-        endpoint_def->dispatch = key;
-        endpoint_def->properties = it.value();
-        instantiate_authn_policies(*endpoint_def);
-        return endpoint_def;
+        // Direct matches just return the endpoint
+        return new_endpoint_match(key, it.value());
       }
 
       // If that doesn't exist, look through _all_ the endpoints to find
@@ -569,10 +580,7 @@ namespace ccfapp
                   }
                 }
 
-                auto endpoint = std::make_shared<V8DynamicEndpoint>();
-                endpoint->dispatch = other_key;
-                endpoint->properties = endpoints->get(other_key).value();
-                instantiate_authn_policies(*endpoint);
+                auto endpoint = new_endpoint_match(other_key, endpoints->get(other_key).value());
                 matches.push_back(endpoint);
               }
             }
@@ -580,17 +588,18 @@ namespace ccfapp
           return true;
         });
 
-      // If there is one, that's a match. More is an error,
-      // none means delegate to the base class.
+      // If there is one, that's a match.
       if (matches.size() == 1)
       {
         return matches[0];
       }
+      // More is an error,
       else if (matches.size() > 1)
       {
         report_ambiguous_templated_path(key.uri_path, matches);
       }
 
+      // none means delegate to the base class.
       return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
     }
 
@@ -653,7 +662,6 @@ namespace ccfapp
     void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
     {
       metrics_tracker.tick(elapsed, tx_count);
-
       ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
