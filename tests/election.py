@@ -105,7 +105,7 @@ if __name__ == "__main__":
             run,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(args, f=1),
-            raft_election_timeout_ms=500,
+            raft_election_timeout_ms=1000,
             consensus="cft",
         )
 
