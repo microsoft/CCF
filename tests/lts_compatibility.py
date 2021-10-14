@@ -3,6 +3,7 @@
 import infra.network
 import infra.e2e_args
 import infra.proc
+import infra.certs
 import infra.logging_app as app
 import infra.utils
 import infra.github
@@ -348,7 +349,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                 # Verify that all nodes run the expected CCF version
                 for node in nodes:
-                    # Note: /node/version endpoint was added in 2.x
+                    # Note: /node/version endpoint and custom certificate validity
+                    # were added in 2.x
                     if not node.major_version or node.major_version > 1:
                         with node.client() as c:
                             r = c.get("/node/version")
@@ -357,6 +359,10 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                             assert (
                                 r.body.json()["ccf_version"] == expected_version
                             ), f"Node version is not {expected_version}"
+                        infra.certs.verify_certificate_validity_period(
+                            node.get_tls_certificate_pem(),
+                            expected_validity_period_days=args.max_allowed_node_cert_validity_days,
+                        )
 
                 # Rollover JWKS so that new primary must read historical CA bundle table
                 # and retrieve new keys via auto refresh

@@ -268,6 +268,7 @@ class Node:
             binary_dir=self.binary_dir,
             additional_raw_node_args=self.additional_raw_node_args,
             version=self.version,
+            major_version=self.major_version,
             **kwargs,
         )
         self.remote.setup()

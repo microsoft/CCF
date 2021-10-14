@@ -581,6 +581,7 @@ class CCFRemote(object):
         initial_node_cert_validity_days=None,
         max_allowed_node_cert_validity_days=None,
         version=None,
+        major_version=None,
         include_addresses=True,
         additional_raw_node_args=None,
     ):
@@ -660,9 +661,6 @@ class CCFRemote(object):
                 f"--public-rpc-address={make_address(pub_host, rpc_port)}",
             ]
 
-        if node_client_host:
-            cmd += [f"--node-client-interface={node_client_host}"]
-
         if log_format_json:
             cmd += ["--log-format-json"]
 
@@ -706,10 +704,15 @@ class CCFRemote(object):
         if client_connection_timeout_ms:
             cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
-        if initial_node_cert_validity_days:
-            cmd += [
-                f"--initial-node-cert-validity-days={initial_node_cert_validity_days}"
-            ]
+        # Added in 1.x
+        if not major_version or major_version > 1:
+            if initial_node_cert_validity_days:
+                cmd += [
+                    f"--initial-node-cert-validity-days={initial_node_cert_validity_days}"
+                ]
+
+            if node_client_host:
+                cmd += [f"--node-client-interface={node_client_host}"]
 
         if additional_raw_node_args:
             for s in additional_raw_node_args:
@@ -740,10 +743,12 @@ class CCFRemote(object):
                         data_files.append(os.path.join(self.common_dir, mf))
                 cmd += [member_info_cmd]
 
-            if max_allowed_node_cert_validity_days:
-                cmd += [
-                    f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
-                ]
+            # Added in 1.x
+            if not major_version or major_version > 1:
+                if max_allowed_node_cert_validity_days:
+                    cmd += [
+                        f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
+                    ]
 
         elif start_type == StartType.join:
             cmd += [

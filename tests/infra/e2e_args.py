@@ -361,7 +361,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--max-allowed-node-cert-validity-days",
         help="Maximum validity period (days) for certificates of trusted nodes",
         type=int,
-        default=365,
+        default=365,  # TODO: Set to something random and see if tests still work
     )
 
     add(parser)

@@ -121,9 +121,6 @@ def run(args):
             network.txs.issue(network, number_txs=1)
             network.txs.issue(network, number_txs=1, repeat=True)
 
-            # TODO: Delete
-            reconfiguration.test_node_certificates_validity_period(network, args)
-
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % 2 == 0:
@@ -136,6 +133,9 @@ def run(args):
             else:
                 recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
+
+            reconfiguration.test_node_certificates_validity_period(network, args)
+
             LOG.success("Recovery complete on all nodes")
 
 

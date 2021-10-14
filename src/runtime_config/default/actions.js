@@ -156,6 +156,7 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
 // 2. Pass `valid_to` to `transition_node_to_trusted`
 // 3. Rename things and set initial default period to 24h
 // 4. Create set_all_nodes_certificate_validity proposal
+// 5. Add proposal to set max allowed node certificate validity
 
 const actions = new Map([
   [

@@ -418,11 +418,11 @@ def test_learner_does_not_take_part(network, args):
 @reqs.description("Test node certificates validity period")
 def test_node_certificates_validity_period(network, args):
     for node in network.get_joined_nodes():
-        infra.certs.verify_certificate_validity_period(
+        valid_from, valid_to = infra.certs.verify_certificate_validity_period(
             node.get_tls_certificate_pem(), args.max_allowed_node_cert_validity_days
         )
         LOG.info(
-            f"Certificate validity period for node {node.local_node_id} successfully verified"
+            f"Certificate validity period for node {node.local_node_id} successfully verified: {valid_from} - {valid_to}"
         )
 
 

@@ -7,7 +7,6 @@ from enum import IntEnum
 import secrets
 import datetime
 import hashlib
-from datetime import datetime
 
 
 from cryptography import x509

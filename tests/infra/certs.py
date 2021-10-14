@@ -41,3 +41,5 @@ def verify_certificate_validity_period(
         raise ValueError(
             f'Validity period for certiticate is not as expected: valid to "{valid_to}, expected to "{expected_valid_to}"'
         )
+
+    return valid_from, valid_to
