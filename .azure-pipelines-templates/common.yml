@@ -3,9 +3,6 @@ jobs:
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
 
-    - ${{ if not(eq(parameters.job_timeout, '')) }}:
-      timeoutInMinutes: ${{ parameters.job_timeout }}
-
     ${{ insert }}: ${{ parameters.env }}
 
     steps:
