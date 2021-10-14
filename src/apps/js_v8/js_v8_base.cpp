@@ -237,29 +237,52 @@ namespace ccfapp
       const ccf::endpoints::EndpointProperties& props,
       ccf::endpoints::EndpointContext& endpoint_ctx,
       kv::Tx& target_tx,
+      // For historical requests
       const std::optional<ccf::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
     {
-      js::Runtime rt;
-      rt.add_ccf_classdefs();
+      // Creates an "isolate", which is like a browser tab or a sandbox.
+      // We create one per request, which is wasteful if we get the same request multiple times.
+      // TODO: Use a cache for existing requests / code.
+      // TODO: Compile code to Wasm/obj and cache those!
+      Isolate::CreateParams create_params;
+      create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
+      Isolate* isolate = Isolate::New(create_params);
+      Isolate::Scope scope(isolate);
 
-      V8_SetModuleLoaderFunc(
-        rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
+      // TODO: Populate the global context
+      // js::TxContext txctx{&target_tx, js::TxAccess::APP};
+      // js::register_request_body_class(ctx);
+      // js::populate_global(
+      //   &txctx,
+      //   endpoint_ctx.rpc_ctx.get(),
+      //   transaction_id,
+      //   receipt,
+      //   nullptr,
+      //   &context.get_node_state(),
+      //   nullptr,
+      //   ctx);
 
-      js::Context ctx(rt);
-      js::TxContext txctx{&target_tx, js::TxAccess::APP};
+      // Parse the source
+      Local<String> source = props.js_module;
+      Local<String> function_name = props.js_function;
+      
+      // TODO: Add process.cc as a header/impl
+      /// Processor options (like --jitless?)
+      // map<string, string> options;
+      // JsHttpRequestProcessor processor(isolate, source);
+      // map<string, string> output;
+      // if (!processor.Initialize(&options, &output)) {
+      //   fprintf(stderr, "Error initializing processor.\n");
+      //   return 1;
+      // }
+      // if (!ProcessEntries(isolate, platform.get(), &processor, kSampleSize,
+      //                     kSampleRequests)) {
+      //   return 1;
+      // }
 
-      js::register_request_body_class(ctx);
-      js::populate_global(
-        &txctx,
-        endpoint_ctx.rpc_ctx.get(),
-        transaction_id,
-        receipt,
-        nullptr,
-        &context.get_node_state(),
-        nullptr,
-        ctx);
-
+      // The actual function object
+      // Local<Object> = ...;
       JSValue export_func;
       try
       {
@@ -450,6 +473,7 @@ namespace ccfapp
     {
       if (props.mode == ccf::endpoints::Mode::Historical)
       {
+        // Historical mode need a v2 adapter (why?)
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
             return ccf::historical::is_tx_committed_v2(
@@ -471,15 +495,11 @@ namespace ccfapp
       }
       else
       {
+        // Read/Write mode just execute directly
         do_execute_request(
           props, endpoint_ctx, endpoint_ctx.tx, std::nullopt, nullptr);
       }
     }
-
-    /// Processor options (like --jitless?)
-    map<string, string> options;
-    /// Isolate Cache (TODO: this needs to detect new programs, not new functions
-    unordered_map<string, Isolate> isolate_cache;
 
     /// Instantiate all auth policies from the endpoint
     void instantiate_authn_policies(V8DynamicEndpoint& endpoint)
