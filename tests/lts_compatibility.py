@@ -381,7 +381,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 ledger_dir, committed_ledger_dir = primary.get_ledger(
                     include_read_only_dirs=True
                 )
-                network.stop_all_nodes()
+                network.stop_all_nodes(skip_verification=True)
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
