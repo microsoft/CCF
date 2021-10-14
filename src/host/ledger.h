@@ -29,7 +29,6 @@ namespace asynchost
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
   static constexpr auto ledger_corrupt_file_suffix = "corrupted";
-  static constexpr auto ledger_ignore_file_suffix = "ignored";
 
   static inline bool is_ledger_file_committed(const std::string& file_name)
   {

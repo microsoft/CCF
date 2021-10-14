@@ -53,7 +53,6 @@ jobs:
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
-      ctest_timeout: "600"
 
   - template: common.yml
     parameters:
