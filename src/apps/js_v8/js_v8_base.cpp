@@ -8,10 +8,10 @@
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
-#include "v8.h"
 #include "libplatform/libplatform.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
+#include "v8httpproc.h"
 
 #include <memory>
 #include <stdexcept>

@@ -402,6 +402,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     add_library(
       js_v8_base.virtual STATIC
       ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
+      ${CCF_DIR}/src/apps/js_v8/v8httpproc.cpp
     )
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)
