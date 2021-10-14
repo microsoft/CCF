@@ -410,6 +410,7 @@ if __name__ == "__main__":
     args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.jwt_key_refresh_interval_s = 3
+    args.sig_ms_interval = 1000  # Set to cchost default value
 
     # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"
