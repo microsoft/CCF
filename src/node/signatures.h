@@ -23,6 +23,7 @@ namespace ccf
     ccf::View commit_view = 0;
     /// Root of the Merkle Tree as of seqno - 1
     crypto::Sha256Hash root;
+    /// Service-endorsed certificate of the node which produced the signature
     crypto::Pem cert;
 
     PrimarySignature() {}

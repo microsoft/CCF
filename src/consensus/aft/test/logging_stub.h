@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/raft_types.h"
 
@@ -362,28 +363,25 @@ namespace aft
   class StubSnapshotter
   {
   public:
-    void update(Index, bool)
-    {
-      // For now, do not test snapshots in unit tests
-      return;
-    }
+    void update(Index, bool) {}
 
     bool record_committable(Index)
     {
-      // For now, do not test snapshots in unit tests
       return false;
     }
 
-    void commit(Index, bool)
-    {
-      // For now, do not test snapshots in unit tests
-      return;
-    }
+    void commit(Index, bool) {}
 
-    void rollback(Index)
-    {
-      // For now, do not test snapshots in unit tests
-      return;
-    }
+    void rollback(Index) {}
+
+    void record_serialised_tree(Index version, const std::vector<uint8_t>& tree)
+    {}
+
+    void record_signature(
+      Index,
+      const std::vector<uint8_t>&,
+      const ccf::NodeId&,
+      const crypto::Pem&)
+    {}
   };
 }
