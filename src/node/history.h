@@ -201,7 +201,7 @@ namespace ccf
     {
       return {
         {term_of_last_version, version},
-        crypto::Sha256Hash(std::to_string(version)),
+        crypto::Sha256Hash(CBuffer(std::to_string(version))),
         term_of_next_version};
     }
 
@@ -223,7 +223,7 @@ namespace ccf
     void set_endorsed_certificate(const crypto::Pem& cert) override {}
   };
 
-  typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
+  using HistoryTree = merkle::TreeT<32, merkle::sha256_openssl>;
 
   class Proof
   {

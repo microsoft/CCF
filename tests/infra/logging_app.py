@@ -137,7 +137,14 @@ class LoggingTxs:
                 tx_id=TxID(rep_pub.view, rep_pub.seqno)
             )
 
-    def verify(self, network=None, node=None, timeout=3, log_capture=None):
+    def verify(
+        self,
+        network=None,
+        node=None,
+        timeout=3,
+        log_capture=None,
+        include_historical=True,
+    ):
         if network is not None:
             self.network = network
         if self.network is None:
@@ -166,17 +173,19 @@ class LoggingTxs:
             for priv_idx, priv_value in self.priv.items():
                 # Verifying all historical transactions is expensive, verify only a sample
                 for v in sample_list(priv_value, sample_count):
-                    self._verify_tx(
-                        node,
-                        priv_idx,
-                        v["msg"],
-                        v["seqno"],
-                        v["view"],
-                        priv=True,
-                        historical=(v != priv_value[-1]),
-                        timeout=timeout,
-                        log_capture=log_capture,
-                    )
+                    is_historical_entry = v != priv_value[-1]
+                    if not is_historical_entry or include_historical:
+                        self._verify_tx(
+                            node,
+                            priv_idx,
+                            v["msg"],
+                            v["seqno"],
+                            v["view"],
+                            priv=True,
+                            historical=is_historical_entry,
+                            timeout=timeout,
+                            log_capture=log_capture,
+                        )
 
         LOG.info("Successfully verified logging txs")
 
