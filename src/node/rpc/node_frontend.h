@@ -267,7 +267,7 @@ namespace ccf
                 "Unable to get time: {}", ccf::api_result_to_str(result)));
           }
 
-          endorsed_certificate = create_endorsed_cert(
+          endorsed_certificate = crypto::create_endorsed_cert(
             in.certificate_signing_request.value(),
             crypto::OpenSSL::to_x509_time_string(time.tv_sec),
             config->node_cert_allowed_validity_period_days.value_or(
@@ -1179,7 +1179,7 @@ namespace ccf
             ctx.tx.rw(network.node_endorsed_certificates);
           endorsed_certificates->put(
             in.node_id,
-            create_endorsed_cert(
+            crypto::create_endorsed_cert(
               in.certificate_signing_request,
               in.node_cert_valid_from,
               config->node_cert_allowed_validity_period_days.value_or(

@@ -167,6 +167,13 @@ def run_code_upgrade_from(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
                 network.trust_node(new_node, args)
+                # Note: validity period for 2.x node joining 1.x service is hardcoded
+                # to 365 days since existing service is not capable of issuing endorsed
+                # node certificate
+                infra.certs.verify_certificate_validity_period(
+                    new_node.get_tls_certificate_pem(),
+                    expected_validity_period_days=365,
+                )
                 from_snapshot = not from_snapshot
                 new_nodes.append(new_node)
 

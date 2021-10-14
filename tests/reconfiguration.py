@@ -12,7 +12,7 @@ from infra.checker import check_can_progress, check_does_not_progress
 import ccf.ledger
 import json
 import infra.crypto
-from datetime import datetime, timedelta
+import infra.certs
 
 from loguru import logger as LOG
 
@@ -37,39 +37,14 @@ def count_nodes(configs, network):
     return len(nodes)
 
 
-def verify_node_certificate_validity_period(node, args):
-    # Verify self-signed certificate validity period
-    valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
-        node.get_tls_certificate_pem()
-    )
-
-    # Node certificate should have been issued within this test run (generous window in case
-    # the node was spun a while ago)
-    if valid_from < datetime.utcnow() - timedelta(hours=3):
-        raise ValueError(
-            f'Node {node.local_node_id} certificate is too old: valid from "{valid_from}"'
-        )
-
-    # Note: CCF substracts one second from validity period since x509
-    # specifies that validity dates are inclusive.
-    expected_valid_to = valid_from + timedelta(
-        days=args.initial_node_cert_validity_days, seconds=-1
-    )
-    if valid_to != expected_valid_to:
-        raise ValueError(
-            f'Validity period for node {node.local_node_id} certiticate is not as expected: from "{valid_from}"" to "{valid_to}"" but expected to "{expected_valid_to}"'
-        )
-    LOG.info(
-        f"Verified validity period for node {node.local_node_id} certificate: {valid_from} - {valid_to}"
-    )
-
-
 @reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
     # Verify self-signed node certificate validity period
-    verify_node_certificate_validity_period(new_node, args)
+    infra.certs.verify_certificate_validity_period(
+        new_node.get_tls_certificate_pem(), args.initial_node_cert_validity_days
+    )
     network.trust_node(new_node, args)
     with new_node.client() as c:
         s = c.get("/node/state")
@@ -81,7 +56,6 @@ def test_add_node(network, args):
     return network
 
 
-@reqs.description("Adding a node on different curve")
 def test_add_node_on_other_curve(network, args):
     original_curve = args.curve_id
     args.curve_id = (
@@ -444,7 +418,12 @@ def test_learner_does_not_take_part(network, args):
 @reqs.description("Test node certificates validity period")
 def test_node_certificates_validity_period(network, args):
     for node in network.get_joined_nodes():
-        verify_node_certificate_validity_period(node, args)
+        infra.certs.verify_certificate_validity_period(
+            node.get_tls_certificate_pem(), args.max_allowed_node_cert_validity_days
+        )
+        LOG.info(
+            f"Certificate validity period for node {node.local_node_id} successfully verified"
+        )
 
 
 def run(args):
