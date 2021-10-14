@@ -2,7 +2,9 @@ jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
-    timeoutInMinutes: ${{ parameters.job_timeout }}
+
+    - ${{ if not(eq(parameters.job_timeout, '')) }}:
+      timeoutInMinutes: ${{ parameters.job_timeout }}
 
     ${{ insert }}: ${{ parameters.env }}
 
