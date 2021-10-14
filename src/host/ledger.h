@@ -72,11 +72,6 @@ namespace asynchost
     return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
   }
 
-  static inline bool is_ledger_file_name_ignored(const std::string& file_name)
-  {
-    return nonstd::ends_with(file_name, ledger_ignore_file_suffix);
-  }
-
   std::optional<std::string> get_file_name_with_idx(
     const std::string& dir, size_t idx)
   {
@@ -84,12 +79,10 @@ namespace asynchost
     for (auto const& f : fs::directory_iterator(dir))
     {
       // If any file, based on its name, contains idx. Only committed
-      // (i.e. those with a last idx) and non-corrupted/non-ignored files are
-      // considered here.
+      // (i.e. those with a last idx) and non-corrupted files are considered
+      // here.
       auto f_name = f.path().filename();
-      if (
-        is_ledger_file_name_corrupted(f_name) ||
-        is_ledger_file_name_ignored(f_name))
+      if (is_ledger_file_name_corrupted(f_name))
       {
         continue;
       }
@@ -700,11 +693,9 @@ namespace asynchost
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           auto file_name = f.path().filename();
-          if (
-            is_ledger_file_name_corrupted(file_name) ||
-            is_ledger_file_name_ignored(file_name))
+          if (is_ledger_file_name_corrupted(file_name))
           {
-            LOG_DEBUG_FMT("Ignoring ledger file {}", file_name);
+            LOG_INFO_FMT("Ignoring corrupted ledger file {}", file_name);
             continue;
           }
 
@@ -740,12 +731,11 @@ namespace asynchost
             new_file_name);
         }
 
-        LOG_INFO_FMT(
-          "Main ledger directory \"{}\" is empty: no ledger file to recover",
-          ledger_dir);
-
         if (files.empty())
         {
+          LOG_INFO_FMT(
+            "Main ledger directory \"{}\" is empty: no ledger file to recover",
+            ledger_dir);
           require_new_file = true;
           return;
         }
@@ -823,30 +813,22 @@ namespace asynchost
       // As it is possible that some ledger files containing indices later than
       // snapshot index already exist (e.g. to verify the snapshot evidence),
       // delete those so that ledger can restart neatly.
-      bool has_renamed = false;
+      bool has_deleted = false;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
-        if (
-          get_start_idx_from_file_name(file_name) > idx &&
-          !is_ledger_file_name_ignored(file_name))
+        if (get_start_idx_from_file_name(file_name) > idx)
         {
-          auto new_file_name =
-            fmt::format("{}.{}", file_name.string(), ledger_ignore_file_suffix);
-          fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
-
           LOG_INFO_FMT(
-            "Renamed ledger file {} to \"{}\" as it is later than start seqno "
-            "{} (file will be ignored)",
+            "Deleting ledger file {} it is later than init seqno {}",
             file_name,
-            new_file_name,
             idx);
-
-          has_renamed = true;
+          fs::remove(f);
+          has_deleted = true;
         }
       }
 
-      if (has_renamed)
+      if (has_deleted)
       {
         files.clear();
         require_new_file = true;
@@ -864,6 +846,9 @@ namespace asynchost
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
+      TimeBoundLogger log_if_slow(
+        fmt::format("Reading ledger entry at {}", idx));
+
       auto f = get_file_from_idx(idx);
       if (f == nullptr)
       {
