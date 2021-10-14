@@ -622,6 +622,14 @@ namespace aft
       create_and_remove_node_state();
     }
 
+    void start_ticking()
+    {
+      ticking = true;
+      using namespace std::chrono_literals;
+      timeout_elapsed = 0ms;
+      LOG_INFO_FMT("Election timer has become active");
+    }
+
     void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,
@@ -3390,10 +3398,7 @@ namespace aft
     {
       if (!ticking && is_self_in_latest_config())
       {
-        ticking = true;
-        using namespace std::chrono_literals;
-        timeout_elapsed = 0ms;
-        LOG_INFO_FMT("Election timer has become active");
+        start_ticking();
       }
     }
 

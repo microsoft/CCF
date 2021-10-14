@@ -118,6 +118,7 @@ void keep_earliest_append_entries_for_each_target(
     request_timeout, \
     election_timeout, \
     election_timeout); \
+  r##N.start_ticking(); \
   initial_config[node_id##N] = {}; \
   nodes[node_id##N] = &r##N; \
   auto channels##N = channel_stub_proxy(r##N);
