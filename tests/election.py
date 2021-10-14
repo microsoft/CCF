@@ -46,6 +46,7 @@ def run(args):
 
         network.start_and_join(args)
         current_view = None
+        primary, current_view = network.find_primary()
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(args.nodes) / 2)
@@ -54,12 +55,7 @@ def run(args):
 
         primary_is_known = True
         for node_to_stop in range(nodes_to_stop):
-            # Note that for the first iteration, the primary is known in advance anyway
-            LOG.debug("Find freshly elected primary")
-            # After a view change in bft, finding the new primary takes longer
-            primary, current_view = network.find_primary(
-                timeout=(30 if args.consensus == "bft" else 3)
-            )
+            primary, current_view = network.find_primary()
 
             LOG.debug(
                 "Commit new transactions, primary:{}, current_view:{}".format(
@@ -105,7 +101,7 @@ if __name__ == "__main__":
             run,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(args, f=1),
-            raft_election_timeout_ms=500,
+            raft_election_timeout_ms=1000,
             consensus="cft",
         )
 
