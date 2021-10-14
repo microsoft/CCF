@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "node/signatures.h"
 
 namespace ccf
 {
@@ -116,6 +117,52 @@ namespace ccf
       {
         consensus->reconfigure(version, nc);
       }
+    }
+  };
+
+  // Note: The SignaturesHook and SerialisedMerkleTreeHook are separate because
+  // the signature and the Merkle tree are recorded in distinct tables (for
+  // serialisation performance reasons). However here, they are expected to
+  // always be called together and for the same version as they are always
+  // written by each signature transaction.
+  class SignaturesHook : public kv::ConsensusHook
+  {
+    kv::Version version;
+    PrimarySignature sig;
+
+  public:
+    SignaturesHook(kv::Version version_, const Signatures::Write& w) :
+      version(version_)
+    {
+      assert(w.has_value()); // Signatures are never deleted
+      version = version_;
+      sig = w.value();
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      consensus->record_signature(version, sig.sig, sig.node, sig.cert);
+    }
+  };
+
+  class SerialisedMerkleTreeHook : public kv::ConsensusHook
+  {
+    kv::Version version;
+    std::vector<uint8_t> tree;
+
+  public:
+    SerialisedMerkleTreeHook(
+      kv::Version version_, const SerialisedMerkleTree::Write& w) :
+      version(version_)
+    {
+      assert(w.has_value()); // Merkle trees are never deleted
+      version = version_;
+      tree = w.value();
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      consensus->record_serialised_tree(version, tree);
     }
   };
 

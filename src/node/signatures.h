@@ -23,6 +23,8 @@ namespace ccf
     ccf::View commit_view = 0;
     /// Root of the Merkle Tree as of seqno - 1
     crypto::Sha256Hash root;
+    /// Service-endorsed certificate of the node which produced the signature
+    crypto::Pem cert;
 
     PrimarySignature() {}
 
@@ -41,18 +43,22 @@ namespace ccf
       ccf::View commit_view_,
       const crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
-      const std::vector<uint8_t>& sig_) :
+      const std::vector<uint8_t>& sig_,
+      const crypto::Pem& cert_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
       commit_seqno(commit_seqno_),
       commit_view(commit_view_),
-      root(root_)
+      root(root_),
+      cert(cert_)
     {}
   };
-  DECLARE_JSON_TYPE_WITH_BASE(PrimarySignature, NodeSignature)
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
+    PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
     PrimarySignature, seqno, view, commit_seqno, commit_view, root)
+  DECLARE_JSON_OPTIONAL_FIELDS(PrimarySignature, cert);
 
   // Most recent signature is a single Value in the KV
   using Signatures = ServiceValue<PrimarySignature>;

@@ -201,7 +201,7 @@ namespace ccf
     {
       return {
         {term_of_last_version, version},
-        crypto::Sha256Hash(std::to_string(version)),
+        crypto::Sha256Hash(CBuffer(std::to_string(version))),
         term_of_next_version};
     }
 
@@ -219,9 +219,11 @@ namespace ccf
     {
       return {};
     }
+
+    void set_endorsed_certificate(const crypto::Pem& cert) override {}
   };
 
-  typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
+  using HistoryTree = merkle::TreeT<32, merkle::sha256_openssl>;
 
   class Proof
   {
@@ -292,6 +294,7 @@ namespace ccf
     kv::TxHistory& history;
     NodeId id;
     crypto::KeyPair& kp;
+    crypto::Pem& endorsed_cert;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -300,13 +303,15 @@ namespace ccf
       kv::Store& store_,
       kv::TxHistory& history_,
       const NodeId& id_,
-      crypto::KeyPair& kp_) :
+      crypto::KeyPair& kp_,
+      crypto::Pem& endorsed_cert_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
       history(history_),
       id(id_),
-      kp(kp_)
+      kp(kp_),
+      endorsed_cert(endorsed_cert_)
     {}
 
     kv::PendingTxInfo call() override
@@ -357,7 +362,8 @@ namespace ccf
         commit_txid.term,
         root,
         hashed_nonce,
-        primary_sig);
+        primary_sig,
+        endorsed_cert);
 
       if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
@@ -516,6 +522,8 @@ namespace ccf
     std::mutex state_lock;
     kv::Term term_of_last_version = 0;
     kv::Term term_of_next_version;
+
+    std::optional<crypto::Pem> endorsed_cert = std::nullopt;
 
   public:
     HashedTxHistory(
@@ -809,10 +817,12 @@ namespace ccf
         commit_txid.version,
         commit_txid.previous_version);
 
+      assert(endorsed_cert.has_value());
+
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, commit_txid, store, *this, id, kp),
+          txid, commit_txid, store, *this, id, kp, endorsed_cert.value()),
         true);
     }
 
@@ -859,6 +869,11 @@ namespace ccf
       crypto::Sha256Hash rh({data.data(), data.size()});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
+    }
+
+    void set_endorsed_certificate(const crypto::Pem& cert) override
+    {
+      endorsed_cert = cert;
     }
   };
 

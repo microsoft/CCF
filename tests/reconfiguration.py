@@ -121,15 +121,15 @@ def test_add_node_from_snapshot(
     )
     network.trust_node(new_node, args)
 
-    if copy_ledger_read_only:
-        with new_node.client() as c:
-            r = c.get("/node/state")
-            assert (
-                r.body.json()["startup_seqno"] != 0
-            ), "Node started from snapshot but reports startup seqno of 0"
+    with new_node.client() as c:
+        r = c.get("/node/state")
+        assert (
+            r.body.json()["startup_seqno"] != 0
+        ), "Node started from snapshot but reports startup seqno of 0"
 
     # Finally, verify all app entries on the new node, including historical ones
-    network.txs.verify(node=new_node)
+    # from the historical ledger
+    network.txs.verify(node=new_node, include_historical=copy_ledger_read_only)
 
     return network
 
@@ -236,40 +236,38 @@ def test_version(network, args):
 
 
 @reqs.description("Replace a node on the same addresses")
-@reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
     primary, backups = network.find_nodes()
 
-    nodes = network.get_joined_nodes()
     node_to_replace = backups[-1]
-    f = infra.e2e_args.max_f(args, len(nodes))
-    f_backups = backups[:f]
-
-    # Retire one node
+    LOG.info(f"Retiring node {node_to_replace.local_node_id}")
     network.retire_node(primary, node_to_replace)
     node_to_replace.stop()
     check_can_progress(primary)
 
-    # Add in a node using the same address
+    LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
-        f"local://{node_to_replace.host}:{node_to_replace.rpc_port}",
+        f"local://{node_to_replace.rpc_host}:{node_to_replace.rpc_port}",
         node_port=node_to_replace.node_port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
-    assert replacement_node.host == node_to_replace.host
+    assert replacement_node.rpc_host == node_to_replace.rpc_host
     assert replacement_node.node_port == node_to_replace.node_port
     assert replacement_node.rpc_port == node_to_replace.rpc_port
+
+    allowed_to_suspend_count = network.get_f() - len(network.get_stopped_nodes())
+    backups_to_suspend = backups[:allowed_to_suspend_count]
     LOG.info(
-        f"Stopping {len(f_backups)} other nodes to make progress depend on the replacement"
+        f"Suspending {len(backups_to_suspend)} other nodes to make progress depend on the replacement"
     )
-    for other_backup in f_backups:
+    for other_backup in backups_to_suspend:
         other_backup.suspend()
     # Confirm the network can make progress
     check_can_progress(primary)
-    for other_backup in f_backups:
+    for other_backup in backups_to_suspend:
         other_backup.resume()
 
     return network
@@ -440,13 +438,6 @@ def run(args):
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)
             test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-            latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
-            with open(latest_node_log, "r+", encoding="utf-8") as log:
-                assert any(
-                    "No snapshot found: Node will replay all historical transactions"
-                    in l
-                    for l in log.readlines()
-                ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
@@ -519,7 +510,7 @@ def run_join_old_snapshot(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
+    args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_user_count = 1
 

@@ -22,6 +22,7 @@
 #include "network_state.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
+#include "node/node_to_node_channel_manager.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
@@ -146,44 +147,6 @@ namespace ccf
     //
     std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
 
-    struct StartupSnapshotInfo
-    {
-      std::vector<uint8_t>& raw;
-      consensus::Index seqno;
-      consensus::Index evidence_seqno;
-
-      // Store used to verify a snapshot (either created fresh when a node joins
-      // from a snapshot or points to the main store when recovering from a
-      // snapshot)
-      std::shared_ptr<kv::Store> store = nullptr;
-
-      // The snapshot to startup from (on join or recovery) is only valid once a
-      // signature ledger entry confirms that the snapshot evidence was
-      // committed
-      bool has_evidence = false;
-      bool is_evidence_committed = false;
-
-      StartupSnapshotInfo(
-        const std::shared_ptr<kv::Store>& store_,
-        std::vector<uint8_t>& raw_,
-        consensus::Index seqno_,
-        consensus::Index evidence_seqno_) :
-        raw(raw_),
-        seqno(seqno_),
-        evidence_seqno(evidence_seqno_),
-        store(store_)
-      {}
-
-      bool is_snapshot_verified()
-      {
-        return has_evidence && is_evidence_committed;
-      }
-
-      ~StartupSnapshotInfo()
-      {
-        reset_data(raw);
-      }
-    };
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
@@ -198,7 +161,8 @@ namespace ccf
 #endif
     }
 
-    void initialise_startup_snapshot(bool recovery = false)
+    // Returns true if the snapshot is already verified (via embedded receipt)
+    bool initialise_startup_snapshot(bool recovery = false)
     {
       std::shared_ptr<kv::Store> snapshot_store;
       if (!recovery)
@@ -223,32 +187,20 @@ namespace ccf
         snapshot_store = network.tables;
       }
 
-      LOG_INFO_FMT(
-        "Deserialising public snapshot ({})", config.startup_snapshot.size());
-
       kv::ConsensusHookPtrs hooks;
-      auto rc = snapshot_store->deserialise_snapshot(
-        config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::ApplyResult::PASS)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to apply public snapshot: {}", rc));
-      }
+      startup_snapshot_info = initialise_from_snapshot(
+        snapshot_store,
+        std::move(config.startup_snapshot),
+        hooks,
+        &view_history,
+        true,
+        config.startup_snapshot_evidence_seqno_for_1_x);
 
-      LOG_INFO_FMT(
-        "Public snapshot deserialised at seqno {}",
-        snapshot_store->current_version());
-
-      startup_seqno = snapshot_store->current_version();
-
-      ledger_idx = snapshot_store->current_version();
+      startup_seqno = startup_snapshot_info->seqno;
+      ledger_idx = startup_seqno.value();
       last_recovered_signed_idx = ledger_idx;
 
-      startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-        snapshot_store,
-        config.startup_snapshot,
-        ledger_idx,
-        config.startup_snapshot_evidence_seqno);
+      return !startup_snapshot_info->requires_ledger_verification();
     }
 
   public:
@@ -306,7 +258,8 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<ccf::NodeToNodeImpl>(writer_factory);
+      n2n_channels =
+        std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
@@ -333,7 +286,6 @@ namespace ccf
         get_subject_alternative_names();
 
       js::register_class_ids();
-      js::register_ffi_plugins();
       self_signed_node_cert = create_self_signed_node_cert();
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -352,6 +304,11 @@ namespace ccf
       }
 #endif
 
+      setup_history();
+      setup_progress_tracker();
+      setup_snapshotter();
+      setup_encryptor();
+
       switch (start_type)
       {
         case StartType::New:
@@ -364,15 +321,12 @@ namespace ccf
           if (network.consensus_type == ConsensusType::BFT)
           {
             endorsed_node_cert = create_endorsed_node_cert();
+            history->set_endorsed_certificate(endorsed_node_cert.value());
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
           }
 
-          setup_snapshotter();
-          setup_encryptor();
           setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
-          setup_progress_tracker();
-          setup_history();
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -395,14 +349,16 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (!config.startup_snapshot.empty())
+          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
           {
-            initialise_startup_snapshot();
-            sm.advance(State::verifyingSnapshot);
+            // Note: 2.x snapshots are self-verified so the ledger verification
+            // of its evidence can be skipped entirely
+            sm.advance(State::pending);
           }
           else
           {
-            sm.advance(State::pending);
+            // Node joins from a 1.x snapshot
+            sm.advance(State::verifyingSnapshot);
           }
 
           LOG_INFO_FMT("Created join node {}", self);
@@ -415,16 +371,6 @@ namespace ccf
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             "CN=CCF Network", curve_id);
 
-          setup_history();
-
-          // It is necessary to give an encryptor to the store for it to
-          // deserialise the public domain when recovering the public ledger.
-          // Once the public recovery is complete, the existing encryptor is
-          // replaced with a new one initialised with the recovered ledger
-          // secrets.
-          setup_encryptor();
-
-          setup_snapshotter();
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
 
@@ -542,6 +488,7 @@ namespace ccf
               // self-sign own certificate and use it to endorse TLS
               // connections.
               endorsed_node_cert = create_endorsed_node_cert();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels_cert = endorsed_node_cert.value();
               open_frontend(ActorsType::members);
               open_user_frontend();
@@ -553,15 +500,11 @@ namespace ccf
                 resp.network_info->endorsed_certificate.value();
             }
 
-            setup_snapshotter();
-            setup_encryptor();
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
               resp.network_info->public_only,
               n2n_channels_cert);
-            setup_progress_tracker();
-            setup_history();
             auto_refresh_jwt_keys();
 
             if (resp.network_info->public_only)
@@ -576,21 +519,15 @@ namespace ccf
             {
               // It is only possible to deserialise the entire snapshot then,
               // once the ledger secrets have been passed in by the network
-              LOG_DEBUG_FMT(
-                "Deserialising snapshot ({})",
-                startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
               kv::ConsensusHookPtrs hooks;
-              auto rc = network.tables->deserialise_snapshot(
+              deserialise_snapshot(
+                network.tables,
                 startup_snapshot_info->raw,
                 hooks,
                 &view_history,
-                resp.network_info->public_only);
-              if (rc != kv::ApplyResult::PASS)
-              {
-                throw std::logic_error(
-                  fmt::format("Failed to apply snapshot on join: {}", rc));
-              }
+                resp.network_info->public_only,
+                startup_snapshot_info->evidence_seqno);
 
               for (auto& hook : hooks)
               {
@@ -838,8 +775,9 @@ namespace ccf
 
         if (
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
+          startup_snapshot_info->evidence_seqno.has_value() &&
           static_cast<consensus::Index>(last_sig->commit_seqno) >=
-            startup_snapshot_info->evidence_seqno)
+            startup_snapshot_info->evidence_seqno.value())
         {
           startup_snapshot_info->is_evidence_committed = true;
         }
@@ -860,7 +798,9 @@ namespace ccf
         auto tx = store->create_read_only_tx();
         auto snapshot_evidence = tx.ro(network.snapshot_evidence);
 
-        if (ledger_idx == startup_snapshot_info->evidence_seqno)
+        if (
+          startup_snapshot_info->evidence_seqno.has_value() &&
+          ledger_idx == startup_snapshot_info->evidence_seqno.value())
         {
           auto evidence = snapshot_evidence->get();
           if (!evidence.has_value())
@@ -872,7 +812,7 @@ namespace ccf
           {
             LOG_DEBUG_FMT(
               "Snapshot evidence for snapshot found at {}",
-              startup_snapshot_info->evidence_seqno);
+              startup_snapshot_info->evidence_seqno.value());
             startup_snapshot_info->has_evidence = true;
           }
         }
@@ -904,7 +844,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Snapshot evidence at {} was not committed in ledger ending at {}. "
           "Node should be shutdown by operator.",
-          startup_snapshot_info->evidence_seqno,
+          startup_snapshot_info->evidence_seqno.value(),
           ledger_idx);
         return;
       }
@@ -919,7 +859,9 @@ namespace ccf
     {
       sm.expect(State::readingPublicLedger);
 
-      if (startup_snapshot_info)
+      if (
+        startup_snapshot_info &&
+        startup_snapshot_info->requires_ledger_verification())
       {
         if (!startup_snapshot_info->is_snapshot_verified())
         {
@@ -927,7 +869,9 @@ namespace ccf
             "Snapshot evidence was not committed in ledger");
         }
 
-        if (last_recovered_signed_idx < startup_snapshot_info->evidence_seqno)
+        if (
+          last_recovered_signed_idx <
+          startup_snapshot_info->evidence_seqno.value())
         {
           throw std::logic_error("Snapshot evidence would be rolled back");
         }
@@ -955,12 +899,12 @@ namespace ccf
       if (network.consensus_type == ConsensusType::BFT)
       {
         endorsed_node_cert = create_endorsed_node_cert();
+        history->set_endorsed_certificate(endorsed_node_cert.value());
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
       }
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
-      setup_encryptor();
 
       // Initialise snapshotter after public recovery
       snapshotter->init_after_public_recovery();
@@ -992,7 +936,6 @@ namespace ccf
       }
 
       setup_consensus(ServiceStatus::OPENING, true);
-      setup_progress_tracker();
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
@@ -1198,19 +1141,15 @@ namespace ccf
 
       if (startup_snapshot_info)
       {
-        LOG_INFO_FMT(
-          "Deserialising private snapshot for recovery ({})",
-          startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
         kv::ConsensusHookPtrs hooks;
-        auto rc = recovery_store->deserialise_snapshot(
-          startup_snapshot_info->raw, hooks, &view_history);
-        if (rc != kv::ApplyResult::PASS)
-        {
-          throw std::logic_error(fmt::format(
-            "Could not deserialise snapshot in recovery store: {}", rc));
-        }
-
+        deserialise_snapshot(
+          recovery_store,
+          startup_snapshot_info->raw,
+          hooks,
+          &view_history,
+          false,
+          startup_snapshot_info->evidence_seqno);
         startup_snapshot_info.reset();
       }
 
@@ -1376,6 +1315,9 @@ namespace ccf
           !sm.check(State::partOfPublicNetwork) &&
           !sm.check(State::readingPrivateLedger))
         {
+          LOG_DEBUG_FMT(
+            "Ignoring node msg received too early - current state is {}",
+            sm.value());
           return;
         }
 
@@ -1383,9 +1325,11 @@ namespace ccf
         {
           case channel_msg:
           {
-            n2n_channels->recv_message(from, payload_data, payload_size);
+            n2n_channels->recv_channel_message(
+              from, payload_data, payload_size);
             break;
           }
+
           case consensus_msg:
           {
             consensus->recv_message(from, payload_data, payload_size);
@@ -1877,6 +1821,7 @@ namespace ccf
               }
 
               endorsed_node_cert = endorsed_certificate.value();
+              history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
               accept_network_tls_connections();
 
@@ -1962,6 +1907,11 @@ namespace ccf
 
     void setup_history()
     {
+      if (history)
+      {
+        throw std::logic_error("History already initialised");
+      }
+
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
@@ -1969,14 +1919,16 @@ namespace ccf
         sig_tx_interval,
         sig_ms_interval,
         true);
-
       network.tables->set_history(history);
     }
 
     void setup_encryptor()
     {
-      // This function makes use of ledger secrets and should be called once
-      // the node has joined the service
+      if (encryptor)
+      {
+        throw std::logic_error("Encryptor already initialised");
+      }
+
       encryptor = make_encryptor();
       network.tables->set_encryptor(encryptor);
     }
@@ -1989,7 +1941,6 @@ namespace ccf
     {
       setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
-      setup_tracker_store();
 
       auto request_tracker = std::make_shared<aft::RequestTracker>();
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
@@ -2066,6 +2017,22 @@ namespace ccf
             return std::make_unique<ResharingsHook>(version, w);
           }));
 
+      network.tables->set_map_hook(
+        network.signatures.get_name(),
+        network.signatures.wrap_map_hook(
+          [](kv::Version version, const Signatures::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<SignaturesHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.serialise_tree.get_name(),
+        network.serialise_tree.wrap_map_hook(
+          [](kv::Version version, const SerialisedMerkleTree::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<SerialisedMerkleTreeHook>(version, w);
+          }));
+
       setup_basic_hooks();
     }
 
@@ -2073,6 +2040,11 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::BFT)
       {
+        if (progress_tracker)
+        {
+          throw std::logic_error("Progress tracker already initialised");
+        }
+
         setup_tracker_store();
         progress_tracker =
           std::make_shared<ccf::ProgressTracker>(tracker_store, self);
@@ -2082,6 +2054,10 @@ namespace ccf
 
     void setup_snapshotter()
     {
+      if (snapshotter)
+      {
+        throw std::logic_error("Snapshotter already initialised");
+      }
       snapshotter = std::make_shared<Snapshotter>(
         writer_factory, network.tables, config.snapshot_tx_interval);
     }

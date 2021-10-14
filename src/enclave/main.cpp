@@ -4,7 +4,6 @@
 #include "common/enclave_interface_types.h"
 #include "ds/json.h"
 #include "ds/logger.h"
-#include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
@@ -26,6 +25,9 @@ std::atomic<uint16_t> num_complete_threads = 0;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+
+std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
+  2'000'000);
 
 extern "C"
 {

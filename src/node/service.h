@@ -25,7 +25,9 @@ namespace ccf
 
   struct ServiceInfo
   {
+    /// x.509 Service Certificate, as a PEM string
     crypto::Pem cert;
+    /// Status of the service
     ServiceStatus status;
   };
   DECLARE_JSON_TYPE(ServiceInfo);

@@ -11,6 +11,7 @@
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/snapshot_evidence.h"
+#include "node/snapshot_serdes.h"
 
 #include <deque>
 #include <optional>
@@ -36,15 +37,19 @@ namespace ccf
       consensus::Index idx;
       consensus::Index evidence_idx;
 
-      // The evidence isn't committed when the snapshot is generated
-      std::optional<consensus::Index> evidence_commit_idx;
+      std::optional<NodeId> node_id = std::nullopt;
+      std::optional<crypto::Pem> node_cert = std::nullopt;
+      std::optional<std::vector<uint8_t>> sig = std::nullopt;
+      std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
       SnapshotInfo(consensus::Index idx, consensus::Index evidence_idx) :
         idx(idx),
         evidence_idx(evidence_idx)
       {}
     };
-    std::deque<SnapshotInfo> snapshot_evidence_indices;
+    // Queue of pending snapshots that have been generated, but are not yet
+    // committed
+    std::deque<SnapshotInfo> pending_snapshots;
 
     // Index at which the lastest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
@@ -65,12 +70,13 @@ namespace ccf
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
+      consensus::Index snapshot_idx,
+      const std::vector<uint8_t>& serialised_receipt)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
-      // previously generated. The evidence_commit_idx is recorded as metadata.
+      // previously generated.
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit, to_host, snapshot_idx, evidence_commit_idx);
+        consensus::snapshot_commit, to_host, snapshot_idx, serialised_receipt);
     }
 
     struct SnapshotMsg
@@ -113,8 +119,7 @@ namespace ccf
         static_cast<consensus::Index>(snapshot_version);
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
-      snapshot_evidence_indices.emplace_back(
-        snapshot_idx, snapshot_evidence_idx);
+      pending_snapshots.emplace_back(snapshot_idx, snapshot_evidence_idx);
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "
@@ -133,25 +138,25 @@ namespace ccf
         next_snapshot_indices.pop_front();
       }
 
-      for (auto it = snapshot_evidence_indices.begin();
-           it != snapshot_evidence_indices.end();)
+      for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
-        if (it->evidence_commit_idx.has_value())
+        if (idx > it->evidence_idx)
         {
-          if (idx > it->evidence_commit_idx.value())
-          {
-            commit_snapshot(it->idx, idx);
-            auto it_ = it;
-            it++;
-            snapshot_evidence_indices.erase(it_);
-            continue;
-          }
+          auto serialised_receipt = build_and_serialise_receipt(
+            it->sig.value(),
+            it->tree.value(),
+            it->node_id.value(),
+            it->node_cert.value(),
+            it->evidence_idx);
+          commit_snapshot(it->idx, serialised_receipt);
+          auto it_ = it;
+          ++it;
+          pending_snapshots.erase(it_);
         }
-        else if (idx >= it->evidence_idx)
+        else
         {
-          it->evidence_commit_idx = idx;
+          ++it;
         }
-        it++;
       }
     }
 
@@ -207,6 +212,12 @@ namespace ccf
       // snapshot, and thus a new ledger chunk
       std::lock_guard<std::mutex> guard(lock);
 
+      CCF_ASSERT_FMT(
+        idx >= next_snapshot_indices.back(),
+        "Committable seqno {} < next snapshot seqno {}",
+        idx,
+        next_snapshot_indices.back());
+
       if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
         next_snapshot_indices.push_back(idx);
@@ -215,6 +226,43 @@ namespace ccf
       }
 
       return false;
+    }
+
+    void record_signature(
+      consensus::Index idx,
+      const std::vector<uint8_t>& sig,
+      const NodeId& node_id,
+      const crypto::Pem& node_cert)
+    {
+      std::lock_guard<std::mutex> guard(lock);
+
+      for (auto& pending_snapshot : pending_snapshots)
+      {
+        if (
+          pending_snapshot.evidence_idx < idx &&
+          !pending_snapshot.sig.has_value())
+        {
+          pending_snapshot.node_id = node_id;
+          pending_snapshot.node_cert = node_cert;
+          pending_snapshot.sig = sig;
+        }
+      }
+    }
+
+    void record_serialised_tree(
+      consensus::Index idx, const std::vector<uint8_t>& tree)
+    {
+      std::lock_guard<std::mutex> guard(lock);
+
+      for (auto& pending_snapshot : pending_snapshots)
+      {
+        if (
+          pending_snapshot.evidence_idx < idx &&
+          !pending_snapshot.tree.has_value())
+        {
+          pending_snapshot.tree = tree;
+        }
+      }
     }
 
     void commit(consensus::Index idx, bool generate_snapshot)
@@ -283,10 +331,10 @@ namespace ccf
         "Rolled back snapshotter: last snapshottable idx is now {}",
         next_snapshot_indices.front());
 
-      while (!snapshot_evidence_indices.empty() &&
-             (snapshot_evidence_indices.back().evidence_idx > idx))
+      while (!pending_snapshots.empty() &&
+             (pending_snapshots.back().evidence_idx > idx))
       {
-        snapshot_evidence_indices.pop_back();
+        pending_snapshots.pop_back();
       }
     }
   };

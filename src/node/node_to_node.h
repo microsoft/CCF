@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "channels.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "enclave/rpc_handler.h"
@@ -26,17 +25,12 @@ namespace ccf
       DroppedMessageException(const NodeId& from) : from(from) {}
     };
 
-    virtual void create_channel(
+    virtual void associate_node_address(
       const NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service,
-      size_t message_limit = Channel::default_message_limit) = 0;
+      const std::string& peer_service) = 0;
 
-    virtual void destroy_channel(const NodeId& peer_id) = 0;
-
-    virtual void close_all_outgoing() = 0;
-
-    virtual void destroy_all_channels() = 0;
+    virtual void close_channel(const NodeId& peer_id) = 0;
 
     virtual bool have_channel(const NodeId& nid) const = 0;
 
@@ -93,9 +87,12 @@ namespace ccf
       const NodeId& from, const uint8_t*& data, size_t& size) = 0;
 
     virtual bool recv_authenticated(
-      const NodeId& from, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
+      const NodeId& from,
+      CBuffer header,
+      const uint8_t*& data,
+      size_t& size) = 0;
 
-    virtual void recv_message(
+    virtual bool recv_channel_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
     virtual void initialize(
@@ -110,7 +107,7 @@ namespace ccf
     virtual bool send_encrypted(
       const NodeId& to,
       NodeMsgType type,
-      CBuffer cb,
+      CBuffer header,
       const std::vector<uint8_t>& data) = 0;
 
     template <class T>
@@ -125,7 +122,7 @@ namespace ccf
 
     template <class T>
     std::pair<T, std::vector<uint8_t>> recv_encrypted(
-      const NodeId& from, const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t*& data, size_t& size)
     {
       auto t = serialized::read<T>(data, size);
 
@@ -134,221 +131,6 @@ namespace ccf
     }
 
     virtual std::vector<uint8_t> recv_encrypted(
-      const NodeId& from, CBuffer cb, const uint8_t* data, size_t size) = 0;
-  };
-
-  class NodeToNodeImpl : public NodeToNode
-  {
-  private:
-    std::optional<NodeId> self = std::nullopt;
-    std::unique_ptr<ChannelManager> channels;
-    ringbuffer::AbstractWriterFactory& writer_factory;
-
-  public:
-    NodeToNodeImpl(ringbuffer::AbstractWriterFactory& writer_factory_) :
-      writer_factory(writer_factory_)
-    {}
-
-    void initialize(
-      const NodeId& self_id,
-      const crypto::Pem& network_cert,
-      crypto::KeyPairPtr node_kp,
-      const std::optional<crypto::Pem>& node_cert = std::nullopt) override
-    {
-      CCF_ASSERT_FMT(
-        !self.has_value(),
-        "Calling initialize more than once, previous id:{}, new id:{}",
-        self.value(),
-        self_id);
-
-      if (
-        node_cert.has_value() &&
-        make_verifier(node_cert.value())->is_self_signed())
-      {
-        LOG_FAIL_FMT(
-          "Refusing to initialize node-to-node channels with self-signed node "
-          "certificate");
-        return;
-      }
-
-      self = self_id;
-      channels = std::make_unique<ChannelManager>(
-        writer_factory, network_cert, node_kp, self.value(), node_cert);
-    }
-
-    void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert) override
-    {
-      channels->set_endorsed_node_cert(endorsed_node_cert);
-    }
-
-    void create_channel(
-      const NodeId& peer_id,
-      const std::string& hostname,
-      const std::string& service,
-      size_t message_limit = Channel::default_message_limit) override
-    {
-      if (peer_id == self.value())
-      {
-        return;
-      }
-
-      channels->create_channel(peer_id, hostname, service, message_limit);
-    }
-
-    void destroy_channel(const NodeId& peer_id) override
-    {
-      if (peer_id == self.value())
-      {
-        return;
-      }
-
-      channels->destroy_channel(peer_id);
-    }
-
-    void close_all_outgoing() override
-    {
-      channels->close_all_outgoing();
-    }
-
-    void destroy_all_channels() override
-    {
-      channels->destroy_all_channels();
-    }
-
-    bool have_channel(const NodeId& nid) const override
-    {
-      return channels->have_channel(nid);
-    }
-
-    bool send_authenticated(
-      const NodeId& to,
-      NodeMsgType type,
-      const uint8_t* data,
-      size_t size) override
-    {
-      auto n2n_channel = channels->get(to);
-      return n2n_channel->send(type, {data, size});
-    }
-
-    bool recv_authenticated(
-      const NodeId& from,
-      CBuffer cb,
-      const uint8_t*& data,
-      size_t& size) override
-    {
-      auto n2n_channel = channels->get(from);
-      // Receiving after a channel has been destroyed is ok.
-      return n2n_channel ? n2n_channel->recv_authenticated(cb, data, size) :
-                           true;
-    }
-
-    bool send_encrypted(
-      const NodeId& to,
-      NodeMsgType type,
-      CBuffer cb,
-      const std::vector<uint8_t>& data) override
-    {
-      auto n2n_channel = channels->get(to);
-      return n2n_channel ? n2n_channel->send(type, cb, data) : true;
-    }
-
-    bool recv_authenticated_with_load(
-      const NodeId& from, const uint8_t*& data, size_t& size) override
-    {
-      auto n2n_channel = channels->get(from);
-      return n2n_channel ?
-        n2n_channel->recv_authenticated_with_load(data, size) :
-        true;
-    }
-
-    std::vector<uint8_t> recv_encrypted(
-      const NodeId& from, CBuffer cb, const uint8_t* data, size_t size) override
-    {
-      auto n2n_channel = channels->get(from);
-
-      if (!n2n_channel)
-        return {};
-
-      auto plain = n2n_channel->recv_encrypted(cb, data, size);
-      if (!plain.has_value())
-      {
-        throw DroppedMessageException(from);
-      }
-
-      return plain.value();
-    }
-
-    void process_key_exchange_init(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      LOG_DEBUG_FMT("key_exchange_init from {}", from);
-
-      // In the case of concurrent key_exchange_init's from both nodes, the one
-      // with the lower ID wins.
-
-      auto n2n_channel = channels->get(from);
-      if (n2n_channel)
-        n2n_channel->consume_initiator_key_share(data, size, self < from);
-    }
-
-    void process_key_exchange_response(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      LOG_DEBUG_FMT("key_exchange_response from {}", from);
-      auto n2n_channel = channels->get(from);
-      if (n2n_channel)
-        n2n_channel->consume_responder_key_share(data, size);
-    }
-
-    void process_key_exchange_final(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      LOG_DEBUG_FMT("key_exchange_final from {}", from);
-      auto n2n_channel = channels->get(from);
-      if (
-        n2n_channel && !n2n_channel->check_peer_key_share_signature(data, size))
-      {
-        n2n_channel->reset();
-      }
-    }
-
-    void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) override
-    {
-      try
-      {
-        auto chmsg = serialized::read<ChannelMsg>(data, size);
-        switch (chmsg)
-        {
-          case key_exchange_init:
-          {
-            process_key_exchange_init(from, data, size);
-            break;
-          }
-
-          case key_exchange_response:
-          {
-            process_key_exchange_response(from, data, size);
-            break;
-          }
-
-          case key_exchange_final:
-          {
-            process_key_exchange_final(from, data, size);
-            break;
-          }
-
-          default:
-          {
-          }
-          break;
-        }
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_EXC(e.what());
-        return;
-      }
-    }
+      const NodeId& from, CBuffer header, const uint8_t* data, size_t size) = 0;
   };
 }

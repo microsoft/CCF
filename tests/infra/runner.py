@@ -63,7 +63,7 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             "client_" + str(client_id),
             client_host,
             args.client,
-            node.host,
+            node.rpc_host,
             node.rpc_port,
             args.workspace,
             args.label,
@@ -87,6 +87,7 @@ def run(get_command, args):
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
 
     args.initial_user_count = 3
+    args.sig_ms_interval = 1000  # Set to cchost default value
 
     LOG.info("Starting nodes on {}".format(hosts))
 
@@ -234,11 +235,15 @@ class ConcurrentRunner:
         def add(parser):
             parser.add_argument(
                 "-N",
-                help="List all sub-tests",
+                "--show-only",
+                help="List all sub-tests without executing",
                 action="store_true",
             )
             parser.add_argument(
-                "-R", help="Run sub-tests whose name includes this string"
+                "-R",
+                "--regex",
+                help="Run sub-tests whose name includes this string",
+                metavar="<string>",
             )
             if add_options:
                 add_options(parser)
@@ -263,17 +268,17 @@ class ConcurrentRunner:
         }
         LOG.configure(**config)
 
-        if self.args.N:
-            for thread in self.threads:
-                print(thread)
-            return
-
-        if self.args.R:
+        if self.args.regex:
             self.threads = [
-                thread for thread in self.threads if self.args.R in thread.name
+                thread for thread in self.threads if self.args.regex in thread.name
             ]
 
-        if max_concurrent is None:
+        if self.args.show_only:
+            for thread in self.threads:
+                print(thread.name)
+            return
+
+        if not max_concurrent:
             max_concurrent = len(self.threads)
 
         thread_groups = [

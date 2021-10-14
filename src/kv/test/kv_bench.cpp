@@ -234,7 +234,8 @@ static void des_snap(picobench::state& s)
 
   kv::ConsensusHookPtrs hooks;
   s.start_timer();
-  kv_store2.deserialise_snapshot(serialised_snap, hooks);
+  kv_store2.deserialise_snapshot(
+    serialised_snap.data(), serialised_snap.size(), hooks);
   s.stop_timer();
 }
 

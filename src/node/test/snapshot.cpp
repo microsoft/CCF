@@ -25,6 +25,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
     source_store, source_node_id, *source_node_kp);
+  source_history->set_endorsed_certificate({});
 
   source_store.set_history(source_history);
 
@@ -88,6 +89,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, kv::test::PrimaryNodeId, *target_node_kp);
+      target_history->set_endorsed_certificate({});
       target_store.set_history(target_history);
     }
 
@@ -104,7 +106,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       kv::ConsensusHookPtrs hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
-          serialised_snapshot, hooks, &view_history) == kv::ApplyResult::FAIL);
+          serialised_snapshot.data(),
+          serialised_snapshot.size(),
+          hooks,
+          &view_history) == kv::ApplyResult::FAIL);
     }
 
     INFO("Apply snapshot taken at signature");
@@ -117,7 +122,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       kv::ConsensusHookPtrs hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
-          serialised_snapshot, hooks, &view_history) == kv::ApplyResult::PASS);
+          serialised_snapshot.data(),
+          serialised_snapshot.size(),
+          hooks,
+          &view_history) == kv::ApplyResult::PASS);
 
       // Merkle history and view history thus far are restored when applying
       // snapshot

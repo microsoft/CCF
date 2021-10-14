@@ -88,7 +88,7 @@ def run(args):
         backups[0].resume()
         backups[1].resume()
         backups[2].resume()
-        new_primary, _ = network.wait_for_new_primary(primary, timeout_multiplier=6)
+        new_primary, _ = network.wait_for_new_primary(primary, timeout_multiplier=10)
 
         with new_primary.client("user0") as uc:
             # Check that uncommitted but committable suffix is preserved
@@ -111,5 +111,5 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "liblogging"
+    args.package = "samples/apps/logging/liblogging"
     run(args)

@@ -52,7 +52,7 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-if(ENABLE_BFT)
+if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))
   set(CONSENSUSES cft bft)
   set(CONSENSUS_FILTER all)
 else()
@@ -220,12 +220,8 @@ add_custom_target(
   signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
-# Add Logging app. Rebuilt/redefined here, rather than via add_subdirectory
-add_ccf_app(logging SRCS samples/apps/logging/logging.cpp)
-sign_app_library(
-  logging.enclave ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-)
+# Add Logging app.
+add_subdirectory(${CCF_DIR}/samples/apps/logging)
 
 # Add NoBuiltins app
 add_subdirectory(${CCF_DIR}/samples/apps/nobuiltins)
@@ -623,6 +619,7 @@ if(BUILD_TESTS)
     NAME e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
+    CONTAINER_NODES TRUE
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
@@ -637,6 +634,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
     LABEL partitions
+    CONFIGURATIONS partitions
     # Higher snapshot interval as the test currently assumes that no
     # transactions are emitted while partitions are up. To be removed when
     # https://github.com/microsoft/CCF/issues/2577 is implemented
@@ -677,13 +675,22 @@ if(BUILD_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
 
-  add_e2e_test(
-    NAME lts_compatibility
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-    CONSENSUS cft
-    LABEL e2e
-    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-  )
+  set(LTS_ITERATIONS "compatibility")
+  if(LONG_TESTS)
+    set(LTS_ITERATIONS
+        "compatibility_a;compatibility_b;compatibility_c;compatibility_d"
+    )
+  endif()
+
+  foreach(ITERATION ${LTS_ITERATIONS})
+    add_e2e_test(
+      NAME lts_${ITERATION}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      CONSENSUS cft
+      LABEL e2e
+      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+    )
+  endforeach()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
@@ -716,7 +723,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
       CONSENSUS ${CONSENSUS}
       LABEL vegeta
-      ADDITIONAL_ARGS -p liblogging
+      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
     )
 
     add_e2e_test(
@@ -725,12 +732,8 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
       LABEL vegeta
       CONFIGURATIONS long_stress
-      ADDITIONAL_ARGS -p liblogging --duration 45m
+      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
     )
-
-    # add_e2e_test( NAME reconfiguration_test_${CONSENSUS} PYTHON_SCRIPT
-    # ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py CONSENSUS ${CONSENSUS}
-    # ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} )
 
   endforeach()
 
@@ -741,7 +744,7 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --package
-      liblogging
+      "samples/apps/logging/liblogging"
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead
@@ -759,7 +762,7 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --package
-      liblogging
+      "samples/apps/logging/liblogging"
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead
@@ -824,6 +827,13 @@ if(BUILD_TESTS)
       --use-jwt
       --msg-ser-fmt
       text
+  )
+
+  add_e2e_test(
+    NAME historical_query_perf_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+    CONSENSUS cft
+    LABEL perf
   )
 endif()
 

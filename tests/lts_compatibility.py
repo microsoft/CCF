@@ -13,9 +13,8 @@ import ccf.ledger
 import os
 import json
 import time
+from e2e_logging import test_random_receipts
 
-# pylint: disable=import-error, no-name-in-module
-from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
@@ -65,9 +64,7 @@ def get_new_constitution_for_install(args, install_path):
     return args.constitution
 
 
-def test_new_service(
-    network, args, install_path, binary_dir, library_dir, major_version
-):
+def test_new_service(network, args, install_path, binary_dir, library_dir, version):
     LOG.info("Update constitution")
     primary, _ = network.find_primary()
     new_constitution = get_new_constitution_for_install(args, install_path)
@@ -80,13 +77,14 @@ def test_new_service(
         "local://localhost",
         binary_dir=binary_dir,
         library_dir=library_dir,
-        version=major_version,
+        version=version,
     )
     network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
+    test_random_receipts(network, args, lts=True)
 
 
 # Local build and install bin/ and lib/ directories differ
@@ -115,8 +113,8 @@ def run_code_upgrade_from(
     args,
     from_install_path,
     to_install_path,
-    from_major_version=None,
-    to_major_version=None,
+    from_version=None,
+    to_version=None,
 ):
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
         from_install_path
@@ -137,7 +135,7 @@ def run_code_upgrade_from(
             pdb=args.pdb,
             txs=txs,
             jwt_issuer=jwt_issuer,
-            version=from_major_version,
+            version=from_version,
         ) as network:
             network.start_and_join(args)
 
@@ -155,17 +153,15 @@ def run_code_upgrade_from(
             )
             network.consortium.add_new_code(primary, new_code_id)
 
-            # Add one more node than the current count so that at least one new
-            # node is required to reach consensus
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
             from_snapshot = True
-            for _ in range(0, len(network.get_joined_nodes()) + 1):
+            for _ in range(0, len(old_nodes)):
                 new_node = network.create_node(
                     "local://localhost",
                     binary_dir=to_binary_dir,
                     library_dir=to_library_dir,
-                    version=to_major_version,
+                    version=to_version,
                 )
                 network.join_node(
                     new_node, args.package, args, from_snapshot=from_snapshot
@@ -177,7 +173,7 @@ def run_code_upgrade_from(
             # Verify that all nodes run the expected CCF version
             for node in network.get_joined_nodes():
                 # Note: /node/version endpoint was added in 2.x
-                if not node.version or node.version > 1:
+                if not node.major_version or node.major_version > 1:
                     with node.client() as c:
                         r = c.get("/node/version")
                         expected_version = node.version or args.ccf_version
@@ -189,38 +185,6 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
-            # Test that new nodes can become primary with old nodes as backups
-            # Note: Force a new node as primary by isolating old nodes
-            primary, _ = network.find_primary()
-            for node in old_nodes:
-                node.suspend()
-
-            new_primary, _ = network.wait_for_new_primary(primary, nodes=new_nodes)
-            assert (
-                new_primary in new_nodes
-            ), "New node should have been elected as new primary"
-
-            for node in old_nodes:
-                node.resume()
-
-            # Retire one new node, so that at least one old node is required to reach consensus
-            other_new_nodes = [node for node in new_nodes if (node is not new_primary)]
-            network.retire_node(new_primary, other_new_nodes[0])
-
-            # Rollover JWKS so that new primary must read historical CA bundle table
-            # and retrieve new keys via auto refresh
-            jwt_issuer.refresh_keys()
-            # Note: /gov/jwt_keys/all endpoint was added in 2.x
-            primary, _ = network.find_nodes()
-            if primary.version and primary.version > 1:
-                jwt_issuer.wait_for_refresh(network)
-            else:
-                time.sleep(3)
-
-            LOG.info("Apply transactions to hybrid network, with primary as new node")
-            issue_activity_on_live_service(network, args)
-
-            # Finally, retire old nodes and code id
             old_code_id = infra.utils.get_code_id(
                 args.enclave_type,
                 args.oe_binary,
@@ -229,8 +193,20 @@ def run_code_upgrade_from(
             )
             network.consortium.retire_code(primary, old_code_id)
             for node in old_nodes:
-                network.retire_node(new_primary, node)
+                network.retire_node(primary, node)
+                if primary == node:
+                    primary, _ = network.wait_for_new_primary(primary)
                 node.stop()
+
+            # Rollover JWKS so that new primary must read historical CA bundle table
+            # and retrieve new keys via auto refresh
+            jwt_issuer.refresh_keys()
+            # Note: /gov/jwt_keys/all endpoint was added in 2.x
+            primary, _ = network.find_nodes()
+            if not primary.major_version or primary.major_version > 1:
+                jwt_issuer.wait_for_refresh(network)
+            else:
+                time.sleep(3)
 
             # From here onwards, service is only made of new nodes
             test_new_service(
@@ -239,7 +215,7 @@ def run_code_upgrade_from(
                 to_install_path,
                 to_binary_dir,
                 to_library_dir,
-                to_major_version,
+                to_version,
             )
 
             # Check that the ledger can be parsed
@@ -264,8 +240,8 @@ def run_live_compatibility_with_latest(args, repo, local_branch):
             args,
             from_install_path=lts_install_path,
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            from_major_version=Version(lts_version).release[0],
-            to_major_version=local_major_version,
+            from_version=lts_version,
+            to_version=local_major_version,
         )
     return lts_version
 
@@ -290,8 +266,8 @@ def run_live_compatibility_with_following(args, repo, local_branch):
             args,
             from_install_path=LOCAL_CHECKOUT_DIRECTORY,
             to_install_path=lts_install_path,
-            from_major_version=local_major_version,
-            to_major_version=Version(lts_version).release[0],
+            from_version=local_major_version,
+            to_version=lts_version,
         )
     return lts_version
 
@@ -325,14 +301,11 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
             if lts_release:
                 version, install_path = repo.install_release(lts_release)
                 lts_versions.append(version)
-                major_version = Version(version).release[0]
                 set_js_args(args, install_path)
             else:
                 version = args.ccf_version
                 install_path = LOCAL_CHECKOUT_DIRECTORY
-                major_version = infra.github.get_major_version_from_branch_name(
-                    local_branch
-                )
+
             binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
                 install_path
             )
@@ -344,7 +317,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     "library_dir": library_dir,
                     "txs": txs,
                     "jwt_issuer": jwt_issuer,
-                    "version": major_version,
+                    "version": version,
                 }
                 if idx == 0:
                     LOG.info(f"Starting new service (version: {version})")
@@ -369,7 +342,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 # Verify that all nodes run the expected CCF version
                 for node in nodes:
                     # Note: /node/version endpoint was added in 2.x
-                    if not node.version or node.version > 1:
+                    if not node.major_version or node.major_version > 1:
                         with node.client() as c:
                             r = c.get("/node/version")
                             expected_version = node.version or args.ccf_version
@@ -383,7 +356,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
                 primary, _ = network.find_nodes()
-                if primary.version and primary.version > 1:
+                if not primary.major_version or primary.major_version > 1:
                     jwt_issuer.wait_for_refresh(network)
                 else:
                     time.sleep(3)
@@ -394,7 +367,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     install_path,
                     binary_dir,
                     library_dir,
-                    major_version,
+                    version,
                 )
 
                 snapshot_dir = (
@@ -403,7 +376,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 ledger_dir, committed_ledger_dir = primary.get_ledger(
                     include_read_only_dirs=True
                 )
-                network.stop_all_nodes(verbose_verification=False)
+                network.stop_all_nodes(skip_verification=True)
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()

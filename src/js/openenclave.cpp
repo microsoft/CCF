@@ -13,10 +13,12 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
+#include "ccf/js_openenclave_plugin.h"
+#include "ccf/js_plugin.h"
 #include "ccf/version.h"
-#include "js/plugin.h"
+#include "js/wrap.h"
 
-namespace js
+namespace ccf::js
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"

@@ -26,6 +26,12 @@ To create a new CCF network, the first node of the network should be started wit
     [--member-info /path/to/member2_cert[,/path/to/member2_enc_pubk[,/path/to/member2_data]] ...]
     --constitution /path/to/javascript/constitution_module.js
 
+.. mermaid::
+
+    graph LR;
+        Uninitialized-- config -->Initialized;
+        Initialized-- start -->PartOfNetwork;
+
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then ``--san dNSName:<sub.domain.tld>`` should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
 When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
@@ -65,6 +71,17 @@ To add a new node to an existing opening network, other nodes should be started 
     --network-cert-file /path/to/existing/network_certificate
     --target-rpc-address <another-ccf-node-address>
     [--join-timer <join-retry-interval-ms>]
+
+
+.. mermaid::
+
+    graph LR;
+        Uninitialized-- config -->Initialized;
+        Initialized-- join from snapshot -->VerifyingSnapshot;
+        VerifyingSnapshot-->Pending;
+        Initialized-- join -->Pending;
+        Pending-- poll status -->Pending;
+        Pending-- trusted -->PartOfNetwork;
 
 The joining node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``.
 
@@ -133,7 +150,6 @@ The following diagram summarises the steps that operators and members should fol
         Note over Operators: Operators monitor progress of ledger replication
         Operators->>+Node 1: Poll /node/commit
         Node 1-->>-Operators: "commit": ...
-
 
 Opening a Network to Users
 --------------------------

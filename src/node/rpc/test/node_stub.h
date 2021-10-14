@@ -183,6 +183,23 @@ namespace ccf
       return {};
     }
 
+    std::vector<historical::StatePtr> get_state_range(
+      historical::RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno,
+      historical::ExpiryDuration seconds_until_expiry)
+    {
+      return {};
+    }
+
+    std::vector<historical::StatePtr> get_state_range(
+      historical::RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno)
+    {
+      return {};
+    }
+
     bool drop_request(historical::RequestHandle handle)
     {
       return true;
