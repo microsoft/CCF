@@ -49,7 +49,7 @@ struct CCFConfig
 
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
-  size_t startup_snapshot_evidence_seqno;
+  std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
 
   struct SignatureIntervals
   {
@@ -100,14 +100,13 @@ DECLARE_JSON_TYPE(CCFConfig::Joining);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::Joining, target_host, target_port, network_cert, join_timer);
 
-DECLARE_JSON_TYPE(CCFConfig);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig,
   consensus_config,
   node_info_network,
   snapshot_tx_interval,
   startup_snapshot,
-  startup_snapshot_evidence_seqno,
   signature_intervals,
   genesis,
   joining,
@@ -116,6 +115,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   curve_id,
   initial_node_certificate_validity_period_days,
   startup_host_time);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCFConfig, startup_snapshot_evidence_seqno_for_1_x);
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message

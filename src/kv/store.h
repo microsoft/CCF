@@ -398,7 +398,8 @@ namespace kv
     }
 
     ApplyResult deserialise_snapshot(
-      const std::vector<uint8_t>& data,
+      const uint8_t* data,
+      size_t size,
       kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
@@ -410,7 +411,7 @@ namespace kv
                       std::optional<kv::SecurityDomain>());
 
       kv::Term term;
-      auto v_ = d.init(data.data(), data.size(), term, is_historical);
+      auto v_ = d.init(data, size, term, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");

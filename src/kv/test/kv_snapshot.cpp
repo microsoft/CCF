@@ -58,7 +58,10 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 
     kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
-      new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
+      new_store.deserialise_snapshot(
+        first_serialised_snapshot.data(),
+        first_serialised_snapshot.size(),
+        hooks),
       kv::ApplyResult::PASS);
     REQUIRE_EQ(new_store.current_version(), first_snapshot_version);
 
@@ -109,7 +112,10 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     kv::Store new_store;
 
     kv::ConsensusHookPtrs hooks;
-    new_store.deserialise_snapshot(second_serialised_snapshot, hooks);
+    new_store.deserialise_snapshot(
+      second_serialised_snapshot.data(),
+      second_serialised_snapshot.size(),
+      hooks);
     REQUIRE_EQ(new_store.current_version(), second_snapshot_version);
 
     auto tx1 = new_store.create_tx();
@@ -186,7 +192,8 @@ TEST_CASE(
     // tx is not committed until the snapshot is deserialised
 
     kv::ConsensusHookPtrs hooks;
-    new_store.deserialise_snapshot(serialised_snapshot, hooks);
+    new_store.deserialise_snapshot(
+      serialised_snapshot.data(), serialised_snapshot.size(), hooks);
 
     // Transaction conflicts as snapshot was applied while transaction was in
     // flight
@@ -254,7 +261,8 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     }
 
     kv::ConsensusHookPtrs hooks;
-    new_store.deserialise_snapshot(serialised_snapshot, hooks);
+    new_store.deserialise_snapshot(
+      serialised_snapshot.data(), serialised_snapshot.size(), hooks);
 
     INFO("Verify content of snapshot");
     {

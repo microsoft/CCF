@@ -10,6 +10,8 @@ from infra.checker import check_can_progress, check_does_not_progress
 import pprint
 from ccf.tx_status import TxStatus
 
+from loguru import logger as LOG
+
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -55,15 +57,23 @@ def test_partition_majority(network, args):
 
     # The primary should remain stable while the partition is active
     # Note: Context manager
+    initial_view = None
     with network.partitioner.partition(partition):
         try:
             network.wait_for_new_primary(primary)
             assert False, "No new primary should be elected when partitioning majority"
         except TimeoutError:
-            pass
+            LOG.info("No new primary, as expected")
+            with primary.client() as c:
+                res = c.get("/node/network")  # Well-known read-only endpoint
+                body = res.body.json()
+                initial_view = body["current_view"]
 
-    # A new leader should be elected once the partition is dropped
-    network.wait_for_new_primary(primary)
+    # The partitioned nodes will have called elections, increasing their view.
+    # When the partition is lifted, the nodes must elect a new leader, in at least this
+    # increased term. The winning node could come from either partition, and could even
+    # be the original primary.
+    network.wait_for_primary_unanimity(min_view=initial_view)
 
     return network
 
@@ -104,7 +114,7 @@ def test_isolate_primary_from_one_backup(network, args):
 
 
 @reqs.description("Isolate and reconnect primary")
-def test_isolate_and_reconnect_primary(network, args):
+def test_isolate_and_reconnect_primary(network, args, **kwargs):
     primary, backups = network.find_nodes()
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
@@ -117,7 +127,12 @@ def test_isolate_and_reconnect_primary(network, args):
     # Check reconnected former primary has caught up
     with primary.client() as c:
         try:
-            c.wait_for_commit(new_tx_resp, timeout=5)
+            # There will be at least one full election cycle for nothing, where the
+            # re-joining node fails to get elected but causes others to rev up their
+            # term. After that, a successful election needs to take place, and we
+            # arbitrarily allow 3 time periods to avoid being too brittle when
+            # raft timeouts line up badly.
+            c.wait_for_commit(new_tx_resp, timeout=(network.election_duration * 4))
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
             assert (
@@ -147,8 +162,8 @@ def run(args):
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        for _ in range(5):
-            test_isolate_and_reconnect_primary(network, args)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":

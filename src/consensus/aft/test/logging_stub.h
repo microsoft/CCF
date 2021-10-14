@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/raft_types.h"
 
@@ -162,18 +163,13 @@ namespace aft
       return std::nullopt;
     }
 
-    void create_channel(
+    void associate_node_address(
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service,
-      size_t message_limit = ccf::Channel::default_message_limit) override
+      const std::string& peer_service) override
     {}
 
-    void destroy_channel(const ccf::NodeId& peer_id) override {}
-
-    void destroy_all_channels() override {}
-
-    void close_all_outgoing() override {}
+    void close_channel(const ccf::NodeId& peer_id) override {}
 
     void set_endorsed_node_cert(const crypto::Pem&) override {}
 
@@ -202,9 +198,11 @@ namespace aft
       return true;
     }
 
-    void recv_message(
+    bool recv_channel_message(
       const ccf::NodeId& from, const uint8_t* data, size_t size) override
-    {}
+    {
+      return true;
+    }
 
     void initialize(
       const ccf::NodeId& self_id,
@@ -365,28 +363,25 @@ namespace aft
   class StubSnapshotter
   {
   public:
-    void update(Index, bool)
-    {
-      // For now, do not test snapshots in unit tests
-      return;
-    }
+    void update(Index, bool) {}
 
     bool record_committable(Index)
     {
-      // For now, do not test snapshots in unit tests
       return false;
     }
 
-    void commit(Index, bool)
-    {
-      // For now, do not test snapshots in unit tests
-      return;
-    }
+    void commit(Index, bool) {}
 
-    void rollback(Index)
-    {
-      // For now, do not test snapshots in unit tests
-      return;
-    }
+    void rollback(Index) {}
+
+    void record_serialised_tree(Index version, const std::vector<uint8_t>& tree)
+    {}
+
+    void record_signature(
+      Index,
+      const std::vector<uint8_t>&,
+      const ccf::NodeId&,
+      const crypto::Pem&)
+    {}
   };
 }

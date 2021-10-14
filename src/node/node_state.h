@@ -23,6 +23,7 @@
 #include "network_state.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
+#include "node/node_to_node_channel_manager.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
@@ -147,44 +148,6 @@ namespace ccf
     //
     std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
 
-    struct StartupSnapshotInfo
-    {
-      std::vector<uint8_t>& raw;
-      consensus::Index seqno;
-      consensus::Index evidence_seqno;
-
-      // Store used to verify a snapshot (either created fresh when a node joins
-      // from a snapshot or points to the main store when recovering from a
-      // snapshot)
-      std::shared_ptr<kv::Store> store = nullptr;
-
-      // The snapshot to startup from (on join or recovery) is only valid once a
-      // signature ledger entry confirms that the snapshot evidence was
-      // committed
-      bool has_evidence = false;
-      bool is_evidence_committed = false;
-
-      StartupSnapshotInfo(
-        const std::shared_ptr<kv::Store>& store_,
-        std::vector<uint8_t>& raw_,
-        consensus::Index seqno_,
-        consensus::Index evidence_seqno_) :
-        raw(raw_),
-        seqno(seqno_),
-        evidence_seqno(evidence_seqno_),
-        store(store_)
-      {}
-
-      bool is_snapshot_verified()
-      {
-        return has_evidence && is_evidence_committed;
-      }
-
-      ~StartupSnapshotInfo()
-      {
-        reset_data(raw);
-      }
-    };
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
@@ -199,7 +162,8 @@ namespace ccf
 #endif
     }
 
-    void initialise_startup_snapshot(bool recovery = false)
+    // Returns true if the snapshot is already verified (via embedded receipt)
+    bool initialise_startup_snapshot(bool recovery = false)
     {
       std::shared_ptr<kv::Store> snapshot_store;
       if (!recovery)
@@ -224,32 +188,20 @@ namespace ccf
         snapshot_store = network.tables;
       }
 
-      LOG_INFO_FMT(
-        "Deserialising public snapshot ({})", config.startup_snapshot.size());
-
       kv::ConsensusHookPtrs hooks;
-      auto rc = snapshot_store->deserialise_snapshot(
-        config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::ApplyResult::PASS)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to apply public snapshot: {}", rc));
-      }
+      startup_snapshot_info = initialise_from_snapshot(
+        snapshot_store,
+        std::move(config.startup_snapshot),
+        hooks,
+        &view_history,
+        true,
+        config.startup_snapshot_evidence_seqno_for_1_x);
 
-      LOG_INFO_FMT(
-        "Public snapshot deserialised at seqno {}",
-        snapshot_store->current_version());
-
-      startup_seqno = snapshot_store->current_version();
-
-      ledger_idx = snapshot_store->current_version();
+      startup_seqno = startup_snapshot_info->seqno;
+      ledger_idx = startup_seqno.value();
       last_recovered_signed_idx = ledger_idx;
 
-      startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-        snapshot_store,
-        config.startup_snapshot,
-        ledger_idx,
-        config.startup_snapshot_evidence_seqno);
+      return !startup_snapshot_info->requires_ledger_verification();
     }
 
   public:
@@ -307,7 +259,8 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<ccf::NodeToNodeImpl>(writer_factory);
+      n2n_channels =
+        std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
@@ -402,14 +355,16 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (!config.startup_snapshot.empty())
+          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
           {
-            initialise_startup_snapshot();
-            sm.advance(State::verifyingSnapshot);
+            // Note: 2.x snapshots are self-verified so the ledger verification
+            // of its evidence can be skipped entirely
+            sm.advance(State::pending);
           }
           else
           {
-            sm.advance(State::pending);
+            // Node joins from a 1.x snapshot
+            sm.advance(State::verifyingSnapshot);
           }
 
           LOG_INFO_FMT("Created join node {}", self);
@@ -570,21 +525,15 @@ namespace ccf
             {
               // It is only possible to deserialise the entire snapshot then,
               // once the ledger secrets have been passed in by the network
-              LOG_DEBUG_FMT(
-                "Deserialising snapshot ({})",
-                startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
               kv::ConsensusHookPtrs hooks;
-              auto rc = network.tables->deserialise_snapshot(
+              deserialise_snapshot(
+                network.tables,
                 startup_snapshot_info->raw,
                 hooks,
                 &view_history,
-                resp.network_info->public_only);
-              if (rc != kv::ApplyResult::PASS)
-              {
-                throw std::logic_error(
-                  fmt::format("Failed to apply snapshot on join: {}", rc));
-              }
+                resp.network_info->public_only,
+                startup_snapshot_info->evidence_seqno);
 
               for (auto& hook : hooks)
               {
@@ -832,8 +781,9 @@ namespace ccf
 
         if (
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
+          startup_snapshot_info->evidence_seqno.has_value() &&
           static_cast<consensus::Index>(last_sig->commit_seqno) >=
-            startup_snapshot_info->evidence_seqno)
+            startup_snapshot_info->evidence_seqno.value())
         {
           startup_snapshot_info->is_evidence_committed = true;
         }
@@ -854,7 +804,9 @@ namespace ccf
         auto tx = store->create_read_only_tx();
         auto snapshot_evidence = tx.ro(network.snapshot_evidence);
 
-        if (ledger_idx == startup_snapshot_info->evidence_seqno)
+        if (
+          startup_snapshot_info->evidence_seqno.has_value() &&
+          ledger_idx == startup_snapshot_info->evidence_seqno.value())
         {
           auto evidence = snapshot_evidence->get();
           if (!evidence.has_value())
@@ -866,7 +818,7 @@ namespace ccf
           {
             LOG_DEBUG_FMT(
               "Snapshot evidence for snapshot found at {}",
-              startup_snapshot_info->evidence_seqno);
+              startup_snapshot_info->evidence_seqno.value());
             startup_snapshot_info->has_evidence = true;
           }
         }
@@ -898,7 +850,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Snapshot evidence at {} was not committed in ledger ending at {}. "
           "Node should be shutdown by operator.",
-          startup_snapshot_info->evidence_seqno,
+          startup_snapshot_info->evidence_seqno.value(),
           ledger_idx);
         return;
       }
@@ -913,7 +865,9 @@ namespace ccf
     {
       sm.expect(State::readingPublicLedger);
 
-      if (startup_snapshot_info)
+      if (
+        startup_snapshot_info &&
+        startup_snapshot_info->requires_ledger_verification())
       {
         if (!startup_snapshot_info->is_snapshot_verified())
         {
@@ -921,7 +875,9 @@ namespace ccf
             "Snapshot evidence was not committed in ledger");
         }
 
-        if (last_recovered_signed_idx < startup_snapshot_info->evidence_seqno)
+        if (
+          last_recovered_signed_idx <
+          startup_snapshot_info->evidence_seqno.value())
         {
           throw std::logic_error("Snapshot evidence would be rolled back");
         }
@@ -1191,19 +1147,15 @@ namespace ccf
 
       if (startup_snapshot_info)
       {
-        LOG_INFO_FMT(
-          "Deserialising private snapshot for recovery ({})",
-          startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
         kv::ConsensusHookPtrs hooks;
-        auto rc = recovery_store->deserialise_snapshot(
-          startup_snapshot_info->raw, hooks, &view_history);
-        if (rc != kv::ApplyResult::PASS)
-        {
-          throw std::logic_error(fmt::format(
-            "Could not deserialise snapshot in recovery store: {}", rc));
-        }
-
+        deserialise_snapshot(
+          recovery_store,
+          startup_snapshot_info->raw,
+          hooks,
+          &view_history,
+          false,
+          startup_snapshot_info->evidence_seqno);
         startup_snapshot_info.reset();
       }
 
@@ -1369,6 +1321,9 @@ namespace ccf
           !sm.check(State::partOfPublicNetwork) &&
           !sm.check(State::readingPrivateLedger))
         {
+          LOG_DEBUG_FMT(
+            "Ignoring node msg received too early - current state is {}",
+            sm.value());
           return;
         }
 
@@ -1376,9 +1331,11 @@ namespace ccf
         {
           case channel_msg:
           {
-            n2n_channels->recv_message(from, payload_data, payload_size);
+            n2n_channels->recv_channel_message(
+              from, payload_data, payload_size);
             break;
           }
+
           case consensus_msg:
           {
             consensus->recv_message(from, payload_data, payload_size);
@@ -2056,6 +2013,22 @@ namespace ccf
           [](kv::Version version, const Resharings::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ResharingsHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.signatures.get_name(),
+        network.signatures.wrap_map_hook(
+          [](kv::Version version, const Signatures::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<SignaturesHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.serialise_tree.get_name(),
+        network.serialise_tree.wrap_map_hook(
+          [](kv::Version version, const SerialisedMerkleTree::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<SerialisedMerkleTreeHook>(version, w);
           }));
 
       setup_basic_hooks();

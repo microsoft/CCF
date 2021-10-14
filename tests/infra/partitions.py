@@ -88,6 +88,27 @@ class Partitioner:
             iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
         LOG.info(f"{CCF_IPTABLES_CHAIN} iptables chain cleaned up")
 
+    @staticmethod
+    def reverse_rule(rule):
+        def swap_fields(obj, a, b):
+            res = {**obj}
+            if a in obj:
+                res[b] = obj[a]
+            else:
+                del res[b]
+            if b in obj:
+                res[a] = obj[b]
+            else:
+                del res[a]
+            return res
+
+        r = swap_fields(rule, "src", "dst")
+
+        if "tcp" in rule:
+            r["tcp"] = swap_fields(rule["tcp"], "sport", "dport")
+
+        return r
+
     def __init__(self, network):
         self.network = network
 
@@ -140,17 +161,22 @@ class Partitioner:
             client_rule["dst"] = other.node_host
             name += f" from node {other.local_node_id}"
 
-        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, server_rule):
-            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
+        rules = [
+            server_rule,
+            self.reverse_rule(server_rule),
+            client_rule,
+            self.reverse_rule(client_rule),
+        ]
 
-        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, client_rule):
-            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
+        for rule in rules:
+            if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, rule):
+                iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, rule)
 
-        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
-        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
+            iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, rule)
 
         LOG.debug(name)
-        return Rules([server_rule, client_rule], name)
+
+        return Rules(rules, name)
 
     @staticmethod
     def _get_partition_name(partition: List[infra.node.Node]):

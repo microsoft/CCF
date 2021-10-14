@@ -15,7 +15,7 @@
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshot.h"
+#include "snapshots.h"
 #include "ticker.h"
 #include "time_updater.h"
 
@@ -33,6 +33,9 @@ using namespace std::string_literals;
 using namespace std::chrono_literals;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
+
+std::chrono::nanoseconds asynchost::TimeBoundLogger::default_max_time(
+  10'000'000);
 
 void print_version(size_t)
 {
@@ -202,6 +205,18 @@ int main(int argc, char** argv)
       "Size (bytes) at which a new ledger chunk is created")
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
+
+  size_t io_logging_threshold_ns =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(
+      asynchost::TimeBoundLogger::default_max_time)
+      .count();
+  app
+    .add_option(
+      "--io-logging-threshold-ns",
+      io_logging_threshold_ns,
+      "Any IO step that takes longer than this time will be logged at level "
+      "FAIL. This time is given in nanoseconds")
+    ->capture_default_str();
 
   size_t snapshot_tx_interval = 10'000;
   app
@@ -638,6 +653,11 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
+  asynchost::TimeBoundLogger::default_max_time =
+    std::chrono::duration_cast<decltype(
+      asynchost::TimeBoundLogger::default_max_time)>(
+      std::chrono::nanoseconds(io_logging_threshold_ns));
+
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), node_pid_file);
 
@@ -717,8 +737,7 @@ int main(int argc, char** argv)
     // This includes DNS resolution and potentially dynamic port assignment (if
     // requesting port 0). The hostname and port may be modified - after calling
     // it holds the final assigned values.
-    asynchost::NodeConnectionsTickingReconnect node(
-      20ms, //< Flush reconnections every 20ms
+    asynchost::NodeConnections node(
       bp.get_dispatcher(),
       ledger,
       writer_factory,
@@ -885,24 +904,20 @@ int main(int argc, char** argv)
       if (snapshot_file.has_value())
       {
         auto& snapshot = snapshot_file.value();
-        auto snapshot_evidence_idx =
-          asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
-        if (!snapshot_evidence_idx.has_value())
+        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
+
+        if (asynchost::is_snapshot_file_1_x(snapshot))
         {
-          throw std::logic_error(fmt::format(
-            "Snapshot file \"{}\" does not include snapshot evidence seqno",
-            snapshot));
+          // Snapshot evidence seqno is only specified for 1.x snapshots which
+          // need to be verified by deserialising the ledger suffix.
+          ccf_config.startup_snapshot_evidence_seqno_for_1_x =
+            asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
         }
 
-        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
-        ccf_config.startup_snapshot_evidence_seqno =
-          snapshot_evidence_idx->first;
-
         LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
+          "Found latest snapshot file: {} (size: {})",
           snapshot,
-          ccf_config.startup_snapshot.size(),
-          ccf_config.startup_snapshot_evidence_seqno);
+          ccf_config.startup_snapshot.size());
       }
       else
       {

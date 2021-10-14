@@ -59,6 +59,17 @@ namespace crypto
     {
       default_sha256(data, h.data());
     }
+    Sha256Hash(const std::string& s)
+    {
+      ds::from_hex(s, h);
+    }
+    Sha256Hash(const Sha256Hash& left, const Sha256Hash& right)
+    {
+      std::vector<uint8_t> data(left.h.size() + right.h.size());
+      std::copy(left.h.begin(), left.h.end(), data.begin());
+      std::copy(right.h.begin(), right.h.end(), data.begin() + left.h.size());
+      default_sha256(data, h.data());
+    }
 
     std::array<uint8_t, SIZE> h;
 

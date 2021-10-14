@@ -30,6 +30,9 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
 
+# If it takes a node n seconds to call an election, how long should we wait for an election to succeed?
+DEFAULT_TIMEOUT_MULTIPLIER = 3
+
 COMMON_FOLDER = "common"
 
 
@@ -145,6 +148,7 @@ class Network:
         self.library_dir = library_dir
         self.common_dir = None
         self.election_duration = None
+        self.observed_election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
         self.share_script = os.path.join(binary_dir, self.SHARE_SCRIPT)
         if not os.path.isfile(self.key_generator):
@@ -154,6 +158,7 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
         self.version = version
+        self.args = None
 
         # Requires admin privileges
         self.partitioner = (
@@ -277,6 +282,7 @@ class Network:
         read_only_ledger_dir=None,
         snapshot_dir=None,
     ):
+        self.args = args
         hosts = self.hosts
 
         if not args.package:
@@ -338,7 +344,10 @@ class Network:
             args.bft_view_change_timeout_ms / 1000
             if args.consensus == "bft"
             else args.raft_election_timeout_ms / 1000
-        ) * 2
+        )
+        # After an election timeout, we need some additional roundtrips to complete before
+        # the nodes _observe_ that an election has occurred
+        self.observed_election_duration = self.election_duration + 1
 
         LOG.info("All nodes started")
 
@@ -459,9 +468,6 @@ class Network:
         if committed_ledger_dir:
             ledger_dirs.append(committed_ledger_dir)
 
-        ledger = Ledger(ledger_dirs, committed_only=False)
-        public_state, _ = ledger.get_latest_public_state()
-
         primary = self._start_all_nodes(
             args,
             recovery=True,
@@ -471,7 +477,10 @@ class Network:
         )
 
         # If a common directory was passed in, initialise the consortium from it
-        if common_dir is not None:
+        if not self.consortium and common_dir is not None:
+            ledger = Ledger(ledger_dirs, committed_only=False)
+            public_state, _ = ledger.get_latest_public_state()
+
             self.consortium = infra.consortium.Consortium(
                 common_dir,
                 self.key_generator,
@@ -677,7 +686,13 @@ class Network:
         return self.consortium.members
 
     def get_joined_nodes(self):
-        return [node for node in self.nodes if node.is_joined()]
+        return [node for node in self.nodes if node.is_joined() and not node.suspended]
+
+    def get_stopped_nodes(self):
+        return [node for node in self.nodes if node.is_stopped()]
+
+    def get_f(self):
+        return infra.e2e_args.max_f(self.args, len(self.nodes))
 
     def wait_for_state(self, node, state, timeout=3):
         end_time = time.time() + timeout
@@ -755,22 +770,24 @@ class Network:
 
         return (self._get_node_by_service_id(primary_id), view)
 
-    def find_backups(self, primary=None, timeout=3):
+    def find_backups(self, primary=None, timeout=3, log_capture=None):
         if primary is None:
-            primary, _ = self.find_primary(timeout=timeout)
+            primary, _ = self.find_primary(timeout=timeout, log_capture=log_capture)
         return [n for n in self.get_joined_nodes() if n != primary]
 
-    def find_any_backup(self, primary=None, timeout=3):
-        return random.choice(self.find_backups(primary=primary, timeout=timeout))
+    def find_any_backup(self, primary=None, timeout=3, log_capture=None):
+        return random.choice(
+            self.find_backups(primary=primary, timeout=timeout, log_capture=log_capture)
+        )
 
-    def find_node_by_role(self, role=NodeRole.ANY):
+    def find_node_by_role(self, role=NodeRole.ANY, log_capture=None):
         role_ = (
             random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
         )
         if role_ == NodeRole.PRIMARY:
-            return self.find_primary()[0]
+            return self.find_primary(log_capture=log_capture)[0]
         else:
-            return self.find_any_backup()
+            return self.find_any_backup(log_capture=log_capture)
 
     def find_random_node(self):
         return random.choice(self.get_joined_nodes())
@@ -865,18 +882,22 @@ class Network:
         expected = [commits[0]] * len(commits)
         if expected != commits:
             for node in self.get_joined_nodes():
-                r = c.get("/node/consensus")
-                pprint.pprint(r.body.json())
+                with node.client() as c:
+                    r = c.get("/node/consensus")
+                    pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
+    def wait_for_new_primary(
+        self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER
+    ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * timeout_multiplier
+        timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
-        end_time = time.time() + timeout
+        start_time = time.time()
+        end_time = start_time + timeout
         error = TimeoutError
         logs = []
 
@@ -898,8 +919,9 @@ class Network:
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)
+                    delay = time.time() - start_time
                     LOG.info(
-                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -911,15 +933,19 @@ class Network:
         raise error(f"A new primary was not elected after {timeout} seconds")
 
     def wait_for_new_primary_in(
-        self, expected_node_ids, nodes=None, timeout_multiplier=2
+        self,
+        expected_node_ids,
+        nodes=None,
+        timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER,
     ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
-        timeout = self.election_duration * timeout_multiplier
+        timeout = self.observed_election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary in {expected_node_ids} to be elected..."
         )
-        end_time = time.time() + timeout
+        start_time = time.time()
+        end_time = start_time + timeout
         error = TimeoutError
         logs = []
         while time.time() < end_time:
@@ -928,8 +954,9 @@ class Network:
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id in expected_node_ids:
                     flush_info(logs, None)
+                    delay = time.time() - start_time
                     LOG.info(
-                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                        f"New primary after {delay}s is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
                     )
                     return (new_primary, new_term)
             except PrimaryNotFound:
@@ -940,38 +967,72 @@ class Network:
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
+    def wait_for_primary_unanimity(
+        self, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
+    ):
+        timeout = self.observed_election_duration * timeout_multiplier
+        LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
+        start_time = time.time()
+        end_time = start_time + timeout
+
+        primaries = []
+        while time.time() < end_time:
+            primaries = []
+            for node in self.get_joined_nodes():
+                logs = []
+                try:
+                    primary, view = self.find_primary(nodes=[node], log_capture=logs)
+                    if min_view is None or view > min_view:
+                        primaries.append(primary)
+                except PrimaryNotFound:
+                    pass
+            # Stop checking once all primaries are the same
+            if primaries == [primaries[0]] * len(self.get_joined_nodes()):
+                break
+            time.sleep(0.1)
+        expected = [primaries[0]] * len(self.get_joined_nodes())
+        if expected != primaries:
+            for node in self.get_joined_nodes():
+                with node.client() as c:
+                    r = c.get("/node/consensus")
+                    pprint.pprint(r.body.json())
+        assert expected == primaries, f"Multiple primaries: {primaries}"
+        delay = time.time() - start_time
+        LOG.info(
+            f"Primary unanimity after {delay}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
+        )
+        return primaries[0]
+
     def wait_for_commit_proof(self, node, seqno, timeout=3):
         # Wait that the target seqno has a commit proof on a specific node.
         # This is achieved by first waiting for a commit over seqno, issuing
         # a write request and then waiting for a commit over that
         end_time = time.time() + timeout
         while time.time() < end_time:
-            with node.client() as c:
+            with node.client(self.consortium.get_any_active_member().local_id) as c:
                 r = c.get("/node/commit")
                 current_tx = TxID.from_str(r.body.json()["transaction_id"])
                 if current_tx.seqno >= seqno:
-                    with node.client(
-                        self.consortium.get_any_active_member().local_id
-                    ) as nc:
-                        # Using update_state_digest here as a convenient write tx
-                        # that is app agnostic
-                        r = nc.post("/gov/ack/update_state_digest")
-                        assert (
-                            r.status_code == http.HTTPStatus.OK.value
-                        ), f"Error ack/update_state_digest: {r}"
-                        c.wait_for_commit(r)
-                        return True
+                    # Using update_state_digest here as a convenient write tx
+                    # that is app agnostic
+                    r = c.post("/gov/ack/update_state_digest")
+                    assert (
+                        r.status_code == http.HTTPStatus.OK.value
+                    ), f"Error ack/update_state_digest: {r}"
+                    c.wait_for_commit(r)
+                    return True
             time.sleep(0.1)
         raise TimeoutError(f"seqno {seqno} did not have commit proof after {timeout}s")
 
     def wait_for_snapshot_committed_for(self, seqno, timeout=3):
         # Check that snapshot exists for target seqno and if so, wait until
-        # snapshot evidence has commit proof (= commit rule for snapshots)
+        # snapshot evidence is committed
         snapshot_evidence_seqno = None
         primary, _ = self.find_primary()
         for s in os.listdir(primary.get_snapshots()):
-            if infra.node.get_snapshot_seqnos(s)[0] > seqno:
-                snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)[1]
+            snapshot_seqno, snapshot_evidence_seqno = infra.node.get_snapshot_seqnos(s)
+            if snapshot_seqno > seqno:
+                break
         if snapshot_evidence_seqno is None:
             return False
 

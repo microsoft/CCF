@@ -1,11 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from ccf.ledger import NodeStatus
 import functools
 
 from loguru import logger as LOG
-from math import ceil
 
 
 class TestRequirementsNotMet(Exception):
@@ -99,27 +97,17 @@ def sufficient_recovery_member_count():
 
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
-        primary, _ = network.find_primary()
-        with primary.client() as c:
-            r = c.get("/node/network/nodes")
-
-            trusted_nodes_count = len(
-                [
-                    node
-                    for node in r.body.json()["nodes"]
-                    if node["status"] == NodeStatus.TRUSTED.value
-                ]
+        running_nodes_count = len(network.get_joined_nodes())
+        would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
+        minimum_nodes_to_run_count = network.nodes - network.get_f()
+        LOG.info(
+            f"{running_nodes_count}/{network.nodes} nodes running, with f={network.get_f()}, trying to kill {nodes_to_kill_count}"
+        )
+        if would_leave_nodes_count < minimum_nodes_to_run_count:
+            raise TestRequirementsNotMet(
+                f"Cannot kill {nodes_to_kill_count} node(s) as the network would not be able to make progress"
+                f" (would leave {would_leave_nodes_count} nodes but requires {minimum_nodes_to_run_count} nodes to make progress) "
             )
-            running_nodes_count = len(network.get_joined_nodes())
-            would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
-            minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
-            if args.consensus == "cft" and (
-                would_leave_nodes_count < minimum_nodes_to_run_count
-            ):
-                raise TestRequirementsNotMet(
-                    f"Cannot kill {nodes_to_kill_count} node(s) as the network would not be able to make progress"
-                    f" (would leave {would_leave_nodes_count} nodes but requires {minimum_nodes_to_run_count} nodes to make progress) "
-                )
 
     return ensure_reqs(check)
 
