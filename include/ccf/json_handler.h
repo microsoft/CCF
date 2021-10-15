@@ -125,6 +125,104 @@ namespace ccf
       return packing.value_or(serdes::Pack::Text);
     }
 
+    struct AcceptHeaderField
+    {
+      std::string mime_type;
+      std::string mime_subtype;
+      float q_factor;
+
+      bool operator==(const AcceptHeaderField& other) const = default;
+
+      bool operator<(const AcceptHeaderField& other) const
+      {
+        if (q_factor != other.q_factor)
+        {
+          return q_factor < other.q_factor;
+        }
+
+        if (mime_type == "*")
+        {
+          return true;
+        }
+        else if (other.mime_type == "*")
+        {
+          return false;
+        }
+
+        if (mime_subtype == "*")
+        {
+          return true;
+        }
+        else if (other.mime_subtype == "*")
+        {
+          return false;
+        }
+
+        // Spec says these mime types are now equivalent. For stability, we
+        // order them lexicographically
+        return mime_type < other.mime_type && mime_subtype < other.mime_subtype;
+      }
+    };
+
+    inline std::vector<AcceptHeaderField> parse_accept_header(std::string s)
+    {
+      // Strip out all spaces
+      s.erase(
+        std::remove_if(s.begin(), s.end(), [](char c) { return c == ' '; }),
+        s.end());
+
+      if (s.empty())
+      {
+        return {};
+      }
+
+      std::vector<AcceptHeaderField> fields;
+
+      const auto elements = nonstd::split(s, ",");
+      for (const auto& element : elements)
+      {
+        const auto [types, q_string] = nonstd::split_1(element, ";q=");
+        const auto [type, subtype] = nonstd::split_1(types, "/");
+        if (type.empty() || subtype.empty())
+        {
+          throw RpcException(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidHeaderValue,
+            fmt::format(
+              "Entry in Accept header is not a valid MIME type: {}", element));
+        }
+
+        float q_factor = 1.0f;
+        if (!q_string.empty())
+        {
+          try
+          {
+            q_factor = std::stof(std::string(q_string));
+          }
+          catch (const std::exception& e)
+          {
+            throw RpcException(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              fmt::format(
+                "Could not parse q-factor from MIME type in Accept header: "
+                "{}",
+                element));
+          }
+        }
+
+        fields.push_back(
+          AcceptHeaderField{std::string(type), std::string(subtype), q_factor});
+      }
+
+      // Sort in _reverse_, so the 'largest' (highest quality-value) entry is
+      // first
+      std::sort(fields.begin(), fields.end(), [](const auto& a, const auto& b) {
+        return b < a;
+      });
+      return fields;
+    }
+
     inline serdes::Pack get_response_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx,
       serdes::Pack request_pack = serdes::Pack::Text)

@@ -1542,6 +1542,53 @@ TEST_CASE("Retry on conflict")
   }
 }
 
+TEST_CASE("Parse Accept header")
+{
+  using namespace ccf::jsonhandler;
+
+  {
+    const auto fields = parse_accept_header("");
+    REQUIRE(fields.empty());
+  }
+
+  {
+    const auto fields = parse_accept_header("foo/bar;q=0.25");
+    REQUIRE(fields.size() == 1);
+    const auto& field = fields[0];
+    REQUIRE(field.mime_type == "foo");
+    REQUIRE(field.mime_subtype == "bar");
+    REQUIRE(field.q_factor == 0.25f);
+  }
+
+  {
+    // Shuffled and modified version of Firefox 91 default value, to test
+    // sorting
+    const auto fields = parse_accept_header(
+      "image/webp;q=0.8, "
+      "image/*;q=0.8, "
+      "text/html, "
+      "application/xml;q=0.9, "
+      "application/xhtml+xml;q=1.0, "
+      "image/avif, "
+      "*/*;q=0.8");
+    REQUIRE(fields.size() == 7);
+
+    REQUIRE(fields[0] == AcceptHeaderField{"text", "html", 1.0f});
+    REQUIRE(fields[1] == AcceptHeaderField{"image", "avif", 1.0f});
+    REQUIRE(fields[2] == AcceptHeaderField{"application", "xhtml+xml", 1.0f});
+    REQUIRE(fields[3] == AcceptHeaderField{"application", "xml", 0.9f});
+    REQUIRE(fields[4] == AcceptHeaderField{"image", "webp", 0.8f});
+    REQUIRE(fields[5] == AcceptHeaderField{"image", "*", 0.8f});
+    REQUIRE(fields[6] == AcceptHeaderField{"*", "*", 0.8f});
+  }
+
+  {
+    REQUIRE_THROWS(parse_accept_header("not_a_mime_type"));
+    REQUIRE_THROWS(parse_accept_header("valid/mime;q=notnum"));
+    REQUIRE_THROWS(parse_accept_header(","));
+  }
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;
