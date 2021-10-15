@@ -69,8 +69,8 @@ namespace ccf::apps
         policy_name = get_policy_name_from_ident(jwt_ident);
         /**
          * TODO: Create structure:
-         *   jwt: {
-         *     keyIssuer: jwt_ident->key_issuer
+         *   jwt {
+         *     keyIssuer: StringLen(iso, jwt_ident->key_issuer.data(), ...size())
          *     header: create_json_obj(jwt_ident->header, iso)
          *     payload: create_json_obj(jwt_ident->payload, iso)
          *   }
@@ -88,8 +88,8 @@ namespace ccf::apps
         /**
          * Create structure:
          *   caller {
-         *     policy: policy
-         *     jwt: jwt
+         *     policy: policy_name
+         *     jwt: jwt (if not null)
          *   }
          */
         return caller;
@@ -138,7 +138,6 @@ namespace ccf::apps
       // Retrieve user/member data from authenticated caller id
       nlohmann::json data = nullptr;
       ccf::ApiResult result = ccf::ApiResult::OK;
-
       if (is_member)
       {
         result = get_member_data_v1(endpoint_ctx.tx, id, data);
@@ -147,13 +146,13 @@ namespace ccf::apps
       {
         result = get_user_data_v1(endpoint_ctx.tx, id, data);
       }
-
       if (result == ccf::ApiResult::InternalError)
       {
         throw std::logic_error(
           fmt::format("Failed to get data for caller {}", id));
       }
 
+      // Retrieve the certificate
       crypto::Pem cert;
       if (is_member)
       {
@@ -163,68 +162,71 @@ namespace ccf::apps
       {
         result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
       }
-
       if (result == ccf::ApiResult::InternalError)
       {
         throw std::logic_error(
           fmt::format("Failed to get certificate for caller {}", id));
       }
 
-      V8_SetPropertyStr(iso, caller, "policy", String(iso, policy_name));
-      V8_SetPropertyStr(
-        iso, caller, "id", StringLen(iso, id.data(), id.size()));
-      V8_SetPropertyStr(iso, caller, "data", create_json_obj(data, iso));
-      V8_SetPropertyStr(
-        iso,
-        caller,
-        "cert",
-        StringLen(iso, cert.str().data(), cert.size()));
-
+      /**
+       * TODO: Create structure:
+       *   caller {
+       *     policy: policy_name
+       *     id: StringLen(iso, id.data(), id.size())
+       *     data: create_json_obj(data, iso)
+       *     cert: StringLen(iso, cert.str().data(), cert.size())
+       *   }
+       */
       return caller;
     }
 
-    JSValue create_request_obj(
+    Local<Value> create_request_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
     {
-      auto request = Object::New(ctx);
+      // Request object
+      auto request = Object::New(iso);
 
-      auto headers = Object::New(ctx);
+      // Set header list (possibly empty)
+      auto headers = Object::New(iso);
       for (auto& [header_name, header_value] :
            endpoint_ctx.rpc_ctx->get_request_headers())
       {
-        V8_SetPropertyStr(
-          ctx,
-          headers,
-          header_name.c_str(),
-          StringLen(ctx, header_value.c_str(), header_value.size()));
+        // V8_SetPropertyStr(
+        //   ctx,
+        //   headers,
+        //   header_name.c_str(),
+        //   StringLen(ctx, header_value.c_str(), header_value.size()));
       }
-      V8_SetPropertyStr(ctx, request, "headers", headers);
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
-      auto query_str =
-        StringLen(ctx, request_query.c_str(), request_query.size());
-      V8_SetPropertyStr(ctx, request, "query", query_str);
+      // auto query_str =
+      //   StringLen(ctx, request_query.c_str(), request_query.size());
 
-      auto params = Object::New(ctx);
+      auto params = Object::New(iso);
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
       {
-        V8_SetPropertyStr(
-          ctx,
-          params,
-          param_name.c_str(),
-          StringLen(ctx, param_value.c_str(), param_value.size()));
+        // V8_SetPropertyStr(
+        //   ctx,
+        //   params,
+        //   param_name.c_str(),
+        //   StringLen(ctx, param_value.c_str(), param_value.size()));
       }
-      V8_SetPropertyStr(ctx, request, "params", params);
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
-      auto body_ = Object::NewClass(ctx, js::body_class_id);
-      V8_SetOpaque(body_, (void*)&request_body);
-      V8_SetPropertyStr(ctx, request, "body", body_);
+      // auto body = Object::NewClass(ctx, js::body_class_id);
+      // V8_SetOpaque(body, (void*)&request_body);
 
-      V8_SetPropertyStr(
-        ctx, request, "caller", create_caller_obj(endpoint_ctx, ctx));
-
+      /**
+       * TODO: Create structure:
+       *   request {
+       *     headers: headers
+       *     query: query_str
+       *     params: params
+       *     body: body
+       *     caller: create_caller_obj(endpoint_ctx, ctx)
+       *   }
+       */
       return request;
     }
 
