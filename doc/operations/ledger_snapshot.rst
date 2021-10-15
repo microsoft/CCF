@@ -40,6 +40,8 @@ The listing below is an example of what a ledger directory may look like:
     -rw-rw-r-- 1 user user 1.1M Jan 31 14:00 ledger_92502-97520.committed
     -rw-rw-r-- 1 user user 553K Jan 31 14:00 ledger_97521 # File still in progress
 
+.. note:: On startup, a CCF node started with existing ledger files may suffix some of the file names with ``.corrupted`` if the ledger file cannot be parsed, depending on the sequence number the node will join from.
+
 Snapshots
 ---------
 
