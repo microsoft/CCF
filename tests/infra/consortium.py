@@ -323,8 +323,8 @@ class Consortium:
         )
 
         if not self._check_node_exists(
-            remote_node, node_id, NodeStatus.TRUSTED
-        ) and not self._check_node_exists(remote_node, node_id, NodeStatus.LEARNER):
+            remote_node, node_id, NodeStatus.LEARNER
+        ) and not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(
                 f"Node {node_id} does not exist in state {NodeStatus.TRUSTED} or {NodeStatus.LEARNER}"
             )
