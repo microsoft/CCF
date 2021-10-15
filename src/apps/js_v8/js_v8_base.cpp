@@ -17,13 +17,12 @@
 #include <stdexcept>
 #include <vector>
 
-namespace ccfapp
-{
-  using namespace std;
-  using namespace kv;
-  using namespace ccf;
-  using namespace v8;
+using namespace std;
+using namespace kv;
+using namespace v8;
 
+namespace ccf::apps
+{
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -52,55 +51,53 @@ namespace ccfapp
       iso, buf.c_str(), NewStringType::kNormal, static_cast<int>(buf.size()));
     }
 
-    JSValue create_caller_obj(
+    Local<Object> create_caller_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
     {
+      // No callers, return null
       if (endpoint_ctx.caller == nullptr)
       {
         return Null(iso);
       }
 
+      // Jwt/Empty identity
       auto caller = Object::New(iso);
-
+      char const* policy_name = nullptr;
+      Local<Object> jwt = Null(iso);
       if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
       {
-        V8_SetPropertyStr(
-          iso,
-          caller,
-          "policy",
-          String(iso, get_policy_name_from_ident(jwt_ident)));
-
-        auto jwt = Object::New(iso);
-        V8_SetPropertyStr(
-          iso,
-          jwt,
-          "keyIssuer",
-          StringLen(
-            iso, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
-        V8_SetPropertyStr(
-          iso, jwt, "header", create_json_obj(jwt_ident->header, iso));
-        V8_SetPropertyStr(
-          iso, jwt, "payload", create_json_obj(jwt_ident->payload, iso));
-        V8_SetPropertyStr(iso, caller, "jwt", jwt);
-
-        return caller;
+        policy_name = get_policy_name_from_ident(jwt_ident);
+        /**
+         * TODO: Create structure:
+         *   jwt: {
+         *     keyIssuer: jwt_ident->key_issuer
+         *     header: create_json_obj(jwt_ident->header, iso)
+         *     payload: create_json_obj(jwt_ident->payload, iso)
+         *   }
+         */
       }
       else if (
         auto empty_ident =
           endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
       {
-        V8_SetPropertyStr(
-          iso,
-          caller,
-          "policy",
-          String(iso, get_policy_name_from_ident(empty_ident)));
+        policy_name = get_policy_name_from_ident(empty_ident);
+        // jwt here is null
+      }
+      if (policy_name)
+      {
+        /**
+         * Create structure:
+         *   caller {
+         *     policy: policy
+         *     jwt: jwt
+         *   }
+         */
         return caller;
       }
 
-      char const* policy_name = nullptr;
-      std::string id;
+      // If not, it has to be {User/Member} x {Cert/Signature} identity
+      string id;
       bool is_member = false;
-
       if (
         auto user_cert_ident =
           endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
@@ -133,7 +130,6 @@ namespace ccfapp
         id = member_sig_ident->member_id;
         is_member = true;
       }
-
       if (policy_name == nullptr)
       {
         throw std::logic_error("Unable to convert caller info to JS object");
@@ -239,7 +235,7 @@ namespace ccfapp
       kv::Tx& target_tx,
       // For historical requests
       const std::optional<ccf::TxID>& transaction_id,
-      ccf::historical::TxReceiptPtr receipt)
+      ccf::TxReceiptPtr receipt)
     {
       // Creates an "isolate", which is like a browser tab or a sandbox.
       // We create one per request, which is wasteful if we get the same request multiple times.
