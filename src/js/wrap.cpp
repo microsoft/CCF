@@ -1610,105 +1610,23 @@ namespace ccf::js
 
   void Runtime::add_ccf_classdefs()
   {
-    // Register class for KV
+    std::vector<std::pair<JSClassID, JSClassDef*>> classes{
+      {kv_class_id, &kv_class_def},
+      {kv_map_handle_class_id, &kv_map_handle_class_def},
+      {body_class_id, &body_class_def},
+      {node_class_id, &node_class_def},
+      {network_class_id, &network_class_def},
+      {rpc_class_id, &rpc_class_def},
+      {host_class_id, &host_class_def},
+      {consensus_class_id, &consensus_class_def},
+      {historical_class_id, &historical_class_def},
+      {historical_state_class_id, &historical_state_class_def}};
+    for (auto [class_id, class_def] : classes)
     {
-      auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
+      auto ret = JS_NewClass(rt, class_id, class_def);
       if (ret != 0)
-      {
-        throw std::logic_error("Failed to register JS class definition for KV");
-      }
-    }
-
-    // Register class for KV map views
-    {
-      auto ret =
-        JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for KVMap");
-      }
-    }
-
-    // Register class for request body
-    {
-      auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for Body");
-      }
-    }
-
-    // Register class for node
-    {
-      auto ret = JS_NewClass(rt, node_class_id, &node_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for node");
-      }
-    }
-
-    // Register class for network
-    {
-      auto ret = JS_NewClass(rt, network_class_id, &network_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for network");
-      }
-    }
-
-    // Register class for rpc
-    {
-      auto ret = JS_NewClass(rt, rpc_class_id, &rpc_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for rpc");
-      }
-    }
-
-    // Register class for host
-    {
-      auto ret = JS_NewClass(rt, host_class_id, &host_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for host");
-      }
-    }
-
-    // Register class for consensus
-    {
-      auto ret = JS_NewClass(rt, consensus_class_id, &consensus_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for consensus");
-      }
-    }
-
-    // Register class for historical
-    {
-      auto ret = JS_NewClass(rt, historical_class_id, &historical_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for historical");
-      }
-    }
-
-    // Register class for historical state
-    {
-      auto ret =
-        JS_NewClass(rt, historical_state_class_id, &historical_state_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for historical state");
-      }
+        throw std::logic_error(fmt::format(
+          "Failed to register JS class definition {}", class_def->class_name));
     }
   }
 

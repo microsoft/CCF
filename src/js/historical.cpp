@@ -7,8 +7,7 @@ namespace ccf::js
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  static JSValue ccf_receipt_to_js(
-    JSContext* ctx, ccf::historical::TxReceiptPtr receipt)
+  static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptPtr receipt)
   {
     ccf::Receipt receipt_out;
     receipt->describe(receipt_out);
@@ -113,6 +112,8 @@ namespace ccf::js
     {
       auto js_state = JS_NewObjectClass(ctx, historical_state_class_id);
 
+      // Note: The state_ctx object is deleted by js_historical_state_finalizer
+      // which is registered as the finalizer for historical_state_class_id.
       auto state_ctx = new HistoricalStateContext{
         state, state->store->create_tx(), TxContext{nullptr, TxAccess::APP}};
       state_ctx->tx_ctx.tx = &state_ctx->tx;

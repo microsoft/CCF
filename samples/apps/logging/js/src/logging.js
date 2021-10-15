@@ -153,18 +153,18 @@ export function get_historical_range(request) {
   const handle = makeHandle(range_begin, range_end, parsedQuery.id);
 
   // Fetch the requested range
-  const expiry = 1800;
+  const expiry_seconds = 1800;
   const states = ccf.historical.getStateRange(
     handle,
     range_begin,
     range_end,
-    expiry
+    expiry_seconds
   );
   if (states === null) {
     return {
       statusCode: 202,
       headers: {
-        "retry-after": "3",
+        "retry-after": "1",
       },
       body: `Historical transactions from ${range_begin} to ${range_end} are not yet available, fetching now`,
     };
