@@ -663,13 +663,20 @@ class Ledger:
 
         self._filenames = []
 
-        ledger_files = []
+        ledger_files: List[str] = []
         for directory in directories:
             for path in os.listdir(directory):
                 if committed_only and not path.endswith(".committed"):
                     continue
                 chunk = os.path.join(directory, path)
-                if os.path.isfile(chunk):
+                # The same ledger file may appear multiple times in different directories
+                # so ignore duplicates
+                if (
+                    os.path.isfile(chunk)
+                    and not path.endswith(".corrupted")
+                    and not path.endswith(".ignored")
+                    and not any(os.path.basename(chunk) in f for f in ledger_files)
+                ):
                     ledger_files.append(chunk)
 
         # Sorts the list based off the first number after ledger_ so that
