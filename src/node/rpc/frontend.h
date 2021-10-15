@@ -176,6 +176,7 @@ namespace ccf
         else
         {
           std::vector<char const*> allowed_verb_strs;
+          allowed_verb_strs.push_back(llhttp_method_name(HTTP_OPTIONS));
           for (auto verb : allowed_verbs)
           {
             allowed_verb_strs.push_back(verb.c_str());
@@ -184,15 +185,23 @@ namespace ccf
             fmt::format("{}", fmt::join(allowed_verb_strs, ", "));
           // List allowed methods in 2 places:
           // - ALLOW header for standards compliance + machine parsing
-          // - Body for visiblity + human readability
+          // - Body for visiblity + human readability (unless this was an
+          // OPTIONS request, which returns a 204 No Content)
           ctx->set_response_header(http::headers::ALLOW, allow_header_value);
-          ctx->set_error(
-            HTTP_STATUS_METHOD_NOT_ALLOWED,
-            ccf::errors::UnsupportedHttpVerb,
-            fmt::format(
-              "Allowed methods for '{}' are: {}.",
-              ctx->get_method(),
-              allow_header_value));
+          if (ctx->get_request_verb() == HTTP_OPTIONS)
+          {
+            ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+          else
+          {
+            ctx->set_error(
+              HTTP_STATUS_METHOD_NOT_ALLOWED,
+              ccf::errors::UnsupportedHttpVerb,
+              fmt::format(
+                "Allowed methods for '{}' are: {}.",
+                ctx->get_method(),
+                allow_header_value));
+          }
           return ctx->serialise_response();
         }
       }
