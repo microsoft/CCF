@@ -246,6 +246,7 @@ def test_supported_methods(network, args):
     primary, _ = network.find_nodes()
 
     with primary.client("user0") as c:
+        # Test ALLOW header when wrong method is used
         r = c.delete("/app/text")
         assert r.status_code == http.HTTPStatus.METHOD_NOT_ALLOWED
         allow = r.headers.get("allow")
@@ -253,12 +254,21 @@ def test_supported_methods(network, args):
         assert "OPTIONS" in allow
         assert "POST" in allow
 
+        # Test ALLOW header when OPTIONS method is used on POST-only app endpoint
         r = c.options("/app/text")
         assert r.status_code == http.HTTPStatus.NO_CONTENT
         allow = r.headers.get("allow")
         assert allow is not None
         assert "OPTIONS" in allow
         assert "POST" in allow
+
+        # Test ALLOW header when OPTIONS method is used on GET-only framework endpoint
+        r = c.options("/node/commit")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT
+        allow = r.headers.get("allow")
+        assert allow is not None
+        assert "OPTIONS" in allow
+        assert "GET" in allow
 
     return network
 
