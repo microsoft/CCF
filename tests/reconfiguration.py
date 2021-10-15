@@ -12,6 +12,7 @@ from infra.checker import check_can_progress, check_does_not_progress
 import ccf.ledger
 import json
 import infra.crypto
+from datetime import datetime
 
 from loguru import logger as LOG
 
@@ -422,6 +423,24 @@ def test_node_certificates_validity_period(network, args):
         node.verify_certificate_validity_period(args.initial_node_cert_validity_days)
 
 
+@reqs.description("Test service certificate validity period")
+def test_service_certificate_validity_period(network, args):
+    # TODO: See https://github.com/microsoft/CCF/issues/3090
+    with open(
+        os.path.join(network.common_dir, "networkcert.pem"), "r", encoding="utf-8"
+    ) as service_cert:
+        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+            service_cert.read()
+        )
+        assert valid_from == datetime(year=2021, month=3, day=11)  # 20210311000000Z
+        assert valid_to == datetime(
+            year=2023, month=6, day=11, hour=23, minute=59, second=59
+        )  # 20230611235959Z
+        LOG.info(
+            f"Certificate validity period for service successfully verified: {valid_from} - {valid_to} (for {valid_to - valid_from})"
+        )
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -434,9 +453,11 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        test_service_certificate_validity_period(network, args)
+
         test_node_certificates_validity_period(network, args)
 
-        test_add_node(network, args)
+        # test_add_node(network, args)
 
         # test_version(network, args)
 
