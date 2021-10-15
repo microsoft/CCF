@@ -23,7 +23,7 @@ namespace ccf
 
     virtual ~HTTPNodeClient() {}
 
-    inline bool make_request(http::Request& request)
+    inline bool make_request(http::Request& request, bool no_content_ok = false)
     {
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
@@ -59,14 +59,17 @@ namespace ccf
 
       auto rs = ctx->get_response_status();
 
-      if (rs != HTTP_STATUS_OK)
+      if (
+        rs != HTTP_STATUS_OK &&
+        (!no_content_ok || rs != HTTP_STATUS_NO_CONTENT))
       {
         auto ser_res = ctx->serialise_response();
         std::string str((char*)ser_res.data(), ser_res.size());
         LOG_FAIL_FMT("Request failed: {}", str);
       }
 
-      return rs == HTTP_STATUS_OK;
+      return rs == HTTP_STATUS_OK ||
+        (no_content_ok && rs == HTTP_STATUS_NO_CONTENT);
     }
 
     bool submit_orc(const NodeId& from, kv::ReconfigurationId rid) override
@@ -82,7 +85,7 @@ namespace ccf
 
       auto body = serdes::pack(ps, serdes::Pack::Text);
       request.set_body(&body);
-      return make_request(request);
+      return make_request(request, true);
     }
 
     struct AsyncORCTaskMsg
