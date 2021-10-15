@@ -644,10 +644,56 @@ TEST_CASE("ASN1 time")
   next_day_time.tm_mday++;
   auto next_year_time = time;
   next_year_time.tm_year++;
+  auto next_minute_time = time;
+  next_minute_time.tm_min++;
 
   auto current_time = crypto::OpenSSL::from_time_t(current_time_t);
   auto next_day = crypto::OpenSSL::from_time_t(std::mktime(&next_day_time));
   auto next_year = crypto::OpenSSL::from_time_t(std::mktime(&next_year_time));
+
+  std::string before = "211015154115Z";
+  std::string after = "211016154114Z";
+  REQUIRE(crypto::OpenSSL::validate_chronological_times(before, after));
+
+  INFO("Chronological time");
+  {
+    struct TimeTest
+    {
+      struct Input
+      {
+        std::tm from;
+        std::tm to;
+        std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
+      };
+      Input input;
+
+      bool expected_verification_result;
+    };
+
+    std::vector<TimeTest> test_vector{
+      {{time, next_day_time}, true}, // Valid: Next day
+      {{time, time}, false}, // Invalid: Same date
+      {{next_day_time, time}, false}, // Invalid: to is before from
+      {{time, next_day_time, 100}, true}, // Valid: Next day within 100 days
+      {{time, next_year_time, 100},
+       false}, // Valid: Next day not within 100 days
+      {{time, next_minute_time}, true}, // Valid: Next minute
+      {{next_minute_time, time}, false}, // Invalid: to is before from
+      {{time, next_minute_time, 1}, true} // Valid: Next min within 1 day
+    };
+
+    for (auto& data : test_vector)
+    {
+      auto* from = &data.input.from;
+      auto* to = &data.input.to;
+      REQUIRE(
+        crypto::OpenSSL::validate_chronological_times(
+          crypto::OpenSSL::from_time_t(std::mktime(from)),
+          crypto::OpenSSL::from_time_t(std::mktime(to)),
+          data.input.maximum_validity_period_days) ==
+        data.expected_verification_result);
+    }
+  }
 
   INFO("Adjust time");
   {

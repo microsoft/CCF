@@ -16,6 +16,20 @@ namespace crypto
     /** Set of utilites functions for working with x509 time, as defined in RFC
     5280 (https://datatracker.ietf.org/doc/html/rfc5280#section-4.1.2.5.1) */
 
+    static inline bool validate_chronological_times(
+      const Unique_ASN1_TIME& time_before,
+      const Unique_ASN1_TIME& time_after,
+      const std::optional<uint32_t>& allowed_diff_days = std::nullopt)
+    {
+      int diff_days = 0;
+      int diff_secs = 0;
+      CHECK1(ASN1_TIME_diff(&diff_days, &diff_secs, time_before, time_after));
+
+      return (diff_days > 0 || diff_secs > 0) &&
+        (!allowed_diff_days.has_value() ||
+         (unsigned int)diff_days <= allowed_diff_days.value());
+    }
+
     static inline Unique_ASN1_TIME from_time_t(const time_t& t)
     {
       return Unique_ASN1_TIME(ASN1_TIME_set(nullptr, t));
@@ -40,6 +54,11 @@ namespace crypto
       // Returns ASN1 time string (YYYYMMDDHHMMSSZ) from time_t, as per
       // https://www.openssl.org/docs/man1.1.1/man3/ASN1_UTCTIME_set.html
       return fmt::format("{:%y%m%d%H%M%SZ}", fmt::gmtime(time));
+    }
+
+    static inline std::string to_x509_time_string(const Unique_ASN1_TIME& time)
+    {
+      return to_x509_time_string(to_time_t(time));
     }
   }
 }

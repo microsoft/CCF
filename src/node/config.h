@@ -22,11 +22,17 @@ namespace ccf
 
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
-    std::optional<size_t> node_cert_allowed_validity_period_days = std::nullopt;
+    /**
+     *  Fields below are added in 2.x
+     */
+
+    size_t node_cert_allowed_validity_period_days =
+      default_node_cert_validity_period_days;
 
     // TODO: Only required if initial node join (when service is opening) uses
     // primary's host time
-    std::optional<size_t> node_cert_initial_validity_period_days = std::nullopt;
+    size_t node_cert_initial_validity_period_days =
+      default_node_cert_initial_validity_period_days;
 
     bool operator==(const ServiceConfiguration& other) const
     {

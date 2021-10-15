@@ -793,7 +793,7 @@ const actions = new Map([
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
               args.valid_from,
-              serviceConfig.node_cert_allowed_validity_period_days // TODO: What if this isn't set on the service?
+              serviceConfig.node_cert_allowed_validity_period_days | 365 // TODO: This is necessary for the LTS compatibility test to work
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),

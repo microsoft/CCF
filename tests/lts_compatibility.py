@@ -81,6 +81,7 @@ def test_new_service(network, args, install_path, binary_dir, library_dir, versi
     )
     network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
+    new_node.verify_certificate_validity_period(expected_validity_period_days=120)
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -204,6 +205,8 @@ def run_code_upgrade_from(
                     primary, _ = network.wait_for_new_primary(primary)
                 node.stop()
 
+            LOG.info("Service is now made of new nodes only")
+
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
             jwt_issuer.refresh_keys()
@@ -214,7 +217,6 @@ def run_code_upgrade_from(
             else:
                 time.sleep(3)
 
-            # From here onwards, service is only made of new nodes
             test_new_service(
                 network,
                 args,

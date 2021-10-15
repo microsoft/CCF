@@ -275,8 +275,7 @@ namespace ccf
           endorsed_certificate = crypto::create_endorsed_cert(
             in.certificate_signing_request.value(),
             crypto::OpenSSL::to_x509_time_string(time.tv_sec),
-            config->node_cert_initial_validity_period_days.value_or(
-              default_node_cert_initial_validity_period_days),
+            config->node_cert_initial_validity_period_days,
             this->network.identity->priv_key,
             this->network.identity->cert);
 
