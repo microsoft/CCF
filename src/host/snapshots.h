@@ -272,7 +272,7 @@ namespace asynchost
       std::optional<std::string> latest_committed_snapshot_file_name =
         std::nullopt;
       size_t latest_idx = 0;
-      size_t ledger_last_idx = ledger.get_last_idx();
+      auto ledger_last_idx = ledger.get_last_idx();
 
       for (auto& f : fs::directory_iterator(snapshot_dir))
       {
@@ -299,8 +299,8 @@ namespace asynchost
           snapshot_evidence_commit_idx_1_x.value() > ledger_last_idx)
         {
           LOG_INFO_FMT(
-            "Ignoring \"{}\" because ledger does not contain evidence commit "
-            "seqno: evidence commit seqno {} > last ledger seqno {} ",
+            "Ignoring \"{}\": ledger does not contain evidence commit "
+            "seqno (evidence commit seqno {} > last ledger seqno {})",
             file_name,
             snapshot_evidence_commit_idx_1_x.value(),
             ledger_last_idx);

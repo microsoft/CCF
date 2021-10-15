@@ -315,6 +315,7 @@ def test_join_straddling_primary_replacement(network, args):
     return network
 
 
+@reqs.description("Test retired nodes have emitted at most one signature")
 def test_retiring_nodes_emit_at_most_one_signature(network, args):
     primary, _ = network.find_primary()
 
@@ -408,6 +409,18 @@ def test_learner_does_not_take_part(network, args):
     return network
 
 
+@reqs.description("Add a new node without a snapshot but with the historical ledger")
+def test_add_node_with_read_only_ledger(network, args):
+    network.txs.issue(network, number_txs=10)
+    network.txs.issue(network, number_txs=2, repeat=True)
+
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node, args.package, args, from_snapshot=False, copy_ledger_read_only=True
+    )
+    network.trust_node(new_node, args)
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -432,6 +445,7 @@ def run(args):
             test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
             test_retire_primary(network, args)
+            test_add_node_with_read_only_ledger(network, args)
 
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)

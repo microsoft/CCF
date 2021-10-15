@@ -36,7 +36,7 @@ def issue_activity_on_live_service(network, args):
         network, number_txs=args.snapshot_tx_interval * 2, log_capture=log_capture
     )
     # At least one transaction that will require historical fetching
-    network.txs.issue(network, number_txs=1, repeat=True, log_capture=log_capture)
+    network.txs.issue(network, number_txs=1, repeat=True)
 
 
 def get_new_constitution_for_install(args, install_path):
@@ -125,7 +125,9 @@ def run_code_upgrade_from(
 
     set_js_args(args, from_install_path)
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
+    )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
@@ -191,6 +193,7 @@ def run_code_upgrade_from(
                 args.package,
                 library_dir=from_library_dir,
             )
+            primary, _ = network.find_primary()
             network.consortium.retire_code(primary, old_code_id)
             for node in old_nodes:
                 network.retire_node(primary, node)
@@ -294,7 +297,9 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     # Note: dicts are ordered from Python3.7
     lts_releases[None] = None
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
+    )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
@@ -404,7 +409,8 @@ if __name__ == "__main__":
     # JS generic is the only app included in CCF install
     args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
-    args.jwt_key_refresh_interval_s = 1
+    args.jwt_key_refresh_interval_s = 3
+    args.sig_ms_interval = 1000  # Set to cchost default value
 
     # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"
