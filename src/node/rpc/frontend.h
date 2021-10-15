@@ -164,7 +164,7 @@ namespace ccf
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
       {
-        const auto allowed_verbs = endpoints.get_allowed_verbs(*ctx);
+        const auto allowed_verbs = endpoints.get_allowed_verbs(tx, *ctx);
         if (allowed_verbs.empty())
         {
           ctx->set_error(
