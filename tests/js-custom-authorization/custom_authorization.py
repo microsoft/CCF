@@ -241,6 +241,28 @@ def test_content_types(network, args):
     return network
 
 
+@reqs.description("Test supported methods")
+def test_supported_methods(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as c:
+        r = c.delete("/app/text")
+        assert r.status_code == http.HTTPStatus.METHOD_NOT_ALLOWED
+        allow = r.headers.get("allow")
+        assert allow is not None
+        assert "OPTIONS" in allow
+        assert "POST" in allow
+
+        r = c.options("/app/text")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT
+        allow = r.headers.get("allow")
+        assert allow is not None
+        assert "OPTIONS" in allow
+        assert "POST" in allow
+
+    return network
+
+
 @reqs.description("Test unknown path")
 def test_unknown_path(network, args):
     primary, _ = network.find_nodes()
@@ -276,6 +298,7 @@ def run_content_types(args):
     ) as network:
         network.start_and_join(args)
         network = test_content_types(network, args)
+        network = test_supported_methods(network, args)
         network = test_unknown_path(network, args)
 
 
