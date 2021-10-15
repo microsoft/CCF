@@ -6,6 +6,7 @@ from enum import Enum, auto
 import infra.crypto
 import infra.remote
 import infra.remote_shim
+from datetime import datetime, timedelta
 import infra.net
 import infra.path
 import ccf.clients
@@ -490,6 +491,37 @@ class Node:
                 self.get_public_rpc_host() if use_public_rpc_host else self.rpc_host,
                 self.rpc_port,
             )
+        )
+
+    def verify_certificate_validity_period(self, expected_validity_period_days):
+        node_tls_cert = self.get_tls_certificate_pem()
+        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+            node_tls_cert
+        )
+
+        assert (
+            infra.crypto.compute_public_key_der_hash_hex_from_pem(node_tls_cert)
+            == self.node_id
+        )
+
+        # Assume that certificate has been issued within this test run
+        expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+        if valid_from < expected_valid_from:
+            raise ValueError(
+                f'Node certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
+            )
+
+        # Note: CCF substracts one second from validity period since x509
+        # specifies that validity dates are inclusive.
+        expected_valid_to = valid_from + timedelta(
+            days=expected_validity_period_days, seconds=-1
+        )
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for certiticate is not as expected: valid to "{valid_to}, expected to "{expected_valid_to}"'
+            )
+        LOG.info(
+            f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {valid_to - valid_from})"
         )
 
     def suspend(self):

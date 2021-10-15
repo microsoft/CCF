@@ -267,11 +267,16 @@ namespace ccf
                 "Unable to get time: {}", ccf::api_result_to_str(result)));
           }
 
+          // TODO: Joining node while service is opening
+          // Should the validity period be:
+          // 1. [this node's host time, this node's host time + initial validity
+          // period?]
+          // 2. validity period extracted from self-signed node cert
           endorsed_certificate = crypto::create_endorsed_cert(
             in.certificate_signing_request.value(),
             crypto::OpenSSL::to_x509_time_string(time.tv_sec),
-            config->node_cert_allowed_validity_period_days.value_or(
-              default_node_cert_validity_period_days),
+            config->node_cert_initial_validity_period_days.value_or(
+              default_node_cert_initial_validity_period_days),
             this->network.identity->priv_key,
             this->network.identity->cert);
 
@@ -1182,8 +1187,7 @@ namespace ccf
             crypto::create_endorsed_cert(
               in.certificate_signing_request,
               in.node_cert_valid_from,
-              config->node_cert_allowed_validity_period_days.value_or(
-                default_node_cert_validity_period_days),
+              in.initial_node_cert_validity_period_days,
               this->network.identity->priv_key,
               this->network.identity->cert));
         }

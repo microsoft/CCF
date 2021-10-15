@@ -153,7 +153,7 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
 
 // TODO: Only implement non-ACL-specific proposals for now
 // 1. [DONE] Rename proposal to `set_node_certificate_validity`
-// 2. Pass `valid_to` to `transition_node_to_trusted`
+// 2. Pass `valid_from` to `transition_node_to_trusted`
 // 3. Rename things and set initial default period to 24h
 // 4. Create set_all_nodes_certificate_validity proposal
 // 5. Add proposal to set max allowed node certificate validity
@@ -755,6 +755,7 @@ const actions = new Map([
     new Action(
       function (args) {
         checkEntityId(args.node_id, "node_id");
+        checkType(args.valid_from, "string", "valid_from");
       },
       function (args) {
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
@@ -791,8 +792,8 @@ const actions = new Map([
             // Note: CSR is only present from 2.x
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
-              "211001100000Z", // TODO: Get argument from proposal paramters
-              serviceConfig.node_cert_allowed_validity_period_days
+              args.valid_from,
+              serviceConfig.node_cert_allowed_validity_period_days // TODO: What if this isn't set on the service?
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),
@@ -924,7 +925,7 @@ const actions = new Map([
         checkEntityId(args.node_id, "node_id");
         checkType(args.valid_from, "string", "valid_from");
         checkType(args.validity_period_days, "integer", "validity_period_days");
-        checkBounds(args.validity_period_days, 0, null, "validity_period_days");
+        checkBounds(args.validity_period_days, 1, null, "validity_period_days");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(

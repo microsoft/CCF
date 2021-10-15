@@ -1591,7 +1591,8 @@ namespace ccf
           config.genesis.recovery_threshold,
           network.consensus_type,
           reconf_type,
-          config.genesis.max_allowed_node_cert_validity_days};
+          config.genesis.max_allowed_node_cert_validity_days,
+          config.initial_node_certificate_validity_period_days};
         create_params.genesis_info = genesis_info;
       }
 
@@ -1605,6 +1606,8 @@ namespace ccf
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
       create_params.node_cert_valid_from = config.startup_host_time;
+      create_params.initial_node_cert_validity_period_days =
+        config.initial_node_certificate_validity_period_days;
 
       // Record self-signed certificate in create request if the node does not
       // require endorsement by the service (i.e. BFT)

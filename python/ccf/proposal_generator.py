@@ -226,8 +226,13 @@ def refresh_js_app_bytecode_cache(**kwargs):
 
 
 @cli_proposal
-def transition_node_to_trusted(node_id: str, **kwargs):
-    return build_proposal("transition_node_to_trusted", {"node_id": node_id}, **kwargs)
+def transition_node_to_trusted(
+    node_id: str, valid_from: str, validity_period_days=None, **kwargs
+):
+    args = {"node_id": node_id, "valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days
+    return build_proposal("transition_node_to_trusted", args, **kwargs)
 
 
 @cli_proposal

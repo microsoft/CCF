@@ -19,6 +19,7 @@ from math import ceil
 import http
 import pprint
 import functools
+from datetime import datetime
 
 from loguru import logger as LOG
 
@@ -632,13 +633,16 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args):
+    def trust_node(self, node, args, valid_from=None, validity_period_days=None):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
+                    valid_from=valid_from
+                    or str(infra.crypto.datetime_as_UTCtime(datetime.now())),
+                    validity_period_days=validity_period_days,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node

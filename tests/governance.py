@@ -221,12 +221,12 @@ def test_invalid_client_signature(network, args):
 
 @reqs.description("Update certificates of all nodes")
 def test_node_cert_renewal(network, args):
-
+    primary, _ = network.find_primary()
     now = datetime.now().replace(
         microsecond=0
     )  # Truncate microseconds which are not reflected in RFC5280 UTCTime
-    validity_period_allowed = args.initial_node_cert_validity_days - 1
-    validity_period_forbidden = args.initial_node_cert_validity_days + 1
+    validity_period_allowed = args.max_allowed_node_cert_validity_days - 1
+    validity_period_forbidden = args.max_allowed_node_cert_validity_days + 1
 
     test_vectors = [
         (now, validity_period_allowed, None),
@@ -249,8 +249,8 @@ def test_node_cert_renewal(network, args):
 
                 try:
                     network.consortium.set_node_certificate_validity(
+                        primary,
                         node,
-                        node.node_id,
                         valid_from=str(infra.crypto.datetime_as_UTCtime(valid_from)),
                         validity_period_days=validity_period_days,
                     )
@@ -262,32 +262,7 @@ def test_node_cert_renewal(network, args):
                         expected_exception is None
                     ), "Proposal should have not succeeded"
 
-                # Verify that node certificate has been renewed
-                node_cert_tls_after = node.get_tls_certificate_pem()
-                assert (
-                    node_cert_tls_before != node_cert_tls_after
-                ), "Node TLS certificate should be updated after renewal"
-                (
-                    cert_valid_from,
-                    cert_valid_to,
-                ) = infra.crypto.get_validity_period_from_pem_cert(node_cert_tls_after)
-                # Note: CCF automatically substracts one second from validity period
-                expected_valid_to = valid_from + timedelta(
-                    days=validity_period_days, seconds=-1
-                )
-                assert (
-                    cert_valid_from == valid_from
-                ), f"{cert_valid_from} != {valid_from}"
-                assert (
-                    cert_valid_to == expected_valid_to
-                ), f"{cert_valid_to} != {expected_valid_to}"
-
-                assert (
-                    infra.crypto.compute_public_key_der_hash_hex_from_pem(
-                        node_cert_tls_before
-                    )
-                    == node.node_id
-                )
+                node.verify_certificate_validity_period(validity_period_days)
                 LOG.info(
                     f"Certificate for node {node.local_node_id} has successfully been renewed"
                 )

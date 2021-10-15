@@ -3,7 +3,6 @@
 import infra.network
 import infra.e2e_args
 import infra.proc
-import infra.certs
 import infra.logging_app as app
 import infra.utils
 import infra.github
@@ -171,9 +170,8 @@ def run_code_upgrade_from(
                 # Note: validity period for 2.x node joining 1.x service is hardcoded
                 # to 365 days since existing service is not capable of issuing endorsed
                 # node certificate
-                infra.certs.verify_certificate_validity_period(
-                    new_node.get_tls_certificate_pem(),
-                    expected_validity_period_days=365,
+                new_node.verify_certificate_validity_period(
+                    expected_validity_period_days=365
                 )
                 from_snapshot = not from_snapshot
                 new_nodes.append(new_node)
@@ -359,9 +357,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                             assert (
                                 r.body.json()["ccf_version"] == expected_version
                             ), f"Node version is not {expected_version}"
-                        infra.certs.verify_certificate_validity_period(
-                            node.get_tls_certificate_pem(),
-                            expected_validity_period_days=args.max_allowed_node_cert_validity_days,
+                        node.verify_certificate_validity_period(
+                            args.max_allowed_node_cert_validity_days,
                         )
 
                 # Rollover JWKS so that new primary must read historical CA bundle table
