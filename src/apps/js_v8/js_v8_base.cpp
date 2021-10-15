@@ -264,9 +264,9 @@ namespace ccfapp
       //   ctx);
 
       // Parse the source
-      Local<String> source = props.js_module;
-      Local<String> function_name = props.js_function;
-      
+      Local<String> source = String::NewFromUtf8(isolate, props.js_module);
+      Local<String> function_name = String::NewFromUtf8(isolate, props.js_function);
+
       // TODO: Add process.cc as a header/impl
       /// Processor options (like --jitless?)
       // map<string, string> options;

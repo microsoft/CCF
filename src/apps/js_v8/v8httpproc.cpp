@@ -6,15 +6,21 @@
 using namespace std;
 using namespace v8;
 
-static void LogCallback(const FunctionCallbackInfo<Value>& args) {
+// TODO: This needs to be proper logging
+void Log(const char* msg)
+{
+  printf("LOG: %s\n", msg);
+}
+
+void Log(const FunctionCallbackInfo<Value>& args)
+{
   if (args.Length() < 1) return;
   Isolate* isolate = args.GetIsolate();
   HandleScope scope(isolate);
   Local<Value> arg = args[0];
   String::Utf8Value value(isolate, arg);
-  HttpRequestProcessor::Log(*value);
+  Log(*value);
 }
-
 
 // Execute the script and fetch the Process method.
 bool JsHttpRequestProcessor::Initialize(StringMap* opts,
@@ -26,7 +32,7 @@ bool JsHttpRequestProcessor::Initialize(StringMap* opts,
   // built-in global functions.
   Local<ObjectTemplate> global = ObjectTemplate::New(GetIsolate());
   global->Set(GetIsolate(), "log",
-              FunctionTemplate::New(GetIsolate(), LogCallback));
+              FunctionTemplate::New(GetIsolate(), Log));
 
   // Each processor gets its own context so different processors don't
   // affect each other. Context::New returns a persistent handle which
@@ -416,26 +422,6 @@ Local<ObjectTemplate> JsHttpRequestProcessor::MakeRequestTemplate(
 }
 
 
-// --- Test ---
-
-void ParseOptions(int argc,
-                  char* argv[],
-                  StringMap* options,
-                  string* file) {
-  for (int i = 1; i < argc; i++) {
-    string arg = argv[i];
-    size_t index = arg.find('=', 0);
-    if (index == string::npos) {
-      *file = arg;
-    } else {
-      string key = arg.substr(0, index);
-      string value = arg.substr(index+1);
-      (*options)[key] = value;
-    }
-  }
-}
-
-
 // Reads a file into a v8 string.
 MaybeLocal<String> ReadFile(Isolate* isolate, const string& name) {
   FILE* file = fopen(name.c_str(), "rb");
@@ -498,11 +484,6 @@ int main(int argc, char* argv[]) {
   V8::Initialize();
   StringMap options;
   string file;
-  ParseOptions(argc, argv, &options, &file);
-  if (file.empty()) {
-    fprintf(stderr, "No script was specified.\n");
-    return 1;
-  }
   Isolate::CreateParams create_params;
   create_params.array_buffer_allocator =
       ArrayBuffer::Allocator::NewDefaultAllocator();

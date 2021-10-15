@@ -36,23 +36,23 @@ struct HttpRequest {
  */
 class StringHttpRequest : public HttpRequest {
  public:
-  StringHttpRequest(const string& path,
-                    const string& referrer,
-                    const string& host,
-                    const string& user_agent)
+  StringHttpRequest(const std::string& path,
+                    const std::string& referrer,
+                    const std::string& host,
+                    const std::string& user_agent)
     : path_(path),
       referrer_(referrer),
       host_(host),
       user_agent_(user_agent) { }
-  virtual const string& Path() { return path_; }
-  virtual const string& Referrer() { return referrer_; }
-  virtual const string& Host() { return host_; }
-  virtual const string& UserAgent() { return user_agent_; }
+  virtual const std::string& Path() { return path_; }
+  virtual const std::string& Referrer() { return referrer_; }
+  virtual const std::string& Host() { return host_; }
+  virtual const std::string& UserAgent() { return user_agent_; }
  private:
-  string path_;
-  string referrer_;
-  string host_;
-  string user_agent_;
+  std::string path_;
+  std::string referrer_;
+  std::string host_;
+  std::string user_agent_;
 };
 
 /// A map of strings for keys and values.
@@ -71,8 +71,6 @@ struct HttpRequestProcessor {
 
   // Process a single request.
   virtual bool Process(HttpRequest* req) = 0;
-
-  static void Log(const char* event);
 };
 
 /**
