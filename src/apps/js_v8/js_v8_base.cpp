@@ -18,10 +18,11 @@
 #include <vector>
 
 using namespace std;
+using namespace ccf;
 using namespace kv;
 using namespace v8;
 
-namespace ccf::apps
+namespace ccfapp
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
@@ -43,12 +44,14 @@ namespace ccf::apps
     ccfapp::AbstractNodeContext& context;
     ::metrics::Tracker metrics_tracker;
 
-    static Persistent<Object> create_json_obj(const nlohmann::json& j, Isolate* iso)
+    static Local<Object> create_json_obj(const nlohmann::json& j, Isolate* iso)
     {
       const auto buf = j.dump();
       HandleScope scope(iso);
       MaybeLocal<String> result = String::NewFromUtf8(
       iso, buf.c_str(), NewStringType::kNormal, static_cast<int>(buf.size()));
+      // TODO: Parse the JSON first
+      return result;
     }
 
     Local<Object> create_caller_obj(
@@ -68,7 +71,7 @@ namespace ccf::apps
       {
         policy_name = get_policy_name_from_ident(jwt_ident);
         /**
-         * TODO: Create structure:
+         * TODO: Create structure using ObjectTemplate
          *   jwt {
          *     keyIssuer: StringLen(iso, jwt_ident->key_issuer.data(), ...size())
          *     header: create_json_obj(jwt_ident->header, iso)
@@ -86,7 +89,7 @@ namespace ccf::apps
       if (policy_name)
       {
         /**
-         * Create structure:
+         * TODO: Create structure using ObjectTemplate
          *   caller {
          *     policy: policy_name
          *     jwt: jwt (if not null)
@@ -169,7 +172,7 @@ namespace ccf::apps
       }
 
       /**
-       * TODO: Create structure:
+       * TODO: Create structure using ObjectTemplate
        *   caller {
        *     policy: policy_name
        *     id: StringLen(iso, id.data(), id.size())
@@ -180,7 +183,7 @@ namespace ccf::apps
       return caller;
     }
 
-    Local<Value> create_request_obj(
+    Local<Object> create_request_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
     {
       // Request object
@@ -195,12 +198,12 @@ namespace ccf::apps
         //   ctx,
         //   headers,
         //   header_name.c_str(),
-        //   StringLen(ctx, header_value.c_str(), header_value.size()));
+        //   StringLen(iso, header_value.c_str(), header_value.size()));
       }
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
       // auto query_str =
-      //   StringLen(ctx, request_query.c_str(), request_query.size());
+      //   StringLen(iso, request_query.c_str(), request_query.size());
 
       auto params = Object::New(iso);
       for (auto& [param_name, param_value] :
@@ -210,15 +213,15 @@ namespace ccf::apps
         //   ctx,
         //   params,
         //   param_name.c_str(),
-        //   StringLen(ctx, param_value.c_str(), param_value.size()));
+        //   StringLen(iso, param_value.c_str(), param_value.size()));
       }
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
-      // auto body = Object::NewClass(ctx, js::body_class_id);
+      // auto body = Object::NewClass(iso, js::body_class_id);
       // V8_SetOpaque(body, (void*)&request_body);
 
       /**
-       * TODO: Create structure:
+       * TODO: Create structure using ObjectTemplate
        *   request {
        *     headers: headers
        *     query: query_str
@@ -245,8 +248,8 @@ namespace ccf::apps
       // TODO: Compile code to Wasm/obj and cache those!
       Isolate::CreateParams create_params;
       create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
-      Isolate* isolate = Isolate::New(create_params);
-      Isolate::Scope scope(isolate);
+      Isolate* iso = Isolate::New(create_params);
+      Isolate::Scope scope(iso);
 
       // TODO: Populate the global context
       // js::TxContext txctx{&target_tx, js::TxAccess::APP};
@@ -302,9 +305,9 @@ namespace ccf::apps
       auto request = create_request_obj(endpoint_ctx, ctx);
       int argc = 1;
       JSValueConst* argv = (JSValueConst*)&request;
-      auto val = ctx(V8_Call(ctx, export_func, V8_UNDEFINED, argc, argv));
-      V8_FreeValue(ctx, request);
-      V8_FreeValue(ctx, export_func);
+      auto val = ctx(V8_Call(iso, export_func, V8_UNDEFINED, argc, argv));
+      V8_FreeValue(iso, request);
+      V8_FreeValue(iso, export_func);
 
       if (V8_IsException(val))
       {
@@ -328,7 +331,7 @@ namespace ccf::apps
 
       // Response body (also sets a default response content-type header)
       {
-        auto response_body_js = ctx(V8_GetPropertyStr(ctx, val, "body"));
+        auto response_body_js = ctx(V8_GetPropertyStr(iso, val, "body"));
 
         if (!V8_IsUndefined(response_body_js))
         {
@@ -342,13 +345,13 @@ namespace ccf::apps
           {
             size_t buf_size_total;
             array_buffer =
-              V8_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
+              V8_GetArrayBuffer(iso, &buf_size_total, typed_array_buffer);
             array_buffer += buf_offset;
-            V8_FreeValue(ctx, typed_array_buffer);
+            V8_FreeValue(iso, typed_array_buffer);
           }
           else
           {
-            array_buffer = V8_GetArrayBuffer(ctx, &buf_size, response_body_js);
+            array_buffer = V8_GetArrayBuffer(iso, &buf_size, response_body_js);
           }
           if (array_buffer)
           {
@@ -366,7 +369,7 @@ namespace ccf::apps
               endpoint_ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::TEXT);
-              cstr = V8_ToCString(ctx, response_body_js);
+              cstr = V8_ToCString(iso, response_body_js);
             }
             else
             {
@@ -374,7 +377,7 @@ namespace ccf::apps
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::JSON);
               JSValue rval =
-                V8_JSONStringify(ctx, response_body_js, V8_NULL, V8_NULL);
+                V8_JSONStringify(iso, response_body_js, V8_NULL, V8_NULL);
               if (V8_IsException(rval))
               {
                 js::js_dump_error(ctx);
@@ -385,8 +388,8 @@ namespace ccf::apps
                   "conversion of body).");
                 return;
               }
-              cstr = V8_ToCString(ctx, rval);
-              V8_FreeValue(ctx, rval);
+              cstr = V8_ToCString(iso, rval);
+              V8_FreeValue(iso, rval);
             }
             if (!cstr)
             {
@@ -399,7 +402,7 @@ namespace ccf::apps
               return;
             }
             std::string str(cstr);
-            V8_FreeCString(ctx, cstr);
+            V8_FreeCString(iso, cstr);
 
             response_body = std::vector<uint8_t>(str.begin(), str.end());
           }
@@ -408,7 +411,7 @@ namespace ccf::apps
       }
       // Response headers
       {
-        auto response_headers_js = ctx(V8_GetPropertyStr(ctx, val, "headers"));
+        auto response_headers_js = ctx(V8_GetPropertyStr(iso, val, "headers"));
         if (V8_IsObject(response_headers_js))
         {
           uint32_t prop_count = 0;
@@ -422,10 +425,10 @@ namespace ccf::apps
           for (size_t i = 0; i < prop_count; i++)
           {
             auto prop_name = props[i].atom;
-            auto prop_name_cstr = ctx(V8_AtomToCString(ctx, prop_name));
+            auto prop_name_cstr = ctx(V8_AtomToCString(iso, prop_name));
             auto prop_val =
-              ctx(V8_GetProperty(ctx, response_headers_js, prop_name));
-            auto prop_val_cstr = V8_ToCString(ctx, prop_val);
+              ctx(V8_GetProperty(iso, response_headers_js, prop_name));
+            auto prop_val_cstr = V8_ToCString(iso, prop_val);
             if (!prop_val_cstr)
             {
               endpoint_ctx.rpc_ctx->set_error(
@@ -436,7 +439,7 @@ namespace ccf::apps
             }
             endpoint_ctx.rpc_ctx->set_response_header(
               prop_name_cstr, prop_val_cstr);
-            V8_FreeCString(ctx, prop_val_cstr);
+            V8_FreeCString(iso, prop_val_cstr);
           }
           js_free(ctx, props);
         }
@@ -445,7 +448,7 @@ namespace ccf::apps
       // Response status code
       {
         int response_status_code = HTTP_STATUS_OK;
-        auto status_code_js = ctx(V8_GetPropertyStr(ctx, val, "statusCode"));
+        auto status_code_js = ctx(V8_GetPropertyStr(iso, val, "statusCode"));
         if (!V8_IsUndefined(status_code_js) && !V8_IsNull(status_code_js))
         {
           if (V8_VALUE_GET_TAG(status_code_js.val) != V8_TAG_INT)
