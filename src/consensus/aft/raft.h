@@ -27,6 +27,7 @@
 #include "ccf/tx_id.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
+#include "enclave/reconfiguration_type.h"
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
@@ -148,7 +149,7 @@ namespace aft
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
-    bool use_two_tx_reconfig = false;
+    ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
     std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
@@ -210,7 +211,9 @@ namespace aft
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
-      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower) :
+      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower,
+      ReconfigurationType reconfiguration_type_ =
+        ReconfigurationType::ONE_TRANSACTION) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
@@ -229,6 +232,7 @@ namespace aft
 
       sig_tx_interval(sig_tx_interval_),
 
+      reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
 
@@ -244,6 +248,9 @@ namespace aft
       rpc_map(rpc_map_)
 
     {
+      LOG_DEBUG_FMT(
+        "reconfiguration type: {}",
+        reconfiguration_type == ONE_TRANSACTION ? "1tx" : "2tx");
       if (view_change_tracker != nullptr)
       {
         view_change_tracker->set_current_view_change(starting_view_change);
@@ -265,7 +272,6 @@ namespace aft
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
-        use_two_tx_reconfig = true;
         require_identity_for_reconfig = true;
         ticking = true;
       }
@@ -555,7 +561,7 @@ namespace aft
         guard.lock();
       }
 
-      if (!use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
         assert(new_learners.empty());
 
@@ -695,7 +701,9 @@ namespace aft
       kv::ReconfigurationId rid,
       const ccf::ResharingResult& result)
     {
-      if (use_two_tx_reconfig && require_identity_for_reconfig)
+      if (
+        reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
+        require_identity_for_reconfig)
       {
         assert(resharing_tracker);
         resharing_tracker->add_resharing_result(seqno, rid, result);
@@ -766,7 +774,7 @@ namespace aft
       {
         details.acks[k] = v.match_idx;
       }
-      if (use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         details.learners = learners;
       }
@@ -3020,7 +3028,7 @@ namespace aft
 
     void become_retiring()
     {
-      assert(use_two_tx_reconfig);
+      assert(reconfiguration_type == ReconfigurationType::TWO_TRANSACTION);
 
       LOG_INFO_FMT(
         "Becoming retiring {}: {}", state->my_node_id, state->current_view);
@@ -3049,7 +3057,7 @@ namespace aft
     {
       size_t quorum = -1;
 
-      if (use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         const auto& cfg = configurations.front();
 
@@ -3239,7 +3247,8 @@ namespace aft
       if (
         retirement_committable_idx.has_value() &&
         idx >= retirement_committable_idx.value() &&
-        (!use_two_tx_reconfig || is_retiring()))
+        (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION ||
+         is_retiring()))
       {
         become_retired();
       }
@@ -3288,7 +3297,7 @@ namespace aft
           }
         }
 
-        if (!use_two_tx_reconfig)
+        if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
           configurations.pop_front();
           backup_nodes.clear();
@@ -3334,8 +3343,8 @@ namespace aft
           else
           {
             if (
-              use_two_tx_reconfig && !is_learner() && !is_retired() &&
-              node_client &&
+              reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
+              !is_learner() && !is_retired() && node_client &&
               next->nodes.find(state->my_node_id) != next->nodes.end())
             {
               LOG_TRACE_FMT(
@@ -3454,7 +3463,7 @@ namespace aft
         changed = true;
       }
 
-      if (use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         for (auto it = learners.begin(); it != learners.end();)
         {

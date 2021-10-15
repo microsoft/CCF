@@ -1585,14 +1585,11 @@ namespace ccf
           genesis_info.members_info.push_back(m_info);
         }
         genesis_info.constitution = config.genesis.constitution;
-        auto reconf_type = network.consensus_type == ConsensusType::BFT ?
-          ReconfigurationType::TWO_TRANSACTION :
-          ReconfigurationType::ONE_TRANSACTION;
 
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
           network.consensus_type,
-          reconf_type,
+          config.reconfiguration_type,
           config.genesis.max_allowed_node_cert_validity_days};
         create_params.genesis_info = genesis_info;
       }
@@ -1993,7 +1990,8 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
         public_only,
-        initial_state);
+        initial_state,
+        config.reconfiguration_type);
 
       consensus = std::make_shared<RaftConsensusType>(
         std::move(raft), network.consensus_type);

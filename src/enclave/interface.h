@@ -16,6 +16,7 @@
 #include "kv/kv_types.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
+#include "reconfiguration_type.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -82,6 +83,7 @@ struct CCFConfig
 
   size_t initial_node_certificate_validity_period_days;
   std::string startup_host_time;
+  ReconfigurationType reconfiguration_type;
 };
 
 DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
@@ -114,7 +116,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   jwt_key_refresh_interval_s,
   curve_id,
   initial_node_certificate_validity_period_days,
-  startup_host_time);
+  startup_host_time,
+  reconfiguration_type);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig, startup_snapshot_evidence_seqno_for_1_x);
 

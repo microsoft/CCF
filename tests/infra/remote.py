@@ -584,6 +584,7 @@ class CCFRemote(object):
         major_version=None,
         include_addresses=True,
         additional_raw_node_args=None,
+        reconfiguration_type=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -713,6 +714,9 @@ class CCFRemote(object):
 
             if node_client_host:
                 cmd += [f"--node-client-interface={node_client_host}"]
+
+        if reconfiguration_type:
+            cmd += [f"--reconfiguration-type={reconfiguration_type}"]
 
         if additional_raw_node_args:
             for s in additional_raw_node_args:
