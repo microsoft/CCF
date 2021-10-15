@@ -648,7 +648,7 @@ namespace asynchost
       // Recover last idx from read-only ledger directories
       for (const auto& read_dir : read_ledger_dirs)
       {
-        LOG_DEBUG_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
+        LOG_INFO_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
         if (!fs::is_directory(read_dir))
         {
           throw std::logic_error(fmt::format(
@@ -674,13 +674,30 @@ namespace asynchost
         }
       }
 
+      if (last_idx > 0)
+      {
+        LOG_INFO_FMT(
+          "Recovered read-only ledger directories up to {}, committed up to "
+          "{} ",
+          last_idx,
+          committed_idx);
+      }
+
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
+        LOG_INFO_FMT("Recovering main ledger directory \"{}\"", ledger_dir);
+
         std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           auto file_name = f.path().filename();
+          if (is_ledger_file_name_corrupted(file_name))
+          {
+            LOG_INFO_FMT("Ignoring corrupted ledger file {}", file_name);
+            continue;
+          }
+
           std::shared_ptr<LedgerFile> ledger_file = nullptr;
           try
           {
@@ -694,6 +711,8 @@ namespace asynchost
             continue;
           }
 
+          LOG_DEBUG_FMT(
+            "Recovering file from main ledger directory: {}", file_name);
           files.emplace_back(std::move(ledger_file));
         }
 
@@ -701,28 +720,20 @@ namespace asynchost
         // entries later on
         for (auto const& f : corrupt_files)
         {
-          if (!is_ledger_file_name_corrupted(f.filename()))
-          {
-            auto new_file_name = fmt::format(
-              "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
-            fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
+          auto new_file_name = fmt::format(
+            "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
+          fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
 
-            LOG_FAIL_FMT(
-              "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
-              f.filename(),
-              new_file_name);
-          }
-          else
-          {
-            LOG_TRACE_FMT(
-              "Corrupted ledger file {} will be ignored", f.filename());
-          }
+          LOG_INFO_FMT(
+            "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
+            f.filename(),
+            new_file_name);
         }
 
         if (files.empty())
         {
-          LOG_TRACE_FMT(
-            "Ledger directory \"{}\" is empty: no ledger file to recover",
+          LOG_INFO_FMT(
+            "Main ledger directory \"{}\" is empty: no ledger file to recover",
             ledger_dir);
           require_new_file = true;
           return;
@@ -738,14 +749,14 @@ namespace asynchost
         if (main_ledger_dir_last_idx < last_idx)
         {
           throw std::logic_error(fmt::format(
-            "Ledger directory last idx ({}) is less than read-only "
+            "Main ledger directory last idx ({}) is less than read-only "
             "ledger directories last idx ({})",
             main_ledger_dir_last_idx,
             last_idx));
         }
-
         last_idx = main_ledger_dir_last_idx;
 
+        // Remove committed files from list of writable files
         for (auto f = files.begin(); f != files.end();)
         {
           if ((*f)->is_committed())
@@ -763,7 +774,7 @@ namespace asynchost
 
         // Continue writing at the end of last file only if that file is not
         // complete
-        if (files.size() > 0 && !files.back()->is_complete())
+        if (!files.empty() && !files.back()->is_complete())
         {
           require_new_file = false;
         }
@@ -808,7 +819,7 @@ namespace asynchost
         if (get_start_idx_from_file_name(file_name) > idx)
         {
           LOG_INFO_FMT(
-            "Deleting {} file as it is later than init index {}",
+            "Deleting ledger file {} it is later than init seqno {}",
             file_name,
             idx);
           fs::remove(f);
@@ -882,10 +893,12 @@ namespace asynchost
       const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
       TimeBoundLogger log_if_slow(fmt::format(
-        "Writing ledger entry - {} bytes, committable={}, force_chunk={}",
+        "Writing ledger entry - {} bytes, committable={}, force_chunk={}, "
+        "require_new_file={}",
         size,
         committable,
-        force_chunk));
+        force_chunk,
+        require_new_file));
 
       if (require_new_file)
       {
