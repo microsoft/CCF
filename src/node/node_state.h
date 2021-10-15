@@ -196,7 +196,10 @@ namespace ccf
         std::vector<uint8_t>& raw_,
         consensus::Index seqno_,
         consensus::Index evidence_seqno_) :
-        raw(raw_), seqno(seqno_), evidence_seqno(evidence_seqno_), store(store_)
+        raw(raw_),
+        seqno(seqno_),
+        evidence_seqno(evidence_seqno_),
+        store(store_)
       {}
 
       bool is_snapshot_verified()
@@ -369,7 +372,8 @@ namespace ccf
 
       switch (start_type)
       {
-        case StartType::New: {
+        case StartType::New:
+        {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
 
@@ -418,7 +422,8 @@ namespace ccf
           LOG_INFO_FMT("Created new node {}", self);
           return {node_cert, network.identity->cert};
         }
-        case StartType::Join: {
+        case StartType::Join:
+        {
           node_cert = create_self_signed_node_cert();
           accept_node_tls_connections();
 
@@ -435,7 +440,8 @@ namespace ccf
           LOG_INFO_FMT("Created join node {}", self);
           return {node_cert, {}};
         }
-        case StartType::Recover: {
+        case StartType::Recover:
+        {
           node_info_network = config.node_info_network;
 
           network.identity =
@@ -468,7 +474,8 @@ namespace ccf
           LOG_INFO_FMT("Created recovery node {}", self);
           return {node_cert, network.identity->cert};
         }
-        default: {
+        default:
+        {
           throw std::logic_error(
             fmt::format("Node was started in unknown mode {}", start_type));
         }
@@ -628,7 +635,7 @@ namespace ccf
             consensus->init_as_backup(
               network.tables->current_version(), view, view_history);
 
-            if (resp.network_info->public_only)
+            if (resp.network_info.public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -1409,16 +1416,19 @@ namespace ccf
 
       switch (msg_type)
       {
-        case channel_msg: {
+        case channel_msg:
+        {
           n2n_channels->recv_message(from, std::move(oa));
           break;
         }
-        case consensus_msg: {
+        case consensus_msg:
+        {
           consensus->recv_message(from, std::move(oa));
           break;
         }
 
-        default: {
+        default:
+        {
           LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
           return;
         }
@@ -1522,9 +1532,8 @@ namespace ccf
       // If a domain is passed at node creation, record domain in SAN for node
       // hostname authentication over TLS. Otherwise, record IP in SAN.
       bool san_is_ip = config.domain.empty();
-      return {
-        san_is_ip ? config.node_info_network.rpchost : config.domain,
-        san_is_ip};
+      return {san_is_ip ? config.node_info_network.rpchost : config.domain,
+              san_is_ip};
     }
 
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
@@ -1605,8 +1614,8 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
-      create_params.configuration = {
-        config.genesis.recovery_threshold, network.consensus_type};
+      create_params.configuration = {config.genesis.recovery_threshold,
+                                     network.consensus_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
