@@ -56,7 +56,7 @@ namespace ccf
           }
           case NodeStatus::RETIRING:
           {
-            /* Nothing */
+            cfg_delta.try_emplace(node_id, std::nullopt);
             break;
           }
           default:

@@ -3343,7 +3343,6 @@ namespace aft
           else
           {
             if (
-              reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
               !is_learner() && !is_retired() && node_client &&
               next->nodes.find(state->my_node_id) != next->nodes.end())
             {

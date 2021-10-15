@@ -413,6 +413,7 @@ class Network:
             initial_members_info,
             args.participants_curve,
             authenticate_session=not args.disable_member_session_auth,
+            reconfiguration_type=args.reconfiguration_type,
         )
         initial_users = [
             f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))

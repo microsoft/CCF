@@ -229,14 +229,13 @@ namespace ccf
 
       nodes->put(joining_node_id, node_info);
 
-      kv::NetworkConfiguration nc =
-        get_latest_network_configuration(network, tx);
-      nc.nodes.insert(joining_node_id);
-
       if (
         node_status == NodeStatus::TRUSTED ||
         node_status == NodeStatus::LEARNER)
       {
+        kv::NetworkConfiguration nc =
+          get_latest_network_configuration(network, tx);
+        nc.nodes.insert(joining_node_id);
         add_new_network_reconfiguration(network, tx, nc);
       }
 
