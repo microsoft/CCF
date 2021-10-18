@@ -24,6 +24,11 @@ from loguru import logger as LOG
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
+# When a 2.x node joins a 1.x service, the node has to self-endorse
+# its certificate, using a default value for the validity period
+# hardcoded in CCF.
+DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
+
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -512,7 +517,9 @@ class Node:
         self.certificate_valid_from = valid_from
         self.certificate_validity_days = validity_period_days
 
-    def verify_certificate_validity_period(self, expected_validity_period=None):
+    def verify_certificate_validity_period(
+        self, expected_validity_period_days=None, ignore_proposal_valid_from=False
+    ):
         node_tls_cert = self.get_tls_certificate_pem()
         assert (
             infra.crypto.compute_public_key_der_hash_hex_from_pem(node_tls_cert)
@@ -523,11 +530,11 @@ class Node:
             node_tls_cert
         )
 
-        if self.certificate_valid_from is None:
+        if ignore_proposal_valid_from or self.certificate_valid_from is None:
             # If the node certificate has not been renewed, assume that certificate has
             # been issued within this test run
             expected_valid_from = datetime.utcnow() - timedelta(hours=1)
-            if valid_from < datetime.utcnow() - timedelta(hours=1):
+            if valid_from < expected_valid_from:
                 raise ValueError(
                     f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
                 )
@@ -540,15 +547,17 @@ class Node:
                     f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{valid_from}", but expected "{self.certificate_valid_from}"'
                 )
 
-        # Note: CCF substracts one second from validity period since x509
-        # specifies that validity dates are inclusive.
+        # Note: CCF substracts one second from validity period since x509 specifies
+        # that validity dates are inclusive.
         expected_valid_to = valid_from + timedelta(
-            days=self.certificate_validity_days, seconds=-1
+            days=expected_validity_period_days or self.certificate_validity_days,
+            seconds=-1,
         )
         if valid_to != expected_valid_to:
             raise ValueError(
                 f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to} but expected "{expected_valid_to}"'
             )
+
         validity_period = valid_to - valid_from + timedelta(seconds=1)
         LOG.info(
             f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {validity_period})"

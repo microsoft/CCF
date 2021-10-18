@@ -81,7 +81,9 @@ def test_new_service(network, args, install_path, binary_dir, library_dir, versi
     )
     network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
-    new_node.verify_certificate_validity_period(expected_validity_period_days=365)
+    new_node.verify_certificate_validity_period(
+        expected_validity_period_days=infra.node.DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
+    )
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -170,11 +172,9 @@ def run_code_upgrade_from(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
                 network.trust_node(new_node, args)
-                # Note: validity period for 2.x node joining 1.x service is hardcoded
-                # to 365 days since existing service does not issue endorsed
-                # node certificate
                 new_node.verify_certificate_validity_period(
-                    expected_validity_period_days=365
+                    expected_validity_period_days=infra.node.DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS,
+                    ignore_proposal_valid_from=True,
                 )
                 from_snapshot = not from_snapshot
                 new_nodes.append(new_node)

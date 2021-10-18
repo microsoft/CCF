@@ -790,10 +790,12 @@ const actions = new Map([
             serviceConfig.consensus !== "BFT"
           ) {
             // Note: CSR and node certificate validity config are only present from 2.x
+            const default_validity_period_days = 365;
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
               args.valid_from,
-              serviceConfig.node_cert_allowed_validity_period_days ?? 365
+              serviceConfig.node_cert_allowed_validity_period_days ??
+                default_validity_period_days
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),
