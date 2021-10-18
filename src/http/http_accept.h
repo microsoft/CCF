@@ -37,7 +37,11 @@ namespace http
       return false;
     }
 
-    bool operator==(const AcceptHeaderField& other) const = default;
+    bool operator==(const AcceptHeaderField& other) const
+    {
+      return mime_type == other.mime_type &&
+        mime_subtype == other.mime_subtype && q_factor == other.q_factor;
+    }
 
     bool operator<(const AcceptHeaderField& other) const
     {
