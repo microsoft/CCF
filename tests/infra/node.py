@@ -508,7 +508,7 @@ class Node:
         expected_valid_from = datetime.utcnow() - timedelta(hours=1)
         if valid_from < expected_valid_from:
             raise ValueError(
-                f'Node certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
+                f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
             )
 
         # Note: CCF substracts one second from validity period since x509
@@ -518,7 +518,7 @@ class Node:
         )
         if valid_to != expected_valid_to:
             raise ValueError(
-                f'Validity period for certiticate is not as expected: valid to "{valid_to}, expected to "{expected_valid_to}"'
+                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to}, expected to "{expected_valid_to}"'
             )
         validity_period = valid_to - valid_from + timedelta(seconds=1)
         LOG.info(

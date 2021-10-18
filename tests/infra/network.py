@@ -441,6 +441,7 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
+        self.verify_service_certificate_validity_period()
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
@@ -519,6 +520,7 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
+        self.verify_service_certificate_validity_period()
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -1117,8 +1119,8 @@ class Network:
             - self.cert.not_valid_before
             + timedelta(seconds=1)
         )
-        LOG.info(
-            f"Certificate validity period for service successfully verified: {self.cert.not_valid_before} - {self.cert.not_valid_after} (for {validity_period})"
+        LOG.debug(
+            f"Certificate validity period for service: {self.cert.not_valid_before} - {self.cert.not_valid_after} (for {validity_period})"
         )
 
 

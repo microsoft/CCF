@@ -634,7 +634,7 @@ TEST_CASE("AES-GCM convenience functions")
   REQUIRE(decrypted == contents);
 }
 
-TEST_CASE("ASN1 time")
+TEST_CASE("x509 time")
 {
   auto current_time_t =
     std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -650,10 +650,6 @@ TEST_CASE("ASN1 time")
   auto current_time = crypto::OpenSSL::from_time_t(current_time_t);
   auto next_day = crypto::OpenSSL::from_time_t(std::mktime(&next_day_time));
   auto next_year = crypto::OpenSSL::from_time_t(std::mktime(&next_year_time));
-
-  std::string before = "211015154115Z";
-  std::string after = "211016154114Z";
-  REQUIRE(crypto::OpenSSL::validate_chronological_times(before, after));
 
   INFO("Chronological time");
   {

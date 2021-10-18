@@ -12,6 +12,7 @@ from infra.checker import check_can_progress, check_does_not_progress
 import ccf.ledger
 import json
 import infra.crypto
+from datetime import datetime
 
 
 from loguru import logger as LOG
@@ -295,7 +296,10 @@ def test_join_straddling_primary_replacement(network, args):
         "actions": [
             {
                 "name": "transition_node_to_trusted",
-                "args": {"node_id": new_node.node_id},
+                "args": {
+                    "node_id": new_node.node_id,
+                    "valid_from": str(infra.crypto.datetime_as_UTCtime(datetime.now())),
+                },
             },
             {
                 "name": "remove_node",
@@ -424,11 +428,6 @@ def test_node_certificates_validity_period(network, args):
         node.verify_certificate_validity_period(args.initial_node_cert_validity_days)
 
 
-@reqs.description("Test service certificate validity period")
-def test_service_certificate_validity_period(network, args):
-    network.verify_service_certificate_validity_period()
-
-        
 @reqs.description("Add a new node without a snapshot but with the historical ledger")
 def test_add_node_with_read_only_ledger(network, args):
     network.txs.issue(network, number_txs=10)
@@ -453,37 +452,32 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_service_certificate_validity_period(network, args)
+        test_version(network, args)
 
+        if args.consensus != "bft":
+            test_join_straddling_primary_replacement(network, args)
+            test_node_replacement(network, args)
+            test_add_node_from_backup(network, args)
+            test_node_certificates_validity_period(network, args)
+            test_add_node(network, args)
+            test_add_node_on_other_curve(network, args)
+            test_retire_backup(network, args)
+            test_add_as_many_pending_nodes(network, args)
+            test_add_node(network, args)
+            test_retire_primary(network, args)
+            test_add_node_with_read_only_ledger(network, args)
+
+            test_add_node_from_snapshot(network, args)
+            test_add_node_from_snapshot(network, args, from_backup=True)
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+
+            test_node_filter(network, args)
+            test_retiring_nodes_emit_at_most_one_signature(network, args)
+        else:
+            test_learner_catches_up(network, args)
+            # test_learner_does_not_take_part(network, args)
+            test_retire_backup(network, args)
         test_node_certificates_validity_period(network, args)
-
-        test_add_node(network, args)
-
-        # test_version(network, args)
-
-        # if args.consensus != "bft":
-        #     test_join_straddling_primary_replacement(network, args)
-        #     test_node_replacement(network, args)
-        #     test_add_node_from_backup(network, args)
-        #     test_add_node(network, args)
-        #     test_add_node_on_other_curve(network, args)
-        #     test_retire_backup(network, args)
-        #     test_add_as_many_pending_nodes(network, args)
-        #     test_add_node(network, args)
-        #     test_retire_primary(network, args)
-        #     test_add_node_with_read_only_ledger(network, args)
-
-        #     test_add_node_from_snapshot(network, args)
-        #     test_add_node_from_snapshot(network, args, from_backup=True)
-        #     test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-
-        #     test_node_filter(network, args)
-        #     test_retiring_nodes_emit_at_most_one_signature(network, args)
-        # else:
-        #     test_learner_catches_up(network, args)
-        #     # test_learner_does_not_take_part(network, args)
-        #     test_retire_backup(network, args)
-        # test_node_certificates_validity_period(network, args)
 
 
 def run_join_old_snapshot(args):
@@ -555,5 +549,5 @@ if __name__ == "__main__":
 
     run(args)
 
-    # if args.consensus != "bft":
-    #     run_join_old_snapshot(args)
+    if args.consensus != "bft":
+        run_join_old_snapshot(args)
