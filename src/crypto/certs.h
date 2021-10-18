@@ -35,17 +35,27 @@ namespace crypto
   static Pem create_endorsed_cert(
     const Pem& csr,
     const std::string& valid_from,
-    size_t validity_period_days,
+    const std::string& valid_to,
     const Pem& issuer_key_pair,
     const Pem& issuer_cert)
   {
     return make_key_pair(issuer_key_pair)
-      ->sign_csr(
-        issuer_cert,
-        csr,
-        false /* Not CA */,
-        valid_from,
-        compute_cert_valid_to_string(valid_from, validity_period_days));
+      ->sign_csr(issuer_cert, csr, false /* Not CA */, valid_from, valid_to);
+  }
+
+  static Pem create_endorsed_cert(
+    const Pem& csr,
+    const std::string& valid_from,
+    size_t validity_period_days,
+    const Pem& issuer_key_pair,
+    const Pem& issuer_cert)
+  {
+    return create_endorsed_cert(
+      csr,
+      valid_from,
+      compute_cert_valid_to_string(valid_from, validity_period_days),
+      issuer_key_pair,
+      issuer_cert);
   }
 
   static Pem create_endorsed_cert(
@@ -63,5 +73,4 @@ namespace crypto
       issuer_key_pair,
       issuer_cert);
   }
-
 }

@@ -261,8 +261,8 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
-    Unique_ASN1_TIME not_before(valid_from.value_or("20210311000000Z"));
-    Unique_ASN1_TIME not_after(valid_to.value_or("20230611235959Z"));
+    Unique_X509_TIME not_before(valid_from.value_or("20210311000000Z"));
+    Unique_X509_TIME not_after(valid_to.value_or("20230611235959Z"));
     if (!validate_chronological_times(not_before, not_after))
     {
       throw std::logic_error(fmt::format(

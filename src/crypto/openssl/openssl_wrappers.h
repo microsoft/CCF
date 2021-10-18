@@ -261,22 +261,22 @@ namespace crypto
       }
     };
 
-    class Unique_ASN1_TIME
+    class Unique_X509_TIME
     {
       std::unique_ptr<ASN1_TIME, void (*)(ASN1_TIME*)> p;
 
     public:
-      Unique_ASN1_TIME() : p(ASN1_TIME_new(), ASN1_TIME_free)
+      Unique_X509_TIME() : p(ASN1_TIME_new(), ASN1_TIME_free)
       {
         CHECKNULL(p.get());
       }
-      Unique_ASN1_TIME(const std::string& s) :
+      Unique_X509_TIME(const std::string& s) :
         p(ASN1_TIME_new(), ASN1_TIME_free)
       {
         CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
         CHECK1(ASN1_TIME_normalize(*this));
       }
-      Unique_ASN1_TIME(ASN1_TIME* t) : p(t, ASN1_TIME_free) {}
+      Unique_X509_TIME(ASN1_TIME* t) : p(t, ASN1_TIME_free) {}
       operator ASN1_TIME*() const
       {
         return p.get();

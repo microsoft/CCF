@@ -444,6 +444,10 @@ void run_csr(bool corrupt_csr = false)
 
   S v(crt.raw());
   REQUIRE(v.verify(content, signature));
+
+  auto [valid_from, valid_to] = v.validity_period();
+  REQUIRE(valid_from == "20210311000000Z");
+  REQUIRE(valid_to == "20230611235959Z");
 }
 
 TEST_CASE("Create sign and verify certificates")
@@ -719,7 +723,7 @@ TEST_CASE("x509 time")
       auto adjusted_time_t = crypto::OpenSSL::to_time_t(adjusted_time);
 
       auto x509_str = crypto::OpenSSL::to_x509_time_string(adjusted_time_t);
-      auto asn1_time = crypto::OpenSSL::Unique_ASN1_TIME(x509_str);
+      auto asn1_time = crypto::OpenSSL::Unique_X509_TIME(x509_str);
       auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
       REQUIRE(converted_time_t == adjusted_time_t);
     }

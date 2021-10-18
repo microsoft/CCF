@@ -256,26 +256,14 @@ namespace ccf
           in.certificate_signing_request.has_value() &&
           this->network.consensus_type == ConsensusType::CFT)
         {
-          ::timespec time;
-          ccf::ApiResult result = get_untrusted_host_time_v1(time);
-          if (result != ccf::ApiResult::OK)
-          {
-            return ccf::make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              fmt::format(
-                "Unable to get time: {}", ccf::api_result_to_str(result)));
-          }
-
-          // TODO: Joining node while service is opening
-          // Should the validity period be:
-          // 1. [this node's host time, this node's host time + initial validity
-          // period?]
-          // 2. validity period extracted from self-signed node cert
+          // For a pre-open service, extract the validity period of self-signed
+          // node certificate and use it verbatim in endorsed certificate
+          auto [valid_from, valid_to] =
+            crypto::make_verifier(node_der)->validity_period();
           endorsed_certificate = crypto::create_endorsed_cert(
             in.certificate_signing_request.value(),
-            crypto::OpenSSL::to_x509_time_string(time.tv_sec),
-            config->node_cert_initial_validity_period_days,
+            valid_from,
+            valid_to,
             this->network.identity->priv_key,
             this->network.identity->cert);
 

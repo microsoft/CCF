@@ -29,20 +29,13 @@ namespace ccf
     size_t node_cert_allowed_validity_period_days =
       default_node_cert_validity_period_days;
 
-    // TODO: Only required if initial node join (when service is opening) uses
-    // primary's host time
-    size_t node_cert_initial_validity_period_days =
-      default_node_cert_initial_validity_period_days;
-
     bool operator==(const ServiceConfiguration& other) const
     {
       return recovery_threshold == other.recovery_threshold &&
         consensus == other.consensus &&
         reconfiguration_type == other.reconfiguration_type &&
         node_cert_allowed_validity_period_days ==
-        other.node_cert_allowed_validity_period_days &&
-        node_cert_initial_validity_period_days ==
-        other.node_cert_initial_validity_period_days;
+        other.node_cert_allowed_validity_period_days;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
@@ -51,8 +44,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     ServiceConfiguration,
     reconfiguration_type,
-    node_cert_allowed_validity_period_days,
-    node_cert_initial_validity_period_days)
+    node_cert_allowed_validity_period_days)
 
   // The there is always only one active configuration, so this is a single
   // Value
