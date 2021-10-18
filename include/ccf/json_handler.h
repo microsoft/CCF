@@ -4,6 +4,7 @@
 
 #include "ccf/endpoint_registry.h"
 #include "enclave/rpc_context.h"
+#include "http/http_accept.h"
 #include "http/http_consts.h"
 #include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"
@@ -125,124 +126,6 @@ namespace ccf
       return packing.value_or(serdes::Pack::Text);
     }
 
-    struct AcceptHeaderField
-    {
-      std::string mime_type;
-      std::string mime_subtype;
-      float q_factor;
-
-      static bool is_wildcard(const std::string_view& s)
-      {
-        return s == "*";
-      }
-
-      bool matches(const std::string& mime) const
-      {
-        const auto [t, st] = nonstd::split_1(mime, "/");
-
-        if (is_wildcard(mime_type) || mime_type == t)
-        {
-          if (is_wildcard(mime_subtype) || mime_subtype == st)
-          {
-            return true;
-          }
-        }
-
-        return false;
-      }
-
-      bool operator==(const AcceptHeaderField& other) const = default;
-
-      bool operator<(const AcceptHeaderField& other) const
-      {
-        if (q_factor != other.q_factor)
-        {
-          return q_factor < other.q_factor;
-        }
-
-        if (is_wildcard(mime_type))
-        {
-          return true;
-        }
-        else if (is_wildcard(other.mime_type))
-        {
-          return false;
-        }
-
-        if (is_wildcard(mime_subtype))
-        {
-          return true;
-        }
-        else if (is_wildcard(other.mime_subtype))
-        {
-          return false;
-        }
-
-        // Spec says these mime types are now equivalent. For stability, we
-        // order them lexicographically
-        return mime_type < other.mime_type && mime_subtype < other.mime_subtype;
-      }
-    };
-
-    inline std::vector<AcceptHeaderField> parse_accept_header(std::string s)
-    {
-      // Strip out all spaces
-      s.erase(
-        std::remove_if(s.begin(), s.end(), [](char c) { return c == ' '; }),
-        s.end());
-
-      if (s.empty())
-      {
-        return {};
-      }
-
-      std::vector<AcceptHeaderField> fields;
-
-      const auto elements = nonstd::split(s, ",");
-      for (const auto& element : elements)
-      {
-        const auto [types, q_string] = nonstd::split_1(element, ";q=");
-        const auto [type, subtype] = nonstd::split_1(types, "/");
-        if (type.empty() || subtype.empty())
-        {
-          throw RpcException(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidHeaderValue,
-            fmt::format(
-              "Entry in Accept header is not a valid MIME type: {}", element));
-        }
-
-        float q_factor = 1.0f;
-        if (!q_string.empty())
-        {
-          try
-          {
-            q_factor = std::stof(std::string(q_string));
-          }
-          catch (const std::exception& e)
-          {
-            throw RpcException(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidHeaderValue,
-              fmt::format(
-                "Could not parse q-factor from MIME type in Accept header: "
-                "{}",
-                element));
-          }
-        }
-
-        fields.push_back(
-          AcceptHeaderField{std::string(type), std::string(subtype), q_factor});
-      }
-
-      // Sort in _reverse_, so the 'largest' (highest quality-value) entry is
-      // first
-      std::sort(fields.begin(), fields.end(), [](const auto& a, const auto& b) {
-        return b < a;
-      });
-      return fields;
-    }
-
     inline serdes::Pack get_response_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx,
       serdes::Pack request_pack = serdes::Pack::Text)
@@ -250,7 +133,8 @@ namespace ccf
       const auto accept_it = ctx->get_request_header(http::headers::ACCEPT);
       if (accept_it.has_value())
       {
-        const auto accept_options = parse_accept_header(accept_it.value());
+        const auto accept_options =
+          http::parse_accept_header(accept_it.value());
         for (const auto& option : accept_options)
         {
           if (option.matches(http::headervalues::contenttype::JSON))
