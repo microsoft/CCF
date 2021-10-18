@@ -242,7 +242,7 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptPtr receipt)
     {
-      // Creates an "isolate", which is like a browser tab or a sandbox.
+      // Creates a new JS HTTP processor (and its own sandbox).
       // We create one per request, which is wasteful if we get the same request multiple times.
       // TODO: Use a cache for existing requests / code.
       // TODO: Compile code to Wasm/obj and cache those!
@@ -268,19 +268,29 @@ namespace ccfapp
       Local<String> source = String::NewFromUtf8(isolate, props.js_module);
       Local<String> function_name = String::NewFromUtf8(isolate, props.js_function);
 
-      // TODO: Add process.cc as a header/impl
       /// Processor options (like --jitless?)
-      // map<string, string> options;
-      // JsHttpRequestProcessor processor(isolate, source);
-      // map<string, string> output;
-      // if (!processor.Initialize(&options, &output)) {
-      //   fprintf(stderr, "Error initializing processor.\n");
-      //   return 1;
-      // }
-      // if (!ProcessEntries(isolate, platform.get(), &processor, kSampleSize,
-      //                     kSampleRequests)) {
-      //   return 1;
-      // }
+      JsHttpRequestProcessor processor(isolate, source);
+      map<string, string> options;
+      map<string, string> output;
+      // FIXME: This checks for Process function, remove that
+      if (!processor.Initialize(&options, &output)) {
+        fprintf(stderr, "Error initializing processor.\n");
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          exc.what());
+        return;
+      }
+      // FIXME: This executes a Process function, make that parametric and use the function
+      // below.
+      if (!ProcessEntries(isolate, platform.get(), &processor, kSampleSize,
+                          kSampleRequests)) {
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          exc.what());
+        return;
+      }
 
       // The actual function object
       // Local<Object> = ...;
