@@ -19,7 +19,7 @@ from math import ceil
 import http
 import pprint
 import functools
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from loguru import logger as LOG
 
@@ -1107,6 +1107,23 @@ class Network:
                 c.read().encode("ascii"), default_backend()
             )
             return network_cert
+
+    def verify_service_certificate_validity_period(self):
+        # TODO: Hardcoded for now. See # TODO: See https://github.com/microsoft/CCF/issues/3090
+        assert self.cert.not_valid_before == datetime(
+            year=2021, month=3, day=11
+        )  # 20210311000000Z
+        assert self.cert.not_valid_after == datetime(
+            year=2023, month=6, day=11, hour=23, minute=59, second=59
+        )  # 20230611235959Z
+        validity_period = (
+            self.cert.not_valid_after
+            - self.cert.not_valid_before
+            + timedelta(seconds=1)
+        )
+        LOG.info(
+            f"Certificate validity period for service successfully verified: {self.cert.not_valid_before} - {self.cert.not_valid_after} (for {validity_period})"
+        )
 
 
 @contextmanager

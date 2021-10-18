@@ -789,11 +789,11 @@ const actions = new Map([
             nodeInfo.certificate_signing_request !== undefined &&
             serviceConfig.consensus !== "BFT"
           ) {
-            // Note: CSR is only present from 2.x
+            // Note: CSR and node certificate validity config are only present from 2.x
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
               args.valid_from,
-              serviceConfig.node_cert_allowed_validity_period_days | 365 // TODO: This is necessary for the LTS compatibility test to work
+              serviceConfig.node_cert_allowed_validity_period_days ?? 365
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),

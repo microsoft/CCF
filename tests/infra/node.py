@@ -520,8 +520,9 @@ class Node:
             raise ValueError(
                 f'Validity period for certiticate is not as expected: valid to "{valid_to}, expected to "{expected_valid_to}"'
             )
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
         LOG.info(
-            f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {valid_to - valid_from})"
+            f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {validity_period})"
         )
 
     def suspend(self):
