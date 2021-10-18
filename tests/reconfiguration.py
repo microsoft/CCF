@@ -42,8 +42,10 @@ def count_nodes(configs, network):
 def test_add_node(network, args):
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
+
     # Verify self-signed node certificate validity period
-    new_node.verify_certificate_validity_period(args.initial_node_cert_validity_days)
+    new_node.verify_certificate_validity_period()
+
     network.trust_node(new_node, args)
     with new_node.client() as c:
         s = c.get("/node/state")
@@ -51,11 +53,10 @@ def test_add_node(network, args):
         assert (
             s.body.json()["startup_seqno"] == 0
         ), "Node started without snapshot but reports startup seqno != 0"
+
     # Now that the node is trusted, verify endorsed certificate validity period
-    new_node.verify_certificate_validity_period(
-        args.max_allowed_node_cert_validity_days
-    )
-    assert new_node
+    new_node.verify_certificate_validity_period()
+
     return network
 
 
@@ -223,7 +224,6 @@ def test_node_filter(network, args):
         assert all(info["status"] == "Trusted" for info in trusted_after), trusted_after
         assert all(info["status"] == "Pending" for info in pending_after), pending_after
         assert all(info["status"] == "Retired" for info in retired_after), retired_after
-    assert new_node
     return network
 
 
@@ -425,7 +425,7 @@ def test_learner_does_not_take_part(network, args):
 @reqs.description("Test node certificates validity period")
 def test_node_certificates_validity_period(network, args):
     for node in network.get_joined_nodes():
-        node.verify_certificate_validity_period(args.initial_node_cert_validity_days)
+        node.verify_certificate_validity_period()
 
 
 @reqs.description("Add a new node without a snapshot but with the historical ledger")
@@ -458,7 +458,6 @@ def run(args):
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
-            test_node_certificates_validity_period(network, args)
             test_add_node(network, args)
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)

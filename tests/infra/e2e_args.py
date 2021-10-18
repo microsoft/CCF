@@ -355,13 +355,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Initial validity period (days) for certificates of nodes before the "
         "service is open by members",
         type=int,
-        default=128,  # TODO: Should be 1
+        default=1,
     )
     parser.add_argument(
         "--max-allowed-node-cert-validity-days",
         help="Maximum validity period (days) for certificates of trusted nodes",
         type=int,
-        default=123,  # TODO: Set to something random and see if tests still work
+        default=365,
     )
 
     add(parser)

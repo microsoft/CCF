@@ -133,9 +133,7 @@ def run(args):
             network = recovered_network
 
             for node in network.get_joined_nodes():
-                node.verify_certificate_validity_period(
-                    args.initial_node_cert_validity_days
-                )
+                node.verify_certificate_validity_period()
 
             LOG.success("Recovery complete on all nodes")
 

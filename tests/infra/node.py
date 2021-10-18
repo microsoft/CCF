@@ -110,6 +110,8 @@ class Node:
             else None
         )
         self.consensus = None
+        self.certificate_valid_from = None
+        self.certificate_validity_days = None
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -313,6 +315,7 @@ class Node:
             )
 
         self._read_ports()
+        self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
 
     def _read_ports(self):
@@ -493,38 +496,6 @@ class Node:
             )
         )
 
-    def verify_certificate_validity_period(self, expected_validity_period_days):
-        node_tls_cert = self.get_tls_certificate_pem()
-        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
-            node_tls_cert
-        )
-
-        assert (
-            infra.crypto.compute_public_key_der_hash_hex_from_pem(node_tls_cert)
-            == self.node_id
-        )
-
-        # Assume that certificate has been issued within this test run
-        expected_valid_from = datetime.utcnow() - timedelta(hours=1)
-        if valid_from < expected_valid_from:
-            raise ValueError(
-                f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
-            )
-
-        # Note: CCF substracts one second from validity period since x509
-        # specifies that validity dates are inclusive.
-        expected_valid_to = valid_from + timedelta(
-            days=expected_validity_period_days, seconds=-1
-        )
-        if valid_to != expected_valid_to:
-            raise ValueError(
-                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to}, expected to "{expected_valid_to}"'
-            )
-        validity_period = valid_to - valid_from + timedelta(seconds=1)
-        LOG.info(
-            f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {validity_period})"
-        )
-
     def suspend(self):
         assert not self.suspended
         self.suspended = True
@@ -536,6 +507,52 @@ class Node:
         self.suspended = False
         self.remote.resume()
         LOG.info(f"Node {self.local_node_id} has resumed from suspension.")
+
+    def set_certificate_validity_period(self, valid_from, validity_period_days):
+        self.certificate_valid_from = valid_from
+        self.certificate_validity_days = validity_period_days
+
+    def verify_certificate_validity_period(self, expected_validity_period=None):
+        node_tls_cert = self.get_tls_certificate_pem()
+        assert (
+            infra.crypto.compute_public_key_der_hash_hex_from_pem(node_tls_cert)
+            == self.node_id
+        )
+
+        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+            node_tls_cert
+        )
+
+        if self.certificate_valid_from is None:
+            # If the node certificate has not been renewed, assume that certificate has
+            # been issued within this test run
+            expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+            if valid_from < datetime.utcnow() - timedelta(hours=1):
+                raise ValueError(
+                    f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
+                )
+        else:
+            if (
+                infra.crypto.datetime_as_UTCtime(valid_from)
+                != self.certificate_valid_from
+            ):
+                raise ValueError(
+                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{valid_from}", but expected "{self.certificate_valid_from}"'
+                )
+
+        # Note: CCF substracts one second from validity period since x509
+        # specifies that validity dates are inclusive.
+        expected_valid_to = valid_from + timedelta(
+            days=self.certificate_validity_days, seconds=-1
+        )
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to} but expected "{expected_valid_to}"'
+            )
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
+        LOG.info(
+            f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {validity_period})"
+        )
 
 
 @contextmanager

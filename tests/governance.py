@@ -262,7 +262,11 @@ def test_node_cert_renewal(network, args):
                         expected_exception is None
                     ), "Proposal should have not succeeded"
 
-                node.verify_certificate_validity_period(validity_period_days)
+                node_cert_tls_after = node.get_tls_certificate_pem()
+                assert (
+                    node_cert_tls_before != node_cert_tls_after
+                ), f"Node {node.local_node_id} certificate was not renewed"
+                node.verify_certificate_validity_period()
                 LOG.info(
                     f"Certificate for node {node.local_node_id} has successfully been renewed"
                 )

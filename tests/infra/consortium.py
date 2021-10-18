@@ -551,7 +551,9 @@ class Consortium:
             validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
+        r = self.vote_using_majority(remote_node, proposal, careful_vote)
+        node_to_renew.set_certificate_validity_period(valid_from, validity_period_days)
+        return r
 
     def check_for_service(self, remote_node, status):
         """

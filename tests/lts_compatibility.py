@@ -171,7 +171,7 @@ def run_code_upgrade_from(
                 )
                 network.trust_node(new_node, args)
                 # Note: validity period for 2.x node joining 1.x service is hardcoded
-                # to 365 days since existing service is not capable of issuing endorsed
+                # to 365 days since existing service does not issue endorsed
                 # node certificate
                 new_node.verify_certificate_validity_period(
                     expected_validity_period_days=365

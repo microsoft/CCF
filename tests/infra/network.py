@@ -635,11 +635,13 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
+                valid_from = valid_from or str(
+                    infra.crypto.datetime_as_UTCtime(datetime.now())
+                )
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
-                    valid_from=valid_from
-                    or str(infra.crypto.datetime_as_UTCtime(datetime.now())),
+                    valid_from=valid_from,
                     validity_period_days=validity_period_days,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
@@ -653,6 +655,9 @@ class Network:
             raise
 
         node.network_state = infra.node.NodeNetworkState.joined
+        node.set_certificate_validity_period(
+            valid_from, validity_period_days or args.max_allowed_node_cert_validity_days
+        )
         self.wait_for_all_nodes_to_commit(primary=primary)
 
     def retire_node(self, remote_node, node_to_retire):
