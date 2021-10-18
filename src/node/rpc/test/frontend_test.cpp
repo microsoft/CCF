@@ -907,6 +907,10 @@ TEST_CASE("Restricted verbs")
   {
     INFO(llhttp_method_name(verb));
 
+    const auto other_verb_status = verb == HTTP_OPTIONS ?
+      HTTP_STATUS_NO_CONTENT :
+      HTTP_STATUS_METHOD_NOT_ALLOWED;
+
     {
       http::Request get("get_only", verb);
       const auto serialized_get = get.build_request();
@@ -919,7 +923,7 @@ TEST_CASE("Restricted verbs")
       }
       else
       {
-        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        CHECK(response.status == other_verb_status);
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
@@ -939,7 +943,7 @@ TEST_CASE("Restricted verbs")
       }
       else
       {
-        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        CHECK(response.status == other_verb_status);
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
@@ -960,13 +964,16 @@ TEST_CASE("Restricted verbs")
       }
       else
       {
-        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        CHECK(response.status == other_verb_status);
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
         CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
         CHECK(v.find(llhttp_method_name(HTTP_DELETE)) != std::string::npos);
-        CHECK(v.find(llhttp_method_name(verb)) == std::string::npos);
+        if (verb != HTTP_OPTIONS)
+        {
+          CHECK(v.find(llhttp_method_name(verb)) == std::string::npos);
+        }
       }
     }
   }
