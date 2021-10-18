@@ -215,11 +215,6 @@ class Network:
         from_snapshot=True,
         snapshot_dir=None,
     ):
-        forwarded_args = {
-            arg: getattr(args, arg)
-            for arg in infra.network.Network.node_args_to_forward
-        }
-
         # Contact primary if no target node is set
         if target_node is None:
             target_node, _ = self.find_primary(
@@ -227,25 +222,21 @@ class Network:
             )
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
-        # Only retrieve snapshot from target node if the snapshot directory is not
-        # specified
-        if from_snapshot and snapshot_dir is None:
-            snapshot_dir = self.get_committed_snapshots(target_node)
+        committed_ledger_dir = read_only_ledger_dir
+        current_ledger_dir = ledger_dir
 
-        committed_ledger_dir = None
-        current_ledger_dir = None
+        if copy_ledger_read_only and read_only_ledger_dir is None:
+            LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
+            current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
+                include_read_only_dirs=True
+            )
+
         if from_snapshot:
+            # Only retrieve snapshot from target node if the snapshot directory is not
+            # specified
+            snapshot_dir = snapshot_dir or self.get_committed_snapshots(target_node)
             if os.listdir(snapshot_dir):
                 LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
-                # Only when joining from snapshot, retrieve ledger dirs from target node
-                # if the ledger directories are not specified. When joining without snapshot,
-                # the entire ledger will be retransmitted by primary node
-                current_ledger_dir = ledger_dir or None
-                committed_ledger_dir = read_only_ledger_dir or None
-                if copy_ledger_read_only and read_only_ledger_dir is None:
-                    current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
-                        include_read_only_dirs=True
-                    )
             else:
                 LOG.warning(
                     f"Attempting to join from snapshot but {snapshot_dir} is empty: defaulting to complete replay of transaction history"
@@ -254,6 +245,11 @@ class Network:
             LOG.info(
                 "Joining without snapshot: complete transaction history will be replayed"
             )
+
+        forwarded_args = {
+            arg: getattr(args, arg)
+            for arg in infra.network.Network.node_args_to_forward
+        }
 
         node.join(
             lib_name=lib_name,
@@ -530,9 +526,9 @@ class Network:
 
     def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
         if not skip_verification:
-            # Verify that all txs committed on the service can be read
             if self.txs is not None:
-                log_capture = None if verbose_verification else []
+                LOG.info("Verifying that all committed txs can be read before shutdown")
+                log_capture = []
                 self.txs.verify(self, log_capture=log_capture)
                 if verbose_verification:
                     flush_info(log_capture, None)
@@ -1080,7 +1076,7 @@ class Network:
                 self.consortium.create_and_withdraw_large_proposal(node)
                 time.sleep(0.1)
         raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()}"
+            f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
         )
 
     def get_ledger_public_state_at(self, seqno, timeout=5):

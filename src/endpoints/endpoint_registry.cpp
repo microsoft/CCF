@@ -295,7 +295,7 @@ namespace ccf::endpoints
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(
-    const enclave::RpcContext& rpc_ctx)
+    kv::Tx& tx, const enclave::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
 

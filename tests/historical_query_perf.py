@@ -120,4 +120,5 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_member_count = 1
+    args.sig_ms_interval = 1000  # Set to cchost default value
     run(args)
