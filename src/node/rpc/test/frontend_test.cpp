@@ -1589,6 +1589,30 @@ TEST_CASE("Parse Accept header")
   }
 }
 
+TEST_CASE("Accept header MIME matching")
+{
+  using namespace ccf::jsonhandler;
+
+  const auto a = AcceptHeaderField{"foo", "bar", 1.0f};
+  const auto b = AcceptHeaderField{"foo", "*", 1.0f};
+  const auto c = AcceptHeaderField{"*", "*", 1.0f};
+
+  REQUIRE(a.matches("foo/bar"));
+  REQUIRE_FALSE(a.matches("foo/baz"));
+  REQUIRE_FALSE(a.matches("fob/bar"));
+  REQUIRE_FALSE(a.matches("fob/baz"));
+
+  REQUIRE(b.matches("foo/bar"));
+  REQUIRE(b.matches("foo/baz"));
+  REQUIRE_FALSE(b.matches("fob/bar"));
+  REQUIRE_FALSE(b.matches("fob/baz"));
+
+  REQUIRE(c.matches("foo/bar"));
+  REQUIRE(c.matches("foo/baz"));
+  REQUIRE(c.matches("fob/bar"));
+  REQUIRE(c.matches("fob/baz"));
+}
+
 int main(int argc, char** argv)
 {
   doctest::Context context;

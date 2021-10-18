@@ -131,6 +131,26 @@ namespace ccf
       std::string mime_subtype;
       float q_factor;
 
+      static bool is_wildcard(const std::string_view& s)
+      {
+        return s == "*";
+      }
+
+      bool matches(const std::string& mime) const
+      {
+        const auto [t, st] = nonstd::split_1(mime, "/");
+
+        if (is_wildcard(mime_type) || mime_type == t)
+        {
+          if (is_wildcard(mime_subtype) || mime_subtype == st)
+          {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
       bool operator==(const AcceptHeaderField& other) const = default;
 
       bool operator<(const AcceptHeaderField& other) const
@@ -140,20 +160,20 @@ namespace ccf
           return q_factor < other.q_factor;
         }
 
-        if (mime_type == "*")
+        if (is_wildcard(mime_type))
         {
           return true;
         }
-        else if (other.mime_type == "*")
+        else if (is_wildcard(other.mime_type))
         {
           return false;
         }
 
-        if (mime_subtype == "*")
+        if (is_wildcard(mime_subtype))
         {
           return true;
         }
-        else if (other.mime_subtype == "*")
+        else if (is_wildcard(other.mime_subtype))
         {
           return false;
         }
