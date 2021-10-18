@@ -10,7 +10,6 @@ import code_update
 import membership
 import governance_history
 import jwt_test
-import governance
 
 from inspect import signature, Parameter
 
@@ -115,8 +114,6 @@ all_tests_suite = [
     recovery.test,
     # jwt
     jwt_test.test_refresh_jwt_issuer,
-    # governance
-    governance.test_test_node_cert_renewal,
     #
     #
     #

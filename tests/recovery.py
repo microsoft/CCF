@@ -7,8 +7,6 @@ import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
 
-import reconfiguration
-
 from loguru import logger as LOG
 
 
@@ -134,7 +132,10 @@ def run(args):
                 recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
 
-            reconfiguration.test_node_certificates_validity_period(network, args)
+            for node in network.get_joined_nodes():
+                node.verify_certificate_validity_period(
+                    args.initial_node_cert_validity_days
+                )
 
             LOG.success("Recovery complete on all nodes")
 
