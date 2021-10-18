@@ -44,7 +44,13 @@ I'm not sure all the map logic in `v8httpproc` makes sense, but didn't remove be
 
 Right now, the code does not compile. We still need to finish the V8 logic inside, and testing that will be a bit painful before we can actually call the end-to-end testing on it.
 
-For now, I propose we have a `main.cpp` that calls the endpoint library as CCF would, and links `libjsv8.so` for a manual testing.
+But how to build is already encoded in the CMake file, as a copy from the `js_generic` part, with some V8 additions, mainly:
+
+* Adding a `script/build-v8.sh` script that clones and builds V8, providing an `install` directory to use in CCF, and uploading it to an artifact storage.
+* Another `script/fetch-v8.sh` script that downloads the artifact storage, so that people can avoid building V8 entirely and fetch the right version for CCF.
+* Adding include and library paths to CMake so that those are visible from the compiler command line.
+
+For testing, initially I propose we have a `main.cpp` that calls the endpoint library as CCF would, and links `libjsv8.so` for a manual testing.
 
 Once that's reasonably complete, we need to change the `e2e_logging.py` test to use the V8 library instead of `js_generic`. Those tests should pass completely before we can call it minimal support.
 
