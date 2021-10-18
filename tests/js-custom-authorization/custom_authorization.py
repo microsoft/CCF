@@ -365,10 +365,10 @@ def run_content_types(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_content_types(network, args)
+        network = test_content_types(network, args)
         network = test_accept_header(network, args)
-        # network = test_supported_methods(network, args)
-        # network = test_unknown_path(network, args)
+        network = test_supported_methods(network, args)
+        network = test_unknown_path(network, args)
 
 
 if __name__ == "__main__":
