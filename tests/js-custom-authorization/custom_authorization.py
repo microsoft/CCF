@@ -241,6 +241,96 @@ def test_content_types(network, args):
     return network
 
 
+@reqs.description("Test accept header")
+def test_accept_header(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client() as c:
+        r = c.get("/node/commit", headers={"accept": "nonsense"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value
+
+        r = c.get("/node/commit", headers={"accept": "text/html"})
+        assert r.status_code == http.HTTPStatus.NOT_ACCEPTABLE.value
+
+        r = c.get(
+            "/node/commit",
+            headers={"accept": "text/html;q=0.9,image/jpeg;video/mpeg;q=0.8"},
+        )
+        assert r.status_code == http.HTTPStatus.NOT_ACCEPTABLE.value
+
+        r = c.get("/node/commit", headers={"accept": "*/*"})
+        assert r.status_code == http.HTTPStatus.OK.value
+
+        r = c.get("/node/commit", headers={"accept": "application/*"})
+        assert r.status_code == http.HTTPStatus.OK.value
+
+        r = c.get("/node/commit", headers={"accept": "application/json"})
+        assert r.status_code == http.HTTPStatus.OK.value
+        assert r.headers["content-type"] == "application/json"
+
+        r = c.get("/node/commit", headers={"accept": "application/msgpack"})
+        assert r.status_code == http.HTTPStatus.OK.value
+        assert r.headers["content-type"] == "application/msgpack"
+
+        r = c.get(
+            "/node/commit",
+            headers={"accept": "text/html;q=0.9,image/jpeg;video/mpeg;q=0.8,*/*;q=0.1"},
+        )
+        assert r.status_code == http.HTTPStatus.OK.value
+
+        r = c.get(
+            "/node/commit",
+            headers={
+                "accept": "text/html;q=0.9,image/jpeg;video/mpeg;q=0.8,application/json;q=0.1"
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK.value
+        assert r.headers["content-type"] == "application/json"
+
+        r = c.get(
+            "/node/commit",
+            headers={
+                "accept": "text/html;q=0.9,image/jpeg;video/mpeg;q=0.8,application/msgpack;q=0.1"
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK.value
+        assert r.headers["content-type"] == "application/msgpack"
+
+    return network
+
+
+@reqs.description("Test supported methods")
+def test_supported_methods(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as c:
+        # Test ALLOW header when wrong method is used
+        r = c.delete("/app/text")
+        assert r.status_code == http.HTTPStatus.METHOD_NOT_ALLOWED
+        allow = r.headers.get("allow")
+        assert allow is not None
+        assert "OPTIONS" in allow
+        assert "POST" in allow
+
+        # Test ALLOW header when OPTIONS method is used on POST-only app endpoint
+        r = c.options("/app/text")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT
+        allow = r.headers.get("allow")
+        assert allow is not None
+        assert "OPTIONS" in allow
+        assert "POST" in allow
+
+        # Test ALLOW header when OPTIONS method is used on GET-only framework endpoint
+        r = c.options("/node/commit")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT
+        allow = r.headers.get("allow")
+        assert allow is not None
+        assert "OPTIONS" in allow
+        assert "GET" in allow
+
+    return network
+
+
 @reqs.description("Test unknown path")
 def test_unknown_path(network, args):
     primary, _ = network.find_nodes()
@@ -276,6 +366,8 @@ def run_content_types(args):
     ) as network:
         network.start_and_join(args)
         network = test_content_types(network, args)
+        network = test_accept_header(network, args)
+        network = test_supported_methods(network, args)
         network = test_unknown_path(network, args)
 
 

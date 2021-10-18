@@ -4,6 +4,7 @@
 
 #include "ccf/endpoint_registry.h"
 #include "enclave/rpc_context.h"
+#include "http/http_accept.h"
 #include "http/http_consts.h"
 #include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"
@@ -129,39 +130,35 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       serdes::Pack request_pack = serdes::Pack::Text)
     {
-      serdes::Pack packing = request_pack;
-
       const auto accept_it = ctx->get_request_header(http::headers::ACCEPT);
       if (accept_it.has_value())
       {
-        const auto& accept = accept_it.value();
-        if (accept == http::headervalues::contenttype::JSON)
+        const auto accept_options =
+          http::parse_accept_header(accept_it.value());
+        for (const auto& option : accept_options)
         {
-          packing = serdes::Pack::Text;
+          if (option.matches(http::headervalues::contenttype::JSON))
+          {
+            return serdes::Pack::Text;
+          }
+          if (option.matches(http::headervalues::contenttype::MSGPACK))
+          {
+            return serdes::Pack::MsgPack;
+          }
         }
-        else if (accept == http::headervalues::contenttype::MSGPACK)
-        {
-          packing = serdes::Pack::MsgPack;
-        }
-        else if (accept == "*/*")
-        {
-          packing = request_pack;
-        }
-        else
-        {
-          throw RpcException(
-            HTTP_STATUS_NOT_ACCEPTABLE,
-            ccf::errors::UnsupportedContentType,
-            fmt::format(
-              "Unsupported content type {} in accept header. Only {} and {} "
-              "are currently supported",
-              accept,
-              http::headervalues::contenttype::JSON,
-              http::headervalues::contenttype::MSGPACK));
-        }
+
+        throw RpcException(
+          HTTP_STATUS_NOT_ACCEPTABLE,
+          ccf::errors::UnsupportedContentType,
+          fmt::format(
+            "No supported content type in accept header: {}\nOnly {} and {} "
+            "are currently supported",
+            accept_it.value(),
+            http::headervalues::contenttype::JSON,
+            http::headervalues::contenttype::MSGPACK));
       }
 
-      return packing;
+      return request_pack;
     }
 
     inline nlohmann::json get_params_from_body(
