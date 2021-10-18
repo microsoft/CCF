@@ -51,6 +51,7 @@ bool JsHttpRequestProcessor::Initialize(StringMap* opts,
     return false;
 
   // Compile and run the script
+  // FIXME: Only compile the script at this time.
   if (!ExecuteScript(script_))
     return false;
 
@@ -77,7 +78,7 @@ bool JsHttpRequestProcessor::Initialize(StringMap* opts,
   return true;
 }
 
-
+// FIXME: Split this into compile && execute
 bool JsHttpRequestProcessor::ExecuteScript(Local<String> script) {
   HandleScope handle_scope(GetIsolate());
 
@@ -466,44 +467,4 @@ bool ProcessEntries(Isolate* isolate, Platform* platform,
     if (!result) return false;
   }
   return true;
-}
-
-void PrintMap(StringMap* m) {
-  for (StringMap::iterator i = m->begin(); i != m->end(); i++) {
-    pair<string, string> entry = *i;
-    printf("%s: %s\n", entry.first.c_str(), entry.second.c_str());
-  }
-}
-
-
-int main(int argc, char* argv[]) {
-  V8::InitializeICUDefaultLocation(argv[0]);
-  V8::InitializeExternalStartupData(argv[0]);
-  std::unique_ptr<Platform> platform = platform::NewDefaultPlatform();
-  V8::InitializePlatform(platform.get());
-  V8::Initialize();
-  StringMap options;
-  string file;
-  Isolate::CreateParams create_params;
-  create_params.array_buffer_allocator =
-      ArrayBuffer::Allocator::NewDefaultAllocator();
-  Isolate* isolate = Isolate::New(create_params);
-  Isolate::Scope isolate_scope(isolate);
-  HandleScope scope(isolate);
-  Local<String> source;
-  if (!ReadFile(isolate, file).ToLocal(&source)) {
-    fprintf(stderr, "Error reading '%s'.\n", file.c_str());
-    return 1;
-  }
-  JsHttpRequestProcessor processor(isolate, source);
-  StringMap output;
-  if (!processor.Initialize(&options, &output)) {
-    fprintf(stderr, "Error initializing processor.\n");
-    return 1;
-  }
-  if (!ProcessEntries(isolate, platform.get(), &processor, kSampleSize,
-                      kSampleRequests)) {
-    return 1;
-  }
-  PrintMap(&output);
 }

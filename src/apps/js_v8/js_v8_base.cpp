@@ -51,6 +51,8 @@ namespace ccfapp
       MaybeLocal<String> result = String::NewFromUtf8(
       iso, buf.c_str(), NewStringType::kNormal, static_cast<int>(buf.size()));
       // TODO: Parse the JSON first
+      // In theory, JSON is contained in the ECMAScript standard, and V8 supports
+      // it, so in theory, parsing a JSON object structure could "just work"?
       return result;
     }
 
@@ -194,7 +196,7 @@ namespace ccfapp
       for (auto& [header_name, header_value] :
            endpoint_ctx.rpc_ctx->get_request_headers())
       {
-        // V8_SetPropertyStr(
+        // JS_SetPropertyStr(
         //   ctx,
         //   headers,
         //   header_name.c_str(),
@@ -209,7 +211,7 @@ namespace ccfapp
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
       {
-        // V8_SetPropertyStr(
+        // JS_SetPropertyStr(
         //   ctx,
         //   params,
         //   param_name.c_str(),
@@ -218,7 +220,7 @@ namespace ccfapp
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
       // auto body = Object::NewClass(iso, js::body_class_id);
-      // V8_SetOpaque(body, (void*)&request_body);
+      // JS_SetOpaque(body, (void*)&request_body);
 
       /**
        * TODO: Create structure using ObjectTemplate
@@ -266,13 +268,10 @@ namespace ccfapp
 
       // Parse the source
       Local<String> source = String::NewFromUtf8(isolate, props.js_module);
-      Local<String> function_name = String::NewFromUtf8(isolate, props.js_function);
-
-      /// Processor options (like --jitless?)
       JsHttpRequestProcessor processor(isolate, source);
+      /// Processor options (like --jitless?)
       map<string, string> options;
       map<string, string> output;
-      // FIXME: This checks for Process function, remove that
       if (!processor.Initialize(&options, &output)) {
         fprintf(stderr, "Error initializing processor.\n");
         endpoint_ctx.rpc_ctx->set_error(
@@ -281,8 +280,14 @@ namespace ccfapp
           exc.what());
         return;
       }
+
+      // Call the function by name
+      Local<String> function_name = String::NewFromUtf8(isolate, props.js_function);
+      Local<Object> val;
+
       // FIXME: This executes a Process function, make that parametric and use the function
       // below.
+      // FIXME: Return the value as an object.
       if (!ProcessEntries(isolate, platform.get(), &processor, kSampleSize,
                           kSampleRequests)) {
         endpoint_ctx.rpc_ctx->set_error(
@@ -292,45 +297,8 @@ namespace ccfapp
         return;
       }
 
-      // The actual function object
-      // Local<Object> = ...;
-      JSValue export_func;
-      try
-      {
-        auto module_val =
-          js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
-        export_func =
-          ctx.function(module_val, props.js_function, props.js_module);
-      }
-      catch (const std::exception& exc)
-      {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          exc.what());
-        return;
-      }
-
-      // Call exported function
-      auto request = create_request_obj(endpoint_ctx, ctx);
-      int argc = 1;
-      JSValueConst* argv = (JSValueConst*)&request;
-      auto val = ctx(V8_Call(iso, export_func, V8_UNDEFINED, argc, argv));
-      V8_FreeValue(iso, request);
-      V8_FreeValue(iso, export_func);
-
-      if (V8_IsException(val))
-      {
-        js::js_dump_error(ctx);
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Exception thrown while executing.");
-        return;
-      }
-
       // Handle return value: {body, headers, statusCode}
-      if (!V8_IsObject(val))
+      if (val->))
       {
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -341,27 +309,27 @@ namespace ccfapp
 
       // Response body (also sets a default response content-type header)
       {
-        auto response_body_js = ctx(V8_GetPropertyStr(iso, val, "body"));
+        auto response_body_js = ctx(JS_GetPropertyStr(iso, val, "body"));
 
-        if (!V8_IsUndefined(response_body_js))
+        if (!JS_IsUndefined(response_body_js))
         {
           std::vector<uint8_t> response_body;
           size_t buf_size;
           size_t buf_offset;
-          JSValue typed_array_buffer = V8_GetTypedArrayBuffer(
+          JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
             ctx, response_body_js, &buf_offset, &buf_size, nullptr);
           uint8_t* array_buffer;
-          if (!V8_IsException(typed_array_buffer))
+          if (!JS_IsException(typed_array_buffer))
           {
             size_t buf_size_total;
             array_buffer =
-              V8_GetArrayBuffer(iso, &buf_size_total, typed_array_buffer);
+              JS_GetArrayBuffer(iso, &buf_size_total, typed_array_buffer);
             array_buffer += buf_offset;
-            V8_FreeValue(iso, typed_array_buffer);
+            JS_FreeValue(iso, typed_array_buffer);
           }
           else
           {
-            array_buffer = V8_GetArrayBuffer(iso, &buf_size, response_body_js);
+            array_buffer = JS_GetArrayBuffer(iso, &buf_size, response_body_js);
           }
           if (array_buffer)
           {
@@ -374,12 +342,12 @@ namespace ccfapp
           else
           {
             const char* cstr = nullptr;
-            if (V8_IsString(response_body_js))
+            if (JS_IsString(response_body_js))
             {
               endpoint_ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::TEXT);
-              cstr = V8_ToCString(iso, response_body_js);
+              cstr = JS_ToCString(iso, response_body_js);
             }
             else
             {
@@ -387,8 +355,8 @@ namespace ccfapp
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::JSON);
               JSValue rval =
-                V8_JSONStringify(iso, response_body_js, V8_NULL, V8_NULL);
-              if (V8_IsException(rval))
+                JS_JSONStringify(iso, response_body_js, V8_NULL, V8_NULL);
+              if (JS_IsException(rval))
               {
                 js::js_dump_error(ctx);
                 endpoint_ctx.rpc_ctx->set_error(
@@ -398,8 +366,8 @@ namespace ccfapp
                   "conversion of body).");
                 return;
               }
-              cstr = V8_ToCString(iso, rval);
-              V8_FreeValue(iso, rval);
+              cstr = JS_ToCString(iso, rval);
+              JS_FreeValue(iso, rval);
             }
             if (!cstr)
             {
@@ -412,7 +380,7 @@ namespace ccfapp
               return;
             }
             std::string str(cstr);
-            V8_FreeCString(iso, cstr);
+            JS_FreeCString(iso, cstr);
 
             response_body = std::vector<uint8_t>(str.begin(), str.end());
           }
@@ -421,24 +389,24 @@ namespace ccfapp
       }
       // Response headers
       {
-        auto response_headers_js = ctx(V8_GetPropertyStr(iso, val, "headers"));
-        if (V8_IsObject(response_headers_js))
+        auto response_headers_js = ctx(JS_GetPropertyStr(iso, val, "headers"));
+        if (JS_IsObject(response_headers_js))
         {
           uint32_t prop_count = 0;
           JSPropertyEnum* props = nullptr;
-          V8_GetOwnPropertyNames(
+          JS_GetOwnPropertyNames(
             ctx,
             &props,
             &prop_count,
             response_headers_js,
-            V8_GPN_STRING_MASK | V8_GPN_ENUM_ONLY);
+            JS_GPN_STRING_MASK | V8_GPN_ENUM_ONLY);
           for (size_t i = 0; i < prop_count; i++)
           {
             auto prop_name = props[i].atom;
-            auto prop_name_cstr = ctx(V8_AtomToCString(iso, prop_name));
+            auto prop_name_cstr = ctx(JS_AtomToCString(iso, prop_name));
             auto prop_val =
-              ctx(V8_GetProperty(iso, response_headers_js, prop_name));
-            auto prop_val_cstr = V8_ToCString(iso, prop_val);
+              ctx(JS_GetProperty(iso, response_headers_js, prop_name));
+            auto prop_val_cstr = JS_ToCString(iso, prop_val);
             if (!prop_val_cstr)
             {
               endpoint_ctx.rpc_ctx->set_error(
@@ -449,7 +417,7 @@ namespace ccfapp
             }
             endpoint_ctx.rpc_ctx->set_response_header(
               prop_name_cstr, prop_val_cstr);
-            V8_FreeCString(iso, prop_val_cstr);
+            JS_FreeCString(iso, prop_val_cstr);
           }
           js_free(ctx, props);
         }
@@ -458,10 +426,10 @@ namespace ccfapp
       // Response status code
       {
         int response_status_code = HTTP_STATUS_OK;
-        auto status_code_js = ctx(V8_GetPropertyStr(iso, val, "statusCode"));
-        if (!V8_IsUndefined(status_code_js) && !V8_IsNull(status_code_js))
+        auto status_code_js = ctx(JS_GetPropertyStr(iso, val, "statusCode"));
+        if (!JS_IsUndefined(status_code_js) && !V8_IsNull(status_code_js))
         {
-          if (V8_VALUE_GET_TAG(status_code_js.val) != V8_TAG_INT)
+          if (JS_VALUE_GET_TAG(status_code_js.val) != V8_TAG_INT)
           {
             endpoint_ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -469,7 +437,7 @@ namespace ccfapp
               "Invalid endpoint function return value (status code type).");
             return;
           }
-          response_status_code = V8_VALUE_GET_INT(status_code_js.val);
+          response_status_code = JS_VALUE_GET_INT(status_code_js.val);
         }
         endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
       }
