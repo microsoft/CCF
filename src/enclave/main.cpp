@@ -27,7 +27,7 @@ threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
-  2'000'000);
+  10'000'000);
 
 extern "C"
 {
