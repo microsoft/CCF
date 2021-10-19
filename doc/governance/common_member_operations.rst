@@ -137,3 +137,32 @@ The number of member shares required to restore the private ledger (``recovery_t
     }
 
 .. note:: The new recovery threshold has to be in the range between 1 and the current number of active recovery members.
+
+Renewing Node Certificate
+-------------------------
+
+.. note:: Renewing the certificate of a node does not change the identity (public key) of that node but only its validity period.
+
+To renew the soon-to-be-expired certificate of a node, members should issue a ``set_node_certificate_validity`` proposal, specifying the date at which the validity period of the renewed certificate should start (``valid_from``), as well as its validity period in days (``validity_period_days``).
+
+The ``valid_from`` date argument should be a ASN1 UTCTime string, i.e. ``"YYMMDDhhmmssZ"``. The ``validity_period_days`` should be less than the validity period set by operators (see :ref:`operations/certificates:Node Certificates`).
+
+A sample proposal is:
+
+.. code-block:: bash
+
+    $ cat set_node_certificate_validity.json
+    {
+        "actions": [
+            {
+                "name": "set_node_certificate_validity",
+                "args": {
+                    "node_id": "86c0ccfab4b869abbc779937c51158c9dd2a130d58323643a3119e83b33dcf5c"
+                    "valid_from": "211019154318Z",
+                    "validity_period_days": 365
+                }
+            }
+        ]
+    }
+
+.. tip:: All currently trusted nodes certificates can be renewed at once using the ``set_all_nodes_certificate_validity`` proposal (same arguments minus ``node_id``).
