@@ -688,6 +688,19 @@ class CCFClient:
         kwargs["http_verb"] = "HEAD"
         return self.call(*args, **kwargs)
 
+    def options(self, *args, **kwargs) -> Response:
+        """
+        Issue ``OPTIONS`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
+        if "http_verb" in kwargs:
+            raise ValueError('"http_verb" should not be specified')
+
+        kwargs["http_verb"] = "OPTIONS"
+        return self.call(*args, **kwargs)
+
     def wait_for_commit(
         self, response: Response, timeout: int = DEFAULT_COMMIT_TIMEOUT_SEC
     ):

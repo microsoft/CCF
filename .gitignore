@@ -4,8 +4,8 @@ _build/
 Debug*/
 Release*/
 CMakeFiles/
-.vscode/*
-!.vscode/launch.json
+.vscode/settings.json
+.vscode/launch.json
 .vs/
 libuv/
 raft_tests.md

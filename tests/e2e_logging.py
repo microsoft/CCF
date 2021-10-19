@@ -587,7 +587,7 @@ def test_metrics(network, args):
 
     with primary.client() as c:
         r = c.get("/app/api/metrics", headers={"accept": "nonsense"})
-        assert r.status_code == http.HTTPStatus.NOT_ACCEPTABLE.value
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value
 
     with primary.client() as c:
         r = c.get("/app/api/metrics")

@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang-10",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-clang-x64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "compilerArgs": [
+                "-O2 -g -DNDEBUG -Wno-unused -Wno-unused-parameter -stdlib=libc++ -DCONFIG_VERSION=\\\"2021-03-27\\\" -DCONFIG_BIGNUM -fstack-protector-strong -std=gnu++2a -I../include -I../src -I../3rdparty/exported/quickjs -I../build-v8/install/include -isystem ../3rdparty/exported -isystem ../3rdparty/internal -isystem generated"
+            ],
+            "configurationProvider": "ms-vscode.cmake-tools"
+        }
+    ],
+    "version": 4
+}

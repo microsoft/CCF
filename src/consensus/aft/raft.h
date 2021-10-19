@@ -142,6 +142,7 @@ namespace aft
     std::chrono::milliseconds election_timeout;
     std::chrono::milliseconds view_change_timeout;
     size_t sig_tx_interval;
+    bool ticking = false;
 
     // Configurations
     std::list<Configuration> configurations;
@@ -266,6 +267,7 @@ namespace aft
         state->view_history.update(1, starting_view_change);
         use_two_tx_reconfig = true;
         require_identity_for_reconfig = true;
+        ticking = true;
       }
 
       if (require_identity_for_reconfig)
@@ -620,6 +622,14 @@ namespace aft
       create_and_remove_node_state();
     }
 
+    void start_ticking()
+    {
+      ticking = true;
+      using namespace std::chrono_literals;
+      timeout_elapsed = 0ms;
+      LOG_INFO_FMT("Election timer has become active");
+    }
+
     void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,
@@ -852,6 +862,8 @@ namespace aft
           // Only if globally committable, a snapshot requires a new ledger
           // chunk to be created
           force_ledger_chunk = snapshotter->record_committable(index);
+
+          start_ticking_if_necessary();
         }
 
         state->last_idx = index;
@@ -1142,7 +1154,9 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (can_endorse_primary() && timeout_elapsed >= election_timeout)
+        if (
+          can_endorse_primary() && ticking &&
+          timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -1924,6 +1938,7 @@ namespace aft
         if (globally_committable)
         {
           force_ledger_chunk = snapshotter->record_committable(i);
+          start_ticking_if_necessary();
         }
 
         ledger->put_entry(
@@ -2047,6 +2062,7 @@ namespace aft
       if (globally_committable)
       {
         force_ledger_chunk = snapshotter->record_committable(i);
+        start_ticking_if_necessary();
       }
 
       ledger->put_entry(
@@ -3365,6 +3381,25 @@ namespace aft
         throw std::logic_error("Configurations is empty");
       }
       return configurations.back().nodes;
+    }
+
+    bool is_self_in_latest_config()
+    {
+      bool present = false;
+      if (!configurations.empty())
+      {
+        auto current_nodes = configurations.back().nodes;
+        present = current_nodes.find(state->my_node_id) != current_nodes.end();
+      }
+      return present;
+    }
+
+    void start_ticking_if_necessary()
+    {
+      if (!ticking && is_self_in_latest_config())
+      {
+        start_ticking();
+      }
     }
 
     void rollback(Index idx)

@@ -572,6 +572,40 @@ namespace ccfapp
       return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
     }
 
+    std::set<RESTVerb> get_allowed_verbs(
+      kv::Tx& tx, const enclave::RpcContext& rpc_ctx) override
+    {
+      const auto method = rpc_ctx.get_method();
+
+      std::set<RESTVerb> verbs =
+        ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
+
+      auto endpoints =
+        tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+
+      endpoints->foreach_key([this, &verbs, &method](const auto& key) {
+        const auto opt_spec = ccf::endpoints::parse_path_template(key.uri_path);
+        if (opt_spec.has_value())
+        {
+          const auto& template_spec = opt_spec.value();
+          // This endpoint has templates in its path - now check if template
+          // matches the current request's path
+          std::smatch match;
+          if (std::regex_match(method, match, template_spec.template_regex))
+          {
+            verbs.insert(key.verb);
+          }
+        }
+        else if (key.uri_path == method)
+        {
+          verbs.insert(key.verb);
+        }
+        return true;
+      });
+
+      return verbs;
+    }
+
     void execute_endpoint(
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::EndpointContext& endpoint_ctx) override
