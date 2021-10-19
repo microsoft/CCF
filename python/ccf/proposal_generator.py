@@ -227,7 +227,7 @@ def refresh_js_app_bytecode_cache(**kwargs):
 
 @cli_proposal
 def transition_node_to_trusted(
-    node_id: str, valid_from: str, validity_period_days=None, **kwargs
+    node_id: str, valid_from: str, validity_period_days: Optional[int] = None, **kwargs
 ):
     args = {"node_id": node_id, "valid_from": valid_from}
     if validity_period_days is not None:
@@ -332,31 +332,22 @@ def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
 
 @cli_proposal
 def set_node_certificate_validity(
-    node_id: str, valid_from: str, validity_period_days: int, **kwargs
+    node_id: str, valid_from: str, validity_period_days: Optional[int] = None, **kwargs
 ):
-    return build_proposal(
-        "set_node_certificate_validity",
-        {
-            "node_id": node_id,
-            "valid_from": valid_from,
-            "validity_period_days": validity_period_days,
-        },
-        **kwargs,
-    )
+    args = {"node_id": node_id, "valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days
+    return build_proposal("set_node_certificate_validity", args, **kwargs)
 
 
 @cli_proposal
 def set_all_nodes_certificate_validity(
-    valid_from: str, validity_period_days: int, **kwargs
+    valid_from: str, validity_period_days: Optional[int] = None, **kwargs
 ):
-    return build_proposal(
-        "set_all_nodes_certificate_validity",
-        {
-            "valid_from": valid_from,
-            "validity_period_days": validity_period_days,
-        },
-        **kwargs,
-    )
+    args = {"valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days
+    return build_proposal("set_all_nodes_certificate_validity", args, **kwargs)
 
 
 if __name__ == "__main__":

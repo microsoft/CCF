@@ -169,15 +169,22 @@ function setNodeCertificateValidityPeriod(
   }
   const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
 
-  const max_validity_period =
+  const default_validity_period_days = 365;
+  const max_allowed_cert_validity_period_days =
     serviceConfig.node_cert_allowed_validity_period_days ??
     default_validity_period_days;
 
-  if (validityPeriodDays > max_validity_period) {
+  if (
+    validityPeriodDays !== undefined &&
+    validityPeriodDays > max_allowed_cert_validity_period_days
+  ) {
     throw new Error(
-      `Validity period ${validityPeriodDays} (days) must be less than or equal to service node certificate maximum validity period ${max_validity_period} (days)`
+      `Validity period ${validityPeriodDayss} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
     );
   }
+
+  validityPeriodDays =
+    validityPeriodDays ?? max_allowed_cert_validity_period_days;
 
   const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
     nodeInfo.certificate_signing_request,
@@ -794,6 +801,12 @@ const actions = new Map([
             "integer",
             "validity_period_days"
           );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
         }
       },
       function (args) {
@@ -976,8 +989,19 @@ const actions = new Map([
       function (args) {
         checkEntityId(args.node_id, "node_id");
         checkType(args.valid_from, "string", "valid_from");
-        checkType(args.validity_period_days, "integer", "validity_period_days");
-        checkBounds(args.validity_period_days, 1, null, "validity_period_days");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
+        }
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
@@ -1005,8 +1029,19 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.valid_from, "string", "valid_from");
-        checkType(args.validity_period_days, "integer", "validity_period_days");
-        checkBounds(args.validity_period_days, 1, null, "validity_period_days");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
+        }
       },
       function (args) {
         ccf.kv["public:ccf.gov.nodes.info"].forEach((v, k) => {

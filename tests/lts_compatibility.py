@@ -13,7 +13,9 @@ import ccf.ledger
 import os
 import json
 import time
+from datetime import datetime
 from e2e_logging import test_random_receipts
+from governance import test_all_nodes_cert_renewal
 
 
 from loguru import logger as LOG
@@ -89,6 +91,10 @@ def test_new_service(network, args, install_path, binary_dir, library_dir, versi
     new_node.verify_certificate_validity_period(
         expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
     )
+
+    # 2.x nodes will not have an endorsed certificate in the ledger yet
+    # so renew their certificate to record it
+    test_all_nodes_cert_renewal(network, args)
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)

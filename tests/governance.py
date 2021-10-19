@@ -230,6 +230,7 @@ def test_each_node_cert_renewal(network, args):
 
     test_vectors = [
         (now, validity_period_allowed, None),
+        (now, None, None),  # Omit validity period (deduced from service configuration)
         (now, -1, infra.proposal.ProposalNotCreated),
         (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
@@ -256,7 +257,9 @@ def test_each_node_cert_renewal(network, args):
                         validity_period_days=validity_period_days,
                     )
                     node.set_certificate_validity_period(
-                        valid_from_x509, validity_period_days
+                        valid_from_x509,
+                        validity_period_days
+                        or args.max_allowed_node_cert_validity_days,
                     )
                 except Exception as e:
                     assert isinstance(e, expected_exception)
@@ -282,11 +285,8 @@ def test_each_node_cert_renewal(network, args):
 @reqs.description("Update certificates of all nodes, one by one")
 def test_all_nodes_cert_renewal(network, args):
     primary, _ = network.find_primary()
-    now = datetime.now().replace(
-        microsecond=0
-    )  # Truncate microseconds which are not reflected in RFC5280 UTCTime
 
-    valid_from = str(infra.crypto.datetime_to_X509time(now))
+    valid_from = str(infra.crypto.datetime_to_X509time(datetime.now()))
     validity_period_days = args.max_allowed_node_cert_validity_days
 
     network.consortium.set_all_nodes_certificate_validity(
@@ -304,16 +304,16 @@ def gov(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network.consortium.set_authenticate_session(args.authenticate_session)
-        # test_create_endpoint(network, args)
-        # test_consensus_status(network, args)
-        # test_node_ids(network, args)
-        # test_member_data(network, args)
-        # test_quote(network, args)
-        # test_user(network, args)
-        # test_no_quote(network, args)
-        # test_ack_state_digest_update(network, args)
-        # test_invalid_client_signature(network, args)
+        network.consortium.set_authenticate_session(args.authenticate_session)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_node_ids(network, args)
+        test_member_data(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_no_quote(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
         test_all_nodes_cert_renewal(network, args)
 
