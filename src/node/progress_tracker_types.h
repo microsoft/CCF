@@ -20,21 +20,25 @@ namespace ccf
     Nonce nonce;
 
     BftNodeSignature(const NodeSignature& ns) :
-      NodeSignature(ns), is_primary(false)
+      NodeSignature(ns),
+      is_primary(false)
     {}
 
     BftNodeSignature(
       const std::vector<uint8_t>& sig_,
       const NodeId& node_,
       Nonce hashed_nonce_) :
-      NodeSignature(sig_, node_, hashed_nonce_), is_primary(false)
+      NodeSignature(sig_, node_, hashed_nonce_),
+      is_primary(false)
     {}
   };
 
   struct CommitCert
   {
     CommitCert(crypto::Sha256Hash& root_, Nonce my_nonce_) :
-      root(root_), my_nonce(my_nonce_), have_primary_signature(true)
+      root(root_),
+      my_nonce(my_nonce_),
+      have_primary_signature(true)
     {}
 
     CommitCert() = default;
