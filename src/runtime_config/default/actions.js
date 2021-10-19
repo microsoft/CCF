@@ -947,7 +947,6 @@ const actions = new Map([
           );
         }
 
-        // TODO: Do we still need a service-wide configuration value?
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
           getSingletonKvKey()
         );
@@ -956,12 +955,13 @@ const actions = new Map([
         }
         const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
 
-        if (
-          args.validity_period_days >
-          serviceConfig.node_cert_allowed_validity_period_days
-        ) {
+        const max_validity_period =
+          serviceConfig.node_cert_allowed_validity_period_days ??
+          default_validity_period_days;
+
+        if (args.validity_period_days > max_validity_period) {
           throw new Error(
-            `Validity period ${args.validity_period_days} (days) must be less than or equal to service node certificate maximum validity period ${serviceConfig.node_cert_allowed_validity_period_days} (days)`
+            `Validity period ${args.validity_period_days} (days) must be less than or equal to service node certificate maximum validity period ${max_validity_period} (days)`
           );
         }
 

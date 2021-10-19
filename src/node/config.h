@@ -26,8 +26,7 @@ namespace ccf
      *  Fields below are added in 2.x
      */
 
-    size_t node_cert_allowed_validity_period_days =
-      default_node_cert_validity_period_days;
+    std::optional<size_t> node_cert_allowed_validity_period_days = std::nullopt;
 
     bool operator==(const ServiceConfiguration& other) const
     {

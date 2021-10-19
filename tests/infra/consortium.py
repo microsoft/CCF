@@ -543,7 +543,6 @@ class Consortium:
     def set_node_certificate_validity(
         self, remote_node, node_to_renew, valid_from, validity_period_days
     ):
-        LOG.error(validity_period_days)
         proposal_body, careful_vote = self.make_proposal(
             "set_node_certificate_validity",
             node_to_renew.node_id,
