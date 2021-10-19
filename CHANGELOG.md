@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
 - Slow ledger IO operations will now be logged at level FAIL. The threshold over which logging will activate can be adjusted by the `--io-logging-threshold` CLI argument to cchost (#3067).
 - Snapshot files now include receipt of evidence transaction. Nodes can now join or recover a service from a standalone snapshot file. 2.x nodes can still make use of snapshots created by a 1.x node, as long as the ledger suffix containing the proof of evidence is also specified at start-up (#2998).
+- Nodes certificates validity period is no longer hardcoded and can instead be set by operators and renewed by members (#2924):
+  - The new `--initial-node-cert-validity-days` (defaults to 1 day) CLI argument to cchost lets operators set the initial validity period for the node certificate (valid from the current system time).
+  - The new `--max-allowed-node-cert-validity-days` (defaults to 1 year) CLI argument to cchost sets the maximum validity period allowed for node certificates.
+  - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
+  - The existing `transition_node_to_trusted` proposal action now requires a new `valid_from` argument (and optional `validity_period_days`, which defaults to the value of ``--max-allowed-node-cert-validity-days`).
 
 ### Fixed
 
