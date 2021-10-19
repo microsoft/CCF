@@ -3,6 +3,7 @@
 
 #include "ccf/http_query.h"
 #include "crypto/key_pair.h"
+#include "http/http_accept.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 #include "http/http_sig.h"
@@ -705,4 +706,75 @@ DOCTEST_TEST_CASE("Signatures")
       DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
     }
   }
+}
+
+DOCTEST_TEST_CASE("Parse Accept header")
+{
+  {
+    const auto fields = http::parse_accept_header("");
+    DOCTEST_REQUIRE(fields.empty());
+  }
+
+  {
+    const auto fields = http::parse_accept_header("foo/bar;q=0.25");
+    DOCTEST_REQUIRE(fields.size() == 1);
+    const auto& field = fields[0];
+    DOCTEST_REQUIRE(field.mime_type == "foo");
+    DOCTEST_REQUIRE(field.mime_subtype == "bar");
+    DOCTEST_REQUIRE(field.q_factor == 0.25f);
+  }
+
+  {
+    // Shuffled and modified version of Firefox 91 default value, to test
+    // sorting
+    const auto fields = http::parse_accept_header(
+      "image/webp;q=0.8, "
+      "image/*;q=0.8, "
+      "text/html, "
+      "application/xml;q=0.9, "
+      "application/xhtml+xml;q=1.0, "
+      "image/avif, "
+      "*/*;q=0.8");
+    DOCTEST_REQUIRE(fields.size() == 7);
+
+    DOCTEST_REQUIRE(fields[0] == http::AcceptHeaderField{"text", "html", 1.0f});
+    DOCTEST_REQUIRE(
+      fields[1] == http::AcceptHeaderField{"image", "avif", 1.0f});
+    DOCTEST_REQUIRE(
+      fields[2] == http::AcceptHeaderField{"application", "xhtml+xml", 1.0f});
+    DOCTEST_REQUIRE(
+      fields[3] == http::AcceptHeaderField{"application", "xml", 0.9f});
+    DOCTEST_REQUIRE(
+      fields[4] == http::AcceptHeaderField{"image", "webp", 0.8f});
+    DOCTEST_REQUIRE(fields[5] == http::AcceptHeaderField{"image", "*", 0.8f});
+    DOCTEST_REQUIRE(fields[6] == http::AcceptHeaderField{"*", "*", 0.8f});
+  }
+
+  {
+    DOCTEST_REQUIRE_THROWS(http::parse_accept_header("not_a_mime_type"));
+    DOCTEST_REQUIRE_THROWS(http::parse_accept_header("valid/mime;q=notnum"));
+    DOCTEST_REQUIRE_THROWS(http::parse_accept_header(","));
+  }
+}
+
+DOCTEST_TEST_CASE("Accept header MIME matching")
+{
+  const auto a = http::AcceptHeaderField{"foo", "bar", 1.0f};
+  const auto b = http::AcceptHeaderField{"foo", "*", 1.0f};
+  const auto c = http::AcceptHeaderField{"*", "*", 1.0f};
+
+  DOCTEST_REQUIRE(a.matches("foo/bar"));
+  DOCTEST_REQUIRE_FALSE(a.matches("foo/baz"));
+  DOCTEST_REQUIRE_FALSE(a.matches("fob/bar"));
+  DOCTEST_REQUIRE_FALSE(a.matches("fob/baz"));
+
+  DOCTEST_REQUIRE(b.matches("foo/bar"));
+  DOCTEST_REQUIRE(b.matches("foo/baz"));
+  DOCTEST_REQUIRE_FALSE(b.matches("fob/bar"));
+  DOCTEST_REQUIRE_FALSE(b.matches("fob/baz"));
+
+  DOCTEST_REQUIRE(c.matches("foo/bar"));
+  DOCTEST_REQUIRE(c.matches("foo/baz"));
+  DOCTEST_REQUIRE(c.matches("fob/bar"));
+  DOCTEST_REQUIRE(c.matches("fob/baz"));
 }
