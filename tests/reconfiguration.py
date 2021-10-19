@@ -46,7 +46,11 @@ def test_add_node(network, args):
     # Verify self-signed node certificate validity period
     new_node.verify_certificate_validity_period()
 
-    network.trust_node(new_node, args)
+    network.trust_node(
+        new_node,
+        args,
+        validity_period_days=args.max_allowed_node_cert_validity_days // 2,
+    )
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["node_id"] == new_node.node_id
@@ -57,6 +61,27 @@ def test_add_node(network, args):
     # Now that the node is trusted, verify endorsed certificate validity period
     new_node.verify_certificate_validity_period()
 
+    return network
+
+
+@reqs.description("Adding a node with an invalid certificate validity period")
+def test_add_node_invalid_validity_period(network, args):
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args)
+    try:
+        network.trust_node(
+            new_node,
+            args,
+            validity_period_days=args.max_allowed_node_cert_validity_days + 1,
+        )
+    except infra.proposal.ProposalNotAccepted:
+        LOG.info(
+            "As expected, not could not be trusted since its certificate validity period is invalid"
+        )
+    else:
+        raise Exception(
+            "Node should not be trusted if its certificate validity period is invalid"
+        )
     return network
 
 
@@ -460,6 +485,7 @@ def run(args):
             test_add_node_from_backup(network, args)
             test_add_node(network, args)
             test_add_node_on_other_curve(network, args)
+            test_add_node_invalid_validity_period(network, args)
             test_retire_backup(network, args)
             test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)

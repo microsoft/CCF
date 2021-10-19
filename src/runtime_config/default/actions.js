@@ -756,6 +756,13 @@ const actions = new Map([
       function (args) {
         checkEntityId(args.node_id, "node_id");
         checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+        }
       },
       function (args) {
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
@@ -791,11 +798,22 @@ const actions = new Map([
           ) {
             // Note: CSR and node certificate validity config are only present from 2.x
             const default_validity_period_days = 365;
+            const max_allowed_cert_validity_period_days =
+              serviceConfig.node_cert_allowed_validity_period_days ??
+              default_validity_period_days;
+            if (
+              args.validity_period_days !== undefined &&
+              args.validity_period_days > max_allowed_cert_validity_period_days
+            ) {
+              throw new Error(
+                `Validity period ${args.validity_period_days} is not allowed: max allowed is ${max_allowed_cert_validity_period_days}`
+              );
+            }
+
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
               args.valid_from,
-              serviceConfig.node_cert_allowed_validity_period_days ??
-                default_validity_period_days
+              args.validity_period_days ?? max_allowed_cert_validity_period_days
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),

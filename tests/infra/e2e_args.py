@@ -352,14 +352,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--initial-node-cert-validity-days",
-        help="Initial validity period (days) for certificates of nodes before the "
-        "service is open by members",
+        help="Initial validity period in days for certificates of nodes before the first certificate renewal",
         type=int,
         default=1,
     )
     parser.add_argument(
         "--max-allowed-node-cert-validity-days",
-        help="Maximum validity period (days) for certificates of trusted nodes",
+        help="Maximum allowed validity period in days for certificates of trusted nodes",
         type=int,
         default=365,
     )
