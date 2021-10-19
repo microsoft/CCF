@@ -24,11 +24,6 @@ from loguru import logger as LOG
 
 BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
-# When a 2.x node joins a 1.x service, the node has to self-endorse
-# its certificate, using a default value for the validity period
-# hardcoded in CCF.
-DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
-
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -540,7 +535,7 @@ class Node:
                 )
         else:
             if (
-                infra.crypto.datetime_as_UTCtime(valid_from)
+                infra.crypto.datetime_to_X509time(valid_from)
                 != self.certificate_valid_from
             ):
                 raise ValueError(

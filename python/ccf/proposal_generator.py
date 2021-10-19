@@ -345,6 +345,20 @@ def set_node_certificate_validity(
     )
 
 
+@cli_proposal
+def set_all_nodes_certificate_validity(
+    valid_from: str, validity_period_days: int, **kwargs
+):
+    return build_proposal(
+        "set_all_nodes_certificate_validity",
+        {
+            "valid_from": valid_from,
+            "validity_period_days": validity_period_days,
+        },
+        **kwargs,
+    )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 

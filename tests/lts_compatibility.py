@@ -29,6 +29,11 @@ ENV_VAR_LATEST_LTS_BRANCH_NAME = (
 
 LOCAL_CHECKOUT_DIRECTORY = "."
 
+# When a 2.x node joins a 1.x service, the node has to self-endorse
+# its certificate, using a default value for the validity period
+# hardcoded in CCF.
+DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
+
 
 def issue_activity_on_live_service(network, args):
     log_capture = []
@@ -82,7 +87,7 @@ def test_new_service(network, args, install_path, binary_dir, library_dir, versi
     network.join_node(new_node, args.package, args)
     network.trust_node(new_node, args)
     new_node.verify_certificate_validity_period(
-        expected_validity_period_days=infra.node.DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
+        expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
     )
 
     LOG.info("Apply transactions to new nodes only")
@@ -172,8 +177,11 @@ def run_code_upgrade_from(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
                 network.trust_node(new_node, args)
+                # For 2.x nodes joining a 1.x service before the constitution is update,
+                # the node certificate validity period is set by the joining node itself
+                # as [node startup time, node startup time + 365 days]
                 new_node.verify_certificate_validity_period(
-                    expected_validity_period_days=infra.node.DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS,
+                    expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS,
                     ignore_proposal_valid_from=True,
                 )
                 from_snapshot = not from_snapshot

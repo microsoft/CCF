@@ -636,7 +636,7 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 valid_from = valid_from or str(
-                    infra.crypto.datetime_as_UTCtime(datetime.now())
+                    infra.crypto.datetime_to_X509time(datetime.now())
                 )
                 self.consortium.trust_node(
                     primary,

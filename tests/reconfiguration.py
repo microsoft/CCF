@@ -323,7 +323,9 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(infra.crypto.datetime_as_UTCtime(datetime.now())),
+                    "valid_from": str(
+                        infra.crypto.datetime_to_X509time(datetime.now())
+                    ),
                 },
             },
             {

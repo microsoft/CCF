@@ -280,5 +280,5 @@ def get_validity_period_from_pem_cert(pem: str):
     return cert.not_valid_before, cert.not_valid_after
 
 
-def datetime_as_UTCtime(datetime: datetime):
+def datetime_to_X509time(datetime: datetime):
     return UTCTime.fromDateTime(datetime)
