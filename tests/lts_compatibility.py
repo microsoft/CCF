@@ -70,7 +70,15 @@ def get_new_constitution_for_install(args, install_path):
     return args.constitution
 
 
-def test_new_service(network, args, install_path, binary_dir, library_dir, version):
+def test_new_service(
+    network,
+    args,
+    install_path,
+    binary_dir,
+    library_dir,
+    version,
+    cycle_existing_nodes=False,
+):
     LOG.info("Update constitution")
     primary, _ = network.find_primary()
     new_constitution = get_new_constitution_for_install(args, install_path)
@@ -78,21 +86,29 @@ def test_new_service(network, args, install_path, binary_dir, library_dir, versi
 
     # Note: Changes to constitution between versions should be tested here
 
-    LOG.info("Add node to new service")
-    new_node = network.create_node(
-        "local://localhost",
-        binary_dir=binary_dir,
-        library_dir=library_dir,
-        version=version,
-    )
-    network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
-    new_node.verify_certificate_validity_period(
-        expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
-    )
+    LOG.info(f"Add node to new service [cycle nodes: {cycle_existing_nodes}]")
+    nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
+    nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
 
-    # 2.x nodes will not have an endorsed certificate in the ledger yet
-    # so renew their certificate to record it
+    for _ in range(0, nodes_to_add_count):
+        new_node = network.create_node(
+            "local://localhost",
+            binary_dir=binary_dir,
+            library_dir=library_dir,
+            version=version,
+        )
+        network.join_node(new_node, args.package, args)
+        network.trust_node(new_node, args)
+        new_node.verify_certificate_validity_period(
+            expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
+        )
+
+    for node in nodes_to_cycle:
+        network.retire_node(primary, node)
+        if primary == node:
+            primary, _ = network.wait_for_new_primary(primary)
+        node.stop()
+
     test_all_nodes_cert_renewal(network, args)
 
     LOG.info("Apply transactions to new nodes only")
@@ -215,6 +231,7 @@ def run_code_upgrade_from(
             )
             primary, _ = network.find_primary()
             network.consortium.retire_code(primary, old_code_id)
+
             for node in old_nodes:
                 network.retire_node(primary, node)
                 if primary == node:
@@ -233,6 +250,10 @@ def run_code_upgrade_from(
             else:
                 time.sleep(3)
 
+            # Code update from 1.x to 2.x requires cycling the freshly-added 2.x nodes
+            # once. This is because 2.x nodes will not have an endorsed certificate
+            # recorded in the store and thus will not be able to have their certificate
+            # refreshed, etc.
             test_new_service(
                 network,
                 args,
@@ -240,6 +261,7 @@ def run_code_upgrade_from(
                 to_binary_dir,
                 to_library_dir,
                 to_version,
+                cycle_existing_nodes=True,
             )
 
             # Check that the ledger can be parsed
