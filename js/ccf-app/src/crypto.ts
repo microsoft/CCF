@@ -33,7 +33,7 @@ export const generateRsaKeyPair = ccf.generateRsaKeyPair;
 export const wrapKey = ccf.wrapKey;
 
 /**
- * @inheritDoc CCF.crypto.verifySignature
+ * @inheritDoc CCFCrypto.verifySignature
  */
 export const verifySignature = ccf.crypto.verifySignature;
 

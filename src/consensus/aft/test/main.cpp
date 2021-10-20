@@ -35,6 +35,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     request_timeout,
     election_timeout,
     ms(1000));
+  r0.start_ticking();
 
   kv::Configuration::Nodes config;
   config.try_emplace(node_id);
@@ -88,6 +89,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
   DOCTEST_INFO("Become leader after election timeout");
 
+  r0.start_ticking();
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(r0.is_primary());
 
@@ -187,6 +189,7 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_INFO("Node 0 exceeds its election timeout and starts an election");
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
   DOCTEST_REQUIRE(
     r0c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 2);
@@ -365,6 +368,7 @@ DOCTEST_TEST_CASE(
   auto r1c = channel_stub_proxy(r1);
   auto r2c = channel_stub_proxy(r2);
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_INFO("Send request_votes to other nodes");
@@ -521,6 +525,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   auto r1c = channel_stub_proxy(r1);
   auto r2c = channel_stub_proxy(r2);
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
@@ -649,6 +654,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   auto r0c = channel_stub_proxy(r0);
   auto r1c = channel_stub_proxy(r1);
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_INFO("Initial election");
@@ -844,6 +850,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto r0c = channel_stub_proxy(r0);
   auto r1c = channel_stub_proxy(r1);
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
@@ -1022,4 +1029,104 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
     // the next transaction.
     DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 1));
   }
+}
+
+DOCTEST_TEST_CASE(
+  "Nodes only run for election when they should" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
+
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
+
+  ms request_timeout(10);
+
+  TRaft r0(
+    ConsensusType::CFT,
+    std::make_unique<Adaptor>(kv_store0),
+    std::make_unique<aft::LedgerStubProxy>(node_id0),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
+    std::make_shared<aft::State>(node_id0),
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    request_timeout,
+    ms(20),
+    ms(1000));
+  TRaft r1(
+    ConsensusType::CFT,
+    std::make_unique<Adaptor>(kv_store1),
+    std::make_unique<aft::LedgerStubProxy>(node_id1),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
+    std::make_shared<aft::State>(node_id1),
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    request_timeout,
+    ms(100),
+    ms(1000));
+
+  std::map<ccf::NodeId, TRaft*> nodes;
+  nodes[node_id0] = &r0;
+  nodes[node_id1] = &r1;
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  r0.add_configuration(0, config);
+  r1.add_configuration(0, config);
+
+  auto r0c = channel_stub_proxy(r0);
+  auto r1c = channel_stub_proxy(r1);
+
+  DOCTEST_INFO(
+    "Node 0 exceeds its election timeout and does not start an election "
+    "because it is not ticking");
+  r0.periodic(std::chrono::milliseconds(200));
+  DOCTEST_REQUIRE(
+    r0c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 0);
+
+  DOCTEST_INFO(
+    "Node 0 starts ticking, exceeds its election timeout and so does start an "
+    "election");
+  r0.start_ticking();
+  r0.periodic(std::chrono::milliseconds(200));
+
+  DOCTEST_INFO("Initial election");
+  {
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
+
+    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(r0c->messages.size() == 1);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
+    DOCTEST_REQUIRE(r0c->messages.size() == 0);
+  }
+
+  DOCTEST_INFO(
+    "Node 1 exceeds its election timeout but does not start an election "
+    "because it isn't ticking yet");
+  r1.periodic(std::chrono::milliseconds(200));
+  DOCTEST_REQUIRE(
+    r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 0);
+
+  r1.start_ticking();
+  DOCTEST_INFO(
+    "Node 1 is now ticking, exceeds its election timeout and so calls an "
+    "election");
+  r1.periodic(std::chrono::milliseconds(200));
+  DOCTEST_REQUIRE(
+    r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 1);
 }
