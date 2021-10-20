@@ -144,6 +144,7 @@ public:
         ms(10),
         ms(100),
         ms(100));
+      raft->start_ticking();
 
       _nodes.emplace(node_id, NodeDriver{kv, raft});
       configuration.try_emplace(node_id);

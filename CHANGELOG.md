@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The new `--max-allowed-node-cert-validity-days` (defaults to 365 days) CLI argument to cchost sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
   - The existing `transition_node_to_trusted` proposal action now requires a new `valid_from` argument (and optional `validity_period_days`, which defaults to the value of ``--max-allowed-node-cert-validity-days`).
+- `ccf.historical.getStateRange` / `ccf.historical.dropCachedStates` JavaScript APIs to manually retrieve historical state in endpoints declared as `"mode": "readonly"` (#3033).
+
+### Changed
+
+- JavaScript endpoints with `"mode": "historical"` now expose the historical KV at `ccf.historicalState.kv` while `ccf.kv` always refers to the current KV state. Applications relying on the old behaviour should make their code forward-compatible before upgrading to 2.x with `const kv = ccf.historicalState.kv || ccf.kv`.
 
 ### Fixed
 

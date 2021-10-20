@@ -17,5 +17,6 @@
 
 export * from "./kv.js";
 export * from "./converters.js";
+export * from "./consensus.js";
 export * from "./historical.js";
 export * from "./endpoints.js";
