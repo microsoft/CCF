@@ -281,6 +281,8 @@ def test_each_node_cert_renewal(network, args):
                 # Long-connected client is still connected after certificate renewal
                 c.get("/node/network/nodes")
 
+    return network
+
 
 @reqs.description("Update certificates of all nodes, one by one")
 def test_all_nodes_cert_renewal(network, args):

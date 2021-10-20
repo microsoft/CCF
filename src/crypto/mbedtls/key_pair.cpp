@@ -326,7 +326,7 @@ namespace crypto
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
     // Note: For the mbedtls implementation, we do not check that valid_from and
-    // valid_to are valid or chronological. See OpenSSL equivalent cal for a
+    // valid_to are valid or chronological. See OpenSSL equivalent call for a
     // safer implementation.
     MCHK(mbedtls_x509write_crt_set_validity(
       crt.get(),
