@@ -1537,12 +1537,9 @@ namespace ccf::js
       JS_SetPropertyStr(
         ctx,
         historical,
-        "dropCachedStateRange",
+        "dropCachedStates",
         JS_NewCFunction(
-          ctx,
-          js_historical_drop_cached_state_range,
-          "dropCachedStateRange",
-          1));
+          ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
     }
 
     return ccf;

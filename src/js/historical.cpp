@@ -137,7 +137,7 @@ namespace ccf::js
     return states_array;
   }
 
-  static JSValue js_historical_drop_cached_state_range(
+  static JSValue js_historical_drop_cached_states(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     if (argc != 1)

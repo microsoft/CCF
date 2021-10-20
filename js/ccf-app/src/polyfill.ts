@@ -25,7 +25,6 @@ import {
   CCF,
   KvMaps,
   KvMap,
-  HistoricalState,
   JsonCompatible,
   CryptoKeyPair,
   WrapAlgoParams,
@@ -106,7 +105,7 @@ class CCFPolyfill implements CCF {
       throw new Error("Not implemented");
     },
 
-    dropCachedStateRange(handle: number) {
+    dropCachedStates(handle: number) {
       throw new Error("Not implemented");
     },
   };

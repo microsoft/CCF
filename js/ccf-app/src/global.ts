@@ -303,7 +303,7 @@ export interface CCFHistorical {
    *
    * Returns `true` if the handle was found and dropped, `false` otherwise.
    */
-  dropCachedStateRange(handle: number): boolean;
+  dropCachedStates(handle: number): boolean;
 }
 
 export interface CCF {

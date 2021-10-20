@@ -7,17 +7,14 @@
  * There are two options to access historical state:
  *
  * 1. Declare the endpoint mode as `"historical"` in `app.json`
- * and access the Key-Value Store as usual.
+ * and access historical state via `ccf.historicalState`.
  *
  * This option supports single transactions only and prescribes
  * how the transaction ID must be passed in the request (via
  * the `x-ms-ccf-transaction-id` HTTP header).
- * The usual methods to access the Key-Value Store return the
- * historical state here.
- * It is not possible to access the current Key-Value Store state
- * using this option.
- * The {@linkcode historicalState} property provides access to further
- * information like the transaction receipt.
+ * The {@linkcode historicalState} property provides access to
+ * the historical state of the Key-Value store and information
+ * like the transaction receipt.
  *
  * 2. Declare the endpoint mode as `"readonly"` in `app.json` and use
  * the programmatic API to request historical state.
@@ -28,8 +25,6 @@
  * The {@linkcode getStateRange} function of this module
  * provides access to a sequential range of transactions.
  * See the documentation of that function for more details.
- * Compared to option 1, the current Key-Value Store state is always
- * accessible through the usual methods.
  *
  * @module
  */
@@ -49,6 +44,6 @@ export const getStateRange = ccf.historical.getStateRange;
 /**
  * @inheritDoc CCFHistorical.dropCachedStateRange
  */
-export const dropCachedStateRange = ccf.historical.dropCachedStateRange;
+export const dropCachedStates = ccf.historical.dropCachedStates;
 
 export { HistoricalState, Receipt, Proof, ProofElement } from "./global";
