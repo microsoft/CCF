@@ -1164,7 +1164,6 @@ namespace ccf
           g.set_constitution(in.genesis_info->constitution);
         }
 
-        auto config = ctx.tx.ro(this->network.config)->get();
         if (!in.node_cert.has_value())
         {
           auto endorsed_certificates =

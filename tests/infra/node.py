@@ -539,7 +539,7 @@ class Node:
                 != self.certificate_valid_from
             ):
                 raise ValueError(
-                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{valid_from}", but expected "{self.certificate_valid_from}"'
+                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{infra.crypto.datetime_to_X509time(valid_from)}", but expected "{self.certificate_valid_from}"'
                 )
 
         # Note: CCF substracts one second from validity period since x509 specifies

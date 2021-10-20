@@ -399,9 +399,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                             assert (
                                 r.body.json()["ccf_version"] == expected_version
                             ), f"Node version is not {expected_version}"
-                        node.verify_certificate_validity_period(
-                            args.max_allowed_node_cert_validity_days,
-                        )
+                        node.verify_certificate_validity_period()
 
                 # Rollover JWKS so that new primary must read historical CA bundle table
                 # and retrieve new keys via auto refresh
@@ -413,14 +411,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 else:
                     time.sleep(3)
 
-                test_new_service(
-                    network,
-                    args,
-                    install_path,
-                    binary_dir,
-                    library_dir,
-                    version,
-                )
+                if idx > 0:
+                    test_new_service(
+                        network,
+                        args,
+                        install_path,
+                        binary_dir,
+                        library_dir,
+                        version,
+                    )
 
                 snapshot_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
