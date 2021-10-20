@@ -32,9 +32,9 @@ namespace ccf
       OPENSSL_cleanse(raw_key.data(), raw_key.size());
     }
 
-    // The copy constructor is used for serialising a LedgerSecret. However, only
-    // the raw_key is serialised and other.key is nullptr so use raw_key to seed
-    // key.
+    // The copy constructor is used for serialising a LedgerSecret. However,
+    // only the raw_key is serialised and other.key is nullptr so use raw_key to
+    // seed key.
     LedgerSecret(const LedgerSecret& other) :
       raw_key(other.raw_key),
       key(crypto::make_key_aes_gcm(other.raw_key)),
