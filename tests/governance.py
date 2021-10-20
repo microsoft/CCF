@@ -14,7 +14,7 @@ import infra.logging_app as app
 import json
 import requests
 import infra.crypto
-from datetime import datetime, timedelta
+from datetime import datetime
 import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
