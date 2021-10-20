@@ -162,7 +162,9 @@ namespace ccf
     }
 
     // Returns true if the snapshot is already verified (via embedded receipt)
-    bool initialise_startup_snapshot(bool recovery = false)
+    bool initialise_startup_snapshot(
+      bool recovery = false,
+      const std::optional<std::vector<uint8_t>>& network_cert = std::nullopt)
     {
       std::shared_ptr<kv::Store> snapshot_store;
       if (!recovery)
@@ -194,7 +196,8 @@ namespace ccf
         hooks,
         &view_history,
         true,
-        config.startup_snapshot_evidence_seqno_for_1_x);
+        config.startup_snapshot_evidence_seqno_for_1_x,
+        network_cert);
 
       startup_seqno = startup_snapshot_info->seqno;
       ledger_idx = startup_seqno.value();
@@ -349,7 +352,10 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (config.startup_snapshot.empty() || initialise_startup_snapshot())
+          if (
+            config.startup_snapshot.empty() ||
+            initialise_startup_snapshot(
+              false /* no recovery*/, config.joining.network_cert))
           {
             // Note: 2.x snapshots are self-verified so the ledger verification
             // of its evidence can be skipped entirely

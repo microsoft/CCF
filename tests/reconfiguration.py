@@ -232,7 +232,10 @@ def test_version(network, args):
     for node in nodes:
         with node.client() as c:
             r = c.get("/node/version")
-            assert r.body.json()["ccf_version"] == args.ccf_version
+            version = r.body.json()["ccf_version"]
+            assert (
+                version == args.ccf_version
+            ), f"Expected version {args.ccf_version} but got {version}"
 
 
 @reqs.description("Replace a node on the same addresses")
@@ -436,6 +439,7 @@ def run(args):
         network.start_and_join(args)
 
         test_version(network, args)
+        test_add_node_from_snapshot(network, args)
 
         if args.consensus != "bft":
             test_join_straddling_primary_replacement(network, args)

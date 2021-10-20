@@ -62,43 +62,14 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    const std::optional<std::vector<uint8_t>>& network_cert = std::nullopt)
   {
     const auto* data = snapshot.data();
     auto size = snapshot.size();
 
     auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
     auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
-
-    // Snapshots without a snapshot evidence seqno specified by the host should
-    // be self-verifiable with embedded receipt
-    if (!evidence_seqno.has_value())
-    {
-      auto receipt_data = data + store_snapshot_size;
-      auto receipt_size = size - store_snapshot_size;
-
-      auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
-      auto receipt = j.get<Receipt>();
-
-      auto root = compute_root_from_receipt(receipt);
-      auto raw_sig = tls::raw_from_b64(receipt.signature);
-    }
-
-    LOG_INFO_FMT(
-      "Deserialising snapshot (size: {}, public only: {})",
-      snapshot.size(),
-      public_only);
-
-    auto rc = store->deserialise_snapshot(
-      snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
-    if (rc != kv::ApplyResult::PASS)
-    {
-      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
-    }
-
-    LOG_INFO_FMT(
-      "Snapshot successfully deserialised at seqno {}",
-      store->current_version());
 
     // Snapshots without a snapshot evidence seqno specified by the host should
     // be self-verifiable with embedded receipt
@@ -119,6 +90,18 @@ namespace ccf
       }
 
       auto v = crypto::make_unique_verifier(receipt.cert.value());
+      if (network_cert.has_value())
+      {
+        crypto::Pem network_certificate = network_cert.value();
+        if (!v->verify_certificate({&network_certificate}))
+        {
+          throw std::logic_error(
+            "Snapshot receipt is not endorsed by network certificate");
+        }
+        LOG_DEBUG_FMT(
+          "Endorsement of snapshot receipt by network certificate verified");
+      }
+
       if (!v->verify_hash(
             root.h.data(), root.h.size(), raw_sig.data(), raw_sig.size()))
       {
@@ -126,6 +109,22 @@ namespace ccf
           "Signature verification failed for snapshot receipt");
       }
     }
+
+    LOG_INFO_FMT(
+      "Deserialising snapshot (size: {}, public only: {})",
+      snapshot.size(),
+      public_only);
+
+    auto rc = store->deserialise_snapshot(
+      snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
+    if (rc != kv::ApplyResult::PASS)
+    {
+      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
+    }
+
+    LOG_INFO_FMT(
+      "Snapshot successfully deserialised at seqno {}",
+      store->current_version());
   };
 
   static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
@@ -134,10 +133,17 @@ namespace ccf
     kv::ConsensusHookPtrs& hooks,
     std::vector<kv::Version>* view_history = nullptr,
     bool public_only = false,
-    std::optional<kv::Version> evidence_seqno = std::nullopt)
+    std::optional<kv::Version> evidence_seqno = std::nullopt,
+    const std::optional<std::vector<uint8_t>>& network_cert = std::nullopt)
   {
     deserialise_snapshot(
-      store, snapshot, hooks, view_history, public_only, evidence_seqno);
+      store,
+      snapshot,
+      hooks,
+      view_history,
+      public_only,
+      evidence_seqno,
+      network_cert);
     return std::make_unique<StartupSnapshotInfo>(
       store, std::move(snapshot), store->current_version(), evidence_seqno);
   }
