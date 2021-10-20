@@ -489,7 +489,6 @@ def run(args):
             test_add_node_from_backup(network, args)
             test_add_node(network, args)
             test_add_node_on_other_curve(network, args)
-            test_add_node_invalid_validity_period(network, args)
             test_retire_backup(network, args)
             test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
@@ -507,6 +506,7 @@ def run(args):
             # test_learner_does_not_take_part(network, args)
             test_retire_backup(network, args)
         test_node_certificates_validity_period(network, args)
+        test_add_node_invalid_validity_period(network, args)
 
 
 def run_join_old_snapshot(args):
