@@ -6,8 +6,10 @@
 #include "ccf/version.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
+#include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
+#include "js/historical.cpp"
 #include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
@@ -33,6 +35,9 @@ namespace ccf::js
   JSClassID network_class_id = 0;
   JSClassID rpc_class_id = 0;
   JSClassID host_class_id = 0;
+  JSClassID consensus_class_id = 0;
+  JSClassID historical_class_id = 0;
+  JSClassID historical_state_class_id = 0;
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
@@ -42,6 +47,9 @@ namespace ccf::js
   JSClassDef network_class_def = {};
   JSClassDef rpc_class_def = {};
   JSClassDef host_class_def = {};
+  JSClassDef consensus_class_def = {};
+  JSClassDef historical_class_def = {};
+  JSClassDef historical_state_class_def = {};
 
   std::vector<FFIPlugin> ffi_plugins;
 
@@ -116,6 +124,30 @@ namespace ccf::js
       js_dump_error(ctx);
 
     return buf;
+  }
+
+  static JSValue js_kv_get_version_of_previous_write(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    size_t key_size;
+    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
+
+    if (!key)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    auto val = handle->get_version_of_previous_write({key, key + key_size});
+
+    if (!val.has_value())
+      return JS_UNDEFINED;
+
+    return JS_NewInt64(ctx, val.value());
   }
 
   static JSValue js_kv_map_size_getter(
@@ -368,6 +400,16 @@ namespace ccf::js
       view_val,
       "forEach",
       JS_NewCFunction(ctx, js_kv_map_foreach, "forEach", 1));
+
+    JS_SetPropertyStr(
+      ctx,
+      view_val,
+      "getVersionOfPreviousWrite",
+      JS_NewCFunction(
+        ctx,
+        js_kv_get_version_of_previous_write,
+        "getVersionOfPreviousWrite",
+        1));
 
     desc->flags = 0;
     desc->value = view_val;
@@ -1035,6 +1077,16 @@ namespace ccf::js
 
     JS_NewClassID(&host_class_id);
     host_class_def.class_name = "Host";
+
+    JS_NewClassID(&consensus_class_id);
+    consensus_class_def.class_name = "Consensus";
+
+    JS_NewClassID(&historical_class_id);
+    historical_class_def.class_name = "Historical";
+
+    JS_NewClassID(&historical_state_class_id);
+    historical_state_class_def.class_name = "HistoricalState";
+    historical_state_class_def.finalizer = js_historical_state_finalizer;
   }
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -1222,12 +1274,15 @@ namespace ccf::js
 
   JSValue create_ccf_obj(
     TxContext* txctx,
+    TxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
+    ccf::historical::AbstractStateCache* historical_state,
+    ccf::BaseEndpointRegistry* endpoint_registry,
     JSContext* ctx)
   {
     auto ccf = JS_NewObject(ctx);
@@ -1332,45 +1387,11 @@ namespace ccf::js
         state,
         "transactionId",
         JS_NewString(ctx, transaction_id->to_str().c_str()));
-
-      ccf::Receipt receipt_out;
-      receipt->describe(receipt_out);
-      auto js_receipt = JS_NewObject(ctx);
-      JS_SetPropertyStr(
-        ctx,
-        js_receipt,
-        "signature",
-        JS_NewString(ctx, receipt_out.signature.c_str()));
-      if (receipt_out.cert.has_value())
-        JS_SetPropertyStr(
-          ctx,
-          js_receipt,
-          "cert",
-          JS_NewString(ctx, receipt_out.cert.value().c_str()));
-      JS_SetPropertyStr(
-        ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf.c_str()));
-      JS_SetPropertyStr(
-        ctx,
-        js_receipt,
-        "nodeId",
-        JS_NewString(ctx, receipt_out.node_id.value().c_str()));
-      auto proof = JS_NewArray(ctx);
-      uint32_t i = 0;
-      for (auto& element : receipt_out.proof)
-      {
-        auto js_element = JS_NewObject(ctx);
-        auto is_left = element.left.has_value();
-        JS_SetPropertyStr(
-          ctx,
-          js_element,
-          is_left ? "left" : "right",
-          JS_NewString(
-            ctx, (is_left ? element.left : element.right).value().c_str()));
-        JS_DefinePropertyValueUint32(
-          ctx, proof, i++, js_element, JS_PROP_C_W_E);
-      }
-      JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
+      auto js_receipt = ccf_receipt_to_js(ctx, receipt);
       JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
+      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      JS_SetOpaque(kv, historical_txctx);
+      JS_SetPropertyStr(ctx, state, "kv", kv);
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
 
@@ -1471,17 +1492,70 @@ namespace ccf::js
         JS_NewCFunction(ctx, js_rpc_set_apply_writes, "setApplyWrites", 1));
     }
 
+    // All high-level public helper functions are exposed through
+    // ccf::BaseEndpointRegistry. Ideally, they should be
+    // exposed separately.
+    if (endpoint_registry != nullptr)
+    {
+      auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
+      JS_SetOpaque(consensus, endpoint_registry);
+      JS_SetPropertyStr(ctx, ccf, "consensus", consensus);
+      JS_SetPropertyStr(
+        ctx,
+        consensus,
+        "getLastCommittedTxId",
+        JS_NewCFunction(
+          ctx,
+          js_consensus_get_last_committed_txid,
+          "getLastCommittedTxId",
+          0));
+      JS_SetPropertyStr(
+        ctx,
+        consensus,
+        "getStatusForTxId",
+        JS_NewCFunction(
+          ctx, js_consensus_get_status_for_txid, "getStatusForTxId", 2));
+      JS_SetPropertyStr(
+        ctx,
+        consensus,
+        "getViewForSeqno",
+        JS_NewCFunction(
+          ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
+    }
+
+    if (historical_state != nullptr)
+    {
+      auto historical = JS_NewObjectClass(ctx, historical_class_id);
+      JS_SetOpaque(historical, historical_state);
+      JS_SetPropertyStr(ctx, ccf, "historical", historical);
+      JS_SetPropertyStr(
+        ctx,
+        historical,
+        "getStateRange",
+        JS_NewCFunction(
+          ctx, js_historical_get_state_range, "getStateRange", 4));
+      JS_SetPropertyStr(
+        ctx,
+        historical,
+        "dropCachedStates",
+        JS_NewCFunction(
+          ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
+    }
+
     return ccf;
   }
 
   void populate_global_ccf(
     TxContext* txctx,
+    TxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
+    ccf::historical::AbstractStateCache* historical_state,
+    ccf::BaseEndpointRegistry* endpoint_registry,
     JSContext* ctx)
   {
     auto global_obj = JS_GetGlobalObject(ctx);
@@ -1492,12 +1566,15 @@ namespace ccf::js
       "ccf",
       create_ccf_obj(
         txctx,
+        historical_txctx,
         rpc_ctx,
         transaction_id,
         receipt,
         node_state,
         host_node_state,
         network_state,
+        historical_state,
+        endpoint_registry,
         ctx));
 
     JS_FreeValue(ctx, global_obj);
@@ -1505,23 +1582,29 @@ namespace ccf::js
 
   void populate_global(
     TxContext* txctx,
+    TxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
+    ccf::historical::AbstractStateCache* historical_state,
+    ccf::BaseEndpointRegistry* endpoint_registry,
     JSContext* ctx)
   {
     populate_global_console(ctx);
     populate_global_ccf(
       txctx,
+      historical_txctx,
       rpc_ctx,
       transaction_id,
       receipt,
       node_state,
       host_node_state,
       network_state,
+      historical_state,
+      endpoint_registry,
       ctx);
 
     for (auto& plugin : ffi_plugins)
@@ -1532,74 +1615,23 @@ namespace ccf::js
 
   void Runtime::add_ccf_classdefs()
   {
-    // Register class for KV
+    std::vector<std::pair<JSClassID, JSClassDef*>> classes{
+      {kv_class_id, &kv_class_def},
+      {kv_map_handle_class_id, &kv_map_handle_class_def},
+      {body_class_id, &body_class_def},
+      {node_class_id, &node_class_def},
+      {network_class_id, &network_class_def},
+      {rpc_class_id, &rpc_class_def},
+      {host_class_id, &host_class_def},
+      {consensus_class_id, &consensus_class_def},
+      {historical_class_id, &historical_class_def},
+      {historical_state_class_id, &historical_state_class_def}};
+    for (auto [class_id, class_def] : classes)
     {
-      auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
+      auto ret = JS_NewClass(rt, class_id, class_def);
       if (ret != 0)
-      {
-        throw std::logic_error("Failed to register JS class definition for KV");
-      }
-    }
-
-    // Register class for KV map views
-    {
-      auto ret =
-        JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for KVMap");
-      }
-    }
-
-    // Register class for request body
-    {
-      auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for Body");
-      }
-    }
-
-    // Register class for node
-    {
-      auto ret = JS_NewClass(rt, node_class_id, &node_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for node");
-      }
-    }
-
-    // Register class for network
-    {
-      auto ret = JS_NewClass(rt, network_class_id, &network_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for network");
-      }
-    }
-
-    // Register class for rpc
-    {
-      auto ret = JS_NewClass(rt, rpc_class_id, &rpc_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for rpc");
-      }
-    }
-
-    // Register class for host
-    {
-      auto ret = JS_NewClass(rt, host_class_id, &host_class_def);
-      if (ret != 0)
-      {
-        throw std::logic_error(
-          "Failed to register JS class definition for host");
-      }
+        throw std::logic_error(fmt::format(
+          "Failed to register JS class definition {}", class_def->class_name));
     }
   }
 

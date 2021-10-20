@@ -1,6 +1,7 @@
 {
   "entryPoints": [
     "src/index.ts",
+    "src/consensus.ts",
     "src/converters.ts",
     "src/crypto.ts",
     "src/endpoints.ts",

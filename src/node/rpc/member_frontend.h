@@ -211,7 +211,10 @@ namespace ccf
         js::populate_global(
           &txctx,
           nullptr,
+          nullptr,
           std::nullopt,
+          nullptr,
+          nullptr,
           nullptr,
           nullptr,
           nullptr,
@@ -259,7 +262,10 @@ namespace ccf
         js::populate_global(
           &txctx,
           nullptr,
+          nullptr,
           std::nullopt,
+          nullptr,
+          nullptr,
           nullptr,
           nullptr,
           nullptr,
@@ -370,11 +376,14 @@ namespace ccf
             js::populate_global(
               &txctx,
               nullptr,
+              nullptr,
               std::nullopt,
               nullptr,
               &context.get_node_state(),
               nullptr,
               &network,
+              nullptr,
+              this,
               js_context);
             auto apply_func = js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
@@ -880,7 +889,10 @@ namespace ccf
         js::populate_global(
           nullptr,
           nullptr,
+          nullptr,
           std::nullopt,
+          nullptr,
+          nullptr,
           nullptr,
           nullptr,
           nullptr,
