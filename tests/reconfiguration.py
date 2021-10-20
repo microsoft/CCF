@@ -439,7 +439,6 @@ def run(args):
         network.start_and_join(args)
 
         test_version(network, args)
-        test_add_node_from_snapshot(network, args)
 
         if args.consensus != "bft":
             test_join_straddling_primary_replacement(network, args)
