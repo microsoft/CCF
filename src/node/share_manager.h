@@ -85,6 +85,11 @@ namespace ccf
 
       return std::make_shared<LedgerSecret>(std::move(decrypted_ls));
     }
+
+    ~LedgerSecretWrappingKey()
+    {
+      OPENSSL_cleanse(data.data(), data.size());
+    }
   };
 
   // During recovery, a list of EncryptedLedgerSecretInfo is constructed

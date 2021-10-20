@@ -8,6 +8,8 @@
 #include "secrets.h"
 #include "shares.h"
 
+#include <openssl/crypto.h>
+
 namespace ccf
 {
   struct LedgerSecret
@@ -25,7 +27,12 @@ namespace ccf
 
     LedgerSecret() = default;
 
-    // The copy construtor is used for serialising a LedgerSecret. However, only
+    ~LedgerSecret()
+    {
+      OPENSSL_cleanse(raw_key.data(), raw_key.size());
+    }
+
+    // The copy constructor is used for serialising a LedgerSecret. However, only
     // the raw_key is serialised and other.key is nullptr so use raw_key to seed
     // key.
     LedgerSecret(const LedgerSecret& other) :
