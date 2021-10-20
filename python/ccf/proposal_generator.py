@@ -231,7 +231,7 @@ def transition_node_to_trusted(
 ):
     args = {"node_id": node_id, "valid_from": valid_from}
     if validity_period_days is not None:
-        args["validity_period_days"] = validity_period_days
+        args["validity_period_days"] = validity_period_days  # type: ignore
     return build_proposal("transition_node_to_trusted", args, **kwargs)
 
 
@@ -336,7 +336,7 @@ def set_node_certificate_validity(
 ):
     args = {"node_id": node_id, "valid_from": valid_from}
     if validity_period_days is not None:
-        args["validity_period_days"] = validity_period_days
+        args["validity_period_days"] = validity_period_days  # type: ignore
     return build_proposal("set_node_certificate_validity", args, **kwargs)
 
 
@@ -346,7 +346,7 @@ def set_all_nodes_certificate_validity(
 ):
     args = {"valid_from": valid_from}
     if validity_period_days is not None:
-        args["validity_period_days"] = validity_period_days
+        args["validity_period_days"] = validity_period_days  # type: ignore
     return build_proposal("set_all_nodes_certificate_validity", args, **kwargs)
 
 
