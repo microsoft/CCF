@@ -215,7 +215,7 @@ export function get_historical_range(request) {
   // Assume this response makes it all the way to the client, and
   // they're finished with it, so we can drop the retrieved state. In a
   // real app this may be driven by a separate client request or an LRU
-  ccf.historical.dropCachedStateRange(handle);
+  ccf.historical.dropCachedStates(handle);
 
   return {
     body: {
