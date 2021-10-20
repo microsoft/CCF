@@ -1274,6 +1274,7 @@ namespace ccf::js
 
   JSValue create_ccf_obj(
     TxContext* txctx,
+    TxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
@@ -1388,6 +1389,9 @@ namespace ccf::js
         JS_NewString(ctx, transaction_id->to_str().c_str()));
       auto js_receipt = ccf_receipt_to_js(ctx, receipt);
       JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
+      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      JS_SetOpaque(kv, historical_txctx);
+      JS_SetPropertyStr(ctx, state, "kv", kv);
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
 
@@ -1546,6 +1550,7 @@ namespace ccf::js
 
   void populate_global_ccf(
     TxContext* txctx,
+    TxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
@@ -1564,6 +1569,7 @@ namespace ccf::js
       "ccf",
       create_ccf_obj(
         txctx,
+        historical_txctx,
         rpc_ctx,
         transaction_id,
         receipt,
@@ -1579,6 +1585,7 @@ namespace ccf::js
 
   void populate_global(
     TxContext* txctx,
+    TxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
@@ -1592,6 +1599,7 @@ namespace ccf::js
     populate_global_console(ctx);
     populate_global_ccf(
       txctx,
+      historical_txctx,
       rpc_ctx,
       transaction_id,
       receipt,

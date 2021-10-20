@@ -211,6 +211,7 @@ namespace ccf
         js::populate_global(
           &txctx,
           nullptr,
+          nullptr,
           std::nullopt,
           nullptr,
           nullptr,
@@ -260,6 +261,7 @@ namespace ccf
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global(
           &txctx,
+          nullptr,
           nullptr,
           std::nullopt,
           nullptr,
@@ -373,6 +375,7 @@ namespace ccf
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
             js::populate_global(
               &txctx,
+              nullptr,
               nullptr,
               std::nullopt,
               nullptr,
@@ -884,6 +887,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::populate_global(
+          nullptr,
           nullptr,
           nullptr,
           std::nullopt,

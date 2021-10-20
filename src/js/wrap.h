@@ -62,6 +62,7 @@ namespace ccf::js
   void register_request_body_class(JSContext* ctx);
   void populate_global(
     TxContext* txctx,
+    TxContext* historical_txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,

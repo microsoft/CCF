@@ -48,11 +48,15 @@ export function get_private(request) {
 }
 
 export function get_historical(request) {
-  return get_private(request);
+  const parsedQuery = parse_request_query(request);
+  const id = get_id_from_query(parsedQuery);
+  // Forward-compatibility with 2.x
+  const kv = ccf.historicalState.kv || ccf.kv;
+  return get_record(kv["records"], id);
 }
 
 export function get_historical_with_receipt(request) {
-  const result = get_private(request);
+  const result = get_historical(request);
   result.body.receipt = ccf.historicalState.receipt;
   return result;
 }
