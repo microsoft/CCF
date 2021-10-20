@@ -1112,7 +1112,7 @@ class Network:
             return network_cert
 
     def verify_service_certificate_validity_period(self):
-        # TODO: Hardcoded for now. See # TODO: See https://github.com/microsoft/CCF/issues/3090
+        # See https://github.com/microsoft/CCF/issues/3090
         assert self.cert.not_valid_before == datetime(
             year=2021, month=3, day=11
         )  # 20210311000000Z

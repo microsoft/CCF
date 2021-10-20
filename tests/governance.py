@@ -222,9 +222,7 @@ def test_invalid_client_signature(network, args):
 @reqs.description("Update certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
-    now = datetime.now().replace(
-        microsecond=0
-    )  # Truncate microseconds which are not reflected in RFC5280 UTCTime
+    now = datetime.now()
     validity_period_allowed = args.max_allowed_node_cert_validity_days - 1
     validity_period_forbidden = args.max_allowed_node_cert_validity_days + 1
 

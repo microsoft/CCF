@@ -13,7 +13,6 @@ import ccf.ledger
 import os
 import json
 import time
-from datetime import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal
 
