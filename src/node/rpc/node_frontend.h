@@ -1129,8 +1129,6 @@ namespace ccf
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {
-          g.init_values();
-
           // Note that it is acceptable to start a network without any member
           // having a recovery share. The service will check that at least one
           // recovery member is added before the service is opened.
