@@ -66,15 +66,8 @@ namespace enclave
       ctx(move(ctx_)),
       status(handshake)
     {
-      if (threading::ThreadMessaging::thread_count > 1)
-      {
-        execution_thread =
-          (session_id_ % (threading::ThreadMessaging::thread_count - 1)) + 1;
-      }
-      else
-      {
-        execution_thread = threading::MAIN_THREAD_ID;
-      }
+      execution_thread =
+        threading::ThreadMessaging::get_execution_thread(session_id);
       ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
     }
 
