@@ -334,11 +334,6 @@ See :cpp:struct:`ccf::SignedReq`
 ``public:ccf.internal.``
 ------------------------
 
-``values``
-~~~~~~~~~~
-
-Deprecated, only used to create monotonic node ids when CCF is configured to use BFT at the moment. Will be removed once BFT is adapted to use the same node ids as CFT.
-
 ``historical_encrypted_ledger_secret``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

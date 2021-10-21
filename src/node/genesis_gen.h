@@ -11,7 +11,6 @@
 #include "network_tables.h"
 #include "nodes.h"
 #include "reconfig_id.h"
-#include "values.h"
 
 #include <algorithm>
 #include <fstream>
@@ -30,15 +29,6 @@ namespace ccf
       tables(tables_),
       tx(tx_)
     {}
-
-    void init_values()
-    {
-      auto v = tx.rw(tables.values);
-      for (int id_type = 0; id_type < ValueIds::END_ID; id_type++)
-      {
-        v->put(id_type, 0);
-      }
-    }
 
     kv::NetworkConfiguration retire_active_nodes()
     {
@@ -275,9 +265,6 @@ namespace ccf
 
     void add_node(const NodeId& id, const NodeInfo& node_info)
     {
-      // Increment the node id (only used in BFT)
-      get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
-
       auto node = tx.rw(tables.nodes);
       node->put(id, node_info);
 
