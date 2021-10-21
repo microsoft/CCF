@@ -29,7 +29,6 @@
 #include "snapshot_evidence.h"
 #include "submitted_shares.h"
 #include "users.h"
-#include "values.h"
 
 #include <memory>
 #include <tuple>
@@ -88,7 +87,6 @@ namespace ccf
     // Internal CCF tables
     //
     Service service;
-    Values values;
     Secrets secrets;
     SnapshotEvidence snapshot_evidence;
 
@@ -135,7 +133,6 @@ namespace ccf
       network_configurations(Tables::NODES_CONFIGURATIONS),
       node_endorsed_certificates(Tables::NODE_ENDORSED_CERTIFICATES),
       service(Tables::SERVICE),
-      values(Tables::VALUES),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       signatures(Tables::SIGNATURES),

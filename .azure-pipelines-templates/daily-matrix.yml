@@ -49,7 +49,7 @@ jobs:
     parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON -DENABLE_BFT=OFF"
+      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
@@ -58,7 +58,7 @@ jobs:
     parameters:
       target: SGXIceLake
       env: "${{ parameters.env.SGXIceLake }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON -DENABLE_BFT=OFF"
+      cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_IceLake_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'

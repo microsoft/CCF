@@ -1,12 +1,12 @@
 Byzantine Fault Tolerance
 =========================
 
-Below we discuss the reconfiguration as implemented for the BFT setting. Technically the two-transaction scheme is not specific to BFT. In fact, Ongardie and Ousterhout also described a two-transaction reconfiguration mechanism for Raft. As such, the two-transaction scheme as described below could also be used in CFT. However in BFT, the following properties are desirable: 
+Below we discuss the reconfiguration as implemented for the BFT setting. Technically the two-transaction scheme is not specific to BFT. In fact, Ongaro and Ousterhout also described a two-transaction reconfiguration mechanism for Raft. As such, the two-transaction scheme as described below could also be used in CFT. However in BFT, the following properties are desirable: 
 
 1. A reconfiguration only starts when the reconfiguration transaction is committed, so a reconfiguration attempt can never roll back.
 2. Reconfigurations are atomic. This creates room for additional conditions, such as checking that the byzantine reconfiguration (a multiple transaction protocol) is complete before proceeding to the new configuration.
 
-BFT is still under development and should not be enabled in a production environment. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
+BFT is under development and should not be enabled in a production environment. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
 Two-transaction Reconfiguration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
