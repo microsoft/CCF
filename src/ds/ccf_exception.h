@@ -31,4 +31,28 @@ namespace ccf
   private:
     std::string result;
   };
+
+  class ccf_oe_attester_init_error : public ccf_logic_error
+  {
+  public:
+    ccf_oe_attester_init_error(const std::string& what_arg) :
+      ccf_logic_error(what_arg)
+    {}
+  };
+
+  class ccf_oe_verifier_init_error : public ccf_logic_error
+  {
+  public:
+    ccf_oe_verifier_init_error(const std::string& what_arg) :
+      ccf_logic_error(what_arg)
+    {}
+  };
+
+  class ccf_openssl_rdrand_init_error : public ccf_logic_error
+  {
+  public:
+    ccf_openssl_rdrand_init_error(const std::string& what_arg) :
+      ccf_logic_error(what_arg)
+    {}
+  };
 };
