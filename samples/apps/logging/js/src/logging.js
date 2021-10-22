@@ -200,7 +200,11 @@ export function get_historical_range(request) {
       to_seqno,
       next_page_start + max_seqno_per_page
     );
-    const next_page_handle = makeHandle(next_page_start, next_page_end, parsedQuery.id);
+    const next_page_handle = makeHandle(
+      next_page_start,
+      next_page_end,
+      parsedQuery.id
+    );
     ccf.historical.getStateRange(
       next_page_handle,
       next_page_start,
