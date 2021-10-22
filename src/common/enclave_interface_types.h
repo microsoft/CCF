@@ -63,6 +63,22 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "MemoryNotOutsideEnclave";
     }
+    case CreateNodeStatus::EnclaveInitFailed:
+    {
+      return "EnclaveInitFailed";
+    }
+    case CreateNodeStatus::OEVerifierInitFailed:
+    {
+      return "OEVerifierInitFailed";
+    }
+    case CreateNodeStatus::OEAttesterInitFailed:
+    {
+      return "OEAttesterInitFailed";
+    }
+    case CreateNodeStatus::OpenSSLRDRANDInitFailed:
+    {
+      return "OpenSSLRDRANDInitFailed";
+    }
     default:
     {
       return "Unknown CreateNodeStatus";
