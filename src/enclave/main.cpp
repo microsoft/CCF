@@ -1,11 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
-<<<<<<< HEAD
-=======
 #include "common/enclave_interface_types.h"
 #include "ds/ccf_exception.h"
->>>>>>> e95639af0... More return code variants for some possible exceptions on Enclave() creation (#3116)
 #include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
