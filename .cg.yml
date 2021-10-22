@@ -17,6 +17,8 @@ schedules:
 jobs:
   - job: ComponentGovernance
     displayName: "Component Governance"
+    pool:
+      vmImage: ubuntu-20.04
 
     steps:
       - checkout: self
