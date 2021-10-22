@@ -51,7 +51,7 @@ class DefaultLiner(Liner):
         if view_change and self.split_views:
             self.flush()
             self.append(f"{view}: ", "White")
-        
+
         char = " "
         if self.write_views:
             char = "‾" if not view_change else self.view_to_char(view)
