@@ -7,7 +7,6 @@
 #include "crypto/key_pair.h"
 #include "ds/logger.h"
 #include "enclave/interface.h"
-#include "version.h"
 
 #include <dlfcn.h>
 #ifdef VIRTUAL_ENCLAVE
@@ -60,8 +59,7 @@ namespace host
      * use OE at all, instead loading a shared library directly
      */
     Enclave(const std::string& path, uint32_t flags) :
-      is_virtual_enclave(false),
-      e(nullptr)
+      is_virtual_enclave(false), e(nullptr)
     {
       if (flags == ENCLAVE_FLAG_VIRTUAL)
       {

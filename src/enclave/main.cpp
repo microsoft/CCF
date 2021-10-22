@@ -9,7 +9,6 @@
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
-#include "version.h"
 
 #include <chrono>
 #include <thread>
