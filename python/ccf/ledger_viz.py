@@ -45,7 +45,7 @@ class DefaultLiner(Liner):
         self.split_views = split_views
 
     def entry(self, category, view):
-        view_change = view != self._last_view and self._last_view is not None
+        view_change = view != self._last_view
         self._last_view = view
 
         if view_change and self.split_views:
