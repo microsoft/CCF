@@ -8,6 +8,8 @@ jobs:
     steps:
       - script: |
           sudo rm -rf build
+          rm -rf tests/npm-app/package-lock.json
+          rm -rf tests/npm-app/node_modules
         displayName: "Cleanup"
 
       - checkout: self
