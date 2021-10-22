@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+
+## [1.0.14]
+
+### Changed
+
+- Log more detailed errors on early startup (#3116).
 
 ### Fixed
 
@@ -950,6 +955,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.14
 [1.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.13
 [1.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.12
 [1.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.11

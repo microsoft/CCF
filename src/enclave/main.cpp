@@ -1,6 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+<<<<<<< HEAD
+=======
+#include "common/enclave_interface_types.h"
+#include "ds/ccf_exception.h"
+>>>>>>> e95639af0... More return code variants for some possible exceptions on Enclave() creation (#3116)
 #include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
@@ -128,7 +133,9 @@ extern "C"
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
+    enclave::Enclave* enclave;
 
+<<<<<<< HEAD
     auto enclave = new enclave::Enclave(
       ec,
       cc.signature_intervals,
@@ -145,6 +152,43 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len);
+=======
+    try
+    {
+      enclave = new enclave::Enclave(
+        ec, cc.signature_intervals, cc.consensus_config, cc.curve_id);
+    }
+    catch (const ccf::ccf_oe_attester_init_error&)
+    {
+      return CreateNodeStatus::OEAttesterInitFailed;
+    }
+    catch (const ccf::ccf_oe_verifier_init_error&)
+    {
+      return CreateNodeStatus::OEVerifierInitFailed;
+    }
+    catch (const ccf::ccf_openssl_rdrand_init_error&)
+    {
+      return CreateNodeStatus::OpenSSLRDRANDInitFailed;
+    }
+    catch (const std::exception&)
+    {
+      return CreateNodeStatus::EnclaveInitFailed;
+    }
+
+    if (!enclave->create_new_node(
+          start_type,
+          std::move(cc),
+          node_cert,
+          node_cert_size,
+          node_cert_len,
+          network_cert,
+          network_cert_size,
+          network_cert_len))
+    {
+      return CreateNodeStatus::InternalError;
+    }
+
+>>>>>>> e95639af0... More return code variants for some possible exceptions on Enclave() creation (#3116)
     e.store(enclave);
 
     return result;
