@@ -37,8 +37,7 @@ class DefaultLiner(Liner):
 
     @staticmethod
     def view_to_char(view):
-        chars = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-        return chars[view % len(chars)]
+        return str(view)[-1]
 
     def __init__(self, write_views, split_views):
         self.write_views = write_views
