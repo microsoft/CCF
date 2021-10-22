@@ -135,28 +135,10 @@ extern "C"
 #endif
     enclave::Enclave* enclave;
 
-<<<<<<< HEAD
-    auto enclave = new enclave::Enclave(
-      ec,
-      cc.signature_intervals,
-      consensus_type,
-      cc.consensus_config,
-      cc.curve_id);
-
-    bool result = enclave->create_new_node(
-      start_type,
-      std::move(cc),
-      node_cert,
-      node_cert_size,
-      node_cert_len,
-      network_cert,
-      network_cert_size,
-      network_cert_len);
-=======
     try
     {
       enclave = new enclave::Enclave(
-        ec, cc.signature_intervals, cc.consensus_config, cc.curve_id);
+        ec, cc.signature_intervals, consensus_type, cc.consensus_config, cc.curve_id);
     }
     catch (const ccf::ccf_oe_attester_init_error&)
     {
@@ -188,7 +170,6 @@ extern "C"
       return CreateNodeStatus::InternalError;
     }
 
->>>>>>> e95639af0... More return code variants for some possible exceptions on Enclave() creation (#3116)
     e.store(enclave);
 
     return result;
