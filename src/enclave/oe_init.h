@@ -18,7 +18,7 @@ namespace ccf
       auto rc = oe_attester_initialize();
       if (rc != OE_OK)
       {
-        throw std::ccf_oe_attester_init_error(fmt::format(
+        throw ccf::ccf_oe_attester_init_error(fmt::format(
           "Failed to initialise evidence attester: {}", oe_result_str(rc)));
       }
     }
