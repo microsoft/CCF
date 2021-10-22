@@ -171,7 +171,7 @@ namespace enclave
       {
         r = node->create(start_type, std::move(ccf_config_));
       }
-      catch (const std::runtime_error& e)
+      catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Error starting node: {}", e.what());
         return false;
