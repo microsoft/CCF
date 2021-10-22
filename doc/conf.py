@@ -338,23 +338,14 @@ def config_inited(app, config):
     if js_pkg_dir.exists():
         # make versions.json from sphinx-multiversion available
         if app.config.smv_metadata_path:
-            os.environ["SMV_METADATA_PATH"] = app.config.smv_metadata_path
-            os.environ["SMV_CURRENT_VERSION"] = app.config.smv_current_version
-        subprocess.run(
-            ["sed", "-i", "s/\^4.2.3/4.2.4/g", "package.json"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
-        subprocess.run(
-            ["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
-        subprocess.run(
-            ["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
-            cwd=js_pkg_dir,
-            check=True,
-        )
+            os.environ['SMV_METADATA_PATH'] = app.config.smv_metadata_path
+            os.environ['SMV_CURRENT_VERSION'] = app.config.smv_current_version
+        subprocess.run(["sed", "-i", "s/\^4.2.3/4.2.4/g", "package.json"], cwd=js_pkg_dir, check=True)
+        subprocess.run(["sed", "-i", "s/\"\^14\.14\.35\"/\"14\.17\.27\"/g", "package.json"], cwd=js_pkg_dir, check=True)
+        subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
+                       cwd=js_pkg_dir, check=True)
+        subprocess.run(["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
+                       cwd=js_pkg_dir, check=True)    
         # allow to link to typedoc pages
         for kind in [
             "package",
