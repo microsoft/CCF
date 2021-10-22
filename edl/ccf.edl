@@ -5,25 +5,28 @@ enclave {
     from "openenclave/edl/sgx/platform.edl" import *;
     from "openenclave/edl/time.edl" import *;
 
-    include "enclave/start_type.h"
+    include "common/enclave_interface_types.h"
     include "enclave/consensus_type.h"
 
     trusted {
 
-        public bool enclave_create_node(
-            [user_check] void * enclave_config,
-            [user_check] char * ccf_config,
+        public CreateNodeStatus enclave_create_node(
+            [user_check] void* enclave_config,
+            [user_check] char* ccf_config,
             size_t ccf_config_size,
-            [out, count=node_cert_size] uint8_t * node_cert,
+            [out, count=node_cert_size] uint8_t* node_cert,
             size_t node_cert_size,
             [out] size_t* node_cert_len,
-            [out, count=network_cert_size] uint8_t * network_cert,
+            [out, count=network_cert_size] uint8_t* network_cert,
             size_t network_cert_size,
             [out] size_t* network_cert_len,
+            [out, count=enclave_version_size] uint8_t* enclave_version,
+            size_t enclave_version_size,
+            [out] size_t* enclave_version_len,
             StartType start_type,
             ConsensusType consensus_type,
             size_t num_worker_thread,
-            [user_check] void* time_location
+            [user_check] void* time_location,
         );
 
         public bool enclave_run();

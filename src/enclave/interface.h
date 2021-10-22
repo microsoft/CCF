@@ -16,7 +16,6 @@
 #include "kv/kv_types.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
-#include "start_type.h"
 #include "tls/tls.h"
 
 #include <chrono>

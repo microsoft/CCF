@@ -8,8 +8,8 @@
 #include <wchar.h>
 
 #ifdef VIRTUAL_ENCLAVE
+#  include "common/enclave_interface_types.h"
 #  include "consensus_type.h"
-#  include "start_type.h"
 #else
 #  include <ccf_args.h>
 #endif
@@ -64,10 +64,13 @@ extern "C"
     size_t output_buffer_size,
     size_t* output_bytes_written);
 
-  using create_node_func_t = bool (*)(
+  using create_node_func_t = CreateNodeStatus (*)(
     void*,
     char*,
     size_t,
+    uint8_t*,
+    size_t,
+    size_t*,
     uint8_t*,
     size_t,
     size_t*,
@@ -104,7 +107,7 @@ extern "C"
 
   inline oe_result_t enclave_create_node(
     oe_enclave_t*,
-    bool* _retval,
+    CreateNodeStatus* status,
     void* enclave_config,
     char* ccf_config,
     size_t ccf_config_size,
@@ -114,6 +117,9 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
+    uint8_t* enclave_version,
+    size_t enclave_version_size,
+    size_t* enclave_version_len,
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_thread,
@@ -122,7 +128,7 @@ extern "C"
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
 
-    *_retval = create_node_func(
+    *status = create_node_func(
       enclave_config,
       ccf_config,
       ccf_config_size,
@@ -132,11 +138,14 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len,
+      enclave_version,
+      enclave_version_size,
+      enclave_version_len,
       start_type,
       consensus_type,
       num_worker_thread,
       time_location);
-    return *_retval ? OE_OK : OE_FAILURE;
+    return OE_OK;
   }
 
   inline oe_result_t enclave_run(oe_enclave_t*, bool* _retval)
