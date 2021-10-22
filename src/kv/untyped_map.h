@@ -310,9 +310,6 @@ namespace kv::untyped
         // This is run separately from commit so that all commits in the Tx
         // have been applied before map hooks are run. The maps in the Tx
         // are still locked when post_commit is run.
-        if (change_set.writes.empty())
-          return nullptr;
-
         return map.trigger_map_hook(commit_version, change_set.writes);
       }
 
@@ -497,19 +494,27 @@ namespace kv::untyped
         r->state = change_set.state;
         r->version = change_set.version;
 
+        LOG_FAIL_FMT("Map name: {}", map.name);
+
         // Executing hooks from snapshot requires copying the entire snapshotted
         // state so only do it if there's a hook on the table
         if (map.hook || map.global_hook)
         {
           r->state.foreach([&r](const K& k, const VersionV& v) {
-            if (!is_deleted(v.version))
+            if (is_deleted(v.version))
+            {
+              r->writes[k] = std::nullopt;
+            }
+            else
             {
               r->writes[k] = v.value;
             }
             return true;
           });
         }
-      }
+
+        LOG_FAIL_FMT("Writes of size: {}", r->writes.size());
+      };
 
       ConsensusHookPtr post_commit() override
       {
@@ -646,7 +651,8 @@ namespace kv::untyped
 
     /** Get Map replicability
      *
-     * @return true if the map is to be replicated, false if it is to be derived
+     * @return true if the map is to be replicated, false if it is to be
+     * derived
      */
     virtual bool is_replicated() override
     {
@@ -712,8 +718,8 @@ namespace kv::untyped
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       // This takes a snapshot of the state of the map at the last entry
-      // committed at or before this version. The Map expects to be locked while
-      // taking the snapshot.
+      // committed at or before this version. The Map expects to be locked
+      // while taking the snapshot.
       auto r = roll.commits->get_head();
 
       for (auto current = roll.commits->get_tail(); current != nullptr;
@@ -732,9 +738,10 @@ namespace kv::untyped
 
     void compact(Version v) override
     {
-      // This discards available rollback state before version v, and populates
-      // the commit_deltas to be passed to the global commit hook, if there is
-      // one, up to version v. The Map expects to be locked during compaction.
+      // This discards available rollback state before version v, and
+      // populates the commit_deltas to be passed to the global commit hook,
+      // if there is one, up to version v. The Map expects to be locked during
+      // compaction.
       while (roll.commits->get_head() != roll.commits->get_tail())
       {
         auto r = roll.commits->get_head();
@@ -813,8 +820,8 @@ namespace kv::untyped
 
     void clear() override
     {
-      // This discards all entries in the roll and resets the rollback counter.
-      // The Map expects to be locked before clearing it.
+      // This discards all entries in the roll and resets the rollback
+      // counter. The Map expects to be locked before clearing it.
       roll.reset_commits();
       roll.rollback_counter = 0;
     }
@@ -861,7 +868,8 @@ namespace kv::untyped
       }
 
       // Returning nullptr is allowed, and indicates that we have no suitable
-      // version - the version requested is _earlier_ than anything in the roll
+      // version - the version requested is _earlier_ than anything in the
+      // roll
 
       unlock();
       return changes;
@@ -874,7 +882,7 @@ namespace kv::untyped
 
     ConsensusHookPtr trigger_map_hook(Version version, const Write& writes)
     {
-      if (hook)
+      if (hook && !writes.empty())
       {
         return hook(version, writes);
       }
