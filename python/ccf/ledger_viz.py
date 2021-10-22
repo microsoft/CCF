@@ -40,14 +40,22 @@ class DefaultLiner(Liner):
         chars = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
         return chars[view % len(chars)]
 
+    def __init__(self, write_views, split_views):
+        self.write_views = write_views
+        self.split_views = split_views
+
     def entry(self, category, view):
-        if view != self._last_view:
-            char = DefaultLiner.view_to_char(view)
-            self._last_view = view
+        view_change = view != self._last_view and self._last_view is not None
+        self._last_view = view
+
+        if view_change and self.split_views:
             self.flush()
             self.append(f"{view}: ", "White")
-        else:
-            char = "‾"
+        
+        char = " "
+        if self.write_views:
+            char = "‾" if not view_change else self.view_to_char(view)
+
         fg_colour = self._fg_colour
         bg_colour = self._bg_colour_mapping[category]
         self.append(char, fg_colour, bg_colour)
@@ -61,13 +69,14 @@ class DefaultLiner(Liner):
                 ]
             )
         )
-        print(
-            " ".join(
-                [
-                    f"Start of view 14: {cs(DefaultLiner.view_to_char(14), self._fg_colour, 'Grey')}"
-                ]
+        if self.write_views:
+            print(
+                " ".join(
+                    [
+                        f"Start of view 14: {cs(self.view_to_char(14), self._fg_colour, 'Grey')}"
+                    ]
+                )
             )
-        )
         print()
 
 
@@ -79,12 +88,22 @@ def main():
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
+    parser.add_argument(
+        "--write-views",
+        help="Include characters on each tile indicating their view",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--split-views",
+        help="Write each view on a new line, prefixed by the view number",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     ledger_dirs = args.paths
     ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not args.uncommitted)
 
-    l = DefaultLiner()
+    l = DefaultLiner(args.write_views, args.split_views)
     l.help()
     for chunk in ledger:
         for tx in chunk:
