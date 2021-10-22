@@ -181,26 +181,6 @@ extern "C"
       return CreateNodeStatus::InternalError;
     }
 
-    auto enclave = new enclave::Enclave(
-      ec,
-      cc.signature_intervals,
-      consensus_type,
-      cc.consensus_config,
-      cc.curve_id);
-
-    if (!enclave->create_new_node(
-          start_type,
-          std::move(cc),
-          node_cert,
-          node_cert_size,
-          node_cert_len,
-          network_cert,
-          network_cert_size,
-          network_cert_len))
-    {
-      return CreateNodeStatus::InternalError;
-    }
-
     e.store(enclave);
 
     return CreateNodeStatus::OK;
