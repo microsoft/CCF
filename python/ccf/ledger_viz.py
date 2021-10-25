@@ -49,10 +49,11 @@ class DefaultLiner(Liner):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
-    parser.add_argument(
-        "paths", help="Path to ledger directories or snapshot file", nargs="+"
+    parser = argparse.ArgumentParser(
+        description="Visualise content of CCF ledger",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("paths", help="Path to ledger directories", nargs="+")
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
@@ -68,7 +69,7 @@ def main():
             public = tx.get_public_domain().get_tables()
             has_private = tx.get_private_domain_size()
             if not has_private:
-                if "public:ccf.internal.signatures" in public:
+                if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public:
                     l.entry("Signature")
                 else:
                     if all(table.startswith("public:ccf.gov.") for table in public):
