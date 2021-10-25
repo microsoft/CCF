@@ -28,12 +28,8 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
                 sig_seqnos.append(public_domain.get_seqno())
 
-        if not ledger_chunk.is_committed() and not sig_seqnos:
-            # An uncommitted chunk may not contain any signature yet
-            continue
-
-        if ledger_chunk.is_committed() and len(sig_seqnos) <= 1:
-            # A committed chunk may only contain one signature
+        if len(sig_seqnos) <= 1:
+            # A chunk may not contain enough signatures to be worth truncating
             continue
 
         LOG.error(sig_seqnos)
