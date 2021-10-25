@@ -299,13 +299,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--ledger-chunk-bytes",
         help="Size (bytes) at which a new ledger chunk is created",
-        default="200KB",
+        default="20KB",
     )
     parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
         type=int,
-        default=10000,
+        default=10,
     )
     parser.add_argument(
         "--max-open-sessions",

@@ -8,12 +8,15 @@ from typing import BinaryIO, List
 
 from loguru import logger as LOG
 
-DEFAULT_OUTPUT_FOLDER_NAME = "split_ledger"
+DEFAULT_OUTPUT_DIR_NAME = "split_ledger"
 TEMPORARY_LEDGER_FILE_NAME = "ledger.tmp"
 
 
 def create_new_ledger_file(directory: str) -> BinaryIO:
-    ledger_file = open(os.path.join(directory, TEMPORARY_LEDGER_FILE_NAME), "wb")
+    ledger_file_path = os.path.join(directory, TEMPORARY_LEDGER_FILE_NAME)
+    if os.path.exists(ledger_file_path):
+        raise ValueError(f"Ledger file {ledger_file_path} already exists")
+    ledger_file = open(ledger_file_path, "wb")
     ledger_file.write(
         int.to_bytes(0, length=ccf.ledger.LEDGER_HEADER_SIZE, byteorder="little")
     )
@@ -61,14 +64,15 @@ def run(args_):
         type=int,
     )
     parser.add_argument(
-        "--output-folder",
-        help="Output folder",
+        "--output-dir",
+        help="Output directory",
         type=str,
-        default=DEFAULT_OUTPUT_FOLDER_NAME,
+        default=DEFAULT_OUTPUT_DIR_NAME,
     )
     args = parser.parse_args(args_)
 
-    os.mkdir(args.output_folder)
+    if not os.path.exists(args.output_dir):
+        os.mkdir(args.output_dir)
 
     ledger_file_input = ccf.ledger.LedgerChunk(args.path)
     is_input_file_complete = ledger_file_input.is_complete()
@@ -76,7 +80,7 @@ def run(args_):
     LOG.info(
         f"Splitting ledger file {args.path} (complete: {is_input_file_complete}/committed: {is_input_file_committed}) at seqno {args.seqno}"
     )
-    LOG.info(f"Output folder: {args.output_folder}")
+    LOG.info(f"Output directory: {args.output_dir}")
 
     require_new_file = True
     found_target_seqno = False
@@ -87,7 +91,7 @@ def run(args_):
         entry_seqno = public_entry.get_seqno()
         first_seqno = first_seqno or entry_seqno
         if require_new_file:
-            ledger_file_output = create_new_ledger_file(args.output_folder)
+            ledger_file_output = create_new_ledger_file(args.output_dir)
             entry_positions = []
             require_new_file = False
 
@@ -99,6 +103,7 @@ def run(args_):
                 raise ValueError(
                     f"Ledger entry at target {entry_seqno} must be a signature"
                 )
+
             LOG.debug(f"Found target signature seqno {args.seqno}")
             found_target_seqno = True
             close_ledger_file(
@@ -127,6 +132,11 @@ def run(args_):
             ),
             complete_file=is_input_file_complete,
         )
+        return True
+
+    # No split was performed since target seqno is already
+    # last seqno in ledger file
+    return False
 
 
 if __name__ == "__main__":
