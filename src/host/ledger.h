@@ -861,7 +861,7 @@ namespace asynchost
     {
       TimeBoundLogger log_if_slow(
         fmt::format("Reading framed ledger entries from {} to {}", from, to));
-      
+
       if ((from <= 0) || (to > last_idx) || (to < from))
       {
         return std::nullopt;
