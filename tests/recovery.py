@@ -15,17 +15,33 @@ from loguru import logger as LOG
 
 
 def split_all_ledger_files_in_dir(input_dir, output_dir):
+    # A ledger file can only be split at a seqno that contains a signature
+    # (so that all files end on a signature that verifies their integrity).
+    # We first detect all signature transactions in a ledger file and truncate
+    # at any one (but not the last one, which would have no effect) at random.
     for ledger_file in os.listdir(input_dir):
         sig_seqnos = []
         ledger_file_path = os.path.join(input_dir, ledger_file)
-        ledger = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
-        for transaction in ledger:
+        ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
+        for transaction in ledger_chunk:
             public_domain = transaction.get_public_domain()
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
                 sig_seqnos.append(public_domain.get_seqno())
+
+        if not ledger_chunk.is_committed() and not sig_seqnos:
+            # An uncommitted chunk may not contain any signature yet
+            continue
+
+        if ledger_chunk.is_committed() and len(sig_seqnos) <= 1:
+            # A committed chunk may only contain one signature
+            continue
+
+        LOG.error(sig_seqnos)
+        LOG.error(ledger_file_path)
+
         # Ignore last signature, which would result in a no-op split
         split_seqno = random.choice(sig_seqnos[:-1])
-        LOG.info(f"Splitting ledger file {ledger_file}")
+
         assert ccf.split_ledger.run(
             [ledger_file_path, str(split_seqno), f"--output-dir={output_dir}"]
         ), f"Ledger file {ledger_file_path} was not split at {split_seqno}"
@@ -196,8 +212,8 @@ checked. Note that the key for each logging message is unique (per table).
     args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
-    # Test-specific values so that ledger files contain at least
-    # two signatures, so that they can be split at the first one
+    # Test-specific values so that it is likely that ledger files contain
+    # at least two signatures, so that they can be split at the first one
     args.ledger_chunk_bytes = "50KB"
     args.snapshot_tx_interval = 30
 
