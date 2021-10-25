@@ -26,12 +26,34 @@ def make_final_ledger_file_name(start_seqno, end_seqno, is_committed):
     return f'ledger_{start_seqno}-{end_seqno}{ccf.ledger.COMMITTED_FILE_SUFFIX if is_committed else ""}'
 
 
+def close_ledger_file(
+    ledger_file, entry_positions, final_file_name, complete_file=True
+):
+    positions_offset = ledger_file.tell()
+    for pos in entry_positions:
+        ledger_file.write(int.to_bytes(pos, length=4, byteorder="little"))
+    ledger_file.seek(0)
+    ledger_file.write(
+        int.to_bytes(
+            positions_offset,
+            length=ccf.ledger.LEDGER_HEADER_SIZE,
+            byteorder="little",
+        )
+    )
+    ledger_file.close()
+    os.rename(
+        ledger_file.name,
+        os.path.join(os.path.dirname(ledger_file.name), final_file_name),
+    )
+    LOG.info(f"Wrote file {final_file_name}")
+
+
 def run(args_):
     parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
     parser.add_argument("path", help="Path to ledger file to split", type=str)
     parser.add_argument(
         "seqno",
-        help="Transaction sequence number at which the ledger file will be split",
+        help="Transaction sequence number at which the ledger file will be split (must be a signature transaction)",
         type=int,
     )
     parser.add_argument(
@@ -42,13 +64,8 @@ def run(args_):
     )
     args = parser.parse_args(args_)
 
-    is_input_file_committed = ccf.ledger.is_ledger_chunk_committed(args.path)
-
     LOG.info(f"Output folder: {args.output_folder}")
     os.mkdir(args.output_folder)
-
-    # TODO: What if chunk isn't committed?
-    # TODO: If chunk isn't committed, should first chunk be completed and second no?
 
     ledger_file_input = ccf.ledger.LedgerChunk(args.path)
     is_input_file_complete = ledger_file_input.is_complete()
@@ -71,45 +88,25 @@ def run(args_):
 
         public_entry = entry.get_public_domain()
         entry_seqno = public_entry.get_seqno()
-        LOG.info(entry_seqno)
-
         first_seqno = first_seqno or entry_seqno
-
         entry_positions.append(ledger_file_output.tell())
-        LOG.warning(f"Positions: {entry_positions}")
         ledger_file_output.write(entry.get_raw_tx())
 
         if entry_seqno == args.seqno:
             LOG.success(f"Found seqno {args.seqno}")
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME not in public_entry.get_tables():
                 raise ValueError(
-                    f"Ledger entry at target {entry_seqno} is not a signature"
+                    f"Ledger entry at target {entry_seqno} must be a signature"
                 )
             found_target_seqno = True
             LOG.warning(f"Positions: {entry_positions}")
-            positions_offset = ledger_file_output.tell()
-            for pos in entry_positions:
-                ledger_file_output.write(
-                    int.to_bytes(pos, length=4, byteorder="little")
-                )
-            ledger_file_output.seek(0)
-            ledger_file_output.write(
-                int.to_bytes(
-                    positions_offset,
-                    length=ccf.ledger.LEDGER_HEADER_SIZE,
-                    byteorder="little",
-                )
-            )
-
-            ledger_file_output.close()
-            os.rename(
-                ledger_file_output_name,
-                os.path.join(
-                    args.output_folder,
-                    make_final_ledger_file_name(
-                        first_seqno, args.seqno, is_input_file_committed
-                    ),
+            close_ledger_file(
+                ledger_file_output,
+                entry_positions,
+                make_final_ledger_file_name(
+                    first_seqno, args.seqno, is_input_file_committed
                 ),
+                complete_file=True,
             )
             create_new_file = True
 
@@ -120,15 +117,13 @@ def run(args_):
         )
 
     if not create_new_file:
-        ledger_file_output.close()
-        os.rename(
-            ledger_file_output_name,
-            os.path.join(
-                args.output_folder,
-                make_final_ledger_file_name(
-                    args.seqno, entry_seqno, is_input_file_committed
-                ),
+        close_ledger_file(
+            ledger_file_output,
+            entry_positions,
+            make_final_ledger_file_name(
+                args.seqno + 1, entry_seqno, is_input_file_committed
             ),
+            complete_file=is_input_file_complete,
         )
 
 
