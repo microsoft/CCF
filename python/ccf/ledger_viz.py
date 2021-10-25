@@ -113,7 +113,6 @@ def main():
             view = tx.gcm_header.view
             if not has_private:
                 if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public:
-                    l.entry("Signature")
                     l.entry("Signature", view)
                 else:
                     if all(table.startswith("public:ccf.gov.") for table in public):
