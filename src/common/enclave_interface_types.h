@@ -21,6 +21,18 @@ enum CreateNodeStatus
 
   /** One of the input buffers is not located outside of the enclave memory */
   MemoryNotOutsideEnclave = 5,
+
+  /** Enclave initialisation failed */
+  EnclaveInitFailed = 6,
+
+  /** Open Enclave Verifier initialisation failed */
+  OEVerifierInitFailed = 7,
+
+  /** Open Enclave Attester initialisation failed */
+  OEAttesterInitFailed = 8,
+
+  /** OpenSSL RDRAND Init Failed */
+  OpenSSLRDRANDInitFailed = 9
 };
 
 constexpr char const* create_node_result_to_str(CreateNodeStatus result)
@@ -50,6 +62,22 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     case CreateNodeStatus::MemoryNotOutsideEnclave:
     {
       return "MemoryNotOutsideEnclave";
+    }
+    case CreateNodeStatus::EnclaveInitFailed:
+    {
+      return "EnclaveInitFailed";
+    }
+    case CreateNodeStatus::OEVerifierInitFailed:
+    {
+      return "OEVerifierInitFailed";
+    }
+    case CreateNodeStatus::OEAttesterInitFailed:
+    {
+      return "OEAttesterInitFailed";
+    }
+    case CreateNodeStatus::OpenSSLRDRANDInitFailed:
+    {
+      return "OpenSSLRDRANDInitFailed";
     }
     default:
     {
