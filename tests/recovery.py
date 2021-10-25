@@ -52,6 +52,10 @@ def test(network, args, from_snapshot=False, split_ledger=False):
     )
 
     if split_ledger:
+        # Test that ledger files can be arbitrarily split and that recovery
+        # and historical queries work as expected.
+        # Note: For real operations, it would be best practice to use a separate
+        # output directory
         split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
         split_all_ledger_files_in_dir(committed_ledger_dir, committed_ledger_dir)
 
@@ -191,6 +195,9 @@ checked. Note that the key for each logging message is unique (per table).
     args = infra.e2e_args.cli_args(add)
     args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
+
+    # Test-specific values so that ledger files contain at least
+    # two signatures, so that they can be split at the first one
     args.ledger_chunk_bytes = "50KB"
     args.snapshot_tx_interval = 30
 
