@@ -32,9 +32,6 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
             # A chunk may not contain enough signatures to be worth truncating
             continue
 
-        LOG.error(sig_seqnos)
-        LOG.error(ledger_file_path)
-
         # Ignore last signature, which would result in a no-op split
         split_seqno = random.choice(sig_seqnos[:-1])
 
