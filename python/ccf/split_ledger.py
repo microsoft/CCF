@@ -47,7 +47,6 @@ def run(args_):
     LOG.info(f"Output folder: {args.output_folder}")
     os.mkdir(args.output_folder)
 
-    # TODO: Check that seqno is of a signature
     # TODO: What if chunk isn't committed?
     # TODO: If chunk isn't committed, should first chunk be completed and second no?
 
@@ -58,24 +57,34 @@ def run(args_):
         f'Splitting ledger "{args.path}" [complete: {is_input_file_complete}/committed: {is_input_file_committed}] at seqno {args.seqno}'
     )
 
-    ledger_file_output, ledger_file_output_name = create_new_ledger_file(
-        args.output_folder
-    )
-
+    create_new_file = True  # TODO: Rename
     found_target_seqno = False
     first_seqno = None
-    entry_positions = []
 
     for entry in ledger_file_input:
-        entry_seqno = entry.get_public_domain().get_seqno()
+        if create_new_file:
+            ledger_file_output, ledger_file_output_name = create_new_ledger_file(
+                args.output_folder
+            )
+            entry_positions = []
+            create_new_file = False
+
+        public_entry = entry.get_public_domain()
+        entry_seqno = public_entry.get_seqno()
+        LOG.info(entry_seqno)
 
         first_seqno = first_seqno or entry_seqno
 
         entry_positions.append(ledger_file_output.tell())
+        LOG.warning(f"Positions: {entry_positions}")
         ledger_file_output.write(entry.get_raw_tx())
 
         if entry_seqno == args.seqno:
             LOG.success(f"Found seqno {args.seqno}")
+            if ccf.ledger.SIGNATURE_TX_TABLE_NAME not in public_entry.get_tables():
+                raise ValueError(
+                    f"Ledger entry at target {entry_seqno} is not a signature"
+                )
             found_target_seqno = True
             LOG.warning(f"Positions: {entry_positions}")
             positions_offset = ledger_file_output.tell()
@@ -102,10 +111,7 @@ def run(args_):
                     ),
                 ),
             )
-            entry_positions = []
-            ledger_file_output, ledger_file_output_name = create_new_ledger_file(
-                args.output_folder
-            )
+            create_new_file = True
 
     if not found_target_seqno:
         os.remove(ledger_file_output_name)
@@ -113,16 +119,17 @@ def run(args_):
             f"Could not find seqno {args.seqno} in ledger file {args.path}"
         )
 
-    ledger_file_output.close()
-    os.rename(
-        ledger_file_output_name,
-        os.path.join(
-            args.output_folder,
-            make_final_ledger_file_name(
-                args.seqno, entry_seqno, is_input_file_committed
+    if not create_new_file:
+        ledger_file_output.close()
+        os.rename(
+            ledger_file_output_name,
+            os.path.join(
+                args.output_folder,
+                make_final_ledger_file_name(
+                    args.seqno, entry_seqno, is_input_file_committed
+                ),
             ),
-        ),
-    )
+        )
 
 
 if __name__ == "__main__":
