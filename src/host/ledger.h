@@ -316,11 +316,6 @@ namespace asynchost
       }
     }
 
-    std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
-    {
-      return read_framed_entries(idx, idx);
-    }
-
     std::optional<std::vector<uint8_t>> read_framed_entries(
       size_t from, size_t to) const
     {
@@ -613,6 +608,39 @@ namespace asynchost
       return files.back();
     }
 
+    std::optional<std::vector<uint8_t>> read_entries_range(
+      size_t from, size_t to)
+    {
+      if ((from <= 0) || (to > last_idx) || (to < from))
+      {
+        return std::nullopt;
+      }
+
+      std::vector<uint8_t> entries;
+      size_t idx = from;
+      while (idx <= to)
+      {
+        auto f_from = get_file_from_idx(idx);
+        if (f_from == nullptr)
+        {
+          return std::nullopt;
+        }
+        auto to_ = std::min(f_from->get_last_idx(), to);
+        auto v = f_from->read_framed_entries(idx, to_);
+        if (!v.has_value())
+        {
+          return std::nullopt;
+        }
+        entries.insert(
+          entries.end(),
+          std::make_move_iterator(v->begin()),
+          std::make_move_iterator(v->end()));
+        idx = to_ + 1;
+      }
+
+      return entries;
+    }
+
   public:
     Ledger(
       const std::string& ledger_dir,
@@ -841,12 +869,7 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entry at {}", idx));
 
-      auto f = get_file_from_idx(idx);
-      if (f == nullptr)
-      {
-        return std::nullopt;
-      }
-      return f->read_entry(idx);
+      return read_entries_range(idx, idx);
     }
 
     std::optional<std::vector<uint8_t>> read_framed_entries(
@@ -855,34 +878,7 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Reading framed ledger entries from {} to {}", from, to));
 
-      if ((from <= 0) || (to > last_idx) || (to < from))
-      {
-        return std::nullopt;
-      }
-
-      std::vector<uint8_t> entries;
-      size_t idx = from;
-      while (idx <= to)
-      {
-        auto f_from = get_file_from_idx(idx);
-        if (f_from == nullptr)
-        {
-          return std::nullopt;
-        }
-        auto to_ = std::min(f_from->get_last_idx(), to);
-        auto v = f_from->read_framed_entries(idx, to_);
-        if (!v.has_value())
-        {
-          return std::nullopt;
-        }
-        entries.insert(
-          entries.end(),
-          std::make_move_iterator(v->begin()),
-          std::make_move_iterator(v->end()));
-        idx = to_ + 1;
-      }
-
-      return entries;
+      return read_entries_range(from, to);
     }
 
     size_t write_entry(
@@ -1052,7 +1048,7 @@ namespace asynchost
       else
       {
         LedgerFile lf(matching_dirname, matching_filename);
-        data->entry = lf.read_entry(data->idx);
+        data->entry = lf.read_framed_entries(data->idx, data->idx);
       }
     }
 
