@@ -24,6 +24,7 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <openssl/crypto.h>
 #include <set>
 #include <sstream>
 
@@ -731,6 +732,7 @@ namespace ccf
 
         const auto in = params.get<SubmitRecoveryShare::In>();
         auto raw_recovery_share = tls::raw_from_b64(in.share);
+        OPENSSL_cleanse(const_cast<char*>(in.share.data()), in.share.size());
 
         size_t submitted_shares_count = 0;
         try
@@ -748,6 +750,7 @@ namespace ccf
             errors::InternalError,
             error_msg);
         }
+        OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
         if (submitted_shares_count < g.get_recovery_threshold())
         {
