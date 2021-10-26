@@ -80,7 +80,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
     public_transaction = entry.get_public_domain()
     public_tables = public_transaction.get_tables()
     LOG.success(
-        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')})"
+        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{len(entry.get_raw_tx())} bytes]"
     )
 
     private_table_size = entry.get_private_domain_size()
@@ -115,7 +115,10 @@ def dump_entry(entry, table_filter, tables_format_rules):
 
 
 def run(args_, tables_format_rules=None):
-    parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
+    parser = argparse.ArgumentParser(
+        description="Read CCF ledger or snapshot",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "paths", help="Path to ledger directories or snapshot file", nargs="+"
     )

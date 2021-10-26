@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
+#include "ds/ccf_exception.h"
 #include "ds/json.h"
 #include "ds/logger.h"
 #include "enclave.h"
@@ -143,9 +144,29 @@ extern "C"
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
+    enclave::Enclave* enclave;
 
-    auto enclave = new enclave::Enclave(
-      ec, cc.signature_intervals, cc.consensus_config, cc.curve_id);
+    try
+    {
+      enclave = new enclave::Enclave(
+        ec, cc.signature_intervals, cc.consensus_config, cc.curve_id);
+    }
+    catch (const ccf::ccf_oe_attester_init_error&)
+    {
+      return CreateNodeStatus::OEAttesterInitFailed;
+    }
+    catch (const ccf::ccf_oe_verifier_init_error&)
+    {
+      return CreateNodeStatus::OEVerifierInitFailed;
+    }
+    catch (const ccf::ccf_openssl_rdrand_init_error&)
+    {
+      return CreateNodeStatus::OpenSSLRDRANDInitFailed;
+    }
+    catch (const std::exception&)
+    {
+      return CreateNodeStatus::EnclaveInitFailed;
+    }
 
     if (!enclave->create_new_node(
           start_type,
