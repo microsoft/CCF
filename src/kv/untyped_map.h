@@ -494,8 +494,6 @@ namespace kv::untyped
         r->state = change_set.state;
         r->version = change_set.version;
 
-        LOG_FAIL_FMT("Map name: {}", map.name);
-
         // Executing hooks from snapshot requires copying the entire snapshotted
         // state so only do it if there's a hook on the table
         if (map.hook || map.global_hook)
@@ -512,8 +510,6 @@ namespace kv::untyped
             return true;
           });
         }
-
-        LOG_FAIL_FMT("Writes of size: {}", r->writes.size());
       };
 
       ConsensusHookPtr post_commit() override
@@ -651,8 +647,7 @@ namespace kv::untyped
 
     /** Get Map replicability
      *
-     * @return true if the map is to be replicated, false if it is to be
-     * derived
+     * @return true if the map is to be replicated, false if it is to be derived
      */
     virtual bool is_replicated() override
     {
@@ -718,8 +713,8 @@ namespace kv::untyped
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       // This takes a snapshot of the state of the map at the last entry
-      // committed at or before this version. The Map expects to be locked
-      // while taking the snapshot.
+      // committed at or before this version. The Map expects to be locked while
+      // taking the snapshot.
       auto r = roll.commits->get_head();
 
       for (auto current = roll.commits->get_tail(); current != nullptr;
