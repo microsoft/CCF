@@ -1007,7 +1007,12 @@ namespace asynchost
       // Filled on construction
       Ledger* ledger;
       size_t idx;
-      consensus::LedgerRequestPurpose purpose;
+
+      // First argument is ledger entry (or nullopt if not found)
+      // Second argument is uv status code, which may indicate a cancellation
+      using ResultCallback =
+        std::function<void(std::optional<std::vector<uint8_t>>&&, int)>;
+      ResultCallback result_cb;
 
       // Final result
       std::optional<std::vector<uint8_t>> entry = std::nullopt;
@@ -1056,11 +1061,7 @@ namespace asynchost
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      if (status != UV_ECANCELED)
-      {
-        data->ledger->write_ledger_get_response(
-          data->idx, std::move(data->entry), data->purpose);
-      }
+      data->result_cb(std::move(data->entry), status);
 
       delete data;
       delete req;
@@ -1132,7 +1133,13 @@ namespace asynchost
               auto data = new AsyncLedgerGet;
               data->ledger = this;
               data->idx = idx;
-              data->purpose = purpose;
+              data->result_cb =
+                [this, idx = idx, purpose = purpose](auto&& entry, int status) {
+                  // NB: Even if status is cancelled (and entry is empty), we
+                  // want to write this result back to the ledger
+                  write_ledger_get_response(idx, std::move(entry), purpose);
+                };
+
               work_handle->data = data;
             }
 
