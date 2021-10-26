@@ -115,7 +115,10 @@ def dump_entry(entry, table_filter, tables_format_rules):
 
 
 def run(args_, tables_format_rules=None):
-    parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
+    parser = argparse.ArgumentParser(
+        description="Read CCF ledger or snapshot",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "paths", help="Path to ledger directories or snapshot file", nargs="+"
     )

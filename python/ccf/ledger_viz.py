@@ -80,10 +80,11 @@ class DefaultLiner(Liner):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Read CCF ledger or snapshot")
-    parser.add_argument(
-        "paths", help="Path to ledger directories or snapshot file", nargs="+"
+    parser = argparse.ArgumentParser(
+        description="Visualise content of CCF ledger",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("paths", help="Path to ledger directories", nargs="+")
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
