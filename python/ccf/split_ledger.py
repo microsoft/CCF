@@ -24,9 +24,18 @@ def create_new_ledger_file(directory: str) -> BinaryIO:
 
 
 def make_final_ledger_file_name(
-    start_seqno: int, end_seqno: int, is_committed: bool
+    start_seqno: int,
+    end_seqno: int,
+    is_complete: bool,
+    is_committed: bool,
 ) -> str:
-    return f'ledger_{start_seqno}-{end_seqno}{ccf.ledger.COMMITTED_FILE_SUFFIX if is_committed else ""}'
+    file_name = f"ledger_{start_seqno}"
+    if is_complete:
+        file_name += f"-{end_seqno}"
+    if is_committed:
+        assert is_complete, "All committed ledger files should be complete"
+        file_name += ccf.ledger.COMMITTED_FILE_SUFFIX
+    return file_name
 
 
 def close_ledger_file(
@@ -110,7 +119,10 @@ def run(args_):
                 ledger_file_output,
                 entry_positions,
                 make_final_ledger_file_name(
-                    first_seqno, args.seqno, is_input_file_committed
+                    first_seqno,
+                    args.seqno,
+                    is_complete=True,
+                    is_committed=is_input_file_committed,
                 ),
                 complete_file=True,
             )
@@ -128,7 +140,10 @@ def run(args_):
             ledger_file_output,
             entry_positions,
             make_final_ledger_file_name(
-                args.seqno + 1, entry_seqno, is_input_file_committed
+                args.seqno + 1,
+                entry_seqno,
+                is_complete=is_input_file_complete,
+                is_committed=is_input_file_committed,
             ),
             complete_file=is_input_file_complete,
         )
