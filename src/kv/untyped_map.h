@@ -510,7 +510,7 @@ namespace kv::untyped
             return true;
           });
         }
-      };
+      }
 
       ConsensusHookPtr post_commit() override
       {
