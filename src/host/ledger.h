@@ -1038,7 +1038,7 @@ namespace asynchost
           match = get_file_name_with_idx(dir, data->idx);
           if (match.has_value())
           {
-            matching_dirname = data->ledger->ledger_dir;
+            matching_dirname = dir;
             matching_filename = match.value();
             break;
           }
