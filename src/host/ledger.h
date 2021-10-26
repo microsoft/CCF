@@ -72,7 +72,7 @@ namespace asynchost
     return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
   }
 
-  std::optional<std::string> get_file_name_with_idx(
+  static std::optional<std::string> get_file_name_with_idx(
     const std::string& dir, size_t idx)
   {
     std::optional<std::string> match = std::nullopt;
@@ -1039,76 +1039,30 @@ namespace asynchost
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      uv_fs_t fs_req;
-      uv_dirent_t dir_ent;
-
-      std::string matching_filename;
       std::string matching_dirname;
+      std::string matching_filename;
 
+      auto match = get_file_name_with_idx(data->ledger->ledger_dir, data->idx);
+      if (match.has_value())
       {
-        // Scan the read+write ledger dir
-        int next_rc;
-        uv_fs_scandir(
-          uv_default_loop(),
-          &fs_req,
-          data->ledger->ledger_dir.c_str(),
-          O_RDONLY,
-          nullptr);
-        while ((next_rc = uv_fs_scandir_next(&fs_req, &dir_ent)) != UV_EOF)
-        {
-          if (
-            dir_ent.type == UV_DIRENT_FILE &&
-            is_ledger_file_committed(dir_ent.name))
-          {
-            const auto start_idx = get_start_idx_from_file_name(dir_ent.name);
-            const auto last_idx = get_last_idx_from_file_name(dir_ent.name);
-            if (
-              data->idx >= start_idx && last_idx.has_value() &&
-              data->idx <= last_idx.value())
-            {
-              matching_dirname = data->ledger->ledger_dir;
-              matching_filename = dir_ent.name;
-              break;
-            }
-          }
-        }
+        matching_dirname = data->ledger->ledger_dir;
+        matching_filename = match.value();
       }
-
-      if (matching_filename.empty())
+      else
       {
-        // Scan the read-only ledger dirs
         for (const auto& dir : data->ledger->read_ledger_dirs)
         {
-          int next_rc;
-          uv_fs_scandir(
-            uv_default_loop(), &fs_req, dir.c_str(), O_RDONLY, nullptr);
-          while ((next_rc = uv_fs_scandir_next(&fs_req, &dir_ent)) != UV_EOF)
+          match = get_file_name_with_idx(dir, data->idx);
+          if (match.has_value())
           {
-            if (
-              dir_ent.type == UV_DIRENT_FILE &&
-              is_ledger_file_committed(dir_ent.name))
-            {
-              const auto start_idx = get_start_idx_from_file_name(dir_ent.name);
-              const auto last_idx = get_last_idx_from_file_name(dir_ent.name);
-              if (
-                data->idx >= start_idx && last_idx.has_value() &&
-                data->idx <= last_idx.value())
-              {
-                matching_dirname = dir;
-                matching_filename = dir_ent.name;
-                break;
-              }
-            }
-          }
-
-          if (!matching_filename.empty())
-          {
+            matching_dirname = data->ledger->ledger_dir;
+            matching_filename = match.value();
             break;
           }
         }
       }
 
-      if (matching_filename.empty())
+      if (!match.has_value())
       {
         LOG_FAIL_FMT("Unable to find a file containing {}", data->idx);
         uv_cancel((uv_req_t*)req);
