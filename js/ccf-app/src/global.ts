@@ -78,9 +78,9 @@ export interface Receipt {
   signature: string;
 
   /**
-   * Hex-encoded Merkle tree root hash.
+   * Certificate of the node that signed the Merkle tree root hash.
    */
-  root: string;
+  cert: string;
 
   /**
    * Merkle tree inclusion proof as an array of ``ProofElement`` objects.

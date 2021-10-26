@@ -3,6 +3,7 @@
 #include "ds/logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
+#include "kv/test/stub_consensus.h"
 
 #include <atomic>
 #include <chrono>
@@ -13,6 +14,23 @@
 #include <thread>
 #include <vector>
 
+class SlowStubConsensus : public kv::test::StubConsensus
+{
+public:
+  using kv::test::StubConsensus::StubConsensus;
+
+  bool replicate(const kv::BatchVector& entries, ccf::View view) override
+  {
+    if (rand() % 2 == 0)
+    {
+      const auto delay = rand() % 5;
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+    }
+
+    return kv::test::StubConsensus::replicate(entries, view);
+  }
+};
+
 DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 {
   logger::config::level() = logger::INFO;
@@ -20,7 +38,6 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   // Multiple threads write random entries into random tables, and attempt to
   // commit them. A single thread continually compacts the kv to the latest
   // entry. The goal is for these commits and compactions to avoid deadlock
-  kv::Store kv_store;
 
   using MapType = kv::Map<size_t, size_t>;
   constexpr size_t max_k = 32;
@@ -28,11 +45,8 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   constexpr size_t thread_count = 16;
   std::thread tx_threads[thread_count] = {};
 
-  constexpr size_t tx_count = 100;
+  constexpr size_t tx_count = 10;
   constexpr size_t tx_size = 100;
-
-  // Keep atomic count of running threads
-  std::atomic<size_t> active_tx_threads(thread_count);
 
   struct ThreadArgs
   {
@@ -129,84 +143,99 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
     Running,
     Done
   };
-  std::atomic<CompacterState> compact_state(NotStarted);
 
   struct CompactArgs
   {
     kv::Store* kv_store;
     std::atomic<size_t>* tx_counter;
-    decltype(compact_state)* compact_state;
-  } ca{&kv_store, &active_tx_threads, &compact_state};
+    std::atomic<CompacterState>* compact_state;
+  };
 
-  // Start compact thread
+  static constexpr auto iterations = 20;
+  for (auto i = 0; i < iterations; ++i)
   {
-    compact_thread = std::thread(
-      [](void* a) {
-        auto ca = static_cast<CompactArgs*>(a);
-        auto& store = *ca->kv_store;
+    kv::Store kv_store;
+    auto consensus = std::make_shared<SlowStubConsensus>();
+    kv_store.set_consensus(consensus);
 
-        ca->compact_state->store(Running);
+    // Keep atomic count of running threads
+    std::atomic<size_t> active_tx_threads(thread_count);
 
-        while (ca->tx_counter->load() > 0)
-        {
+    // Start compact thread
+    std::atomic<CompacterState> compact_state(NotStarted);
+    CompactArgs ca{&kv_store, &active_tx_threads, &compact_state};
+    {
+      compact_thread = std::thread(
+        [](void* a) {
+          auto ca = static_cast<CompactArgs*>(a);
+          auto& store = *ca->kv_store;
+
+          ca->compact_state->store(Running);
+
+          while (ca->tx_counter->load() > 0)
+          {
+            store.compact(store.current_version());
+          }
+
+          // Ensure store is compacted one last time _after_ all threads have
+          // finished
           store.compact(store.current_version());
-        }
 
-        // Ensure store is compacted one last time _after_ all threads have
-        // finished
-        store.compact(store.current_version());
+          ca->compact_state->store(Done);
+        },
+        &ca);
+    }
 
-        ca->compact_state->store(Done);
-      },
-      &ca);
-  }
+    const auto initial_version = kv_store.compacted_version();
 
-  const auto initial_version = kv_store.compacted_version();
+    // Start tx threads
+    for (size_t i = 0u; i < thread_count; ++i)
+    {
+      args[i].kv_store = &kv_store;
+      args[i].counter = &active_tx_threads;
 
-  // Start tx threads
-  for (size_t i = 0u; i < thread_count; ++i)
-  {
-    args[i].kv_store = &kv_store;
-    args[i].counter = &active_tx_threads;
+      tx_threads[i] = std::thread(thread_fn, &args[i]);
+    }
 
-    tx_threads[i] = std::thread(thread_fn, &args[i]);
-  }
+    // Wait for the compact thread to start
+    while (compact_state.load() == NotStarted)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
-  // Wait for the compact thread to start
-  while (compact_state.load() == NotStarted)
-  {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
+    // Wait for the compact thread to finish, with an overall timeout to detect
+    // deadlock
+    using Clock = std::chrono::system_clock;
+    const auto start = Clock::now();
+    const auto timeout = std::chrono::seconds(30);
+    while (compact_state.load() == Running)
+    {
+      const auto elapsed = Clock::now() - start;
+      DOCTEST_REQUIRE(elapsed < timeout);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
-  // Wait for the compact thread to finish, with an overall timeout to detect
-  // deadlock
-  using Clock = std::chrono::system_clock;
-  const auto start = Clock::now();
-  const auto timeout = std::chrono::seconds(30);
-  while (compact_state.load() == Running)
-  {
-    const auto elapsed = Clock::now() - start;
-    DOCTEST_REQUIRE(elapsed < timeout);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
+    DOCTEST_REQUIRE(compact_state.load() == Done);
 
-  DOCTEST_REQUIRE(compact_state.load() == Done);
+    // Sanity check that all transactions were compacted
+    const auto now_compacted = kv_store.compacted_version();
+    DOCTEST_REQUIRE(now_compacted > initial_version);
+    const auto expected = initial_version + (tx_count * thread_count);
+    DOCTEST_REQUIRE(now_compacted == expected);
 
-  // Sanity check that all transactions were compacted
-  const auto now_compacted = kv_store.compacted_version();
-  DOCTEST_REQUIRE(now_compacted > initial_version);
-  const auto expected = initial_version + (tx_count * thread_count);
-  DOCTEST_REQUIRE(now_compacted == expected);
+    // Check that all transactions were passed through to consensus
+    DOCTEST_REQUIRE(consensus->number_of_replicas() == expected);
 
-  // Wait for tx threads to complete
-  for (size_t i = 0u; i < thread_count; ++i)
-  {
-    tx_threads[i].join();
-  }
+    // Wait for tx threads to complete
+    for (size_t i = 0u; i < thread_count; ++i)
+    {
+      tx_threads[i].join();
+    }
 
-  // Wait for compact thread to complete
-  {
-    compact_thread.join();
+    // Wait for compact thread to complete
+    {
+      compact_thread.join();
+    }
   }
 }
 
