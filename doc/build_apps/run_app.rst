@@ -6,7 +6,7 @@ Running CCF Applications
     - The CCF runtime environment has successfully been setup (see :doc:`/operations/run_setup`).
     - CCF is installed (see :doc:`/build_apps/install_bin`)
 
-The quickest way to start a CCF sandbox is to use the ``sandbox.sh`` script available in the CCF installation, specifying the :doc:`enclave image </build_apps/index>` to run.
+The quickest way to start a CCF sandbox is to use the ``sandbox.sh`` script available as part of the CCF install, specifying the :doc:`enclave image </build_apps/index>` to run.
 
 The script creates a new one node CCF test network running locally. All the governance requests required to open the network to users are automatically issued.
 
@@ -14,7 +14,7 @@ For example, deploying the generic JS application:
 
 .. code-block:: bash
 
-    $ /opt/ccf/bin/sandbox.sh
+    $ /opt/ccf/bin/sandbox.sh [-p libjs_generic]
     Setting up Python environment...
     Python environment successfully setup
     [16:14:05.294] Starting 1 CCF node...
