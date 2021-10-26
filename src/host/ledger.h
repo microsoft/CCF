@@ -318,22 +318,7 @@ namespace asynchost
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
     {
-      if ((idx < start_idx) || (idx > get_last_idx()))
-      {
-        return std::nullopt;
-      }
-
-      auto len = framed_entries_size(idx, idx);
-      std::vector<uint8_t> entry(len);
-      fseeko(file, positions.at(idx - start_idx), SEEK_SET);
-
-      if (fread(entry.data(), entry.size(), 1, file) != 1)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to read entry {} from file", idx));
-      }
-
-      return entry;
+      return read_framed_entries(idx, idx);
     }
 
     std::optional<std::vector<uint8_t>> read_framed_entries(
