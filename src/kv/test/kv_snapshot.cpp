@@ -223,6 +223,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   using SetWrite = MapTypes::StringSet::Write;
   std::vector<MapWrite> local_map_writes;
   std::vector<MapWrite> global_map_writes;
+
   std::vector<ValueWrite> local_value_writes;
   std::vector<ValueWrite> global_value_writes;
   std::vector<SetWrite> local_set_writes;
@@ -269,7 +270,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     }
 
     {
-      // New transaction, deleting content from the previous transaction
+      // New transaction, deleting some content from the previous transaction
       auto tx = store.create_tx();
       auto map_handle = tx.rw<MapTypes::StringString>(string_map);
       map_handle->put("baz", "baz");
@@ -324,13 +325,9 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       REQUIRE(map_handle->get("foo").has_value());
       REQUIRE(!map_handle->get("bar").has_value());
       REQUIRE(map_handle->get("baz").has_value());
-      //
       auto value_handle = tx.ro<MapTypes::StringValue>(string_value);
-      //
-      REQUIRE(value_handle->get().value() == "baz");
-      //
+      REQUIRE_EQ(value_handle->get().value(), "baz");
       auto set_handle = tx.rw<MapTypes::StringSet>(string_set);
-      //
       REQUIRE(set_handle->contains("foo"));
       REQUIRE(!set_handle->contains("bar"));
       REQUIRE(set_handle->contains("baz"));
@@ -338,24 +335,56 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 
     INFO("Verify local hook execution");
     {
-      // TODO:
-      REQUIRE_EQ(local_map_writes.size(), 1);
-      auto writes = local_map_writes.at(0);
-      REQUIRE_EQ(writes.at("foo"), "foo");
-      REQUIRE_EQ(writes.find("bar"), writes.end());
-      REQUIRE_EQ(writes.at("baz"), "baz");
+      {
+        REQUIRE_EQ(local_map_writes.size(), 1);
+        auto writes = local_map_writes.at(0);
+        REQUIRE_EQ(writes.at("foo"), "foo");
+        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        REQUIRE_EQ(writes.at("baz"), "baz");
+      }
+
+      {
+        REQUIRE_EQ(local_value_writes.size(), 1);
+        auto write = local_value_writes.at(0);
+        REQUIRE(write.has_value());
+        REQUIRE_EQ(write.value(), "baz");
+      }
+
+      {
+        REQUIRE_EQ(local_set_writes.size(), 1);
+        auto writes = local_set_writes.at(0);
+        REQUIRE(writes.at("foo").has_value());
+        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        REQUIRE(writes.at("baz").has_value());
+      }
     }
 
     INFO("Verify global hook execution after compact");
     {
       new_store.compact(snapshot_version);
 
-      // TODO:
-      REQUIRE_EQ(global_map_writes.size(), 1);
-      auto writes = global_map_writes.at(0);
-      REQUIRE_EQ(writes.at("foo"), "foo");
-      REQUIRE_EQ(writes.find("bar"), writes.end());
-      REQUIRE_EQ(writes.at("baz"), "baz");
+      {
+        REQUIRE_EQ(global_map_writes.size(), 1);
+        auto writes = global_map_writes.at(0);
+        REQUIRE_EQ(writes.at("foo"), "foo");
+        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        REQUIRE_EQ(writes.at("baz"), "baz");
+      }
+
+      {
+        REQUIRE_EQ(global_value_writes.size(), 1);
+        auto write = global_value_writes.at(0);
+        REQUIRE(write.has_value());
+        REQUIRE_EQ(write.value(), "baz");
+      }
+
+      {
+        REQUIRE_EQ(global_set_writes.size(), 1);
+        auto writes = global_set_writes.at(0);
+        REQUIRE(writes.at("foo").has_value());
+        REQUIRE(!writes.at("bar").has_value()); // Deletions are passed to hook
+        REQUIRE(writes.at("baz").has_value());
+      }
     }
   }
 
