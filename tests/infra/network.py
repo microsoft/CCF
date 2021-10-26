@@ -210,9 +210,9 @@ class Network:
         target_node=None,
         recovery=False,
         ledger_dir=None,
-        copy_ledger_read_only=True,
+        copy_ledger_read_only=False,
         read_only_ledger_dir=None,
-        from_snapshot=True,
+        from_snapshot=False,
         snapshot_dir=None,
     ):
         # Contact primary if no target node is set
@@ -225,7 +225,8 @@ class Network:
         committed_ledger_dir = read_only_ledger_dir
         current_ledger_dir = ledger_dir
 
-        if copy_ledger_read_only and read_only_ledger_dir is None:
+        # By default, only copy historical ledger if node is started from snapshot
+        if read_only_ledger_dir is None and (from_snapshot or copy_ledger_read_only):
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
                 include_read_only_dirs=True

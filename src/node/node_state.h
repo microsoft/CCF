@@ -1952,13 +1952,19 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto resharing_tracker =
-        std::make_shared<ccf::SplitIdentityResharingTracker>(
-          shared_state,
-          rpc_map,
-          node_sign_kp,
-          self_signed_node_cert,
-          endorsed_node_cert);
+      std::shared_ptr<ccf::SplitIdentityResharingTracker> resharing_tracker;
+
+      if (network.consensus_type == ConsensusType::BFT)
+      {
+        resharing_tracker =
+          std::make_shared<ccf::SplitIdentityResharingTracker>(
+            shared_state,
+            rpc_map,
+            node_sign_kp,
+            self_signed_node_cert,
+            endorsed_node_cert);
+      }
+
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 

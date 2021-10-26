@@ -152,6 +152,7 @@ def test_add_node_from_snapshot(
         copy_ledger_read_only=copy_ledger_read_only,
         target_node=target_node,
         snapshot_dir=snapshot_dir,
+        from_snapshot=True,
     )
     network.trust_node(new_node, args)
 
