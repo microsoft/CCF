@@ -8,3 +8,4 @@ sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-panels
 furo
+docutils==0.17.*
