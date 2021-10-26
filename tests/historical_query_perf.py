@@ -74,7 +74,7 @@ def test_historical_query_range(network, args):
 
     id_pattern = [id_a, id_a, id_a, id_b, id_b, id_c]
 
-    n_entries = 20000
+    n_entries = 10000
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer()
     jwt_issuer.register(network)
