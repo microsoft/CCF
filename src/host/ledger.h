@@ -17,6 +17,7 @@
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
+#include <uv.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -515,6 +516,8 @@ namespace asynchost
     size_t last_idx = 0;
     size_t committed_idx = 0;
 
+    size_t end_of_committed_files_idx = 0;
+
     // True if a new file should be created when writing an entry
     bool require_new_file;
 
@@ -670,6 +673,11 @@ namespace asynchost
           {
             last_idx = last_idx_.value();
             committed_idx = last_idx;
+
+            if (is_ledger_file_committed(f.path().filename()))
+            {
+              end_of_committed_files_idx = last_idx;
+            }
           }
         }
       }
@@ -761,10 +769,10 @@ namespace asynchost
         {
           if ((*f)->is_committed())
           {
-            committed_idx = (*f)->get_last_idx();
-            auto f_ = f;
-            f++;
-            files.erase(f_);
+            const auto f_last_idx = (*f)->get_last_idx();
+            committed_idx = f_last_idx;
+            end_of_committed_files_idx = f_last_idx;
+            f = files.erase(f);
           }
           else
           {
@@ -990,14 +998,14 @@ namespace asynchost
       {
         // Commit all previous file to their latest index while the latest
         // file is committed to the committed index
-        auto commit_idx = (it == f_to) ? idx : (*it)->get_last_idx();
+        const auto last_idx_in_file = (*it)->get_last_idx();
+        auto commit_idx = (it == f_to) ? idx : last_idx_in_file;
         if (
           (*it)->commit(commit_idx) &&
-          (it != f_to || (idx == (*it)->get_last_idx())))
+          (it != f_to || (idx == last_idx_in_file)))
         {
-          auto it_ = it;
-          it++;
-          files.erase(it_);
+          end_of_committed_files_idx = last_idx_in_file;
+          it = files.erase(it);
         }
         else
         {
@@ -1006,6 +1014,141 @@ namespace asynchost
       }
 
       committed_idx = idx;
+    }
+
+    // TODO: Move these somewhere sensible
+    bool is_in_committed_file(size_t idx)
+    {
+      return idx <= end_of_committed_files_idx;
+    }
+
+    struct AsyncLedgerGet
+    {
+      // Filled on construction
+      Ledger* ledger;
+      size_t idx;
+      consensus::LedgerRequestPurpose purpose;
+
+      // Final result
+      std::optional<std::vector<uint8_t>> entry = std::nullopt;
+    };
+
+    // TODO: Could make this wholly async. As a first pass _it_ is blocking, but
+    // runs on thread pool
+    static void on_ledger_get_async(uv_work_t* req)
+    {
+      auto data = static_cast<AsyncLedgerGet*>(req->data);
+
+      uv_fs_t fs_req;
+      uv_dirent_t dir_ent;
+
+      std::string matching_filename;
+      std::string matching_dirname;
+
+      {
+        // Scan the read+write ledger dir
+        int next_rc;
+        uv_fs_scandir(
+          uv_default_loop(),
+          &fs_req,
+          data->ledger->ledger_dir.c_str(),
+          O_RDONLY,
+          nullptr);
+        while ((next_rc = uv_fs_scandir_next(&fs_req, &dir_ent)) != UV_EOF)
+        {
+          if (
+            dir_ent.type == UV_DIRENT_FILE &&
+            is_ledger_file_committed(dir_ent.name))
+          {
+            const auto start_idx = get_start_idx_from_file_name(dir_ent.name);
+            const auto last_idx = get_last_idx_from_file_name(dir_ent.name);
+            if (
+              data->idx >= start_idx && last_idx.has_value() &&
+              data->idx <= last_idx.value())
+            {
+              matching_dirname = data->ledger->ledger_dir;
+              matching_filename = dir_ent.name;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matching_filename.empty())
+      {
+        // Scan the read-only ledger dirs
+        for (const auto& dir : data->ledger->read_ledger_dirs)
+        {
+          int next_rc;
+          uv_fs_scandir(
+            uv_default_loop(), &fs_req, dir.c_str(), O_RDONLY, nullptr);
+          while ((next_rc = uv_fs_scandir_next(&fs_req, &dir_ent)) != UV_EOF)
+          {
+            if (
+              dir_ent.type == UV_DIRENT_FILE &&
+              is_ledger_file_committed(dir_ent.name))
+            {
+              const auto start_idx = get_start_idx_from_file_name(dir_ent.name);
+              const auto last_idx = get_last_idx_from_file_name(dir_ent.name);
+              if (
+                data->idx >= start_idx && last_idx.has_value() &&
+                data->idx <= last_idx.value())
+              {
+                matching_dirname = dir;
+                matching_filename = dir_ent.name;
+                break;
+              }
+            }
+          }
+
+          if (!matching_filename.empty())
+          {
+            break;
+          }
+        }
+      }
+
+      if (matching_filename.empty())
+      {
+        LOG_FAIL_FMT("Unable to find a file containing {}", data->idx);
+        uv_cancel((uv_req_t*)req);
+      }
+      else
+      {
+        LedgerFile lf(matching_dirname, matching_filename);
+        data->entry = lf.read_entry(data->idx);
+      }
+    }
+
+    static void on_ledger_get_async_complete(uv_work_t* req, int status)
+    {
+      auto data = static_cast<AsyncLedgerGet*>(req->data);
+
+      if (status != UV_ECANCELED)
+      {
+        data->ledger->write_ledger_get_response(
+          data->idx, std::move(data->entry), data->purpose);
+      }
+
+      delete data;
+      delete req;
+    }
+
+    void write_ledger_get_response(
+      size_t idx,
+      std::optional<std::vector<uint8_t>>&& entry,
+      consensus::LedgerRequestPurpose purpose)
+    {
+      if (entry.has_value())
+      {
+        RINGBUFFER_WRITE_MESSAGE(
+          consensus::ledger_entry, to_enclave, idx, purpose, entry.value());
+      }
+      else
+      {
+        RINGBUFFER_WRITE_MESSAGE(
+          consensus::ledger_no_entry, to_enclave, idx, purpose);
+      }
     }
 
     void register_message_handlers(
@@ -1047,17 +1190,31 @@ namespace asynchost
           auto [idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get>(data, size);
 
-          auto entry = read_entry(idx);
-
-          if (entry.has_value())
+          if (is_in_committed_file(idx))
           {
-            RINGBUFFER_WRITE_MESSAGE(
-              consensus::ledger_entry, to_enclave, idx, purpose, entry.value());
+            // Start an asynchronous job to do this, since it is committed and
+            // can be accessed independently (and in parallel)
+            uv_work_t* work_handle = new uv_work_t;
+
+            {
+              auto data = new AsyncLedgerGet;
+              data->ledger = this;
+              data->idx = idx;
+              data->purpose = purpose;
+              work_handle->data = data;
+            }
+
+            uv_queue_work(
+              uv_default_loop(),
+              work_handle,
+              &on_ledger_get_async,
+              &on_ledger_get_async_complete);
           }
           else
           {
-            RINGBUFFER_WRITE_MESSAGE(
-              consensus::ledger_no_entry, to_enclave, idx, purpose);
+            // Read synchronously, since this accesses uncommitted state and
+            // must accurately reflect changing files
+            write_ledger_get_response(idx, read_entry(idx), purpose);
           }
         });
     }
