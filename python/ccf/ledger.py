@@ -562,7 +562,6 @@ class Transaction(Entry):
         self._pos_offset = int.from_bytes(
             _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
         )
-        self._file_size = self._pos_offset
         # If the ledger chunk is not yet committed, the ledger header will be empty.
         # Default to reading the file size instead.
         self._file_size = (
