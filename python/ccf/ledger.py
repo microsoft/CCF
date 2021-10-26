@@ -559,13 +559,14 @@ class Transaction(Entry):
         super().__init__(filename)
         self._ledger_validator = ledger_validator
 
-        self._file_size = int.from_bytes(
+        self._pos_offset = int.from_bytes(
             _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
         )
         # If the ledger chunk is not yet committed, the ledger header will be empty.
         # Default to reading the file size instead.
-        if self._file_size == 0:
-            self._file_size = os.path.getsize(filename)
+        self._file_size = (
+            self._pos_offset if self._pos_offset > 0 else os.path.getsize(filename)
+        )
 
     def _read_header(self):
         self._tx_offset = self._file.tell()
@@ -605,7 +606,8 @@ class Transaction(Entry):
         # Adds every transaction to the ledger validator
         # LedgerValidator does verification for every added transaction
         # and throws when it finds any anomaly.
-        self._ledger_validator.add_transaction(self)
+        if self._ledger_validator is not None:
+            self._ledger_validator.add_transaction(self)
 
         return self
 
@@ -656,11 +658,12 @@ class LedgerChunk:
 
     _current_tx: Transaction
     _filename: str
-    _ledger_validator: LedgerValidator
+    _ledger_validator: Optional[LedgerValidator] = None
 
-    def __init__(self, name: str, ledger_validator: LedgerValidator):
+    def __init__(self, name: str, ledger_validator: Optional[LedgerValidator] = None):
         self._ledger_validator = ledger_validator
         self._current_tx = Transaction(name, ledger_validator)
+        self._pos_offset = self._current_tx._pos_offset
         self._filename = name
 
     def __next__(self) -> Transaction:
@@ -674,6 +677,9 @@ class LedgerChunk:
 
     def is_committed(self):
         return is_ledger_chunk_committed(self._filename)
+
+    def is_complete(self):
+        return self._pos_offset > 0
 
 
 class Ledger:
