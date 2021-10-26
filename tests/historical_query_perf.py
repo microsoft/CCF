@@ -7,8 +7,60 @@ import ccf.commit
 import http
 from e2e_logging import get_all_entries
 import cimetrics.upload
+import threading
+import time
+import statistics
 
 from loguru import logger as LOG
+
+
+def steady_submit(primary, id, shutdown_event, active_event):
+    durations = []
+
+    is_active = False
+
+    def print_stats():
+        LOG.warning(
+            f"Submitted {len(durations)} requests ({'ACTIVE' if is_active else 'INACTIVE'})"
+        )
+        LOG.warning(f"Duration:")
+        LOG.warning(f"  mean={statistics.mean(durations):.03f}s")
+        LOG.warning(f"  std dev={statistics.pstdev(durations):.03f}s")
+        LOG.warning(f"  min={min(durations):.03f}s")
+        LOG.warning(f"  max={max(durations):.03f}s")
+        percentiles = statistics.quantiles(durations, n=100, method="inclusive")
+        # TODO: What am I missing here? Why the off-by-one?
+        LOG.warning(
+            f"  50%={percentiles[49]:.03f}s, 90%={percentiles[89]:.03f}s, 95%={percentiles[94]:.03f}s, 99%={percentiles[98]:.03f}s"
+        )
+
+    with primary.client("user0") as c:
+        i = 0
+        last_print = time.time()
+        while not shutdown_event.is_set():
+            if not is_active and active_event.is_set():
+                print_stats()
+                is_active = True
+                durations.clear()
+            start = time.time()
+            r = c.post(
+                "/app/log/private",
+                {
+                    "id": id,
+                    "msg": f"Message {i}",
+                },
+                log_capture=[],
+            )
+            end = time.time()
+            assert r.status_code == http.HTTPStatus.OK
+            i += 1
+            durations.append(end - start)
+            if end - last_print > 10:
+                last_print = time.time()
+                print_stats()
+            time.sleep(0.01)
+
+    print_stats()
 
 
 def test_historical_query_range(network, args):
@@ -22,13 +74,22 @@ def test_historical_query_range(network, args):
 
     id_pattern = [id_a, id_a, id_a, id_b, id_b, id_c]
 
-    n_entries = 10000
+    n_entries = 20000
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer()
     jwt_issuer.register(network)
     jwt = jwt_issuer.issue_jwt()
 
     primary, _ = network.find_primary()
+
+    id_submit = 100
+    shutdown_event = threading.Event()
+    active_event = threading.Event()
+    submitter_thread = threading.Thread(
+        target=steady_submit, args=(primary, id_submit, shutdown_event, active_event)
+    )
+    submitter_thread.start()
+
     with primary.client("user0") as c:
         # Submit many transactions, overwriting the same IDs
         msgs = {}
@@ -78,12 +139,17 @@ def test_historical_query_range(network, args):
     # Ensure all nodes have reached committed state before querying a backup for historical state
     network.wait_for_all_nodes_to_commit(primary=primary)
 
+    active_event.set()
+
     entries = {}
     node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
     with node.client(common_headers={"authorization": f"Bearer {jwt}"}) as c:
         entries[id_a], duration_a = get_all_entries(c, id_a, timeout=timeout)
         entries[id_b], duration_b = get_all_entries(c, id_b, timeout=timeout)
         entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
+
+    shutdown_event.set()
+    submitter_thread.join()
 
     id_a_fetch_rate = len(entries[id_a]) / duration_a
     id_b_fetch_rate = len(entries[id_b]) / duration_b
