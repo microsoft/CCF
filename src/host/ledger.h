@@ -1016,7 +1016,6 @@ namespace asynchost
       committed_idx = idx;
     }
 
-    // TODO: Move these somewhere sensible
     bool is_in_committed_file(size_t idx)
     {
       return idx <= end_of_committed_files_idx;
@@ -1033,8 +1032,6 @@ namespace asynchost
       std::optional<std::vector<uint8_t>> entry = std::nullopt;
     };
 
-    // TODO: Could make this wholly async. As a first pass _it_ is blocking, but
-    // runs on thread pool
     static void on_ledger_get_async(uv_work_t* req)
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
