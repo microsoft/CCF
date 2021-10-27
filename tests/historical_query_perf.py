@@ -13,7 +13,7 @@ from loguru import logger as LOG
 
 
 def submit_range(primary, id_pattern, start, end):
-    LOG.warning(f"Starting submission of {start} to {end}")
+    LOG.info(f"Starting submission of {start} to {end}")
 
     def id_for(i):
         return id_pattern[i % len(id_pattern)]
