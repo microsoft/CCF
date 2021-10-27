@@ -1673,23 +1673,41 @@ TEST_CASE("Local commit hooks")
 
   INFO("Write with hooks");
   {
-    auto tx = kv_store.create_tx();
-    auto handle = tx.rw(map);
-    handle->put("key1", "value1");
-    handle->put("key2", "value2");
-    handle->remove("key2");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put("key1", "value1");
+      handle->put("key2", "value2");
+      handle->remove("key2");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-    REQUIRE(global_writes.size() == 0);
-    REQUIRE(local_writes.size() == 1);
-    const auto& latest_writes = local_writes.front();
-    REQUIRE(latest_writes.at("key1").has_value());
-    REQUIRE(latest_writes.at("key1").value() == "value1");
-    INFO("Local removals are not seen");
-    REQUIRE(latest_writes.find("key2") == latest_writes.end());
-    REQUIRE(latest_writes.size() == 1);
+      REQUIRE(global_writes.size() == 0);
+      REQUIRE(local_writes.size() == 1);
+      const auto& latest_writes = local_writes.back();
+      REQUIRE(latest_writes.at("key1").has_value());
+      REQUIRE(latest_writes.at("key1").value() == "value1");
+      INFO("Local removals are not seen");
+      REQUIRE(latest_writes.find("key2") == latest_writes.end());
+      REQUIRE(latest_writes.size() == 1);
+      local_writes.clear();
+    }
 
-    local_writes.clear();
+    {
+      REQUIRE(local_writes.size() == 0);
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->remove("key1");
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+      REQUIRE(global_writes.size() == 0);
+      REQUIRE(local_writes.size() == 1);
+      const auto& latest_writes = local_writes.back();
+      INFO("Removals are seen");
+      REQUIRE(latest_writes.find("key1") != latest_writes.end());
+      REQUIRE(latest_writes.at("key1") == std::nullopt);
+
+      local_writes.clear();
+    }
   }
 
   INFO("Write without hooks");
