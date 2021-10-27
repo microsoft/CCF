@@ -313,9 +313,7 @@ class Consortium:
                     try:
                         r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
                         status = r.body.json()["status"]
-                        if status == NodeStatus.RETIRED.value:
-                            break
-                    except:
+                    except Exception:
                         pass
                     time.sleep(1.0)
                 if status == NodeStatus.RETIRING.value:
@@ -344,11 +342,18 @@ class Consortium:
             timeout=timeout,
         )
 
-        if not self._check_node_exists(
-            remote_node, node_id, NodeStatus.LEARNER
-        ) and not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
+        is_trusted = self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED)
+
+        if self.reconfiguration_type == "2tx":
+            if not is_trusted and not self._check_node_exists(
+                remote_node, node_id, NodeStatus.LEARNER
+            ):
+                raise ValueError(
+                    f"Node {node_id} does not exist in state {NodeStatus.TRUSTED} or {NodeStatus.LEARNER}"
+                )
+        elif not is_trusted:
             raise ValueError(
-                f"Node {node_id} does not exist in state {NodeStatus.TRUSTED} or {NodeStatus.LEARNER}"
+                f"Node {node_id} does not exist in state {NodeStatus.TRUSTED}"
             )
 
     def remove_member(self, remote_node, member_to_remove):

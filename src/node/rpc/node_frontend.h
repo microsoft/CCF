@@ -1410,7 +1410,7 @@ namespace ccf
           });
         }
 
-        return make_success();
+        return make_success(true);
       };
 
       make_endpoint(
