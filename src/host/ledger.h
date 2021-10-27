@@ -121,6 +121,7 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file = nullptr;
+    std::mutex file_lock;
 
     size_t start_idx = 1;
     size_t total_len = 0;
@@ -317,7 +318,7 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_framed_entries(
-      size_t from, size_t to) const
+      size_t from, size_t to)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
@@ -325,6 +326,7 @@ namespace asynchost
         return std::nullopt;
       }
 
+      std::unique_lock<std::mutex> guard(file_lock);
       auto framed_size = framed_entries_size(from, to);
       std::vector<uint8_t> framed_entries(framed_size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
@@ -491,6 +493,7 @@ namespace asynchost
     // Cache of ledger files for reading
     size_t max_read_cache_files;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
+    std::mutex read_cache_lock;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
@@ -526,12 +529,16 @@ namespace asynchost
         return nullptr;
       }
 
-      // First, try to find file from read cache
-      for (auto const& f : files_read_cache)
       {
-        if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
+        std::unique_lock<std::mutex> guard(read_cache_lock);
+
+        // First, try to find file from read cache
+        for (auto const& f : files_read_cache)
         {
-          return f;
+          if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
+          {
+            return f;
+          }
         }
       }
 
@@ -565,10 +572,15 @@ namespace asynchost
       // the read cache is full
       auto match_file =
         std::make_shared<LedgerFile>(ledger_dir_, match.value());
-      files_read_cache.emplace_back(match_file);
-      if (files_read_cache.size() > max_read_cache_files)
+
       {
-        files_read_cache.erase(files_read_cache.begin());
+        std::unique_lock<std::mutex> guard(read_cache_lock);
+
+        files_read_cache.emplace_back(match_file);
+        if (files_read_cache.size() > max_read_cache_files)
+        {
+          files_read_cache.erase(files_read_cache.begin());
+        }
       }
 
       return match_file;
@@ -754,7 +766,8 @@ namespace asynchost
         if (files.empty())
         {
           LOG_INFO_FMT(
-            "Main ledger directory \"{}\" is empty: no ledger file to recover",
+            "Main ledger directory \"{}\" is empty: no ledger file to "
+            "recover",
             ledger_dir);
           require_new_file = true;
           return;
@@ -827,12 +840,12 @@ namespace asynchost
       TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
 
       // Used to initialise the ledger when starting from a non-empty state,
-      // i.e. snapshot. It is assumed that idx is included in a committed ledger
-      // file
+      // i.e. snapshot. It is assumed that idx is included in a committed
+      // ledger file
 
-      // As it is possible that some ledger files containing indices later than
-      // snapshot index already exist (e.g. to verify the snapshot evidence),
-      // delete those so that ledger can restart neatly.
+      // As it is possible that some ledger files containing indices later
+      // than snapshot index already exist (e.g. to verify the snapshot
+      // evidence), delete those so that ledger can restart neatly.
       bool has_deleted = false;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
@@ -937,8 +950,8 @@ namespace asynchost
 
       for (auto it = f_from; it != f_end;)
       {
-        // Truncate the first file to the truncation index while the more recent
-        // files are deleted entirely
+        // Truncate the first file to the truncation index while the more
+        // recent files are deleted entirely
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
         if ((*it)->truncate(truncate_idx))
         {
@@ -1022,38 +1035,15 @@ namespace asynchost
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      std::string matching_dirname;
-      std::string matching_filename;
-
-      auto match = get_file_name_with_idx(data->ledger->ledger_dir, data->idx);
-      if (match.has_value())
-      {
-        matching_dirname = data->ledger->ledger_dir;
-        matching_filename = match.value();
-      }
-      else
-      {
-        for (const auto& dir : data->ledger->read_ledger_dirs)
-        {
-          match = get_file_name_with_idx(dir, data->idx);
-          if (match.has_value())
-          {
-            matching_dirname = dir;
-            matching_filename = match.value();
-            break;
-          }
-        }
-      }
-
-      if (!match.has_value())
+      auto lf = data->ledger->get_file_from_cache(data->idx);
+      if (lf == nullptr)
       {
         LOG_FAIL_FMT("Unable to find a file containing {}", data->idx);
         uv_cancel((uv_req_t*)req);
       }
       else
       {
-        LedgerFile lf(matching_dirname, matching_filename);
-        data->entry = lf.read_framed_entries(data->idx, data->idx);
+        data->entry = lf->read_framed_entries(data->idx, data->idx);
       }
     }
 
