@@ -686,7 +686,9 @@ namespace asynchost
         for (auto const& f : fs::directory_iterator(read_dir))
         {
           auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
-          if (!last_idx_.has_value())
+          if (
+            !last_idx_.has_value() ||
+            !is_ledger_file_committed(f.path().filename()))
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
@@ -698,11 +700,7 @@ namespace asynchost
           {
             last_idx = last_idx_.value();
             committed_idx = last_idx;
-
-            if (is_ledger_file_committed(f.path().filename()))
-            {
-              end_of_committed_files_idx = last_idx;
-            }
+            end_of_committed_files_idx = last_idx;
           }
         }
       }
@@ -1126,7 +1124,7 @@ namespace asynchost
               data->result_cb =
                 [this, idx = idx, purpose = purpose](auto&& entry, int status) {
                   // NB: Even if status is cancelled (and entry is empty), we
-                  // want to write this result back to the ledger
+                  // want to write this result back to the enclave
                   write_ledger_get_response(idx, std::move(entry), purpose);
                 };
 
