@@ -9,9 +9,9 @@ The recovery procedure consists of two phases:
 
 2. After agreeing that the configuration of the new network is suitable, members should vote to accept to recover the network and once this is done, submit their recovery shares to initiate the end of the recovery procedure. See :ref:`here <governance/accept_recovery:Accepting Recovery and Submitting Shares>` for more details.
 
-.. note:: It is possible that the length of the ledgers of each node may differ slightly since some transactions may not have yet been fully replicated. It is preferable to use the ledger of the primary node before the service crashed.
+.. note:: Before attempting to recover a network, it is recommended to make a copy of all available ledger and snapshot files.
 
-.. note:: Before attempting to recover a network, it is recommended to make a copy of all available ledgers.
+.. tip:: See :ref:`build_apps/run_app:Sandbox recovery` for an example of the recovery procedure using the CCF sandbox.
 
 Establishing a Recovered Public Network
 ---------------------------------------
@@ -26,9 +26,17 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
     --rpc-address <ccf-node-address>
     --public-rpc-address <ccf-node-public-address>
     --ledger-dir /path/to/ledger/dir/to/recover
+    [--snapshot-dir /path/to/ledger/dir]
+    [--read-only-ledger-dir /path/to/read/only/ledger/dir]
     --node-cert-file /path/to/node_certificate
     recover
     --network-cert-file /path/to/network_certificate
+
+Each node will then immediately restore the public entries of its ledger (``--ledger-dir`` and ``--read-only-ledger-dir``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``GET /node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+
+The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``--snapshot-dir`` parameter. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
+
+The state machine for the ``recover`` node is as follows:
 
 .. mermaid::
 
@@ -39,7 +47,13 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
         PartOfPublicNetwork-- member shares reassembly -->ReadingPrivateLedger;
         ReadingPrivateLedger-->PartOfNetwork;
 
-Each node will then immediately restore the public entries of its ledger (``--ledger-dir``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``/node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+.. note:: It is possible that the length of the ledgers of each node may differ slightly since some transactions may not have yet been fully replicated. It is preferable to use the ledger of the primary node before the service crashed. If the latest primary node of the defunct service is not known, it is recommended to `concurrently` start as many nodes as previous existed in ``recover`` mode, each recovering one ledger of each defunct node. Once all nodes have completed the public recovery procedure, operators can query the highest recovered signed seqno (as per the response to the ``GET /node/state`` endpoint) and select this ledger to recover the service. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
+
+Similarly to the normal join protocol (see :ref:`operations/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
+
+.. warning:: After recovery, the identity of the network has changed. The new network certificate ``networkcert.pem`` must be distributed to all existing and new users.
+
+The state machine for the ``join`` node is as follows:
 
 .. mermaid::
 
@@ -47,43 +61,52 @@ Each node will then immediately restore the public entries of its ledger (``--le
         Uninitialized-- config -->Initialized;
         Initialized-- join from snapshot -->VerifyingSnapshot;
         VerifyingSnapshot-->Pending;
-        Initialized-- join -->Pending;
+        Initialized-- join without snapshot -->Pending;
         Pending-- poll status -->Pending;
         Pending-- trusted -->PartOfPublicNetwork;
 
-.. note:: If more than one node were started in ``recover`` mode, the node with the highest signed sequence number (as per the response to the ``/node/state`` RPC) should be preferred to start the new network. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
-
-Similarly to the normal join protocol (see :ref:`operations/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
+Summary Diagram
+---------------
 
 .. mermaid::
 
     sequenceDiagram
         participant Operators
+        participant Node 0
+        participant Node 1
         participant Node 2
-        participant Node 3
 
-        Operators->>+Node 2: cchost --rpc-address=ip2:port2 --ledger-dir=./ledger recover
-        Node 2-->>Operators: Network Certificate
-        Note over Node 2: Reading Public Ledger...
+        Operators->>+Node 0: cchost --ledger-dir=./ledger recover
+        Node 0-->>Operators: Network Certificate 0
+        Note over Node 0: Reading Public Ledger...
 
-        Operators->>+Node 2: /node/state
-        Node 2-->>Operators: {"last_signed_seqno": 50, "state": "readingPublicLedger"}
-        Note over Node 2: Finished Reading Public Ledger, now Part of Public Network
-        Operators->>Node 2: /node/state
-        Node 2-->>Operators: {"last_signed_seqno": 243, "state": "partOfPublicNetwork"}
+        Operators->>+Node 1: cchost --ledger-dir=./ledger recover
+        Node 1-->>Operators: Network Certificate 1
+        Note over Node 1: Reading Public Ledger...
 
-        Note over Operators, Node 2: Operators select Node 2 to start the new network
+        Operators->>+Node 0: GET /node/state
+        Node 0-->>Operators: {"last_signed_seqno": 50, "state": "readingPublicLedger"}
+        Note over Node 0: Finished Reading Public Ledger, now Part of Public Network
+        Operators->>Node 0: GET /node/state
+        Node 0-->>Operators: {"last_signed_seqno": 243, "state": "partOfPublicNetwork"}
 
-        Operators->>+Node 3: cchost join --network-cert-file=Network Certificate --target-rpc-address=ip2:port2
-        Node 3->>+Node 2: Join network (over TLS)
-        Node 2-->>Node 3: Join network response
+        Operators->>+Node 1: GET /node/state
+        Node 1-->>Operators: {"last_signed_seqno": 36, "state": "readingPublicLedger"}
+        Note over Node 1: Finished Reading Public Ledger, now Part of Public Network
+        Operators->>Node 1: GET /node/state
+        Node 1-->>Operators: {"last_signed_seqno": 203, "state": "partOfPublicNetwork"}
 
-        Note over Node 3: Part of Public Network
+        Note over Operators, Node 1: Operators select Node 0 to start the new network (243 > 203)
 
-Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
+        Operators->>+Node 1: cchost shutdown
 
-.. warning:: After recovery, the identity of the network has changed. The new network certificate ``networkcert.pem`` must be distributed to all existing and new users.
+        Operators->>+Node 2: cchost join --network-cert-file=Network Certificate 0 --target-rpc-address=<Node 0 RPC>
+        Node 2->>+Node 0: Join network (over TLS)
+        Node 0-->>Node 2: Join network response
+        Note over Node 2: Part of Public Network
+
+Once operators have established a recovered crash-fault tolerant public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
 .. rubric:: Footnotes
 
-.. [#crash] When using CFT as consensus algorithm, CCF tolerates up to `N/2 - 1` crashed nodes (where `N` is the number of nodes constituting the network) before having to perform the recovery procedure. For example, in a 5-node network, no more than 2 nodes are allowed to fail.
+.. [#crash] When using CFT as consensus algorithm, CCF tolerates up to `N/2 - 1` crashed nodes (where `N` is the number of trusted nodes constituting the network) before having to perform a recovery procedure. For example, in a 5-node network, no more than 2 nodes are allowed to fail for the service to be able to commit new transactions.

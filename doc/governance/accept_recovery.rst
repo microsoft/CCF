@@ -3,8 +3,6 @@ Accepting Recovery and Submitting Shares
 
 .. note:: Before members can initiate the end of the recovery procedure, operators should have started a new network and recovered all public transactions. See :ref:`details for public recovery operator procedure <operations/recovery:Establishing a Recovered Public Network>`.
 
-.. note:: See :ref:`build_apps/run_app:Recovering a Service` for an automated way to recover a defunct CCF service.
-
 Accepting Recovery
 ------------------
 
@@ -57,7 +55,9 @@ To restore private transactions and complete the recovery procedure, recovery me
 
 .. note:: The recovery members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 
-The recovery share retrieval, decryption and submission steps are conveniently performed by the ``submit_recovery_share.sh`` script as follows:
+Member recovery shares are stored in the ledger, encrypted with each member's public encryption key. Members can retrieve their encrypted recovery shares from the public-only service via the ``GET /gov/recovery_share`` endpoint, perform the share decryption securely (see for example :doc:`hsm_keys`) and submit the decrypted recovery share via the ``POST /gov/recovery_share`` endpoint.
+
+The recovery share retrieval, decryption and submission steps can be conveniently performed in one step using the ``submit_recovery_share.sh`` script:
 
 .. code-block:: bash
 
@@ -75,7 +75,7 @@ The recovery share retrieval, decryption and submission steps are conveniently p
     x-ms-ccf-transaction-id: 4.30
     2/2 recovery shares successfully submitted. End of recovery procedure initiated.
 
-When the recovery threshold is reached, the ``POST /gov/recovery_share`` RPC returns that the end of the recovery procedure is initiated and the private ledger is now being recovered.
+When the recovery threshold is reached, the ``POST /gov/recovery_share`` endpoint signals that the end of the recovery procedure is initiated and the that private ledger is now being recovered. Operators and members can monitor the progress of the private recovery process via the ``GET /node/state`` endpoint.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
@@ -101,19 +101,19 @@ Summary Diagram
         Node 2-->>Member 0: Proposal ID
         Member 1->>+Node 2: Vote for Proposal ID
         Node 2-->>Member 1: State: Accepted
-        Note over Node 2, Node 3: transition_service_to_open proposal completes. Service is ready to accept recovery shares.
+        Note over Node 2, Node 3: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
 
         Member 0->>+Node 2: GET /gov/recovery_share
         Node 2-->>Member 0: Encrypted recovery share for Member 0
         Note over Member 0: Decrypts recovery share
         Member 0->>+Node 2: POST /gov/recovery_share: "<recovery_share_0>"
-        Node 2-->>Member 0: False
+        Node 2-->>Member 0: 1/2 recovery shares successfully submitted.
 
         Member 1->>+Node 2: GET /gov/recovery_share
         Node 2-->>Member 1: Encrypted recovery share for Member 1
         Note over Member 1: Decrypts recovery share
         Member 1->>+Node 2: POST /gov/recovery_share: "<recovery_share_1>"
-        Node 2-->>Member 1: True
+        Node 2-->>Member 1: End of recovery procedure initiated.
 
         Note over Node 2, Node 3: Reading Private Ledger...
 
