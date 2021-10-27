@@ -1051,6 +1051,7 @@ namespace aft
           execution_backlog.empty(), "No message should be run asynchronously");
       }
     }
+
     void periodic(std::chrono::milliseconds elapsed)
     {
       {
@@ -2984,6 +2985,7 @@ namespace aft
         replica_state != kv::ReplicaState::Learner;
     }
 
+  public:
     // Called when a replica becomes aware of the existence of a new term
     // If retired already, state remains unchanged, but the replica otherwise
     // becomes a follower in the new term.
@@ -3018,6 +3020,7 @@ namespace aft
       }
     }
 
+  private:
     void become_retiring()
     {
       assert(use_two_tx_reconfig);
@@ -3402,6 +3405,7 @@ namespace aft
       }
     }
 
+  public:
     void rollback(Index idx)
     {
       if (
@@ -3475,6 +3479,7 @@ namespace aft
       }
     }
 
+  private:
     void create_and_remove_node_state()
     {
       // Find all nodes present in any active configuration.

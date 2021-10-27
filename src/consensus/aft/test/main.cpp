@@ -640,6 +640,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     request_timeout,
     ms(100),
     ms(1000));
+  auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -676,7 +677,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     auto data_1 = std::make_shared<std::vector<uint8_t>>(first_entry);
     std::vector<uint8_t> second_entry = {2, 2, 2};
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
@@ -700,7 +700,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
@@ -732,7 +731,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(request_timeout);
@@ -746,7 +744,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(request_timeout);
@@ -768,6 +765,64 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 5);
     DOCTEST_REQUIRE(r1.ledger->skip_count == 2);
+  }
+
+  DOCTEST_INFO("Receive a maliciously crafted cross-view AppendEntries");
+  {
+    {
+      std::vector<uint8_t> entry_6 = {6, 6, 6};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_6);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{6, data, true, hooks}}, 1));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 6);
+    }
+
+    std::vector<uint8_t> dead_branch;
+    {
+      std::vector<uint8_t> entry_7 = {7, 7, 7};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_7);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 1));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
+      dead_branch = r0.ledger->ledger[6];
+    }
+
+    {
+      r0.rollback(6);
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 6);
+
+      // How do we force Raft to increment its view? Currently by hacking to
+      // follower then force_become_leader. There should be a neater way to do
+      // this.
+      r0.become_aware_of_new_term(2);
+      r0.force_become_leader(); // The term actually jumps by 2 in this
+                                // function. Oh well, what can you do
+    }
+
+    {
+      std::vector<uint8_t> entry_7b = {7, 7, 'b'};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_7b);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 4));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
+    }
+
+    {
+      std::vector<uint8_t> entry_8 = {8, 8, 8};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_8);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{8, data, true, hooks}}, 4));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 8);
+    }
+
+    {
+      // But now a malicious host fiddles with the ledger, but inserts a valid
+      // value from an old branch!
+      // r0.ledger->ledger[6] = dead_branch;
+    }
+
+    {
+      r0.periodic(request_timeout);
+      DOCTEST_REQUIRE(r0c->messages.size() == 2);
+      DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
+      DOCTEST_REQUIRE(r1.ledger->ledger.size() == 8);
+    }
   }
 }
 
