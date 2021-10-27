@@ -44,6 +44,8 @@ export const getStateRange = ccf.historical.getStateRange.bind(ccf.historical);
 /**
  * @inheritDoc CCFHistorical.dropCachedStateRange
  */
-export const dropCachedStates = ccf.historical.dropCachedStates.bind(ccf.historical);
+export const dropCachedStates = ccf.historical.dropCachedStates.bind(
+  ccf.historical
+);
 
 export { HistoricalState, Receipt, Proof, ProofElement } from "./global";
