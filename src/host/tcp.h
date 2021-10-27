@@ -193,7 +193,7 @@ namespace asynchost
         }
         else
         {
-          resolve(this->host, this->service, false);
+          resolve(this->host, this->service, true);
         }
       }
     }
@@ -254,7 +254,7 @@ namespace asynchost
       else
       {
         assert_status(FRESH, CONNECTING_RESOLVING);
-        return resolve(host, service, false);
+        return resolve(host, service, true);
       }
 
       return true;
@@ -277,7 +277,7 @@ namespace asynchost
           // Try again, starting with DNS.
           LOG_DEBUG_FMT("Reconnect from DNS");
           status = CONNECTING_RESOLVING;
-          return resolve(host, service, false);
+          return resolve(host, service, true);
         }
 
         case DISCONNECTED:
