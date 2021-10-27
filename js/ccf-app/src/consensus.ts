@@ -15,16 +15,16 @@ import { ccf } from "./global.js";
 /**
  * @inheritDoc CCFConsensus.getLastCommittedTxId;
  */
-export const getLastCommittedTxId = ccf.consensus.getLastCommittedTxId;
+export const getLastCommittedTxId = ccf.consensus.getLastCommittedTxId.bind(ccf.consensus);
 
 /**
  * @inheritDoc CCFConsensus.getStatusForTxId;
  */
-export const getStatusForTxId = ccf.consensus.getStatusForTxId;
+export const getStatusForTxId = ccf.consensus.getStatusForTxId.bind(ccf.consensus);
 
 /**
  * @inheritDoc CCFConsensus.getViewForSeqno;
  */
-export const getViewForSeqno = ccf.consensus.getViewForSeqno;
+export const getViewForSeqno = ccf.consensus.getViewForSeqno.bind(ccf.consensus);
 
 export { TransactionStatus } from "./global";
