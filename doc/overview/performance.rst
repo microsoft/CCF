@@ -103,42 +103,4 @@ The end-to-end service performance tests can also be from the CCF build director
 
 Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The python test wrappers will print summary statistics including a transaction rate histogram when the test completes. These statistics can be retrieved from any CCF service via the ``getMetrics`` RPC.
 
-For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script which produces plots from this data:
-
-.. code-block:: bash
-
-    cd build
-    python ../samples/scripts/plot_tx_times.py --save-to perf_plot.png single client_0_test_sent.csv client_0_test_recv.csv
-
-The following plot was produced by this script, showing 1,000 transactions sent to the `SmallBank`_ sample application:
-
-.. image:: ../img/1k_unsigned.png
-
-This displays several things:
-
-    * The latency of each request (on the left y-axis), ie the delay between a request being sent and the corresponding response received, distinguishing
-
-        * the business transactions sent to SmallBank application (green dots)
-        * the generic ``commit`` requests used to poll for global commit synchronisation (red dots)
-
-    * The progress of the CCF commit version (on the right axis), showing both
-
-        * the receiving node's locally committed version (blue line)
-        * the highest version agreed by the global consensus across the service (orange line)
-
-This shows a healthy service. Response latencies are stable, the local version increases steadily, and the global commit correctly catches up shortly afterwards. Note that the node's local version increments with each processed write transaction but the global commit only changes after longer intervals, increasing in larger steps. The additional delay is from the roundtrip communications required by the consensus protocol, while the step-size is due to the consensus working over `batches` of transactions rather than executing for each transaction individually - in this case the service has batched the first 500 transactions, incrementing the global version to 500.
-
-.. note:: This is an idealised test; the client is sending one transaction at a time to measure minimum latency, the transaction logic is simple, the client is communicating with a local node. This is used to establish an `upper limit` on possible performance.
-
-This can give a direct A/B comparison of various changes. For example, if each request is signed from the client:
-
-.. image:: ../img/1k_signed.png
-
-Since CCF verifies the signature on every transaction, the per-request time has increased by approximately 3X (verification is very expensive relative to the simple business logic in SmallBank).
-
-These plots can also be used over longer tests to gauge outlier severity and frequency, and ensure global commit never lags significantly behind local commit. If the number of requests is increased to 200,000:
-
-.. image:: ../img/200k_unsigned.png
-.. image:: ../img/200k_signed.png
-
-.. _SmallBank: https://github.com/microsoft/CCF/tree/main/samples/apps/smallbank
+For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script which produces plots from this data.
