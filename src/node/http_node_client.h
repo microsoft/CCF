@@ -23,7 +23,7 @@ namespace ccf
 
     virtual ~HTTPNodeClient() {}
 
-    inline bool make_request(http::Request& request, bool no_content_ok = false)
+    inline bool make_request(http::Request& request)
     {
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
@@ -82,7 +82,7 @@ namespace ccf
 
       auto body = serdes::pack(ps, serdes::Pack::Text);
       request.set_body(&body);
-      return make_request(request, true);
+      return make_request(request);
     }
 
     struct AsyncORCTaskMsg
