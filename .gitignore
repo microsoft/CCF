@@ -31,3 +31,7 @@ package-lock.json
 include/ccf/version.h
 python/version.py
 **/compatibility_report.json
+.venv_ccf_sandbox/*
+workspace/*
+ledger_[0-9]*
+snapshot_[0-9]*

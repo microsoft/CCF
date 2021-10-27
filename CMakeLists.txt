@@ -63,7 +63,6 @@ endif()
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
-option(BUILD_SMALLBANK "Build SmallBank sample app and clients" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
 # Build common library for CCF enclaves
@@ -597,10 +596,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
                     ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
-
-  if(BUILD_SMALLBANK)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/smallbank/smallbank.cmake)
-  endif()
 
   if(BUILD_TPCC)
     include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
