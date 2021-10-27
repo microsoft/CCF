@@ -63,14 +63,28 @@ def check_operations(ledger, operations):
 
 
 def check_all_tables_are_documented(ledger, doc_path):
+    # Check that all CCF tables present in the input ledger are documented.
+    # Tables marked as experimental in the doc must not be present in the ledger.
     with open(doc_path, encoding="utf-8") as doc:
         parsed_doc = infra.doc.parse(doc.read())
         table_names = infra.doc.extract_table_names(parsed_doc)
+
+    experimental_table_names = [tn for tn in table_names if "(experimental)" in tn]
+    table_names = [tn for tn in table_names if tn not in experimental_table_names]
+    experimental_table_names = [tn.split(" ")[0] for tn in experimental_table_names]
 
     table_names_in_ledger = set()
     for chunk in ledger:
         for tr in chunk:
             table_names_in_ledger.update(tr.get_public_domain().get_tables().keys())
+
+    experimental_table_names_in_ledger = [
+        tn for tn in table_names_in_ledger if tn in experimental_table_names
+    ]
+    if experimental_table_names_in_ledger:
+        raise ValueError(
+            f"Experimental tables {experimental_table_names_in_ledger} were present in ledger"
+        )
 
     public_table_names_in_ledger = set(
         [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")]
