@@ -440,7 +440,8 @@ namespace ccf
           rep.node_status = node_status;
           if (
             node_status == NodeStatus::TRUSTED ||
-            node_status == NodeStatus::LEARNER)
+            node_status == NodeStatus::LEARNER ||
+            node_status == NodeStatus::RETIRING)
           {
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
@@ -464,7 +465,8 @@ namespace ccf
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidNodeState,
-              "Joining node is not in expected state.");
+              fmt::format(
+                "Joining node is not in expected state ({}).", node_status));
           }
         }
         else
@@ -1339,8 +1341,6 @@ namespace ccf
 
       auto orc_handler = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<ObservedReconfigurationCommit::In>();
-        LOG_DEBUG_FMT(
-          "ORC for configuration #{} from {}", in.reconfiguration_id, in.from);
 
         if (consensus == nullptr)
         {
@@ -1376,31 +1376,38 @@ namespace ccf
             "Configurations: sufficient number of ORCs, updating nodes in "
             "configuration #{}",
             in.reconfiguration_id);
-          auto ncfgs = args.tx.ro(network.network_configurations);
+          auto ncfgs = args.tx.rw(network.network_configurations);
           auto nodes = args.tx.rw(network.nodes);
           auto nc = ncfgs->get(in.reconfiguration_id);
-          for (auto nid : nc->nodes)
-          {
-            auto node_info = nodes->get(nid);
-            if (!node_info.has_value())
-            {
-              return make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                fmt::format("Missing node information for {}", nid));
-            }
 
-            if (node_info->status == NodeStatus::LEARNER)
-            {
-              node_info->status = NodeStatus::TRUSTED;
-              nodes->put(nid, *node_info);
-            }
-            else if (node_info->status == NodeStatus::RETIRING)
-            {
-              node_info->status = NodeStatus::RETIRED;
-              nodes->put(nid, *node_info);
-            }
+          if (!nc.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::ResharingAlreadyCompleted,
+              fmt::format(
+                "unknown reconfiguration id: {}", in.reconfiguration_id));
           }
+
+          nodes->foreach([&nodes, &nc](const auto& nid, const auto& node_info) {
+            if (
+              node_info.status == NodeStatus::RETIRING &&
+              nc->nodes.find(nid) == nc->nodes.end())
+            {
+              auto updated_info = node_info;
+              updated_info.status = NodeStatus::RETIRED;
+              nodes->put(nid, updated_info);
+            }
+            else if (
+              node_info.status == NodeStatus::LEARNER &&
+              nc->nodes.find(nid) != nc->nodes.end())
+            {
+              auto updated_info = node_info;
+              updated_info.status = NodeStatus::TRUSTED;
+              nodes->put(nid, updated_info);
+            }
+            return true;
+          });
         }
 
         return make_success();

@@ -149,6 +149,7 @@ namespace aft
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> retirees;
     ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
@@ -544,11 +545,30 @@ namespace aft
       return offset;
     }
 
+    bool same_node_ids(
+      const kv::Configuration::Nodes& conf1,
+      const kv::Configuration::Nodes& conf2)
+    {
+      if (conf1.size() == conf2.size())
+      {
+        for (const auto& [nid, _] : conf1)
+        {
+          if (conf2.find(nid) == conf2.end())
+          {
+            return false;
+          }
+        }
+        return true;
+      }
+      return false;
+    }
+
   public:
     void add_configuration(
       Index idx,
       const kv::Configuration::Nodes& conf,
-      const std::unordered_set<ccf::NodeId>& new_learners = {})
+      const std::unordered_set<ccf::NodeId>& new_learners = {},
+      const std::unordered_set<ccf::NodeId>& new_retirees = {})
     {
       LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
@@ -599,6 +619,20 @@ namespace aft
           }
         }
 
+        if (!new_retirees.empty())
+        {
+          LOG_DEBUG_FMT(
+            "Configurations: new retirees: {{{}}}",
+            fmt::join(new_retirees, ", "));
+          for (auto& id : new_retirees)
+          {
+            if (retirees.find(id) == retirees.end())
+            {
+              retirees[id] = idx;
+            }
+          }
+        }
+
         if (!configurations.empty())
         {
           for (const auto& [nid, _] : conf)
@@ -617,15 +651,29 @@ namespace aft
                 "Configurations: observing own promotion, becoming a follower");
               replica_state = kv::ReplicaState::Follower;
             }
+
+            if (
+              nodes.find(nid) != nodes.end() &&
+              retirees.find(nid) != retirees.end() &&
+              new_retirees.find(nid) == new_retirees.end() &&
+              conf.find(nid) == conf.end())
+            {
+              // Final retirement of retiring node
+              retirees.erase(nid);
+              LOG_DEBUG_FMT("Configurations: {} is now retired", nid);
+            }
           }
         }
       }
 
-      uint32_t offset = get_bft_offset(conf);
-      configurations.push_back({idx, std::move(conf), offset, 0});
+      if (!same_node_ids(conf, configurations.back().nodes))
+      {
+        uint32_t offset = get_bft_offset(conf);
+        configurations.push_back({idx, std::move(conf), offset, 0});
 
-      backup_nodes.clear();
-      create_and_remove_node_state();
+        backup_nodes.clear();
+        create_and_remove_node_state();
+      }
     }
 
     void start_ticking()
@@ -1160,7 +1208,10 @@ namespace aft
           }
         }
       }
-      else if (consensus_type != ConsensusType::BFT)
+      else if (
+        consensus_type != ConsensusType::BFT &&
+        replica_state != kv::ReplicaState::Retired &&
+        replica_state != kv::ReplicaState::Retiring)
       {
         if (
           can_endorse_primary() && ticking &&
@@ -3016,20 +3067,21 @@ namespace aft
         rollback(last_committable_index());
       }
 
-      is_new_follower = true;
-
-      if (can_endorse_primary())
+      if (!is_retiring() && !is_retired())
       {
-        replica_state = kv::ReplicaState::Follower;
-        LOG_INFO_FMT(
-          "Becoming follower {}: {}", state->my_node_id, state->current_view);
+        is_new_follower = true;
+
+        if (can_endorse_primary())
+        {
+          replica_state = kv::ReplicaState::Follower;
+          LOG_INFO_FMT(
+            "Becoming follower {}: {}", state->my_node_id, state->current_view);
+        }
       }
     }
 
     void become_retiring()
     {
-      assert(reconfiguration_type == ReconfigurationType::TWO_TRANSACTION);
-
       LOG_INFO_FMT(
         "Becoming retiring {}: {}", state->my_node_id, state->current_view);
 
@@ -3205,6 +3257,38 @@ namespace aft
       return r;
     }
 
+    size_t num_retired(
+      const kv::Configuration& from, const kv::Configuration& to) const
+    {
+      size_t r = 0;
+      for (const auto& [id, _] : from.nodes)
+      {
+        if (
+          to.nodes.find(id) == to.nodes.end() &&
+          retirees.find(id) != retirees.end())
+        {
+          LOG_DEBUG_FMT("Configurations: is retired: {}", id);
+          r++;
+        }
+      }
+      return r;
+    }
+
+    size_t num_required_retirements(
+      const kv::Configuration& from, const kv::Configuration& to) const
+    {
+      size_t r = 0;
+      for (auto& [nid, _] : from.nodes)
+      {
+        if (to.nodes.find(nid) == to.nodes.end())
+        {
+          LOG_DEBUG_FMT("Configurations: required retirement: {}", nid);
+          r++;
+        }
+      }
+      return r;
+    }
+
     size_t get_quorum(size_t n) const
     {
       switch (consensus_type)
@@ -3247,8 +3331,7 @@ namespace aft
       if (
         retirement_committable_idx.has_value() &&
         idx >= retirement_committable_idx.value() &&
-        (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION ||
-         is_retiring()))
+        reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
         become_retired();
       }
@@ -3305,26 +3388,48 @@ namespace aft
         }
         else
         {
-          if (num_trusted(*next) == next->nodes.size())
+          if (
+            !is_retired() &&
+            conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
+            next->nodes.find(state->my_node_id) == next->nodes.end())
+          {
+            auto rit = retirees.find(state->my_node_id);
+            if (is_retiring() && rit != retirees.end() && rit->second <= idx)
+            {
+              become_retired();
+            }
+            else if (!is_retiring())
+            {
+              become_retiring();
+            }
+          }
+
+          size_t num_trusted_nodes = num_trusted(*next);
+          size_t num_retired_nodes = num_retired(*conf, *next);
+          size_t num_required_retired_nodes =
+            num_required_retirements(*conf, *next);
+          if (
+            num_trusted_nodes == next->nodes.size() &&
+            num_retired_nodes == num_required_retired_nodes)
           {
             LOG_TRACE_FMT(
-              "Configurations: all nodes trusted, switching to configuration "
-              "#{}",
+              "Configurations: all nodes trusted ({}) or retired ({}), "
+              "switching to configuration #{}",
+              num_trusted_nodes,
+              num_retired_nodes,
               next->rid);
-
-            if (!is_retiring() && !is_retired())
-            {
-              if (
-                conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
-                next->nodes.find(state->my_node_id) == next->nodes.end())
-              {
-                become_retiring();
-              }
-            }
 
             for (auto& [nid, _] : next->nodes)
             {
               learners.erase(nid);
+            }
+
+            for (auto& [nid, _] : conf->nodes)
+            {
+              if (next->nodes.find(nid) == next->nodes.end())
+              {
+                retirees.erase(nid);
+              }
             }
 
             if (
@@ -3342,16 +3447,20 @@ namespace aft
           }
           else
           {
+            LOG_TRACE_FMT(
+              "Configurations: not enough trusted or retired nodes for "
+              "configuration #{} ({}/{} trusted, {}/{} retired)",
+              next->rid,
+              num_trusted_nodes,
+              next->nodes.size(),
+              num_retired_nodes,
+              num_required_retired_nodes);
             if (
-              !is_learner() && !is_retired() && node_client &&
-              next->nodes.find(state->my_node_id) != next->nodes.end())
+              node_client && !is_learner() && !is_retired() &&
+              ((next->nodes.find(state->my_node_id) != next->nodes.end()) ||
+               (is_retiring() &&
+                next->nodes.find(state->my_node_id) == next->nodes.end())))
             {
-              LOG_TRACE_FMT(
-                "Configurations: not enough trusted nodes for configuration "
-                "#{} ({} out of {}); submitting ORC",
-                next->rid,
-                num_trusted(*next),
-                next->nodes.size());
               node_client->schedule_submit_orc(state->my_node_id, next->rid);
             }
             break;
@@ -3469,6 +3578,18 @@ namespace aft
           if (it->second > idx)
           {
             it = learners.erase(it);
+          }
+          else
+          {
+            it++;
+          }
+        }
+
+        for (auto it = retirees.begin(); it != retirees.end();)
+        {
+          if (it->second > idx)
+          {
+            it = retirees.erase(it);
           }
           else
           {

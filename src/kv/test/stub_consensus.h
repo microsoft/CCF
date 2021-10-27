@@ -149,7 +149,8 @@ namespace kv::test
     void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {}) override
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retirees = {}) override
     {}
 
     void reconfigure(

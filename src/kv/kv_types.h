@@ -173,7 +173,8 @@ namespace kv
     virtual void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {}) = 0;
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retirees = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;

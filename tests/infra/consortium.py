@@ -284,7 +284,7 @@ class Consortium:
             assert r.status_code == http.HTTPStatus.OK.value
             return r.body.json()
 
-    def retire_node(self, remote_node, node_to_retire):
+    def retire_node(self, remote_node, node_to_retire, timeout=10):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "remove_node",
@@ -295,13 +295,33 @@ class Consortium:
 
         with remote_node.client() as c:
             r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
-            # Until we have 2tx-promotion, we expect RETIRING but not RETIRED yet.
-            expected = (
-                NodeStatus.RETIRED.value
-                if self.consensus != "bft"
-                else NodeStatus.RETIRING.value
+            status = r.body.json()["status"]
+            assert status == NodeStatus.RETIRED.value or (
+                self.reconfiguration_type == "2tx"
+                and status == NodeStatus.RETIRING.value
             )
-            assert r.body.json()["status"] == expected
+
+            if (
+                self.reconfiguration_type == "2tx"
+                and status == NodeStatus.RETIRING.value
+            ):
+                # When using 2tx reconfiguration, we need to wait until that the node is fully retired
+                # and not in the `RETIRING` state, to make sure their host/port address can be reused
+                # by another node.
+                end_time = time.time() + timeout
+                while status == NodeStatus.RETIRING.value and time.time() < end_time:
+                    try:
+                        r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
+                        status = r.body.json()["status"]
+                        if status == NodeStatus.RETIRED.value:
+                            break
+                    except:
+                        pass
+                    time.sleep(1.0)
+                if status == NodeStatus.RETIRING.value:
+                    raise TimeoutError(
+                        f"Node {node_to_retire.node_id} did not retire within timeout"
+                    )
 
     def trust_node(
         self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3

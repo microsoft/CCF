@@ -707,6 +707,13 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME reconfiguration_test_cft_2tx
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} --reconfiguration-type 2tx
+  )
+
+  add_e2e_test(
     NAME election_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
     CONSENSUS ${CONSENSUS_FILTER}

@@ -270,6 +270,7 @@ def test_version(network, args):
 
 
 @reqs.description("Replace a node on the same addresses")
+@reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
     primary, backups = network.find_nodes()
 
@@ -393,8 +394,6 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
 
 @reqs.description("Adding a learner without snapshot")
 def test_learner_catches_up(network, args):
-    args.join_timer = args.join_timer * 2
-
     num_nodes_before = len(network.nodes)
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
@@ -422,7 +421,8 @@ def test_learner_catches_up(network, args):
         print(rj)
         assert len(rj["details"]["configs"]) == 1
         c0 = rj["details"]["configs"][0]["nodes"]
-        assert len(c0) == num_nodes_before + 1 and new_node.node_id in c0
+        assert len(c0) == num_nodes_before + 1
+        assert new_node.node_id in c0
 
     return network
 
@@ -502,10 +502,12 @@ def run(args):
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
-        else:
+
+        if args.reconfiguration_type == "2tx":
             test_learner_catches_up(network, args)
             # test_learner_does_not_take_part(network, args)
             test_retire_backup(network, args)
+
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
 
