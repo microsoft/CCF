@@ -121,14 +121,6 @@ namespace ccf
     {
       return {};
     }
-
-    crypto::Pem generate_endorsed_certificate(
-      const crypto::Pem& subject_csr,
-      const crypto::Pem& endorser_private_key,
-      const crypto::Pem& endorser_cert) override
-    {
-      throw std::logic_error("Unimplemented");
-    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache

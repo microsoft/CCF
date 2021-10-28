@@ -26,6 +26,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
+    :fa:`stamp` :doc:`certificates`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Set and renew nodes and service x509 certificates.
+
+    ---
+
     :fa:`helicopter` :doc:`recovery`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

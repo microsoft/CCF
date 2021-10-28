@@ -67,6 +67,8 @@ namespace ccf
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
+      std::string node_cert_valid_from;
+      size_t initial_node_cert_validity_period_days;
 
       // Only set if node does _not_ require endorsement by the service
       std::optional<crypto::Pem> node_cert = std::nullopt;
