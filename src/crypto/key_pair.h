@@ -55,24 +55,32 @@ namespace crypto
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
-      bool ca = false) const = 0;
+      bool ca = false,
+      const std::optional<std::string>& valid_from = std::nullopt,
+      const std::optional<std::string>& valid_to = std::nullopt) const = 0;
 
     Pem self_sign(
       const std::string& name,
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
-      bool ca = true) const
+      bool ca = true,
+      const std::optional<std::string>& valid_from = std::nullopt,
+      const std::optional<std::string>& valid_to = std::nullopt) const
     {
       std::vector<SubjectAltName> sans;
       if (subject_alt_name.has_value())
         sans.push_back(subject_alt_name.value());
       auto csr = create_csr({name, sans});
-      return sign_csr(Pem(0), csr, ca);
+      return sign_csr(Pem(0), csr, ca, valid_from, valid_to);
     }
 
-    Pem self_sign(const CertificateSubjectIdentity& csi, bool ca = true) const
+    Pem self_sign(
+      const CertificateSubjectIdentity& csi,
+      bool ca = true,
+      const std::optional<std::string>& valid_from = std::nullopt,
+      const std::optional<std::string>& valid_to = std::nullopt) const
     {
       auto csr = create_csr(csi);
-      return sign_csr(Pem(0), csr, ca);
+      return sign_csr(Pem(0), csr, ca, valid_from, valid_to);
     }
   };
 

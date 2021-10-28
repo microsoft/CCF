@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -415,6 +416,19 @@ int main(int argc, char** argv)
     ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
 
+  // By default, node certificates are only valid for one day. It is expected
+  // that members will submit a proposal to renew the node certificates before
+  // expiry, at the point the service is open.
+  size_t initial_node_certificate_validity_period_days = 1;
+  app
+    .add_option(
+      "--initial-node-cert-validity-days",
+      initial_node_certificate_validity_period_days,
+      "Initial validity period (days) for certificates of nodes before the "
+      "service is open by members")
+    ->check(CLI::PositiveNumber)
+    ->type_name("UINT");
+
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
@@ -456,6 +470,15 @@ int main(int argc, char** argv)
       recovery_threshold,
       "Number of member shares required for recovery. Defaults to total number "
       "of initial consortium members with a public encryption key.")
+    ->check(CLI::PositiveNumber)
+    ->type_name("UINT");
+
+  size_t max_allowed_node_cert_validity_days = 365;
+  start
+    ->add_option(
+      "--max-allowed-node-cert-validity-days",
+      max_allowed_node_cert_validity_days,
+      "Maximum validity period (days) for certificates of trusted nodes")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
 
@@ -796,10 +819,16 @@ int main(int argc, char** argv)
 
     ccf_config.node_certificate_subject_identity =
       node_certificate_subject_identity;
-
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
-
     ccf_config.curve_id = curve_id;
+    ccf_config.initial_node_certificate_validity_period_days =
+      initial_node_certificate_validity_period_days;
+
+    auto startup_host_time = std::chrono::system_clock::now();
+    LOG_INFO_FMT("Startup host time: {}", startup_host_time);
+
+    ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
+      std::chrono::system_clock::to_time_t(startup_host_time));
 
     if (*start)
     {
@@ -838,6 +867,8 @@ int main(int argc, char** argv)
           files::slurp_string(constitution_path);
       }
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
+      ccf_config.genesis.max_allowed_node_cert_validity_days =
+        max_allowed_node_cert_validity_days;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",

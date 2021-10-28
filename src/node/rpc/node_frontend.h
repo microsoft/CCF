@@ -7,6 +7,7 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
+#include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/hash.h"
 #include "frontend.h"
@@ -149,6 +150,7 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
+      auto config = tx.ro(network.config)->get();
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -196,7 +198,7 @@ namespace ccf
       auto client_public_key_pem = crypto::public_key_pem_from_cert(node_der);
       if (in.certificate_signing_request.has_value())
       {
-        // Verify that client's public key matches the one specified in the CSR)
+        // Verify that client's public key matches the one specified in the CSR
         auto csr_public_key_pem = crypto::public_key_pem_from_csr(
           in.certificate_signing_request.value());
         if (client_public_key_pem != csr_public_key_pem)
@@ -254,11 +256,17 @@ namespace ccf
           in.certificate_signing_request.has_value() &&
           this->network.consensus_type == ConsensusType::CFT)
         {
-          endorsed_certificate =
-            context.get_node_state().generate_endorsed_certificate(
-              in.certificate_signing_request.value(),
-              this->network.identity->priv_key,
-              this->network.identity->cert);
+          // For a pre-open service, extract the validity period of self-signed
+          // node certificate and use it verbatim in endorsed certificate
+          auto [valid_from, valid_to] =
+            crypto::make_verifier(node_der)->validity_period();
+          endorsed_certificate = crypto::create_endorsed_cert(
+            in.certificate_signing_request.value(),
+            valid_from,
+            valid_to,
+            this->network.identity->priv_key,
+            this->network.identity->cert);
+
           node_endorsed_certificates->put(
             joining_node_id, {endorsed_certificate.value()});
         }
@@ -428,7 +436,8 @@ namespace ccf
 
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its status
-          auto node_status = nodes->get(existing_node_info->node_id)->status;
+          auto node_info = nodes->get(existing_node_info->node_id);
+          auto node_status = node_info->status;
           rep.node_status = node_status;
           if (
             node_status == NodeStatus::TRUSTED ||
@@ -1159,8 +1168,10 @@ namespace ccf
             ctx.tx.rw(network.node_endorsed_certificates);
           endorsed_certificates->put(
             in.node_id,
-            context.get_node_state().generate_endorsed_certificate(
+            crypto::create_endorsed_cert(
               in.certificate_signing_request,
+              in.node_cert_valid_from,
+              in.initial_node_cert_validity_period_days,
               this->network.identity->priv_key,
               this->network.identity->cert));
         }

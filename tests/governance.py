@@ -13,6 +13,8 @@ import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
 import requests
+import infra.crypto
+from datetime import datetime
 import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
@@ -217,6 +219,86 @@ def test_invalid_client_signature(network, args):
     )
 
 
+@reqs.description("Update certificates of all nodes, one by one")
+def test_each_node_cert_renewal(network, args):
+    primary, _ = network.find_primary()
+    now = datetime.now()
+    validity_period_allowed = args.max_allowed_node_cert_validity_days - 1
+    validity_period_forbidden = args.max_allowed_node_cert_validity_days + 1
+
+    test_vectors = [
+        (now, validity_period_allowed, None),
+        (now, None, None),  # Omit validity period (deduced from service configuration)
+        (now, -1, infra.proposal.ProposalNotCreated),
+        (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
+    ]
+
+    for (valid_from, validity_period_days, expected_exception) in test_vectors:
+        for node in network.get_joined_nodes():
+            with node.client() as c:
+                c.get("/node/network/nodes")
+
+                node_cert_tls_before = node.get_tls_certificate_pem()
+                assert (
+                    infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                        node_cert_tls_before
+                    )
+                    == node.node_id
+                )
+
+                try:
+                    valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
+                    network.consortium.set_node_certificate_validity(
+                        primary,
+                        node,
+                        valid_from=valid_from_x509,
+                        validity_period_days=validity_period_days,
+                    )
+                    node.set_certificate_validity_period(
+                        valid_from_x509,
+                        validity_period_days
+                        or args.max_allowed_node_cert_validity_days,
+                    )
+                except Exception as e:
+                    assert isinstance(e, expected_exception)
+                    continue
+                else:
+                    assert (
+                        expected_exception is None
+                    ), "Proposal should have not succeeded"
+
+                node_cert_tls_after = node.get_tls_certificate_pem()
+                assert (
+                    node_cert_tls_before != node_cert_tls_after
+                ), f"Node {node.local_node_id} certificate was not renewed"
+                node.verify_certificate_validity_period()
+                LOG.info(
+                    f"Certificate for node {node.local_node_id} has successfully been renewed"
+                )
+
+                # Long-connected client is still connected after certificate renewal
+                c.get("/node/network/nodes")
+
+    return network
+
+
+@reqs.description("Update certificates of all nodes, one by one")
+def test_all_nodes_cert_renewal(network, args):
+    primary, _ = network.find_primary()
+
+    valid_from = str(infra.crypto.datetime_to_X509time(datetime.now()))
+    validity_period_days = args.max_allowed_node_cert_validity_days
+
+    network.consortium.set_all_nodes_certificate_validity(
+        primary,
+        valid_from=valid_from,
+        validity_period_days=validity_period_days,
+    )
+
+    for node in network.get_joined_nodes():
+        node.set_certificate_validity_period(valid_from, validity_period_days)
+
+
 def gov(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -232,6 +314,8 @@ def gov(args):
         test_no_quote(network, args)
         test_ack_state_digest_update(network, args)
         test_invalid_client_signature(network, args)
+        test_each_node_cert_renewal(network, args)
+        test_all_nodes_cert_renewal(network, args)
 
 
 def js_gov(args):
