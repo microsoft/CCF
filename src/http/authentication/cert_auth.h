@@ -6,7 +6,6 @@
 #include "crypto/pem.h"
 #include "crypto/verifier.h"
 #include "node/blit.h"
-#include "node/certs.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/users.h"

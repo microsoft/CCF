@@ -6,6 +6,7 @@
 #include <crypto/pem.h>
 #include <fmt/format.h>
 #include <memory>
+#include <openssl/asn1.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
 #include <openssl/err.h>
@@ -53,22 +54,22 @@ namespace crypto
     public:
       Unique_BIO() : p(BIO_new(BIO_s_mem()), [](auto x) { BIO_free(x); })
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       Unique_BIO(const void* buf, int len) :
         p(BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       Unique_BIO(const std::vector<uint8_t>& d) :
         p(BIO_new_mem_buf(d.data(), d.size()), [](auto x) { BIO_free(x); })
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       Unique_BIO(const Pem& pem) :
         p(BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator BIO*()
       {
@@ -84,12 +85,12 @@ namespace crypto
       Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
         p(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       Unique_EVP_PKEY_CTX() :
         p(EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL), EVP_PKEY_CTX_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator EVP_PKEY_CTX*()
       {
@@ -104,12 +105,12 @@ namespace crypto
     public:
       Unique_X509_REQ() : p(X509_REQ_new(), X509_REQ_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       Unique_X509_REQ(BIO* mem) :
         p(PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL), X509_REQ_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator X509_REQ*()
       {
@@ -124,7 +125,7 @@ namespace crypto
     public:
       Unique_X509() : p(X509_new(), X509_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       Unique_X509(BIO* mem, bool pem) :
         p(pem ? PEM_read_bio_X509(mem, NULL, NULL, NULL) :
@@ -146,7 +147,7 @@ namespace crypto
     public:
       Unique_X509_STORE() : p(X509_STORE_new(), X509_STORE_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator X509_STORE*()
       {
@@ -161,7 +162,7 @@ namespace crypto
     public:
       Unique_X509_STORE_CTX() : p(X509_STORE_CTX_new(), X509_STORE_CTX_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator X509_STORE_CTX*()
       {
@@ -176,7 +177,7 @@ namespace crypto
     public:
       Unique_EVP_CIPHER_CTX() : p(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator EVP_CIPHER_CTX*()
       {
@@ -192,7 +193,7 @@ namespace crypto
       Unique_STACK_OF_X509() :
         p(sk_X509_new_null(), [](auto x) { sk_X509_pop_free(x, X509_free); })
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator STACK_OF(X509) * ()
       {
@@ -212,7 +213,7 @@ namespace crypto
         p(sk_X509_EXTENSION_new_null(),
           [](auto x) { sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free); })
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
 
       Unique_STACK_OF_X509_EXTENSIONS(STACK_OF(X509_EXTENSION) * exts) :
@@ -233,7 +234,7 @@ namespace crypto
     public:
       Unique_ECDSA_SIG() : p(ECDSA_SIG_new(), ECDSA_SIG_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator ECDSA_SIG*()
       {
@@ -248,7 +249,7 @@ namespace crypto
     public:
       Unique_BIGNUM() : p(BN_new(), BN_free)
       {
-        OpenSSL::CHECKNULL(p.get());
+        CHECKNULL(p.get());
       }
       operator BIGNUM*()
       {
@@ -257,6 +258,28 @@ namespace crypto
       void release()
       {
         p.release();
+      }
+    };
+
+    class Unique_X509_TIME
+    {
+      std::unique_ptr<ASN1_TIME, void (*)(ASN1_TIME*)> p;
+
+    public:
+      Unique_X509_TIME() : p(ASN1_TIME_new(), ASN1_TIME_free)
+      {
+        CHECKNULL(p.get());
+      }
+      Unique_X509_TIME(const std::string& s) :
+        p(ASN1_TIME_new(), ASN1_TIME_free)
+      {
+        CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
+        CHECK1(ASN1_TIME_normalize(*this));
+      }
+      Unique_X509_TIME(ASN1_TIME* t) : p(t, ASN1_TIME_free) {}
+      operator ASN1_TIME*() const
+      {
+        return p.get();
       }
     };
 

@@ -350,6 +350,18 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="TCP client connection timeout in ms",
         default=None,
     )
+    parser.add_argument(
+        "--initial-node-cert-validity-days",
+        help="Initial validity period in days for certificates of nodes before the first certificate renewal",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        "--max-allowed-node-cert-validity-days",
+        help="Maximum allowed validity period in days for certificates of trusted nodes",
+        type=int,
+        default=365,
+    )
 
     add(parser)
 
