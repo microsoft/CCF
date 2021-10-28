@@ -2,10 +2,12 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+import infra.partitions
 import infra.proc
 import infra.logging_app as app
 import suite.test_requirements as reqs
 import tempfile
+import time
 from shutil import copy
 import os
 from infra.checker import check_can_progress, check_does_not_progress
@@ -13,7 +15,7 @@ import ccf.ledger
 import json
 import infra.crypto
 from datetime import datetime
-
+from math import ceil
 
 from loguru import logger as LOG
 
@@ -394,7 +396,17 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
 
 @reqs.description("Adding a learner without snapshot")
 def test_learner_catches_up(network, args):
-    num_nodes_before = len(network.nodes)
+    primary, _ = network.find_primary()
+    num_nodes_before = 0
+
+    with primary.client() as c:
+        s = c.get("/node/consensus")
+        rj = s.body.json()
+        # At this point, there should be exactly one configuration
+        assert len(rj["details"]["configs"]) == 1
+        c0 = rj["details"]["configs"][0]["nodes"]
+        num_nodes_before = len(c0)
+
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
@@ -404,7 +416,6 @@ def test_learner_catches_up(network, args):
         rj = s.body.json()
         assert rj["status"] == "Learner" or rj["status"] == "Trusted"
 
-    primary, _ = network.find_primary()
     network.consortium.wait_for_node_to_exist_in_store(
         primary,
         new_node.node_id,
@@ -427,26 +438,55 @@ def test_learner_catches_up(network, args):
     return network
 
 
-@reqs.description("Add a learner, suspend nodes, check that there is no progress")
+@reqs.description("Add a learner, partition nodes, check that there is no progress")
 def test_learner_does_not_take_part(network, args):
+    if network.partitioner is None:
+        return
+
     primary, backups = network.find_nodes()
-    nodes = network.get_joined_nodes()
-    f = infra.e2e_args.max_f(args, len(nodes)) + 1
-    f_backups = backups[:f]
+    f_backups = backups[: network.get_f() + 1]
 
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
-    network.trust_node(new_node, args)
 
-    # No way to keep the new node suspended in learner state?
+    with network.partitioner.partition(f_backups):
 
-    for b in f_backups:
-        b.suspend()
-    check_does_not_progress(primary)
-    primary_after, _ = network.find_primary()
-    for b in f_backups:
-        b.resume()
-    assert primary.node_id == primary_after.node_id
+        # New node joins, but cannot be promoted to TRUSTED without f other backups
+        try:
+            network.consortium.trust_node(
+                primary,
+                new_node.node_id,
+                timeout=ceil(args.join_timer * 2 / 1000),
+            )
+            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            raise Exception("should have thrown")
+        except Exception:
+            pass
+
+        check_does_not_progress(primary, timeout=5)
+
+        with new_node.client(self_signed_ok=True) as c:
+            r = c.get("/node/network/nodes/self")
+            assert r.body.json()["status"] == "Learner"
+            r = c.get("/node/consensus")
+            assert new_node.node_id in r.body.json()["details"]["learners"]
+
+    network.wait_for_primary_unanimity()
+
+    primary, _ = network.find_primary()
+
+    with primary.client() as c:
+        r = c.get("/node/consensus")
+        print(r.body.json())
+
+    # ... after some time the learner should have caught up
+    network.consortium.wait_for_node_to_exist_in_store(
+        primary,
+        new_node.node_id,
+        timeout=10,
+        node_status=(ccf.ledger.NodeStatus.TRUSTED),
+    )
+
     return network
 
 
@@ -479,6 +519,7 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
+        init_partitioner=True,
     ) as network:
         network.start_and_join(args)
 

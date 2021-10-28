@@ -434,18 +434,6 @@ int main(int argc, char** argv)
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
 
-  ReconfigurationType reconfiguration_type =
-    ReconfigurationType::ONE_TRANSACTION;
-  std::vector<std::pair<std::string, ReconfigurationType>>
-    reconfiguration_type_map{
-      {"1tx", ReconfigurationType::ONE_TRANSACTION},
-      {"2tx", ReconfigurationType::TWO_TRANSACTION}};
-  app
-    .add_option(
-      "--reconfiguration-type", reconfiguration_type, "Reconfiguration type")
-    ->transform(
-      CLI::CheckedTransformer(reconfiguration_type_map, CLI::ignore_case));
-
   auto start = app.add_subcommand("start", "Start new network");
   start->configurable();
 
@@ -494,6 +482,18 @@ int main(int argc, char** argv)
       "Maximum validity period (days) for certificates of trusted nodes")
     ->check(CLI::PositiveNumber)
     ->type_name("UINT");
+
+  ReconfigurationType reconfiguration_type =
+    ReconfigurationType::ONE_TRANSACTION;
+  std::vector<std::pair<std::string, ReconfigurationType>>
+    reconfiguration_type_map{
+      {"1tx", ReconfigurationType::ONE_TRANSACTION},
+      {"2tx", ReconfigurationType::TWO_TRANSACTION}};
+  start
+    ->add_option(
+      "--reconfiguration-type", reconfiguration_type, "Reconfiguration type")
+    ->transform(
+      CLI::CheckedTransformer(reconfiguration_type_map, CLI::ignore_case));
 
   auto join = app.add_subcommand("join", "Join existing network");
   join->configurable();
@@ -843,6 +843,7 @@ int main(int argc, char** argv)
     ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
       std::chrono::system_clock::to_time_t(startup_host_time));
     ccf_config.reconfiguration_type = reconfiguration_type;
+    ccf_config.genesis.reconfiguration_type = reconfiguration_type;
 
     if (*start)
     {

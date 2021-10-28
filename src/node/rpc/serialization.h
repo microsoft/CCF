@@ -57,6 +57,7 @@ namespace ccf
     public_only,
     last_recovered_signed_idx,
     consensus_type,
+    reconfiguration_type,
     ledger_secrets,
     identity)
   DECLARE_JSON_OPTIONAL_FIELDS(

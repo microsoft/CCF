@@ -406,7 +406,11 @@ class LedgerValidator:
         # Note: A retired primary will still issue signature transactions until
         # its retirement is committed
         node_status = NodeStatus(tx_info.node_activity[tx_info.signing_node][0])
-        if node_status not in (NodeStatus.TRUSTED, NodeStatus.RETIRED):
+        if node_status not in (
+            NodeStatus.TRUSTED,
+            NodeStatus.RETIRING,
+            NodeStatus.RETIRED,
+        ):
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )

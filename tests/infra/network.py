@@ -1084,7 +1084,8 @@ class Network:
         while time.time() < end_time:
             try:
                 return call(seqno)
-            except Exception:
+            except Exception as ex:
+                LOG.info(f"Exception: {ex}")
                 self.consortium.create_and_withdraw_large_proposal(node)
                 time.sleep(0.1)
         raise TimeoutError(

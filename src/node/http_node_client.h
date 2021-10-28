@@ -7,6 +7,8 @@
 #include "node/rpc/serdes.h"
 #include "node/rpc/serialization.h"
 
+#include <chrono>
+
 namespace ccf
 {
   class HTTPNodeClient : public NodeClient
@@ -91,7 +93,7 @@ namespace ccf
         HTTPNodeClient* client_,
         const NodeId& from_,
         kv::ReconfigurationId rid_,
-        size_t retries_ = 10) :
+        size_t retries_ = SIZE_MAX) :
         client(client_),
         from(from_),
         rid(rid_),
@@ -110,10 +112,8 @@ namespace ccf
       {
         if (--msg->data.retries > 0)
         {
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::ThreadMessaging::get_execution_thread(
-              threading::MAIN_THREAD_ID),
-            std::move(msg));
+          threading::ThreadMessaging::thread_messaging.add_task_after(
+            std::move(msg), std::chrono::milliseconds(250));
         }
         else
         {
@@ -129,10 +129,8 @@ namespace ccf
       auto msg = std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
         orc_cb, this, from, rid);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::ThreadMessaging::get_execution_thread(
-          threading::MAIN_THREAD_ID),
-        std::move(msg));
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(msg), std::chrono::milliseconds(0));
     }
   };
 }

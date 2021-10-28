@@ -448,7 +448,6 @@ class Node:
     def session_auth(self, name=None):
         return {
             "session_auth": self.identity(name),
-            "ca": os.path.join(self.common_dir, "networkcert.pem"),
         }
 
     def signing_auth(self, name=None):
@@ -458,13 +457,23 @@ class Node:
         return self.remote.get_host()
 
     def client(
-        self, identity=None, signing_identity=None, interface_idx=None, **kwargs
+        self,
+        identity=None,
+        signing_identity=None,
+        interface_idx=None,
+        self_signed_ok=False,
+        **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
             raise RuntimeError(
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
             )
-        akwargs = self.session_auth(identity)
+
+        if self_signed_ok:
+            akwargs = {"ca": ""}
+        else:
+            akwargs = {"ca": os.path.join(self.common_dir, "networkcert.pem")}
+        akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
             "description"

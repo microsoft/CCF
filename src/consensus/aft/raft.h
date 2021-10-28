@@ -712,15 +712,6 @@ namespace aft
 
       assert(!configurations.empty());
 
-      for (const auto& nid : netconfig.nodes)
-      {
-        if (nid != state->my_node_id && nodes.find(nid) == nodes.end())
-        {
-          LOG_FAIL_FMT("Configurations: node {} is unknown", nid);
-          return;
-        }
-      }
-
       network_configurations[netconfig.rid] = netconfig;
 
       if (orc_sets.find(netconfig.rid) == orc_sets.end())
@@ -1211,7 +1202,8 @@ namespace aft
       else if (
         consensus_type != ConsensusType::BFT &&
         replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Retiring)
+        replica_state != kv::ReplicaState::Retiring &&
+        replica_state != kv::ReplicaState::Learner)
       {
         if (
           can_endorse_primary() && ticking &&
@@ -1734,7 +1726,7 @@ namespace aft
       // Then check if those append entries extend past our retirement
       if (
         retirement_committable_idx.has_value() &&
-        r.idx > retirement_committable_idx)
+        r.idx > retirement_committable_idx && !is_retiring())
       {
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
@@ -3083,7 +3075,10 @@ namespace aft
     void become_retiring()
     {
       LOG_INFO_FMT(
-        "Becoming retiring {}: {}", state->my_node_id, state->current_view);
+        "Becoming retiring {}: {} at {}",
+        state->my_node_id,
+        state->current_view,
+        state->commit_idx);
 
       replica_state = kv::ReplicaState::Retiring;
       leader_id.reset();
@@ -3093,7 +3088,6 @@ namespace aft
         "retirement_idx already set to {}",
         retirement_idx.value());
       retirement_idx = state->commit_idx;
-      LOG_INFO_FMT("Node retiring at {}", state->commit_idx);
     }
 
     void become_retired()
@@ -3263,9 +3257,10 @@ namespace aft
       size_t r = 0;
       for (const auto& [id, _] : from.nodes)
       {
+        auto rit = retirees.find(id);
         if (
-          to.nodes.find(id) == to.nodes.end() &&
-          retirees.find(id) != retirees.end())
+          to.nodes.find(id) == to.nodes.end() && rit != retirees.end() &&
+          rit->second <= state->commit_idx)
         {
           LOG_DEBUG_FMT("Configurations: is retired: {}", id);
           r++;

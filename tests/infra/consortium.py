@@ -342,16 +342,15 @@ class Consortium:
             timeout=timeout,
         )
 
-        is_trusted = self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED)
-
         if self.reconfiguration_type == "2tx":
-            if not is_trusted and not self._check_node_exists(
+            # Note: the order of these checks is important
+            if not self._check_node_exists(
                 remote_node, node_id, NodeStatus.LEARNER
-            ):
+            ) and not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
                 raise ValueError(
                     f"Node {node_id} does not exist in state {NodeStatus.TRUSTED} or {NodeStatus.LEARNER}"
                 )
-        elif not is_trusted:
+        elif not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(
                 f"Node {node_id} does not exist in state {NodeStatus.TRUSTED}"
             )

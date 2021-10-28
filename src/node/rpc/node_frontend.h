@@ -270,10 +270,17 @@ namespace ccf
             joining_node_id, {endorsed_certificate.value()});
         }
 
+        auto config = tx.ro(network.config);
+        auto service_config = config->get();
+        auto reconfiguration_type = ReconfigurationType::ONE_TRANSACTION;
+        if (service_config->reconfiguration_type.has_value())
+          reconfiguration_type = service_config->reconfiguration_type.value();
+
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
+          reconfiguration_type,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
           service_status,
@@ -356,6 +363,12 @@ namespace ccf
             "No service is available to accept new node.");
         }
 
+        auto config = args.tx.ro(network.config);
+        auto service_config = config->get();
+        auto reconfiguration_type = ReconfigurationType::ONE_TRANSACTION;
+        if (service_config->reconfiguration_type.has_value())
+          reconfiguration_type = service_config->reconfiguration_type.value();
+
         if (active_service->status == ServiceStatus::OPENING)
         {
           // If the service is opening, new nodes are trusted straight away
@@ -372,6 +385,7 @@ namespace ccf
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
+              reconfiguration_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
@@ -447,6 +461,7 @@ namespace ccf
               context.get_node_state().is_part_of_public_network(),
               context.get_node_state().get_last_recovered_signed_idx(),
               this->network.consensus_type,
+              reconfiguration_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),

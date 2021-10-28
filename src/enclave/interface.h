@@ -65,6 +65,7 @@ struct CCFConfig
     std::string constitution;
     size_t recovery_threshold;
     size_t max_allowed_node_cert_validity_days;
+    ReconfigurationType reconfiguration_type;
   };
   Genesis genesis = {};
 
@@ -83,7 +84,6 @@ struct CCFConfig
 
   size_t initial_node_certificate_validity_period_days;
   std::string startup_host_time;
-  ReconfigurationType reconfiguration_type;
 };
 
 DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
@@ -96,7 +96,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   members_info,
   constitution,
   recovery_threshold,
-  max_allowed_node_cert_validity_days);
+  max_allowed_node_cert_validity_days,
+  reconfiguration_type);
 
 DECLARE_JSON_TYPE(CCFConfig::Joining);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -116,8 +117,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   jwt_key_refresh_interval_s,
   curve_id,
   initial_node_certificate_validity_period_days,
-  startup_host_time,
-  reconfiguration_type);
+  startup_host_time);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig, startup_snapshot_evidence_seqno_for_1_x);
 

@@ -715,9 +715,6 @@ class CCFRemote(object):
             if node_client_host:
                 cmd += [f"--node-client-interface={node_client_host}"]
 
-        if reconfiguration_type:
-            cmd += [f"--reconfiguration-type={reconfiguration_type}"]
-
         if additional_raw_node_args:
             for s in additional_raw_node_args:
                 cmd += [str(s)]
@@ -753,6 +750,9 @@ class CCFRemote(object):
                     cmd += [
                         f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
                     ]
+
+            if reconfiguration_type:
+                cmd += [f"--reconfiguration-type={reconfiguration_type}"]
 
         elif start_type == StartType.join:
             cmd += [
