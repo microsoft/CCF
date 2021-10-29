@@ -82,12 +82,13 @@ namespace ccf
   inline void schedule_submit_orc(
     std::shared_ptr<ccf::NodeClient> client,
     const ccf::NodeId& from,
-    kv::ReconfigurationId rid)
+    kv::ReconfigurationId rid,
+    bool delayed = false)
   {
     auto msg = std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
       orc_cb, client, from, rid);
 
     threading::ThreadMessaging::thread_messaging.add_task_after(
-      std::move(msg), std::chrono::milliseconds(0));
+      std::move(msg), std::chrono::milliseconds(delayed ? 1000 : 0));
   }
 }

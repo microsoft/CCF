@@ -3384,6 +3384,8 @@ namespace aft
         }
         else
         {
+          bool retiring_primary = false;
+
           if (
             !is_retired() &&
             conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
@@ -3392,10 +3394,12 @@ namespace aft
             auto rit = retirees.find(state->my_node_id);
             if (is_retiring() && rit != retirees.end() && rit->second <= idx)
             {
+              retiring_primary = is_primary();
               become_retired();
             }
             else if (!is_retiring())
             {
+              retiring_primary = is_primary();
               become_retiring();
             }
           }
@@ -3457,7 +3461,8 @@ namespace aft
                (is_retiring() &&
                 next->nodes.find(state->my_node_id) == next->nodes.end())))
             {
-              schedule_submit_orc(node_client, state->my_node_id, next->rid);
+              schedule_submit_orc(
+                node_client, state->my_node_id, next->rid, retiring_primary);
             }
             break;
           }
