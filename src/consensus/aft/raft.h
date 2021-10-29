@@ -1473,19 +1473,16 @@ namespace aft
       };
 
       Index end_idx;
-      while (true)
+
+      // We break _after_ sending, so that in the case where this is called
+      // with start==last, we send a single empty heartbeat
+      do
       {
         end_idx = calculate_end_index(start_idx);
         LOG_TRACE_FMT("Sending sub range {} -> {}", start_idx, end_idx);
         send_append_entries_range(to, start_idx, end_idx);
-        if (end_idx == state->last_idx)
-        {
-          // We break _after_ sending, so that in the case where this is called
-          // with start==last, we send a single empty heartbeat
-          break;
-        }
         start_idx = std::min(end_idx + 1, state->last_idx);
-      }
+      } while (end_idx != state->last_idx)
     }
 
     void send_append_entries_range(
