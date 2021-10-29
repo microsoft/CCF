@@ -842,7 +842,6 @@ int main(int argc, char** argv)
 
     ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
       std::chrono::system_clock::to_time_t(startup_host_time));
-    ccf_config.reconfiguration_type = reconfiguration_type;
     ccf_config.genesis.reconfiguration_type = reconfiguration_type;
 
     if (*start)
