@@ -652,17 +652,6 @@ namespace aft
                 "Configurations: observing own promotion, becoming a follower");
               replica_state = kv::ReplicaState::Follower;
             }
-
-            if (
-              nodes.find(nid) != nodes.end() &&
-              retirees.find(nid) != retirees.end() &&
-              new_retirees.find(nid) == new_retirees.end() &&
-              conf.find(nid) == conf.end())
-            {
-              // Final retirement of retiring node
-              retirees.erase(nid);
-              LOG_DEBUG_FMT("Configurations: {} is now retired", nid);
-            }
           }
         }
       }

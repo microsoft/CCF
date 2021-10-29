@@ -89,6 +89,6 @@ namespace ccf
       orc_cb, client, from, rid);
 
     threading::ThreadMessaging::thread_messaging.add_task_after(
-      std::move(msg), std::chrono::milliseconds(delayed ? 1000 : 0));
+      std::move(msg), std::chrono::milliseconds(delayed ? 2000 : 0));
   }
 }

@@ -428,7 +428,6 @@ def test_learner_catches_up(network, args):
         assert len(rj["details"]["learners"]) == 0
 
         # At this point, there should be exactly one configuration, which includes the new node.
-        print(rj)
         assert len(rj["details"]["configs"]) == 1
         c0 = rj["details"]["configs"][0]["nodes"]
         assert len(c0) == num_nodes_before + 1
@@ -450,17 +449,30 @@ def test_learner_does_not_take_part(network, args):
 
     with network.partitioner.partition(f_backups):
 
-        # New node joins, but cannot be promoted to TRUSTED without f other backups
+        check_does_not_progress(primary, timeout=5)
+
         try:
             network.consortium.trust_node(
                 primary,
                 new_node.node_id,
                 timeout=ceil(args.join_timer * 2 / 1000),
+                valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
             )
             new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
-            raise Exception("should have thrown")
+            join_failed = False
         except Exception:
-            pass
+            join_failed = True
+
+        if not join_failed:
+            raise Exception("join succeeded unexpectedly")
+
+        with new_node.client(self_signed_ok=True) as c:
+            r = c.get("/node/network/nodes/self")
+            assert r.body.json()["status"] == "Learner"
+            r = c.get("/node/consensus")
+            assert new_node.node_id in r.body.json()["details"]["learners"]
+
+        # New node joins, but cannot be promoted to TRUSTED without f other backups
 
         check_does_not_progress(primary, timeout=5)
 
@@ -471,20 +483,10 @@ def test_learner_does_not_take_part(network, args):
             assert new_node.node_id in r.body.json()["details"]["learners"]
 
     network.wait_for_primary_unanimity()
+    network.wait_for_all_nodes_to_commit(primary=primary)
 
-    primary, _ = network.find_primary()
-
-    with primary.client() as c:
-        r = c.get("/node/consensus")
-        print(r.body.json())
-
-    # ... after some time the learner should have caught up
-    network.consortium.wait_for_node_to_exist_in_store(
-        primary,
-        new_node.node_id,
-        timeout=10,
-        node_status=(ccf.ledger.NodeStatus.TRUSTED),
-    )
+    # Note: the transaction containing the update to Learner from Pending for the new node may be
+    # rolled back, depending on who becomes the leader after the partition is lifted.
 
     return network
 
@@ -545,8 +547,7 @@ def run(args):
 
         if args.reconfiguration_type == "2tx":
             test_learner_catches_up(network, args)
-            # test_learner_does_not_take_part(network, args)
-            test_retire_backup(network, args)
+            test_learner_does_not_take_part(network, args)
 
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)

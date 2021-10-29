@@ -62,7 +62,7 @@ namespace ccf
       {
         auto ser_res = ctx->serialise_response();
         std::string str((char*)ser_res.data(), ser_res.size());
-        LOG_FAIL_FMT("Request failed: {}", str);
+        LOG_DEBUG_FMT("Request failed: {}", str);
       }
 
       return rs == HTTP_STATUS_OK;
