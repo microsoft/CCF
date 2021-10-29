@@ -7,6 +7,7 @@
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
+#include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/hash.h"

@@ -41,6 +41,7 @@
 #include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
+#include "orc_requests.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -3456,7 +3457,7 @@ namespace aft
                (is_retiring() &&
                 next->nodes.find(state->my_node_id) == next->nodes.end())))
             {
-              node_client->schedule_submit_orc(state->my_node_id, next->rid);
+              schedule_submit_orc(node_client, state->my_node_id, next->rid);
             }
             break;
           }
