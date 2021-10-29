@@ -41,7 +41,7 @@ namespace kv
     std::shared_ptr<TxHistory> history;
     const std::vector<uint8_t> data;
     bool public_only;
-    kv::Version v;
+    kv::Version version;
     Term term;
     OrderedChanges changes;
     MapCollection new_maps;
@@ -66,13 +66,12 @@ namespace kv
     ApplyResult apply() override
     {
       kv::Version max_conflict_version = 0;
-      kv::Term view = 0;
       if (!store->fill_maps(
             data,
             public_only,
-            v,
+            version,
             max_conflict_version,
-            view,
+            term,
             changes,
             new_maps,
             true))
@@ -82,19 +81,19 @@ namespace kv
 
       if (expected_txid.has_value())
       {
-        if (view != expected_txid->term || v != expected_txid->version)
+        if (term != expected_txid->term || version != expected_txid->version)
         {
           LOG_FAIL_FMT(
             "TxID mismatch during deserialisation. Expected {}.{}, got {}.{}",
             expected_txid->term,
             expected_txid->version,
-            view,
-            v);
+            term,
+            version);
           return ApplyResult::FAIL;
         }
       }
 
-      if (!store->commit_deserialised(changes, v, view, new_maps, hooks))
+      if (!store->commit_deserialised(changes, version, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -162,8 +161,9 @@ namespace kv
 
     kv::Version get_index() override
     {
-      throw std::logic_error("get_index not implemented");
+      return version;
     }
+
     ccf::PrimarySignature& get_signature() override
     {
       throw std::logic_error("get_signature not implemented");

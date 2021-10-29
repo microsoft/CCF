@@ -1482,7 +1482,7 @@ namespace aft
         LOG_TRACE_FMT("Sending sub range {} -> {}", start_idx, end_idx);
         send_append_entries_range(to, start_idx, end_idx);
         start_idx = std::min(end_idx + 1, state->last_idx);
-      } while (end_idx != state->last_idx)
+      } while (end_idx != state->last_idx);
     }
 
     void send_append_entries_range(
