@@ -710,7 +710,7 @@ if(BUILD_TESTS)
     NAME reconfiguration_test_cft_2tx
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} --reconfiguration-type 2tx    
+    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} --reconfiguration-type 2tx
     CONFIGURATIONS partitions
   )
 
