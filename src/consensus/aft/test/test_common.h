@@ -44,9 +44,7 @@ static void receive_message(
       // Parse the indices to be sent to the recipient.
       auto ae = *(aft::AppendEntries*)data;
 
-      TRaft* ps = &sender;
-      const auto payload_opt =
-        sender.ledger->get_append_entries_payload(ae, ps);
+      const auto payload_opt = sender.ledger->get_append_entries_payload(ae);
       if (payload_opt.has_value())
       {
         contents.insert(

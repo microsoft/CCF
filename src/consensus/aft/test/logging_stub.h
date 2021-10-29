@@ -81,9 +81,8 @@ namespace aft
       return std::nullopt;
     }
 
-    template <typename T>
     std::optional<std::vector<uint8_t>> get_append_entries_payload(
-      const aft::AppendEntries& ae, T& term_getter)
+      const aft::AppendEntries& ae)
     {
       std::vector<uint8_t> payload;
 

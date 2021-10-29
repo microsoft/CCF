@@ -395,7 +395,7 @@ public:
 
           auto& sender_raft = _nodes.at(node_id).raft;
           const auto payload_opt =
-            sender_raft->ledger->get_append_entries_payload(ae, sender_raft);
+            sender_raft->ledger->get_append_entries_payload(ae);
 
           if (!payload_opt.has_value())
           {
