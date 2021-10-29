@@ -52,7 +52,8 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
                          index,
                          stringify(data))
                     << std::endl;
-    aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk, term, index);
+    aft::LedgerStubProxy::put_entry(
+      data, globally_committable, force_chunk, term, index);
   }
 
   void truncate(aft::Index idx) override

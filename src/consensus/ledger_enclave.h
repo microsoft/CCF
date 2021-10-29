@@ -38,7 +38,13 @@ namespace consensus
       kv::Term term,
       kv::Version index)
     {
-      put_entry(entry.data(), entry.size(), globally_committable, force_chunk, term, index);
+      put_entry(
+        entry.data(),
+        entry.size(),
+        globally_committable,
+        force_chunk,
+        term,
+        index);
     }
 
     /**

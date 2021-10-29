@@ -84,7 +84,8 @@ TEST_CASE("Enclave record")
   serialized::write(tx_, size_, entry_header);
   serialized::write(tx_, size_, entry.data(), entry.size());
 
-  leader_ledger_enclave.put_entry(tx, globally_committable, force_ledger_chunk, 1, 1);
+  leader_ledger_enclave.put_entry(
+    tx, globally_committable, force_ledger_chunk, 1, 1);
   size_t num_msgs = 0;
   std::vector<uint8_t> record;
   eio_leader.read_from_inside().read(
