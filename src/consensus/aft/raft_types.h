@@ -133,6 +133,10 @@ namespace aft
     Term term;
     Term prev_term;
     Index leader_commit_idx;
+    // An AppendEntries now contains entries for a single term. So this
+    // describes the term of all entries in the range, and if this is different
+    // from prev_term, then the first entry is the first transaction in that new
+    // term
     Term term_of_idx;
     bool contains_new_view;
   };

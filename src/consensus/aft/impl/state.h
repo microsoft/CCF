@@ -77,6 +77,16 @@ namespace aft
       return views[view - 1];
     }
 
+    kv::Version end_of_view(ccf::View view)
+    {
+      if (view > views.size() - 1 || view == InvalidView)
+      {
+        return kv::NoVersion;
+      }
+
+      return views[view] - 1;
+    }
+
     std::vector<kv::Version> get_history_until(
       kv::Version idx = std::numeric_limits<kv::Version>::max())
     {

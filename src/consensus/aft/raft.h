@@ -166,7 +166,7 @@ namespace aft
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
-    Index entries_batch_size = 1;
+    Index entries_batch_size = 20;
     static constexpr int batch_window_size = 100;
     int batch_window_sum = 0;
 
@@ -1450,19 +1450,41 @@ namespace aft
 
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
-      Index end_idx = (state->last_idx == 0) ?
-        0 :
-        std::min(start_idx + entries_batch_size, state->last_idx);
+      // TODO: Revert these to TRACE once this works
+      LOG_INFO_FMT(
+        "Sending append entries to {} from {} (in batches of {})",
+        to,
+        start_idx,
+        entries_batch_size);
 
-      for (Index i = end_idx; i < state->last_idx; i += entries_batch_size)
-      {
-        send_append_entries_range(to, start_idx, i);
-        start_idx = std::min(i + 1, state->last_idx);
-      }
+      auto calculate_end_index = [this](Index start) {
+        // Cap the end index in 2 ways:
+        // - Must contain no more than entries_batch_size entries
+        // - Must contain entries from a single term
+        auto max_end = state->last_idx;
+        const auto term_of_ae = state->view_history.view_at(start);
+        const auto end_of_term = state->view_history.end_of_view(term_of_ae);
+        if (end_of_term != kv::NoVersion)
+        {
+          max_end = end_of_term;
+        }
+        return std::min(start + entries_batch_size, max_end);
+      };
 
-      if (state->last_idx == 0 || end_idx <= state->last_idx)
+      Index end_idx;
+      while (true)
       {
-        send_append_entries_range(to, start_idx, state->last_idx);
+        end_idx = calculate_end_index(start_idx);
+        LOG_INFO_FMT("Sending sub range {} -> {}", start_idx, end_idx);
+        send_append_entries_range(to, start_idx, end_idx);
+        if (end_idx == state->last_idx)
+        {
+          // We break _after_ sending, so that in the case where this is called
+          // with start==last, we send a single empty heartbeat
+          LOG_INFO_FMT("end == last == {}", end_idx);
+          break;
+        }
+        start_idx = std::min(end_idx + 1, state->last_idx);
       }
     }
 
