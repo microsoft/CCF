@@ -176,7 +176,7 @@ namespace kv
 
     kv::Version get_max_conflict_version() override
     {
-      return v - 1;
+      return version - 1;
     }
 
     bool support_async_execution() override
