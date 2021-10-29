@@ -7,7 +7,6 @@ import infra.proc
 import infra.logging_app as app
 import suite.test_requirements as reqs
 import tempfile
-import time
 from shutil import copy
 import os
 from infra.checker import check_can_progress, check_does_not_progress

@@ -751,8 +751,8 @@ class CCFRemote(object):
                         f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
                     ]
 
-            if reconfiguration_type:
-                cmd += [f"--reconfiguration-type={reconfiguration_type}"]
+                if reconfiguration_type and reconfiguration_type != "1tx":
+                    cmd += [f"--reconfiguration-type={reconfiguration_type}"]
 
         elif start_type == StartType.join:
             cmd += [
