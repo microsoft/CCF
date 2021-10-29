@@ -265,8 +265,12 @@ namespace aft
       kv::Version index;
       std::vector<uint8_t> entry;
 
+      kv::ApplyResult result;
+
     public:
-      ExecutionWrapper(const std::vector<uint8_t>& data_)
+      ExecutionWrapper(
+        const std::vector<uint8_t>& data_,
+        const std::optional<kv::TxID>& expected_txid)
       {
         const uint8_t* data = data_.data();
         auto size = data_.size();
@@ -274,11 +278,21 @@ namespace aft
         term = serialized::read<aft::Term>(data, size);
         index = serialized::read<kv::Version>(data, size);
         entry = serialized::read(data, size, size);
+
+        result = AR;
+
+        if (expected_txid.has_value())
+        {
+          if (term != expected_txid->term || index != expected_txid->version)
+          {
+            result = kv::ApplyResult::FAIL;
+          }
+        }
       }
 
       kv::ApplyResult apply() override
       {
-        return AR;
+        return result;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -338,7 +352,8 @@ namespace aft
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt)
     {
-      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(data);
+      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
+        data, expected_txid);
     }
 
     std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
@@ -359,7 +374,7 @@ namespace aft
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
       return std::make_unique<
-        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data);
+        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data, expected_txid);
     }
   };
 
