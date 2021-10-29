@@ -711,6 +711,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
     ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} --reconfiguration-type 2tx
+    LABEL partitions
+    CONFIGURATIONS partitions
   )
 
   add_e2e_test(

@@ -519,7 +519,7 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        init_partitioner=True,
+        init_partitioner=args.reconfiguration_type == "2tx",
     ) as network:
         network.start_and_join(args)
 
