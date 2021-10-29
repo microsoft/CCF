@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "consensus/aft/raft.h"
+#include "consensus/aft/impl/state.h"
 
 #include <doctest/doctest.h>
 
@@ -18,6 +18,9 @@ TEST_CASE("Advancing view history" * doctest::test_suite("viewhistory"))
     CHECK(history.view_at(2) == ViewHistory::InvalidView);
     CHECK(history.view_at(3) == ViewHistory::InvalidView);
     CHECK(history.view_at(4) == ViewHistory::InvalidView);
+
+    CHECK(history.start_of_view(1) == kv::NoVersion);
+    CHECK(history.end_of_view(1) == kv::NoVersion);
   }
 
   {
@@ -52,6 +55,18 @@ TEST_CASE("Advancing view history" * doctest::test_suite("viewhistory"))
     CHECK(history.view_at(2) == 1);
     CHECK(history.view_at(3) == 2);
     CHECK(history.view_at(4) == 3);
+  }
+
+  {
+    INFO("First and last entries in views");
+    CHECK(history.start_of_view(1) == 1);
+    CHECK(history.end_of_view(1) == 2);
+    CHECK(history.start_of_view(2) == 3);
+    CHECK(history.end_of_view(2) == 3);
+    CHECK(history.start_of_view(3) == 4);
+    CHECK(history.end_of_view(3) == kv::NoVersion);
+    CHECK(history.start_of_view(4) == kv::NoVersion);
+    CHECK(history.end_of_view(4) == kv::NoVersion);
   }
 }
 
@@ -126,6 +141,16 @@ TEST_CASE("Edge case view histories" * doctest::test_suite("viewhistory"))
     CHECK(history.view_at(2) == 4);
     CHECK(history.view_at(3) == 4);
     CHECK(history.view_at(4) == 4);
+
+    CHECK(history.start_of_view(4) == 2);
+    CHECK(history.end_of_view(4) == kv::NoVersion);
+
+    CHECK(history.start_of_view(1) == kv::NoVersion);
+    CHECK(history.end_of_view(1) == kv::NoVersion);
+    CHECK(history.start_of_view(2) == kv::NoVersion);
+    CHECK(history.end_of_view(2) == kv::NoVersion);
+    CHECK(history.start_of_view(3) == kv::NoVersion);
+    CHECK(history.end_of_view(3) == kv::NoVersion);
   }
 }
 
@@ -140,6 +165,16 @@ TEST_CASE("Initialised view histories" * doctest::test_suite("viewhistory"))
     CHECK_NOTHROW(history.initialise({1, 2}));
     CHECK_NOTHROW(history.initialise({2, 2}));
     CHECK_NOTHROW(history.initialise({2, 4, 4, 10}));
+
+    CHECK(history.start_of_view(1) == 2);
+    CHECK(history.end_of_view(1) == 3);
+    CHECK(history.start_of_view(2) == kv::NoVersion);
+    CHECK(history.end_of_view(2) == kv::NoVersion);
+    CHECK(history.start_of_view(3) == 4);
+    CHECK(history.end_of_view(3) == 9);
+    CHECK(history.start_of_view(4) == 10);
+    CHECK(history.end_of_view(4) == kv::NoVersion);
+
     CHECK_THROWS(history.initialise({2, 1}));
     CHECK_THROWS(history.initialise({1, 2, 1}));
     CHECK_THROWS(history.initialise({2, 4, 4, 10, 9}));
@@ -167,6 +202,17 @@ TEST_CASE("Initialised view histories" * doctest::test_suite("viewhistory"))
     CHECK(history.view_at(8) == 5);
     CHECK(history.view_at(19) == 6);
     CHECK(history.view_at(20) == 6);
+
+    CHECK(history.start_of_view(1) == kv::NoVersion);
+    CHECK(history.end_of_view(1) == kv::NoVersion);
+    CHECK(history.start_of_view(3) == 3);
+    CHECK(history.end_of_view(3) == 4);
+    CHECK(history.start_of_view(4) == 5);
+    CHECK(history.end_of_view(4) == 5);
+    CHECK(history.start_of_view(5) == 6);
+    CHECK(history.end_of_view(5) == 11);
+    CHECK(history.start_of_view(6) == 12);
+    CHECK(history.end_of_view(6) == kv::NoVersion);
   }
 }
 

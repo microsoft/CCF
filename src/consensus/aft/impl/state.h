@@ -74,16 +74,32 @@ namespace aft
         return kv::NoVersion;
       }
 
-      return views[view - 1];
+      // NB: If views == {5, 10, 10}, then view 2 doesn't start at 10. View 2
+      // contains no transactions, and view 3 starts at 10
+      const auto tentative = views[view - 1];
+      if (view + 1 <= views.size() && views[view] == tentative)
+      {
+        return kv::NoVersion;
+      }
+      return tentative;
     }
 
     kv::Version end_of_view(ccf::View view)
     {
-      if (view > views.size() - 1 || view == InvalidView)
+      // If this view has no start (potentially because it contains no
+      // transactions), then it can't have an end
+      if (start_of_view(view) == kv::NoVersion)
       {
         return kv::NoVersion;
       }
 
+      if (view >= views.size() || view == InvalidView)
+      {
+        return kv::NoVersion;
+      }
+
+      // Otherwise the end of this view is the transaction before (- 1) the
+      // start of the next view (views[view])
       return views[view] - 1;
     }
 
