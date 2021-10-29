@@ -812,15 +812,18 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     }
 
     {
-      // But now a malicious host fiddles with the ledger, but inserts a valid
+      // But now a malicious host fiddles with the ledger, and inserts a valid
       // value from an old branch!
-      // r0.ledger->ledger[6] = dead_branch;
+      r0.ledger->ledger[6] = dead_branch;
     }
 
     {
       r0.periodic(request_timeout);
       DOCTEST_REQUIRE(r0c->messages.size() == 2);
       DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
+      dispatch_all(nodes, node_id1, r1c->messages);
+      dispatch_all(nodes, node_id0, r0c->messages);
+
       DOCTEST_REQUIRE(r1.ledger->ledger.size() == 8);
     }
   }
