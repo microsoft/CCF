@@ -783,6 +783,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
       DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{6, data, true, hooks}}, 1));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 6);
     }
+    const auto last_correct_version = r0.ledger->ledger.size();
 
     std::vector<uint8_t> dead_branch;
     {
@@ -790,12 +791,12 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
       auto data = std::make_shared<std::vector<uint8_t>>(entry_7);
       DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 1));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
-      dead_branch = r0.ledger->ledger[6];
+      dead_branch = r0.ledger->ledger.back();
     }
 
     {
-      r0.rollback(6);
-      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 6);
+      r0.rollback(last_correct_version);
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == last_correct_version);
 
       // How do we force Raft to increment its view? Currently by hacking to
       // follower then force_become_leader. There should be a neater way to do
@@ -805,11 +806,13 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
                                 // function. Oh well, what can you do
     }
 
+    std::vector<uint8_t> live_branch;
     {
       std::vector<uint8_t> entry_7b = {7, 7, 'b'};
       auto data = std::make_shared<std::vector<uint8_t>>(entry_7b);
       DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 4));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
+      live_branch = r0.ledger->ledger.back();
     }
 
     {
@@ -817,22 +820,48 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
       auto data = std::make_shared<std::vector<uint8_t>>(entry_8);
       DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{8, data, true, hooks}}, 4));
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == 8);
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() > last_correct_version);
     }
 
     {
       // But now a malicious host fiddles with the ledger, and inserts a valid
       // value from an old branch!
+      // NB: It's important that node 0 has not sent any AppendEntries about the
+      // latest entries yet! It should only do so after this point, where it
+      // will include incorrect entries.
       r0.ledger->ledger[6] = dead_branch;
     }
 
     {
       r0.periodic(request_timeout);
-      DOCTEST_REQUIRE(r0c->messages.size() == 2);
-      DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
-      dispatch_all(nodes, node_id1, r1c->messages);
-      dispatch_all(nodes, node_id0, r0c->messages);
 
-      DOCTEST_REQUIRE(r1.ledger->ledger.size() == 8);
+      // Even after multiple round trip coherence attempts, the bad ledger
+      // remains and prevents progress
+      for (size_t i = 0; i < 10; ++i)
+      {
+        dispatch_all(nodes, node_id0, r0c->messages);
+        dispatch_all(nodes, node_id1, r1c->messages);
+      }
+      // Receiver refuses these new entries, because they see a mismatch
+      DOCTEST_REQUIRE(r1.ledger->ledger.size() == last_correct_version);
+    }
+
+    {
+      // Now the ledger is corrected (ie - an honest primary takes over and
+      // sends the correct values)
+      r0.ledger->ledger[6] = live_branch;
+    }
+
+    {
+      r0.periodic(request_timeout);
+      for (size_t i = 0; i < 10; ++i)
+      {
+        dispatch_all(nodes, node_id0, r0c->messages);
+        dispatch_all(nodes, node_id1, r1c->messages);
+      }
+
+      // Now the follower has fully caught up
+      DOCTEST_REQUIRE(r1.ledger->ledger.size() == r0.ledger->ledger.size());
     }
   }
 }
