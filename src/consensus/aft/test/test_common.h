@@ -13,6 +13,9 @@ using TRaft =
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
+using SigStore = aft::LoggingStubStoreSig;
+using SigAdaptor = aft::Adaptor<SigStore>;
+
 static std::vector<uint8_t> cert;
 
 static const auto request_timeout = std::chrono::milliseconds(10);

@@ -601,14 +601,14 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
 
-  auto kv_store0 = std::make_shared<Store>(node_id0);
-  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store0 = std::make_shared<SigStore>(node_id0);
+  auto kv_store1 = std::make_shared<SigStore>(node_id1);
 
   ms request_timeout(10);
 
   TRaft r0(
     ConsensusType::CFT,
-    std::make_unique<Adaptor>(kv_store0),
+    std::make_unique<SigAdaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
@@ -625,7 +625,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     ms(1000));
   TRaft r1(
     ConsensusType::CFT,
-    std::make_unique<Adaptor>(kv_store1),
+    std::make_unique<SigAdaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
