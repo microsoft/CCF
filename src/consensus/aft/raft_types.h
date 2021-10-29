@@ -42,7 +42,8 @@ namespace aft
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
-      bool public_only = false) = 0;
+      bool public_only = false,
+      const std::optional<kv::TxID>& expected_txid = std::nullopt) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
   };
 
@@ -95,12 +96,13 @@ namespace aft
     std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
-      bool public_only = false) override
+      bool public_only = false,
+      const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
       auto p = x.lock();
       if (p)
       {
-        return p->deserialize(data, consensus_type, public_only);
+        return p->deserialize(data, consensus_type, public_only, expected_txid);
       }
       return nullptr;
     }

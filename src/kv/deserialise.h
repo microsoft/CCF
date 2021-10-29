@@ -47,16 +47,20 @@ namespace kv
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
 
+    const std::optional<TxID> expected_txid;
+
   public:
     CFTExecutionWrapper(
       ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
-      bool public_only_) :
+      bool public_only_,
+      const std::optional<TxID>& expected_txid_) :
       store(store_),
       history(history_),
       data(data_),
-      public_only(public_only_)
+      public_only(public_only_),
+      expected_txid(expected_txid_)
     {}
 
     ApplyResult apply() override
@@ -74,6 +78,20 @@ namespace kv
             true))
       {
         return ApplyResult::FAIL;
+      }
+
+      if (expected_txid.has_value())
+      {
+        if (view != expected_txid->term || v != expected_txid->version)
+        {
+          LOG_FAIL_FMT(
+            "TxID mismatch during deserialisation. Expected {}.{}, got {}.{}",
+            expected_txid->term,
+            expected_txid->version,
+            view,
+            v);
+          return ApplyResult::FAIL;
+        }
       }
 
       if (!store->commit_deserialised(changes, v, view, new_maps, hooks))

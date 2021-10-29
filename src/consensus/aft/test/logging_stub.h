@@ -335,7 +335,8 @@ namespace aft
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
-      bool public_only = false)
+      bool public_only = false,
+      const std::optional<kv::TxID>& expected_txid = std::nullopt)
     {
       return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(data);
     }
@@ -354,7 +355,8 @@ namespace aft
     std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
-      bool public_only = false) override
+      bool public_only = false,
+      const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
       return std::make_unique<
         ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data);

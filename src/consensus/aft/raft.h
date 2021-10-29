@@ -1450,12 +1450,13 @@ namespace aft
 
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
-      // TODO: Revert these to TRACE once this works
-      LOG_INFO_FMT(
-        "Sending append entries to {} from {} (in batches of {})",
+      LOG_TRACE_FMT(
+        "Sending append entries to node {} in batches of {}, covering the "
+        "range {} -> {}",
         to,
+        entries_batch_size,
         start_idx,
-        entries_batch_size);
+        state->last_idx);
 
       auto calculate_end_index = [this](Index start) {
         // Cap the end index in 2 ways:
@@ -1475,13 +1476,12 @@ namespace aft
       while (true)
       {
         end_idx = calculate_end_index(start_idx);
-        LOG_INFO_FMT("Sending sub range {} -> {}", start_idx, end_idx);
+        LOG_TRACE_FMT("Sending sub range {} -> {}", start_idx, end_idx);
         send_append_entries_range(to, start_idx, end_idx);
         if (end_idx == state->last_idx)
         {
           // We break _after_ sending, so that in the case where this is called
           // with start==last, we send a single empty heartbeat
-          LOG_INFO_FMT("end == last == {}", end_idx);
           break;
         }
         start_idx = std::min(end_idx + 1, state->last_idx);
@@ -1813,7 +1813,8 @@ namespace aft
           return;
         }
 
-        auto ds = store->apply(entry, consensus_type, public_only);
+        kv::TxID expected{r.term_of_idx, i};
+        auto ds = store->apply(entry, consensus_type, public_only, expected);
         if (ds == nullptr)
         {
           LOG_FAIL_FMT(

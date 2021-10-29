@@ -696,7 +696,8 @@ namespace kv
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
-      bool public_only = false) = 0;
+      bool public_only = false,
+      const std::optional<TxID>& expected_txid = std::nullopt) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
     virtual void initialise_term(Term t) = 0;
