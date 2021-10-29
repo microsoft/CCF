@@ -14,6 +14,7 @@
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
+#include "crypto/openssl/x509_time.h"
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
@@ -21,7 +22,9 @@
 
 #include <chrono>
 #include <cstring>
+#include <ctime>
 #include <doctest/doctest.h>
+#include <optional>
 
 using namespace std;
 using namespace tls;
@@ -441,6 +444,10 @@ void run_csr(bool corrupt_csr = false)
 
   S v(crt.raw());
   REQUIRE(v.verify(content, signature));
+
+  auto [valid_from, valid_to] = v.validity_period();
+  REQUIRE(valid_from == "20210311000000Z");
+  REQUIRE(valid_to == "20230611235959Z");
 }
 
 TEST_CASE("Create sign and verify certificates")
@@ -629,4 +636,96 @@ TEST_CASE("AES-GCM convenience functions")
   auto encrypted = aes_gcm_encrypt(key, contents);
   auto decrypted = aes_gcm_decrypt(key, encrypted);
   REQUIRE(decrypted == contents);
+}
+
+TEST_CASE("x509 time")
+{
+  auto current_time_t =
+    std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  auto time = *std::gmtime(&current_time_t);
+
+  auto next_day_time = time;
+  next_day_time.tm_mday++;
+  auto next_year_time = time;
+  next_year_time.tm_year++;
+  auto next_minute_time = time;
+  next_minute_time.tm_min++;
+
+  auto current_time = crypto::OpenSSL::from_time_t(current_time_t);
+  auto next_day = crypto::OpenSSL::from_time_t(std::mktime(&next_day_time));
+  auto next_year = crypto::OpenSSL::from_time_t(std::mktime(&next_year_time));
+
+  INFO("Chronological time");
+  {
+    struct TimeTest
+    {
+      struct Input
+      {
+        std::tm from;
+        std::tm to;
+        std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
+      };
+      Input input;
+
+      bool expected_verification_result;
+    };
+
+    std::vector<TimeTest> test_vector{
+      {{time, next_day_time}, true}, // Valid: Next day
+      {{time, time}, false}, // Invalid: Same date
+      {{next_day_time, time}, false}, // Invalid: to is before from
+      {{time, next_day_time, 100}, true}, // Valid: Next day within 100 days
+      {{time, next_year_time, 100},
+       false}, // Valid: Next day not within 100 days
+      {{time, next_minute_time}, true}, // Valid: Next minute
+      {{next_minute_time, time}, false}, // Invalid: to is before from
+      {{time, next_minute_time, 1}, true} // Valid: Next min within 1 day
+    };
+
+    for (auto& data : test_vector)
+    {
+      auto* from = &data.input.from;
+      auto* to = &data.input.to;
+      REQUIRE(
+        crypto::OpenSSL::validate_chronological_times(
+          crypto::OpenSSL::from_time_t(std::mktime(from)),
+          crypto::OpenSSL::from_time_t(std::mktime(to)),
+          data.input.maximum_validity_period_days) ==
+        data.expected_verification_result);
+    }
+  }
+
+  INFO("Adjust time");
+  {
+    std::vector<std::tm> times = {time, next_day_time, next_day_time};
+    size_t days_offset = 100;
+
+    for (auto& t : times)
+    {
+      time_t t_ = std::mktime(&t);
+      auto adjusted_time = crypto::OpenSSL::adjust_time(
+        crypto::OpenSSL::from_time_t(t_), days_offset);
+      auto days_diff =
+        std::difftime(crypto::OpenSSL::to_time_t(adjusted_time), t_) /
+        (60 * 60 * 24);
+      REQUIRE(days_diff == days_offset);
+    }
+  }
+
+  INFO("String to time conversion and back");
+  {
+    std::vector<size_t> days_offsets = {0, 1, 10, 100, 365, 1000, 10000};
+
+    for (auto const& days_offset : days_offsets)
+    {
+      auto adjusted_time = crypto::OpenSSL::adjust_time(
+        crypto::OpenSSL::from_time_t(current_time_t), days_offset);
+      auto adjusted_time_t = crypto::OpenSSL::to_time_t(adjusted_time);
+
+      auto x509_str = crypto::OpenSSL::to_x509_time_string(adjusted_time_t);
+      auto asn1_time = crypto::OpenSSL::Unique_X509_TIME(x509_str);
+      auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
+      REQUIRE(converted_time_t == adjusted_time_t);
+    }
+  }
 }

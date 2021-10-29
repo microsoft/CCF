@@ -7,6 +7,7 @@
 #include "crypto/openssl/public_key.h"
 #include "hash.h"
 #include "openssl_wrappers.h"
+#include "x509_time.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -215,7 +216,11 @@ namespace crypto
   }
 
   Pem KeyPair_OpenSSL::sign_csr(
-    const Pem& issuer_cert, const Pem& signing_request, bool ca) const
+    const Pem& issuer_cert,
+    const Pem& signing_request,
+    bool ca,
+    const std::optional<std::string>& valid_from,
+    const std::optional<std::string>& valid_to) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -256,17 +261,19 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
-    ASN1_TIME *before = NULL, *after = NULL;
-    OpenSSL::CHECKNULL(before = ASN1_TIME_new());
-    OpenSSL::CHECKNULL(after = ASN1_TIME_new());
-    OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20210311000000Z"));
-    OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20230611235959Z"));
-    OpenSSL::CHECK1(ASN1_TIME_normalize(before));
-    OpenSSL::CHECK1(ASN1_TIME_normalize(after));
-    OpenSSL::CHECK1(X509_set1_notBefore(crt, before));
-    OpenSSL::CHECK1(X509_set1_notAfter(crt, after));
-    ASN1_TIME_free(before);
-    ASN1_TIME_free(after);
+    Unique_X509_TIME not_before(valid_from.value_or("20210311000000Z"));
+    Unique_X509_TIME not_after(valid_to.value_or("20230611235959Z"));
+    if (!validate_chronological_times(not_before, not_after))
+    {
+      throw std::logic_error(fmt::format(
+        "Certificate cannot be created with not_before date {} > not_after "
+        "date {}",
+        to_x509_time_string(not_before),
+        to_x509_time_string(not_after)));
+    }
+
+    OpenSSL::CHECK1(X509_set1_notBefore(crt, not_before));
+    OpenSSL::CHECK1(X509_set1_notAfter(crt, not_after));
 
     X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
     X509_set_pubkey(crt, req_pubkey);

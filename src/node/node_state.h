@@ -5,6 +5,7 @@
 #include "blit.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
+#include "crypto/certs.h"
 #include "crypto/entropy.h"
 #include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
@@ -286,7 +287,12 @@ namespace ccf
         get_subject_alternative_names();
 
       js::register_class_ids();
-      self_signed_node_cert = create_self_signed_node_cert();
+      self_signed_node_cert = create_self_signed_cert(
+        node_sign_kp,
+        config.node_certificate_subject_identity,
+        config.startup_host_time,
+        config.initial_node_certificate_validity_period_days);
+
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
 
@@ -320,7 +326,8 @@ namespace ccf
 
           if (network.consensus_type == ConsensusType::BFT)
           {
-            endorsed_node_cert = create_endorsed_node_cert();
+            endorsed_node_cert = create_endorsed_node_cert(
+              config.initial_node_certificate_validity_period_days);
             history->set_endorsed_certificate(endorsed_node_cert.value());
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
@@ -487,7 +494,8 @@ namespace ccf
               // from 2.x (CFT only). When joining an existing 1.x service,
               // self-sign own certificate and use it to endorse TLS
               // connections.
-              endorsed_node_cert = create_endorsed_node_cert();
+              endorsed_node_cert = create_endorsed_node_cert(
+                default_node_cert_validity_period_days);
               history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels_cert = endorsed_node_cert.value();
               open_frontend(ActorsType::members);
@@ -900,7 +908,8 @@ namespace ccf
       auto tx = network.tables->create_read_only_tx();
       if (network.consensus_type == ConsensusType::BFT)
       {
-        endorsed_node_cert = create_endorsed_node_cert();
+        endorsed_node_cert = create_endorsed_node_cert(
+          config.initial_node_certificate_validity_period_days);
         history->set_endorsed_certificate(endorsed_node_cert.value());
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
@@ -1509,28 +1518,17 @@ namespace ccf
       }
     }
 
-    Pem create_self_signed_node_cert()
-    {
-      return node_sign_kp->self_sign(config.node_certificate_subject_identity);
-    }
-
-    Pem create_endorsed_node_cert()
+    crypto::Pem create_endorsed_node_cert(size_t validity_period_days)
     {
       // Only used by a 2.x node joining an existing 1.x service which will not
       // endorsed the identity of the new joiner.
-      auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto csr =
-        node_sign_kp->create_csr(config.node_certificate_subject_identity);
-      return nw->sign_csr(network.identity->cert, csr);
-    }
-
-    crypto::Pem generate_endorsed_certificate(
-      const crypto::Pem& subject_csr,
-      const crypto::Pem& endorser_private_key,
-      const crypto::Pem& endorser_cert) override
-    {
-      return crypto::make_key_pair(endorser_private_key)
-        ->sign_csr(endorser_cert, subject_csr);
+      return create_endorsed_cert(
+        node_sign_kp,
+        config.node_certificate_subject_identity,
+        config.startup_host_time,
+        validity_period_days,
+        network.identity->priv_key,
+        network.identity->cert);
     }
 
     void accept_node_tls_connections()
@@ -1594,7 +1592,8 @@ namespace ccf
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
           network.consensus_type,
-          reconf_type};
+          reconf_type,
+          config.genesis.max_allowed_node_cert_validity_days};
         create_params.genesis_info = genesis_info;
       }
 
@@ -1607,6 +1606,9 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
+      create_params.node_cert_valid_from = config.startup_host_time;
+      create_params.initial_node_cert_validity_period_days =
+        config.initial_node_certificate_validity_period_days;
 
       // Record self-signed certificate in create request if the node does not
       // require endorsement by the service (i.e. BFT)

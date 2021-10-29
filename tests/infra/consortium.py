@@ -301,12 +301,17 @@ class Consortium:
             )
             assert r.body.json()["status"] == expected
 
-    def trust_node(self, remote_node, node_id, timeout=3):
+    def trust_node(
+        self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
+    ):
         if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
         proposal_body, careful_vote = self.make_proposal(
-            "transition_node_to_trusted", node_id
+            "transition_node_to_trusted",
+            node_id,
+            valid_from,
+            validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
@@ -534,6 +539,30 @@ class Consortium:
         proposal_body, careful_vote = self.make_proposal("remove_node_code", code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_node_certificate_validity(
+        self, remote_node, node_to_renew, valid_from, validity_period_days
+    ):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_node_certificate_validity",
+            node_to_renew.node_id,
+            valid_from,
+            validity_period_days,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_all_nodes_certificate_validity(
+        self, remote_node, valid_from, validity_period_days
+    ):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_all_nodes_certificate_validity",
+            valid_from,
+            validity_period_days,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        r = self.vote_using_majority(remote_node, proposal, careful_vote)
+        return r
 
     def check_for_service(self, remote_node, status):
         """

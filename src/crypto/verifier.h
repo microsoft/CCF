@@ -192,8 +192,11 @@ namespace crypto
     /** Indicates whether the certificate (held intenally) is self-signed */
     virtual bool is_self_signed() const = 0;
 
-    /** The serial number of the certificate*/
+    /** The serial number of the certificate */
     virtual std::string serial_number() const = 0;
+
+    /** The validity period of the certificate */
+    virtual std::pair<std::string, std::string> validity_period() const = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
