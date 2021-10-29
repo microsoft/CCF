@@ -24,11 +24,36 @@ namespace aft
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
     virtual void put_entry(
-      const std::vector<uint8_t>& data,
+      const std::vector<uint8_t>& original,
       bool globally_committable,
-      bool force_chunk)
+      bool force_chunk,
+      kv::Term term,
+      kv::Version index)
     {
-      ledger.push_back(data);
+      // The payload that we eventually deserialise must include the
+      // ledger entry as well as the View and Index that identify it. In
+      // the real entries, they are nested in the payload and the IV. For
+      // test purposes, we just prefix them manually (to mirror the
+      // deserialisation in LoggingStubStore::ExecutionWrapper). We also
+      // size-prefix, so in a buffer of multiple of these messages we can
+      // extract each with get_entry
+      const size_t idx = ledger.size() + 1;
+      assert(idx == index);
+      auto additional_size = sizeof(size_t) + sizeof(term) + sizeof(index);
+      std::vector<uint8_t> combined(additional_size);
+      {
+        uint8_t* data = combined.data();
+        serialized::write(
+          data,
+          additional_size,
+          (sizeof(term) + sizeof(index) + original.size()));
+        serialized::write(data, additional_size, term);
+        serialized::write(data, additional_size, index);
+      }
+
+      combined.insert(combined.end(), original.begin(), original.end());
+
+      ledger.push_back(combined);
     }
 
     void skip_entry(const uint8_t*& data, size_t& size)
@@ -71,29 +96,6 @@ namespace aft
         }
 
         const auto& entry = *entry_opt;
-
-        // The payload that we eventually deserialise must include the
-        // ledger entry as well as the View and Index that identify it. In
-        // the real entries, they are nested in the payload and the IV. For
-        // test purposes, we just prefix them manually (to mirror the
-        // deserialisation in LoggingStubStore::ExecutionWrapper). We also
-        // size-prefix, so in a buffer of multiple of these messages we can
-        // extract each with get_entry above
-        const auto term_of_idx = term_getter->get_term(idx);
-        const auto size_before = payload.size();
-        auto additional_size =
-          sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
-        const auto size_after = size_before + additional_size;
-        payload.resize(size_after);
-        {
-          uint8_t* data = payload.data() + size_before;
-          serialized::write(
-            data,
-            additional_size,
-            (sizeof(term_of_idx) + sizeof(idx) + entry.size()));
-          serialized::write(data, additional_size, term_of_idx);
-          serialized::write(data, additional_size, idx);
-        }
         payload.insert(payload.end(), entry.begin(), entry.end());
       }
 

@@ -40,15 +40,19 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
   void put_entry(
     const std::vector<uint8_t>& data,
     bool globally_committable,
-    bool force_chunk) override
+    bool force_chunk,
+    kv::Term term,
+    kv::Version index) override
   {
     RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: [ledger] appending: {}",
+                         "  {}->>{}: [ledger] appending: {}.{}={}",
                          _id,
                          _id,
+                         term,
+                         index,
                          stringify(data))
                     << std::endl;
-    aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk);
+    aft::LedgerStubProxy::put_entry(data, globally_committable, force_chunk, term, index);
   }
 
   void truncate(aft::Index idx) override

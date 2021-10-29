@@ -867,7 +867,12 @@ namespace aft
         }
 
         state->last_idx = index;
-        ledger->put_entry(*data, globally_committable, force_ledger_chunk);
+        ledger->put_entry(
+          *data,
+          globally_committable,
+          force_ledger_chunk,
+          state->current_view,
+          index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -1943,7 +1948,11 @@ namespace aft
         }
 
         ledger->put_entry(
-          ds->get_entry(), globally_committable, force_ledger_chunk);
+          ds->get_entry(),
+          globally_committable,
+          force_ledger_chunk,
+          ds->get_term(),
+          ds->get_index());
 
         switch (apply_success)
         {
@@ -2067,7 +2076,11 @@ namespace aft
       }
 
       ledger->put_entry(
-        ds->get_entry(), globally_committable, force_ledger_chunk);
+        ds->get_entry(),
+        globally_committable,
+        force_ledger_chunk,
+        ds->get_term(),
+        ds->get_index());
 
       switch (apply_result)
       {

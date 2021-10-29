@@ -412,7 +412,15 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Tell the leader to replicate a message");
   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
-  DOCTEST_REQUIRE(r0.ledger->ledger.front() == entry);
+
+  // The test ledger adds its own header. Confirm that the expected data is
+  // present, at the end of this ledger entry
+  const auto& actual = r0.ledger->ledger.front();
+  DOCTEST_REQUIRE(actual.size() >= entry.size());
+  for (size_t i = 0; i < entry.size(); ++i)
+  {
+    DOCTEST_REQUIRE(actual[actual.size() - entry.size() + i] == entry[i]);
+  }
   DOCTEST_INFO("The other nodes are not told about this yet");
   DOCTEST_REQUIRE(r0c->messages.size() == 0);
 
