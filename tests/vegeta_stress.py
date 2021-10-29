@@ -70,7 +70,7 @@ def run(args, additional_attack_args):
         sa = primary.session_auth("user0")
         attack_cmd += ["--cert", sa["session_auth"].cert]
         attack_cmd += ["--key", sa["session_auth"].key]
-        attack_cmd += ["--root-certs", sa["ca"]]
+        attack_cmd += ["--root-certs", primary.session_ca(False)["ca"]]
         attack_cmd += additional_attack_args
 
         attack_cmd_s = " ".join(attack_cmd)

@@ -446,15 +446,19 @@ class Node:
             )
 
     def session_auth(self, name=None):
-        return {
-            "session_auth": self.identity(name),
-        }
+        return {"session_auth": self.identity(name)}
 
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
     def get_public_rpc_host(self):
         return self.remote.get_host()
+
+    def session_ca(self, self_signed_ok):
+        if self_signed_ok:
+            return {"ca": ""}
+        else:
+            return {"ca": os.path.join(self.common_dir, "networkcert.pem")}
 
     def client(
         self,
@@ -469,10 +473,7 @@ class Node:
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
             )
 
-        if self_signed_ok:
-            akwargs = {"ca": ""}
-        else:
-            akwargs = {"ca": os.path.join(self.common_dir, "networkcert.pem")}
+        akwargs = self.session_ca(self_signed_ok)
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
