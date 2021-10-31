@@ -29,5 +29,8 @@ namespace crypto
     virtual bool is_self_signed() const override;
 
     virtual std::string serial_number() const override;
+
+    virtual std::pair<std::string, std::string> validity_period()
+      const override;
   };
 }
