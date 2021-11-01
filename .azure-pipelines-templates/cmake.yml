@@ -6,7 +6,6 @@ steps:
       set -ex
       tests/sgxinfo.sh
       cat /proc/cpuinfo | grep flags | uniq
-      env
       sudo groupadd -g 119 sgx_prv
       sudo usermod -a -G sgx_prv $(whoami)
     displayName: Platform Info
