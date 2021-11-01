@@ -43,6 +43,12 @@ variables:
     perf_tests: run
 
 jobs:
+  - job: find_out_groups
+    pool: 1es-dcv2-focal
+
+    steps:
+      - script: getent group
+
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
