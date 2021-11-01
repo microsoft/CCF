@@ -27,11 +27,11 @@ The quickest way to get started building CCF applications is to use the CCF buil
 
 The container contains the latest release of CCF along with a complete build toolchain, and startup scripts.
 
-If your hardware does support SGX, and has the appropriate driver installed and loaded, then you will only need to expose the device to the container by passing ``--device /dev/sgx:/dev/sgx`` when you start it. It can be run on hardware that does not support SGX, in which case you will want to use the virtual binaries, or build in `virtual mode`.
+If your hardware does support SGX, and has the appropriate driver installed and loaded, then you will only need to expose the device to the container by passing ``--device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx`` when you start it. It can be run on hardware that does not support SGX, in which case you will want to use the virtual binaries, or build in `virtual mode`.
 
 .. note::
 
-    - When running the build container on SGX-enabled hardware, pass the ``--device /dev/sgx:/dev/sgx`` command to use SGX in the container.
+    - When running the build container on SGX-enabled hardware, pass the ``--device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx`` options to use SGX in the container.
     - `virtual` mode provides no security guarantee. It is only useful for development and prototyping.
 
 Visual Studio Code Setup
