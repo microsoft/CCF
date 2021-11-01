@@ -771,6 +771,12 @@ namespace aft
         oit->second.size(),
         ncnodes.size(),
         rid);
+
+      // Note: Learners in the next configuration become trusted when there is
+      // quorum in the next configuration, i.e. they may become trusted in the
+      // nodes table before they are fully caught up and have submitted their
+      // own ORC.
+
       return oit->second.size() >= get_quorum(ncnodes.size());
     }
 

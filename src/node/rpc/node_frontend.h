@@ -142,6 +142,13 @@ namespace ccf
       return duplicate_node_id;
     }
 
+    bool is_taking_part_in_acking(NodeStatus node_status)
+    {
+      return node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER ||
+        node_status == NodeStatus::RETIRING;
+    }
+
     auto add_node(
       kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
@@ -450,10 +457,7 @@ namespace ccf
           auto node_info = nodes->get(existing_node_info->node_id);
           auto node_status = node_info->status;
           rep.node_status = node_status;
-          if (
-            node_status == NodeStatus::TRUSTED ||
-            node_status == NodeStatus::LEARNER ||
-            node_status == NodeStatus::RETIRING)
+          if (is_taking_part_in_acking(node_status))
           {
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               context.get_node_state().is_part_of_public_network(),
