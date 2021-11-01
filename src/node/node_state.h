@@ -954,9 +954,8 @@ namespace ccf
       }
 
       auto service_config = tx.ro(network.config)->get();
-      auto reconfiguration_type = ReconfigurationType::ONE_TRANSACTION;
-      if (service_config->reconfiguration_type.has_value())
-        reconfiguration_type = service_config->reconfiguration_type.value();
+      auto reconfiguration_type = service_config->reconfiguration_type.value_or(
+        ReconfigurationType::ONE_TRANSACTION);
 
       setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
       auto_refresh_jwt_keys();

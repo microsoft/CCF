@@ -11,6 +11,7 @@
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/hash.h"
+#include "enclave/reconfiguration_type.h"
 #include "frontend.h"
 #include "node/entities.h"
 #include "node/network_state.h"
@@ -146,7 +147,8 @@ namespace ccf
       const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status,
-      ServiceStatus service_status)
+      ServiceStatus service_status,
+      ReconfigurationType reconfiguration_type)
     {
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
@@ -271,12 +273,6 @@ namespace ccf
             joining_node_id, {endorsed_certificate.value()});
         }
 
-        auto config = tx.ro(network.config);
-        auto service_config = config->get();
-        auto reconfiguration_type = ReconfigurationType::ONE_TRANSACTION;
-        if (service_config->reconfiguration_type.has_value())
-          reconfiguration_type = service_config->reconfiguration_type.value();
-
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
@@ -366,9 +362,9 @@ namespace ccf
 
         auto config = args.tx.ro(network.config);
         auto service_config = config->get();
-        auto reconfiguration_type = ReconfigurationType::ONE_TRANSACTION;
-        if (service_config->reconfiguration_type.has_value())
-          reconfiguration_type = service_config->reconfiguration_type.value();
+        auto reconfiguration_type =
+          service_config->reconfiguration_type.value_or(
+            ReconfigurationType::ONE_TRANSACTION);
 
         if (active_service->status == ServiceStatus::OPENING)
         {
@@ -434,7 +430,8 @@ namespace ccf
             args.rpc_ctx->session->caller_cert,
             in,
             joining_node_status,
-            active_service->status);
+            active_service->status,
+            reconfiguration_type);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -526,7 +523,8 @@ namespace ccf
             args.rpc_ctx->session->caller_cert,
             in,
             NodeStatus::PENDING,
-            active_service->status);
+            active_service->status,
+            reconfiguration_type);
         }
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
@@ -1400,7 +1398,7 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::ResharingAlreadyCompleted,
+              ccf::errors::ResourceNotFound,
               fmt::format(
                 "unknown reconfiguration id: {}", in.reconfiguration_id));
           }

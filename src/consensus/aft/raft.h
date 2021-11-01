@@ -3451,7 +3451,11 @@ namespace aft
                 next->nodes.find(state->my_node_id) == next->nodes.end())))
             {
               schedule_submit_orc(
-                node_client, state->my_node_id, next->rid, retiring_primary);
+                node_client,
+                state->my_node_id,
+                next->rid,
+                retiring_primary ? 2 * election_timeout :
+                                   std::chrono::milliseconds(0));
             }
             break;
           }

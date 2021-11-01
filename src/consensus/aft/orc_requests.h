@@ -7,6 +7,8 @@
 #include "node/node_client.h"
 #include "node/rpc/serdes.h"
 
+#include <chrono>
+
 namespace ccf
 {
   struct ObservedReconfigurationCommit
@@ -48,34 +50,23 @@ namespace ccf
     AsyncORCTaskMsg(
       std::shared_ptr<ccf::NodeClient> client_,
       const ccf::NodeId& from_,
-      kv::ReconfigurationId rid_,
-      size_t retries_ = SIZE_MAX) :
+      kv::ReconfigurationId rid_) :
       client(client_),
       from(from_),
-      rid(rid_),
-      retries(retries_)
+      rid(rid_)
     {}
 
     std::shared_ptr<ccf::NodeClient> client;
     ccf::NodeId from;
     kv::ReconfigurationId rid;
-    size_t retries;
   };
 
   inline void orc_cb(std::unique_ptr<threading::Tmsg<AsyncORCTaskMsg>> msg)
   {
     if (!submit_orc(msg->data.client, msg->data.from, msg->data.rid))
     {
-      if (--msg->data.retries > 0)
-      {
-        threading::ThreadMessaging::thread_messaging.add_task_after(
-          std::move(msg), std::chrono::milliseconds(250));
-      }
-      else
-      {
-        LOG_DEBUG_FMT(
-          "Failed request; giving up as there are no more retries left");
-      }
+      threading::ThreadMessaging::thread_messaging.add_task_after(
+        std::move(msg), std::chrono::milliseconds(250));
     }
   }
 
@@ -83,12 +74,12 @@ namespace ccf
     std::shared_ptr<ccf::NodeClient> client,
     const ccf::NodeId& from,
     kv::ReconfigurationId rid,
-    bool delayed = false)
+    std::chrono::milliseconds delay = std::chrono::milliseconds(0))
   {
     auto msg = std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
       orc_cb, client, from, rid);
 
     threading::ThreadMessaging::thread_messaging.add_task_after(
-      std::move(msg), std::chrono::milliseconds(delayed ? 2000 : 0));
+      std::move(msg), delay);
   }
 }
