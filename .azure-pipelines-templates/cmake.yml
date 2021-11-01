@@ -8,7 +8,7 @@ steps:
       cat /proc/cpuinfo | grep flags | uniq
       env
       sudo groupadd sgx_prv
-      sudo usermod -a -G sgx_prv $USER
+      sudo usermod -a -G sgx_prv $(whoami)
     displayName: Platform Info
     condition: succeededOrFailed()
 
