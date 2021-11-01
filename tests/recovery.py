@@ -136,7 +136,7 @@ def test_share_resilience(network, args, from_snapshot=False):
         recovered_network.wait_for_state(
             node,
             infra.node.State.PART_OF_NETWORK.value,
-            timeout=args.ledger_recovery_timeout,
+            timeout=args.ledger_read_timeout,
         )
 
     recovered_network.consortium.check_for_service(
