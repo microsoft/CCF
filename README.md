@@ -1,6 +1,6 @@
 # The Confidential Consortium Framework
 
-<img alt="ccf" align="right" src="https://microsoft.github.io/CCF/main/_images/ccf.svg" width="300">
+<img alt="ccf" align="right" src="https://microsoft.github.io/CCF/main/_images/ccf.svg" width="250">
 
 [![Docs](https://img.shields.io/badge/Docs-succeeded-green)](https://microsoft.github.io/CCF)
 

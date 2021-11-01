@@ -63,6 +63,7 @@ namespace kv
       pending_txs.clear();
 
       version = 0;
+      last_new_map = kv::NoVersion;
       compacted = 0;
       term_of_next_version = 0;
       term_of_last_version = 0;

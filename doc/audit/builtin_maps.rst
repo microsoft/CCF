@@ -399,7 +399,9 @@ Used to persist submitted shares during a recovery.
 
 While the contents themselves are encrypted, the table is public so as to be accessible by nodes bootstrapping a recovery service.
 
-``resharings``
-~~~~~~~~~~~~~~
+``resharings`` (experimental)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Internal information for identity resharing during 2-transaction reconfiguration.
+
+.. note:: This table is currently experimental and is not included in CCF releases.

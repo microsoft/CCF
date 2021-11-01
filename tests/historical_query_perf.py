@@ -7,41 +7,23 @@ import ccf.commit
 import http
 from e2e_logging import get_all_entries
 import cimetrics.upload
+from concurrent import futures
 
 from loguru import logger as LOG
 
 
-def test_historical_query_range(network, args):
+def submit_range(primary, id_pattern, start, end):
+    LOG.info(f"Starting submission of {start} to {end}")
+
+    def id_for(i):
+        return id_pattern[i % len(id_pattern)]
+
     first_seqno = None
     last_seqno = None
-
-    id_single = 1
-    id_a = 2
-    id_b = 3
-    id_c = 4
-
-    id_pattern = [id_a, id_a, id_a, id_b, id_b, id_c]
-
-    n_entries = 10000
-
-    jwt_issuer = infra.jwt_issuer.JwtIssuer()
-    jwt_issuer.register(network)
-    jwt = jwt_issuer.issue_jwt()
-
-    primary, _ = network.find_primary()
+    view = None
+    seqno = None
     with primary.client("user0") as c:
-        # Submit many transactions, overwriting the same IDs
-        msgs = {}
-
-        def id_for(i):
-            # id_single is used for a single entry, in the middle of the range
-            if i == n_entries // 2:
-                return id_single
-            else:
-                return id_pattern[i % len(id_pattern)]
-
-        LOG.info(f"Submitting {n_entries} entries")
-        for i in range(n_entries):
+        for i in range(start, end):
             idx = id_for(i)
 
             msg = f"Unique message {i}"
@@ -52,19 +34,59 @@ def test_historical_query_range(network, args):
                     "msg": msg,
                 },
                 # Print logs for every 1000th submission, to show progress
-                log_capture=None if i % 1000 == 0 else [],
+                log_capture=None if i % 1000 == 500 else [],
             )
             assert r.status_code == http.HTTPStatus.OK
 
-            seqno = r.seqno
-            view = r.view
-            msgs[seqno] = msg
+        seqno = r.seqno
+        view = r.view
 
-            if first_seqno is None:
-                first_seqno = seqno
+        if first_seqno is None:
+            first_seqno = seqno
 
-            last_seqno = seqno
+        last_seqno = seqno
 
+    return (first_seqno, view, last_seqno)
+
+
+def test_historical_query_range(network, args):
+    id_a = 2
+    id_b = 3
+    id_c = 4
+
+    # NB: Because we submit from multiple concurrent threads, the actual pattern
+    # on the ledger will not match this but will be interleaved. But the final
+    # ratio of transactions will match this
+    id_pattern = [id_a, id_a, id_a, id_b, id_b, id_c]
+
+    n_entries = 10000
+
+    jwt_issuer = infra.jwt_issuer.JwtIssuer()
+    jwt_issuer.register(network)
+    jwt = jwt_issuer.issue_jwt()
+
+    primary, _ = network.find_primary()
+
+    # Submit many transactions, overwriting the same IDs
+    LOG.info(f"Submitting {n_entries} entries")
+
+    submissions_per_job = 1000
+    assigned = 0
+
+    fs = []
+    with futures.ThreadPoolExecutor() as executor:
+        while assigned < n_entries:
+            start = assigned
+            end = min(n_entries, assigned + submissions_per_job)
+            fs.append(executor.submit(submit_range, primary, id_pattern, start, end))
+            assigned = end
+
+    results = [f.result() for f in fs]
+    first_seqno = min(res[0] for res in results)
+    view = max(res[1] for res in results)
+    last_seqno = max(res[2] for res in results)
+
+    with primary.client("user0") as c:
         ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
     LOG.info(

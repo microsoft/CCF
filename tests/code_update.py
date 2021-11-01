@@ -130,7 +130,6 @@ def test_update_all_nodes(network, args):
         new_node = network.create_node("local://localhost")
         network.join_node(new_node, replacement_package, args)
         network.trust_node(new_node, args)
-        assert new_node
 
     LOG.info("Retire original nodes running old code")
     for node in old_nodes:

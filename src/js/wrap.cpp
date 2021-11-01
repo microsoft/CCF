@@ -4,6 +4,8 @@
 
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
+#include "crypto/certs.h"
+#include "crypto/openssl/x509_time.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
 #include "js/consensus.cpp"
@@ -561,9 +563,9 @@ namespace ccf::js
     int argc,
     [[maybe_unused]] JSValueConst* argv)
   {
-    if (argc != 1)
+    if (argc != 3)
     {
-      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 3", argc);
     }
 
     auto network =
@@ -576,16 +578,6 @@ namespace ccf::js
     auto global_obj = Context::JSWrappedValue(ctx, JS_GetGlobalObject(ctx));
     auto ccf =
       Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
-    auto node_ =
-      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, ccf, "node"));
-
-    auto node =
-      static_cast<ccf::AbstractNodeState*>(JS_GetOpaque(node_, node_class_id));
-
-    if (node == nullptr)
-    {
-      return JS_ThrowInternalError(ctx, "Node state is not set");
-    }
 
     auto csr_cstr = JS_ToCString(ctx, argv[0]);
     if (csr_cstr == nullptr)
@@ -595,8 +587,27 @@ namespace ccf::js
     auto csr = crypto::Pem(csr_cstr);
     JS_FreeCString(ctx, csr_cstr);
 
-    auto endorsed_cert = node->generate_endorsed_certificate(
-      csr, network->identity->priv_key, network->identity->cert);
+    auto valid_from_cstr = JS_ToCString(ctx, argv[1]);
+    if (valid_from_cstr == nullptr)
+    {
+      throw JS_ThrowTypeError(ctx, "valid from argument is not a string");
+    }
+    auto valid_from = std::string(valid_from_cstr);
+    JS_FreeCString(ctx, valid_from_cstr);
+
+    size_t validity_period_days = 0;
+    if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto endorsed_cert = create_endorsed_cert(
+      csr,
+      valid_from,
+      validity_period_days,
+      network->identity->priv_key,
+      network->identity->cert);
 
     return JS_NewString(ctx, endorsed_cert.str().c_str());
   }
@@ -1465,19 +1476,15 @@ namespace ccf::js
           js_network_latest_ledger_secret_seqno,
           "getLatestLedgerSecretSeqno",
           0));
-
-      if (node_state != nullptr)
-      {
-        JS_SetPropertyStr(
+      JS_SetPropertyStr(
+        ctx,
+        network,
+        "generateEndorsedCertificate",
+        JS_NewCFunction(
           ctx,
-          network,
+          js_network_generate_endorsed_certificate,
           "generateEndorsedCertificate",
-          JS_NewCFunction(
-            ctx,
-            js_network_generate_endorsed_certificate,
-            "generateEndorsedCertificate",
-            0));
-      }
+          0));
     }
 
     if (rpc_ctx != nullptr)

@@ -69,12 +69,12 @@ Some of these subcommands require additional arguments, such as the node ID or u
 
 .. code-block:: bash
 
-    $ python -m ccf.proposal_generator transition_node_to_trusted 6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f
+    $ python -m ccf.proposal_generator transition_node_to_trusted 6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f 211019154318Z
     SUCCESS | Writing proposal to ./trust_node_proposal.json
     SUCCESS | Wrote vote to ./trust_node_vote_for.json
 
     $ cat trust_node_proposal.json
-    {"actions": [{"name": "transition_node_to_trusted", "args": {"node_id": "6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f"}}]}
+    {"actions": [{"name": "transition_node_to_trusted", "args": {"node_id": "6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f", "valid_from": "211019154318Z"}}]}
 
     $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json set_user pedro_cert.pem
     SUCCESS | Writing proposal to ./add_pedro.json
