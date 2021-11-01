@@ -712,6 +712,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     aer.success = aft::AppendEntriesResponseType::FAIL;
     const auto p = reinterpret_cast<uint8_t*>(&aer);
     receive_message(r1, r0, {p, p + sizeof(aer)});
+    r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
     // Only the third entry is deserialised
@@ -761,6 +762,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     aer.success = aft::AppendEntriesResponseType::FAIL;
     const auto p = reinterpret_cast<uint8_t*>(&aer);
     receive_message(r1, r0, {p, p + sizeof(aer)});
+    r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
     // Receive append entries (idx: 5, prev_idx: 3)
@@ -951,13 +953,11 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto aer = r2c->messages.front().second;
   r2c->messages.pop_front();
   receive_message(r2, r0, aer);
+  r0.periodic(request_timeout);
 
   DOCTEST_REQUIRE(r0c->messages.size() > num_small_entries_sent);
-  DOCTEST_REQUIRE(
-    r0c->messages.size() <= num_small_entries_sent + num_big_entries);
   auto sent_entries = dispatch_all(nodes, node_id0, r0c->messages);
   DOCTEST_REQUIRE(sent_entries > num_small_entries_sent);
-  DOCTEST_REQUIRE(sent_entries <= num_small_entries_sent + num_big_entries);
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }
 
