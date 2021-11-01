@@ -1,0 +1,96 @@
+{
+  "enclave_file": "", // To set
+  "enclave_type": "release",
+  "consensus":
+  {
+    "type": "cft",
+    "raft_timeout_ms": 100,
+    "raft_election_timeout_ms": 5000
+  },
+  "worker_threads": 0,
+  "node_cert_path": "node_cert.pem",
+  "node_pid_file": "node.pid",
+  "network": {
+    "node":
+    {
+      "node_address": "127.0.0.1:0", // To set
+      "node_address_file": null,
+      "node_client_interface": null
+    },
+    "rpc":
+    {
+
+      "rpc_address": "127.0.0.1:0", // To set
+      "rpc_address_file" : null,
+      "public_rpc_address": null,
+      "max_open_sessions": 1000,
+      "max_open_sessions_hard": 1010,
+      "interfaces":
+      [
+        {
+          "rpc_address": "127.0.0.1:0",
+          "rpc_address_file" : "",
+          "public_rpc_address": "",
+          "max_open_sessions": 1000,
+          "max_open_sessions_hard": 1010
+        }
+      ]
+    },
+    "client_connection_timeout_ms": 2000
+  },
+  "ledger":
+  {
+    "ledger_dir": "ledger",
+    "read_only_ledger_dir": [ "read-only-ledger-dir"],
+    "ledger_chunk_bytes": "",
+    "snapshot_dir": "snapshots"
+  },
+  "memory":
+  {
+    "circuit_size": 22,
+    "max_msg_size": 24,
+    "max_fragment_size": 16
+  },
+  "io_logging_threshold_ns": 15000000,
+  "host_log_level": "debug",
+  "log_format_json": false,
+  "tick_period_ms": 10,
+  "sig_tx_interval": 5000,
+  "sig_ms_interval": 1000,
+  "jwt_key_refresh_interval_s": 1800,
+  "certificate":
+  {
+    "sn": "CN=CCF Node",
+    "san": [],
+    "curve_id": "secp384r1",
+    "initial-node-cert-validity-days": 1
+  },
+  "start":
+  {
+    "network_cert_file": "networkcert.pem",
+    "constitution": [],
+    "members_info":
+    [
+      {
+        "cert": "member0_cert.pem",
+        "encryption_public_key": "member0_enc_pubk.pem",
+        "data": {}
+      }
+    ],
+    "service_configuration":
+    {
+      "recovery_threshold": null,
+      "max_allowed_node_cert_validity_days": 365,
+    }
+  },
+  "join":
+  {
+    "network_cert_file": "networkcert.pem",
+    "join_timer_ms": 1000,
+    "target_rpc_address":,
+  },
+  "recover":
+  {
+    "network_cert_file": "networkcert.pem"
+  }
+}
