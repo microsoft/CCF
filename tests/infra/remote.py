@@ -13,6 +13,7 @@ import re
 import stat
 import shutil
 from collections import deque
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from loguru import logger as LOG
 
@@ -539,55 +540,70 @@ class CCFRemote(object):
     def __init__(
         self,
         start_type,
-        lib_path,
-        enclave_type,
         remote_class,
         workspace,
         common_dir,
         label="",
-        local_node_id=None,
-        rpc_host=None,
-        node_host=None,
-        pub_host=None,
-        node_port=0,
-        rpc_port=0,
-        node_client_host=None,
-        target_rpc_address=None,
-        members_info=None,
-        snapshot_dir=None,
-        join_timer=None,
-        host_log_level="info",
-        sig_tx_interval=5000,
-        sig_ms_interval=1000,
-        raft_election_timeout_ms=1000,
-        bft_view_change_timeout_ms=5000,
-        consensus="cft",
-        worker_threads=0,
-        memory_reserve_startup=0,
-        constitution=None,
-        ledger_dir=None,
-        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
-        common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
-        log_format_json=None,
         binary_dir=".",
-        ledger_chunk_bytes=(5 * 1000 * 1000),
-        san=None,
-        snapshot_tx_interval=None,
-        max_open_sessions=None,
-        max_open_sessions_hard=None,
-        jwt_key_refresh_interval_s=None,
-        curve_id=None,
-        client_connection_timeout_ms=None,
-        initial_node_cert_validity_days=None,
-        max_allowed_node_cert_validity_days=None,
-        version=None,
-        major_version=None,
-        include_addresses=True,
-        additional_raw_node_args=None,
+        local_node_id=None,
+        common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
+        **kwargs,
+        # rpc_host=None,
+        # node_host=None,
+        # pub_host=None,
+        # node_port=0,
+        # rpc_port=0,
+        # node_client_host=None,
+        # target_rpc_address=None,
+        # members_info=None,
+        # snapshot_dir=None,
+        # join_timer=None,
+        # host_log_level="info",
+        # sig_tx_interval=5000,
+        # sig_ms_interval=1000,
+        # raft_election_timeout_ms=1000,
+        # bft_view_change_timeout_ms=5000,
+        # consensus="cft",
+        # worker_threads=0,
+        # memory_reserve_startup=0,
+        # constitution=None,
+        # ledger_dir=None,
+        # read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
+        # common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
+        # log_format_json=None,
+        # binary_dir=".",
+        # ledger_chunk_bytes=(5 * 1000 * 1000),
+        # san=None,
+        # snapshot_tx_interval=None,
+        # max_open_sessions=None,
+        # max_open_sessions_hard=None,
+        # jwt_key_refresh_interval_s=None,
+        # curve_id=None,
+        # client_connection_timeout_ms=None,
+        # initial_node_cert_validity_days=None,
+        # max_allowed_node_cert_validity_days=None,
+        # version=None,
+        # major_version=None,
+        # include_addresses=True,
+        # additional_raw_node_args=None,
     ):
         """
         Run a ccf binary on a remote host.
         """
+
+        ## CONFIG PLAYGROUND
+        loader = FileSystemLoader("../tests")
+        env = Environment(loader=loader, autoescape=select_autoescape())
+        t = env.get_template("config.jinja")
+        LOG.error(kwargs)
+        output = t.render(**kwargs)
+
+        LOG.error(output)
+
+        with open("render.json", "w") as f:
+            f.write(output)
+        #################
+
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
@@ -599,7 +615,10 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
-        self.pub_host = pub_host
+        self.pub_host = kwargs.get("public_rpc_address")
+
+        ledger_dir = kwargs.get("ledger_dir")
+        snapshot_dir = kwargs.get("snapshot_dir")
 
         self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
@@ -608,7 +627,7 @@ class CCFRemote(object):
             else f"{local_node_id}.ledger"
         )
 
-        self.read_only_ledger_dir = read_only_ledger_dir
+        self.read_only_ledger_dir = kwargs.get("read_only_ledger_dir")
         self.read_only_ledger_dir_name = (
             os.path.basename(self.read_only_ledger_dir)
             if self.read_only_ledger_dir
@@ -633,150 +652,157 @@ class CCFRemote(object):
         bin_path = os.path.join(".", os.path.basename(self.BIN))
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
-        election_timeout_arg = (
-            f"--bft-view-change-timeout-ms={bft_view_change_timeout_ms}"
-            if consensus == "bft"
-            else f"--raft-election-timeout-ms={raft_election_timeout_ms}"
-        )
+        # election_timeout_arg = (
+        #     f"--bft-view-change-timeout-ms={bft_view_change_timeout_ms}"
+        #     if consensus == "bft"
+        #     else f"--raft-election-timeout-ms={raft_election_timeout_ms}"
+        # )
 
-        cmd = [
-            bin_path,
-            f"--enclave-file={enclave_path}",
-            f"--enclave-type={enclave_type}",
-            f"--node-address-file={self.node_address_path}",
-            f"--rpc-address={make_address(rpc_host, rpc_port)}",
-            f"--rpc-address-file={self.rpc_address_path}",
-            f"--ledger-dir={self.ledger_dir_name}",
-            f"--snapshot-dir={self.snapshot_dir_name}",
-            f"--node-cert-file={self.pem}",
-            f"--host-log-level={host_log_level}",
-            election_timeout_arg,
-            f"--consensus={consensus}",
-            f"--worker-threads={worker_threads}",
-        ]
+        # cmd = [
+        #     bin_path,
+        #     f"--enclave-file={enclave_path}",
+        #     f"--enclave-type={enclave_type}",
+        #     f"--node-address-file={self.node_address_path}",
+        #     f"--rpc-address={make_address(rpc_host, rpc_port)}",
+        #     f"--rpc-address-file={self.rpc_address_path}",
+        #     f"--ledger-dir={self.ledger_dir_name}",
+        #     f"--snapshot-dir={self.snapshot_dir_name}",
+        #     f"--node-cert-file={self.pem}",
+        #     f"--host-log-level={host_log_level}",
+        #     election_timeout_arg,
+        #     f"--consensus={consensus}",
+        #     f"--worker-threads={worker_threads}",
+        # ]
 
-        if include_addresses:
-            cmd += [
-                f"--node-address={make_address(node_host, node_port)}",
-                f"--public-rpc-address={make_address(pub_host, rpc_port)}",
-            ]
+        # if include_addresses:
+        #     cmd += [
+        #         f"--node-address={make_address(node_host, node_port)}",
+        #         f"--public-rpc-address={make_address(pub_host, rpc_port)}",
+        #     ]
 
-        if log_format_json:
-            cmd += ["--log-format-json"]
+        # if log_format_json:
+        #     cmd += ["--log-format-json"]
 
-        if sig_tx_interval:
-            cmd += [f"--sig-tx-interval={sig_tx_interval}"]
+        # if sig_tx_interval:
+        #     cmd += [f"--sig-tx-interval={sig_tx_interval}"]
 
-        if sig_ms_interval:
-            cmd += [f"--sig-ms-interval={sig_ms_interval}"]
+        # if sig_ms_interval:
+        #     cmd += [f"--sig-ms-interval={sig_ms_interval}"]
 
-        if memory_reserve_startup:
-            cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
+        # if memory_reserve_startup:
+        #     cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
 
-        if ledger_chunk_bytes:
-            cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
+        # if ledger_chunk_bytes:
+        #     cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
 
-        if san:
-            cmd += [f"--san={s}" for s in san]
+        # if san:
+        #     cmd += [f"--san={s}" for s in san]
 
-        if snapshot_tx_interval:
-            cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
+        # if snapshot_tx_interval:
+        #     cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
 
-        if max_open_sessions:
-            cmd += [f"--max-open-sessions={max_open_sessions}"]
+        # if max_open_sessions:
+        #     cmd += [f"--max-open-sessions={max_open_sessions}"]
 
-        if max_open_sessions_hard:
-            cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
+        # if max_open_sessions_hard:
+        #     cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
 
-        if jwt_key_refresh_interval_s:
-            cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
+        # if jwt_key_refresh_interval_s:
+        #     cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
-        if self.read_only_ledger_dir is not None:
-            cmd += [f"--read-only-ledger-dir={self.read_only_ledger_dir_name}"]
-            data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
+        # if self.read_only_ledger_dir is not None:
+        #     cmd += [f"--read-only-ledger-dir={self.read_only_ledger_dir_name}"]
+        #     data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
 
-        if self.common_read_only_ledger_dir is not None:
-            cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
+        # if self.common_read_only_ledger_dir is not None:
+        #     cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
 
-        if curve_id is not None:
-            cmd += [f"--curve-id={curve_id.name}"]
+        # if curve_id is not None:
+        #     cmd += [f"--curve-id={curve_id.name}"]
 
-        if client_connection_timeout_ms:
-            cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
+        # if client_connection_timeout_ms:
+        #     cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
-        # Added in 1.x
-        if not major_version or major_version > 1:
-            if initial_node_cert_validity_days:
-                cmd += [
-                    f"--initial-node-cert-validity-days={initial_node_cert_validity_days}"
-                ]
+        # # Added in 1.x
+        # if not major_version or major_version > 1:
+        #     if initial_node_cert_validity_days:
+        #         cmd += [
+        #             f"--initial-node-cert-validity-days={initial_node_cert_validity_days}"
+        #         ]
 
-            if node_client_host:
-                cmd += [f"--node-client-interface={node_client_host}"]
+        #     if node_client_host:
+        #         cmd += [f"--node-client-interface={node_client_host}"]
 
-        if additional_raw_node_args:
-            for s in additional_raw_node_args:
-                cmd += [str(s)]
+        # if additional_raw_node_args:
+        #     for s in additional_raw_node_args:
+        #         cmd += [str(s)]
 
-        if start_type == StartType.new:
-            cmd += ["start", "--network-cert-file=networkcert.pem"]
-            for fragment in constitution:
-                cmd.append(f"--constitution={os.path.basename(fragment)}")
-                data_files += [
-                    os.path.join(self.common_dir, os.path.basename(fragment))
-                ]
+        # if start_type == StartType.new:
+        #     cmd += ["start", "--network-cert-file=networkcert.pem"]
+        #     for fragment in constitution:
+        #         cmd.append(f"--constitution={os.path.basename(fragment)}")
+        #         data_files += [
+        #             os.path.join(self.common_dir, os.path.basename(fragment))
+        #         ]
 
-            if members_info is None:
-                raise ValueError(
-                    "Starting node should be given at least one member info"
-                )
-            for mi in members_info:
-                member_info_cmd = f"--member-info={mi.certificate_file}"
-                if mi.encryption_pub_key_file is not None:
-                    member_info_cmd += f",{mi.encryption_pub_key_file}"
-                elif mi.member_data_file is not None:
-                    member_info_cmd += ","
-                if mi.member_data_file is not None:
-                    member_info_cmd += f",{mi.member_data_file}"
-                for mf in mi:
-                    if mf is not None:
-                        data_files.append(os.path.join(self.common_dir, mf))
-                cmd += [member_info_cmd]
+        # if members_info is None:
+        #     raise ValueError(
+        #         "Starting node should be given at least one member info"
+        #     )
+        # for mi in members_info:
+        #     member_info_cmd = f"--member-info={mi.certificate_file}"
+        #     if mi.encryption_pub_key_file is not None:
+        #         member_info_cmd += f",{mi.encryption_pub_key_file}"
+        #     elif mi.member_data_file is not None:
+        #         member_info_cmd += ","
+        #     if mi.member_data_file is not None:
+        #         member_info_cmd += f",{mi.member_data_file}"
+        #     for mf in mi:
+        #         if mf is not None:
+        #             data_files.append(os.path.join(self.common_dir, mf))
+        #     cmd += [member_info_cmd]
 
-            # Added in 1.x
-            if not major_version or major_version > 1:
-                if max_allowed_node_cert_validity_days:
-                    cmd += [
-                        f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
-                    ]
+        # # Added in 1.x
+        # if not major_version or major_version > 1:
+        #     if max_allowed_node_cert_validity_days:
+        #         cmd += [
+        #             f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
+        #         ]
 
-        elif start_type == StartType.join:
-            cmd += [
-                "join",
-                "--network-cert-file=networkcert.pem",
-                f"--target-rpc-address={target_rpc_address}",
-                f"--join-timer={join_timer}",
-            ]
-            data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+        # elif start_type == StartType.join:
+        #     cmd += [
+        #         "join",
+        #         "--network-cert-file=networkcert.pem",
+        #         f"--target-rpc-address={target_rpc_address}",
+        #         f"--join-timer={join_timer}",
+        #     ]
+        #     data_files += [os.path.join(self.common_dir, "networkcert.pem")]
 
-        elif start_type == StartType.recover:
-            cmd += ["recover", "--network-cert-file=networkcert.pem"]
+        # elif start_type == StartType.recover:
+        #     cmd += ["recover", "--network-cert-file=networkcert.pem"]
 
-        else:
-            raise ValueError(
-                f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
-            )
+        # else:
+        #     raise ValueError(
+        #         f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
+        #     )
 
         env = {}
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
 
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
-            self.name, rpc_host, exe_files, data_files, cmd, workspace, common_dir, env
+            self.name,
+            kwargs.get("public_rpc_address"),
+            exe_files,
+            data_files,
+            None,
+            workspace,
+            common_dir,
+            env,
         )
 
     def setup(self):

@@ -7,7 +7,7 @@
     "raft_timeout_ms": 100,
     "raft_election_timeout_ms": 5000
   },
-  "worker_threads": 0,
+  "worker_threads": 0, // Hide for now
   "node_cert_path": "node_cert.pem",
   "node_pid_file": "node.pid",
   "network": {
@@ -19,7 +19,6 @@
     },
     "rpc":
     {
-
       "rpc_address": "127.0.0.1:0", // To set
       "rpc_address_file" : null,
       "public_rpc_address": null,

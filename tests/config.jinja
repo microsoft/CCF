@@ -1,0 +1,56 @@
+{
+  "enclave_file": "{{ enclave_file }}",
+  "enclave_type": "{{ enclave_type or "release" }}",
+  "node_cert_path": "{{ node_cert_path or "node.pem" }}",
+  "node_pid_file": "{{ node_pid_file or "node.pid" }}",
+  "certificate":
+  {
+    "sn": "CN=CCF Node",
+    "san": [],
+    "curve_id": "secp384r1",
+    "initial-node-cert-validity-days": 1
+  },
+  "host_log_level": "info",
+  "io_logging_threshold_ns": 15000000,
+  "log_format_json": false,
+  "tick_period_ms": 10,
+  "sig_tx_interval": 5000,
+  "sig_ms_interval": 1000,
+  "jwt_key_refresh_interval_s": 1800,
+  "consensus":
+  {
+    "type": "cft",
+    "raft_timeout_ms": {{ raft_timeout_ms or 100 }},
+    "raft_election_timeout_ms": {{ raft_election_timeout_ms or 5000 }}
+  },
+  "network": {
+    "node":
+    {
+      "node_address": "{{ node_address }}",
+      "node_address_file": "{{ node_address_file }}",
+      "node_client_interface": "{{ node_client_interface }}"
+    },
+    "rpc":
+    {
+      "rpc_address": "{{ rpc_address }}",
+      "rpc_address_file" : "{{ rpc_address_file}}",
+      "public_rpc_address": "{{ public_rpc_address }}",
+      "max_open_sessions": {{ max_open_sessions or 1000 }},
+      "max_open_sessions_hard": {{ max_open_sessions_hard or 1010 }}
+    },
+    "client_connection_timeout_ms": {{ client_connection_timeout_ms or 2000}}
+  },
+  "ledger":
+  {
+    "ledger_dir": "{{ ledger_dir or "ledger" }}",
+    "read_only_ledger_dir": {{ read_only_ledger_dir or [] }},
+    "ledger_chunk_bytes": "{{ ledger_chunk_bytes }}",
+    "snapshot_dir": "{{ snapshot_dir }}"
+  },
+  "ring_buffer":
+  {
+    "circuit_size": 22,
+    "max_msg_size": 24,
+    "max_fragment_size": 16
+  }
+}

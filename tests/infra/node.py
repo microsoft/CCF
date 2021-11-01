@@ -250,25 +250,26 @@ class Node:
             kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
 
+        def make_address(host, port=None):
+            return f"{host}:{port or 0}"
+
         self.remote = self.remote_shim(
             start_type,
-            lib_path,
-            enclave_type,
             self.remote_impl,
             workspace,
             common_dir,
+            binary_dir=self.binary_dir,
             label=label,
             local_node_id=self.local_node_id,
-            rpc_host=self.rpc_host,
-            node_host=self.node_host,
-            pub_host=self.pubhost,
-            node_port=self.node_port,
-            rpc_port=self.rpc_port,
-            node_client_host=self.node_client_host,
+            enclave_file=lib_path,
+            enclave_type=enclave_type,
+            rpc_address=make_address(self.rpc_host, self.rpc_port),
+            node_address=make_address(self.node_host, self.node_port),
+            public_rpc_address=make_address(self.pubhost, self.rpc_port),
+            node_client_interface=self.node_client_host,
             target_rpc_address=target_rpc_address,
             members_info=members_info,
             snapshot_dir=snapshot_dir,
-            binary_dir=self.binary_dir,
             additional_raw_node_args=self.additional_raw_node_args,
             version=self.version,
             major_version=self.major_version,
