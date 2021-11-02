@@ -771,6 +771,11 @@ int main(int argc, char** argv)
       LOG_INFO_FMT("Creating new node - recover");
       start_type = StartType::Recover;
     }
+    else
+    {
+      LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
+    }
 
     if (*join || *recover)
     {
@@ -802,10 +807,6 @@ int main(int argc, char** argv)
         LOG_INFO_FMT(
           "No snapshot found: Node will replay all historical transactions");
       }
-    }
-    else
-    {
-      LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
 
     if (consensus == ConsensusType::BFT)
