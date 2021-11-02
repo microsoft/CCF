@@ -146,7 +146,7 @@ extern "C"
     // enclaves
     if (cc.genesis.reconfiguration_type != ReconfigurationType::ONE_TRANSACTION)
     {
-      return CreateNodeStatus::InternalError;
+      return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 #endif
 

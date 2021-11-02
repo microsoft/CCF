@@ -699,11 +699,15 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
+  set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
+  if(ENABLE_2TX_RECONFIG)
+    list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
+  endif()
   add_e2e_test(
     NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}  
   )
 
   add_e2e_test(

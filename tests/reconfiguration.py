@@ -562,7 +562,15 @@ def run_all(args):
 
 
 if __name__ == "__main__":
-    cr = ConcurrentRunner()
+    def add(parser):
+        parser.add_argument(
+            "--include-2tx-reconfig",
+            help="Include tests for the 2-transaction reconfiguration scheme",
+            type=bool,
+            default=False
+        )
+
+    cr = ConcurrentRunner(add)
 
     cr.add(
         "1tx_reconfig",
@@ -572,12 +580,13 @@ if __name__ == "__main__":
         reconfiguration_type="1tx",
     )
 
-    cr.add(
-        "2tx_reconfig",
-        run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="2tx",
-    )
+    if cr.args.include_2tx_reconfig:
+        cr.add(
+            "2tx_reconfig",
+            run,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="2tx",
+        )
 
     cr.run()
