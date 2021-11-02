@@ -46,6 +46,7 @@ variables:
 jobs:
   - job:
     pool: 1es-dcv2-focal
+    
     steps:
       - script: echo "##vso[task.setvariable variable=sgx_prv_gid]$(getent group sgx_prv | cut -d : -f 3)"
 
