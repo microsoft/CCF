@@ -41,7 +41,7 @@ variables:
   ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
     perf_or_release: perf
     perf_tests: run
-  - name: sgx_prv_gid
+  - sgx_prv_gid: -1
 
 jobs:
   - job:
