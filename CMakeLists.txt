@@ -706,13 +706,16 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
   )
 
+if(ENABLE_2TX_RECONFIG)
   add_e2e_test(
     NAME reconfiguration_test_cft_2tx
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
     ADDITIONAL_ARGS --ccf-version ${CCF_VERSION} --reconfiguration-type 2tx
+    LABEL partitions
     CONFIGURATIONS partitions
   )
+endif()
 
   add_e2e_test(
     NAME election_test

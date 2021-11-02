@@ -141,6 +141,15 @@ extern "C"
     }
 #endif
 
+#ifndef ENABLE_2TX_RECONFIG
+    // 2-tx reconfiguration is currently experimental, disable it in release
+    // enclaves
+    if (cc.genesis.reconfiguration_type != ReconfigurationType::ONE_TRANSACTION)
+    {
+      return CreateNodeStatus::InternalError;
+    }
+#endif
+
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
