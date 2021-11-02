@@ -41,8 +41,14 @@ variables:
   ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
     perf_or_release: perf
     perf_tests: run
+  - name: sgx_prv_gid
 
 jobs:
+  - job:
+    pool: 1es-dcv2-focal
+    steps:
+      - script: echo "##vso[task.setvariable variable=sgx_prv_gid]$(getent group sgx_prv | cut -d : -f 3)"
+
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
