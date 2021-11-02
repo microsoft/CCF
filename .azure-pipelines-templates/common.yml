@@ -6,6 +6,7 @@ jobs:
     ${{ insert }}: ${{ parameters.env }}
 
     variables:
+      whatever: $[ dependencies.not_a_job.outputs['not_a_step.not_a_var'] ]
       sgx_prv_gid: $[ dependencies.find_sgx_prv_gid.outputs['find_sgx_prv_gid.sgx_prv_gid'] ]
     
     steps:
