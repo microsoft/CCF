@@ -6,7 +6,8 @@ steps:
       set -ex
       tests/sgxinfo.sh
       cat /proc/cpuinfo | grep flags | uniq
-      sudo groupadd -g $[variables.sgx_prv_gid] sgx_prv
+      env
+      sudo groupadd -g $(sgx_prv_gid) sgx_prv
       sudo usermod -a -G sgx_prv $(whoami)
     displayName: Platform Info
     condition: succeededOrFailed()
