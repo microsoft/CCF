@@ -442,6 +442,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
     {
       // Only the first AppendEntries to B is kept, all other
       // AppendEntries are lost
+      rC.periodic(request_timeout);
       keep_first_for(node_idB, channelsC->messages);
       DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_idC, channelsC->messages));
 
