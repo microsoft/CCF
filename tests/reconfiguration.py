@@ -2,19 +2,16 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
-import infra.partitions
 import infra.proc
 import infra.logging_app as app
 import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
 import os
-from infra.checker import check_can_progress, check_does_not_progress
 import ccf.ledger
 import json
 import infra.crypto
 from datetime import datetime
-from math import ceil
 
 from loguru import logger as LOG
 
@@ -436,61 +433,6 @@ def test_learner_catches_up(network, args):
     return network
 
 
-@reqs.description("Add a learner, partition nodes, check that there is no progress")
-def test_learner_does_not_take_part(network, args):
-    if network.partitioner is None:
-        return
-
-    primary, backups = network.find_nodes()
-    f_backups = backups[: network.get_f() + 1]
-
-    new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, from_snapshot=False)
-
-    with network.partitioner.partition(f_backups):
-
-        check_does_not_progress(primary, timeout=5)
-
-        try:
-            network.consortium.trust_node(
-                primary,
-                new_node.node_id,
-                timeout=ceil(args.join_timer * 2 / 1000),
-                valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
-            )
-            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
-            join_failed = False
-        except Exception:
-            join_failed = True
-
-        if not join_failed:
-            raise Exception("join succeeded unexpectedly")
-
-        with new_node.client(self_signed_ok=True) as c:
-            r = c.get("/node/network/nodes/self")
-            assert r.body.json()["status"] == "Learner"
-            r = c.get("/node/consensus")
-            assert new_node.node_id in r.body.json()["details"]["learners"]
-
-        # New node joins, but cannot be promoted to TRUSTED without f other backups
-
-        check_does_not_progress(primary, timeout=5)
-
-        with new_node.client(self_signed_ok=True) as c:
-            r = c.get("/node/network/nodes/self")
-            assert r.body.json()["status"] == "Learner"
-            r = c.get("/node/consensus")
-            assert new_node.node_id in r.body.json()["details"]["learners"]
-
-    network.wait_for_primary_unanimity()
-    network.wait_for_all_nodes_to_commit(primary=primary)
-
-    # Note: the transaction containing the update to Learner from Pending for the new node may be
-    # rolled back, depending on who becomes the leader after the partition is lifted.
-
-    return network
-
-
 @reqs.description("Test node certificates validity period")
 def test_node_certificates_validity_period(network, args):
     for node in network.get_joined_nodes():
@@ -520,7 +462,6 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        init_partitioner=args.reconfiguration_type == "2tx",
     ) as network:
         network.start_and_join(args)
 
@@ -547,7 +488,6 @@ def run(args):
 
         if args.reconfiguration_type == "2tx":
             test_learner_catches_up(network, args)
-            test_learner_does_not_take_part(network, args)
 
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
