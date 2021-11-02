@@ -1360,14 +1360,6 @@ namespace ccf
       auto orc_handler = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<ObservedReconfigurationCommit::In>();
 
-        if (consensus == nullptr)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::ConsensusTypeMismatch,
-            fmt::format("No consensus"));
-        }
-
         if (consensus->type() != ConsensusType::BFT)
         {
           auto primary_id = consensus->primary();
