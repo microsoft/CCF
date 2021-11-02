@@ -56,6 +56,8 @@ jobs:
   - job: print_the_var
     pool: 1es-dcv2-focal
 
+    dependsOn: find_sgx_prv_gid
+
     variables:
       sgx_prv_gid: $[ dependencies.find_sgx_prv_gid.outputs['find_sgx_prv_gid.sgx_prv_gid'] ]
 
