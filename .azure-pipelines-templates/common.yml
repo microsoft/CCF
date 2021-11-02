@@ -6,13 +6,12 @@ jobs:
     ${{ insert }}: ${{ parameters.env }}
 
     variables:
-      sgx_prv_gid: $[ dependencies.find_sgx_prv_gid.outputs['find_sgx_prv_gid.sgx_prv_gid'] ]
+      sgx_prv_gid: $[ dependencies.find_sgx_prv_gid.outputs['sgx_prv_gid'] ]
     
     steps:
       - script: |
           sudo rm -rf build
           env
-          echo $(sgx_prv_id)
         displayName: "Cleanup"
 
       - checkout: self
