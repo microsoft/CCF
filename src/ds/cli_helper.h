@@ -4,6 +4,7 @@
 
 #include "crypto/san.h"
 #include "ds/nonstd.h"
+#include "node/node_info_network.h"
 
 #include <CLI11/CLI11.hpp>
 #include <charconv>
@@ -14,11 +15,7 @@
 
 namespace cli
 {
-  struct ParsedAddress
-  {
-    std::string hostname = {};
-    std::string port = {};
-  };
+  using ParsedAddress = ccf::NodeInfoNetwork_v2::NetAddress;
 
   bool parse_address(
     const std::string_view& addr,

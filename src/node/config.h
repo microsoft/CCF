@@ -20,13 +20,13 @@ namespace ccf
 
     ConsensusType consensus = ConsensusType::CFT;
 
-    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
-
     /**
      *  Fields below are added in 2.x
      */
 
     std::optional<size_t> node_cert_allowed_validity_period_days = std::nullopt;
+
+    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
     bool operator==(const ServiceConfiguration& other) const
     {
@@ -38,10 +38,10 @@ namespace ccf
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    ServiceConfiguration, recovery_threshold, consensus)
+  DECLARE_JSON_REQUIRED_FIELDS(ServiceConfiguration, recovery_threshold)
   DECLARE_JSON_OPTIONAL_FIELDS(
     ServiceConfiguration,
+    consensus,
     reconfiguration_type,
     node_cert_allowed_validity_period_days)
 

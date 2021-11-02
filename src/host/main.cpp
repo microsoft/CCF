@@ -467,10 +467,10 @@ int main(int argc, char** argv)
   //     "public:ccf.gov.constitution table")
   //   ->type_size(-1);
 
-  std::vector<cli::ParsedMemberInfo> members_info;
+  std::vector<cli::ParsedMemberInfo> members;
   // cli::add_member_info_option(
   //   *start,
-  //   members_info,
+  //   members,
   //   "--member-info",
   //   "Initial consortium members information "
   //   "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
@@ -511,7 +511,7 @@ int main(int argc, char** argv)
   //   ->add_option(
   //     "--join-timer",
   //     join_timer,
-  //     "Duration after which the joining node will resend join requests to "
+  //     "Duration after which the join node will resend join requests to "
   //     "existing network (ms)")
   //   ->capture_default_str();
 
@@ -621,9 +621,9 @@ int main(int argc, char** argv)
       // a recovery share. The service will check that at least one recovery
       // member is added before the service can be opened.
       size_t members_with_pubk_count = 0;
-      for (auto const& mi : members_info)
+      for (auto const& m : members)
       {
-        if (mi.enc_pubk_file.has_value())
+        if (m.enc_pubk_file.has_value())
         {
           members_with_pubk_count++;
         }
@@ -858,59 +858,56 @@ int main(int argc, char** argv)
     {
       start_type = StartType::New;
 
-      for (auto const& m_info : members_info)
+      for (auto const& m : members)
       {
         std::optional<std::vector<uint8_t>> public_encryption_key_file =
           std::nullopt;
-        if (m_info.enc_pubk_file.has_value())
+        if (m.enc_pubk_file.has_value())
         {
-          public_encryption_key_file =
-            files::slurp(m_info.enc_pubk_file.value());
+          public_encryption_key_file = files::slurp(m.enc_pubk_file.value());
         }
 
         nlohmann::json md = nullptr;
-        if (m_info.member_data_file.has_value())
+        if (m.member_data_file.has_value())
         {
-          md = nlohmann::json::parse(
-            files::slurp(m_info.member_data_file.value()));
+          md = nlohmann::json::parse(files::slurp(m.member_data_file.value()));
         }
 
-        ccf_config.genesis.members_info.emplace_back(
-          files::slurp(m_info.cert_file), public_encryption_key_file, md);
+        ccf_config.start.members.emplace_back(
+          files::slurp(m.cert_file), public_encryption_key_file, md);
       }
-      ccf_config.genesis.constitution = "";
+      ccf_config.start.constitution = "";
       for (const auto& constitution_path : constitution_paths)
       {
         // Separate with single newlines
-        if (!ccf_config.genesis.constitution.empty())
+        if (!ccf_config.start.constitution.empty())
         {
-          ccf_config.genesis.constitution += '\n';
+          ccf_config.start.constitution += '\n';
         }
 
-        ccf_config.genesis.constitution +=
-          files::slurp_string(constitution_path);
+        ccf_config.start.constitution += files::slurp_string(constitution_path);
       }
-      ccf_config.genesis.recovery_threshold = recovery_threshold.value();
-      ccf_config.genesis.max_allowed_node_cert_validity_days =
-        max_allowed_node_cert_validity_days;
+      ccf_config.start.service_configuration = {
+        recovery_threshold.value(),
+        consensus,
+        max_allowed_node_cert_validity_days};
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
-        ccf_config.genesis.members_info.size(),
-        ccf_config.genesis.recovery_threshold);
+        ccf_config.start.members.size(),
+        recovery_threshold.value());
     }
     else if (*join)
     {
       LOG_INFO_FMT(
-        "Creating new node - joining existing network at {}:{}",
+        "Creating new node - join existing network at {}:{}",
         target_rpc_address.hostname,
         target_rpc_address.port);
       start_type = StartType::Join;
 
-      ccf_config.joining.target_host = target_rpc_address.hostname;
-      ccf_config.joining.target_port = target_rpc_address.port;
-      ccf_config.joining.network_cert = files::slurp(network_cert_file);
-      ccf_config.joining.join_timer = join_timer;
+      ccf_config.join.target_rpc_address = target_rpc_address;
+      ccf_config.join.network_cert = files::slurp(network_cert_file);
+      ccf_config.join.join_timer_ms = join_timer;
     }
     else if (*recover)
     {

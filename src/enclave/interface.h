@@ -14,6 +14,7 @@
 #include "ds/oversized.h"
 #include "ds/ring_buffer_types.h"
 #include "kv/kv_types.h"
+#include "node/config.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "tls/tls.h"
@@ -61,24 +62,23 @@ struct CCFConfig
   };
   SignatureIntervals signature_intervals = {};
 
-  struct Genesis
+  struct Start
   {
-    std::vector<ccf::NewMember> members_info;
+    std::vector<ccf::NewMember> members;
     std::string constitution;
-    size_t recovery_threshold;
-    size_t max_allowed_node_cert_validity_days;
-  };
-  Genesis genesis = {};
+    std::vector<std::string> constitution_files = {};
 
-  struct Joining
-  {
-    // TODO: Make one unique address
-    std::string target_host;
-    std::string target_port;
-    std::vector<uint8_t> network_cert;
-    size_t join_timer;
+    ccf::ServiceConfiguration service_configuration;
   };
-  Joining joining = {}; // TODO: Rename
+  Start start = {};
+
+  struct Join
+  {
+    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
+    std::vector<uint8_t> network_cert = {};
+    size_t join_timer_ms;
+  };
+  Join join = {};
 
   crypto::CertificateSubjectIdentity node_certificate_subject_identity;
   size_t jwt_key_refresh_interval_s;
@@ -104,17 +104,16 @@ DECLARE_JSON_TYPE(CCFConfig::Snapshots);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::Snapshots, snapshot_dir, snapshot_tx_interval);
 
-DECLARE_JSON_TYPE(CCFConfig::Genesis);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Genesis,
-  members_info,
-  constitution,
-  recovery_threshold,
-  max_allowed_node_cert_validity_days);
+  CCFConfig::Start, members, constitution_files, service_configuration);
+DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::Start, constitution);
 
-DECLARE_JSON_TYPE(CCFConfig::Joining);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Joining, target_host, target_port, network_cert, join_timer);
+  CCFConfig::Join, target_rpc_address, join_timer_ms);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCFConfig::Join, network_cert); // TODO:: This sucks, but unifies things
 
 DECLARE_JSON_TYPE(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -122,8 +121,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   consensus,
   network,
   signature_intervals,
-  genesis,
-  joining,
+  start,
+  join,
   node_certificate_subject_identity,
   jwt_key_refresh_interval_s,
   curve_id,
@@ -165,6 +164,9 @@ struct CCHostConfig : CCFConfig
   // Other
   size_t tick_period_ms = 10;
 
+  // Only set and used on join
+  std::string network_cert_file = "networkcert.pem";
+
   // struct Ledger
   // {
   //   std::string ledger_dir = "ledger";
@@ -201,7 +203,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   node_pid_file,
   // host_log_level, // TODO: Tricky because of MACRO
   log_format_json,
-  tick_period_ms)
+  tick_period_ms,
+  network_cert_file)
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message
