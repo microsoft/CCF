@@ -11,6 +11,8 @@ jobs:
     steps:
       - script: |
           sudo rm -rf build
+          env
+          echo $(sgx_prv_id)
         displayName: "Cleanup"
 
       - checkout: self
