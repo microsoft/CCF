@@ -150,7 +150,7 @@ namespace aft
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> retirees;
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
@@ -551,7 +551,7 @@ namespace aft
       Index idx,
       const kv::Configuration::Nodes& conf,
       const std::unordered_set<ccf::NodeId>& new_learners = {},
-      const std::unordered_set<ccf::NodeId>& new_retirees = {})
+      const std::unordered_set<ccf::NodeId>& new_retired_nodes = {})
     {
       LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
@@ -602,16 +602,16 @@ namespace aft
           }
         }
 
-        if (!new_retirees.empty())
+        if (!new_retired_nodes.empty())
         {
           LOG_DEBUG_FMT(
-            "Configurations: new retirees: {{{}}}",
-            fmt::join(new_retirees, ", "));
-          for (auto& id : new_retirees)
+            "Configurations: newly retired nodes: {{{}}}",
+            fmt::join(new_retired_nodes, ", "));
+          for (auto& id : new_retired_nodes)
           {
-            if (retirees.find(id) == retirees.end())
+            if (retired_nodes.find(id) == retired_nodes.end())
             {
-              retirees[id] = idx;
+              retired_nodes[id] = idx;
             }
           }
         }
@@ -3235,9 +3235,9 @@ namespace aft
       size_t r = 0;
       for (const auto& [id, _] : from.nodes)
       {
-        auto rit = retirees.find(id);
+        auto rit = retired_nodes.find(id);
         if (
-          to.nodes.find(id) == to.nodes.end() && rit != retirees.end() &&
+          to.nodes.find(id) == to.nodes.end() && rit != retired_nodes.end() &&
           rit->second <= state->commit_idx)
         {
           LOG_DEBUG_FMT("Configurations: is retired: {}", id);
@@ -3368,8 +3368,9 @@ namespace aft
             conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
             next->nodes.find(state->my_node_id) == next->nodes.end())
           {
-            auto rit = retirees.find(state->my_node_id);
-            if (is_retiring() && rit != retirees.end() && rit->second <= idx)
+            auto rit = retired_nodes.find(state->my_node_id);
+            if (
+              is_retiring() && rit != retired_nodes.end() && rit->second <= idx)
             {
               retiring_primary = is_primary();
               become_retired();
@@ -3405,7 +3406,7 @@ namespace aft
             {
               if (next->nodes.find(nid) == next->nodes.end())
               {
-                retirees.erase(nid);
+                retired_nodes.erase(nid);
               }
             }
 
@@ -3567,11 +3568,11 @@ namespace aft
           }
         }
 
-        for (auto it = retirees.begin(); it != retirees.end();)
+        for (auto it = retired_nodes.begin(); it != retired_nodes.end();)
         {
           if (it->second > idx)
           {
-            it = retirees.erase(it);
+            it = retired_nodes.erase(it);
           }
           else
           {

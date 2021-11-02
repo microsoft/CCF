@@ -18,7 +18,7 @@ namespace ccf
     kv::Version version;
     std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
     std::unordered_set<NodeId> learners;
-    std::unordered_set<NodeId> retirees;
+    std::unordered_set<NodeId> retired_nodes;
 
   public:
     ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
@@ -45,7 +45,7 @@ namespace ccf
           case NodeStatus::RETIRED:
           {
             cfg_delta.try_emplace(node_id, std::nullopt);
-            retirees.insert(node_id);
+            retired_nodes.insert(node_id);
             break;
           }
           case NodeStatus::LEARNER:
@@ -85,7 +85,7 @@ namespace ccf
       if (!cfg_delta.empty())
       {
         consensus->add_configuration(
-          version, configuration, learners, retirees);
+          version, configuration, learners, retired_nodes);
       }
     }
   };
