@@ -56,7 +56,9 @@ if(ENABLE_BFT)
   add_compile_definitions(ENABLE_BFT)
 endif()
 
-option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration" OFF)
+option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
+       OFF
+)
 if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
 endif()
