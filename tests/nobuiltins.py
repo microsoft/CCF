@@ -10,10 +10,19 @@ import time
 def test_nobuiltins_endpoints(network, args):
     primary, backups = network.find_nodes()
     with primary.client() as c:
-        r = c.get("/app/commit")
-        assert r.status_code == HTTPStatus.OK
-        body_j = r.body.json()
-        tx_id = TxID.from_str(body_j["transaction_id"])
+        timeout = 3
+        end_time = time.time() + timeout
+        found_stable_commit = False
+        while time.time() < end_time:
+            r = c.get("/app/commit")
+            assert r.status_code == HTTPStatus.OK
+            body_j = r.body.json()
+            tx_id = TxID.from_str(body_j["transaction_id"])
+            if tx_id.view == r.view and tx_id.seqno == r.seqno:
+                found_stable_commit = True
+                break
+
+        assert found_stable_commit, f"Failed to reach stable commit after {timeout}s"
 
         r = c.get("/app/node_summary")
         assert r.status_code == HTTPStatus.OK
