@@ -707,7 +707,7 @@ if(BUILD_TESTS)
     NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
-    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}  
+    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
   )
 
   add_e2e_test(
