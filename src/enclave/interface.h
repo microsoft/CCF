@@ -44,7 +44,6 @@ struct EnclaveConfig
 
 struct CCFConfig
 {
-  // TODO: Rename most of these fields!
   consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
 
@@ -57,8 +56,8 @@ struct CCFConfig
 
   struct SignatureIntervals
   {
-    size_t sig_tx_interval;
-    size_t sig_ms_interval;
+    size_t sig_tx_interval = 5000;
+    size_t sig_ms_interval = 1000;
   };
   SignatureIntervals signature_intervals = {};
 
@@ -80,11 +79,21 @@ struct CCFConfig
   };
   Join join = {};
 
-  crypto::CertificateSubjectIdentity node_certificate_subject_identity;
-  size_t jwt_key_refresh_interval_s;
-  crypto::CurveID curve_id;
+  struct NodeCertificateInfo
+  {
+    std::string subject_name = "CN=CCF Node";
+    std::vector<crypto::SubjectAltName> subject_alt_names = {};
+    crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
+    size_t initial_validity_days = 1;
+  };
+  NodeCertificateInfo node_certificate;
 
-  size_t initial_node_certificate_validity_period_days;
+  // TODO: Remove
+  // crypto::CertificateSubjectIdentity node_certificate_subject_identity;
+  // crypto::CurveID curve_id;
+  size_t jwt_key_refresh_interval_s;
+
+  // size_t initial_node_certificate_validity_period_days;
 };
 
 struct StartupConfig : CCFConfig
@@ -99,6 +108,14 @@ struct StartupConfig : CCFConfig
 DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::SignatureIntervals, sig_tx_interval, sig_ms_interval);
+
+DECLARE_JSON_TYPE(CCFConfig::NodeCertificateInfo);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::NodeCertificateInfo,
+  subject_name,
+  subject_alt_names,
+  curve_id,
+  initial_validity_days);
 
 DECLARE_JSON_TYPE(CCFConfig::Snapshots);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -123,10 +140,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   signature_intervals,
   start,
   join,
-  node_certificate_subject_identity,
-  jwt_key_refresh_interval_s,
-  curve_id,
-  initial_node_certificate_validity_period_days);
+  jwt_key_refresh_interval_s);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(

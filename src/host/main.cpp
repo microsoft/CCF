@@ -840,13 +840,19 @@ int main(int argc, char** argv)
       ccf_config.network.rpc_interfaces.push_back(addr);
     }
     ccf_config.snapshots.snapshot_tx_interval = snapshot_tx_interval;
-
-    ccf_config.node_certificate_subject_identity =
-      node_certificate_subject_identity;
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
-    ccf_config.curve_id = curve_id;
-    ccf_config.initial_node_certificate_validity_period_days =
-      initial_node_certificate_validity_period_days;
+
+    ccf_config.node_certificate = {
+      node_certificate_subject_identity.name,
+      node_certificate_subject_identity.sans,
+      curve_id,
+      initial_node_certificate_validity_period_days};
+
+    // ccf_config.node_certificate_subject_identity =
+    //   node_certificate_subject_identity;
+    // ccf_config.curve_id = curve_id;
+    // ccf_config.initial_node_certificate_validity_period_days =
+    //   initial_node_certificate_validity_period_days;
 
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
