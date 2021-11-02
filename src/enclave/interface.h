@@ -47,8 +47,6 @@ struct CCFConfig
   consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
 
-  size_t snapshot_tx_interval = 10'000; // TODO: Delete
-  // TODO: Serialise
   struct Snapshots
   {
     size_t snapshot_tx_interval = 10'000;
@@ -102,6 +100,10 @@ DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::SignatureIntervals, sig_tx_interval, sig_ms_interval);
 
+DECLARE_JSON_TYPE(CCFConfig::Snapshots);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::Snapshots, snapshot_dir, snapshot_tx_interval);
+
 DECLARE_JSON_TYPE(CCFConfig::Genesis);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::Genesis,
@@ -119,7 +121,6 @@ DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig,
   consensus,
   network,
-  snapshot_tx_interval,
   signature_intervals,
   genesis,
   joining,

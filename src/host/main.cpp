@@ -839,7 +839,7 @@ int main(int argc, char** argv)
       addr.max_open_sessions_hard = interface.max_open_sessions_hard;
       ccf_config.network.rpc_interfaces.push_back(addr);
     }
-    ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+    ccf_config.snapshots.snapshot_tx_interval = snapshot_tx_interval;
 
     ccf_config.node_certificate_subject_identity =
       node_certificate_subject_identity;
