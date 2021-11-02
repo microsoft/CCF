@@ -562,12 +562,13 @@ def run_all(args):
 
 
 if __name__ == "__main__":
+
     def add(parser):
         parser.add_argument(
             "--include-2tx-reconfig",
             help="Include tests for the 2-transaction reconfiguration scheme",
             type=bool,
-            default=False
+            default=False,
         )
 
     cr = ConcurrentRunner(add)
