@@ -50,8 +50,14 @@ int main(int argc, char** argv)
 
   CLI::App app{"ccf"};
 
-  app.set_config("--config", "", "Read an INI or TOML file", false);
-  app.allow_config_extras(false);
+  // app.set_config("--config", "", "Read an INI or TOML file", false);
+  // app.allow_config_extras(false);
+
+  std::string config_file_path = "config.json";
+  app
+    .add_option(
+      "-c,--config", config_file_path, "File to JSON configuration file")
+    ->check(CLI::ExistingFile);
 
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
@@ -59,9 +65,9 @@ int main(int argc, char** argv)
   app.require_subcommand(1, 1);
 
   std::string enclave_file;
-  app.add_option("-e,--enclave-file", enclave_file, "CCF application")
-    ->required()
-    ->check(CLI::ExistingFile);
+  // app.add_option("-e,--enclave-file", enclave_file, "CCF application")
+  //   ->required()
+  //   ->check(CLI::ExistingFile);
 
   enum EnclaveType
   {
@@ -75,156 +81,159 @@ int main(int argc, char** argv)
     {"debug", EnclaveType::DEBUG},
     {"virtual", EnclaveType::VIRTUAL}};
 
-  EnclaveType enclave_type;
-  app.add_option("-t,--enclave-type", enclave_type, "Enclave type")
-    ->required()
-    ->transform(CLI::CheckedTransformer(enclave_type_map, CLI::ignore_case));
+  EnclaveType enclave_type = EnclaveType::RELEASE;
+  // app.add_option("-t,--enclave-type", enclave_type, "Enclave type")
+  //   ->required()
+  //   ->transform(CLI::CheckedTransformer(enclave_type_map, CLI::ignore_case));
 
-  ConsensusType consensus;
+  ConsensusType consensus = ConsensusType::CFT;
   std::vector<std::pair<std::string, ConsensusType>> consensus_map{
     {"cft", ConsensusType::CFT}, {"bft", ConsensusType::BFT}};
-  app.add_option("-c,--consensus", consensus, "Consensus")
-    ->required()
-    ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
+  // app.add_option("-c,--consensus", consensus, "Consensus")
+  //   ->required()
+  //   ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
 
   size_t num_worker_threads = 0;
-  app
-    .add_option(
-      "-w,--worker-threads",
-      num_worker_threads,
-      "Number of worker threads inside the enclave")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "-w,--worker-threads",
+  //     num_worker_threads,
+  //     "Number of worker threads inside the enclave")
+  //   ->capture_default_str();
 
   cli::ParsedAddress node_address;
-  cli::add_address_option(
-    app,
-    node_address,
-    "--node-address",
-    "Address on which to listen for commands coming from other nodes")
-    ->required();
+  // cli::add_address_option(
+  //   app,
+  //   node_address,
+  //   "--node-address",
+  //   "Address on which to listen for commands coming from other nodes")
+  //   ->required();
 
   std::string node_address_file = {};
-  app.add_option(
-    "--node-address-file",
-    node_address_file,
-    "Path to which the node's node-to-node address (including potentially "
-    "auto-assigned port) will be written. If empty (default), write nothing");
+  // app.add_option(
+  //   "--node-address-file",
+  //   node_address_file,
+  //   "Path to which the node's node-to-node address (including potentially "
+  //   "auto-assigned port) will be written. If empty (default), write
+  //   nothing");
 
   std::optional<std::string> node_client_interface = std::nullopt;
-  app.add_option(
-    "--node-client-interface",
-    node_client_interface,
-    "Interface on which to bind to for commands sent to other nodes. If "
-    "unspecified (default), this is automatically assigned by the OS");
+  // app.add_option(
+  //   "--node-client-interface",
+  //   node_client_interface,
+  //   "Interface on which to bind to for commands sent to other nodes. If "
+  //   "unspecified (default), this is automatically assigned by the OS");
 
   std::string rpc_address_file = {};
-  app.add_option(
-    "--rpc-address-file",
-    rpc_address_file,
-    "Path to which all node RPC addresses (including potentially "
-    "auto-assigned ports) will be written. If empty (default), write nothing");
+  // app.add_option(
+  //   "--rpc-address-file",
+  //   rpc_address_file,
+  //   "Path to which all node RPC addresses (including potentially "
+  //   "auto-assigned ports) will be written. If empty (default), write
+  //   nothing");
 
   cli::ParsedAddress rpc_address;
-  auto rpc_address_option = cli::add_address_option(
-    app,
-    rpc_address,
-    "--rpc-address",
-    "Address on which to listen for TLS commands coming from clients. Port "
-    "defaults to 443 if unspecified.",
-    "443");
+  // auto rpc_address_option = cli::add_address_option(
+  //   app,
+  //   rpc_address,
+  //   "--rpc-address",
+  //   "Address on which to listen for TLS commands coming from clients. Port "
+  //   "defaults to 443 if unspecified.",
+  //   "443");
 
   cli::ParsedAddress public_rpc_address;
-  auto public_rpc_address_option =
-    cli::add_address_option(
-      app,
-      public_rpc_address,
-      "--public-rpc-address",
-      "Address to advertise publicly to clients (defaults to same as "
-      "--rpc-address)",
-      "443")
-      ->needs(rpc_address_option);
+  // auto public_rpc_address_option =
+  //   cli::add_address_option(
+  //     app,
+  //     public_rpc_address,
+  //     "--public-rpc-address",
+  //     "Address to advertise publicly to clients (defaults to same as "
+  //     "--rpc-address)",
+  //     "443")
+  //     ->needs(rpc_address_option);
 
   size_t max_open_sessions = 1'000;
-  app
-    .add_option(
-      "--max-open-sessions",
-      max_open_sessions,
-      "Soft cap on number of TLS sessions which may be open at the same time. "
-      "Once this many connection are open, additional connections will receive "
-      "a 503 HTTP error (until the hard cap is reached)")
-    ->capture_default_str()
-    ->needs(rpc_address_option);
+  // app
+  //   .add_option(
+  //     "--max-open-sessions",
+  //     max_open_sessions,
+  //     "Soft cap on number of TLS sessions which may be open at the same time.
+  //     " "Once this many connection are open, additional connections will
+  //     receive " "a 503 HTTP error (until the hard cap is reached)")
+  //   ->capture_default_str()
+  //   ->needs(rpc_address_option);
 
   size_t max_open_sessions_hard = 0;
-  auto mosh_option =
-    app
-      .add_option(
-        "--max-open-sessions-hard",
-        max_open_sessions_hard,
-        fmt::format(
-          "Hard cap on number of TLS sessions which may be open at the same "
-          "time. "
-          "Once this many connections are open, additional connection attempts "
-          "will be closed before a TLS handshake is completed. Default is {} "
-          "more than --max-open-sessions",
-          cli::ParsedRpcInterface::default_mosh_diff))
-      ->needs(rpc_address_option);
+  // auto mosh_option =
+  //   app
+  //     .add_option(
+  //       "--max-open-sessions-hard",
+  //       max_open_sessions_hard,
+  //       fmt::format(
+  //         "Hard cap on number of TLS sessions which may be open at the same "
+  //         "time. "
+  //         "Once this many connections are open, additional connection
+  //         attempts " "will be closed before a TLS handshake is completed.
+  //         Default is {} " "more than --max-open-sessions",
+  //         cli::ParsedRpcInterface::default_mosh_diff))
+  //     ->needs(rpc_address_option);
 
   std::vector<cli::ParsedRpcInterface> rpc_interfaces;
-  auto rpc_interfaces_option = cli::add_rpc_interface_option(
-    app,
-    rpc_interfaces,
-    "--rpc-interface",
-    "Specify additional interfaces on which this node should listen for "
-    "incoming client commands. Each interface will have its own separate "
-    "session caps. Each interface should be specified as a comma-separated "
-    "list <rpc-address>,<public-rpc-address>,<max-open-sessions>,<max-"
-    "open-sessions-hard>, where all fields after <rpc-address> are optional");
+  // auto rpc_interfaces_option = cli::add_rpc_interface_option(
+  //   app,
+  //   rpc_interfaces,
+  //   "--rpc-interface",
+  //   "Specify additional interfaces on which this node should listen for "
+  //   "incoming client commands. Each interface will have its own separate "
+  //   "session caps. Each interface should be specified as a comma-separated "
+  //   "list <rpc-address>,<public-rpc-address>,<max-open-sessions>,<max-"
+  //   "open-sessions-hard>, where all fields after <rpc-address> are
+  //   optional");
 
   std::string ledger_dir("ledger");
-  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
-    ->capture_default_str();
+  // app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
+  //   ->capture_default_str();
 
   std::vector<std::string> read_only_ledger_dirs;
-  app
-    .add_option(
-      "--read-only-ledger-dir",
-      read_only_ledger_dirs,
-      "Additional read-only ledger directory (optional)")
-    ->type_size(-1);
+  // app
+  //   .add_option(
+  //     "--read-only-ledger-dir",
+  //     read_only_ledger_dirs,
+  //     "Additional read-only ledger directory (optional)")
+  //   ->type_size(-1);
 
   std::string snapshot_dir("snapshots");
-  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
-    ->capture_default_str();
+  // app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
+  //   ->capture_default_str();
 
   size_t ledger_chunk_bytes = 5'000'000;
-  app
-    .add_option(
-      "--ledger-chunk-bytes",
-      ledger_chunk_bytes,
-      "Size (bytes) at which a new ledger chunk is created")
-    ->capture_default_str()
-    ->transform(CLI::AsSizeValue(true)); // 1000 is kb
+  // app
+  //   .add_option(
+  //     "--ledger-chunk-bytes",
+  //     ledger_chunk_bytes,
+  //     "Size (bytes) at which a new ledger chunk is created")
+  //   ->capture_default_str()
+  //   ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
   size_t io_logging_threshold_ns =
     std::chrono::duration_cast<std::chrono::nanoseconds>(
       asynchost::TimeBoundLogger::default_max_time)
       .count();
-  app
-    .add_option(
-      "--io-logging-threshold-ns",
-      io_logging_threshold_ns,
-      "Any IO step that takes longer than this time will be logged at level "
-      "FAIL. This time is given in nanoseconds")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--io-logging-threshold-ns",
+  //     io_logging_threshold_ns,
+  //     "Any IO step that takes longer than this time will be logged at level "
+  //     "FAIL. This time is given in nanoseconds")
+  //   ->capture_default_str();
 
   size_t snapshot_tx_interval = 10'000;
-  app
-    .add_option(
-      "--snapshot-tx-interval",
-      snapshot_tx_interval,
-      "Number of transactions between snapshots")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--snapshot-tx-interval",
+  //     snapshot_tx_interval,
+  //     "Number of transactions between snapshots")
+  //   ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -233,201 +242,205 @@ int main(int argc, char** argv)
     level_map.emplace_back(
       logger::config::LevelNames[i], static_cast<logger::Level>(i));
   }
-  app
-    .add_option(
-      "-l,--host-log-level",
-      host_log_level,
-      "Only emit host log messages above that level")
-    ->capture_default_str()
-    ->transform(CLI::CheckedTransformer(level_map, CLI::ignore_case));
+  // app
+  //   .add_option(
+  //     "-l,--host-log-level",
+  //     host_log_level,
+  //     "Only emit host log messages above that level")
+  //   ->capture_default_str()
+  //   ->transform(CLI::CheckedTransformer(level_map, CLI::ignore_case));
 
   bool log_format_json = false;
-  app.add_flag(
-    "--log-format-json", log_format_json, "Set node stdout log format to JSON");
+  // app.add_flag(
+  //   "--log-format-json", log_format_json, "Set node stdout log format to
+  //   JSON");
 
   std::string node_cert_file("nodecert.pem");
-  app
-    .add_option(
-      "--node-cert-file",
-      node_cert_file,
-      "Path to which the node certificate will be written")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--node-cert-file",
+  //     node_cert_file,
+  //     "Path to which the node certificate will be written")
+  //   ->capture_default_str();
 
   std::string node_pid_file = fmt::format("{}.pid", argv[0]);
-  app
-    .add_option(
-      "--node-pid-file",
-      node_pid_file,
-      "Path to which the node PID will be written")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--node-pid-file",
+  //     node_pid_file,
+  //     "Path to which the node PID will be written")
+  //   ->capture_default_str();
 
   size_t sig_tx_interval = 5000;
-  app
-    .add_option(
-      "--sig-tx-interval",
-      sig_tx_interval,
-      "Number of transactions between signatures")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--sig-tx-interval",
+  //     sig_tx_interval,
+  //     "Number of transactions between signatures")
+  //   ->capture_default_str();
 
   size_t sig_ms_interval = 1000;
-  app
-    .add_option(
-      "--sig-ms-interval", sig_ms_interval, "Milliseconds between signatures")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--sig-ms-interval", sig_ms_interval, "Milliseconds between
+  //     signatures")
+  //   ->capture_default_str();
 
   size_t circuit_size_shift = 22;
-  app
-    .add_option(
-      "--circuit-size-shift",
-      circuit_size_shift,
-      "Size of the internal ringbuffers, as a power of 2")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--circuit-size-shift",
+  //     circuit_size_shift,
+  //     "Size of the internal ringbuffers, as a power of 2")
+  //   ->capture_default_str();
 
   size_t raft_timeout = 100;
-  app
-    .add_option(
-      "--raft-timeout-ms",
-      raft_timeout,
-      "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
-      "followers at regular intervals defined by this timeout. This should be "
-      "set to a significantly lower value than --raft-election-timeout-ms.")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--raft-timeout-ms",
+  //     raft_timeout,
+  //     "Raft timeout in milliseconds. The Raft leader sends heartbeats to its
+  //     " "followers at regular intervals defined by this timeout. This should
+  //     be " "set to a significantly lower value than
+  //     --raft-election-timeout-ms.")
+  //   ->capture_default_str();
 
   size_t raft_election_timeout = 5000;
-  app
-    .add_option(
-      "--raft-election-timeout-ms",
-      raft_election_timeout,
-      "Raft election timeout in milliseconds. If a follower does not receive "
-      "any heartbeat from the leader after this timeout, the follower triggers "
-      "a new election.")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--raft-election-timeout-ms",
+  //     raft_election_timeout,
+  //     "Raft election timeout in milliseconds. If a follower does not receive
+  //     " "any heartbeat from the leader after this timeout, the follower
+  //     triggers " "a new election.")
+  //   ->capture_default_str();
 
   size_t bft_view_change_timeout = 5000;
-  app
-    .add_option(
-      "--bft-view-change-timeout-ms",
-      bft_view_change_timeout,
-      "bft view change timeout in milliseconds. If a backup does not receive "
-      "the pre-prepare message for a request forwarded to the primary after "
-      "this timeout, the backup triggers a new view change.")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--bft-view-change-timeout-ms",
+  //     bft_view_change_timeout,
+  //     "bft view change timeout in milliseconds. If a backup does not receive
+  //     " "the pre-prepare message for a request forwarded to the primary after
+  //     " "this timeout, the backup triggers a new view change.")
+  //   ->capture_default_str();
 
   size_t bft_status_interval = 100;
-  app
-    .add_option(
-      "--bft-status-interval-ms",
-      bft_status_interval,
-      "bft status timer interval in milliseconds. All bft nodes send "
-      "messages "
-      "containing their status to all other known nodes at regular intervals "
-      "defined by this timer interval.")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--bft-status-interval-ms",
+  //     bft_status_interval,
+  //     "bft status timer interval in milliseconds. All bft nodes send "
+  //     "messages "
+  //     "containing their status to all other known nodes at regular intervals
+  //     " "defined by this timer interval.")
+  //   ->capture_default_str();
 
   size_t client_connection_timeout = 2000;
-  app
-    .add_option(
-      "--client-connection-timeout-ms",
-      client_connection_timeout,
-      "TCP client connection timeout in milliseconds after which a"
-      "non-established client connection is automatically re-created. This "
-      "should be set to a significantly lower value than the "
-      "--raft-election-timeout-ms.")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--client-connection-timeout-ms",
+  //     client_connection_timeout,
+  //     "TCP client connection timeout in milliseconds after which a"
+  //     "non-established client connection is automatically re-created. This "
+  //     "should be set to a significantly lower value than the "
+  //     "--raft-election-timeout-ms.")
+  //   ->capture_default_str();
 
   size_t max_msg_size = 24;
-  app
-    .add_option(
-      "--max-msg-size",
-      max_msg_size,
-      "Determines maximum total number of bytes for a message sent over the "
-      "ringbuffer. Messages may be split into multiple fragments, but this "
-      "limits the total size of the sum of those fragments. Value is used as a "
-      "shift factor, ie - given N, the limit is (1 << N)")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--max-msg-size",
+  //     max_msg_size,
+  //     "Determines maximum total number of bytes for a message sent over the "
+  //     "ringbuffer. Messages may be split into multiple fragments, but this "
+  //     "limits the total size of the sum of those fragments. Value is used as
+  //     a " "shift factor, ie - given N, the limit is (1 << N)")
+  //   ->capture_default_str();
 
   size_t max_fragment_size = 16;
-  app
-    .add_option(
-      "--max-fragment-size",
-      max_fragment_size,
-      "Determines maximum size of individual ringbuffer message fragments. "
-      "Messages larger than this will be split into multiple fragments. Value "
-      "is used as a shift factor, ie - given N, the limit is (1 << N)")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--max-fragment-size",
+  //     max_fragment_size,
+  //     "Determines maximum size of individual ringbuffer message fragments. "
+  //     "Messages larger than this will be split into multiple fragments. Value
+  //     " "is used as a shift factor, ie - given N, the limit is (1 << N)")
+  //   ->capture_default_str();
 
   size_t tick_period_ms = 10;
-  app
-    .add_option(
-      "--tick-period-ms",
-      tick_period_ms,
-      "Wait between ticks sent to the enclave. Lower values reduce minimum "
-      "latency at a cost to throughput")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--tick-period-ms",
+  //     tick_period_ms,
+  //     "Wait between ticks sent to the enclave. Lower values reduce minimum "
+  //     "latency at a cost to throughput")
+  //   ->capture_default_str();
 
   crypto::CertificateSubjectIdentity node_certificate_subject_identity(
     "CN=CCF Node");
-  app
-    .add_option(
-      "--sn",
-      node_certificate_subject_identity.name,
-      "Subject Name in node certificate, eg. CN=CCF Node")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--sn",
+  //     node_certificate_subject_identity.name,
+  //     "Subject Name in node certificate, eg. CN=CCF Node")
+  //   ->capture_default_str();
 
-  cli::add_subject_alternative_name_option(
-    app,
-    node_certificate_subject_identity.sans,
-    "--san",
-    "Subject Alternative Name in node certificate. Can be either "
-    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld. If not specified, "
-    "the address components from --rpc-interface will be used");
+  // cli::add_subject_alternative_name_option(
+  //   app,
+  //   node_certificate_subject_identity.sans,
+  //   "--san",
+  //   "Subject Alternative Name in node certificate. Can be either "
+  //   "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld. If not specified,
+  //   " "the address components from --rpc-interface will be used");
 
   size_t jwt_key_refresh_interval_s = 1800;
-  app
-    .add_option(
-      "--jwt-key-refresh-interval-s",
-      jwt_key_refresh_interval_s,
-      "Interval in seconds for JWT public signing key refresh.")
-    ->capture_default_str();
+  // app
+  //   .add_option(
+  //     "--jwt-key-refresh-interval-s",
+  //     jwt_key_refresh_interval_s,
+  //     "Interval in seconds for JWT public signing key refresh.")
+  //   ->capture_default_str();
 
   size_t memory_reserve_startup = 0;
-  app
-    .add_option(
-      "--memory-reserve-startup",
-      memory_reserve_startup,
-#ifdef DEBUG_CONFIG
-      "Reserve unused memory inside the enclave, to simulate high memory use"
-#else
-      "Unused"
-#endif
-      )
-    ->capture_default_str();
+  //   app
+  //     .add_option(
+  //       "--memory-reserve-startup",
+  //       memory_reserve_startup,
+  // #ifdef DEBUG_CONFIG
+  //       "Reserve unused memory inside the enclave, to simulate high memory
+  //       use"
+  // #else
+  //       "Unused"
+  // #endif
+  //       )
+  //     ->capture_default_str();
 
   crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
   std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
     {"secp384r1", crypto::CurveID::SECP384R1},
     {"secp256r1", crypto::CurveID::SECP256R1}};
-  app
-    .add_option(
-      "--curve-id",
-      curve_id,
-      "Elliptic curve to use as for node and network identities (used for TLS "
-      "and ledger signatures)")
-    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
-    ->capture_default_str();
+  // app
+  // .add_option(
+  //   "--curve-id",
+  //   curve_id,
+  //   "Elliptic curve to use as for node and network identities (used for TLS
+  //   " "and ledger signatures)")
+  // ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
+  // ->capture_default_str();
 
-  // By default, node certificates are only valid for one day. It is expected
-  // that members will submit a proposal to renew the node certificates before
-  // expiry, at the point the service is open.
+  // By default, node certificates are only valid for one day. It is
+  // expected that members will submit a proposal to renew the node
+  // certificates before expiry, at the point the service is open.
   size_t initial_node_certificate_validity_period_days = 1;
-  app
-    .add_option(
-      "--initial-node-cert-validity-days",
-      initial_node_certificate_validity_period_days,
-      "Initial validity period (days) for certificates of nodes before the "
-      "service is open by members")
-    ->check(CLI::PositiveNumber)
-    ->type_name("UINT");
+  // app
+  //   .add_option(
+  //     "--initial-node-cert-validity-days",
+  //     initial_node_certificate_validity_period_days,
+  //     "Initial validity period (days) for certificates of nodes before the "
+  //     "service is open by members")
+  //   ->check(CLI::PositiveNumber)
+  //   ->type_name("UINT");
 
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
@@ -436,105 +449,116 @@ int main(int argc, char** argv)
   auto start = app.add_subcommand("start", "Start new network");
   start->configurable();
 
-  start
-    ->add_option(
-      "--network-cert-file",
-      network_cert_file,
-      "Destination path to freshly created network certificate")
-    ->capture_default_str()
-    ->check(CLI::NonexistentPath);
+  // start
+  //   ->add_option(
+  //     "--network-cert-file",
+  //     network_cert_file,
+  //     "Destination path to freshly created network certificate")
+  //   ->capture_default_str()
+  //   ->check(CLI::NonexistentPath);
 
   std::vector<std::string> constitution_paths;
-  start
-    ->add_option(
-      "--constitution",
-      constitution_paths,
-      "Path to one or more JS file that are concatenated to define the "
-      "contents of the "
-      "public:ccf.gov.constitution table")
-    ->type_size(-1);
+  // start
+  //   ->add_option(
+  //     "--constitution",
+  //     constitution_paths,
+  //     "Path to one or more JS file that are concatenated to define the "
+  //     "contents of the "
+  //     "public:ccf.gov.constitution table")
+  //   ->type_size(-1);
 
   std::vector<cli::ParsedMemberInfo> members_info;
-  cli::add_member_info_option(
-    *start,
-    members_info,
-    "--member-info",
-    "Initial consortium members information "
-    "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
-    ->required();
+  // cli::add_member_info_option(
+  //   *start,
+  //   members_info,
+  //   "--member-info",
+  //   "Initial consortium members information "
+  //   "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
+  //   ->required();
 
   std::optional<size_t> recovery_threshold = std::nullopt;
-  start
-    ->add_option(
-      "--recovery-threshold",
-      recovery_threshold,
-      "Number of member shares required for recovery. Defaults to total number "
-      "of initial consortium members with a public encryption key.")
-    ->check(CLI::PositiveNumber)
-    ->type_name("UINT");
+  // start
+  //   ->add_option(
+  //     "--recovery-threshold",
+  //     recovery_threshold,
+  //     "Number of member shares required for recovery. Defaults to total
+  //     number " "of initial consortium members with a public encryption key.")
+  //   ->check(CLI::PositiveNumber)
+  //   ->type_name("UINT");
 
   size_t max_allowed_node_cert_validity_days = 365;
-  start
-    ->add_option(
-      "--max-allowed-node-cert-validity-days",
-      max_allowed_node_cert_validity_days,
-      "Maximum validity period (days) for certificates of trusted nodes")
-    ->check(CLI::PositiveNumber)
-    ->type_name("UINT");
+  // start
+  //   ->add_option(
+  //     "--max-allowed-node-cert-validity-days",
+  //     max_allowed_node_cert_validity_days,
+  //     "Maximum validity period (days) for certificates of trusted nodes")
+  //   ->check(CLI::PositiveNumber)
+  //   ->type_name("UINT");
 
   auto join = app.add_subcommand("join", "Join existing network");
   join->configurable();
 
-  join
-    ->add_option(
-      "--network-cert-file",
-      network_cert_file,
-      "Path to certificate of existing network to join")
-    ->capture_default_str()
-    ->check(CLI::ExistingFile);
+  // join
+  //   ->add_option(
+  //     "--network-cert-file",
+  //     network_cert_file,
+  //     "Path to certificate of existing network to join")
+  //   ->capture_default_str()
+  //   ->check(CLI::ExistingFile);
 
   size_t join_timer = 1000;
-  join
-    ->add_option(
-      "--join-timer",
-      join_timer,
-      "Duration after which the joining node will resend join requests to "
-      "existing network (ms)")
-    ->capture_default_str();
+  // join
+  //   ->add_option(
+  //     "--join-timer",
+  //     join_timer,
+  //     "Duration after which the joining node will resend join requests to "
+  //     "existing network (ms)")
+  //   ->capture_default_str();
 
   cli::ParsedAddress target_rpc_address;
-  cli::add_address_option(
-    *join,
-    target_rpc_address,
-    "--target-rpc-address",
-    "RPC over TLS listening address of target network node")
-    ->required();
+  // cli::add_address_option(
+  //   *join,
+  //   target_rpc_address,
+  //   "--target-rpc-address",
+  //   "RPC over TLS listening address of target network node")
+  //   ->required();
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
   recover->configurable();
 
-  recover
-    ->add_option(
-      "--network-cert-file",
-      network_cert_file,
-      "Destination path to freshly created network certificate")
-    ->capture_default_str()
-    ->check(CLI::NonexistentPath);
+  // recover
+  //   ->add_option(
+  //     "--network-cert-file",
+  //     network_cert_file,
+  //     "Destination path to freshly created network certificate")
+  //   ->capture_default_str()
+  //   ->check(CLI::NonexistentPath);
 
   try
   {
     app.parse(argc, argv);
 
-    // Add an additional check not represented by existing ->needs, ->requires
-    // etc
-    if (!(*rpc_address_option || *rpc_interfaces_option))
-    {
-      const auto option_list = fmt::format(
-        "{}, {}",
-        rpc_address_option->get_name(),
-        rpc_interfaces_option->get_name());
-      throw CLI::RequiredError::Option(1, 0, 0, option_list);
-    }
+    LOG_FAIL_FMT("Config file: {}", config_file_path);
+
+    auto config = files::slurp_string(config_file_path);
+
+    LOG_FAIL_FMT("Config: {}", config);
+
+    CCHostConfig cchost_config = nlohmann::json::parse(config);
+
+    // nlohmann::json::parse()
+
+    // // Add an additional check not represented by existing ->needs,
+    // ->requires
+    // // etc
+    // if (!(*rpc_address_option || *rpc_interfaces_option))
+    // {
+    //   const auto option_list = fmt::format(
+    //     "{}, {}",
+    //     rpc_address_option->get_name(),
+    //     rpc_interfaces_option->get_name());
+    //   throw CLI::RequiredError::Option(1, 0, 0, option_list);
+    // }
   }
   catch (const CLI::ParseError& e)
   {
@@ -547,29 +571,29 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
-  // Fill in derived default values
-  if (!(*public_rpc_address_option))
-  {
-    public_rpc_address = rpc_address;
-  }
+  // // Fill in derived default values
+  // if (!(*public_rpc_address_option))
+  // {
+  //   public_rpc_address = rpc_address;
+  // }
 
-  if (!(*mosh_option))
-  {
-    max_open_sessions_hard =
-      max_open_sessions + cli::ParsedRpcInterface::default_mosh_diff;
-  }
+  // if (!(*mosh_option))
+  // {
+  //   max_open_sessions_hard =
+  //     max_open_sessions + cli::ParsedRpcInterface::default_mosh_diff;
+  // }
 
   // If --rpc-address etc were specified, they populate a single object at the
   // start of the rpc_interfaces list
-  if (*rpc_address_option)
-  {
-    cli::ParsedRpcInterface first;
-    first.rpc_address = rpc_address;
-    first.public_rpc_address = public_rpc_address;
-    first.max_open_sessions = max_open_sessions;
-    first.max_open_sessions_hard = max_open_sessions_hard;
-    rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
-  }
+  // if (*rpc_address_option)
+  // {
+  //   cli::ParsedRpcInterface first;
+  //   first.rpc_address = rpc_address;
+  //   first.public_rpc_address = public_rpc_address;
+  //   first.max_open_sessions = max_open_sessions;
+  //   first.max_open_sessions_hard = max_open_sessions_hard;
+  //   rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
+  // }
 
   const auto cli_config = app.config_to_str(true, false);
   LOG_INFO_FMT("Version: {}", ccf::ccf_version);
@@ -792,8 +816,8 @@ int main(int argc, char** argv)
     enclave_config.debug_config = {memory_reserve_startup};
 #endif
 
-    CCFConfig ccf_config;
-    ccf_config.consensus_config = {
+    StartupConfig ccf_config; // TODO: Rename
+    ccf_config.consensus = {
       consensus,
       raft_timeout,
       raft_election_timeout,
@@ -801,7 +825,7 @@ int main(int argc, char** argv)
       bft_status_interval};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
 
-    ccf_config.node_info_network.node_address = {
+    ccf_config.network.node_address = {
       node_address.hostname, node_address.port};
     for (const auto& interface : rpc_interfaces)
     {
@@ -813,7 +837,7 @@ int main(int argc, char** argv)
         interface.public_rpc_address.port};
       addr.max_open_sessions_soft = interface.max_open_sessions;
       addr.max_open_sessions_hard = interface.max_open_sessions_hard;
-      ccf_config.node_info_network.rpc_interfaces.push_back(addr);
+      ccf_config.network.rpc_interfaces.push_back(addr);
     }
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 

@@ -24,6 +24,7 @@ namespace ccf
 
   struct NodeInfoNetwork_v2
   {
+    // TODO: Why split hostname:port here?
     struct NetAddress
     {
       std::string hostname;
@@ -47,7 +48,8 @@ namespace ccf
       {
         return rpc_address == other.rpc_address &&
           public_rpc_address == other.public_rpc_address &&
-          other.max_open_sessions_soft && other.max_open_sessions_hard;
+          max_open_sessions_soft == other.max_open_sessions_soft &&
+          max_open_sessions_hard && other.max_open_sessions_hard;
       }
     };
 

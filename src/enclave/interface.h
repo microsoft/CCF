@@ -43,13 +43,18 @@ struct EnclaveConfig
 
 struct CCFConfig
 {
-  consensus::Configuration consensus_config = {};
-  ccf::NodeInfoNetwork node_info_network = {};
-  size_t snapshot_tx_interval;
+  // TODO: Rename most of these fields!
+  consensus::Configuration consensus = {};
+  ccf::NodeInfoNetwork network = {};
 
-  // Only if joining or recovering
-  std::vector<uint8_t> startup_snapshot;
-  std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
+  size_t snapshot_tx_interval = 10'000; // TODO: Delete
+  // TODO: Serialise
+  struct Snapshots
+  {
+    size_t snapshot_tx_interval = 10'000;
+    std::string snapshot_dir = "snapshots";
+  };
+  Snapshots snapshots = {};
 
   struct SignatureIntervals
   {
@@ -69,18 +74,27 @@ struct CCFConfig
 
   struct Joining
   {
+    // TODO: Make one unique address
     std::string target_host;
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
   };
-  Joining joining = {};
+  Joining joining = {}; // TODO: Rename
 
   crypto::CertificateSubjectIdentity node_certificate_subject_identity;
   size_t jwt_key_refresh_interval_s;
   crypto::CurveID curve_id;
 
   size_t initial_node_certificate_validity_period_days;
+};
+
+struct StartupConfig : CCFConfig
+{
+  // Only if joining or recovering
+  std::vector<uint8_t> startup_snapshot;
+  std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
+
   std::string startup_host_time;
 };
 
@@ -100,23 +114,93 @@ DECLARE_JSON_TYPE(CCFConfig::Joining);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::Joining, target_host, target_port, network_cert, join_timer);
 
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
+DECLARE_JSON_TYPE(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig,
-  consensus_config,
-  node_info_network,
+  consensus,
+  network,
   snapshot_tx_interval,
-  startup_snapshot,
   signature_intervals,
   genesis,
   joining,
   node_certificate_subject_identity,
   jwt_key_refresh_interval_s,
   curve_id,
-  initial_node_certificate_validity_period_days,
-  startup_host_time);
+  initial_node_certificate_validity_period_days);
+
+DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
+DECLARE_JSON_REQUIRED_FIELDS(
+  StartupConfig, startup_snapshot, startup_host_time);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig, startup_snapshot_evidence_seqno_for_1_x);
+  StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
+
+enum EnclaveType
+{
+  RELEASE,
+  DEBUG,
+  VIRTUAL
+};
+
+DECLARE_JSON_ENUM(
+  EnclaveType,
+  {{EnclaveType::RELEASE, "release"},
+   {EnclaveType::DEBUG, "debug"},
+   {EnclaveType::VIRTUAL, "virtual"}})
+
+struct CCHostConfig : CCFConfig
+{
+  std::string enclave_file;
+  EnclaveType enclave_type = EnclaveType::RELEASE;
+
+  size_t worker_threads = 0;
+
+  std::string node_cert_file = "nodecert.pem";
+  std::string node_pid_file = "cchost.pid";
+
+  // Logging
+  logger::Level host_log_level = logger::Level::INFO;
+  bool log_format_json = false;
+
+  // Other
+  size_t tick_period_ms = 10;
+
+  // struct Ledger
+  // {
+  //   std::string ledger_dir = "ledger";
+  //   std::vector<std::string> read_only_ledger_dirs = {};
+  //   size_t ledger_chunk_bytes = 5'000'000;
+  // };
+  // Ledger ledger = {};
+
+  // // struct Snapshots
+  // // {
+  // //   std::string snapshot_dir = "snapshots";
+  // //   size_t snapshot_tx_interval = 10'000;
+  // // };
+  // // Snapshots snapshots = {};
+
+  // struct Memory
+  // {
+  //   size_t circuit_size = 2 << 22;
+  //   size_t max_msg_size = 2 << 24;
+  //   size_t max_fragment_size = 2 << 16;
+  // };
+  // Memory memory = {};
+};
+
+DECLARE_JSON_TYPE_WITH_BASE(CCHostConfig, CCFConfig);
+// TODO: Should most of these fields actually be optional so we can have a
+// minimal config?
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig,
+  enclave_file,
+  enclave_type,
+  worker_threads,
+  node_cert_file,
+  node_pid_file,
+  // host_log_level, // TODO: Tricky because of MACRO
+  log_format_json,
+  tick_period_ms)
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message
