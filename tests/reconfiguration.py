@@ -12,6 +12,8 @@ import ccf.ledger
 import json
 import infra.crypto
 from datetime import datetime
+from infra.checker import check_can_progress
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -553,14 +555,29 @@ def run_join_old_snapshot(args):
                 pass
 
 
-if __name__ == "__main__":
-
-    args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.initial_user_count = 1
-
+def run_all(args):
     run(args)
+    if cr.args.consensus != "bft":
+        run_join_old_snapshot(all)
 
-    if args.consensus != "bft":
-        run_join_old_snapshot(args)
+
+if __name__ == "__main__":
+    cr = ConcurrentRunner()
+
+    cr.add(
+        "1tx_reconfig",
+        run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        reconfiguration_type="1tx",
+    )
+
+    cr.add(
+        "2tx_reconfig",
+        run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        reconfiguration_type="2tx",
+    )
+
+    cr.run()

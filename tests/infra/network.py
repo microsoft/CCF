@@ -637,8 +637,6 @@ class Network:
     def trust_node(self, node, args, valid_from=None, validity_period_days=None):
         primary, _ = self.find_primary()
         try:
-            # Note: the time it takes for a learner to catch up is proportional
-            # to the ledger size; we may want to factor that into the timeout.
             if self.status is ServiceStatus.OPEN:
                 valid_from = valid_from or str(
                     infra.crypto.datetime_to_X509time(datetime.now())
