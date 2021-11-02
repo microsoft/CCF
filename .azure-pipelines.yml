@@ -53,6 +53,15 @@ jobs:
           echo "##vso[task.setvariable variable=sgx_prv_gid; isOutput=true]$SGX_PRV_GID"
         name: find_sgx_prv_gid
 
+  - job: print_the_var
+
+    variables:
+      sgx_prv_gid: $[ dependencies.find_sgx_prv_gid.outputs['find_sgx_prv_gid.sgx_prv_gid'] ]
+
+    steps:
+      - script: |
+          echo $SGX_PRV_GID
+
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
