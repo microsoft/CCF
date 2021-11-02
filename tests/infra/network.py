@@ -219,7 +219,7 @@ class Network:
         # Contact primary if no target node is set
         if target_node is None:
             target_node, _ = self.find_primary(
-                timeout=args.ledger_read_timeout if recovery else 3
+                timeout=args.ledger_recovery_timeout if recovery else 3
             )
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
@@ -321,7 +321,7 @@ class Network:
                         self.wait_for_state(
                             node,
                             infra.node.State.PART_OF_PUBLIC_NETWORK.value,
-                            timeout=args.ledger_read_timeout,
+                            timeout=args.ledger_recovery_timeout,
                         )
                 else:
                     # When a new service is started, initial nodes join without a snapshot
@@ -353,7 +353,7 @@ class Network:
         # Here, recovery nodes might still be catching up, and possibly swamp
         # the current primary which would not be able to serve user requests
         primary, _ = self.find_primary(
-            timeout=args.ledger_read_timeout if recovery else 3
+            timeout=args.ledger_recovery_timeout if recovery else 3
         )
         return primary
 
@@ -494,7 +494,7 @@ class Network:
             self.wait_for_state(
                 node,
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
-                timeout=args.ledger_read_timeout,
+                timeout=args.ledger_recovery_timeout,
             )
         # Catch-up in recovery can take a long time, so extend this timeout
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
@@ -518,7 +518,7 @@ class Network:
             self.wait_for_state(
                 node,
                 infra.node.State.PART_OF_NETWORK.value,
-                timeout=args.ledger_read_timeout,
+                timeout=args.ledger_recovery_timeout,
             )
             self._wait_for_app_open(node)
 
@@ -637,19 +637,18 @@ class Network:
     def trust_node(self, node, args, valid_from=None, validity_period_days=None):
         primary, _ = self.find_primary()
         try:
+            # Note: the time it takes for a learner to catch up is proportional
+            # to the ledger size; we may want to factor that into the timeout.
             if self.status is ServiceStatus.OPEN:
                 valid_from = valid_from or str(
                     infra.crypto.datetime_to_X509time(datetime.now())
                 )
-                timeout = ceil(args.join_timer * 2 / 1000)
-                if args.reconfiguration_type == "2tx":
-                    timeout += args.ledger_read_timeout
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=timeout,
+                    timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
             # was added as pending. Only wait for the join timer for the

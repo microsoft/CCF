@@ -520,7 +520,7 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --oe-binary
       ${OE_BINDIR}
-      --ledger-read-timeout
+      --ledger-recovery-timeout
       20
       --test-duration
       200

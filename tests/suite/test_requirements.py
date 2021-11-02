@@ -137,7 +137,7 @@ def recover(number_txs=5):
             new_network = func(*args, **kwargs)
             new_network.txs.verify(
                 network=new_network,
-                timeout=vargs.get("ledger_read_timeout"),
+                timeout=vargs.get("ledger_recovery_timeout"),
             )
             return new_network
 
