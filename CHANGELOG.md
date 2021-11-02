@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Azure pipelines now launches Docker images with correct arguments to create SGX enclaves on the latest kernel.
 
+### Fixed
+
+- Removed erroneous "Start command should be start|join|recover" message on node startup.
+
 ## [1.0.14]
 
 ### Changed
