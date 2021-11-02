@@ -567,8 +567,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--include-2tx-reconfig",
             help="Include tests for the 2-transaction reconfiguration scheme",
-            type=bool,
-            default=False,
+            action="store_false"
         )
 
     cr = ConcurrentRunner(add)
