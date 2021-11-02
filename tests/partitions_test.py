@@ -9,7 +9,6 @@ import suite.test_requirements as reqs
 from infra.checker import check_can_progress, check_does_not_progress
 import pprint
 from ccf.tx_status import TxStatus
-import ccf.ledger
 
 from loguru import logger as LOG
 
