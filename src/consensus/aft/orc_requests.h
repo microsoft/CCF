@@ -11,6 +11,8 @@
 
 namespace ccf
 {
+  size_t constexpr ORC_RPC_RETRY_INTERVAL_MS = 250;
+
   struct ObservedReconfigurationCommit
   {
     struct In
@@ -66,7 +68,7 @@ namespace ccf
     if (!submit_orc(msg->data.client, msg->data.from, msg->data.rid))
     {
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg), std::chrono::milliseconds(250));
+        std::move(msg), std::chrono::milliseconds(ORC_RPC_RETRY_INTERVAL_MS));
     }
   }
 
