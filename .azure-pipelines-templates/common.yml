@@ -1,7 +1,7 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
-    dependsOn: ${{ parameters.depends_on }}
+    dependsOn: find_sgx_prv_gid
 
     ${{ insert }}: ${{ parameters.env }}
 

@@ -44,7 +44,7 @@ variables:
   sgx_prv_gid: 1
 
 jobs:
-  - job:
+  - job: find_sgx_prv_gid
     pool: 1es-dcv2-focal
 
     steps:
