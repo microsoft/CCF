@@ -546,24 +546,6 @@ namespace aft
       return offset;
     }
 
-    bool same_node_ids(
-      const kv::Configuration::Nodes& conf1,
-      const kv::Configuration::Nodes& conf2)
-    {
-      if (conf1.size() == conf2.size())
-      {
-        for (const auto& [nid, _] : conf1)
-        {
-          if (conf2.find(nid) == conf2.end())
-          {
-            return false;
-          }
-        }
-        return true;
-      }
-      return false;
-    }
-
   public:
     void add_configuration(
       Index idx,
@@ -656,7 +638,7 @@ namespace aft
         }
       }
 
-      if (!same_node_ids(conf, configurations.back().nodes))
+      if (conf != configurations.back().nodes)
       {
         uint32_t offset = get_bft_offset(conf);
         configurations.push_back({idx, std::move(conf), offset, 0});

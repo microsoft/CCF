@@ -95,6 +95,11 @@ namespace kv
         hostname(hostname_),
         port(port_)
       {}
+
+      bool operator==(const NodeInfo& other) const
+      {
+        return hostname == other.hostname && port == other.port;
+      }
     };
 
     using Nodes = std::map<NodeId, NodeInfo>;
