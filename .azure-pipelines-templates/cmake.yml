@@ -1,9 +1,6 @@
 parameters:
   cmake_args: ""
 
-variables:
-  sgx_prv_gid: $[ dependencies.find_sgx_prv_gid.outputs['find_sgx_prv_gid.sgx_prv_gid'] ] 
-
 steps:
   - script: |
       set -ex
