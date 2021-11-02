@@ -292,34 +292,9 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
-
-        with remote_node.client() as c:
-            r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
-            status = r.body.json()["status"]
-            assert status == NodeStatus.RETIRED.value or (
-                self.reconfiguration_type == "2tx"
-                and status == NodeStatus.RETIRING.value
-            )
-
-            if (
-                self.reconfiguration_type == "2tx"
-                and status == NodeStatus.RETIRING.value
-            ):
-                # When using 2tx reconfiguration, we need to wait until that the node is fully retired
-                # and not in the `RETIRING` state, to make sure their host/port address can be reused
-                # by another node.
-                end_time = time.time() + timeout
-                while status == NodeStatus.RETIRING.value and time.time() < end_time:
-                    try:
-                        r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
-                        status = r.body.json()["status"]
-                    except Exception:
-                        pass
-                    time.sleep(1.0)
-                if status == NodeStatus.RETIRING.value:
-                    raise TimeoutError(
-                        f"Node {node_to_retire.node_id} did not retire within timeout"
-                    )
+        self.wait_for_node_to_exist_in_store(
+            remote_node, node_to_retire.node_id, timeout, NodeStatus.RETIRED
+        )
 
     def trust_node(
         self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
