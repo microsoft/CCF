@@ -402,13 +402,14 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     add_library(
       js_v8_base.virtual STATIC
       ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
-      ${CCF_DIR}/src/apps/js_v8/v8httpproc.cpp
+      ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
     )
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)
     target_include_directories(js_v8_base.virtual PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/build-v8/install/include)
-    target_link_directories(js_v8_base.virtual PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/build-v8/install/lib)
-    target_link_libraries(js_v8_base.virtual PUBLIC ccf.virtual)
+    set(v8_lib_dir ${CMAKE_CURRENT_SOURCE_DIR}/build-v8/install/lib)
+    set(v8_lib ${v8_lib_dir}/libv8_monolith.a)
+    target_link_libraries(js_v8_base.virtual PUBLIC ccf.virtual ${v8_lib})
     # TODO: Make sure the V8 build uses the same libc++ version
     target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
     target_compile_definitions(

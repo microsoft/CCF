@@ -8,10 +8,9 @@
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
-#include "libplatform/libplatform.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
-#include "v8httpproc.h"
+#include "v8_runner.h"
 
 #include <memory>
 #include <stdexcept>
@@ -20,7 +19,6 @@
 using namespace std;
 using namespace ccf;
 using namespace kv;
-using namespace v8;
 
 namespace ccfapp
 {
@@ -44,196 +42,196 @@ namespace ccfapp
     ccfapp::AbstractNodeContext& context;
     ::metrics::Tracker metrics_tracker;
 
-    static Local<Object> create_json_obj(const nlohmann::json& j, Isolate* iso)
-    {
-      const auto buf = j.dump();
-      HandleScope scope(iso);
-      MaybeLocal<String> result = String::NewFromUtf8(
-      iso, buf.c_str(), NewStringType::kNormal, static_cast<int>(buf.size()));
-      // TODO: Parse the JSON first
-      // In theory, JSON is contained in the ECMAScript standard, and V8 supports
-      // it, so in theory, parsing a JSON object structure could "just work"?
-      return result;
-    }
+    // static Local<Object> create_json_obj(const nlohmann::json& j, Isolate* iso)
+    // {
+    //   const auto buf = j.dump();
+    //   HandleScope scope(iso);
+    //   MaybeLocal<String> result = String::NewFromUtf8(
+    //   iso, buf.c_str(), NewStringType::kNormal, static_cast<int>(buf.size()));
+    //   // TODO: Parse the JSON first
+    //   // In theory, JSON is contained in the ECMAScript standard, and V8 supports
+    //   // it, so in theory, parsing a JSON object structure could "just work"?
+    //   return result;
+    // }
 
-    Local<Object> create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
-    {
-      // No callers, return null
-      if (endpoint_ctx.caller == nullptr)
-      {
-        return Null(iso);
-      }
+    // Local<Object> create_caller_obj(
+    //   ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
+    // {
+    //   // No callers, return null
+    //   if (endpoint_ctx.caller == nullptr)
+    //   {
+    //     return Null(iso);
+    //   }
 
-      // Jwt/Empty identity
-      auto caller = Object::New(iso);
-      char const* policy_name = nullptr;
-      Local<Object> jwt = Null(iso);
-      if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(jwt_ident);
-        /**
-         * TODO: Create structure using ObjectTemplate
-         *   jwt {
-         *     keyIssuer: StringLen(iso, jwt_ident->key_issuer.data(), ...size())
-         *     header: create_json_obj(jwt_ident->header, iso)
-         *     payload: create_json_obj(jwt_ident->payload, iso)
-         *   }
-         */
-      }
-      else if (
-        auto empty_ident =
-          endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(empty_ident);
-        // jwt here is null
-      }
-      if (policy_name)
-      {
-        /**
-         * TODO: Create structure using ObjectTemplate
-         *   caller {
-         *     policy: policy_name
-         *     jwt: jwt (if not null)
-         *   }
-         */
-        return caller;
-      }
+    //   // Jwt/Empty identity
+    //   auto caller = Object::New(iso);
+    //   char const* policy_name = nullptr;
+    //   Local<Object> jwt = Null(iso);
+    //   if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
+    //   {
+    //     policy_name = get_policy_name_from_ident(jwt_ident);
+    //     /**
+    //      * TODO: Create structure using ObjectTemplate
+    //      *   jwt {
+    //      *     keyIssuer: StringLen(iso, jwt_ident->key_issuer.data(), ...size())
+    //      *     header: create_json_obj(jwt_ident->header, iso)
+    //      *     payload: create_json_obj(jwt_ident->payload, iso)
+    //      *   }
+    //      */
+    //   }
+    //   else if (
+    //     auto empty_ident =
+    //       endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
+    //   {
+    //     policy_name = get_policy_name_from_ident(empty_ident);
+    //     // jwt here is null
+    //   }
+    //   if (policy_name)
+    //   {
+    //     /**
+    //      * TODO: Create structure using ObjectTemplate
+    //      *   caller {
+    //      *     policy: policy_name
+    //      *     jwt: jwt (if not null)
+    //      *   }
+    //      */
+    //     return caller;
+    //   }
 
-      // If not, it has to be {User/Member} x {Cert/Signature} identity
-      string id;
-      bool is_member = false;
-      if (
-        auto user_cert_ident =
-          endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(user_cert_ident);
-        id = user_cert_ident->user_id;
-        is_member = false;
-      }
-      else if (
-        auto member_cert_ident =
-          endpoint_ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(member_cert_ident);
-        id = member_cert_ident->member_id;
-        is_member = true;
-      }
-      else if (
-        auto user_sig_ident =
-          endpoint_ctx.try_get_caller<ccf::UserSignatureAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(user_sig_ident);
-        id = user_sig_ident->user_id;
-        is_member = false;
-      }
-      else if (
-        auto member_sig_ident =
-          endpoint_ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(member_sig_ident);
-        id = member_sig_ident->member_id;
-        is_member = true;
-      }
-      if (policy_name == nullptr)
-      {
-        throw std::logic_error("Unable to convert caller info to JS object");
-      }
+    //   // If not, it has to be {User/Member} x {Cert/Signature} identity
+    //   string id;
+    //   bool is_member = false;
+    //   if (
+    //     auto user_cert_ident =
+    //       endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
+    //   {
+    //     policy_name = get_policy_name_from_ident(user_cert_ident);
+    //     id = user_cert_ident->user_id;
+    //     is_member = false;
+    //   }
+    //   else if (
+    //     auto member_cert_ident =
+    //       endpoint_ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
+    //   {
+    //     policy_name = get_policy_name_from_ident(member_cert_ident);
+    //     id = member_cert_ident->member_id;
+    //     is_member = true;
+    //   }
+    //   else if (
+    //     auto user_sig_ident =
+    //       endpoint_ctx.try_get_caller<ccf::UserSignatureAuthnIdentity>())
+    //   {
+    //     policy_name = get_policy_name_from_ident(user_sig_ident);
+    //     id = user_sig_ident->user_id;
+    //     is_member = false;
+    //   }
+    //   else if (
+    //     auto member_sig_ident =
+    //       endpoint_ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+    //   {
+    //     policy_name = get_policy_name_from_ident(member_sig_ident);
+    //     id = member_sig_ident->member_id;
+    //     is_member = true;
+    //   }
+    //   if (policy_name == nullptr)
+    //   {
+    //     throw std::logic_error("Unable to convert caller info to JS object");
+    //   }
 
-      // Retrieve user/member data from authenticated caller id
-      nlohmann::json data = nullptr;
-      ccf::ApiResult result = ccf::ApiResult::OK;
-      if (is_member)
-      {
-        result = get_member_data_v1(endpoint_ctx.tx, id, data);
-      }
-      else
-      {
-        result = get_user_data_v1(endpoint_ctx.tx, id, data);
-      }
-      if (result == ccf::ApiResult::InternalError)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to get data for caller {}", id));
-      }
+    //   // Retrieve user/member data from authenticated caller id
+    //   nlohmann::json data = nullptr;
+    //   ccf::ApiResult result = ccf::ApiResult::OK;
+    //   if (is_member)
+    //   {
+    //     result = get_member_data_v1(endpoint_ctx.tx, id, data);
+    //   }
+    //   else
+    //   {
+    //     result = get_user_data_v1(endpoint_ctx.tx, id, data);
+    //   }
+    //   if (result == ccf::ApiResult::InternalError)
+    //   {
+    //     throw std::logic_error(
+    //       fmt::format("Failed to get data for caller {}", id));
+    //   }
 
-      // Retrieve the certificate
-      crypto::Pem cert;
-      if (is_member)
-      {
-        result = get_member_cert_v1(endpoint_ctx.tx, id, cert);
-      }
-      else
-      {
-        result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
-      }
-      if (result == ccf::ApiResult::InternalError)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to get certificate for caller {}", id));
-      }
+    //   // Retrieve the certificate
+    //   crypto::Pem cert;
+    //   if (is_member)
+    //   {
+    //     result = get_member_cert_v1(endpoint_ctx.tx, id, cert);
+    //   }
+    //   else
+    //   {
+    //     result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
+    //   }
+    //   if (result == ccf::ApiResult::InternalError)
+    //   {
+    //     throw std::logic_error(
+    //       fmt::format("Failed to get certificate for caller {}", id));
+    //   }
 
-      /**
-       * TODO: Create structure using ObjectTemplate
-       *   caller {
-       *     policy: policy_name
-       *     id: StringLen(iso, id.data(), id.size())
-       *     data: create_json_obj(data, iso)
-       *     cert: StringLen(iso, cert.str().data(), cert.size())
-       *   }
-       */
-      return caller;
-    }
+    //   /**
+    //    * TODO: Create structure using ObjectTemplate
+    //    *   caller {
+    //    *     policy: policy_name
+    //    *     id: StringLen(iso, id.data(), id.size())
+    //    *     data: create_json_obj(data, iso)
+    //    *     cert: StringLen(iso, cert.str().data(), cert.size())
+    //    *   }
+    //    */
+    //   return caller;
+    // }
 
-    Local<Object> create_request_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
-    {
-      // Request object
-      auto request = Object::New(iso);
+    // Local<Object> create_request_obj(
+    //   ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
+    // {
+    //   // Request object
+    //   auto request = Object::New(iso);
 
-      // Set header list (possibly empty)
-      auto headers = Object::New(iso);
-      for (auto& [header_name, header_value] :
-           endpoint_ctx.rpc_ctx->get_request_headers())
-      {
-        // JS_SetPropertyStr(
-        //   ctx,
-        //   headers,
-        //   header_name.c_str(),
-        //   StringLen(iso, header_value.c_str(), header_value.size()));
-      }
+    //   // Set header list (possibly empty)
+    //   auto headers = Object::New(iso);
+    //   for (auto& [header_name, header_value] :
+    //        endpoint_ctx.rpc_ctx->get_request_headers())
+    //   {
+    //     // JS_SetPropertyStr(
+    //     //   ctx,
+    //     //   headers,
+    //     //   header_name.c_str(),
+    //     //   StringLen(iso, header_value.c_str(), header_value.size()));
+    //   }
 
-      const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
-      // auto query_str =
-      //   StringLen(iso, request_query.c_str(), request_query.size());
+    //   const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
+    //   // auto query_str =
+    //   //   StringLen(iso, request_query.c_str(), request_query.size());
 
-      auto params = Object::New(iso);
-      for (auto& [param_name, param_value] :
-           endpoint_ctx.rpc_ctx->get_request_path_params())
-      {
-        // JS_SetPropertyStr(
-        //   ctx,
-        //   params,
-        //   param_name.c_str(),
-        //   StringLen(iso, param_value.c_str(), param_value.size()));
-      }
+    //   auto params = Object::New(iso);
+    //   for (auto& [param_name, param_value] :
+    //        endpoint_ctx.rpc_ctx->get_request_path_params())
+    //   {
+    //     // JS_SetPropertyStr(
+    //     //   ctx,
+    //     //   params,
+    //     //   param_name.c_str(),
+    //     //   StringLen(iso, param_value.c_str(), param_value.size()));
+    //   }
 
-      const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
-      // auto body = Object::NewClass(iso, js::body_class_id);
-      // JS_SetOpaque(body, (void*)&request_body);
+    //   const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
+    //   // auto body = Object::NewClass(iso, js::body_class_id);
+    //   // JS_SetOpaque(body, (void*)&request_body);
 
-      /**
-       * TODO: Create structure using ObjectTemplate
-       *   request {
-       *     headers: headers
-       *     query: query_str
-       *     params: params
-       *     body: body
-       *     caller: create_caller_obj(endpoint_ctx, ctx)
-       *   }
-       */
-      return request;
-    }
+    //   /**
+    //    * TODO: Create structure using ObjectTemplate
+    //    *   request {
+    //    *     headers: headers
+    //    *     query: query_str
+    //    *     params: params
+    //    *     body: body
+    //    *     caller: create_caller_obj(endpoint_ctx, ctx)
+    //    *   }
+    //    */
+    //   return request;
+    // }
 
     /// Unpacks the request, load the JavaScript, executes the code
     void do_execute_request(
@@ -244,14 +242,14 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptPtr receipt)
     {
-      // Creates a new JS HTTP processor (and its own sandbox).
-      // We create one per request, which is wasteful if we get the same request multiple times.
-      // TODO: Use a cache for existing requests / code.
-      // TODO: Compile code to Wasm/obj and cache those!
-      Isolate::CreateParams create_params;
-      create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
-      Isolate* iso = Isolate::New(create_params);
-      Isolate::Scope scope(iso);
+      // For now, create a new isolate for each request.
+      // TODO reuse isolate per-thread
+      V8Isolate isolate;
+
+      // Each request is executed in a new context
+      V8Context ctx(isolate);
+
+      //ctx.set_module_load_callback();
 
       // TODO: Populate the global context
       // js::TxContext txctx{&target_tx, js::TxAccess::APP};
@@ -266,181 +264,164 @@ namespace ccfapp
       //   nullptr,
       //   ctx);
 
-      // Parse the source
-      Local<String> source = String::NewFromUtf8(isolate, props.js_module);
-      JsHttpRequestProcessor processor(isolate, source);
-      /// Processor options (like --jitless?)
-      map<string, string> options;
-      map<string, string> output;
-      if (!processor.Initialize(&options, &output)) {
-        fprintf(stderr, "Error initializing processor.\n");
+      try
+      {
+        ctx.run(props.js_module, props.js_function);
+      }
+      catch (std::exception& exc)
+      {
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           exc.what());
         return;
       }
+      
 
-      // Call the function by name
-      Local<String> function_name = String::NewFromUtf8(isolate, props.js_function);
-      Local<Object> val;
+      // // Handle return value: {body, headers, statusCode}
+      // if (val->))
+      // {
+      //   endpoint_ctx.rpc_ctx->set_error(
+      //     HTTP_STATUS_INTERNAL_SERVER_ERROR,
+      //     ccf::errors::InternalError,
+      //     "Invalid endpoint function return value (not an object).");
+      //   return;
+      // }
 
-      // FIXME: This executes a Process function, make that parametric and use the function
-      // below.
-      // FIXME: Return the value as an object.
-      if (!ProcessEntries(isolate, platform.get(), &processor, kSampleSize,
-                          kSampleRequests)) {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          exc.what());
-        return;
-      }
+      // // Response body (also sets a default response content-type header)
+      // {
+      //   auto response_body_js = ctx(JS_GetPropertyStr(iso, val, "body"));
 
-      // Handle return value: {body, headers, statusCode}
-      if (val->))
-      {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Invalid endpoint function return value (not an object).");
-        return;
-      }
+      //   if (!JS_IsUndefined(response_body_js))
+      //   {
+      //     std::vector<uint8_t> response_body;
+      //     size_t buf_size;
+      //     size_t buf_offset;
+      //     JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
+      //       ctx, response_body_js, &buf_offset, &buf_size, nullptr);
+      //     uint8_t* array_buffer;
+      //     if (!JS_IsException(typed_array_buffer))
+      //     {
+      //       size_t buf_size_total;
+      //       array_buffer =
+      //         JS_GetArrayBuffer(iso, &buf_size_total, typed_array_buffer);
+      //       array_buffer += buf_offset;
+      //       JS_FreeValue(iso, typed_array_buffer);
+      //     }
+      //     else
+      //     {
+      //       array_buffer = JS_GetArrayBuffer(iso, &buf_size, response_body_js);
+      //     }
+      //     if (array_buffer)
+      //     {
+      //       endpoint_ctx.rpc_ctx->set_response_header(
+      //         http::headers::CONTENT_TYPE,
+      //         http::headervalues::contenttype::OCTET_STREAM);
+      //       response_body =
+      //         std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
+      //     }
+      //     else
+      //     {
+      //       const char* cstr = nullptr;
+      //       if (JS_IsString(response_body_js))
+      //       {
+      //         endpoint_ctx.rpc_ctx->set_response_header(
+      //           http::headers::CONTENT_TYPE,
+      //           http::headervalues::contenttype::TEXT);
+      //         cstr = JS_ToCString(iso, response_body_js);
+      //       }
+      //       else
+      //       {
+      //         endpoint_ctx.rpc_ctx->set_response_header(
+      //           http::headers::CONTENT_TYPE,
+      //           http::headervalues::contenttype::JSON);
+      //         JSValue rval =
+      //           JS_JSONStringify(iso, response_body_js, V8_NULL, V8_NULL);
+      //         if (JS_IsException(rval))
+      //         {
+      //           js::js_dump_error(ctx);
+      //           endpoint_ctx.rpc_ctx->set_error(
+      //             HTTP_STATUS_INTERNAL_SERVER_ERROR,
+      //             ccf::errors::InternalError,
+      //             "Invalid endpoint function return value (error during JSON "
+      //             "conversion of body).");
+      //           return;
+      //         }
+      //         cstr = JS_ToCString(iso, rval);
+      //         JS_FreeValue(iso, rval);
+      //       }
+      //       if (!cstr)
+      //       {
+      //         js::js_dump_error(ctx);
+      //         endpoint_ctx.rpc_ctx->set_error(
+      //           HTTP_STATUS_INTERNAL_SERVER_ERROR,
+      //           ccf::errors::InternalError,
+      //           "Invalid endpoint function return value (error during string "
+      //           "conversion of body).");
+      //         return;
+      //       }
+      //       std::string str(cstr);
+      //       JS_FreeCString(iso, cstr);
 
-      // Response body (also sets a default response content-type header)
-      {
-        auto response_body_js = ctx(JS_GetPropertyStr(iso, val, "body"));
+      //       response_body = std::vector<uint8_t>(str.begin(), str.end());
+      //     }
+      //     endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
+      //   }
+      // }
+      // // Response headers
+      // {
+      //   auto response_headers_js = ctx(JS_GetPropertyStr(iso, val, "headers"));
+      //   if (JS_IsObject(response_headers_js))
+      //   {
+      //     uint32_t prop_count = 0;
+      //     JSPropertyEnum* props = nullptr;
+      //     JS_GetOwnPropertyNames(
+      //       ctx,
+      //       &props,
+      //       &prop_count,
+      //       response_headers_js,
+      //       JS_GPN_STRING_MASK | V8_GPN_ENUM_ONLY);
+      //     for (size_t i = 0; i < prop_count; i++)
+      //     {
+      //       auto prop_name = props[i].atom;
+      //       auto prop_name_cstr = ctx(JS_AtomToCString(iso, prop_name));
+      //       auto prop_val =
+      //         ctx(JS_GetProperty(iso, response_headers_js, prop_name));
+      //       auto prop_val_cstr = JS_ToCString(iso, prop_val);
+      //       if (!prop_val_cstr)
+      //       {
+      //         endpoint_ctx.rpc_ctx->set_error(
+      //           HTTP_STATUS_INTERNAL_SERVER_ERROR,
+      //           ccf::errors::InternalError,
+      //           "Invalid endpoint function return value (header value type).");
+      //         return;
+      //       }
+      //       endpoint_ctx.rpc_ctx->set_response_header(
+      //         prop_name_cstr, prop_val_cstr);
+      //       JS_FreeCString(iso, prop_val_cstr);
+      //     }
+      //     js_free(ctx, props);
+      //   }
+      // }
 
-        if (!JS_IsUndefined(response_body_js))
-        {
-          std::vector<uint8_t> response_body;
-          size_t buf_size;
-          size_t buf_offset;
-          JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
-            ctx, response_body_js, &buf_offset, &buf_size, nullptr);
-          uint8_t* array_buffer;
-          if (!JS_IsException(typed_array_buffer))
-          {
-            size_t buf_size_total;
-            array_buffer =
-              JS_GetArrayBuffer(iso, &buf_size_total, typed_array_buffer);
-            array_buffer += buf_offset;
-            JS_FreeValue(iso, typed_array_buffer);
-          }
-          else
-          {
-            array_buffer = JS_GetArrayBuffer(iso, &buf_size, response_body_js);
-          }
-          if (array_buffer)
-          {
-            endpoint_ctx.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::OCTET_STREAM);
-            response_body =
-              std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
-          }
-          else
-          {
-            const char* cstr = nullptr;
-            if (JS_IsString(response_body_js))
-            {
-              endpoint_ctx.rpc_ctx->set_response_header(
-                http::headers::CONTENT_TYPE,
-                http::headervalues::contenttype::TEXT);
-              cstr = JS_ToCString(iso, response_body_js);
-            }
-            else
-            {
-              endpoint_ctx.rpc_ctx->set_response_header(
-                http::headers::CONTENT_TYPE,
-                http::headervalues::contenttype::JSON);
-              JSValue rval =
-                JS_JSONStringify(iso, response_body_js, V8_NULL, V8_NULL);
-              if (JS_IsException(rval))
-              {
-                js::js_dump_error(ctx);
-                endpoint_ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Invalid endpoint function return value (error during JSON "
-                  "conversion of body).");
-                return;
-              }
-              cstr = JS_ToCString(iso, rval);
-              JS_FreeValue(iso, rval);
-            }
-            if (!cstr)
-            {
-              js::js_dump_error(ctx);
-              endpoint_ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Invalid endpoint function return value (error during string "
-                "conversion of body).");
-              return;
-            }
-            std::string str(cstr);
-            JS_FreeCString(iso, cstr);
-
-            response_body = std::vector<uint8_t>(str.begin(), str.end());
-          }
-          endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
-        }
-      }
-      // Response headers
-      {
-        auto response_headers_js = ctx(JS_GetPropertyStr(iso, val, "headers"));
-        if (JS_IsObject(response_headers_js))
-        {
-          uint32_t prop_count = 0;
-          JSPropertyEnum* props = nullptr;
-          JS_GetOwnPropertyNames(
-            ctx,
-            &props,
-            &prop_count,
-            response_headers_js,
-            JS_GPN_STRING_MASK | V8_GPN_ENUM_ONLY);
-          for (size_t i = 0; i < prop_count; i++)
-          {
-            auto prop_name = props[i].atom;
-            auto prop_name_cstr = ctx(JS_AtomToCString(iso, prop_name));
-            auto prop_val =
-              ctx(JS_GetProperty(iso, response_headers_js, prop_name));
-            auto prop_val_cstr = JS_ToCString(iso, prop_val);
-            if (!prop_val_cstr)
-            {
-              endpoint_ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Invalid endpoint function return value (header value type).");
-              return;
-            }
-            endpoint_ctx.rpc_ctx->set_response_header(
-              prop_name_cstr, prop_val_cstr);
-            JS_FreeCString(iso, prop_val_cstr);
-          }
-          js_free(ctx, props);
-        }
-      }
-
-      // Response status code
-      {
-        int response_status_code = HTTP_STATUS_OK;
-        auto status_code_js = ctx(JS_GetPropertyStr(iso, val, "statusCode"));
-        if (!JS_IsUndefined(status_code_js) && !V8_IsNull(status_code_js))
-        {
-          if (JS_VALUE_GET_TAG(status_code_js.val) != V8_TAG_INT)
-          {
-            endpoint_ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Invalid endpoint function return value (status code type).");
-            return;
-          }
-          response_status_code = JS_VALUE_GET_INT(status_code_js.val);
-        }
-        endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
-      }
+      // // Response status code
+      // {
+      //   int response_status_code = HTTP_STATUS_OK;
+      //   auto status_code_js = ctx(JS_GetPropertyStr(iso, val, "statusCode"));
+      //   if (!JS_IsUndefined(status_code_js) && !V8_IsNull(status_code_js))
+      //   {
+      //     if (JS_VALUE_GET_TAG(status_code_js.val) != V8_TAG_INT)
+      //     {
+      //       endpoint_ctx.rpc_ctx->set_error(
+      //         HTTP_STATUS_INTERNAL_SERVER_ERROR,
+      //         ccf::errors::InternalError,
+      //         "Invalid endpoint function return value (status code type).");
+      //       return;
+      //     }
+      //     response_status_code = JS_VALUE_GET_INT(status_code_js.val);
+      //   }
+      //   endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
+      // }
 
       return;
     }
@@ -514,12 +495,6 @@ namespace ccfapp
       context(context)
     {
       metrics_tracker.install_endpoint(*this);
-      // Initialize V8 target
-      V8::InitializeICUDefaultLocation("v8handler");
-      V8::InitializeExternalStartupData("v8handler");
-      std::unique_ptr<Platform> platform = v8::platform::NewDefaultPlatform();
-      V8::InitializePlatform(platform.get());
-      V8::Initialize();
     }
 
     /// Find an endpoint with the parameters in `tx`
@@ -686,6 +661,10 @@ namespace ccfapp
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
     NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
+    // TODO move this elsewhere and also call shutdown()
+    v8_initialize();
+
     return make_shared<V8Frontend>(network, context);
   }
+
 } // namespace ccfapp
