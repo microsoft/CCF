@@ -721,6 +721,14 @@ namespace aft
       }
     }
 
+    void clear_orc_sets()
+    {
+      for (auto& [_, s] : orc_sets)
+      {
+        s.clear();
+      }
+    }
+
     // For more info about Observed Reconfiguration Commits see
     // https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration
     bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
@@ -2918,6 +2926,8 @@ namespace aft
     {
       replica_state = kv::ReplicaState::Candidate;
       leader_id.reset();
+      clear_orc_sets();
+
       voted_for = state->my_node_id;
       votes_for_me.clear();
       state->current_view++;
@@ -3024,6 +3034,7 @@ namespace aft
       state->current_view = term;
       voted_for.reset();
       votes_for_me.clear();
+      clear_orc_sets();
 
       if (consensus_type == ConsensusType::BFT)
       {
