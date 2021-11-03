@@ -719,6 +719,7 @@ namespace aft
       {
         details.acks[k] = v.match_idx;
       }
+      details.reconfiguration_type = reconfiguration_type;
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         details.learners = learner_nodes;
@@ -2529,6 +2530,16 @@ namespace aft
             node_info.second.hostname,
             node_info.second.port);
         }
+      }
+    }
+
+  public:
+    void update_parameters(kv::ConsensusParameters& params)
+    {
+      reconfiguration_type = params.reconfiguration_type;
+      if (reconfiguration_type == TWO_TRANSACTION && !node_client)
+      {
+        throw std::logic_error("missing node client");
       }
     }
   };

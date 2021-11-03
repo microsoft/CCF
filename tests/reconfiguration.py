@@ -15,6 +15,7 @@ import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from infra.runner import ConcurrentRunner
+from ccf.tx_id import TxID
 
 from loguru import logger as LOG
 
@@ -610,6 +611,171 @@ def run_join_old_snapshot(args):
                 pass
 
 
+def get_current_config(network):
+    tables, _ = network.get_latest_ledger_public_state()
+    nwcfgs_tn = "public:ccf.gov.nodes.network.configurations"
+    if nwcfgs_tn not in tables:
+        return None
+    nwcfgs = tables[nwcfgs_tn]
+    if ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY not in nwcfgs:
+        return None
+    current_ptr = json.loads(nwcfgs[ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY])
+    rid = current_ptr["rid"].to_bytes(8, "little")
+    if rid not in nwcfgs:
+        return None
+    current_cfg = json.loads(nwcfgs[rid])
+    return current_cfg
+
+
+def get_current_nodes_table(network):
+    tables, _ = network.get_latest_ledger_public_state()
+    tn = "public:ccf.gov.nodes.info"
+    r = {}
+    for nid, info in tables[tn].items():
+        r[nid.decode()] = json.loads(info)
+    return r
+
+
+def get_joining_node_dates(network, tx_id_before, tx_id_after, node_id):
+    pending_at = 0
+    learner_at = 0
+    trusted_at = 0
+
+    for i in range(tx_id_before.seqno, tx_id_after.seqno + 1):
+        tables = network.get_ledger_public_state_at(i)
+        ntn = "public:ccf.gov.nodes.info"
+        if ntn in tables:
+            for k, v in tables[ntn].items():
+                if k.decode() == node_id:
+                    jv = json.loads(v)
+                    if "status" in jv:
+                        if jv["status"] == "Pending":
+                            pending_at = i
+                        elif jv["status"] == "Learner":
+                            learner_at = i
+                        elif jv["status"] == "Trusted":
+                            trusted_at = i
+
+    return pending_at, learner_at, trusted_at
+
+
+def run_migration_tests(args):
+    if args.reconfiguration_type != "1tx":
+        return
+
+    txs = app.LoggingTxs("user0")
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_join(args)
+        primary, _ = network.find_primary()
+
+        config_before = get_current_config(network)
+
+        if config_before is not None:
+            for n in network.nodes:
+                assert n.node_id in config_before["nodes"]
+
+        nodes_before = get_current_nodes_table(network)
+        for n in network.nodes:
+            assert n.node_id in nodes_before
+            assert nodes_before[n.node_id]["status"] == "Trusted"
+
+        # Check that the service config says this is a 1tx network
+        tables, _ = network.get_latest_ledger_public_state()
+        service_config = json.loads(
+            tables["public:ccf.gov.service.config"][
+                ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+            ]
+        )
+        assert service_config["reconfiguration_type"] == "OneTransaction"
+
+        # Submit migration governance proposal
+        proposal_body = {
+            "actions": [
+                {
+                    "name": "migrate_service_to_2tx_reconfig",
+                }
+            ]
+        }
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        network.consortium.vote_using_majority(
+            primary,
+            proposal,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+            timeout=10,
+        )
+
+        primary, _ = network.find_primary()
+
+        # Check that the service config has been updated
+        tables, _ = network.get_latest_ledger_public_state()
+        service_config = json.loads(
+            tables["public:ccf.gov.service.config"][
+                ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+            ]
+        )
+        assert service_config["reconfiguration_type"] == "TwoTransaction"
+
+        # Check that all nodes have updated their consensus parameters
+        for node in network.nodes:
+            with node.client() as c:
+                rj = c.get("/node/consensus").body.json()
+                assert (
+                    "reconfiguration_type" in rj["details"]
+                    and "learners" in rj["details"]
+                )
+                assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+                assert len(rj["details"]["learners"]) == 0
+
+        # Add a new node and check that the reconfiguration is recorded correctly
+        tx_id_before = TxID(0, 0)
+        with primary.client() as c:
+            rj = c.get("/node/commit").body.json()
+            tx_id_before = TxID.from_str(rj["transaction_id"])
+
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        network.trust_node(new_node, args)
+        network.wait_for_all_nodes_to_commit(primary)
+
+        config_after = get_current_config(network)
+        nodes_after = get_current_nodes_table(network)
+
+        assert len(nodes_after) == len(nodes_before) + 1
+        assert nodes_after[new_node.node_id]["status"] == "Trusted"
+
+        assert config_before is None or (
+            config_after["rid"] == config_before["rid"] + 1
+        )
+        assert new_node.node_id in config_after["nodes"]
+
+        with new_node.client() as c:
+            rj = c.get("/node/consensus").body.json()
+            assert (
+                "reconfiguration_type" in rj["details"] and "learners" in rj["details"]
+            )
+            assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+            assert len(rj["details"]["learners"]) == 0
+
+        tx_id_after = TxID(0, 0)
+        with primary.client() as c:
+            rj = c.get("/node/commit").body.json()
+            tx_id_after = TxID.from_str(rj["transaction_id"])
+        pending_at, learner_at, trusted_at = get_joining_node_dates(
+            network, tx_id_before, tx_id_after, new_node.node_id
+        )
+        assert pending_at < learner_at < trusted_at
+
+
 def run_all(args):
     run(args)
     if cr.args.consensus != "BFT":
@@ -643,6 +809,14 @@ if __name__ == "__main__":
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             reconfiguration_type="TwoTransaction",
+        )
+
+        cr.add(
+            "migration",
+            run_migration_tests,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="1tx",
         )
 
     cr.run()

@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "enclave/reconfiguration_type.h"
+#include "node/config.h"
 #include "node/signatures.h"
 #include "node_info_network.h"
 
@@ -167,4 +169,28 @@ namespace ccf
     }
   };
 
+  class ServiceConfigurationUpdateHook : public kv::ConsensusHook
+  {
+    kv::Version version;
+    ServiceConfiguration new_service_config;
+
+  public:
+    ServiceConfigurationUpdateHook(
+      kv::Version version_, const Configuration::Write& w)
+    {
+      assert(w.has_value());
+      version = version_;
+      new_service_config = w.value();
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      LOG_DEBUG_FMT("Service configuration update hook");
+      kv::ConsensusParameters cp;
+      cp.reconfiguration_type =
+        new_service_config.reconfiguration_type.value_or(
+          ReconfigurationType::ONE_TRANSACTION);
+      consensus->update_parameters(cp);
+    }
+  };
 }

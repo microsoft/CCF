@@ -1060,4 +1060,29 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "migrate_service_to_2tx_reconfig",
+    new Action(
+      function (args) {},
+      function (args) {
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey()
+        );
+        if (rawConfig === undefined) {
+          throw new Error("Service configuration could not be found");
+        }
+        const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
+        if (serviceConfig.reconfiguration_type != "OneTransaction") {
+          throw new Error(
+            "Service does not use one-transaction reconfiguration."
+          );
+        }
+        serviceConfig.reconfiguration_type = "TwoTransaction";
+        ccf.kv["public:ccf.gov.service.config"].set(
+          getSingletonKvKey(),
+          ccf.jsonCompatibleToBuf(serviceConfig)
+        );
+      }
+    ),
+  ],
 ]);
