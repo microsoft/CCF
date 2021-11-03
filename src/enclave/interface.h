@@ -21,6 +21,23 @@
 
 #include <chrono>
 
+namespace logger
+{
+#ifdef VERBOSE_LOGGING
+  DECLARE_JSON_ENUM(
+    Level,
+    {{Level::TRACE, "trace"},
+     {Level::DEBUG, "debug"},
+     {Level::INFO, "info"},
+     {Level::FAIL, "fail"},
+     {Level::FATAL, "fatal"}});
+#else
+  DECLARE_JSON_ENUM(
+    Level,
+    {{Level::INFO, "info"}, {Level::FAIL, "fail"}, {Level::FATAL, "fatal"}});
+#endif
+}
+
 struct EnclaveConfig
 {
   uint8_t* to_enclave_buffer_start;
@@ -191,29 +208,19 @@ struct CCHostConfig : CCFConfig
 
   struct Logging
   {
-    // logger::Level host_log_level = logger::Level::INFO;
+    logger::Level host_log_level = logger::Level::INFO;
     bool log_format_json = false;
   };
   Logging logging = {};
 };
-
-// DECLARE_JSON_ENUM(
-//   logger::Level,
-//   {
-// #ifdef VERBOSE_LOGGING
-//     {logger::Level::TRACE, "trace"},
-//     {logger::Level::DEBUG, "debug"},
-// #endif
-//     {logger::Level::INFO, "info"},
-//     {logger::Level::FAIL, "fail"},
-//     {logger::Level::FATAL, "fatal"}})
 
 DECLARE_JSON_TYPE(CCHostConfig::Ledger);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCHostConfig::Ledger, ledger_dir, read_only_ledger_dirs, ledger_chunk_bytes);
 
 DECLARE_JSON_TYPE(CCHostConfig::Logging);
-DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging, log_format_json);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Logging, host_log_level, log_format_json);
 
 DECLARE_JSON_TYPE(CCHostConfig::Snapshots);
 DECLARE_JSON_REQUIRED_FIELDS(
