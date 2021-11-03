@@ -54,19 +54,19 @@ struct CCFConfig
   };
   Snapshots snapshots = {};
 
-  struct SignatureIntervals
+  struct Intervals
   {
     size_t sig_tx_interval = 5000;
     size_t sig_ms_interval = 1000;
+    size_t jwt_key_refresh_interval_s = 1800;
   };
-  SignatureIntervals signature_intervals = {};
+  Intervals intervals = {};
 
   struct Start
   {
     std::vector<ccf::NewMember> members;
     std::string constitution;
     std::vector<std::string> constitution_files = {};
-
     ccf::ServiceConfiguration service_configuration;
   };
   Start start = {};
@@ -87,13 +87,6 @@ struct CCFConfig
     size_t initial_validity_days = 1;
   };
   NodeCertificateInfo node_certificate;
-
-  // TODO: Remove
-  // crypto::CertificateSubjectIdentity node_certificate_subject_identity;
-  // crypto::CurveID curve_id;
-  size_t jwt_key_refresh_interval_s;
-
-  // size_t initial_node_certificate_validity_period_days;
 };
 
 struct StartupConfig : CCFConfig
@@ -105,9 +98,12 @@ struct StartupConfig : CCFConfig
   std::string startup_host_time;
 };
 
-DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
+DECLARE_JSON_TYPE(CCFConfig::Intervals);
 DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::SignatureIntervals, sig_tx_interval, sig_ms_interval);
+  CCFConfig::Intervals,
+  sig_tx_interval,
+  sig_ms_interval,
+  jwt_key_refresh_interval_s);
 
 DECLARE_JSON_TYPE(CCFConfig::NodeCertificateInfo);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -134,13 +130,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 
 DECLARE_JSON_TYPE(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig,
-  consensus,
-  network,
-  signature_intervals,
-  start,
-  join,
-  jwt_key_refresh_interval_s);
+  CCFConfig, consensus, network, intervals, start, join);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -171,39 +161,70 @@ struct CCHostConfig : CCFConfig
   std::string node_cert_file = "nodecert.pem";
   std::string node_pid_file = "cchost.pid";
 
-  // Logging
-  logger::Level host_log_level = logger::Level::INFO;
-  bool log_format_json = false;
-
   // Other
   size_t tick_period_ms = 10;
 
-  // Only set and used on join
   std::string network_cert_file = "networkcert.pem";
 
-  // struct Ledger
-  // {
-  //   std::string ledger_dir = "ledger";
-  //   std::vector<std::string> read_only_ledger_dirs = {};
-  //   size_t ledger_chunk_bytes = 5'000'000;
-  // };
-  // Ledger ledger = {};
+  struct Ledger
+  {
+    std::string ledger_dir = "ledger";
+    std::vector<std::string> read_only_ledger_dirs = {};
+    size_t ledger_chunk_bytes = 5'000'000;
+  };
+  Ledger ledger = {};
 
-  // // struct Snapshots
-  // // {
-  // //   std::string snapshot_dir = "snapshots";
-  // //   size_t snapshot_tx_interval = 10'000;
-  // // };
-  // // Snapshots snapshots = {};
+  struct Snapshots
+  {
+    std::string snapshot_dir = "snapshots";
+    size_t snapshot_tx_interval = 10'000;
+  };
+  Snapshots snapshots = {};
 
-  // struct Memory
-  // {
-  //   size_t circuit_size = 2 << 22;
-  //   size_t max_msg_size = 2 << 24;
-  //   size_t max_fragment_size = 2 << 16;
-  // };
-  // Memory memory = {};
+  struct Memory
+  {
+    size_t circuit_size_shift = 22;
+    size_t max_msg_size_shift = 24;
+    size_t max_fragment_size_shift = 16;
+  };
+  Memory memory = {};
+
+  struct Logging
+  {
+    // logger::Level host_log_level = logger::Level::INFO;
+    bool log_format_json = false;
+  };
+  Logging logging = {};
 };
+
+// DECLARE_JSON_ENUM(
+//   logger::Level,
+//   {
+// #ifdef VERBOSE_LOGGING
+//     {logger::Level::TRACE, "trace"},
+//     {logger::Level::DEBUG, "debug"},
+// #endif
+//     {logger::Level::INFO, "info"},
+//     {logger::Level::FAIL, "fail"},
+//     {logger::Level::FATAL, "fatal"}})
+
+DECLARE_JSON_TYPE(CCHostConfig::Ledger);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Ledger, ledger_dir, read_only_ledger_dirs, ledger_chunk_bytes);
+
+DECLARE_JSON_TYPE(CCHostConfig::Logging);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging, log_format_json);
+
+DECLARE_JSON_TYPE(CCHostConfig::Snapshots);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Snapshots, snapshot_dir, snapshot_tx_interval);
+
+DECLARE_JSON_TYPE(CCHostConfig::Memory);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Memory,
+  circuit_size_shift,
+  max_msg_size_shift,
+  max_fragment_size_shift);
 
 DECLARE_JSON_TYPE_WITH_BASE(CCHostConfig, CCFConfig);
 // TODO: Should most of these fields actually be optional so we can have a
@@ -215,10 +236,11 @@ DECLARE_JSON_REQUIRED_FIELDS(
   worker_threads,
   node_cert_file,
   node_pid_file,
-  // host_log_level, // TODO: Tricky because of MACRO
-  log_format_json,
   tick_period_ms,
-  network_cert_file)
+  network_cert_file,
+  ledger,
+  snapshots,
+  memory);
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message

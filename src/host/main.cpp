@@ -823,7 +823,8 @@ int main(int argc, char** argv)
       raft_election_timeout,
       bft_view_change_timeout,
       bft_status_interval};
-    ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
+    ccf_config.intervals = {
+      sig_tx_interval, sig_ms_interval, jwt_key_refresh_interval_s};
 
     ccf_config.network.node_address = {
       node_address.hostname, node_address.port};
@@ -840,7 +841,6 @@ int main(int argc, char** argv)
       ccf_config.network.rpc_interfaces.push_back(addr);
     }
     ccf_config.snapshots.snapshot_tx_interval = snapshot_tx_interval;
-    ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
 
     ccf_config.node_certificate = {
       node_certificate_subject_identity.name,
