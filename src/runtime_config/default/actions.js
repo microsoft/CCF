@@ -138,7 +138,6 @@ function checkX509CertBundle(value, field) {
 }
 
 function invalidateOtherOpenProposals(proposalIdToRetain) {
-  let proposals = ccf.kv["public:ccf.gov.proposals_info"];
   const proposalsMap = ccf.kv["public:ccf.gov.proposals_info"];
   proposalsMap.forEach((v, k) => {
     let proposalId = ccf.bufToStr(k);
@@ -150,6 +149,52 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
       }
     }
   });
+}
+
+function setNodeCertificateValidityPeriod(
+  nodeId,
+  nodeInfo,
+  validFrom,
+  validityPeriodDays
+) {
+  if (nodeInfo.certificate_signing_request === undefined) {
+    throw new Error(`Node ${nodeId} has no certificate signing request`);
+  }
+
+  const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+    getSingletonKvKey()
+  );
+  if (rawConfig === undefined) {
+    throw new Error("Service configuration could not be found");
+  }
+  const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
+
+  const default_validity_period_days = 365;
+  const max_allowed_cert_validity_period_days =
+    serviceConfig.node_cert_allowed_validity_period_days ??
+    default_validity_period_days;
+
+  if (
+    validityPeriodDays !== undefined &&
+    validityPeriodDays > max_allowed_cert_validity_period_days
+  ) {
+    throw new Error(
+      `Validity period ${validityPeriodDayss} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
+    );
+  }
+
+  validityPeriodDays =
+    validityPeriodDays ?? max_allowed_cert_validity_period_days;
+
+  const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
+    nodeInfo.certificate_signing_request,
+    validFrom,
+    validityPeriodDays
+  );
+  ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
+    ccf.strToBuf(nodeId),
+    ccf.strToBuf(endorsed_node_cert)
+  );
 }
 
 const actions = new Map([
@@ -749,6 +794,20 @@ const actions = new Map([
     new Action(
       function (args) {
         checkEntityId(args.node_id, "node_id");
+        checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
+        }
       },
       function (args) {
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
@@ -782,9 +841,24 @@ const actions = new Map([
             nodeInfo.certificate_signing_request !== undefined &&
             serviceConfig.consensus !== "BFT"
           ) {
-            // Note: CSR is only present from 2.x
+            // Note: CSR and node certificate validity config are only present from 2.x
+            const default_validity_period_days = 365;
+            const max_allowed_cert_validity_period_days =
+              serviceConfig.node_cert_allowed_validity_period_days ??
+              default_validity_period_days;
+            if (
+              args.validity_period_days !== undefined &&
+              args.validity_period_days > max_allowed_cert_validity_period_days
+            ) {
+              throw new Error(
+                `Validity period ${args.validity_period_days} is not allowed: max allowed is ${max_allowed_cert_validity_period_days}`
+              );
+            }
+
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
-              nodeInfo.certificate_signing_request
+              nodeInfo.certificate_signing_request,
+              args.valid_from,
+              args.validity_period_days ?? max_allowed_cert_validity_period_days
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),
@@ -906,6 +980,82 @@ const actions = new Map([
             );
           }
         }
+      }
+    ),
+  ],
+  [
+    "set_node_certificate_validity",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+        checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
+        }
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node === undefined) {
+          throw new Error(`No such node: ${args.node_id}`);
+        }
+        const nodeInfo = ccf.bufToJsonCompatible(node);
+        if (nodeInfo.status !== "Trusted") {
+          throw new Error(`Node ${args.node_id} is not trusted`);
+        }
+
+        setNodeCertificateValidityPeriod(
+          args.node_id,
+          nodeInfo,
+          args.valid_from,
+          args.validity_period_days
+        );
+      }
+    ),
+  ],
+  [
+    "set_all_nodes_certificate_validity",
+    new Action(
+      function (args) {
+        checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
+        }
+      },
+      function (args) {
+        ccf.kv["public:ccf.gov.nodes.info"].forEach((v, k) => {
+          const nodeId = ccf.bufToStr(k);
+          const nodeInfo = ccf.bufToJsonCompatible(v);
+          if (nodeInfo.status === "Trusted") {
+            setNodeCertificateValidityPeriod(
+              nodeId,
+              nodeInfo,
+              args.valid_from,
+              args.validity_period_days
+            );
+          }
+        });
       }
     ),
   ],

@@ -6,6 +6,7 @@
 #include "crypto/openssl/openssl_wrappers.h"
 #include "public_key.h"
 #include "rsa_key_pair.h"
+#include "x509_time.h"
 
 #include <openssl/evp.h>
 #include <openssl/x509.h>
@@ -148,5 +149,12 @@ namespace crypto
     BUF_MEM* bptr;
     BIO_get_mem_ptr(mem, &bptr);
     return std::string(bptr->data, bptr->length);
+  }
+
+  std::pair<std::string, std::string> Verifier_OpenSSL::validity_period() const
+  {
+    return std::make_pair(
+      to_x509_time_string(X509_get0_notBefore(cert)),
+      to_x509_time_string(X509_get0_notAfter(cert)));
   }
 }

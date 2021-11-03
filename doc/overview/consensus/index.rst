@@ -19,7 +19,7 @@ CFT parameters can be configured when starting up a network (see :doc:`here </op
 
 BFT Consensus Protocol
 ----------------------
-.. warning:: CCF with BFT is currently still in development and should not be used in a production environment.
+.. warning:: CCF with BFT is currently in development and should not be used in a production environment.
 
 More details on this mode is given :doc:`here <bft>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 

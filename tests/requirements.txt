@@ -3,7 +3,6 @@ paramiko
 loguru
 psutil
 cimetrics>=0.2.1
-pynacl
 openapi-spec-validator
 PyJWT
 docutils
@@ -12,3 +11,4 @@ py-spy
 GitPython
 docker
 better_exceptions
+pyasn1

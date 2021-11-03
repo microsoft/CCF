@@ -8,3 +8,6 @@ sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-panels
 furo
+# docutils 0.18.0 causes "AttributeError: 'Values' object
+# has no attribute 'section_self_link'" error when building doc
+docutils==0.17.*

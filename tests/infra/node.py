@@ -6,6 +6,7 @@ from enum import Enum, auto
 import infra.crypto
 import infra.remote
 import infra.remote_shim
+from datetime import datetime, timedelta
 import infra.net
 import infra.path
 import ccf.clients
@@ -109,6 +110,8 @@ class Node:
             else None
         )
         self.consensus = None
+        self.certificate_valid_from = None
+        self.certificate_validity_days = None
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -268,6 +271,7 @@ class Node:
             binary_dir=self.binary_dir,
             additional_raw_node_args=self.additional_raw_node_args,
             version=self.version,
+            major_version=self.major_version,
             **kwargs,
         )
         self.remote.setup()
@@ -311,6 +315,7 @@ class Node:
             )
 
         self._read_ports()
+        self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
 
     def _read_ports(self):
@@ -502,6 +507,56 @@ class Node:
         self.suspended = False
         self.remote.resume()
         LOG.info(f"Node {self.local_node_id} has resumed from suspension.")
+
+    def set_certificate_validity_period(self, valid_from, validity_period_days):
+        self.certificate_valid_from = valid_from
+        self.certificate_validity_days = validity_period_days
+
+    def verify_certificate_validity_period(
+        self, expected_validity_period_days=None, ignore_proposal_valid_from=False
+    ):
+        node_tls_cert = self.get_tls_certificate_pem()
+        assert (
+            infra.crypto.compute_public_key_der_hash_hex_from_pem(node_tls_cert)
+            == self.node_id
+        )
+
+        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+            node_tls_cert
+        )
+
+        if ignore_proposal_valid_from or self.certificate_valid_from is None:
+            # If the node certificate has not been renewed, assume that certificate has
+            # been issued within this test run
+            expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+            if valid_from < expected_valid_from:
+                raise ValueError(
+                    f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
+                )
+        else:
+            if (
+                infra.crypto.datetime_to_X509time(valid_from)
+                != self.certificate_valid_from
+            ):
+                raise ValueError(
+                    f'Validity period for node {self.local_node_id} certificate is not as expected: valid from "{infra.crypto.datetime_to_X509time(valid_from)}", but expected "{self.certificate_valid_from}"'
+                )
+
+        # Note: CCF substracts one second from validity period since x509 specifies
+        # that validity dates are inclusive.
+        expected_valid_to = valid_from + timedelta(
+            days=expected_validity_period_days or self.certificate_validity_days,
+            seconds=-1,
+        )
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to} but expected "{expected_valid_to}"'
+            )
+
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
+        LOG.info(
+            f"Certificate validity period for node {self.local_node_id} successfully verified: {valid_from} - {valid_to} (for {validity_period})"
+        )
 
 
 @contextmanager

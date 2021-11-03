@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Unreleased
+
+### Changed
+
+- DNS resolution of client connections is now asynchronous.
+
+## [2.0.0-dev5]
 
 ### Added
 
@@ -13,6 +19,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
 - Slow ledger IO operations will now be logged at level FAIL. The threshold over which logging will activate can be adjusted by the `--io-logging-threshold` CLI argument to cchost (#3067).
 - Snapshot files now include receipt of evidence transaction. Nodes can now join or recover a service from a standalone snapshot file. 2.x nodes can still make use of snapshots created by a 1.x node, as long as the ledger suffix containing the proof of evidence is also specified at start-up (#2998).
+- Nodes certificates validity period is no longer hardcoded and can instead be set by operators and renewed by members (#2924):
+  - The new `--initial-node-cert-validity-days` (defaults to 1 day) CLI argument to cchost lets operators set the initial validity period for the node certificate (valid from the current system time).
+  - The new `--max-allowed-node-cert-validity-days` (defaults to 365 days) CLI argument to cchost sets the maximum validity period allowed for node certificates.
+  - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
+  - The existing `transition_node_to_trusted` proposal action now requires a new `valid_from` argument (and optional `validity_period_days`, which defaults to the value of ``--max-allowed-node-cert-validity-days`).
+- `ccf.historical.getStateRange` / `ccf.historical.dropCachedStates` JavaScript APIs to manually retrieve historical state in endpoints declared as `"mode": "readonly"` (#3033).
+- Log more detailed errors on early startup (#3116).
+- New `split_ledger.py` utility to split existing ledger files (#3129).
+
+### Changed
+
+- JavaScript endpoints with `"mode": "historical"` now expose the historical KV at `ccf.historicalState.kv` while `ccf.kv` always refers to the current KV state. Applications relying on the old behaviour should make their code forward-compatible before upgrading to 2.x with `const kv = ccf.historicalState.kv || ccf.kv`.
+
+### Removed
+
+- Receipts accessible through JavaScript no longer contain the redundant `root` hash field. Applications should be changed to not rely on this field anymore before upgrading to 2.x.
 
 ### Fixed
 

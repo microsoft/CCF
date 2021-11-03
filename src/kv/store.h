@@ -34,6 +34,9 @@ namespace kv
     Version last_new_map = kv::NoVersion;
     Version compacted = 0;
 
+    // Calls to Store::commit are made atomic by taking this lock.
+    std::mutex commit_lock;
+
     // Term at which write future transactions should be committed.
     Term term_of_next_version = 0;
 
@@ -60,6 +63,7 @@ namespace kv
       pending_txs.clear();
 
       version = 0;
+      last_new_map = kv::NoVersion;
       compacted = 0;
       term_of_next_version = 0;
       term_of_last_version = 0;
@@ -986,6 +990,8 @@ namespace kv
         return CommitResult::SUCCESS;
       }
 
+      std::lock_guard<std::mutex> cguard(commit_lock);
+
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
         txid.version,
@@ -1020,6 +1026,8 @@ namespace kv
           {txid.version,
            std::make_pair(std::move(pending_tx), globally_committable)});
 
+        LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
+
         auto h = get_history();
         auto c = get_consensus();
 
@@ -1028,6 +1036,14 @@ namespace kv
           auto search = pending_txs.find(last_replicated + offset);
           if (search == pending_txs.end())
           {
+            LOG_TRACE_FMT(
+              "Couldn't find {} = {} + {}, giving up on batch while committing "
+              "{}.{}",
+              last_replicated + offset,
+              last_replicated,
+              offset,
+              txid.term,
+              txid.version);
             break;
           }
 
@@ -1053,7 +1069,11 @@ namespace kv
           }
 
           LOG_DEBUG_FMT(
-            "Batching {} ({})", last_replicated + offset, data_shared->size());
+            "Batching {} ({}) during commit of {}.{}",
+            last_replicated + offset,
+            data_shared->size(),
+            txid.term,
+            txid.version);
 
           batch.emplace_back(
             last_replicated + offset, data_shared, committable_, hooks_shared);

@@ -19,6 +19,7 @@ from math import ceil
 import http
 import pprint
 import functools
+from datetime import datetime, timedelta
 
 from loguru import logger as LOG
 
@@ -107,6 +108,8 @@ class Network:
         "common_read_only_ledger_dir",
         "curve_id",
         "client_connection_timeout_ms",
+        "initial_node_cert_validity_days",
+        "max_allowed_node_cert_validity_days",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -207,9 +210,9 @@ class Network:
         target_node=None,
         recovery=False,
         ledger_dir=None,
-        copy_ledger_read_only=True,
+        copy_ledger_read_only=False,
         read_only_ledger_dir=None,
-        from_snapshot=True,
+        from_snapshot=False,
         snapshot_dir=None,
     ):
         # Contact primary if no target node is set
@@ -222,7 +225,8 @@ class Network:
         committed_ledger_dir = read_only_ledger_dir
         current_ledger_dir = ledger_dir
 
-        if copy_ledger_read_only and read_only_ledger_dir is None:
+        # By default, only copy historical ledger if node is started from snapshot
+        if read_only_ledger_dir is None and (from_snapshot or copy_ledger_read_only):
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
                 include_read_only_dirs=True
@@ -438,6 +442,7 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
+        self.verify_service_certificate_validity_period()
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
@@ -516,6 +521,7 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
+        self.verify_service_certificate_validity_period()
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -626,13 +632,18 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args):
+    def trust_node(self, node, args, valid_from=None, validity_period_days=None):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
+                valid_from = valid_from or str(
+                    infra.crypto.datetime_to_X509time(datetime.now())
+                )
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
+                    valid_from=valid_from,
+                    validity_period_days=validity_period_days,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
@@ -645,6 +656,9 @@ class Network:
             raise
 
         node.network_state = infra.node.NodeNetworkState.joined
+        node.set_certificate_validity_period(
+            valid_from, validity_period_days or args.max_allowed_node_cert_validity_days
+        )
         self.wait_for_all_nodes_to_commit(primary=primary)
 
     def retire_node(self, remote_node, node_to_retire):
@@ -1097,6 +1111,23 @@ class Network:
                 c.read().encode("ascii"), default_backend()
             )
             return network_cert
+
+    def verify_service_certificate_validity_period(self):
+        # See https://github.com/microsoft/CCF/issues/3090
+        assert self.cert.not_valid_before == datetime(
+            year=2021, month=3, day=11
+        )  # 20210311000000Z
+        assert self.cert.not_valid_after == datetime(
+            year=2023, month=6, day=11, hour=23, minute=59, second=59
+        )  # 20230611235959Z
+        validity_period = (
+            self.cert.not_valid_after
+            - self.cert.not_valid_before
+            + timedelta(seconds=1)
+        )
+        LOG.debug(
+            f"Certificate validity period for service: {self.cert.not_valid_before} - {self.cert.not_valid_after} (for {validity_period})"
+        )
 
 
 @contextmanager

@@ -68,6 +68,7 @@ dispatch_one,1
 dispatch_one,2
 
 # Node 1 sends its committable suffix
+periodic_all,10
 dispatch_one,1
 
 # Node 2 ACKs all of that, advancing commit on Node 1

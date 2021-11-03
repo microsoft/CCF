@@ -22,7 +22,6 @@ flags = [
 '-fexceptions',
 '-x',
 'c++',
-'-DENABLE_BFT',
 '-D_FORTIFY_SOURCE=2',
 '-DINSIDE_ENCLAVE',
 '-DVIRTUAL_ENCLAVE',
