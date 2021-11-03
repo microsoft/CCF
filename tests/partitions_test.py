@@ -198,6 +198,9 @@ def test_learner_does_not_take_part(network, args):
 
 
 def run_2tx_reconfig_tests(args):
+    if not args.include_2tx_reconfig:
+        return
+
     local_args = args
 
     if args.reconfiguration_type != "2tx":
@@ -239,7 +242,14 @@ def run(args):
 
 if __name__ == "__main__":
 
-    args = infra.e2e_args.cli_args()
+    def add(parser):
+        parser.add_argument(
+            "--include-2tx-reconfig",
+            help="Include tests for the 2-transaction reconfiguration scheme",
+            action="store_true",
+        )
+
+    args = infra.e2e_args.cli_args(add)
     args.package = "samples/apps/logging/liblogging"
 
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
