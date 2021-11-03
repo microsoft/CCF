@@ -149,7 +149,7 @@ namespace aft
     // Configurations
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
@@ -595,9 +595,9 @@ namespace aft
             fmt::join(new_learners, ", "));
           for (auto& id : new_learners)
           {
-            if (learners.find(id) == learners.end())
+            if (learner_nodes.find(id) == learner_nodes.end())
             {
-              learners[id] = idx;
+              learner_nodes[id] = idx;
             }
           }
         }
@@ -622,11 +622,11 @@ namespace aft
           {
             if (
               nodes.find(nid) != nodes.end() &&
-              learners.find(nid) != learners.end() &&
+              learner_nodes.find(nid) != learner_nodes.end() &&
               new_learners.find(nid) == new_learners.end())
             {
               // Promotion of known learner
-              learners.erase(nid);
+              learner_nodes.erase(nid);
             }
             if (is_learner() && nid == state->my_node_id)
             {
@@ -793,7 +793,7 @@ namespace aft
       }
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
-        details.learners = learners;
+        details.learners = learner_nodes;
       }
       return details;
     }
@@ -3220,7 +3220,7 @@ namespace aft
       {
         if (
           (nodes.find(id) != nodes.end() &&
-           learners.find(id) == learners.end()) ||
+           learner_nodes.find(id) == learner_nodes.end()) ||
           (id == state->my_node_id && !is_learner()))
         {
           r++;
@@ -3399,7 +3399,7 @@ namespace aft
 
             for (auto& [nid, _] : next->nodes)
             {
-              learners.erase(nid);
+              learner_nodes.erase(nid);
             }
 
             for (auto& [nid, _] : conf->nodes)
@@ -3556,11 +3556,11 @@ namespace aft
 
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
-        for (auto it = learners.begin(); it != learners.end();)
+        for (auto it = learner_nodes.begin(); it != learner_nodes.end();)
         {
           if (it->second > idx)
           {
-            it = learners.erase(it);
+            it = learner_nodes.erase(it);
           }
           else
           {

@@ -317,18 +317,9 @@ class Consortium:
             timeout=timeout,
         )
 
-        if self.reconfiguration_type == "2tx":
-            # Note: the order of these checks is important
-            if not self._check_node_exists(
-                remote_node, node_id, NodeStatus.LEARNER
-            ) and not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
-                raise ValueError(
-                    f"Node {node_id} does not exist in state {NodeStatus.TRUSTED} or {NodeStatus.LEARNER}"
-                )
-        elif not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
-            raise ValueError(
-                f"Node {node_id} does not exist in state {NodeStatus.TRUSTED}"
-            )
+        self.wait_for_node_to_exist_in_store(
+            remote_node, node_id, timeout, NodeStatus.TRUSTED
+        )
 
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")
