@@ -103,11 +103,13 @@ struct CCFConfig
     crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
     size_t initial_validity_days = 1;
   };
-  NodeCertificateInfo node_certificate;
+  NodeCertificateInfo node_certificate = {};
 };
 
-struct StartupConfig : CCFConfig
+struct StartupConfig
 {
+  CCFConfig config;
+
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
   std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
@@ -149,9 +151,9 @@ DECLARE_JSON_TYPE(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig, consensus, network, intervals, start, join);
 
-DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig, startup_snapshot, startup_host_time);
+  StartupConfig, config, startup_snapshot, startup_host_time);
 DECLARE_JSON_OPTIONAL_FIELDS(
   StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
 
@@ -178,8 +180,15 @@ struct CCHostConfig : CCFConfig
   std::string node_cert_file = "nodecert.pem";
   std::string node_pid_file = "cchost.pid";
 
+  // Address files
+  std::string node_address_file = "";
+  std::string rpc_address_file = "";
+
   // Other
-  size_t tick_period_ms = 10;
+  size_t tick_period_ms = 1;
+  size_t io_logging_threshold_ns = 10'000'000;
+  std::optional<std::string> node_client_interface = std::nullopt;
+  size_t client_connection_timeout_ms = 2000;
 
   std::string network_cert_file = "networkcert.pem";
 
@@ -243,7 +252,12 @@ DECLARE_JSON_REQUIRED_FIELDS(
   worker_threads,
   node_cert_file,
   node_pid_file,
+  node_address_file,
+  rpc_address_file,
   tick_period_ms,
+  io_logging_threshold_ns,
+  node_client_interface,
+  client_connection_timeout_ms,
   network_cert_file,
   ledger,
   snapshots,

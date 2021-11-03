@@ -69,13 +69,6 @@ int main(int argc, char** argv)
   //   ->required()
   //   ->check(CLI::ExistingFile);
 
-  enum EnclaveType
-  {
-    RELEASE,
-    DEBUG,
-    VIRTUAL
-  };
-
   std::vector<std::pair<std::string, EnclaveType>> enclave_type_map = {
     {"release", EnclaveType::RELEASE},
     {"debug", EnclaveType::DEBUG},
@@ -538,14 +531,6 @@ int main(int argc, char** argv)
   {
     app.parse(argc, argv);
 
-    LOG_FAIL_FMT("Config file: {}", config_file_path);
-
-    auto config = files::slurp_string(config_file_path);
-
-    LOG_FAIL_FMT("Config: {}", config);
-
-    CCHostConfig cchost_config = nlohmann::json::parse(config);
-
     // nlohmann::json::parse()
 
     // // Add an additional check not represented by existing ->needs,
@@ -565,13 +550,21 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
+  LOG_FAIL_FMT("Config file: {}", config_file_path);
+
+  auto config_str = files::slurp_string(config_file_path);
+
+  LOG_FAIL_FMT("Config: {}", config_str);
+
+  CCHostConfig config = nlohmann::json::parse(config_str);
+
   // set json log formatter to write to std::out
-  if (log_format_json)
+  if (config.logging.log_format_json)
   {
     logger::config::initialize_with_json_console();
   }
 
-  // // Fill in derived default values
+  // Fill in derived default values
   // if (!(*public_rpc_address_option))
   // {
   //   public_rpc_address = rpc_address;
@@ -595,13 +588,14 @@ int main(int argc, char** argv)
   //   rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
   // }
 
-  const auto cli_config = app.config_to_str(true, false);
+  // const auto cli_config = app.config_to_str(true, false);
   LOG_INFO_FMT("Version: {}", ccf::ccf_version);
-  LOG_INFO_FMT("Run with following options:\n{}", cli_config);
+  // LOG_INFO_FMT("Run with following options:\n{}", cli_config);
 
   uint32_t oe_flags = 0;
   try
   {
+    const auto& ledger_dir = config.ledger.ledger_dir;
     if (*start && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
@@ -621,15 +615,17 @@ int main(int argc, char** argv)
       // a recovery share. The service will check that at least one recovery
       // member is added before the service can be opened.
       size_t members_with_pubk_count = 0;
-      for (auto const& m : members)
+      for (auto const& m : config.start.members)
       {
-        if (m.enc_pubk_file.has_value())
+        if (m.encryption_pub_key.has_value())
         {
           members_with_pubk_count++;
         }
       }
 
-      if (!recovery_threshold.has_value())
+      auto recovery_threshold =
+        config.start.service_configuration.recovery_threshold;
+      if (recovery_threshold == 0)
       {
         LOG_INFO_FMT(
           "Recovery threshold unset. Defaulting to number of initial "
@@ -637,18 +633,18 @@ int main(int argc, char** argv)
           members_with_pubk_count);
         recovery_threshold = members_with_pubk_count;
       }
-      else if (recovery_threshold.value() > members_with_pubk_count)
+      else if (recovery_threshold > members_with_pubk_count)
       {
         throw std::logic_error(fmt::format(
           "Recovery threshold ({}) cannot be greater than total number ({})"
           "of initial consortium members with a public encryption "
           "key (specified via --member-info options)",
-          recovery_threshold.value(),
+          recovery_threshold,
           members_with_pubk_count));
       }
     }
 
-    switch (enclave_type)
+    switch (config.enclave_type)
     {
       case EnclaveType::RELEASE:
       {
@@ -680,19 +676,19 @@ int main(int argc, char** argv)
   asynchost::TimeBoundLogger::default_max_time =
     std::chrono::duration_cast<decltype(
       asynchost::TimeBoundLogger::default_max_time)>(
-      std::chrono::nanoseconds(io_logging_threshold_ns));
+      std::chrono::nanoseconds(config.io_logging_threshold_ns));
 
   // Write PID to disk
-  files::dump(fmt::format("{}", ::getpid()), node_pid_file);
+  files::dump(fmt::format("{}", ::getpid()), config.node_pid_file);
 
   // set the host log level
-  logger::config::level() = host_log_level;
+  logger::config::level() = config.logging.host_log_level;
 
   // create the enclave
-  host::Enclave enclave(enclave_file, oe_flags);
+  host::Enclave enclave(config.enclave_file, oe_flags);
 
   // messaging ring buffers
-  const auto buffer_size = 1 << circuit_size_shift;
+  const auto buffer_size = 1 << config.memory.circuit_size_shift;
 
   std::vector<uint8_t> to_enclave_buffer(buffer_size);
   ringbuffer::Offsets to_enclave_offsets;
@@ -716,7 +712,8 @@ int main(int argc, char** argv)
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{
-    (size_t)(1 << max_fragment_size), (size_t)(1 << max_msg_size)};
+    (size_t)(1 << config.memory.max_fragment_size_shift),
+    (size_t)(1 << config.memory.max_msg_size_shift)};
   oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
 
   // reconstruct oversized messages sent to the host
@@ -726,15 +723,12 @@ int main(int argc, char** argv)
   process_launcher.register_message_handlers(bp.get_dispatcher());
 
   {
-    // provide regular ticks to the enclave
-    const std::chrono::milliseconds tick_period(tick_period_ms);
-    asynchost::Ticker ticker(tick_period, writer_factory);
-
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
 
     // regularly update the time given to the enclave
-    asynchost::TimeUpdater time_updater(1ms);
+    const std::chrono::milliseconds tick_period(config.tick_period_ms);
+    asynchost::TimeUpdater time_updater(tick_period);
 
     // regularly record some load statistics
     asynchost::LoadMonitor load_monitor(500ms, bp);
@@ -747,14 +741,14 @@ int main(int argc, char** argv)
     asynchost::Sigterm sigterm(writer_factory);
 
     asynchost::Ledger ledger(
-      ledger_dir,
+      config.ledger.ledger_dir,
       writer_factory,
-      ledger_chunk_bytes,
+      config.ledger.ledger_chunk_bytes,
       asynchost::ledger_max_read_cache_files_default,
-      read_only_ledger_dirs);
+      config.ledger.read_only_ledger_dirs);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(snapshot_dir, ledger);
+    asynchost::SnapshotManager snapshots(config.snapshots.snapshot_dir, ledger);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.
@@ -765,22 +759,26 @@ int main(int argc, char** argv)
       bp.get_dispatcher(),
       ledger,
       writer_factory,
-      node_address.hostname,
-      node_address.port,
-      node_client_interface,
-      client_connection_timeout);
-    if (!node_address_file.empty())
+      config.network.node_address.hostname,
+      config.network.node_address.port,
+      config.node_client_interface,
+      config.client_connection_timeout_ms);
+    if (!config.node_address_file.empty())
     {
       files::dump(
-        fmt::format("{}\n{}", node_address.hostname, node_address.port),
-        node_address_file);
+        fmt::format(
+          "{}\n{}",
+          config.network.node_address.hostname,
+          config.network.node_address.port),
+        config.node_address_file);
     }
 
-    asynchost::RPCConnections rpc(writer_factory, client_connection_timeout);
+    asynchost::RPCConnections rpc(
+      writer_factory, config.client_connection_timeout_ms);
     rpc.register_message_handlers(bp.get_dispatcher());
 
     std::string rpc_addresses;
-    for (auto& interface : rpc_interfaces)
+    for (auto& interface : config.network.rpc_interfaces)
     {
       rpc.listen(0, interface.rpc_address.hostname, interface.rpc_address.port);
       rpc_addresses += fmt::format(
@@ -791,9 +789,9 @@ int main(int argc, char** argv)
         interface.public_rpc_address.port = interface.rpc_address.port;
       }
     }
-    if (!rpc_address_file.empty())
+    if (!config.rpc_address_file.empty())
     {
-      files::dump(rpc_addresses, rpc_address_file);
+      files::dump(rpc_addresses, config.rpc_address_file);
     }
 
     // Initialise the enclave and create a CCF node in it
@@ -816,37 +814,38 @@ int main(int argc, char** argv)
     enclave_config.debug_config = {memory_reserve_startup};
 #endif
 
-    StartupConfig ccf_config; // TODO: Rename
-    ccf_config.consensus = {
-      consensus,
-      raft_timeout,
-      raft_election_timeout,
-      bft_view_change_timeout,
-      bft_status_interval};
-    ccf_config.intervals = {
-      sig_tx_interval, sig_ms_interval, jwt_key_refresh_interval_s};
+    StartupConfig startup_config; // TODO: Rename
+    startup_config.config = config;
+    // ccf_config.consensus = {
+    //   consensus,
+    //   raft_timeout,
+    //   raft_election_timeout,
+    //   bft_view_change_timeout,
+    //   bft_status_interval};
+    // ccf_config.intervals = {
+    //   sig_tx_interval, sig_ms_interval, jwt_key_refresh_interval_s};
 
-    ccf_config.network.node_address = {
-      node_address.hostname, node_address.port};
-    for (const auto& interface : rpc_interfaces)
-    {
-      ccf::NodeInfoNetwork::RpcAddresses addr;
-      addr.rpc_address = {
-        interface.rpc_address.hostname, interface.rpc_address.port};
-      addr.public_rpc_address = {
-        interface.public_rpc_address.hostname,
-        interface.public_rpc_address.port};
-      addr.max_open_sessions_soft = interface.max_open_sessions;
-      addr.max_open_sessions_hard = interface.max_open_sessions_hard;
-      ccf_config.network.rpc_interfaces.push_back(addr);
-    }
-    ccf_config.snapshots.snapshot_tx_interval = snapshot_tx_interval;
+    // ccf_config.network.node_address = {
+    //   node_address.hostname, node_address.port};
+    // for (const auto& interface : rpc_interfaces)
+    // {
+    //   ccf::NodeInfoNetwork::RpcAddresses addr;
+    //   addr.rpc_address = {
+    //     interface.rpc_address.hostname, interface.rpc_address.port};
+    //   addr.public_rpc_address = {
+    //     interface.public_rpc_address.hostname,
+    //     interface.public_rpc_address.port};
+    //   addr.max_open_sessions_soft = interface.max_open_sessions;
+    //   addr.max_open_sessions_hard = interface.max_open_sessions_hard;
+    //   ccf_config.network.rpc_interfaces.push_back(addr);
+    // }
+    // ccf_config.snapshots.snapshot_tx_interval = snapshot_tx_interval;
 
-    ccf_config.node_certificate = {
-      node_certificate_subject_identity.name,
-      node_certificate_subject_identity.sans,
-      curve_id,
-      initial_node_certificate_validity_period_days};
+    // ccf_config.node_certificate = {
+    //   node_certificate_subject_identity.name,
+    //   node_certificate_subject_identity.sans,
+    //   curve_id,
+    //   initial_node_certificate_validity_period_days};
 
     // ccf_config.node_certificate_subject_identity =
     //   node_certificate_subject_identity;
@@ -857,7 +856,7 @@ int main(int argc, char** argv)
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
-    ccf_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
+    startup_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
       std::chrono::system_clock::to_time_t(startup_host_time));
 
     if (*start)

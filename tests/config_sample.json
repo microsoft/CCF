@@ -3,6 +3,38 @@
   "enclave_type": "virtual",
   "node_cert_file": "node.pem",
   "node_pid_file": "node.pid",
+  "io_logging_threshold_ns": 10000000,
+  "logging":
+  {
+    "host_log_level": "info",
+    "log_format_json": false
+  },
+  "tick_period_ms": 1,
+  "node_client_interface": null,
+  "node_address_file": "",
+  "rpc_address_file" : "",
+  "client_connection_timeout_ms": 2000,
+  "ledger":
+  {
+    "ledger_dir": "ledger",
+    "read_only_ledger_dirs": [],
+    "ledger_chunk_bytes": 20000
+  },
+  "snapshots":
+  {
+    "snapshot_dir": "snapshots",
+    "snapshot_tx_interval": 10000
+  },
+  "memory":
+  {
+    "circuit_size_shift": 22,
+    "max_msg_size_shift": 24,
+    "max_fragment_size_shift": 16
+  },
+  "network_cert_file": "networkcert.pem",
+
+
+  "worker_threads": 0,
   "node_certificate":
   {
     "subject_name": "CN=CCF Node",
@@ -10,14 +42,6 @@
     "curve_id": "secp384r1",
     "initial_validity_days": 1
   },
-  "io_logging_threshold_ns": 15000000,
-  "logging":
-  {
-    "host_log_level": "info",
-    "log_format_json": false
-  },
-  "tick_period_ms": 10,
-  "worker_threads": 0,
   "intervals":
   {
     "sig_tx_interval": 5000,
@@ -54,37 +78,14 @@
       }
     ]
   },
-  "node_client_interface": null,
-  "node_address_file": null,
-  "rpc_address_file" : null,
-  "client_connection_timeout_ms": 2000,
-  "ledger":
-  {
-    "ledger_dir": "ledger",
-    "read_only_ledger_dirs": [],
-    "ledger_chunk_bytes": 20000,
-    "snapshot_dir": "None"
-  },
-  "snapshots":
-  {
-    "snapshot_dir": "snapshots",
-    "snapshot_tx_interval": 10000
-  },
-  "memory":
-  {
-    "circuit_size_shift": 22,
-    "max_msg_size_shift": 24,
-    "max_fragment_size_shift": 16
-  },
-  "network_cert_file": "networkcert.pem",
   "start":
   {
     "constitution_files" : [],
     "members":
     [
       {
-        "cert": "member0_cert.pem",
-        "encryption_public_key": "member0_enc_pubk.pem",
+        "cert_file": "member0_cert.pem",
+        "encryption_pub_key_file": "member0_enc_pubk.pem",
         "data": null
       }
     ],
