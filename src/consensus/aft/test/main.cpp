@@ -835,12 +835,11 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     }
 
     {
-      r0.periodic(request_timeout);
-
       // Even after multiple round trip coherence attempts, the bad ledger
       // remains and prevents progress
       for (size_t i = 0; i < 10; ++i)
       {
+        r0.periodic(request_timeout);
         dispatch_all(nodes, node_id0, r0c->messages);
         dispatch_all(nodes, node_id1, r1c->messages);
       }
@@ -855,9 +854,9 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     }
 
     {
-      r0.periodic(request_timeout);
       for (size_t i = 0; i < 10; ++i)
       {
+        r0.periodic(request_timeout);
         dispatch_all(nodes, node_id0, r0c->messages);
         dispatch_all(nodes, node_id1, r1c->messages);
       }
