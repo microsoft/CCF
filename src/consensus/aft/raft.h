@@ -730,7 +730,16 @@ namespace aft
     }
 
     // For more info about Observed Reconfiguration Commits see
-    // https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration
+    // https://microsoft.github.io/CCF/main/overview/consensus/2tx-reconfig.html
+    //
+    // Note that this call is not `const` and that it modifies `orc_sets`. This
+    // is safe, despite the fact that the primary may change or a
+    // reconfiguration may be (partially) rolled back, because the `orc_sets`
+    // are cleared upon entering/exiting the leader/follower replica states.
+    // This means that we never record spurious ORCs, while it is still
+    // guaranteed that we will eventuallky receive all of them, since all
+    // nodes keep re-submitting ORCs until they are able to switch to the next
+    // pending configuration.
     bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
     {
       LOG_DEBUG_FMT(
