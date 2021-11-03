@@ -2713,12 +2713,12 @@ namespace aft
 
       if (r.success != AppendEntriesResponseType::OK)
       {
-        // Failed due to log inconsistency. Reset sent_idx and try again.
+        // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
           state->my_node_id,
           from);
-        send_append_entries(from, node->second.match_idx + 1);
+        node->second.sent_idx = node->second.match_idx;
         return;
       }
 

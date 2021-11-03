@@ -8,6 +8,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <iostream>
+#include <openssl/crypto.h>
 #include <optional>
 #include <vector>
 
@@ -70,7 +71,7 @@ namespace ccf
       return shares;
     }
 
-    static SplitSecret combine(const std::vector<Share>& shares, size_t k)
+    static SplitSecret combine(std::vector<Share>& shares, size_t k)
     {
       if (k == 0 || k > shares.size())
       {
@@ -88,6 +89,11 @@ namespace ccf
       {
         throw std::logic_error(fmt::format(
           "Share combination failed: {} shares may be corrupted", k));
+      }
+
+      for (auto& s : shares)
+      {
+        OPENSSL_cleanse(s.data(), s.size());
       }
 
       return restored_secret;
