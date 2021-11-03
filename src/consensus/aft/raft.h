@@ -1462,14 +1462,15 @@ namespace aft
         // Cap the end index in 2 ways:
         // - Must contain no more than entries_batch_size entries
         // - Must contain entries from a single term
-        auto max_end = state->last_idx;
+        auto max_idx = state->last_idx;
         const auto term_of_ae = state->view_history.view_at(start);
-        const auto end_of_term = state->view_history.end_of_view(term_of_ae);
-        if (end_of_term != kv::NoVersion)
+        const auto index_at_end_of_term =
+          state->view_history.end_of_view(term_of_ae);
+        if (index_at_end_of_term != kv::NoVersion)
         {
-          max_end = end_of_term;
+          max_idx = index_at_end_of_term;
         }
-        return std::min(start + entries_batch_size, max_end);
+        return std::min(start + entries_batch_size, max_idx);
       };
 
       Index end_idx;
