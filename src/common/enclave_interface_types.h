@@ -82,6 +82,10 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "OpenSSLRDRANDInitFailed";
     }
+    case CreateNodeStatus::ReconfigurationMethodNotSupported:
+    {
+      return "ReconfigurationMethodNotSupported";
+    }
     default:
     {
       return "Unknown CreateNodeStatus";
