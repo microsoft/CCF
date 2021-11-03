@@ -94,6 +94,7 @@ def run(args_):
     require_new_file = True
     found_target_seqno = False
     first_seqno = None
+    is_target_seqno_signature = True
 
     for entry in ledger_file_input:
         public_entry = entry.get_public_domain()
@@ -107,11 +108,17 @@ def run(args_):
         entry_positions.append(ledger_file_output.tell())
         ledger_file_output.write(entry.get_raw_tx())
 
+        if (
+            not is_target_seqno_signature
+            and ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_entry.get_tables()
+        ):
+            raise ValueError(
+                f"Ledger entry at target seqno {args.seqno} must be a signature. Next signature is at seqno {entry_seqno}."
+            )
+
         if entry_seqno == args.seqno:
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME not in public_entry.get_tables():
-                raise ValueError(
-                    f"Ledger entry at target {entry_seqno} must be a signature"
-                )
+                is_target_seqno_signature = False
 
             LOG.debug(f"Found target signature seqno {args.seqno}")
             found_target_seqno = True
