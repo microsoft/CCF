@@ -120,7 +120,7 @@ def run(args_):
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME not in public_entry.get_tables():
                 is_target_seqno_signature = False
 
-            LOG.debug(f"Found target signature seqno {args.seqno}")
+            LOG.debug(f"Found target seqno {args.seqno}")
             found_target_seqno = True
             close_ledger_file(
                 ledger_file_output,
