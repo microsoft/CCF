@@ -13,6 +13,7 @@
 #include <mbedtls/ecdh.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/pk.h>
+#include <openssl/crypto.h>
 #include <stdexcept>
 
 namespace tls
@@ -107,6 +108,8 @@ namespace tls
     ~KeyExchangeContext()
     {
       free_ctx();
+
+      OPENSSL_cleanse(key_share.data(), key_share.size());
     }
 
     const std::vector<uint8_t>& get_own_key_share() const
