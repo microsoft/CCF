@@ -5,6 +5,8 @@
 #include "crypto/symmetric_key.h"
 #include "openssl_wrappers.h"
 
+#include <openssl/crypto.h>
+
 namespace crypto
 {
   class KeyAesGcm_OpenSSL : public KeyAesGcm
@@ -18,7 +20,10 @@ namespace crypto
     KeyAesGcm_OpenSSL(CBuffer rawKey);
     KeyAesGcm_OpenSSL(const KeyAesGcm_OpenSSL& that) = delete;
     KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that);
-    virtual ~KeyAesGcm_OpenSSL() = default;
+    virtual ~KeyAesGcm_OpenSSL()
+    {
+      OPENSSL_cleanse(const_cast<uint8_t*>(key.data()), key.size());
+    }
 
     virtual size_t key_size() const override;
 

@@ -19,6 +19,7 @@
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
+#include <openssl/crypto.h>
 
 // -Wpedantic flags token pasting of __VA_ARGS__
 #pragma clang diagnostic push
@@ -723,6 +724,8 @@ namespace ccf
           {label_to.begin(), label_to.end()});
         send_key = crypto::make_key_aes_gcm(key_bytes);
       }
+
+      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
 
       send_nonce = 1;
       for (size_t i = 0; i < local_recv_nonce.size(); i++)
