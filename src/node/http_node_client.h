@@ -3,9 +3,8 @@
 #pragma once
 
 #include "node/node_client.h"
-#include "node/rpc/node_call_types.h"
-#include "node/rpc/serdes.h"
-#include "node/rpc/serialization.h"
+
+#include <chrono>
 
 namespace ccf
 {
@@ -23,7 +22,7 @@ namespace ccf
 
     virtual ~HTTPNodeClient() {}
 
-    inline bool make_request(http::Request& request)
+    virtual bool make_request(http::Request& request) override
     {
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
@@ -63,76 +62,10 @@ namespace ccf
       {
         auto ser_res = ctx->serialise_response();
         std::string str((char*)ser_res.data(), ser_res.size());
-        LOG_FAIL_FMT("Request failed: {}", str);
+        LOG_DEBUG_FMT("Request failed: {}", str);
       }
 
       return rs == HTTP_STATUS_OK;
-    }
-
-    bool submit_orc(const NodeId& from, kv::ReconfigurationId rid) override
-    {
-      LOG_DEBUG_FMT("Configurations: submit ORC for #{} from {}", rid, from);
-
-      ObservedReconfigurationCommit::In ps = {from, rid};
-
-      http::Request request(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "orc"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(ps, serdes::Pack::Text);
-      request.set_body(&body);
-      return make_request(request);
-    }
-
-    struct AsyncORCTaskMsg
-    {
-      AsyncORCTaskMsg(
-        HTTPNodeClient* client_,
-        const NodeId& from_,
-        kv::ReconfigurationId rid_,
-        size_t retries_ = 10) :
-        client(client_),
-        from(from_),
-        rid(rid_),
-        retries(retries_)
-      {}
-
-      HTTPNodeClient* client;
-      NodeId from;
-      kv::ReconfigurationId rid;
-      size_t retries;
-    };
-
-    static void orc_cb(std::unique_ptr<threading::Tmsg<AsyncORCTaskMsg>> msg)
-    {
-      if (!msg->data.client->submit_orc(msg->data.from, msg->data.rid))
-      {
-        if (--msg->data.retries > 0)
-        {
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::ThreadMessaging::get_execution_thread(
-              threading::MAIN_THREAD_ID),
-            std::move(msg));
-        }
-        else
-        {
-          LOG_DEBUG_FMT(
-            "Failed request; giving up as there are no more retries left");
-        }
-      }
-    }
-
-    virtual void schedule_submit_orc(
-      const NodeId& from, kv::ReconfigurationId rid) override
-    {
-      auto msg = std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
-        orc_cb, this, from, rid);
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::ThreadMessaging::get_execution_thread(
-          threading::MAIN_THREAD_ID),
-        std::move(msg));
     }
   };
 }
