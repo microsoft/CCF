@@ -584,6 +584,7 @@ class CCFRemote(object):
         major_version=None,
         include_addresses=True,
         additional_raw_node_args=None,
+        reconfiguration_type=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -749,6 +750,9 @@ class CCFRemote(object):
                     cmd += [
                         f"--max-allowed-node-cert-validity-days={max_allowed_node_cert_validity_days}"
                     ]
+
+                if reconfiguration_type and reconfiguration_type != "1tx":
+                    cmd += [f"--reconfiguration-type={reconfiguration_type}"]
 
         elif start_type == StartType.join:
             cmd += [

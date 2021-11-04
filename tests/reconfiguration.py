@@ -8,12 +8,12 @@ import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
 import os
-from infra.checker import check_can_progress, check_does_not_progress
 import ccf.ledger
 import json
 import infra.crypto
 from datetime import datetime
-
+from infra.checker import check_can_progress
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -210,7 +210,7 @@ def test_retire_primary(network, args):
     pre_count = count_nodes(node_configs(network), network)
 
     primary, backup = network.find_primary_and_any_backup()
-    network.retire_node(primary, primary)
+    network.retire_node(primary, primary, timeout=15)
     # Query this backup to find the new primary. If we ask any other
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
@@ -270,6 +270,7 @@ def test_version(network, args):
 
 
 @reqs.description("Replace a node on the same addresses")
+@reqs.can_kill_n_nodes(1)
 def test_node_replacement(network, args):
     primary, backups = network.find_nodes()
 
@@ -393,9 +394,17 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
 
 @reqs.description("Adding a learner without snapshot")
 def test_learner_catches_up(network, args):
-    args.join_timer = args.join_timer * 2
+    primary, _ = network.find_primary()
+    num_nodes_before = 0
 
-    num_nodes_before = len(network.nodes)
+    with primary.client() as c:
+        s = c.get("/node/consensus")
+        rj = s.body.json()
+        # At this point, there should be exactly one configuration
+        assert len(rj["details"]["configs"]) == 1
+        c0 = rj["details"]["configs"][0]["nodes"]
+        num_nodes_before = len(c0)
+
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
     network.trust_node(new_node, args)
@@ -405,7 +414,6 @@ def test_learner_catches_up(network, args):
         rj = s.body.json()
         assert rj["status"] == "Learner" or rj["status"] == "Trusted"
 
-    primary, _ = network.find_primary()
     network.consortium.wait_for_node_to_exist_in_store(
         primary,
         new_node.node_id,
@@ -419,34 +427,11 @@ def test_learner_catches_up(network, args):
         assert len(rj["details"]["learners"]) == 0
 
         # At this point, there should be exactly one configuration, which includes the new node.
-        print(rj)
         assert len(rj["details"]["configs"]) == 1
         c0 = rj["details"]["configs"][0]["nodes"]
-        assert len(c0) == num_nodes_before + 1 and new_node.node_id in c0
+        assert len(c0) == num_nodes_before + 1
+        assert new_node.node_id in c0
 
-    return network
-
-
-@reqs.description("Add a learner, suspend nodes, check that there is no progress")
-def test_learner_does_not_take_part(network, args):
-    primary, backups = network.find_nodes()
-    nodes = network.get_joined_nodes()
-    f = infra.e2e_args.max_f(args, len(nodes)) + 1
-    f_backups = backups[:f]
-
-    new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, from_snapshot=False)
-    network.trust_node(new_node, args)
-
-    # No way to keep the new node suspended in learner state?
-
-    for b in f_backups:
-        b.suspend()
-    check_does_not_progress(primary)
-    primary_after, _ = network.find_primary()
-    for b in f_backups:
-        b.resume()
-    assert primary.node_id == primary_after.node_id
     return network
 
 
@@ -502,10 +487,10 @@ def run(args):
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
-        else:
+
+        if args.reconfiguration_type == "2tx":
             test_learner_catches_up(network, args)
-            # test_learner_does_not_take_part(network, args)
-            test_retire_backup(network, args)
+
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
 
@@ -570,14 +555,38 @@ def run_join_old_snapshot(args):
                 pass
 
 
+def run_all(args):
+    run(args)
+    if cr.args.consensus != "bft":
+        run_join_old_snapshot(all)
+
+
 if __name__ == "__main__":
 
-    args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.initial_user_count = 1
+    def add(parser):
+        parser.add_argument(
+            "--include-2tx-reconfig",
+            help="Include tests for the 2-transaction reconfiguration scheme",
+            action="store_true",
+        )
 
-    run(args)
+    cr = ConcurrentRunner(add)
 
-    if args.consensus != "bft":
-        run_join_old_snapshot(args)
+    cr.add(
+        "1tx_reconfig",
+        run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        reconfiguration_type="1tx",
+    )
+
+    if cr.args.include_2tx_reconfig:
+        cr.add(
+            "2tx_reconfig",
+            run,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="2tx",
+        )
+
+    cr.run()

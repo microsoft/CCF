@@ -110,6 +110,7 @@ class Network:
         "client_connection_timeout_ms",
         "initial_node_cert_validity_days",
         "max_allowed_node_cert_validity_days",
+        "reconfiguration_type",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -412,6 +413,7 @@ class Network:
             initial_members_info,
             args.participants_curve,
             authenticate_session=not args.disable_member_session_auth,
+            reconfiguration_type=args.reconfiguration_type,
         )
         initial_users = [
             f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
@@ -661,8 +663,8 @@ class Network:
         )
         self.wait_for_all_nodes_to_commit(primary=primary)
 
-    def retire_node(self, remote_node, node_to_retire):
-        self.consortium.retire_node(remote_node, node_to_retire)
+    def retire_node(self, remote_node, node_to_retire, timeout=10):
+        self.consortium.retire_node(remote_node, node_to_retire, timeout=timeout)
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -1080,7 +1082,8 @@ class Network:
         while time.time() < end_time:
             try:
                 return call(seqno)
-            except Exception:
+            except Exception as ex:
+                LOG.info(f"Exception: {ex}")
                 self.consortium.create_and_withdraw_large_proposal(node)
                 time.sleep(0.1)
         raise TimeoutError(

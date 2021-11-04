@@ -1,12 +1,9 @@
-Crash Fault Tolerance
-=====================
+One-transaction Reconfiguration
+===============================
+
+This describes the default reconfiguration scheme as currently implemented. When using CFT, CCF also supports :doc:`two-transaction reconfiguration <2tx-reconfig>`.
 
 Below, we only discuss changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `Raft paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
-
-One-transaction Reconfiguration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This describes the reconfiguration as currently implemented. Note, that the one-transaction reconfiguration is only valid for CFT.
 
 From a ledger and KV store perspective, reconfiguration is a single **reconfiguration transaction**. Any transaction that contains at least one write to ``public:ccf.gov.nodes.info`` setting a node's status to ``TRUSTED`` or ``RETIRED`` is such a reconfiguration transaction.
 

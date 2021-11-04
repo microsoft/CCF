@@ -130,9 +130,10 @@ namespace aft
     void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::unordered_set<ccf::NodeId>& learners = {}) override
+      const std::unordered_set<ccf::NodeId>& learners = {},
+      const std::unordered_set<ccf::NodeId>& retired_nodes = {}) override
     {
-      aft->add_configuration(seqno, conf, learners);
+      aft->add_configuration(seqno, conf, learners, retired_nodes);
     }
 
     void record_signature(
