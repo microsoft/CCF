@@ -52,6 +52,14 @@ echo " + Install build dependencies..."
 ./build/install-build-deps.sh --quick-check --no-arm --no-nacl --syms
 gclient sync -D
 
+# echo " + Apply V8 patches..."
+# this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# patch -p0 < "$this_dir"/v8.patch
+# if [ $? -ne 0 ]; then
+#   echo "ERROR: Patching V8 failed"
+#   exit 1
+# fi
+
 echo " + Build V8 monolith mode..."
 # This is a mash of options from v8/infra/mb/mb_config.pyl
 OUT_DIR="out.gn/x64.debug"
@@ -63,24 +71,25 @@ if [ ! -f "$OUT_DIR/obj/libv8_monolith.a" ]; then
 fi
 
 echo " + Create install dir..."
-mkdir -p install/lib
-cp -rv include install
-cp -v "$OUT_DIR"/icudtl.dat install/lib
-cp -rv "$OUT_DIR"/obj/*.a install/lib
-cp -rv "$OUT_DIR"/obj/third_party/icu/*.a install/lib
-du -sh install
+INSTALL_DIR="../install"
+mkdir -p $INSTALL_DIR/lib
+cp -rv include $INSTALL_DIR
+cp -v "$OUT_DIR"/icudtl.dat $INSTALL_DIR/lib
+cp -v "$OUT_DIR"/obj/libv8_monolith.a $INSTALL_DIR/lib
+cp -rv "$OUT_DIR"/obj/third_party/icu/*.a $INSTALL_DIR/lib
+du -sh $INSTALL_DIR
 
 # Always test, even when we don't want to publish
 echo " + Test install..."
 COMPILER=third_party/llvm-build/Release+Asserts/bin/clang++
-$COMPILER -fuse-ld=lld -Iinstall -Iinstall/include samples/hello-world.cc -o hello_world -ldl -lv8_monolith -Linstall/lib -pthread -std=c++14 -DV8_COMPRESS_POINTERS
+$COMPILER -fuse-ld=lld -stdlib=libc++ -I$INSTALL_DIR -I$INSTALL_DIR/include samples/hello-world.cc -o hello_world -ldl -lv8_monolith -L$INSTALL_DIR/lib -pthread -std=c++14 -DV8_COMPRESS_POINTERS
 OUTPUT="$(./hello_world | grep "3 + 4 = 7")"
 if [ "$OUTPUT" == "" ]; then
   echo "ERROR: Hello World test failed"
   exit 1
 fi
 
-$COMPILER -fuse-ld=lld -Iinstall -Iinstall/include samples/process.cc -o process -ldl -lv8_monolith -Linstall/lib -pthread -std=c++14 -DV8_COMPRESS_POINTERS
+$COMPILER -fuse-ld=lld -stdlib=libc++ -I$INSTALL_DIR -I$INSTALL_DIR/include samples/process.cc -o process -ldl -lv8_monolith -L$INSTALL_DIR/lib -pthread -std=c++14 -DV8_COMPRESS_POINTERS
 OUTPUT="$(./process samples/count-hosts.js | grep "yahoo.com: 3")"
 if [ "$OUTPUT" == "" ]; then
   echo "ERROR: Process test failed"
@@ -91,5 +100,5 @@ fi
 # Creates in .../build-v8/ root
 if [ "$PUBLISH" == "true" ]; then
   echo " + Generate the tarball..."
-  tar Jcf ../v8-"$VERSION".tar.xz install
+  tar Jcf ../v8-"$VERSION".tar.xz $INSTALL_DIR
 fi

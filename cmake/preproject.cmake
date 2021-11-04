@@ -61,6 +61,12 @@ if(${COLORED_OUTPUT})
   endif()
 endif()
 
+option(USE_LLD "Use ld.lld linker instead of the default linker" OFF)
+if (USE_LLD)
+  set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld")
+  set(CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=lld")
+endif()
+
 function(add_warning_checks name)
   target_compile_options(
     ${name}

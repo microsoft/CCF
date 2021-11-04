@@ -1,0 +1,15 @@
+--- build/config/compiler/BUILD.gn	2021-11-04 13:53:51.163474494 +0000
++++ build/config/compiler/BUILD-patched.gn	2021-11-04 13:53:48.119458582 +0000
+@@ -261,10 +261,10 @@
+   asmflags = []
+   cflags = []
+   cflags_c = []
+-  cflags_cc = []
++  cflags_cc = ["-stdlib=libc++"]
+   cflags_objc = []
+   cflags_objcc = []
+-  ldflags = []
++  ldflags = ["-stdlib=libc++"]
+   defines = []
+   configs = []
+ 
