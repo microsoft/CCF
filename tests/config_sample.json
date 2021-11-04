@@ -3,16 +3,12 @@
   "enclave_type": "virtual",
   "node_cert_file": "node.pem",
   "node_pid_file": "node.pid",
-  "io_logging_threshold_ns": 10000000,
-  "logging":
-  {
-    "host_log_level": "info",
-    "log_format_json": false
-  },
-  "tick_period_ms": 1,
-  "node_client_interface": null,
   "node_address_file": "",
   "rpc_address_file" : "",
+  "network_cert_file": "networkcert.pem",
+  "tick_period_ms": 1,
+  "io_logging_threshold_ns": 10000000,
+  "node_client_interface": null,
   "client_connection_timeout_ms": 2000,
   "ledger":
   {
@@ -25,13 +21,36 @@
     "snapshot_dir": "snapshots",
     "snapshot_tx_interval": 10000
   },
+  "logging":
+  {
+    "host_log_level": "info",
+    "log_format_json": false
+  },
   "memory":
   {
     "circuit_size_shift": 22,
     "max_msg_size_shift": 24,
     "max_fragment_size_shift": 16
   },
-  "network_cert_file": "networkcert.pem",
+
+  "start":
+  {
+    "constitution_files" : [],
+    "members":
+    [
+      {
+        "certificate_file": "member0_cert.pem",
+        "encryption_public_key_file": "member0_enc_pubk.pem",
+        "data_json_file": ""
+      }
+    ],
+    "service_configuration":
+    {
+      "recovery_threshold": 0,
+      "max_allowed_node_cert_validity_days": 365
+    }
+  },
+
 
 
   "worker_threads": 0,
@@ -78,23 +97,7 @@
       }
     ]
   },
-  "start":
-  {
-    "constitution_files" : [],
-    "members":
-    [
-      {
-        "cert_file": "member0_cert.pem",
-        "encryption_pub_key_file": "member0_enc_pubk.pem",
-        "data": null
-      }
-    ],
-    "service_configuration":
-    {
-      "recovery_threshold": 0,
-      "max_allowed_node_cert_validity_days": 365
-    }
-  },
+
   "join":
   {
     "join_timer_ms": 1000,

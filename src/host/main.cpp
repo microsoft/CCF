@@ -617,7 +617,7 @@ int main(int argc, char** argv)
       size_t members_with_pubk_count = 0;
       for (auto const& m : config.start.members)
       {
-        if (m.encryption_pub_key.has_value())
+        if (m.encryption_public_key_file.has_value())
         {
           members_with_pubk_count++;
         }
@@ -815,7 +815,7 @@ int main(int argc, char** argv)
 #endif
 
     StartupConfig startup_config; // TODO: Rename
-    startup_config.config = config;
+    // startup_config.config = config;
     // ccf_config.consensus = {
     //   consensus,
     //   raft_timeout,
@@ -863,43 +863,43 @@ int main(int argc, char** argv)
     {
       start_type = StartType::New;
 
-      for (auto const& m : members)
+      for (auto const& m : config.start.members)
       {
-        std::optional<std::vector<uint8_t>> public_encryption_key_file =
+        std::optional<std::vector<uint8_t>> public_encryption_key =
           std::nullopt;
-        if (m.enc_pubk_file.has_value())
+        if (m.encryption_public_key_file.has_value())
         {
-          public_encryption_key_file = files::slurp(m.enc_pubk_file.value());
+          public_encryption_key =
+            files::slurp(m.encryption_public_key_file.value());
         }
 
         nlohmann::json md = nullptr;
-        if (m.member_data_file.has_value())
+        if (m.data_json_file.has_value())
         {
-          md = nlohmann::json::parse(files::slurp(m.member_data_file.value()));
+          md = nlohmann::json::parse(files::slurp(m.data_json_file.value()));
         }
 
-        ccf_config.start.members.emplace_back(
-          files::slurp(m.cert_file), public_encryption_key_file, md);
+        startup_config.start.members.emplace_back(
+          files::slurp(m.certificate_file), public_encryption_key, md);
       }
-      ccf_config.start.constitution = "";
-      for (const auto& constitution_path : constitution_paths)
+      startup_config.start.constitution = "";
+      for (const auto& constitution_path : config.start.constitution_files)
       {
         // Separate with single newlines
-        if (!ccf_config.start.constitution.empty())
+        if (!startup_config.start.constitution.empty())
         {
-          ccf_config.start.constitution += '\n';
+          startup_config.start.constitution += '\n';
         }
 
-        ccf_config.start.constitution += files::slurp_string(constitution_path);
+        startup_config.start.constitution +=
+          files::slurp_string(constitution_path);
       }
-      ccf_config.start.service_configuration = {
-        recovery_threshold.value(),
-        consensus,
-        max_allowed_node_cert_validity_days};
+      startup_config.start.service_configuration =
+        config.start.service_configuration;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
-        ccf_config.start.members.size(),
+        config.start.members.size(),
         recovery_threshold.value());
     }
     else if (*join)
@@ -910,9 +910,9 @@ int main(int argc, char** argv)
         target_rpc_address.port);
       start_type = StartType::Join;
 
-      ccf_config.join.target_rpc_address = target_rpc_address;
-      ccf_config.join.network_cert = files::slurp(network_cert_file);
-      ccf_config.join.join_timer_ms = join_timer;
+      // ccf_config.join.target_rpc_address = target_rpc_address;
+      // ccf_config.join.network_cert = files::slurp(network_cert_file);
+      // ccf_config.join.join_timer_ms = join_timer;
     }
     else if (*recover)
     {
@@ -930,20 +930,20 @@ int main(int argc, char** argv)
       if (snapshot_file.has_value())
       {
         auto& snapshot = snapshot_file.value();
-        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
+        startup_config.startup_snapshot = snapshots.read_snapshot(snapshot);
 
         if (asynchost::is_snapshot_file_1_x(snapshot))
         {
           // Snapshot evidence seqno is only specified for 1.x snapshots which
           // need to be verified by deserialising the ledger suffix.
-          ccf_config.startup_snapshot_evidence_seqno_for_1_x =
+          startup_config.startup_snapshot_evidence_seqno_for_1_x =
             asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
         }
 
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {})",
           snapshot,
-          ccf_config.startup_snapshot.size());
+          startup_config.startup_snapshot.size());
       }
       else
       {
@@ -965,7 +965,7 @@ int main(int argc, char** argv)
 
     enclave.create_node(
       enclave_config,
-      ccf_config,
+      startup_config,
       node_cert,
       network_cert,
       start_type,

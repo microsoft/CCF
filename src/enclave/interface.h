@@ -59,42 +59,12 @@ struct EnclaveConfig
 #endif
 };
 
+// Common configuration struct
 struct CCFConfig
 {
+  size_t worker_threads = 0;
   consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
-
-  struct Snapshots
-  {
-    size_t snapshot_tx_interval = 10'000;
-    std::string snapshot_dir = "snapshots";
-  };
-  Snapshots snapshots = {};
-
-  struct Intervals
-  {
-    size_t sig_tx_interval = 5000;
-    size_t sig_ms_interval = 1000;
-    size_t jwt_key_refresh_interval_s = 1800;
-  };
-  Intervals intervals = {};
-
-  struct Start
-  {
-    std::vector<ccf::NewMember> members;
-    std::string constitution;
-    std::vector<std::string> constitution_files = {};
-    ccf::ServiceConfiguration service_configuration;
-  };
-  Start start = {};
-
-  struct Join
-  {
-    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    std::vector<uint8_t> network_cert = {};
-    size_t join_timer_ms;
-  };
-  Join join = {};
 
   struct NodeCertificateInfo
   {
@@ -104,17 +74,21 @@ struct CCFConfig
     size_t initial_validity_days = 1;
   };
   NodeCertificateInfo node_certificate = {};
-};
 
-struct StartupConfig
-{
-  CCFConfig config;
+  struct Intervals
+  {
+    size_t sig_tx_interval = 5000;
+    size_t sig_ms_interval = 1000;
+    size_t jwt_key_refresh_interval_s = 1800;
+  };
+  Intervals intervals = {};
 
-  // Only if joining or recovering
-  std::vector<uint8_t> startup_snapshot;
-  std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
-
-  std::string startup_host_time;
+  struct Join
+  {
+    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
+    size_t join_timer_ms = 1000;
+  };
+  Join join = {};
 };
 
 DECLARE_JSON_TYPE(CCFConfig::Intervals);
@@ -132,28 +106,38 @@ DECLARE_JSON_REQUIRED_FIELDS(
   curve_id,
   initial_validity_days);
 
-DECLARE_JSON_TYPE(CCFConfig::Snapshots);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Snapshots, snapshot_dir, snapshot_tx_interval);
-
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Start);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Start, members, constitution_files, service_configuration);
-DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::Start, constitution);
-
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Join);
+DECLARE_JSON_TYPE(CCFConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::Join, target_rpc_address, join_timer_ms);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Join, network_cert); // TODO:: This sucks, but unifies things
 
 DECLARE_JSON_TYPE(CCFConfig);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig, consensus, network, intervals, start, join);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, consensus, network, intervals, join);
 
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(StartupConfig);
+// Enclave configuration
+struct StartupConfig : CCFConfig
+{
+  // Only if joining or recovering
+  std::vector<uint8_t> startup_snapshot = {}; // TODO: Should this be optional?
+  std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
+
+  std::string startup_host_time;
+
+  struct Start
+  {
+    std::vector<ccf::NewMember> members;
+    std::string constitution;
+    ccf::ServiceConfiguration service_configuration;
+  };
+  Start start = {};
+};
+
+DECLARE_JSON_TYPE(StartupConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig, config, startup_snapshot, startup_host_time);
+  StartupConfig::Start, members, constitution, service_configuration);
+
+DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
+DECLARE_JSON_REQUIRED_FIELDS(
+  StartupConfig, startup_snapshot, startup_host_time, start);
 DECLARE_JSON_OPTIONAL_FIELDS(
   StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
 
@@ -170,12 +154,23 @@ DECLARE_JSON_ENUM(
    {EnclaveType::DEBUG, "debug"},
    {EnclaveType::VIRTUAL, "virtual"}})
 
+struct ParsedMemberInfo
+{
+  std::string certificate_file;
+  std::optional<std::string> encryption_public_key_file = std::nullopt;
+  std::optional<std::string> data_json_file = std::nullopt;
+};
+
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
+DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo, certificate_file);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  ParsedMemberInfo, encryption_public_key_file, data_json_file);
+
+// Host configuration
 struct CCHostConfig : CCFConfig
 {
   std::string enclave_file;
   EnclaveType enclave_type = EnclaveType::RELEASE;
-
-  size_t worker_threads = 0;
 
   std::string node_cert_file = "nodecert.pem";
   std::string node_pid_file = "cchost.pid";
@@ -207,6 +202,13 @@ struct CCHostConfig : CCFConfig
   };
   Snapshots snapshots = {};
 
+  struct Logging
+  {
+    logger::Level host_log_level = logger::Level::INFO;
+    bool log_format_json = false;
+  };
+  Logging logging = {};
+
   struct Memory
   {
     size_t circuit_size_shift = 22;
@@ -215,25 +217,26 @@ struct CCHostConfig : CCFConfig
   };
   Memory memory = {};
 
-  struct Logging
+  struct Start
   {
-    logger::Level host_log_level = logger::Level::INFO;
-    bool log_format_json = false;
+    std::vector<ParsedMemberInfo> members = {};
+    std::vector<std::string> constitution_files = {};
+    ccf::ServiceConfiguration service_configuration;
   };
-  Logging logging = {};
+  Start start = {};
 };
 
 DECLARE_JSON_TYPE(CCHostConfig::Ledger);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCHostConfig::Ledger, ledger_dir, read_only_ledger_dirs, ledger_chunk_bytes);
 
-DECLARE_JSON_TYPE(CCHostConfig::Logging);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCHostConfig::Logging, host_log_level, log_format_json);
-
 DECLARE_JSON_TYPE(CCHostConfig::Snapshots);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCHostConfig::Snapshots, snapshot_dir, snapshot_tx_interval);
+
+DECLARE_JSON_TYPE(CCHostConfig::Logging);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Logging, host_log_level, log_format_json);
 
 DECLARE_JSON_TYPE(CCHostConfig::Memory);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -249,7 +252,6 @@ DECLARE_JSON_REQUIRED_FIELDS(
   CCHostConfig,
   enclave_file,
   enclave_type,
-  worker_threads,
   node_cert_file,
   node_pid_file,
   node_address_file,
@@ -261,6 +263,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   network_cert_file,
   ledger,
   snapshots,
+  logging,
   memory);
 
 /// General administrative messages
