@@ -71,7 +71,8 @@ struct CCFConfig
     std::string subject_name = "CN=CCF Node";
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
     crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
-    size_t initial_validity_days = 1;
+    size_t initial_validity_days =
+      1; // TODO: Rename to initial_validity_period_days
   };
   NodeCertificateInfo node_certificate = {};
 
@@ -121,12 +122,16 @@ struct StartupConfig : CCFConfig
   std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
 
   std::string startup_host_time;
+  std::vector<uint8_t> network_cert;
+  size_t snapshot_tx_interval = 10'000;
 
   struct Start
   {
     std::vector<ccf::NewMember> members;
     std::string constitution;
     ccf::ServiceConfiguration service_configuration;
+
+    bool operator==(const Start& other) const = default;
   };
   Start start = {};
 };
@@ -137,7 +142,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig, startup_snapshot, startup_host_time, start);
+  StartupConfig, startup_snapshot, startup_host_time, network_cert, start);
 DECLARE_JSON_OPTIONAL_FIELDS(
   StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
 

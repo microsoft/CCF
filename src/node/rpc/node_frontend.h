@@ -1141,16 +1141,18 @@ namespace ccf
           // Note that it is acceptable to start a network without any member
           // having a recovery share. The service will check that at least one
           // recovery member is added before the service is opened.
-          for (const auto& info : in.genesis_info->members_info)
+          for (const auto& info : in.genesis_info->members)
           {
             g.add_member(info);
           }
 
           if (
-            in.genesis_info->configuration.consensus == ConsensusType::BFT &&
-            (!in.genesis_info->configuration.reconfiguration_type.has_value() ||
-             in.genesis_info->configuration.reconfiguration_type.value() !=
-               ReconfigurationType::TWO_TRANSACTION))
+            in.genesis_info->service_configuration.consensus ==
+              ConsensusType::BFT &&
+            (!in.genesis_info->service_configuration.reconfiguration_type
+                .has_value() ||
+             in.genesis_info->service_configuration.reconfiguration_type
+                 .value() != ReconfigurationType::TWO_TRANSACTION))
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1158,7 +1160,7 @@ namespace ccf
               "BFT consensus requires two-transaction reconfiguration.");
           }
 
-          g.init_configuration(in.genesis_info->configuration);
+          g.init_configuration(in.genesis_info->service_configuration);
           g.set_constitution(in.genesis_info->constitution);
         }
 

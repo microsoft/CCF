@@ -815,6 +815,7 @@ int main(int argc, char** argv)
 #endif
 
     StartupConfig startup_config; // TODO: Rename
+    startup_config.snapshot_tx_interval = config.snapshots.snapshot_tx_interval;
     // startup_config.config = config;
     // ccf_config.consensus = {
     //   consensus,
