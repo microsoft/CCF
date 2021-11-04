@@ -403,7 +403,7 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.network_cert);
+      auto network_ca = std::make_shared<tls::CA>(config.join.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
 
@@ -603,14 +603,14 @@ namespace ccf
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
-      // join_params.certificate_signing_request =
-      //   node_sign_kp->create_csr(config.node_certificate.subject_identity);
-      //   // TODO: Fix
+      join_params.certificate_signing_request = node_sign_kp->create_csr(
+        config.node_certificate.subject_name,
+        config.node_certificate.subject_alt_names);
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
-        config.joining.target_host,
-        config.joining.target_port);
+        config.join.target_rpc_address.hostname,
+        config.join.target_rpc_address.port);
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
 

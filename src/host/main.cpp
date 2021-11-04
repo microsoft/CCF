@@ -879,7 +879,9 @@ int main(int argc, char** argv)
         target_rpc_address.hostname,
         target_rpc_address.port);
       start_type = StartType::Join;
-      startup_config.join = config.join;
+      startup_config.join.target_rpc_address = config.join.target_rpc_address;
+      startup_config.join.join_timer_ms = config.join.join_timer_ms;
+      startup_config.join.network_cert = files::slurp(config.network_cert_file);
     }
     else if (*recover)
     {

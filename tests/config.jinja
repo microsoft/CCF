@@ -1,22 +1,31 @@
 {
   "enclave_file": "{{ enclave_file }}",
   "enclave_type": "{{ enclave_type or "release" }}",
-  "node_cert_path": "{{ node_cert_path or "node.pem" }}",
+  "node_cert_file": "{{ node_cert_file or "node.pem" }}",
   "node_pid_file": "{{ node_pid_file or "node.pid" }}",
-  "certificate":
+  "node_address_file": "{{ node_address_file }}",
+  "rpc_address_file" : "{{ rpc_address_file}}",
+  "network_cert_file": "networkcert.pem",
+  "node_certificate":
   {
-    "sn": "CN=CCF Node",
-    "san": [],
+    "subject_name": "CN=CCF Node",
+    "subject_alt_names": [],
     "curve_id": "secp384r1",
-    "initial-node-cert-validity-days": 1
+    "initial_validity_days": 1
   },
-  "host_log_level": "info",
-  "io_logging_threshold_ns": 15000000,
-  "log_format_json": false,
+  "io_logging_threshold_ns": 10000000,
   "tick_period_ms": 10,
   "sig_tx_interval": 5000,
   "sig_ms_interval": 1000,
   "jwt_key_refresh_interval_s": 1800,
+  "worker_threads": 0,
+  "node_client_interface": "{{ node_client_interface }}"
+  "client_connection_timeout_ms": {{ client_connection_timeout_ms or 2000}}
+  "logging":
+  {
+    "host_log_level": "info",
+    "log_format_json": false
+  },
   "consensus":
   {
     "type": "cft",
@@ -26,32 +35,45 @@
   "network": {
     "node":
     {
-      "node_address": "{{ node_address }}",
-      "node_address_file": "{{ node_address_file }}",
-      "node_client_interface": "{{ node_client_interface }}"
+      "node_address":
+      {
+        "hostname": "{{ node_address_hostname }}",
+        "port": "{{ node_address_port }}"
+      }
     },
-    "rpc":
-    {
-      "rpc_address": "{{ rpc_address }}",
-      "rpc_address_file" : "{{ rpc_address_file}}",
-      "public_rpc_address": "{{ public_rpc_address }}",
-      "max_open_sessions": {{ max_open_sessions or 1000 }},
-      "max_open_sessions_hard": {{ max_open_sessions_hard or 1010 }}
-    },
-    "client_connection_timeout_ms": {{ client_connection_timeout_ms or 2000}}
+    "rpc_interfaces":
+    [
+      {
+        "rpc_address":
+        {
+          "hostname": "{{ rpc_address_hostname }}",
+          "port": "{{ rpc_address_port }}"
+        },
+        "public_rpc_address":
+        {
+          "hostname":"127.0.0.1",
+          "port": "0"
+        },
+        "max_open_sessions_soft": {{ max_open_sessions_soft or 1000 }},
+        "max_open_sessions_hard": {{ max_open_sessions_hard or 1010 }}
+      }
+    ]
   },
   "ledger":
   {
     "ledger_dir": "{{ ledger_dir or "ledger" }}",
-    "read_only_ledger_dir": {{ read_only_ledger_dir or [] }},
-    "ledger_chunk_bytes": "{{ ledger_chunk_bytes }}",
+    "read_only_ledger_dirs": {{ read_only_ledger_dirs or [] }},
+    "ledger_chunk_bytes": "{{ ledger_chunk_bytes }}"
+  },
+  "snapshots":
+  {
     "snapshot_dir": "{{ snapshot_dir }}",
     "snapshot_tx_interval": "{{ snapshot_tx_interval }}"
-  },
-  "ring_buffer":
+  }
+  "memory":
   {
-    "circuit_size": 22,
-    "max_msg_size": 24,
-    "max_fragment_size": 16
+    "circuit_size_shift": 22,
+    "max_msg_size_shift": 24,
+    "max_fragment_size_shift": 16
   }
 }

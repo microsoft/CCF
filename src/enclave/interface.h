@@ -83,13 +83,6 @@ struct CCFConfig
     size_t jwt_key_refresh_interval_s = 1800;
   };
   Intervals intervals = {};
-
-  struct Join
-  {
-    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    size_t join_timer_ms = 1000;
-  };
-  Join join = {};
 };
 
 DECLARE_JSON_TYPE(CCFConfig::NodeCertificateInfo);
@@ -107,12 +100,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   sig_ms_interval,
   jwt_key_refresh_interval_s);
 
-DECLARE_JSON_TYPE(CCFConfig::Join);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Join, target_rpc_address, join_timer_ms);
-
 DECLARE_JSON_TYPE(CCFConfig);
-DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, consensus, network, intervals, join);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, consensus, network, intervals);
 
 // Enclave configuration
 struct StartupConfig : CCFConfig
@@ -123,7 +112,6 @@ struct StartupConfig : CCFConfig
   std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
 
   std::string startup_host_time;
-  std::vector<uint8_t> network_cert;
   size_t snapshot_tx_interval = 10'000;
 
   struct Start
@@ -135,20 +123,32 @@ struct StartupConfig : CCFConfig
     bool operator==(const Start& other) const = default;
   };
   Start start = {};
+
+  struct Join
+  {
+    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
+    size_t join_timer_ms = 1000;
+    std::vector<uint8_t> network_cert = {};
+  };
+  Join join = {};
 };
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig::Start, members, constitution, service_configuration);
 
+DECLARE_JSON_TYPE(StartupConfig::Join);
+DECLARE_JSON_REQUIRED_FIELDS(
+  StartupConfig::Join, target_rpc_address, join_timer_ms, network_cert);
+
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig,
   startup_snapshot,
   startup_host_time,
-  network_cert,
   snapshot_tx_interval,
-  start);
+  start,
+  join);
 DECLARE_JSON_OPTIONAL_FIELDS(
   StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
 
@@ -186,6 +186,8 @@ struct CCHostConfig : CCFConfig
   std::string node_cert_file = "nodecert.pem";
   std::string node_pid_file = "cchost.pid";
 
+  std::string network_cert_file = "networkcert.pem";
+
   // Address files
   std::string node_address_file = "";
   std::string rpc_address_file = "";
@@ -195,8 +197,6 @@ struct CCHostConfig : CCFConfig
   size_t io_logging_threshold_ns = 10'000'000;
   std::optional<std::string> node_client_interface = std::nullopt;
   size_t client_connection_timeout_ms = 2000;
-
-  std::string network_cert_file = "networkcert.pem";
 
   struct Ledger
   {
@@ -235,6 +235,13 @@ struct CCHostConfig : CCFConfig
     ccf::ServiceConfiguration service_configuration;
   };
   Start start = {};
+
+  struct Join
+  {
+    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
+    size_t join_timer_ms = 1000;
+  };
+  Join join = {};
 };
 
 DECLARE_JSON_TYPE(CCHostConfig::Ledger);
@@ -256,6 +263,14 @@ DECLARE_JSON_REQUIRED_FIELDS(
   max_msg_size_shift,
   max_fragment_size_shift);
 
+DECLARE_JSON_TYPE(CCHostConfig::Start);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Start, members, constitution_files, service_configuration);
+
+DECLARE_JSON_TYPE(CCHostConfig::Join);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Join, target_rpc_address, join_timer_ms);
+
 DECLARE_JSON_TYPE_WITH_BASE(CCHostConfig, CCFConfig);
 // TODO: Should most of these fields actually be optional so we can have a
 // minimal config?
@@ -275,7 +290,9 @@ DECLARE_JSON_REQUIRED_FIELDS(
   ledger,
   snapshots,
   logging,
-  memory);
+  memory,
+  start,
+  join);
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message
