@@ -180,7 +180,7 @@ class Network:
         return next_node_id
 
     def create_node(
-        self, host, binary_dir=None, library_dir=None, node_port=None, version=None
+        self, host, binary_dir=None, library_dir=None, node_port=0, version=None
     ):
         node_id = self._get_next_local_node_id()
         debug = (

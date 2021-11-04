@@ -170,6 +170,8 @@ struct ParsedMemberInfo
   std::string certificate_file;
   std::optional<std::string> encryption_public_key_file = std::nullopt;
   std::optional<std::string> data_json_file = std::nullopt;
+
+  bool operator==(const ParsedMemberInfo& other) const = default;
 };
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
@@ -233,6 +235,8 @@ struct CCHostConfig : CCFConfig
     std::vector<ParsedMemberInfo> members = {};
     std::vector<std::string> constitution_files = {};
     ccf::ServiceConfiguration service_configuration;
+
+    bool operator==(const Start& other) const = default;
   };
   Start start = {};
 
@@ -240,6 +244,8 @@ struct CCHostConfig : CCFConfig
   {
     ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
     size_t join_timer_ms = 1000;
+
+    bool operator==(const Join& other) const = default;
   };
   Join join = {};
 };
@@ -271,26 +277,21 @@ DECLARE_JSON_TYPE(CCHostConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCHostConfig::Join, target_rpc_address, join_timer_ms);
 
-DECLARE_JSON_TYPE_WITH_BASE(CCHostConfig, CCFConfig);
+DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
 // TODO: Should most of these fields actually be optional so we can have a
 // minimal config?
 DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig, enclave_file, enclave_type, ledger, snapshots, logging, memory);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig,
-  enclave_file,
-  enclave_type,
   node_cert_file,
   node_pid_file,
   node_address_file,
   rpc_address_file,
   tick_period_ms,
   io_logging_threshold_ns,
-  node_client_interface,
   client_connection_timeout_ms,
   network_cert_file,
-  ledger,
-  snapshots,
-  logging,
-  memory,
   start,
   join);
 

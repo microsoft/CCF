@@ -591,31 +591,19 @@ class CCFRemote(object):
         Run a ccf binary on a remote host.
         """
 
-        ## CONFIG PLAYGROUND
-        loader = FileSystemLoader("../tests")
-        env = Environment(loader=loader, autoescape=select_autoescape())
-        t = env.get_template("config.jinja")
-        LOG.error(kwargs)
-        output = t.render(**kwargs)
-
-        LOG.error(output)
-
-        with open("render.json", "w") as f:
-            f.write(output)
-        #################
-
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
-        self.node_address_path = f"{local_node_id}.node_address"
-        self.rpc_address_path = f"{local_node_id}.rpc_address"
+        self.node_address_file = f"{local_node_id}.node_address"
+        self.rpc_address_file = f"{local_node_id}.rpc_address"
         self.binary_dir = binary_dir
         self.BIN = infra.path.build_bin_path(
-            self.BIN, enclave_type, binary_dir=binary_dir
+            self.BIN, kwargs.get("enclave_type"), binary_dir=binary_dir
         )
         self.common_dir = common_dir
-        self.pub_host = kwargs.get("public_rpc_address")
+        self.pub_host = kwargs.get("public_rpc_address_hostname")
+        self.enclave_file = kwargs.get("enclave_file")
 
         ledger_dir = kwargs.get("ledger_dir")
         snapshot_dir = kwargs.get("snapshot_dir")
@@ -642,15 +630,36 @@ class CCFRemote(object):
             else f"{local_node_id}.snapshots"
         )
 
-        exe_files = [self.BIN, lib_path] + self.DEPS
-        data_files = [self.ledger_dir] if self.ledger_dir else []
+        ## CONFIG PLAYGROUND
+        loader = FileSystemLoader("../tests")
+        env = Environment(loader=loader, autoescape=select_autoescape())
+        t = env.get_template("config.jinja")
+        LOG.success(f"kwargs:{kwargs}")
+        output = t.render(
+            enclave_file=f'./{os.path.basename(kwargs.pop("enclave_file"))}',
+            node_cert_file=self.pem,
+            node_address_file=self.node_address_file,
+            rpc_address_file=self.rpc_address_file,
+            **kwargs,  # TODO: Ugly!
+        )
+
+        config_file_name = f"{local_node_id}.config.json"
+        config_file = os.path.join(common_dir, config_file_name)
+        data_files = [config_file]
+
+        with open(config_file, "w") as f:
+            f.write(output)
+        #################
+
+        exe_files = [self.BIN, self.enclave_file] + self.DEPS
+        data_files += [self.ledger_dir] if self.ledger_dir else []
         data_files += [self.snapshot_dir] if self.snapshot_dir else []
 
         # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able
         # to reference the destination file locally in the target workspace.
         bin_path = os.path.join(".", os.path.basename(self.BIN))
-        enclave_path = os.path.join(".", os.path.basename(lib_path))
+        # enclave_path = os.path.join(".", os.path.basename(self.enclave_file))
 
         # election_timeout_arg = (
         #     f"--bft-view-change-timeout-ms={bft_view_change_timeout_ms}"
@@ -786,8 +795,18 @@ class CCFRemote(object):
         #         f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
         #     )
 
+        # TODO: Config should be full path!
+        cmd = [bin_path, "--config", config_file_name]
+        if start_type == StartType.new:
+            cmd += ["start"]
+        elif start_type == StartType.join:
+            cmd += ["join"]
+            data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+        else:
+            cmd += ["recover"]
+
         env = {}
-        if enclave_type == "virtual":
+        if kwargs.get("enclave_type") == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
@@ -799,7 +818,7 @@ class CCFRemote(object):
             kwargs.get("public_rpc_address"),
             exe_files,
             data_files,
-            None,
+            cmd,
             workspace,
             common_dir,
             env,
@@ -819,8 +838,8 @@ class CCFRemote(object):
 
     def get_startup_files(self, dst_path):
         self.remote.get(self.pem, dst_path)
-        self.remote.get(self.node_address_path, dst_path)
-        self.remote.get(self.rpc_address_path, dst_path)
+        self.remote.get(self.node_address_file, dst_path)
+        self.remote.get(self.rpc_address_file, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
 

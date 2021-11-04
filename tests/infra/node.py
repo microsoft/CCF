@@ -88,7 +88,7 @@ class Node:
         library_dir=".",
         debug=False,
         perf=False,
-        node_port=None,
+        node_port=0,
         version=None,
     ):
         self.local_node_id = local_node_id
@@ -136,7 +136,7 @@ class Node:
 
         host_ = host.rpchost
         self.rpc_host, *port = host_.split(":")
-        self.rpc_port = int(port[0]) if port else None
+        self.rpc_port = int(port[0]) if port else 0
         if self.rpc_host == "localhost":
             self.rpc_host = infra.net.expand_localhost()
 
@@ -150,6 +150,7 @@ class Node:
 
         self.node_host = self.rpc_host
         self.node_port = node_port
+        LOG.error(node_port)
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
@@ -250,9 +251,6 @@ class Node:
             kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
 
-        def make_address(host, port=None):
-            return f"{host}:{port or 0}"
-
         self.remote = self.remote_shim(
             start_type,
             self.remote_impl,
@@ -263,9 +261,12 @@ class Node:
             local_node_id=self.local_node_id,
             enclave_file=lib_path,
             enclave_type=enclave_type,
-            rpc_address=make_address(self.rpc_host, self.rpc_port),
-            node_address=make_address(self.node_host, self.node_port),
-            public_rpc_address=make_address(self.pubhost, self.rpc_port),
+            rpc_address_hostname=self.rpc_host,
+            rpc_address_port=self.rpc_port,
+            node_address_hostname=self.node_host,
+            node_address_port=self.node_port,
+            public_rpc_address_hostname=self.pubhost,
+            public_rpc_address_port=self.rpc_port,
             node_client_interface=self.node_client_host,
             target_rpc_address=target_rpc_address,
             members_info=members_info,
@@ -320,8 +321,8 @@ class Node:
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
 
     def _read_ports(self):
-        node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
-        with open(node_address_path, "r", encoding="utf-8") as f:
+        node_address_file = os.path.join(self.common_dir, self.remote.node_address_file)
+        with open(node_address_file, "r", encoding="utf-8") as f:
             node_host, node_port = f.read().splitlines()
             node_port = int(node_port)
             if self.remote_shim != infra.remote_shim.DockerShim:
@@ -335,8 +336,8 @@ class Node:
                 ), f"Unexpected change in node port from {self.node_port} to {node_port}"
             self.node_port = node_port
 
-        rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
-        with open(rpc_address_path, "r", encoding="utf-8") as f:
+        rpc_address_file = os.path.join(self.common_dir, self.remote.rpc_address_file)
+        with open(rpc_address_file, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
             it = [iter(lines)] * 2
             for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
@@ -351,7 +352,7 @@ class Node:
                             rpc_port == self.rpc_port
                         ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
                     self.rpc_port = rpc_port
-                    if self.pubport is None:
+                    if self.pubport == 0:
                         self.pubport = self.rpc_port
                 self.interfaces.append((rpc_host, rpc_port))
 

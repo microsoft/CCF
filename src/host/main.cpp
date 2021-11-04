@@ -944,7 +944,7 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Created new node");
 
     // Write the node and network certs to disk.
-    files::dump(node_cert, node_cert_file);
+    files::dump(node_cert, config.node_cert_file);
     if (*start || *recover)
     {
       files::dump(network_cert, network_cert_file);
