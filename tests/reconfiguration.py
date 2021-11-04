@@ -210,7 +210,7 @@ def test_retire_primary(network, args):
     pre_count = count_nodes(node_configs(network), network)
 
     primary, backup = network.find_primary_and_any_backup()
-    network.retire_node(primary, primary)
+    network.retire_node(primary, primary, timeout=15)
     # Query this backup to find the new primary. If we ask any other
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
