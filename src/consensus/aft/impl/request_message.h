@@ -39,7 +39,6 @@ namespace aft
     RequestMessage(
       std::vector<uint8_t> request_,
       kv::TxHistory::RequestID rid_,
-      std::unique_ptr<RequestCtx> ctx_,
       ReplyCallback cb_) :
       request(std::move(request_)),
       rid(rid_),

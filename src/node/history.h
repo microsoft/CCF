@@ -182,15 +182,6 @@ namespace ccf
 
     void try_emit_signature() override {}
 
-    bool add_request(
-      kv::TxHistory::RequestID,
-      const std::vector<uint8_t>&,
-      const std::vector<uint8_t>&,
-      uint8_t) override
-    {
-      return true;
-    }
-
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return crypto::Sha256Hash(std::to_string(version));
@@ -844,23 +835,6 @@ namespace ccf
       std::lock_guard<std::mutex> guard(state_lock);
       auto leaf = replicated_state_tree.get_leaf(index);
       return {leaf.h.begin(), leaf.h.end()};
-    }
-
-    bool add_request(
-      kv::TxHistory::RequestID id,
-      const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request,
-      uint8_t frame_format) override
-    {
-      LOG_DEBUG_FMT("HISTORY: add_request {0}", id);
-
-      auto consensus = store.get_consensus();
-      if (!consensus)
-      {
-        return false;
-      }
-
-      return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
     void append(const std::vector<uint8_t>& data) override

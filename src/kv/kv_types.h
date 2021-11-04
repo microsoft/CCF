@@ -459,11 +459,6 @@ namespace kv
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
-    virtual bool on_request(const TxHistory::RequestCallbackArgs&)
-    {
-      return true;
-    }
-
     virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
 

@@ -29,9 +29,6 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     election_timeout,
     ms(1000));
@@ -74,9 +71,6 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -134,9 +128,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -151,9 +142,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -166,9 +154,6 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -310,9 +295,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -327,9 +309,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -342,9 +321,6 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -470,9 +446,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -487,9 +460,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -502,9 +472,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -617,9 +584,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -632,9 +596,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id1),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -798,9 +759,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -815,9 +773,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -830,9 +785,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -961,76 +913,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }
 
-DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
-{
-  DOCTEST_INFO("With 1 thread");
-  {
-    aft::AsyncExecutor aec(1);
-    for (uint32_t i = 0; i < 20; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(i % 2, 10));
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::DONE);
-    }
-  }
-
-  DOCTEST_INFO("multithreaded run upto max specified tx");
-  {
-    aft::AsyncExecutor aec(2);
-    aec.execute_as_far_as_possible(5);
-    for (uint32_t i = 0; i < 5; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
-      aec.increment_pending();
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
-    }
-    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 5) == false);
-  }
-
-  DOCTEST_INFO("multithreaded run upto sync point");
-  {
-    aft::AsyncExecutor aec(2);
-    aec.execute_as_far_as_possible(10);
-    for (uint32_t i = 0; i < 5; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
-      aec.increment_pending();
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
-    }
-
-    {
-      // execute a transaction that does not support async execution
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 5) == false);
-      aec.increment_pending();
-    }
-
-    // Reset for next round of execution
-    aec.execute_as_far_as_possible(10);
-    for (uint32_t i = 5; i < 10; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
-      aec.increment_pending();
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
-    }
-  }
-
-  DOCTEST_INFO("test first tx does not allow async execution");
-  {
-    aft::AsyncExecutor aec(2);
-    aec.execute_as_far_as_possible(5);
-
-    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 0));
-
-    // As the first execution did not support async it should have been executed
-    // inline as no other transaction was pending. therefore is is safe to run
-    // the next transaction.
-    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 1));
-  }
-}
-
 DOCTEST_TEST_CASE(
   "Nodes only run for election when they should" *
   doctest::test_suite("multiple"))
@@ -1054,9 +936,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -1069,9 +948,6 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id1),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,

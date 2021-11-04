@@ -547,129 +547,9 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      const bool is_bft =
-        consensus != nullptr && consensus->type() == ConsensusType::BFT;
-
-      // Avoid calling find_endpoint (or doing any of this work) in non-BFT
-      // situations
-      if (is_bft)
-      {
-        auto endpoint = endpoints.find_endpoint(tx, *ctx);
-
-        const bool is_local = endpoint != nullptr &&
-          endpoint->properties.execute_outside_consensus !=
-            ccf::endpoints::ExecuteOutsideConsensus::Never;
-        const bool should_bft_distribute = is_bft && !is_local &&
-          (ctx->execute_on_node || consensus->can_replicate());
-
-        // This decision is based on several things read from the KV
-        // (request->is_local) which are true _now_ but may not
-        // be true when this is actually received/executed. We should revisit
-        // this once we have general KV-defined dispatch, to ensure this is
-        // safe. For forwarding we will need to pass a digest of the endpoint
-        // definition, and that should also work here
-        if (should_bft_distribute)
-        {
-          update_history();
-          if (history)
-          {
-            const kv::TxHistory::RequestID reqid = {
-              ctx->session->client_session_id, ctx->get_request_index()};
-            if (!history->add_request(
-                  reqid,
-                  ctx->session->caller_cert,
-                  ctx->get_serialised_request(),
-                  ctx->frame_format()))
-            {
-              LOG_FAIL_FMT("Adding request failed");
-              LOG_DEBUG_FMT(
-                "Adding request failed: {}, {}",
-                std::get<0>(reqid),
-                std::get<1>(reqid));
-              ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Could not process request.");
-              return ctx->serialise_response();
-            }
-            tx.set_req_id(reqid);
-            return std::nullopt;
-          }
-          else
-          {
-            ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Consensus is not yet ready.");
-            return ctx->serialise_response();
-          }
-        }
-      }
-
+      // NB: If we want to re-excute on backups, the original command could be
+      // propagated from here
       return process_command(ctx, tx);
-    }
-
-    ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      ccf::SeqNo prescribed_commit_version,
-      ccf::SeqNo max_conflict_version,
-      ccf::View replicated_view) override
-    {
-      auto tx = tables.create_tx();
-      return process_bft(
-        ctx,
-        tx,
-        prescribed_commit_version,
-        max_conflict_version,
-        replicated_view);
-    }
-
-    /** Process a serialised command with the associated RPC context via BFT
-     *
-     * @param ctx Context for this RPC
-     * @param tx Transaction
-     * @param prescribed_commit_version Prescribed commit version
-     * @param max_conflict_version Maximum conflict version
-     * @param replicated_view Prescribed view
-     */
-    ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      kv::CommittableTx& tx,
-      ccf::SeqNo prescribed_commit_version = kv::NoVersion,
-      ccf::SeqNo max_conflict_version = kv::NoVersion,
-      ccf::View replicated_view = ccf::VIEW_UNKNOWN) override
-    {
-      // Note: this can only happen if the primary is malicious,
-      // and has executed a user transaction when the service wasn't
-      // open. The backup should ideally trigger a view change here.
-      if (!is_open(tx))
-      {
-        throw std::logic_error("Transaction failed");
-      }
-
-      kv::Version version = kv::NoVersion;
-
-      update_consensus();
-
-      PreExec fn = [](kv::CommittableTx& tx, enclave::RpcContext& ctx) {
-        auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-        aft_requests->put(
-          {tx.get_req_id(),
-           ctx.session->caller_cert,
-           ctx.get_serialised_request(),
-           ctx.frame_format()});
-      };
-
-      auto rep = process_command(
-        ctx,
-        tx,
-        fn,
-        prescribed_commit_version,
-        max_conflict_version,
-        replicated_view);
-
-      version = tx.get_version();
-      return {std::move(rep.value()), version};
     }
 
     /** Process a serialised input forwarded from another node
@@ -692,12 +572,7 @@ namespace ccf
       set_root_on_proposals(*ctx, tx);
 
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
-      if (
-        consensus->type() == ConsensusType::CFT ||
-        (endpoint != nullptr &&
-         endpoint->properties.execute_outside_consensus ==
-           endpoints::ExecuteOutsideConsensus::Primary &&
-         (consensus != nullptr && consensus->can_replicate())))
+      if (consensus->type() == ConsensusType::CFT)
       {
         auto rep = process_command(ctx, tx);
         if (!rep.has_value())
@@ -711,8 +586,8 @@ namespace ccf
       }
       else
       {
-        auto rep = process_bft(ctx, tx);
-        return rep.result;
+        LOG_FAIL_FMT("Unsupported consensus type");
+        return {};
       }
     }
 
