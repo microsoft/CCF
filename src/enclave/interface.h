@@ -92,13 +92,6 @@ struct CCFConfig
   Join join = {};
 };
 
-DECLARE_JSON_TYPE(CCFConfig::Intervals);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Intervals,
-  sig_tx_interval,
-  sig_ms_interval,
-  jwt_key_refresh_interval_s);
-
 DECLARE_JSON_TYPE(CCFConfig::NodeCertificateInfo);
 DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig::NodeCertificateInfo,
@@ -106,6 +99,13 @@ DECLARE_JSON_REQUIRED_FIELDS(
   subject_alt_names,
   curve_id,
   initial_validity_days);
+
+DECLARE_JSON_TYPE(CCFConfig::Intervals);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::Intervals,
+  sig_tx_interval,
+  sig_ms_interval,
+  jwt_key_refresh_interval_s);
 
 DECLARE_JSON_TYPE(CCFConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -119,6 +119,7 @@ struct StartupConfig : CCFConfig
 {
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot = {}; // TODO: Should this be optional?
+
   std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
 
   std::string startup_host_time;
@@ -142,7 +143,12 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig, startup_snapshot, startup_host_time, network_cert, start);
+  StartupConfig,
+  startup_snapshot,
+  startup_host_time,
+  network_cert,
+  snapshot_tx_interval,
+  start);
 DECLARE_JSON_OPTIONAL_FIELDS(
   StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
 

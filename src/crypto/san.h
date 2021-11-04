@@ -21,6 +21,7 @@ namespace crypto
   DECLARE_JSON_TYPE(SubjectAltName);
   DECLARE_JSON_REQUIRED_FIELDS(SubjectAltName, san, is_ip);
 
+  // TODO: Delete this type??
   struct CertificateSubjectIdentity
   {
     std::string name;

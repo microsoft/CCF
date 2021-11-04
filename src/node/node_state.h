@@ -289,6 +289,7 @@ namespace ccf
       self_signed_node_cert = create_self_signed_cert(
         node_sign_kp,
         config.node_certificate.subject_name,
+        config.node_certificate.subject_alt_names,
         config.startup_host_time,
         config.node_certificate.initial_validity_days);
 
@@ -1522,7 +1523,8 @@ namespace ccf
       // endorsed the identity of the new joiner.
       return create_endorsed_cert(
         node_sign_kp,
-        config.node_certificate.subject_identity,
+        config.node_certificate.subject_name,
+        config.node_certificate.subject_alt_names,
         config.startup_host_time,
         validity_period_days,
         network.identity->priv_key,
@@ -1597,8 +1599,9 @@ namespace ccf
       }
 
       create_params.node_id = self;
-      create_params.certificate_signing_request =
-        node_sign_kp->create_csr(config.node_certificate_subject_identity);
+      create_params.certificate_signing_request = node_sign_kp->create_csr(
+        config.node_certificate.subject_name,
+        config.node_certificate.subject_alt_names);
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;

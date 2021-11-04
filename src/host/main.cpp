@@ -815,44 +815,13 @@ int main(int argc, char** argv)
 #endif
 
     StartupConfig startup_config; // TODO: Rename
+
     startup_config.snapshot_tx_interval = config.snapshots.snapshot_tx_interval;
-    // startup_config.config = config;
-    // ccf_config.consensus = {
-    //   consensus,
-    //   raft_timeout,
-    //   raft_election_timeout,
-    //   bft_view_change_timeout,
-    //   bft_status_interval};
-    // ccf_config.intervals = {
-    //   sig_tx_interval, sig_ms_interval, jwt_key_refresh_interval_s};
-
-    // ccf_config.network.node_address = {
-    //   node_address.hostname, node_address.port};
-    // for (const auto& interface : rpc_interfaces)
-    // {
-    //   ccf::NodeInfoNetwork::RpcAddresses addr;
-    //   addr.rpc_address = {
-    //     interface.rpc_address.hostname, interface.rpc_address.port};
-    //   addr.public_rpc_address = {
-    //     interface.public_rpc_address.hostname,
-    //     interface.public_rpc_address.port};
-    //   addr.max_open_sessions_soft = interface.max_open_sessions;
-    //   addr.max_open_sessions_hard = interface.max_open_sessions_hard;
-    //   ccf_config.network.rpc_interfaces.push_back(addr);
-    // }
-    // ccf_config.snapshots.snapshot_tx_interval = snapshot_tx_interval;
-
-    // ccf_config.node_certificate = {
-    //   node_certificate_subject_identity.name,
-    //   node_certificate_subject_identity.sans,
-    //   curve_id,
-    //   initial_node_certificate_validity_period_days};
-
-    // ccf_config.node_certificate_subject_identity =
-    //   node_certificate_subject_identity;
-    // ccf_config.curve_id = curve_id;
-    // ccf_config.initial_node_certificate_validity_period_days =
-    //   initial_node_certificate_validity_period_days;
+    startup_config.consensus = config.consensus;
+    startup_config.intervals = config.intervals;
+    startup_config.network = config.network;
+    startup_config.worker_threads = config.worker_threads;
+    startup_config.node_certificate = config.node_certificate;
 
     auto startup_host_time = std::chrono::system_clock::now();
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
@@ -901,7 +870,7 @@ int main(int argc, char** argv)
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
         config.start.members.size(),
-        recovery_threshold.value());
+        config.start.service_configuration.recovery_threshold);
     }
     else if (*join)
     {
@@ -910,10 +879,7 @@ int main(int argc, char** argv)
         target_rpc_address.hostname,
         target_rpc_address.port);
       start_type = StartType::Join;
-
-      // ccf_config.join.target_rpc_address = target_rpc_address;
-      // ccf_config.join.network_cert = files::slurp(network_cert_file);
-      // ccf_config.join.join_timer_ms = join_timer;
+      startup_config.join = config.join;
     }
     else if (*recover)
     {

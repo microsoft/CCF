@@ -57,7 +57,7 @@
   "node_certificate":
   {
     "subject_name": "CN=CCF Node",
-    "subject_alt_names": [],
+    "subject_alt_names": ["TODO:These should be Ip:Dns: strings, not JSON"],
     "curve_id": "secp384r1",
     "initial_validity_days": 1
   },
@@ -84,7 +84,7 @@
       {
         "rpc_address":
         {
-          "hostname": "127.0.0.1:0",
+          "hostname": "127.0.0.1",
           "port": "0"
         },
         "public_rpc_address":
