@@ -169,7 +169,7 @@ namespace aft
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
-    Index entries_batch_size = 1;
+    Index entries_batch_size = 20;
     static constexpr int batch_window_size = 100;
     int batch_window_sum = 0;
 
