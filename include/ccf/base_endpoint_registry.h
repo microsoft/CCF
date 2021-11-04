@@ -83,8 +83,8 @@ namespace ccf
 
     /** Get the status of a transaction by ID, provided as a view+seqno pair.
      * This is a node-local property - while it will converge on all nodes in
-     * a healthy network, it is derived from distributed state rather than
-     * distributed itself.
+     * a healthy network, it is either derived from distributed state in BFT,
+     * or replicated out by the primary in CFT.
      * @see ccf::TxStatus
      */
     ApiResult get_status_for_txid_v1(

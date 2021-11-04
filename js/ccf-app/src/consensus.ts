@@ -4,8 +4,8 @@
 /**
  * The `consensus` module provides access to consensus information
  * as observed by the local node. While the information will converge
- * on all nodes in a healthy network, it is derived from distributed
- * state rather than distributed itself.
+ * on all nodes in a healthy network, it is either derived from distributed state in BFT,
+ * or replicated out by the primary in CFT.
  *
  * @module
  */
