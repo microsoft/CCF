@@ -5,7 +5,6 @@ from http import HTTPStatus
 import openapi_spec_validator
 from datetime import datetime, timezone
 import time
-import ccf.commit
 
 
 def test_nobuiltins_endpoints(network, args):
