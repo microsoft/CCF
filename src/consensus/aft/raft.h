@@ -909,7 +909,12 @@ namespace aft
         }
 
         state->last_idx = index;
-        ledger->put_entry(*data, globally_committable, force_ledger_chunk);
+        ledger->put_entry(
+          *data,
+          globally_committable,
+          force_ledger_chunk,
+          state->current_view,
+          index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -1093,6 +1098,7 @@ namespace aft
           execution_backlog.empty(), "No message should be run asynchronously");
       }
     }
+
     void periodic(std::chrono::milliseconds elapsed)
     {
       {
@@ -1490,20 +1496,40 @@ namespace aft
 
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
-      Index end_idx = (state->last_idx == 0) ?
-        0 :
-        std::min(start_idx + entries_batch_size, state->last_idx);
+      LOG_TRACE_FMT(
+        "Sending append entries to node {} in batches of {}, covering the "
+        "range {} -> {}",
+        to,
+        entries_batch_size,
+        start_idx,
+        state->last_idx);
 
-      for (Index i = end_idx; i < state->last_idx; i += entries_batch_size)
-      {
-        send_append_entries_range(to, start_idx, i);
-        start_idx = std::min(i + 1, state->last_idx);
-      }
+      auto calculate_end_index = [this](Index start) {
+        // Cap the end index in 2 ways:
+        // - Must contain no more than entries_batch_size entries
+        // - Must contain entries from a single term
+        auto max_idx = state->last_idx;
+        const auto term_of_ae = state->view_history.view_at(start);
+        const auto index_at_end_of_term =
+          state->view_history.end_of_view(term_of_ae);
+        if (index_at_end_of_term != kv::NoVersion)
+        {
+          max_idx = index_at_end_of_term;
+        }
+        return std::min(start + entries_batch_size, max_idx);
+      };
 
-      if (state->last_idx == 0 || end_idx <= state->last_idx)
+      Index end_idx;
+
+      // We break _after_ sending, so that in the case where this is called
+      // with start==last, we send a single empty heartbeat
+      do
       {
-        send_append_entries_range(to, start_idx, state->last_idx);
-      }
+        end_idx = calculate_end_index(start_idx);
+        LOG_TRACE_FMT("Sending sub range {} -> {}", start_idx, end_idx);
+        send_append_entries_range(to, start_idx, end_idx);
+        start_idx = std::min(end_idx + 1, state->last_idx);
+      } while (end_idx != state->last_idx);
     }
 
     void send_append_entries_range(
@@ -1831,7 +1857,8 @@ namespace aft
           return;
         }
 
-        auto ds = store->apply(entry, consensus_type, public_only);
+        kv::TxID expected{r.term_of_idx, i};
+        auto ds = store->apply(entry, consensus_type, public_only, expected);
         if (ds == nullptr)
         {
           LOG_FAIL_FMT(
@@ -1988,7 +2015,11 @@ namespace aft
         }
 
         ledger->put_entry(
-          ds->get_entry(), globally_committable, force_ledger_chunk);
+          ds->get_entry(),
+          globally_committable,
+          force_ledger_chunk,
+          ds->get_term(),
+          ds->get_index());
 
         switch (apply_success)
         {
@@ -2112,7 +2143,11 @@ namespace aft
       }
 
       ledger->put_entry(
-        ds->get_entry(), globally_committable, force_ledger_chunk);
+        ds->get_entry(),
+        globally_committable,
+        force_ledger_chunk,
+        ds->get_term(),
+        ds->get_index());
 
       switch (apply_result)
       {
@@ -3032,6 +3067,7 @@ namespace aft
         replica_state != kv::ReplicaState::Learner;
     }
 
+  public:
     // Called when a replica becomes aware of the existence of a new term
     // If retired already, state remains unchanged, but the replica otherwise
     // becomes a follower in the new term.
@@ -3070,6 +3106,7 @@ namespace aft
       }
     }
 
+  private:
     void become_retiring()
     {
       LOG_INFO_FMT(
@@ -3522,6 +3559,7 @@ namespace aft
       }
     }
 
+  public:
     void rollback(Index idx)
     {
       if (
@@ -3607,6 +3645,7 @@ namespace aft
       }
     }
 
+  private:
     void create_and_remove_node_state()
     {
       // Find all nodes present in any active configuration.

@@ -5,6 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/serialized.h"
+#include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 
 namespace consensus
@@ -33,9 +34,17 @@ namespace consensus
     void put_entry(
       const std::vector<uint8_t>& entry,
       bool globally_committable,
-      bool force_chunk = false)
+      bool force_chunk,
+      kv::Term term,
+      kv::Version index)
     {
-      put_entry(entry.data(), entry.size(), globally_committable, force_chunk);
+      put_entry(
+        entry.data(),
+        entry.size(),
+        globally_committable,
+        force_chunk,
+        term,
+        index);
     }
 
     /**
@@ -53,7 +62,9 @@ namespace consensus
       const uint8_t* data,
       size_t size,
       bool globally_committable,
-      bool force_chunk = false)
+      bool force_chunk,
+      kv::Term term,
+      kv::Version index)
     {
       CCF_ASSERT_FMT(
         globally_committable || !force_chunk,
