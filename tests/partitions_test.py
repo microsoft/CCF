@@ -12,6 +12,9 @@ from ccf.tx_status import TxStatus
 
 from loguru import logger as LOG
 
+from math import ceil
+from datetime import datetime
+
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -145,6 +148,77 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         assert status == TxStatus.Invalid, r
 
 
+@reqs.description("Add a learner, partition nodes, check that there is no progress")
+def test_learner_does_not_take_part(network, args):
+    primary, backups = network.find_nodes()
+    f_backups = backups[: network.get_f() + 1]
+
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+
+    with network.partitioner.partition(f_backups):
+
+        check_does_not_progress(primary, timeout=5)
+
+        try:
+            network.consortium.trust_node(
+                primary,
+                new_node.node_id,
+                timeout=ceil(args.join_timer * 2 / 1000),
+                valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
+            )
+            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            join_failed = False
+        except Exception:
+            join_failed = True
+
+        if not join_failed:
+            raise Exception("join succeeded unexpectedly")
+
+        with new_node.client(self_signed_ok=True) as c:
+            r = c.get("/node/network/nodes/self")
+            assert r.body.json()["status"] == "Learner"
+            r = c.get("/node/consensus")
+            assert new_node.node_id in r.body.json()["details"]["learners"]
+
+        # New node joins, but cannot be promoted to TRUSTED without f other backups
+
+        check_does_not_progress(primary, timeout=5)
+
+        with new_node.client(self_signed_ok=True) as c:
+            r = c.get("/node/network/nodes/self")
+            assert r.body.json()["status"] == "Learner"
+            r = c.get("/node/consensus")
+            assert new_node.node_id in r.body.json()["details"]["learners"]
+
+    network.wait_for_primary_unanimity()
+    primary, _ = network.find_nodes()
+    network.wait_for_all_nodes_to_commit(primary=primary)
+    check_can_progress(primary)
+
+
+def run_2tx_reconfig_tests(args):
+    if not args.include_2tx_reconfig:
+        return
+
+    local_args = args
+
+    if args.reconfiguration_type != "2tx":
+        local_args.reconfiguration_type = "2tx"
+
+    with infra.network.network(
+        local_args.nodes,
+        local_args.binary_dir,
+        local_args.debug_nodes,
+        local_args.perf_nodes,
+        pdb=local_args.pdb,
+        init_partitioner=True,
+    ) as network:
+        network.start_and_join(local_args)
+
+        test_learner_does_not_take_part(network, local_args)
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
 
@@ -168,8 +242,16 @@ def run(args):
 
 if __name__ == "__main__":
 
-    args = infra.e2e_args.cli_args()
+    def add(parser):
+        parser.add_argument(
+            "--include-2tx-reconfig",
+            help="Include tests for the 2-transaction reconfiguration scheme",
+            action="store_true",
+        )
+
+    args = infra.e2e_args.cli_args(add)
     args.package = "samples/apps/logging/liblogging"
 
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)
+    run_2tx_reconfig_tests(args)

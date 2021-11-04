@@ -624,16 +624,20 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  # Higher snapshot interval as the test currently assumes that no transactions
+  # are emitted while partitions are up. To be removed when
+  # https://github.com/microsoft/CCF/issues/2577 is implemented
+  set(PARTITIONS_TEST_ARGS --snapshot-tx-interval 10000)
+  if(ENABLE_2TX_RECONFIG)
+    list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
+  endif()
   add_e2e_test(
     NAME partitions_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
     LABEL partitions
     CONFIGURATIONS partitions
-    # Higher snapshot interval as the test currently assumes that no
-    # transactions are emitted while partitions are up. To be removed when
-    # https://github.com/microsoft/CCF/issues/2577 is implemented
-    ADDITIONAL_ARGS --snapshot-tx-interval 10000
+    ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
   )
 
   if(NOT SAN)
@@ -699,11 +703,15 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
+  set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
+  if(ENABLE_2TX_RECONFIG)
+    list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
+  endif()
   add_e2e_test(
     NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
   )
 
   add_e2e_test(
