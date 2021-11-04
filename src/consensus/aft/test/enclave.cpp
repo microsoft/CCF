@@ -26,7 +26,7 @@ TEST_CASE("Enclave put")
   bool globally_committable = false;
   bool force_ledger_chunk = false;
   const std::vector<uint8_t> tx = {'a', 'b', 'c'};
-  enclave.put_entry(tx, globally_committable, force_ledger_chunk);
+  enclave.put_entry(tx, globally_committable, force_ledger_chunk, 1, 1);
   size_t num_msgs = 0;
   eio.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
@@ -84,7 +84,8 @@ TEST_CASE("Enclave record")
   serialized::write(tx_, size_, entry_header);
   serialized::write(tx_, size_, entry.data(), entry.size());
 
-  leader_ledger_enclave.put_entry(tx, globally_committable, force_ledger_chunk);
+  leader_ledger_enclave.put_entry(
+    tx, globally_committable, force_ledger_chunk, 1, 1);
   size_t num_msgs = 0;
   std::vector<uint8_t> record;
   eio_leader.read_from_inside().read(
@@ -109,7 +110,7 @@ TEST_CASE("Enclave record")
 
   num_msgs = 0;
   follower_ledger_enclave.put_entry(
-    record, globally_committable, force_ledger_chunk);
+    record, globally_committable, force_ledger_chunk, 1, 2);
   eio_follower.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)

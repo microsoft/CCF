@@ -13,6 +13,9 @@ using TRaft =
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
+using SigStore = aft::LoggingStubStoreSig;
+using SigAdaptor = aft::Adaptor<SigStore>;
+
 static std::vector<uint8_t> cert;
 
 static const auto request_timeout = std::chrono::milliseconds(10);
@@ -41,9 +44,7 @@ static void receive_message(
       // Parse the indices to be sent to the recipient.
       auto ae = *(aft::AppendEntries*)data;
 
-      TRaft* ps = &sender;
-      const auto payload_opt =
-        sender.ledger->get_append_entries_payload(ae, ps);
+      const auto payload_opt = sender.ledger->get_append_entries_payload(ae);
       if (payload_opt.has_value())
       {
         contents.insert(
