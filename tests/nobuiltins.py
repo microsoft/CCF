@@ -11,15 +11,6 @@ import ccf.commit
 def test_nobuiltins_endpoints(network, args):
     primary, backups = network.find_nodes()
     with primary.client() as c:
-        # The rest of this test assumes the network's commit index is stable. This may
-        # not be true yet, as the setup transactions may not have committed. Do a fresh
-        # read to find the latest TxID, and wait for that to commit, before proceeding.
-        r = c.get("/node/network")
-        assert r.status_code == HTTPStatus.OK
-        assert r.view is not None
-        assert r.seqno is not None
-        ccf.commit.wait_for_commit(c, seqno=r.seqno, view=r.view, timeout=3)
-
         r = c.get("/app/commit")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
@@ -28,8 +19,8 @@ def test_nobuiltins_endpoints(network, args):
         r = c.get("/app/node_summary")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
-        assert body_j["committed_view"] == tx_id.view
-        assert body_j["committed_seqno"] == tx_id.seqno
+        assert body_j["committed_view"] >= tx_id.view
+        assert body_j["committed_seqno"] >= tx_id.seqno
         assert body_j["quote_format"] == "OE_SGX_v1"
         assert body_j["node_id"] == primary.node_id
 
