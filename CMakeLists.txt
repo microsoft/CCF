@@ -93,7 +93,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.enclave PUBLIC quickjs.enclave ccfcrypto.enclave http_parser.enclave
-                       aft.enclave sss.enclave ccf_endpoints.enclave
+                       sss.enclave ccf_endpoints.enclave
   )
 
   enable_quote_code(ccf.enclave)
@@ -139,7 +139,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            ccfcrypto.host
            http_parser.host
            quickjs.host
-           aft.virtual
            sss.host
            ccf_endpoints.host
            openenclave::oehost
@@ -300,12 +299,6 @@ if(BUILD_TESTS)
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
     target_link_libraries(history_test PRIVATE ccfcrypto.host http_parser.host)
-
-    add_unit_test(
-      progress_tracker_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
-    )
-    target_link_libraries(progress_tracker_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       secret_sharing_test

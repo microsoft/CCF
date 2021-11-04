@@ -1946,10 +1946,6 @@ namespace ccf
       setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
 
-      auto request_tracker = std::make_shared<aft::RequestTracker>();
-      auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
-        tracker_store,
-        std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
 
       std::shared_ptr<ccf::SplitIdentityResharingTracker> resharing_tracker;
@@ -1983,9 +1979,6 @@ namespace ccf
         rpcsessions,
         rpc_map,
         shared_state,
-        std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
-        request_tracker,
-        std::move(view_change_tracker),
         std::move(resharing_tracker),
         node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
@@ -1999,7 +1992,6 @@ namespace ccf
         std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
-      cmd_forwarder->set_request_tracker(request_tracker);
 
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
