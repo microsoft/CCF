@@ -14,7 +14,7 @@
 #include "enclave/enclave_time.h"
 #include "entities.h"
 #include "node_types.h"
-#include "tls/key_exchange.h"
+#include "crypto/key_exchange.h"
 
 #include <iostream>
 #include <map>
