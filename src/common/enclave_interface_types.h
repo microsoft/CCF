@@ -32,7 +32,10 @@ enum CreateNodeStatus
   OEAttesterInitFailed = 8,
 
   /** OpenSSL RDRAND Init Failed */
-  OpenSSLRDRANDInitFailed = 9
+  OpenSSLRDRANDInitFailed = 9,
+
+  /** The reconfiguration method is not supported */
+  ReconfigurationMethodNotSupported = 10
 };
 
 constexpr char const* create_node_result_to_str(CreateNodeStatus result)
@@ -78,6 +81,10 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     case CreateNodeStatus::OpenSSLRDRANDInitFailed:
     {
       return "OpenSSLRDRANDInitFailed";
+    }
+    case CreateNodeStatus::ReconfigurationMethodNotSupported:
+    {
+      return "ReconfigurationMethodNotSupported";
     }
     default:
     {

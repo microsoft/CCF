@@ -62,7 +62,8 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo,
     service_status,
-    endorsed_certificate)
+    endorsed_certificate,
+    reconfiguration_type)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status)
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -146,8 +147,4 @@ namespace ccf
 
   DECLARE_JSON_TYPE(UpdateResharing::In)
   DECLARE_JSON_REQUIRED_FIELDS(UpdateResharing::In, rid)
-
-  DECLARE_JSON_TYPE(ObservedReconfigurationCommit::In)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    ObservedReconfigurationCommit::In, from, reconfiguration_id)
 }

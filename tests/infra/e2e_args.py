@@ -362,6 +362,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
         default=365,
     )
+    parser.add_argument(
+        "--reconfiguration-type",
+        help="Reconfiguration type",
+        default="1tx",
+        choices=("1tx", "2tx"),
+    )
 
     add(parser)
 
