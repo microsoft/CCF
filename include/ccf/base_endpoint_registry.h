@@ -86,7 +86,7 @@ namespace ccf
      * Note that this value is the node's local understanding of the status
      * of that transaction in the network at call time. For a given TxID, the
      * initial status is always UNKNOWN, and eventually becomes COMMITTED or
-     * INVALID. See the documentation section entitled "Verifying Transactions"
+     * INVALID. See the documentation section titled "Verifying Transactions"
      * for more detail.
      *
      *         UNKNOWN [Initial status]
