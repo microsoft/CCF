@@ -6,7 +6,7 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/ccf-app" # Location of package manifests
+    directory: "/js/ccf-app" # Location of package manifests
     schedule:
       interval: "daily"
 
