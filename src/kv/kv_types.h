@@ -95,6 +95,11 @@ namespace kv
         hostname(hostname_),
         port(port_)
       {}
+
+      bool operator==(const NodeInfo& other) const
+      {
+        return hostname == other.hostname && port == other.port;
+      }
     };
 
     using Nodes = std::map<NodeId, NodeInfo>;
@@ -173,7 +178,8 @@ namespace kv
     virtual void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {}) = 0;
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retired_nodes = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;

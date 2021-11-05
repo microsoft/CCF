@@ -16,6 +16,7 @@
 #include "kv/kv_types.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
+#include "reconfiguration_type.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -64,6 +65,7 @@ struct CCFConfig
     std::string constitution;
     size_t recovery_threshold;
     size_t max_allowed_node_cert_validity_days;
+    ReconfigurationType reconfiguration_type;
   };
   Genesis genesis = {};
 
@@ -94,7 +96,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   members_info,
   constitution,
   recovery_threshold,
-  max_allowed_node_cert_validity_days);
+  max_allowed_node_cert_validity_days,
+  reconfiguration_type);
 
 DECLARE_JSON_TYPE(CCFConfig::Joining);
 DECLARE_JSON_REQUIRED_FIELDS(

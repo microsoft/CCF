@@ -4,6 +4,7 @@
 
 #include "ccf/entity_id.h"
 #include "crypto/hash_provider.h"
+#include "crypto/key_exchange.h"
 #include "crypto/key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
@@ -14,7 +15,6 @@
 #include "enclave/enclave_time.h"
 #include "entities.h"
 #include "node_types.h"
-#include "tls/key_exchange.h"
 
 #include <iostream>
 #include <map>
