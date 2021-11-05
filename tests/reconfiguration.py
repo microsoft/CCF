@@ -8,6 +8,7 @@ import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
 import os
+import time
 import ccf.ledger
 import json
 import infra.crypto
@@ -36,6 +37,33 @@ def count_nodes(configs, network):
         nodes_in_config = set(node_config.keys()) - stopped
         assert nodes == nodes_in_config, f"{nodes} {nodes_in_config} {node_id}"
     return len(nodes)
+
+
+def wait_for_reconfiguration_to_complete(network, timeout=10):
+    max_num_configs = 0
+    max_rid = 0
+    all_same_rid = False
+    end_time = time.time() + timeout
+    while max_num_configs > 1 or not all_same_rid:
+        max_num_configs = 0
+        all_same_rid = True
+        for node in network.nodes:
+            with node.client(self_signed_ok=True) as c:
+                try:
+                    r = c.get("/node/consensus")
+                    rj = r.body.json()
+                    cfgs = rj["details"]["configs"]
+                    num_configs = len(cfgs)
+                    max_num_configs = max(max_num_configs, num_configs)
+                    if num_configs == 1 and cfgs[0]["rid"] != max_rid:
+                        max_rid = max(max_rid, cfgs[0]["rid"])
+                        all_same_rid = False
+                except Exception as ex:
+                    # OK, retiring node may be gone or a joining node may not be ready yet
+                    LOG.info(f"expected RPC failure because of: {ex}")
+        LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
+        if time.time() > end_time:
+            raise Exception("Reconfiguration did not complete in time")
 
 
 @reqs.description("Adding a valid node without snapshot")
@@ -189,6 +217,9 @@ def test_add_as_many_pending_nodes(network, args):
 
     for new_node in new_nodes:
         network.retire_node(primary, new_node)
+
+    wait_for_reconfiguration_to_complete(network)
+
     return network
 
 
@@ -201,6 +232,7 @@ def test_retire_backup(network, args):
     network.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
     check_can_progress(primary)
+    wait_for_reconfiguration_to_complete(network)
     return network
 
 
@@ -219,6 +251,7 @@ def test_retire_primary(network, args):
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
     primary.stop()
+    wait_for_reconfiguration_to_complete(network)
     return network
 
 
@@ -352,6 +385,7 @@ def test_join_straddling_primary_replacement(network, args):
 
     primary.stop()
     network.nodes.remove(primary)
+    wait_for_reconfiguration_to_complete(network)
     return network
 
 
@@ -388,6 +422,8 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
 
     assert not retiring_nodes, (retiring_nodes, retired_nodes)
     LOG.info("{} nodes retired throughout test", len(retired_nodes))
+
+    wait_for_reconfiguration_to_complete(network)
 
     return network
 
