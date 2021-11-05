@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - DNS resolution of client connections is now asynchronous.
 
+### Fixed
+
+- Fixed issue with join nodes which could get stuck if an election was triggered while catching up (#3169).
+
 ## [2.0.0-dev5]
 
 ### Added
