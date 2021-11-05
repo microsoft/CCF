@@ -3,9 +3,7 @@
 
 /**
  * The `consensus` module provides access to consensus information
- * as observed by the local node. While the information will converge
- * on all nodes in a healthy network, it is derived from distributed
- * state rather than distributed itself.
+ * as observed by the local node.
  *
  * @module
  */

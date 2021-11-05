@@ -163,7 +163,7 @@ namespace aft
     kv::Version new_view_idx;
     std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
 
-    // When running with BFT replicas do not know which replica to trust as the
+    // When running with BFT, replicas do not know which replica to trust as the
     // primary during recovery startup. So what we do is just trust the first
     // replica that communicated with the replica in the view that it told us is
     // correct. This is a liveness issue if there is a failure during recovery
