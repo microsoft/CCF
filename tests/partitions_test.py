@@ -196,7 +196,6 @@ def test_new_joiner_helps_liveness(network, args):
 
     # Explicitly drop rules before continuing
     minority_rules.drop()
-    new_joiner_rules.drop()
 
     network.wait_for_primary_unanimity()
     primary, _ = network.find_nodes()
@@ -288,12 +287,12 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_invalid_partitions(network, args)
-        # test_partition_majority(network, args)
-        # test_isolate_primary_from_one_backup(network, args)
+        test_invalid_partitions(network, args)
+        test_partition_majority(network, args)
+        test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
-        # for n in range(5):
-        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":
