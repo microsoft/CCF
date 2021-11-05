@@ -78,8 +78,8 @@
   },
   "start":
   {
-    "members": [],
-    "constitution_files": [],
+    "members": {{ members_info|tojson or [] }},
+    "constitution_files": {{ constitution|tojson }},
     "service_configuration":
     {
       "recovery_threshold": 0,

@@ -591,6 +591,8 @@ class CCFRemote(object):
         Run a ccf binary on a remote host.
         """
 
+        members_info = kwargs.get("members_info")
+
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id

@@ -723,12 +723,15 @@ int main(int argc, char** argv)
   process_launcher.register_message_handlers(bp.get_dispatcher());
 
   {
+    // provide regular ticks to the enclave
+    const std::chrono::milliseconds tick_period(tick_period_ms);
+    asynchost::Ticker ticker(tick_period, writer_factory);
+
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
 
     // regularly update the time given to the enclave
-    const std::chrono::milliseconds tick_period(config.tick_period_ms);
-    asynchost::TimeUpdater time_updater(tick_period);
+    asynchost::TimeUpdater time_updater(1ms);
 
     // regularly record some load statistics
     asynchost::LoadMonitor load_monitor(500ms, bp);

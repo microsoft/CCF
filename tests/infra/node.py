@@ -229,7 +229,7 @@ class Node:
         common_dir,
         target_rpc_address=None,
         snapshot_dir=None,
-        members_info=None,
+        members_info=[],
         **kwargs,
     ):
         """

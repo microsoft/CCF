@@ -10,7 +10,6 @@ import http
 import os
 import base64
 import json
-from typing import NamedTuple, Optional
 
 from loguru import logger as LOG
 
@@ -30,10 +29,11 @@ class MemberStatus(Enum):
     ACTIVE = "Active"
 
 
-class MemberInfo(NamedTuple):
-    certificate_file: str
-    encryption_pub_key_file: Optional[str]
-    member_data_file: Optional[str]
+# TODO: Remove!
+# class MemberInfo(NamedTuple):
+#     certificate_file: str
+#     encryption_pub_key_file: Optional[str]
+#     member_data_file: Optional[str]
 
 
 class Member:
@@ -57,10 +57,19 @@ class Member:
         self.is_retired = False
         self.authenticate_session = authenticate_session
 
-        self.member_info = MemberInfo(
-            f"{self.local_id}_cert.pem",
-            f"{self.local_id}_enc_pubk.pem" if is_recovery_member else None,
-            f"{self.local_id}_data.json" if member_data else None,
+        self.member_info = {}
+        self.member_info["certificate_file"] = os.path.join(
+            common_dir, f"{self.local_id}_cert.pem"
+        )
+        self.member_info["encryption_public_key_file"] = (
+            os.path.join(common_dir, f"{self.local_id}_enc_pubk.pem")
+            if is_recovery_member
+            else None
+        )
+        self.member_info["data_json_file"] = (
+            os.path.join(common_dir, f"{self.local_id}_data.json")
+            if member_data
+            else None
         )
 
         if key_generator is not None:
@@ -101,7 +110,7 @@ class Member:
                 json.dump(member_data, md)
 
         with open(
-            os.path.join(self.common_dir, self.member_info.certificate_file),
+            os.path.join(self.common_dir, self.member_info["certificate_file"]),
             encoding="utf-8",
         ) as c:
             self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
