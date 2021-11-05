@@ -97,7 +97,6 @@
       }
     ]
   },
-
   "join":
   {
     "join_timer_ms": 1000,

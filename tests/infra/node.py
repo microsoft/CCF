@@ -150,7 +150,6 @@ class Node:
 
         self.node_host = self.rpc_host
         self.node_port = node_port
-        LOG.error(node_port)
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
@@ -191,7 +190,6 @@ class Node:
         workspace,
         label,
         common_dir,
-        target_rpc_address,
         snapshot_dir,
         **kwargs,
     ):
@@ -202,7 +200,6 @@ class Node:
             workspace,
             label,
             common_dir,
-            target_rpc_address=target_rpc_address,
             snapshot_dir=snapshot_dir,
             **kwargs,
         )

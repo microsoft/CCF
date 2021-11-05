@@ -815,7 +815,7 @@ class CCFRemote(object):
 
         self.remote = remote_class(
             self.name,
-            kwargs.get("public_rpc_address"),
+            kwargs.get("public_rpc_address_hostname"),
             exe_files,
             data_files,
             cmd,

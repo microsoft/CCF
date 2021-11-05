@@ -20,7 +20,7 @@
   "client_connection_timeout_ms": {{ client_connection_timeout_ms or 2000}},
   "logging":
   {
-    "host_log_level": "info",
+    "host_log_level": "debug",
     "log_format_json": false
   },
   "intervals":
@@ -84,6 +84,15 @@
     {
       "recovery_threshold": 0,
       "max_allowed_node_cert_validity_days": 365
+    }
+  },
+  "join":
+  {
+    "join_timer_ms": {{ join_timer }},
+    "target_rpc_address":
+    {
+      "hostname": "{{ target_rpc_address_hostname }}",
+      "port": "{{ target_rpc_address_port }}"
     }
   }
 }
