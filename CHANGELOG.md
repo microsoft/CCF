@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed issue with new node startup which could get stuck if an election was triggered while catching up (#3169).
+- Fixed issue with join nodes which could get stuck if an election was triggered while catching up (#3169).
 
 ## [2.0.0-dev5]
 

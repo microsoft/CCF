@@ -27,6 +27,9 @@ namespace ccf
 
     // Set once when the LedgerSecrets are initialised. This prevents a backup
     // node to rollback not-yet-applicable ledger secrets when catching up.
+    // All rollback that would result in the removal of some of these secrets
+    // would imply that the transaction that added the node itself was rolled
+    // back.
     kv::Version initial_latest_ledger_secret_version = 0;
 
     std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
