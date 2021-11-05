@@ -24,6 +24,13 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_entry),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_no_entry),
 
+    /// Request range of ledger entries. Enclave -> Host
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_get_range),
+
+    /// Respond to ledger_get_range. Host -> Enclave
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_entry_range),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_no_entry_range),
+
     /// Modify the local ledger. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_append),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
@@ -47,6 +54,24 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_no_entry,
   consensus::Index,
   consensus::LedgerRequestPurpose);
+
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_get_range,
+  consensus::Index,
+  consensus::Index,
+  consensus::LedgerRequestPurpose);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_entry_range,
+  consensus::Index,
+  consensus::Index,
+  consensus::LedgerRequestPurpose,
+  std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_no_entry_range,
+  consensus::Index,
+  consensus::Index,
+  consensus::LedgerRequestPurpose);
+
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_init, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_append,
