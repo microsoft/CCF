@@ -2800,17 +2800,6 @@ namespace aft
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
-      // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
-      {
-        LOG_FAIL_FMT(
-          "Recv request vote to {} from {}: unknown node",
-          state->my_node_id,
-          from);
-        return;
-      }
-
       if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
