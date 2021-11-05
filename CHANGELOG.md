@@ -10,10 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Azure pipelines now launches Docker images with correct arguments to create SGX enclaves on the latest kernel.
-- Fixed issue where a new joiner could attempt to call an election before observing itself in an active configuration.
 
 ### Fixed
 
+- Fixed issue where a new joiner could attempt to call an election before observing itself in an active configuration.
 - Removed erroneous "Start command should be start|join|recover" message on node startup.
 
 ## [1.0.14]
