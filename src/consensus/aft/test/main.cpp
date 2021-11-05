@@ -48,6 +48,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     ms(10),
     election_timeout,
     ms(1000));
+  r0.start_ticking();
 
   kv::Configuration::Nodes config;
   config.try_emplace(node_id);
@@ -100,6 +101,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
   DOCTEST_INFO("Become leader after election timeout");
 
+  r0.start_ticking();
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(r0.is_primary());
 
@@ -196,6 +198,7 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_INFO("Node 0 exceeds its election timeout and starts an election");
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
   DOCTEST_REQUIRE(
     ((aft::ChannelStubProxy*)r0.channels.get())->sent_request_vote.size() == 2);
@@ -409,6 +412,7 @@ DOCTEST_TEST_CASE(
   nodes[node_id1] = &r1;
   nodes[node_id2] = &r2;
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_INFO("Send request_votes to other nodes");
@@ -600,6 +604,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_REQUIRE(
@@ -756,6 +761,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_INFO("Initial election");
@@ -1005,6 +1011,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
+  r0.start_ticking();
   r0.periodic(std::chrono::milliseconds(200));
 
   DOCTEST_REQUIRE(

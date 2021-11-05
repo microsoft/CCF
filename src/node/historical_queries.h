@@ -61,7 +61,8 @@ namespace ccf::historical
 
       LedgerSecretRecoveryInfo(
         ccf::SeqNo target_seqno_, LedgerSecretPtr last_ledger_secret_) :
-        target_seqno(target_seqno_), last_ledger_secret(last_ledger_secret_)
+        target_seqno(target_seqno_),
+        last_ledger_secret(last_ledger_secret_)
       {}
     };
 
@@ -459,11 +460,13 @@ namespace ccf::historical
             const auto result = request.populate_receipts(seqno);
             switch (result)
             {
-              case (Request::PopulateReceiptsResult::Continue): {
+              case (Request::PopulateReceiptsResult::Continue):
+              {
                 ++request_it;
                 break;
               }
-              case (Request::PopulateReceiptsResult::FetchNext): {
+              case (Request::PopulateReceiptsResult::FetchNext):
+              {
                 const auto next_seqno = seqno + 1;
                 fetch_entry_at(next_seqno);
                 request.supporting_signature =

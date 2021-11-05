@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Fixed issue where a new joiner could attempt to call an election before observing itself in an active configuration.
 - Removed erroneous "Start command should be start|join|recover" message on node startup.
 - Fixed issue with join nodes which could get stuck if an election was triggered while catching up (#3169).
 

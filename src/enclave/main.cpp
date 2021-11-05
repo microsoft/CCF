@@ -149,7 +149,11 @@ extern "C"
     try
     {
       enclave = new enclave::Enclave(
-        ec, cc.signature_intervals, consensus_type, cc.consensus_config, cc.curve_id);
+        ec,
+        cc.signature_intervals,
+        consensus_type,
+        cc.consensus_config,
+        cc.curve_id);
     }
     catch (const ccf::ccf_oe_attester_init_error&)
     {

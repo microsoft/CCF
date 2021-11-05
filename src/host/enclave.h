@@ -59,7 +59,8 @@ namespace host
      * use OE at all, instead loading a shared library directly
      */
     Enclave(const std::string& path, uint32_t flags) :
-      is_virtual_enclave(false), e(nullptr)
+      is_virtual_enclave(false),
+      e(nullptr)
     {
       if (flags == ENCLAVE_FLAG_VIRTUAL)
       {
