@@ -172,17 +172,15 @@ def test_new_joiner_helps_liveness(network, args):
     )
 
     # Trust the new node, and wait for commit of this
-    network.trust_node(
-        new_node,
-        args,
-        no_wait=True
-    )
+    network.trust_node(new_node, args, no_wait=True)
     check_can_progress(primary)
 
     # Partition the primary, temporarily creating a minority service that cannot make progress
     minority_partition = backups[len(backups) // 2 :] + new_joiner_partition
     minority_rules = network.partitioner.partition(minority_partition)
-    time.sleep(network.observed_election_duration) # Ensure this node has become primary
+    time.sleep(
+        network.observed_election_duration
+    )  # Ensure this node has become primary
     with backups[0].client("user0") as c:
         r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
