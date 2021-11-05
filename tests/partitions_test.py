@@ -171,7 +171,7 @@ def test_new_joiner_helps_liveness(network, args):
         [primary, *backups], new_joiner_partition
     )
 
-    # Trust the new node, and wait for commit of this
+    # Trust the new node, and wait for commit of this (but don't ask the new node itself, which doesn't know this yet)
     network.trust_node(new_node, args, no_wait=True)
     check_can_progress(primary)
 
