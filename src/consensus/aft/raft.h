@@ -2800,6 +2800,13 @@ namespace aft
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
+      // Do not check that from is a known node. It is possible to receive
+      // RequestVotes from nodes that this node doesn't yet know, just as it
+      // receives AppendEntries from those nodes. These should be obeyed just
+      // like any other RequestVote - it is possible that this node is needed to
+      // produce a primary in the new term, who will then help this node catch
+      // up.
+
       if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
