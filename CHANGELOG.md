@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Added support for 2-transaction reconfiguration with CFT consensus (#3097), see [documentation](https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration).
+
 ### Changed
 
 - DNS resolution of client connections is now asynchronous.

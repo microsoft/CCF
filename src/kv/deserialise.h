@@ -109,7 +109,8 @@ namespace kv
           changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) == changes.end())
         {
           LOG_FAIL_FMT("Failed to deserialise");
-          LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
+          LOG_DEBUG_FMT(
+            "Unexpected contents in signature transaction {}", version);
           return ApplyResult::FAIL;
         }
 
@@ -118,7 +119,8 @@ namespace kv
           if (!history->verify(&term))
           {
             LOG_FAIL_FMT("Failed to deserialise");
-            LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+            LOG_DEBUG_FMT(
+              "Signature in transaction {} failed to verify", version);
             return ApplyResult::FAIL;
           }
         }
