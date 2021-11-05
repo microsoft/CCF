@@ -3089,7 +3089,10 @@ namespace aft
         rollback(last_committable_index());
       }
 
-      if (!is_retiring() && !is_retired())
+      if (
+        !is_retired() &&
+        !(is_retiring() && retirement_idx.has_value() &&
+          retirement_idx.value() <= state->commit_idx))
       {
         is_new_follower = true;
 
@@ -3097,7 +3100,10 @@ namespace aft
         {
           replica_state = kv::ReplicaState::Follower;
           LOG_INFO_FMT(
-            "Becoming follower {}: {}", state->my_node_id, state->current_view);
+            "Becoming follower {}: {}.{}",
+            state->my_node_id,
+            state->current_view,
+            state->commit_idx);
         }
       }
     }
