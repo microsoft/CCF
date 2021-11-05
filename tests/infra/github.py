@@ -15,10 +15,6 @@ from setuptools.extern.packaging.version import Version  # type: ignore
 from loguru import logger as LOG
 
 
-# Optional. May be useful to avoid GitHub's low rate limits for unauthenticated clients
-# https://docs.github.com/en/rest/reference/rate-limit
-ENV_VAR_GITHUB_AUTH_TOKEN_NAME = "LTS_COMPATIBILITY_GH_TOKEN"
-
 REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"
