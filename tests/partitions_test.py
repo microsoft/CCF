@@ -183,9 +183,12 @@ def test_new_joiner_helps_liveness(network, args):
         minority_rules = stack.enter_context(
             network.partitioner.partition(minority_partition)
         )
-        time.sleep(
-            network.observed_election_duration
-        )  # Ensure this node has become primary
+        # This is an unusual situation, where we've actually produced a dead partitioned node.
+        # Initially any write requests will timeout (failed attempt at forwarding), and then
+        # the node transitions to a candidate with nobody to talk to. Rather than trying to
+        # catch the errors of these states quickly, we just sleep until the latter state is
+        # reached, and then confirm it was reached.
+        time.sleep(network.observed_election_duration)
         with backups[0].client("user0") as c:
             r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
