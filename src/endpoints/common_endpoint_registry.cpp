@@ -192,7 +192,8 @@ namespace ccf
           fmt::format("Error code: {}", ccf::api_result_to_str(result)));
       }
     };
-    make_endpoint("/api", HTTP_GET, json_adapter(openapi), no_auth_required)
+    make_read_only_endpoint(
+      "/api", HTTP_GET, json_read_only_adapter(openapi), no_auth_required)
       .set_auto_schema<void, GetAPI::Out>()
       .install();
 
