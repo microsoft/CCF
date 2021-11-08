@@ -616,8 +616,7 @@ if __name__ == "__main__":
         reconfiguration_type="1tx",
     )
 
-    # Turned off while #3184 is in progress
-    if cr.args.include_2tx_reconfig and False:
+    if cr.args.include_2tx_reconfig:
         cr.add(
             "2tx_reconfig",
             run,
