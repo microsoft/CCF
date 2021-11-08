@@ -298,6 +298,12 @@ if(BUILD_TESTS)
     target_link_libraries(crypto_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
+      key_exchange_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/key_exchange.cpp
+    )
+    target_link_libraries(key_exchange_test PRIVATE)
+
+    add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
     target_link_libraries(history_test PRIVATE ccfcrypto.host http_parser.host)
@@ -348,12 +354,6 @@ if(BUILD_TESTS)
 
     add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
     target_link_libraries(cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
-    add_unit_test(
-      key_exchange_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
-    )
-    target_link_libraries(key_exchange_test PRIVATE)
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
@@ -631,6 +631,7 @@ if(BUILD_TESTS)
   if(ENABLE_2TX_RECONFIG)
     list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
   endif()
+
   add_e2e_test(
     NAME partitions_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py

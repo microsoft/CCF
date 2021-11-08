@@ -25,6 +25,13 @@ namespace ccf
     std::mutex lock;
     LedgerSecretsMap ledger_secrets;
 
+    // Set once when the LedgerSecrets are initialised. This prevents a backup
+    // node to rollback not-yet-applicable ledger secrets when catching up.
+    // All rollback that would result in the removal of some of these secrets
+    // would imply that the transaction that added the node itself was rolled
+    // back.
+    kv::Version initial_latest_ledger_secret_version = 0;
+
     std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
       std::nullopt;
 
@@ -105,6 +112,7 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
 
       ledger_secrets.emplace(initial_version, make_ledger_secret());
+      initial_latest_ledger_secret_version = initial_version;
     }
 
     void init_from_map(LedgerSecretsMap&& ledger_secrets_)
@@ -115,6 +123,7 @@ namespace ccf
         ledger_secrets.empty(), "Should only init an empty LedgerSecrets");
 
       ledger_secrets = std::move(ledger_secrets_);
+      initial_latest_ledger_secret_version = ledger_secrets.rbegin()->first;
     }
 
     void adjust_previous_secret_stored_version(kv::Version version)
@@ -281,7 +290,9 @@ namespace ccf
       while (ledger_secrets.size() > 1)
       {
         auto k = ledger_secrets.rbegin();
-        if (k->first <= version)
+        if (
+          k->first <= version ||
+          k->first <= initial_latest_ledger_secret_version)
         {
           break;
         }
@@ -290,8 +301,9 @@ namespace ccf
         ledger_secrets.erase(k->first);
       }
 
-      // Assume that the next operation will use the first non-rollbacked secret
-      last_used_secret_it = std::prev(ledger_secrets.end());
+      // Invalidate last used ledger secret iterator. Next key usage will need
+      // to find the appropriate key on the slow path.
+      last_used_secret_it = std::nullopt;
     }
   };
 }
