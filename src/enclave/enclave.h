@@ -302,7 +302,7 @@ namespace enclave
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
                 context->historical_state_cache->handle_ledger_entry(
-                  index, body);
+                  index, std::move(body));
                 break;
               }
               default:
@@ -335,6 +335,28 @@ namespace enclave
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
                 context->historical_state_cache->handle_no_entry(index);
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+              }
+            }
+          });
+
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp,
+          consensus::ledger_entry_range,
+          [this](const uint8_t* data, size_t size) {
+            const auto [from_seqno, to_seqno, purpose, body] =
+              ringbuffer::read_message<consensus::ledger_entry_range>(
+                data, size);
+            switch (purpose)
+            {
+              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              {
+                context->historical_state_cache->handle_ledger_entries(
+                  from_seqno, to_seqno, body);
                 break;
               }
               default:

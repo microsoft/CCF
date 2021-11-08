@@ -146,7 +146,7 @@ namespace ccf::historical
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
-      std::set<ccf::SeqNo> adjust_range(
+      std::set<std::pair<ccf::SeqNo, ccf::SeqNo>> adjust_range(
         ccf::SeqNo start_seqno,
         size_t num_following_indices,
         bool should_include_receipts)
@@ -160,7 +160,9 @@ namespace ccf::historical
           return {};
         }
 
-        std::set<ccf::SeqNo> ret;
+        std::set<std::pair<ccf::SeqNo, ccf::SeqNo>> ret;
+        std::optional<std::pair<ccf::SeqNo, ccf::SeqNo>> current_range =
+          std::nullopt;
         std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
         for (auto seqno = start_seqno; seqno <=
              static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
@@ -169,13 +171,32 @@ namespace ccf::historical
           auto existing_details = get_store_details(seqno);
           if (existing_details == nullptr)
           {
-            ret.insert(seqno);
+            if (current_range.has_value())
+            {
+              if (current_range->second + 1 == seqno)
+              {
+                current_range->second = seqno;
+              }
+              else
+              {
+                ret.insert(*current_range);
+                current_range.reset();
+              }
+            }
+            if (!current_range.has_value())
+            {
+              current_range = std::make_pair(seqno, seqno);
+            }
             new_stores[seqno - start_seqno] = std::make_shared<StoreDetails>();
           }
           else
           {
             new_stores[seqno - start_seqno] = std::move(existing_details);
           }
+        }
+        if (current_range.has_value())
+        {
+          ret.insert(*current_range);
         }
 
         requested_stores = std::move(new_stores);
@@ -197,7 +218,7 @@ namespace ccf::historical
             const auto next_seqno = last_requested_seqno + 1;
             supporting_signature =
               std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-            ret.insert(next_seqno);
+            ret.insert(std::make_pair(next_seqno, next_seqno));
           }
         }
 
@@ -350,6 +371,36 @@ namespace ccf::historical
       }
     }
 
+    void fetch_entries_range(ccf::SeqNo from, ccf::SeqNo to)
+    {
+      std::optional<ccf::SeqNo> unfetched_from = std::nullopt;
+      std::optional<ccf::SeqNo> unfetched_to = std::nullopt;
+
+      for (auto seqno = from; seqno <= to; ++seqno)
+      {
+        const auto ib = pending_fetches.insert(seqno);
+        if (ib.second)
+        {
+          if (!unfetched_from.has_value())
+          {
+            unfetched_from = seqno;
+          }
+          unfetched_to = seqno;
+        }
+      }
+
+      if (unfetched_from.has_value())
+      {
+        // Newly requested seqnos
+        RINGBUFFER_WRITE_MESSAGE(
+          consensus::ledger_get_range,
+          to_host,
+          static_cast<consensus::Index>(unfetched_from.value()),
+          static_cast<consensus::Index>(unfetched_to.value()),
+          consensus::LedgerRequestPurpose::HistoricalQuery);
+      }
+    }
+
     std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
       ccf::SeqNo seqno)
     {
@@ -422,12 +473,8 @@ namespace ccf::historical
           {
             // Newly have all required secrets - begin fetching the actual
             // entries
-            for (auto seqno = request.first_requested_seqno;
-                 seqno <= request.last_requested_seqno;
-                 ++seqno)
-            {
-              fetch_entry_at(seqno);
-            }
+            fetch_entries_range(
+              request.first_requested_seqno, request.last_requested_seqno);
           }
 
           // In either case, done with this request, try the next
@@ -584,9 +631,9 @@ namespace ccf::historical
         // If we have sufficiently early secrets, begin fetching any newly
         // requested entries. If we don't fall into this branch, they'll only
         // begin to be fetched once the secret arrives.
-        for (const auto new_seqno : new_indices)
+        for (const auto& [from, to] : new_indices)
         {
-          fetch_entry_at(new_seqno);
+          fetch_entries_range(from, to);
         }
       }
 
@@ -749,7 +796,12 @@ namespace ccf::historical
       return erased_count > 0;
     }
 
-    bool handle_ledger_entry(ccf::SeqNo seqno, const LedgerEntry& data)
+    bool handle_ledger_entry(ccf::SeqNo seqno, const std::vector<uint8_t>& data)
+    {
+      return handle_ledger_entry(seqno, data.data(), data.size());
+    }
+
+    bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
     {
       std::lock_guard<std::mutex> guard(requests_lock);
       const auto it = pending_fetches.find(seqno);
@@ -797,8 +849,11 @@ namespace ccf::historical
           }
         }
 
+        // TODO: Can we pass data and size here, rather than re-copying?
         deserialise_result =
-          store->deserialize(data, ConsensusType::CFT, public_only)->apply();
+          store
+            ->deserialize({data, data + size}, ConsensusType::CFT, public_only)
+            ->apply();
       }
       catch (const std::exception& e)
       {
@@ -857,10 +912,42 @@ namespace ccf::historical
         "Processing historical store at {} ({})",
         seqno,
         (size_t)deserialise_result);
-      const auto entry_digest = crypto::Sha256Hash(data);
+      const auto entry_digest = crypto::Sha256Hash({data, size});
       process_deserialised_store(store, entry_digest, seqno, is_signature);
 
       return true;
+    }
+
+    bool handle_ledger_entries(
+      ccf::SeqNo from_seqno, ccf::SeqNo to_seqno, const LedgerEntry& data)
+    {
+      return handle_ledger_entries(
+        from_seqno, to_seqno, data.data(), data.size());
+    }
+
+    bool handle_ledger_entries(
+      ccf::SeqNo from_seqno,
+      ccf::SeqNo to_seqno,
+      const uint8_t* data,
+      size_t size)
+    {
+      auto seqno = from_seqno;
+      bool all_accepted = true;
+      while (size > 0)
+      {
+        const auto header =
+          serialized::peek<kv::SerialisedEntryHeader>(data, size);
+        const auto whole_size = header.size + kv::serialised_entry_header_size;
+        all_accepted &= handle_ledger_entry(seqno, data, whole_size);
+        data += whole_size;
+        size -= whole_size;
+        ++seqno;
+      }
+
+      CCF_ASSERT_FMT(
+        seqno == to_seqno + 1,
+        "Ledger entry range doesn't contain claimed entries");
+      return all_accepted;
     }
 
     void handle_no_entry(ccf::SeqNo seqno)
