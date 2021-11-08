@@ -3056,7 +3056,6 @@ namespace aft
     bool can_endorse_primary()
     {
       return replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Retiring &&
         replica_state != kv::ReplicaState::Learner;
     }
 
@@ -3088,7 +3087,7 @@ namespace aft
 
       is_new_follower = true;
 
-      if (can_endorse_primary())
+      if (can_endorse_primary() && replica_state != kv::ReplicaState::Retiring)
       {
         replica_state = kv::ReplicaState::Follower;
         LOG_INFO_FMT(
