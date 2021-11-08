@@ -80,6 +80,17 @@ def at_least_n_nodes(n):
     return ensure_reqs(check)
 
 
+def exactly_n_nodes(n):
+    def check(network, args, *nargs, **kwargs):
+        running_nodes = len(network.get_joined_nodes())
+        if running_nodes != n:
+            raise TestRequirementsNotMet(
+                f"Incorrect number of nodes. Have {running_nodes}, requires exactly {n}"
+            )
+
+    return ensure_reqs(check)
+
+
 def sufficient_recovery_member_count():
     def check(network, args, *nargs, **kwargs):
         if (
