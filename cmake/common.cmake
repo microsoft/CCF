@@ -403,6 +403,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
       js_v8_base.virtual STATIC
       ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
       ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
+      ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
     )
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)
@@ -427,6 +428,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     target_compile_definitions(
       js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
                                      _LIBCPP_HAS_THREAD_API_PTHREAD
+                                     V8_COMPRESS_POINTERS
     )
     set_property(
       TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON

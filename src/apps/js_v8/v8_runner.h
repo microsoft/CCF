@@ -48,7 +48,7 @@ namespace ccf
   {
   public:
     using ModuleLoadCallback =
-      std::function<std::optional<std::string>(const std::string&)>;
+      std::function<std::optional<std::string>(const std::string&, void*)>;
 
     V8Context(V8Isolate& isolate);
     ~V8Context();
@@ -79,7 +79,8 @@ namespace ccf
     ModuleLoadCallback module_load_cb_;
     void* module_load_cb_data_;
 
-    bool do_run(
+    v8::Local<v8::Value> do_run(
+      v8::Local<v8::Context> context,
       const std::string& module_name,
       const std::string& exported_function_name);
 

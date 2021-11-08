@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "v8_runner.h"
+#include "ds/logger.h"
 
 #include <stdexcept>
 #include <sstream>
@@ -19,22 +20,12 @@ namespace ccf
 {
   static std::unique_ptr<v8::Platform> platform = nullptr;
 
-  // TODO this is a runtime assert, change this to a macro instead
-  static void CHECK(bool condition)
-  {
-    if (!condition)
-    {
-      throw std::runtime_error("V8 failed");
-    }
-  }
+  #define CHECK(expr) if (!(expr)) LOG_FATAL_FMT("CHECK failed")
 
-  // TODO this a debug-only assert, change this to a macro instead
-  static void DCHECK(bool condition)
-  {
-    if (!condition)
-    {
-      throw std::runtime_error("V8 failed");
-    }
+  // Extracts a C string from a V8 Utf8Value.
+  // Adapted from v8/samples/shell.cc::ToCString.
+  static const char* ToCString(const v8::String::Utf8Value& value) {
+    return *value ? *value : "<string conversion failed>";
   }
 
   // Adapted from v8/src/d8/d8.cc.
@@ -49,6 +40,50 @@ namespace ccf
     return v8::String::NewFromUtf8(isolate, x).ToLocalChecked();
   }
 
+  // Adapted from v8/samples/shell.cc::ReportException.
+  static void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch) {
+    v8::HandleScope handle_scope(isolate);
+    v8::String::Utf8Value exception(isolate, try_catch->Exception());
+    const char* exception_string = ToCString(exception);
+    v8::Local<v8::Message> message = try_catch->Message();
+    if (message.IsEmpty()) {
+      // V8 didn't provide any extra information about this error; just
+      // print the exception.
+      LOG_INFO_FMT("Throw: {}", exception_string);
+    } else {
+      // Print (filename):(line number): (message).
+      v8::String::Utf8Value filename(isolate,
+                                    message->GetScriptOrigin().ResourceName());
+      v8::Local<v8::Context> context(isolate->GetCurrentContext());
+      const char* filename_string = ToCString(filename);
+      int linenum = message->GetLineNumber(context).FromJust();
+      LOG_INFO_FMT("{}:{}: {}", filename_string, linenum, exception_string);
+      // Print line of source code.
+      v8::String::Utf8Value sourceline(
+          isolate, message->GetSourceLine(context).ToLocalChecked());
+      const char* sourceline_string = ToCString(sourceline);
+      LOG_INFO_FMT("{}", sourceline_string);
+      // Print wavy underline (GetUnderline is deprecated).
+      // int start = message->GetStartColumn(context).FromJust();
+      // for (int i = 0; i < start; i++) {
+      //   LOG_INFO_FMT((stderr, " ");
+      // }
+      // int end = message->GetEndColumn(context).FromJust();
+      // for (int i = start; i < end; i++) {
+      //   fprintf(stderr, "^");
+      // }
+      // fprintf(stderr, "\n");
+      v8::Local<v8::Value> stack_trace_string;
+      if (try_catch->StackTrace(context).ToLocal(&stack_trace_string) &&
+          stack_trace_string->IsString() &&
+          stack_trace_string.As<v8::String>()->Length() > 0) {
+        v8::String::Utf8Value stack_trace(isolate, stack_trace_string);
+        const char* stack_trace_string = ToCString(stack_trace);
+        LOG_INFO_FMT("{}", stack_trace_string);
+      }
+    }
+  }
+
   // Adapted from v8/src/d8/d8.cc.
   static bool IsAbsolutePath(const std::string& path) {
     return path[0] == '/';
@@ -57,9 +92,9 @@ namespace ccf
   // Adapted from v8/d8/d8.cc.
   // Returns the directory part of path, without the trailing '/'.
   static std::string DirName(const std::string& path) {
-    DCHECK(IsAbsolutePath(path));
+    CHECK(IsAbsolutePath(path));
     size_t last_slash = path.find_last_of('/');
-    DCHECK(last_slash != std::string::npos);
+    CHECK(last_slash != std::string::npos);
     return path.substr(0, last_slash);
   }
 
@@ -251,28 +286,37 @@ namespace ccf
     const std::string& module_name,
     const std::string& exported_function_name)
   {
-    if (!do_run(module_name, exported_function_name))
-    {
-      throw std::runtime_error("V8Context::run failed");
-    }
-  }
-
-  bool V8Context::do_run(
-    const std::string& module_name,
-    const std::string& exported_function_name)
-  {
     v8::Isolate::Scope isolate_scope(isolate_);
     v8::HandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = get_context();
     v8::Context::Scope context_scope(context);
     ModuleEmbedderData::Scope embedder_data_scope(context, module_load_cb_, module_load_cb_data_);
+    
+    v8::TryCatch try_catch(isolate_);
+    v8::Local<v8::Value> v = do_run(context, module_name, exported_function_name);
+    if (v.IsEmpty())
+    {
+      ReportException(isolate_, &try_catch);
+      v8::String::Utf8Value exception(isolate_, try_catch.Exception());
+      const char* exception_str = ToCString(exception);
+      throw std::runtime_error(exception_str);
+    }
 
+    // TODO handle return value
+  }
+
+  v8::Local<v8::Value> V8Context::do_run(
+    v8::Local<v8::Context> context,
+    const std::string& module_name,
+    const std::string& exported_function_name)
+  {
+    v8::EscapableHandleScope handle_scope(isolate_);
     v8::Local<v8::Module> module;
     if (!FetchModuleTree(v8::Local<v8::Module>(), context, module_name).ToLocal(&module))
-      return false;
+      return v8::Local<v8::Value>();
 
     if (!exec_module(context, module))
-      return false;
+      return v8::Local<v8::Value>();
 
     v8::Local<v8::Value> ns_val = module->GetModuleNamespace();
     CHECK(ns_val->IsModuleNamespaceObject());
@@ -281,27 +325,25 @@ namespace ccf
     if (!ns->Get(context, v8_str(isolate_, exported_function_name.c_str())).ToLocal(&exported_val))
     {
       isolate_->ThrowError("Could not find exported function");
-      return false;
+      return v8::Local<v8::Value>();
     }
     if (!exported_val->IsFunction())
     {
       isolate_->ThrowError("Exported value is not a function");
-      return false;
+      return v8::Local<v8::Value>();
     }
     v8::Local<v8::Function> exported_function = v8::Local<v8::Function>::Cast(exported_val);
     int argc = 0;
     v8::Local<v8::Value> args[1];
     v8::Local<v8::Value> result;
     if (!exported_function->Call(context, v8::Undefined(isolate_), argc, args).ToLocal(&result))
-      return false;
+      return v8::Local<v8::Value>();
     
     // TODO when is this needed? for async functions only?
     while (v8::platform::PumpMessageLoop(platform.get(), isolate_))
       continue;
     
-    // TODO handle result
-
-    return true;
+    return handle_scope.Escape(result);
   }
 
   // Adapted from v8/src/d8/d8.cc::CompileString.
@@ -382,7 +424,8 @@ namespace ccf
   {
     v8::Isolate* isolate = context->GetIsolate();
     ModuleEmbedderData* d = ModuleEmbedderData::GetFromContext(context);
-    auto source_text = d->module_load_callback(name);
+    CHECK(d->module_load_callback != nullptr);
+    auto source_text = d->module_load_callback(name, d->module_load_callback_data);
     if (!source_text)
     {
       return v8::MaybeLocal<v8::String>();
@@ -398,7 +441,7 @@ namespace ccf
     v8::Local<v8::Context> context,
     const std::string& file_name)
   {
-    DCHECK(IsAbsolutePath(file_name));
+    CHECK(IsAbsolutePath(file_name));
     v8::Isolate* isolate = context->GetIsolate();
     ModuleEmbedderData* d = ModuleEmbedderData::GetFromContext(context);
     v8::Local<v8::String> source_text;

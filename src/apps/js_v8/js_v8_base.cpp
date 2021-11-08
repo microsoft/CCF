@@ -11,6 +11,7 @@
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "v8_runner.h"
+#include "kv_module_loader.h"
 
 #include <memory>
 #include <stdexcept>
@@ -249,7 +250,8 @@ namespace ccfapp
       // Each request is executed in a new context
       V8Context ctx(isolate);
 
-      //ctx.set_module_load_callback();
+      // set a callback that loads modules from the KV
+      ctx.set_module_load_callback(ccf::v8_kv_module_load_callback, &endpoint_ctx.tx);
 
       // TODO: Populate the global context
       // js::TxContext txctx{&target_tx, js::TxAccess::APP};
