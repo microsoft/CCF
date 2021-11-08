@@ -220,6 +220,11 @@ def test_add_as_many_pending_nodes(network, args):
 
     wait_for_reconfiguration_to_complete(network)
 
+    # Stop the retired nodes so they don't linger in the background and interfere
+    # with subsequent tests
+    for new_node in new_nodes:
+        new_node.stop()
+
     return network
 
 
