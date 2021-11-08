@@ -5,11 +5,11 @@
    cflags = []
    cflags_c = []
 -  cflags_cc = []
-+  cflags_cc = ["-stdlib=libc++"]
++  cflags_cc = ["-nostdinc++", "-isystem", "/usr/lib/llvm-10/include/c++/v1/"]
    cflags_objc = []
    cflags_objcc = []
 -  ldflags = []
-+  ldflags = ["-stdlib=libc++"]
++  ldflags = ["-nostdlib++", "-L", "/usr/lib/llvm-10/lib", "-Wl,-rpath,/usr/lib/llvm-10/lib", "-lc++"]
    defines = []
    configs = []
  

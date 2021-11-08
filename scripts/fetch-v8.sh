@@ -5,7 +5,7 @@
 # Fetches the Universal Artifact from Azire that was built and published with
 # build-v8.sh. Doesn't fetch if the tarball already exists.
 
-SYNTAX="fetch-v8.sh <version (ex. 9.4.146.17)> [-f(orce)]"
+SYNTAX="fetch-v8.sh <version (ex. 9.4.146.17)> <mode (debug|release)> [-f(orce)]"
 if [ "$1" == "" ]; then
   echo "ERROR: Missing expected argument 'version'"
   echo "$SYNTAX"
@@ -16,9 +16,18 @@ MAJOR_VERSION=$(echo "$VERSION" | cut -d "." -f 1,2 | sed 's/\.//')
 MINOR_VERSION=$(echo "$VERSION" | cut -d "." -f 3,4 | sed 's/\.//')
 PKG_VERSION="$MAJOR_VERSION.$MINOR_VERSION"
 
+MODE="$2"
+if [ "$MODE" != "debug" ] && [ "$MODE" != "release" ]; then
+  echo "ERROR: 'mode' argument must be 'debug' or 'release'"
+  echo "$SYNTAX"
+  exit 1
+fi
+
+TARBALL="v8-$VERSION-$MODE.tar.xz"
+
 ## Check that the package exists, override with -f
-FORCE="$2"
-if [ -f v8-$"VERSION".tar.xz ] && [ "$FORCE" != "-f" ]; then
+FORCE="$3"
+if [ -f "$TARBALL" ] && [ "$FORCE" != "-f" ]; then
   echo " + Tarball built/fetched already"
   echo "   Use '-f' to force downloading the package again"
   exit 0
@@ -47,11 +56,10 @@ az artifacts universal download \
   --project CCF \
   --scope project \
   --feed V8 \
-  --name v8-monolith \
+  --name "v8-monolith-$MODE" \
   --version "$PKG_VERSION.*" \
   --path .
 
-TARBALL="v8-$VERSION.tar.xz"
 if [ ! -f "$TARBALL" ]; then
   echo "ERROR: Artifact download failed"
   exit 1
@@ -59,5 +67,6 @@ fi
 
 ## Unpack on the same directory as it was built
 echo " + Unpack the tarball..."
-mkdir -p build-v8
-tar Jxf v8-"$VERSION".tar.xz -C build-v8
+INSTALL_DIR="build-v8/$MODE"
+mkdir -p "$INSTALL_DIR"
+tar Jxf "$TARBALL" -C "$INSTALL_DIR"

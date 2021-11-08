@@ -4,6 +4,7 @@ trigger:
 variables:
   pushArtifact: $(PUSH_ARTIFACT)
   pkg-ver: $(VERSION)
+  mode: $(MODE)
 
 jobs:
   - job: build_v8
@@ -14,13 +15,14 @@ jobs:
       - checkout: self
         clean: true
 
+      # This step can be removed once new Docker images are available
       - script: |
           sudo apt update
-          sudo apt install -y pkg-config
+          sudo apt install -y pkg-config lld-10 libglib2.0-dev
         displayName: "Install dependencies"
         continueOnError: false
 
-      - script: scripts/build-v8.sh $(VERSION) $(PUSH_ARTIFACT)
+      - script: scripts/build-v8.sh $(VERSION) $(MODE) $(PUSH_ARTIFACT)
         displayName: "Build V8"
         continueOnError: false
 
@@ -33,7 +35,7 @@ jobs:
           #   Ex: 9.4.146.17 -> 94.14617.$(Build.BuildId)
           export MINOR=$(echo $(VERSION) | cut -d "." -f 3,4 | sed 's/\.//')
           echo '##vso[task.setvariable variable=pkg-ver]'$MAJOR.$MINOR.$(Build.BuildId)
-          mv build-v8/v8-$(VERSION).tar.xz $(Build.ArtifactStagingDirectory)
+          mv build-v8/v8-$(VERSION)-$(MODE).tar.xz $(Build.ArtifactStagingDirectory)
         displayName: "Prepare Artifact Staging Directory"
         condition: eq(variables.pushArtifact, 'true')
         continueOnError: false
@@ -44,7 +46,7 @@ jobs:
           command: publish
           publishDirectory: "$(Build.ArtifactStagingDirectory)"
           vstsFeedPublish: "CCF/V8"
-          vstsFeedPackagePublish: "v8-monolith"
+          vstsFeedPackagePublish: "v8-monolith-$(MODE)"
           versionOption: custom
           versionPublish: "$(pkg-ver)"
           packagePublishDescription: "CCF build of monolith V8"
