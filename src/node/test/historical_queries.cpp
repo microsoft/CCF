@@ -786,16 +786,6 @@ TEST_CASE("StateCache concurrent access")
           }
           cache.handle_ledger_entries(from_seqno, to_seqno, combined);
         }
-        else if (write.m == consensus::ledger_get)
-        {
-          const auto [seqno, purpose] =
-            ringbuffer::read_message<consensus::ledger_get>(data, size);
-          REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
-
-          const auto it = ledger.find(seqno);
-          REQUIRE(it != ledger.end());
-          cache.handle_ledger_entry(seqno, it->second);
-        }
         else
         {
           REQUIRE(false);

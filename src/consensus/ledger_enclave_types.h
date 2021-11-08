@@ -17,13 +17,6 @@ namespace consensus
   /// Consensus-related ringbuffer messages
   enum : ringbuffer::Message
   {
-    /// Request individual ledger entries. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_get),
-
-    /// Respond to ledger_get. Host -> Enclave
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_entry),
-    DEFINE_RINGBUFFER_MSG_TYPE(ledger_no_entry),
-
     /// Request range of ledger entries. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_get_range),
 
@@ -42,18 +35,6 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_commit),
   };
 }
-
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_get, consensus::Index, consensus::LedgerRequestPurpose);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_entry,
-  consensus::Index,
-  consensus::LedgerRequestPurpose,
-  std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_no_entry,
-  consensus::Index,
-  consensus::LedgerRequestPurpose);
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_get_range,

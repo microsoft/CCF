@@ -359,16 +359,7 @@ namespace ccf::historical
 
     void fetch_entry_at(ccf::SeqNo seqno)
     {
-      const auto ib = pending_fetches.insert(seqno);
-      if (ib.second)
-      {
-        // Newly requested seqno
-        RINGBUFFER_WRITE_MESSAGE(
-          consensus::ledger_get,
-          to_host,
-          static_cast<consensus::Index>(seqno),
-          consensus::LedgerRequestPurpose::HistoricalQuery);
-      }
+      fetch_entries_range(seqno, seqno);
     }
 
     void fetch_entries_range(ccf::SeqNo from, ccf::SeqNo to)
@@ -952,18 +943,26 @@ namespace ccf::historical
 
     void handle_no_entry(ccf::SeqNo seqno)
     {
+      handle_no_entry_range(seqno, seqno);
+    }
+
+    void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
+    {
       std::lock_guard<std::mutex> guard(requests_lock);
 
-      // The host failed or refused to give this entry. Currently just
-      // forget about it and drop any requests which were looking for it - don't
-      // have a mechanism for remembering this failure and reporting it to
-      // users.
-      const auto fetches_it = pending_fetches.find(seqno);
-      if (fetches_it != pending_fetches.end())
+      for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
-        delete_all_interested_requests(seqno);
+        // The host failed or refused to give this entry. Currently just
+        // forget about it and drop any requests which were looking for it -
+        // don't have a mechanism for remembering this failure and reporting it
+        // to users.
+        const auto fetches_it = pending_fetches.find(seqno);
+        if (fetches_it != pending_fetches.end())
+        {
+          delete_all_interested_requests(seqno);
 
-        pending_fetches.erase(fetches_it);
+          pending_fetches.erase(fetches_it);
+        }
       }
     }
 

@@ -273,14 +273,24 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
-          consensus::ledger_entry,
+          consensus::ledger_entry_range,
           [this](const uint8_t* data, size_t size) {
-            const auto [index, purpose, body] =
-              ringbuffer::read_message<consensus::ledger_entry>(data, size);
+            const auto [from_seqno, to_seqno, purpose, body] =
+              ringbuffer::read_message<consensus::ledger_entry_range>(
+                data, size);
             switch (purpose)
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
+                if (from_seqno != to_seqno)
+                {
+                  LOG_FAIL_FMT(
+                    "Unexpected range for Recovery response "
+                    "ledger_entry_range: {}->{} "
+                    "(expected single ledger entry)",
+                    from_seqno,
+                    to_seqno);
+                }
                 if (
                   node->is_reading_public_ledger() ||
                   node->is_verifying_snapshot())
@@ -301,8 +311,8 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache->handle_ledger_entry(
-                  index, std::move(body));
+                context->historical_state_cache->handle_ledger_entries(
+                  from_seqno, to_seqno, body);
                 break;
               }
               default:
@@ -314,14 +324,24 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
-          consensus::ledger_no_entry,
+          consensus::ledger_no_entry_range,
           [this](const uint8_t* data, size_t size) {
-            const auto [index, purpose] =
-              ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
+            const auto [from_seqno, to_seqno, purpose] =
+              ringbuffer::read_message<consensus::ledger_no_entry_range>(
+                data, size);
             switch (purpose)
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
+                if (from_seqno != to_seqno)
+                {
+                  LOG_FAIL_FMT(
+                    "Unexpected range for Recovery response "
+                    "ledger_no_entry_range: {}->{} "
+                    "(expected single ledger entry)",
+                    from_seqno,
+                    to_seqno);
+                }
                 if (node->is_verifying_snapshot())
                 {
                   node->verify_snapshot_end();
@@ -334,29 +354,8 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache->handle_no_entry(index);
-                break;
-              }
-              default:
-              {
-                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
-              }
-            }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          consensus::ledger_entry_range,
-          [this](const uint8_t* data, size_t size) {
-            const auto [from_seqno, to_seqno, purpose, body] =
-              ringbuffer::read_message<consensus::ledger_entry_range>(
-                data, size);
-            switch (purpose)
-            {
-              case consensus::LedgerRequestPurpose::HistoricalQuery:
-              {
-                context->historical_state_cache->handle_ledger_entries(
-                  from_seqno, to_seqno, body);
+                context->historical_state_cache->handle_no_entry_range(
+                  from_seqno, to_seqno);
                 break;
               }
               default:
