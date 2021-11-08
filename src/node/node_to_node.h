@@ -209,9 +209,11 @@ namespace ccf
       size_t size) override
     {
       auto n2n_channel = channels->get(to);
-      // Sending after a channel has been destroyed is a bug.
-      assert(n2n_channel);
-      return n2n_channel->send(type, {data, size});
+      if (n2n_channel)
+      {
+        return n2n_channel->send(type, {data, size});
+      }
+      return true;
     }
 
     bool recv_authenticated(
