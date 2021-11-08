@@ -2800,16 +2800,12 @@ namespace aft
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
-      // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
-      {
-        LOG_FAIL_FMT(
-          "Recv request vote to {} from {}: unknown node",
-          state->my_node_id,
-          from);
-        return;
-      }
+      // Do not check that from is a known node. It is possible to receive
+      // RequestVotes from nodes that this node doesn't yet know, just as it
+      // receives AppendEntries from those nodes. These should be obeyed just
+      // like any other RequestVote - it is possible that this node is needed to
+      // produce a primary in the new term, who will then help this node catch
+      // up.
 
       if (state->current_view > r.term)
       {

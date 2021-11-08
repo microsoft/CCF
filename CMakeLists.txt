@@ -631,6 +631,7 @@ if(BUILD_TESTS)
   if(ENABLE_2TX_RECONFIG)
     list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
   endif()
+
   add_e2e_test(
     NAME partitions_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
