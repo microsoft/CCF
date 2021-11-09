@@ -1001,16 +1001,22 @@ class Network:
                 except PrimaryNotFound:
                     pass
             # Stop checking once all primaries are the same
-            if primaries == [primaries[0]] * len(self.get_joined_nodes()):
+            if (
+                len(self.get_joined_nodes()) == len(primaries)
+                and len(set(primaries)) <= 1
+            ):
                 break
             time.sleep(0.1)
-        expected = [primaries[0]] * len(self.get_joined_nodes())
-        if expected != primaries:
+        all_good = (
+            len(self.get_joined_nodes()) == len(primaries) and len(set(primaries)) <= 1
+        )
+        if not all_good:
+            flush_info(logs)
             for node in self.get_joined_nodes():
                 with node.client() as c:
                     r = c.get("/node/consensus")
                     pprint.pprint(r.body.json())
-        assert expected == primaries, f"Multiple primaries: {primaries}"
+        assert all_good, f"Multiple primaries: {primaries}"
         delay = time.time() - start_time
         LOG.info(
             f"Primary unanimity after {delay}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
