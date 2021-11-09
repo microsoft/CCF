@@ -170,7 +170,7 @@ Service identity and status.
 
     graph TB;
         Opening-- transition_service_to_open -->Open;
-        Opening-- transition_service_to_open (recovery)-->WaitingForRecoveryShares;
+        Opening-- "transition_service_to_open (recovery)"-->WaitingForRecoveryShares;
         WaitingForRecoveryShares -- member shares reassembly--> Open;
 
 ``service.config``
@@ -334,11 +334,6 @@ See :cpp:struct:`ccf::SignedReq`
 ``public:ccf.internal.``
 ------------------------
 
-``values``
-~~~~~~~~~~
-
-Deprecated, only used to create monotonic node ids when CCF is configured to use BFT at the moment. Will be removed once BFT is adapted to use the same node ids as CFT.
-
 ``historical_encrypted_ledger_secret``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -404,7 +399,9 @@ Used to persist submitted shares during a recovery.
 
 While the contents themselves are encrypted, the table is public so as to be accessible by nodes bootstrapping a recovery service.
 
-``resharings``
-~~~~~~~~~~~~~~
+``resharings`` (experimental)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Internal information for identity resharing during 2-transaction reconfiguration.
+
+.. note:: This table is currently experimental and is not included in CCF releases.

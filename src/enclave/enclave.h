@@ -98,7 +98,7 @@ namespace enclave
         ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
       {
         ENGINE_free(rdrand_engine);
-        throw std::runtime_error(
+        throw ccf::ccf_openssl_rdrand_init_error(
           "could not initialize RDRAND engine for OpenSSL");
       }
 
@@ -171,7 +171,7 @@ namespace enclave
       {
         r = node->create(start_type, std::move(ccf_config_));
       }
-      catch (const std::runtime_error& e)
+      catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Error starting node: {}", e.what());
         return false;

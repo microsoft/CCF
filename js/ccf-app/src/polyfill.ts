@@ -46,6 +46,9 @@ class KvMapPolyfill implements KvMap {
   get(key: ArrayBuffer): ArrayBuffer | undefined {
     return this.map.get(base64(key));
   }
+  getVersionOfPreviousWrite(key: ArrayBuffer): number | undefined {
+    throw new Error("Not implemented");
+  }
   set(key: ArrayBuffer, value: ArrayBuffer): KvMap {
     this.map.set(base64(key), value);
     return this;
@@ -79,6 +82,33 @@ class CCFPolyfill implements CCF {
       return Reflect.get(target, name, receiver);
     },
   });
+
+  consensus = {
+    getLastCommittedTxId() {
+      throw new Error("Not implemented");
+    },
+    getStatusForTxId(view: number, seqno: number) {
+      throw new Error("Not implemented");
+    },
+    getViewForSeqno(seqno: number) {
+      throw new Error("Not implemented");
+    },
+  };
+
+  historical = {
+    getStateRange(
+      handle: number,
+      startSeqno: number,
+      endSeqno: number,
+      secondsUntilExpiry: number
+    ) {
+      throw new Error("Not implemented");
+    },
+
+    dropCachedStates(handle: number) {
+      throw new Error("Not implemented");
+    },
+  };
 
   rpc = {
     setApplyWrites(force: boolean) {
@@ -225,7 +255,7 @@ class CCFPolyfill implements CCF {
       for (const [i, p] of pems.entries()) {
         try {
           new (<any>crypto).X509Certificate(p);
-        } catch (e) {
+        } catch (e: any) {
           console.error(`cert ${i} is not valid: ${e.message}`);
           console.error(p);
           return false;
@@ -279,7 +309,7 @@ class CCFPolyfill implements CCF {
       throw new Error(
         "none of the chain certificates are identical to or issued by a trusted certificate"
       );
-    } catch (e) {
+    } catch (e: any) {
       console.error(`certificate chain validation failed: ${e.message}`);
       return false;
     }

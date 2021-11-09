@@ -859,6 +859,9 @@ namespace asynchost
     std::optional<std::vector<uint8_t>> read_framed_entries(
       size_t from, size_t to)
     {
+      TimeBoundLogger log_if_slow(
+        fmt::format("Reading framed ledger entries from {} to {}", from, to));
+
       if ((from <= 0) || (to > last_idx) || (to < from))
       {
         return std::nullopt;

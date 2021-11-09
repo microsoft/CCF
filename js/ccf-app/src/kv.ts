@@ -23,6 +23,17 @@
  * foo.set("key-1", {"prop1": 42});
  * ```
  *
+ * Example of using typed access with historical state:
+ * ```
+ * import * as ccfapp from '@microsoft/ccf-app';
+ *
+ * const states = ccfapp.getStateRange(handle, begin, end, expiry);
+ * // ... error handling ...
+ * const firstKv = states[0].kv;
+ * const foo = ccfapp.typedKv(firstKv['foo'], ccfapp.string, ccfapp.json);
+ * const val = foo.get("key-1");
+ * ```
+ *
  * @module
  */
 
@@ -84,16 +95,18 @@ export class TypedKvMap<K, V> {
  *
  * See the {@linkcode converters} module for available converters.
  *
- * @param name The map name in the Key-Value Store.
+ * @param nameOrMap Either the map name in the Key-Value Store,
+ *    or a ``KvMap`` object.
  * @param kt The converter to use for map keys.
  * @param vt The converter to use for map values.
  */
 export function typedKv<K, V>(
-  name: string,
+  nameOrMap: string | KvMap,
   kt: DataConverter<K>,
   vt: DataConverter<V>
 ) {
-  return new TypedKvMap(ccf.kv[name], kt, vt);
+  const kvMap = typeof nameOrMap === "string" ? ccf.kv[nameOrMap] : nameOrMap;
+  return new TypedKvMap(kvMap, kt, vt);
 }
 
 /**

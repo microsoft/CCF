@@ -27,14 +27,14 @@ sys.path.insert(0, os.path.abspath("../python"))
 
 # -- Project information -----------------------------------------------------
 
-project = u"CCF"
-copyright = u"2018, Microsoft Research"  # pylint: disable=redefined-builtin
-author = u"Microsoft Research"
+project = "CCF"
+copyright = "2018, Microsoft Research"  # pylint: disable=redefined-builtin
+author = "Microsoft Research"
 
 # The short X.Y version
-version = u""
+version = ""
 # The full version, including alpha/beta/rc tags
-release = u""
+release = ""
 
 
 # -- General configuration ---------------------------------------------------
@@ -59,7 +59,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
-    "sphinx_panels"
+    "sphinx_panels",
 ]
 
 autosectionlabel_prefix_document = True
@@ -118,16 +118,13 @@ html_static_path = ["_static"]
 # default: ``['localtoc.html', 'relations.html', 'sourcelink.html',
 # 'searchbox.html']``.
 #
-html_sidebars = {
-}
+html_sidebars = {}
 
 html_css_files = [
     "css/custom.css",
 ]
 
-html_js_files = [
-    "https://kit.fontawesome.com/c75a35380d.js"
-]
+html_js_files = ["https://kit.fontawesome.com/c75a35380d.js"]
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
@@ -157,7 +154,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "CCF.tex", u"CCF Documentation", u"Microsoft Research", "manual")
+    (master_doc, "CCF.tex", "CCF Documentation", "Microsoft Research", "manual")
 ]
 
 
@@ -165,7 +162,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "ccf", u"CCF Documentation", [author], 1)]
+man_pages = [(master_doc, "ccf", "CCF Documentation", [author], 1)]
 
 
 # -- Options for Texinfo output ----------------------------------------------
@@ -177,7 +174,7 @@ texinfo_documents = [
     (
         master_doc,
         "CCF",
-        u"CCF Documentation",
+        "CCF Documentation",
         author,
         "CCF",
         "One line description of project.",
@@ -247,7 +244,10 @@ window.addEventListener(
   false
 );"""
 
-def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
+
+def typedoc_role(
+    name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]
+):
     """
     Supported syntaxes:
     :typedoc:package:`ccf-app`
@@ -260,56 +260,56 @@ def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}
     :typedoc:interface:`Body <ccf-app/endpoints/Body>`
     """
     # check for custom label
-    if '<' in text:
-        label, text = text.split(' <')
+    if "<" in text:
+        label, text = text.split(" <")
         text = text[:-1]
     else:
         label = text
-    
+
     # extract hash if any, has to be appended after .html later on
-    text_without_hash, *hash_name = text.split('#')
-    url_hash = f'#{hash_name[0].lower()}' if hash_name else ''
-    
+    text_without_hash, *hash_name = text.split("#")
+    url_hash = f"#{hash_name[0].lower()}" if hash_name else ""
+
     # translate role kind into typedoc subfolder
     # and add '()' for functions/methods
-    kind_name = name.replace('typedoc:', '')
+    kind_name = name.replace("typedoc:", "")
     is_kind_package = False
-    if kind_name == 'package':
+    if kind_name == "package":
         is_kind_package = True
-    elif kind_name in ['module', 'interface']:
-        kind_name += 's'
-    elif kind_name == 'class':
-        kind_name += 'es'
-    elif kind_name == 'function':
-        kind_name = 'modules'
-        label += '()'
-    elif kind_name == 'classmethod':
-        kind_name = 'classes'
-        label += '()'
-    elif kind_name == 'interfacemethod':
-        kind_name = 'interfaces'
-        label += '()'
+    elif kind_name in ["module", "interface"]:
+        kind_name += "s"
+    elif kind_name == "class":
+        kind_name += "es"
+    elif kind_name == "function":
+        kind_name = "modules"
+        label += "()"
+    elif kind_name == "classmethod":
+        kind_name = "classes"
+        label += "()"
+    elif kind_name == "interfacemethod":
+        kind_name = "interfaces"
+        label += "()"
     else:
-        raise ValueError(f'unknown typedoc kind: {kind_name}')
+        raise ValueError(f"unknown typedoc kind: {kind_name}")
 
     # build typedoc url relative to doc root
-    pkg_name, *element_path = text_without_hash.split('/')
-    typedoc_path = f'js/{pkg_name}'
+    pkg_name, *element_path = text_without_hash.split("/")
+    typedoc_path = f"js/{pkg_name}"
     if not is_kind_package:
-        element_path = '.'.join(element_path).lower()
-        typedoc_path += f'/{kind_name}/{element_path}.html{url_hash}'
+        element_path = ".".join(element_path).lower()
+        typedoc_path += f"/{kind_name}/{element_path}.html{url_hash}"
 
     # construct final url relative to current page
-    source = inliner.document.attributes['source']
-    rel_source = source.split('/doc/', 1)[1]
-    levels = rel_source.count('/')
-    refuri = '../' * levels + typedoc_path
+    source = inliner.document.attributes["source"]
+    rel_source = source.split("/doc/", 1)[1]
+    levels = rel_source.count("/")
+    refuri = "../" * levels + typedoc_path
 
     # build docutils node
-    text_node = nodes.literal(label, label, classes=['xref'])
-    ref_node = nodes.reference('', '', refuri=refuri)
+    text_node = nodes.literal(label, label, classes=["xref"])
+    ref_node = nodes.reference("", "", refuri=refuri)
     ref_node += text_node
-    
+
     return [ref_node], []
 
 
@@ -324,17 +324,40 @@ def config_inited(app, config):
     if js_pkg_dir.exists():
         # make versions.json from sphinx-multiversion available
         if app.config.smv_metadata_path:
-            os.environ['SMV_METADATA_PATH'] = app.config.smv_metadata_path
-            os.environ['SMV_CURRENT_VERSION'] = app.config.smv_current_version
-        subprocess.run(["sed", "-i", "s/\^4.2.3/4.2.4/g", "package.json"], cwd=js_pkg_dir, check=True)
-        subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
-                       cwd=js_pkg_dir, check=True)
-        subprocess.run(["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
-                       cwd=js_pkg_dir, check=True)    
+            os.environ["SMV_METADATA_PATH"] = app.config.smv_metadata_path
+            os.environ["SMV_CURRENT_VERSION"] = app.config.smv_current_version
+        subprocess.run(
+            ["sed", "-i", "s/\^4.2.3/4.2.4/g", "package.json"],
+            cwd=js_pkg_dir,
+            check=True,
+        )
+        subprocess.run(
+            ["sed", "-i", 's/"\^14\.14\.35"/"14\.17\.27"/g', "package.json"],
+            cwd=js_pkg_dir,
+            check=True,
+        )
+        subprocess.run(
+            ["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
+            cwd=js_pkg_dir,
+            check=True,
+        )
+        subprocess.run(
+            ["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
+            cwd=js_pkg_dir,
+            check=True,
+        )
         # allow to link to typedoc pages
-        for kind in ['package', 'module', 'interface', 'class', 'function',
-                     'interfacemethod', 'classmethod']:
-            app.add_role(f'typedoc:{kind}', typedoc_role)
+        for kind in [
+            "package",
+            "module",
+            "interface",
+            "class",
+            "function",
+            "interfacemethod",
+            "classmethod",
+        ]:
+            app.add_role(f"typedoc:{kind}", typedoc_role)
+
 
 def setup(app):
     app.connect("config-inited", config_inited)

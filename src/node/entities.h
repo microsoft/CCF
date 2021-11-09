@@ -106,7 +106,6 @@ namespace ccf
       "public:ccf.internal.snapshot_evidence";
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
     static constexpr auto SERIALISED_MERKLE_TREE = "public:ccf.internal.tree";
-    static constexpr auto VALUES = "public:ccf.internal.values";
 
     // Consensus
     static constexpr auto AFT_REQUESTS = "ccf.internal.consensus.requests";

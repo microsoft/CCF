@@ -11,7 +11,7 @@ RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 RUN mkdir -p /etc/init
 
 ENV UBUNTU=focal
-ENV PSW_VERSION=2.13.103
+ENV PSW_VERSION=2.15.100
 RUN if [ -z "$PSW_VERSION" ]; then echo "Please set PSW_VERSION (e.g. 2.11)." >&2; exit 1; fi
 ENV DCAP_CLIENT_VERSION=1.10
 RUN if [ -z "$DCAP_CLIENT_VERSION" ]; then echo "Please set DCAP_CLIENT_VERSION (e.g. 1.8)." >&2; exit 1; fi

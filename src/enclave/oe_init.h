@@ -7,6 +7,7 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
+#include "ds/ccf_exception.h"
 
 namespace ccf
 {
@@ -17,7 +18,7 @@ namespace ccf
       auto rc = oe_attester_initialize();
       if (rc != OE_OK)
       {
-        throw std::logic_error(fmt::format(
+        throw ccf::ccf_oe_attester_init_error(fmt::format(
           "Failed to initialise evidence attester: {}", oe_result_str(rc)));
       }
     }
@@ -26,7 +27,7 @@ namespace ccf
       auto rc = oe_verifier_initialize();
       if (rc != OE_OK)
       {
-        throw std::logic_error(fmt::format(
+        throw ccf::ccf_oe_verifier_init_error(fmt::format(
           "Failed to initialise evidence verifier: {}", oe_result_str(rc)));
       }
     }

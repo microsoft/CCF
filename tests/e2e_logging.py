@@ -712,12 +712,6 @@ def get_all_entries(client, target_id, from_seqno=None, to_seqno=None, timeout=5
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("log/private", "log/private/historical/range")
 def test_historical_query_range(network, args):
-    if args.package != "samples/apps/logging/liblogging":
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
-        )
-        return network
-
     id_a = 142
     id_b = 143
     id_c = 144
