@@ -268,10 +268,11 @@ namespace ccfapp
       //   ctx);
 
       v8::HandleScope handle_scope(isolate);
+      v8::Local<v8::Context> context = ctx.get_context();
       v8::TryCatch try_catch(isolate);
-      v8::Local<v8::Value> v = ctx.run(props.js_module, props.js_function);
+      v8::Local<v8::Value> val = ctx.run(props.js_module, props.js_function);
       
-      if (v.IsEmpty())
+      if (val.IsEmpty())
       {
         v8_util::ReportException(isolate, &try_catch);
         auto exception_str = v8_util::get_exception_message(isolate, &try_catch);
@@ -282,154 +283,134 @@ namespace ccfapp
           std::move(exception_str));
         return;
       }
+
+      try_catch.Reset();
       
+      // Handle return value: {body, headers, statusCode}
+      if (!val->IsObject())
+      {
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Invalid endpoint function return value (not an object).");
+        return;
+      }
 
-      // // Handle return value: {body, headers, statusCode}
-      // if (val->))
-      // {
-      //   endpoint_ctx.rpc_ctx->set_error(
-      //     HTTP_STATUS_INTERNAL_SERVER_ERROR,
-      //     ccf::errors::InternalError,
-      //     "Invalid endpoint function return value (not an object).");
-      //   return;
-      // }
+      // Response body (also sets a default response content-type header)
+      v8::Local<v8::Object> obj = val.As<v8::Object>();
+      v8::Local<v8::Value> response_body_js;
+      // TODO handle exception properly (IsEmpty())
+      obj->Get(context, v8_util::to_v8_str(isolate, "body")).ToLocal(&response_body_js);
+      if (!response_body_js.IsEmpty() && !response_body_js->IsUndefined())
+      {
+        std::vector<uint8_t> response_body;
+        size_t buf_size;
+        size_t buf_offset;
+        v8::Local<v8::ArrayBuffer> array_buffer;
+        if (response_body_js->IsArrayBufferView())
+        {
+          auto view = response_body_js.As<v8::ArrayBufferView>();
+          buf_offset = view->ByteOffset();
+          buf_size = view->ByteLength();
+          array_buffer = view->Buffer();
+        }
+        else if (response_body_js->IsArrayBuffer())
+        {
+          array_buffer = response_body_js.As<v8::ArrayBuffer>();
+          buf_offset = 0;
+          buf_size = array_buffer->ByteLength();
+        }
+        if (!array_buffer.IsEmpty())
+        {
+          uint8_t* buf = (uint8_t*)array_buffer->GetBackingStore()->Data();
+          buf += buf_offset;
+          endpoint_ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::OCTET_STREAM);
+          response_body =
+            std::vector<uint8_t>(buf, buf + buf_size);
+        }
+        else
+        {
+          std::string str;
+          if (response_body_js->IsString())
+          {
+            endpoint_ctx.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::TEXT);
+            v8::Local<v8::String> str_val = response_body_js.As<v8::String>();
+            str = v8_util::ToSTLString(isolate, str_val);
+          }
+          else
+          {
+            endpoint_ctx.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::JSON);
+            v8::Local<v8::String> json;
+            if (!v8::JSON::Stringify(context, response_body_js).ToLocal(&json))
+            {
+              v8_util::ReportException(isolate, &try_catch);
+              endpoint_ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Invalid endpoint function return value (error during JSON "
+                "conversion of body).");
+              return;
+            }
+            str = v8_util::ToSTLString(isolate, json);
+          }
+          response_body = std::vector<uint8_t>(str.begin(), str.end());
+        }
+        endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
+      }
+     
+      // Response headers
+      v8::Local<v8::Value> response_headers_js;
+      // TODO handle exception properly (IsEmpty())
+      obj->Get(context, v8_util::to_v8_str(isolate, "headers")).ToLocal(&response_headers_js);
+      if (!response_headers_js.IsEmpty() && response_headers_js->IsObject())
+      {
+        v8::Local<v8::Object> headers_obj = response_headers_js.As<v8::Object>();
+        v8::Local<v8::Array> headers_arr = headers_obj->GetOwnPropertyNames(context).ToLocalChecked();
+        for (uint32_t i = 0; i < headers_arr->Length(); i++)
+        {
+          v8::Local<v8::Value> key = headers_arr->Get(context, i).ToLocalChecked();
+          v8::Local<v8::Value> val = headers_obj->Get(context, key).ToLocalChecked();
+          if (!key->IsString() || !val->IsString())
+          {
+            endpoint_ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Invalid endpoint function return value (header key/value type).");
+            return;
+          }
+          std::string key_str = v8_util::ToSTLString(isolate, key.As<v8::String>());
+          std::string val_str = v8_util::ToSTLString(isolate, val.As<v8::String>());
+          endpoint_ctx.rpc_ctx->set_response_header(key_str, val_str);
+        }
+      }
 
-      // // Response body (also sets a default response content-type header)
-      // {
-      //   auto response_body_js = ctx(JS_GetPropertyStr(iso, val, "body"));
-
-      //   if (!JS_IsUndefined(response_body_js))
-      //   {
-      //     std::vector<uint8_t> response_body;
-      //     size_t buf_size;
-      //     size_t buf_offset;
-      //     JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
-      //       ctx, response_body_js, &buf_offset, &buf_size, nullptr);
-      //     uint8_t* array_buffer;
-      //     if (!JS_IsException(typed_array_buffer))
-      //     {
-      //       size_t buf_size_total;
-      //       array_buffer =
-      //         JS_GetArrayBuffer(iso, &buf_size_total, typed_array_buffer);
-      //       array_buffer += buf_offset;
-      //       JS_FreeValue(iso, typed_array_buffer);
-      //     }
-      //     else
-      //     {
-      //       array_buffer = JS_GetArrayBuffer(iso, &buf_size, response_body_js);
-      //     }
-      //     if (array_buffer)
-      //     {
-      //       endpoint_ctx.rpc_ctx->set_response_header(
-      //         http::headers::CONTENT_TYPE,
-      //         http::headervalues::contenttype::OCTET_STREAM);
-      //       response_body =
-      //         std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
-      //     }
-      //     else
-      //     {
-      //       const char* cstr = nullptr;
-      //       if (JS_IsString(response_body_js))
-      //       {
-      //         endpoint_ctx.rpc_ctx->set_response_header(
-      //           http::headers::CONTENT_TYPE,
-      //           http::headervalues::contenttype::TEXT);
-      //         cstr = JS_ToCString(iso, response_body_js);
-      //       }
-      //       else
-      //       {
-      //         endpoint_ctx.rpc_ctx->set_response_header(
-      //           http::headers::CONTENT_TYPE,
-      //           http::headervalues::contenttype::JSON);
-      //         JSValue rval =
-      //           JS_JSONStringify(iso, response_body_js, V8_NULL, V8_NULL);
-      //         if (JS_IsException(rval))
-      //         {
-      //           js::js_dump_error(ctx);
-      //           endpoint_ctx.rpc_ctx->set_error(
-      //             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-      //             ccf::errors::InternalError,
-      //             "Invalid endpoint function return value (error during JSON "
-      //             "conversion of body).");
-      //           return;
-      //         }
-      //         cstr = JS_ToCString(iso, rval);
-      //         JS_FreeValue(iso, rval);
-      //       }
-      //       if (!cstr)
-      //       {
-      //         js::js_dump_error(ctx);
-      //         endpoint_ctx.rpc_ctx->set_error(
-      //           HTTP_STATUS_INTERNAL_SERVER_ERROR,
-      //           ccf::errors::InternalError,
-      //           "Invalid endpoint function return value (error during string "
-      //           "conversion of body).");
-      //         return;
-      //       }
-      //       std::string str(cstr);
-      //       JS_FreeCString(iso, cstr);
-
-      //       response_body = std::vector<uint8_t>(str.begin(), str.end());
-      //     }
-      //     endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
-      //   }
-      // }
-      // // Response headers
-      // {
-      //   auto response_headers_js = ctx(JS_GetPropertyStr(iso, val, "headers"));
-      //   if (JS_IsObject(response_headers_js))
-      //   {
-      //     uint32_t prop_count = 0;
-      //     JSPropertyEnum* props = nullptr;
-      //     JS_GetOwnPropertyNames(
-      //       ctx,
-      //       &props,
-      //       &prop_count,
-      //       response_headers_js,
-      //       JS_GPN_STRING_MASK | V8_GPN_ENUM_ONLY);
-      //     for (size_t i = 0; i < prop_count; i++)
-      //     {
-      //       auto prop_name = props[i].atom;
-      //       auto prop_name_cstr = ctx(JS_AtomToCString(iso, prop_name));
-      //       auto prop_val =
-      //         ctx(JS_GetProperty(iso, response_headers_js, prop_name));
-      //       auto prop_val_cstr = JS_ToCString(iso, prop_val);
-      //       if (!prop_val_cstr)
-      //       {
-      //         endpoint_ctx.rpc_ctx->set_error(
-      //           HTTP_STATUS_INTERNAL_SERVER_ERROR,
-      //           ccf::errors::InternalError,
-      //           "Invalid endpoint function return value (header value type).");
-      //         return;
-      //       }
-      //       endpoint_ctx.rpc_ctx->set_response_header(
-      //         prop_name_cstr, prop_val_cstr);
-      //       JS_FreeCString(iso, prop_val_cstr);
-      //     }
-      //     js_free(ctx, props);
-      //   }
-      // }
-
-      // // Response status code
-      // {
-      //   int response_status_code = HTTP_STATUS_OK;
-      //   auto status_code_js = ctx(JS_GetPropertyStr(iso, val, "statusCode"));
-      //   if (!JS_IsUndefined(status_code_js) && !V8_IsNull(status_code_js))
-      //   {
-      //     if (JS_VALUE_GET_TAG(status_code_js.val) != V8_TAG_INT)
-      //     {
-      //       endpoint_ctx.rpc_ctx->set_error(
-      //         HTTP_STATUS_INTERNAL_SERVER_ERROR,
-      //         ccf::errors::InternalError,
-      //         "Invalid endpoint function return value (status code type).");
-      //       return;
-      //     }
-      //     response_status_code = JS_VALUE_GET_INT(status_code_js.val);
-      //   }
-      //   endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
-      // }
-
-      return;
+      // Response status code
+      int response_status_code = HTTP_STATUS_OK;
+      v8::Local<v8::Value> status_code_js;
+      // TODO handle exception properly (IsEmpty())
+      obj->Get(context, v8_util::to_v8_str(isolate, "statusCode")).ToLocal(&status_code_js);
+      if (!status_code_js.IsEmpty() && !status_code_js->IsNullOrUndefined())
+      {
+        v8::Local<v8::Uint32> status_code;
+        if (!status_code_js->IsNumber() || !status_code_js->ToUint32(context).ToLocal(&status_code))
+        {
+          if (try_catch.HasCaught())
+            v8_util::ReportException(isolate, &try_catch);
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Invalid endpoint function return value (status code type).");
+          return;
+        }
+        response_status_code = status_code->Value();
+      }
+      endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
     }
 
     /// Execute request

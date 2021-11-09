@@ -22,7 +22,7 @@ namespace ccf::v8_util
     return *utf8;
   }
 
-  v8::Local<v8::String> v8_str(v8::Isolate* isolate, const char* x) {
+  v8::Local<v8::String> to_v8_str(v8::Isolate* isolate, const char* x) {
     return v8::String::NewFromUtf8(isolate, x).ToLocalChecked();
   }
 

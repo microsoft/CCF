@@ -262,7 +262,7 @@ namespace ccf
     CHECK(ns_val->IsModuleNamespaceObject());
     v8::Local<v8::Object> ns = ns_val.As<v8::Object>();
     v8::Local<v8::Value> exported_val;
-    if (!ns->Get(context, v8_util::v8_str(isolate_, exported_function_name.c_str())).ToLocal(&exported_val))
+    if (!ns->Get(context, v8_util::to_v8_str(isolate_, exported_function_name.c_str())).ToLocal(&exported_val))
     {
       isolate_->ThrowError("Could not find exported function");
       return v8::Local<v8::Value>();
