@@ -157,6 +157,8 @@ namespace aft
     kv::Version commit_idx;
 
     kv::Version cft_watermark_idx;
+
+    // TODO: Remove
     kv::Version bft_watermark_idx;
 
     ViewHistory view_history;

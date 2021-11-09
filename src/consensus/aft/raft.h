@@ -11,7 +11,6 @@
 #include "node/node_client.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
-#include "node/progress_tracker.h"
 #include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
@@ -209,12 +208,6 @@ namespace aft
         "reconfiguration type: {}",
         reconfiguration_type == ONE_TRANSACTION ? "1tx" : "2tx");
 
-      auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
-      {
-        progress_tracker->set_is_public_only(public_only);
-      }
-
       if (consensus_type == ConsensusType::BFT)
       {
         // Initialize view history for bft. We start on view 2 and the first
@@ -340,11 +333,6 @@ namespace aft
       // be deserialised
       std::lock_guard<std::mutex> guard(state->lock);
       public_only = false;
-      auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
-      {
-        progress_tracker->set_is_public_only(public_only);
-      }
     }
 
     void force_become_leader()
@@ -470,20 +458,6 @@ namespace aft
     uint32_t get_bft_offset(const Configuration::Nodes& conf) const
     {
       uint32_t offset = 0;
-      if (consensus_type == ConsensusType::BFT && !configurations.empty())
-      {
-        auto progress_tracker = store->get_progress_tracker();
-        auto target = progress_tracker->get_primary_at_last_view_change();
-        for (; offset < configurations.back().nodes.size(); ++offset)
-        {
-          if (
-            get_primary_at_config(std::get<1>(target), offset, conf) ==
-            std::get<0>(target))
-          {
-            break;
-          }
-        }
-      }
       return offset;
     }
 
@@ -908,16 +882,6 @@ namespace aft
             break;
           }
 
-          case raft_append_entries_signed_response:
-          {
-            SignedAppendEntriesResponse r =
-              channels
-                ->template recv_authenticated<SignedAppendEntriesResponse>(
-                  from, data, size);
-            recv_append_entries_signed_response(from, r);
-            break;
-          }
-
           case raft_request_vote:
           {
             RequestVote r = channels->template recv_authenticated<RequestVote>(
@@ -1076,8 +1040,8 @@ namespace aft
       }
       else
       {
-        auto progress_tracker = store->get_progress_tracker();
-        return progress_tracker->get_highest_committed_level();
+        LOG_FAIL_FMT("Unsupported consensus type");
+        return {};
       }
     }
 
@@ -1340,11 +1304,6 @@ namespace aft
             state->last_idx,
             r.prev_idx);
           auto rollback_level = r.prev_idx;
-          if (consensus_type == ConsensusType::BFT)
-          {
-            auto progress_tracker = store->get_progress_tracker();
-            rollback_level = progress_tracker->get_rollback_seqno();
-          }
           rollback(rollback_level);
         }
         else
@@ -1584,233 +1543,6 @@ namespace aft
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
-    }
-
-    void send_append_entries_signed_response(
-      ccf::NodeId to, ccf::PrimarySignature& sig)
-    {
-      LOG_DEBUG_FMT(
-        "Send append entries signed response from {} to {} for index {}",
-        state->my_node_id,
-        to,
-        state->last_idx);
-
-      auto progress_tracker = store->get_progress_tracker();
-      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-
-      SignedAppendEntriesResponse r = {
-        {raft_append_entries_signed_response},
-        state->current_view,
-        state->last_idx,
-        {},
-        static_cast<uint32_t>(sig.sig.size()),
-        {}};
-
-      std::optional<crypto::Sha256Hash> hashed_nonce;
-      progress_tracker->get_node_hashed_nonce(
-        {state->current_view, state->last_idx}, hashed_nonce);
-      if (!hashed_nonce.has_value())
-      {
-        LOG_TRACE_FMT(
-          "Nonce for view:{}, seqno:{} does not exist",
-          state->current_view,
-          state->last_idx);
-        return;
-      }
-      r.hashed_nonce = hashed_nonce.value();
-
-      std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
-
-      auto result = progress_tracker->add_signature(
-        {r.term, r.last_log_idx},
-        state->my_node_id,
-        r.signature_size,
-        r.sig,
-        r.hashed_nonce,
-        get_last_configuration_nodes(),
-        is_primary());
-
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
-      {
-        auto to = it->first;
-        if (to != state->my_node_id)
-        {
-          channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, r);
-        }
-      }
-
-      try_send_sig_ack({r.term, r.last_log_idx}, result);
-    }
-
-    void recv_append_entries_signed_response(
-      const ccf::NodeId& from, SignedAppendEntriesResponse r)
-    {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
-      {
-        // Ignore if we don't recognise the node.
-        LOG_FAIL_FMT(
-          "Recv signed append entries response to {} from {}: unknown node",
-          state->my_node_id,
-          from);
-        return;
-      }
-
-      auto progress_tracker = store->get_progress_tracker();
-      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-      auto result = progress_tracker->add_signature(
-        {r.term, r.last_log_idx},
-        from,
-        r.signature_size,
-        r.sig,
-        r.hashed_nonce,
-        get_last_configuration_nodes(),
-        is_primary());
-      try_send_sig_ack({r.term, r.last_log_idx}, result);
-    }
-
-    void try_send_sig_ack(ccf::TxID tx_id, kv::TxHistory::Result r)
-    {
-      switch (r)
-      {
-        case kv::TxHistory::Result::OK:
-        case kv::TxHistory::Result::FAIL:
-        {
-          break;
-        }
-        case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
-        {
-          SignaturesReceivedAck r = {
-            {bft_signature_received_ack}, tx_id.view, tx_id.seqno};
-          for (auto it = nodes.begin(); it != nodes.end(); ++it)
-          {
-            auto to = it->first;
-            if (to != state->my_node_id)
-            {
-              channels->send_authenticated(
-                to, ccf::NodeMsgType::consensus_msg, r);
-            }
-          }
-
-          auto progress_tracker = store->get_progress_tracker();
-          CCF_ASSERT(
-            progress_tracker != nullptr, "progress_tracker is not set");
-          auto result = progress_tracker->add_signature_ack(
-            tx_id, state->my_node_id, get_last_configuration_nodes());
-          try_send_reply_and_nonce(tx_id, result);
-          break;
-        }
-        default:
-        {
-          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
-        }
-      }
-    }
-
-    void recv_signature_received_ack(
-      const ccf::NodeId& from, SignaturesReceivedAck r)
-    {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
-      {
-        // Ignore if we don't recognise the node.
-        LOG_FAIL_FMT(
-          "Recv signature received ack to {} from {}: unknown node",
-          state->my_node_id,
-          from);
-        return;
-      }
-
-      auto progress_tracker = store->get_progress_tracker();
-      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-      LOG_TRACE_FMT(
-        "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
-        from,
-        r.term,
-        r.idx);
-
-      auto result = progress_tracker->add_signature_ack(
-        {r.term, r.idx}, from, get_last_configuration_nodes());
-      try_send_reply_and_nonce({r.term, r.idx}, result);
-    }
-
-    void try_send_reply_and_nonce(ccf::TxID tx_id, kv::TxHistory::Result r)
-    {
-      switch (r)
-      {
-        case kv::TxHistory::Result::OK:
-        case kv::TxHistory::Result::FAIL:
-        {
-          break;
-        }
-        case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
-        {
-          std::optional<Nonce> nonce;
-          auto progress_tracker = store->get_progress_tracker();
-          CCF_ASSERT(
-            progress_tracker != nullptr, "progress_tracker is not set");
-          nonce = progress_tracker->get_node_nonce(tx_id);
-          if (!nonce.has_value())
-          {
-            break;
-          }
-          NonceRevealMsg r = {
-            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce.value()};
-
-          for (auto it = nodes.begin(); it != nodes.end(); ++it)
-          {
-            auto to = it->first;
-            if (to != state->my_node_id)
-            {
-              channels->send_authenticated(
-                to, ccf::NodeMsgType::consensus_msg, r);
-            }
-          }
-          progress_tracker->add_nonce_reveal(
-            tx_id,
-            nonce.value(),
-            state->my_node_id,
-            get_last_configuration_nodes(),
-            is_primary(),
-            tx_id.seqno <= state->last_idx);
-          break;
-        }
-        default:
-        {
-          throw ccf::ccf_logic_error(fmt::format("Unknown enum type: {}", r));
-        }
-      }
-    }
-
-    void recv_nonce_reveal(const ccf::NodeId& from, NonceRevealMsg r)
-    {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
-      {
-        // Ignore if we don't recognise the node.
-        LOG_FAIL_FMT(
-          "Recv nonce reveal to {} from {}: unknown node",
-          state->my_node_id,
-          from);
-        return;
-      }
-
-      auto progress_tracker = store->get_progress_tracker();
-      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-      LOG_TRACE_FMT(
-        "processing nonce_reveal, from:{} view:{}, seqno:{}",
-        from,
-        r.term,
-        r.idx);
-      progress_tracker->add_nonce_reveal(
-        {r.term, r.idx},
-        r.nonce,
-        from,
-        get_last_configuration_nodes(),
-        is_primary(),
-        r.idx <= state->last_idx);
-
-      update_commit();
     }
 
     void recv_append_entries_response(
@@ -2131,17 +1863,9 @@ namespace aft
 
       // When we force to become the primary we are going around the
       // consensus protocol. This only happens when a node starts a new network
-      // and have a gensis or recovery tx as the last transaction, for BFT this
-      // transaction is not prepared and but must not be rolled back.
-      if (consensus_type == ConsensusType::BFT && !force_become_leader)
-      {
-        auto progress_tracker = store->get_progress_tracker();
-        election_index = progress_tracker->get_rollback_seqno();
-      }
-      else
-      {
-        election_index = last_committable_index();
-      }
+      // and has a genesis or recovery tx as the last transaction
+      election_index = last_committable_index();
+
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
@@ -2292,14 +2016,6 @@ namespace aft
       // idx > commit_idx and a majority of nodes have replicated it,
       // commit to that idx.
       auto new_commit_cft_idx = std::numeric_limits<Index>::max();
-      auto new_commit_bft_idx = std::numeric_limits<Index>::max();
-
-      // Obtain BFT watermarks
-      auto progress_tracker = store->get_progress_tracker();
-      if (progress_tracker != nullptr)
-      {
-        new_commit_bft_idx = progress_tracker->get_highest_committed_level();
-      }
 
       // Obtain CFT watermarks
       for (auto& c : configurations)
@@ -2330,20 +2046,14 @@ namespace aft
         }
       }
       LOG_DEBUG_FMT(
-        "In update_commit, new_commit_cft_idx: {}, new_commit_bft_idx:{}. "
+        "In update_commit, new_commit_cft_idx: {}, "
         "last_idx: {}",
         new_commit_cft_idx,
-        new_commit_bft_idx,
         state->last_idx);
 
       if (new_commit_cft_idx != std::numeric_limits<Index>::max())
       {
         state->cft_watermark_idx = new_commit_cft_idx;
-      }
-
-      if (new_commit_bft_idx != std::numeric_limits<Index>::max())
-      {
-        state->bft_watermark_idx = new_commit_bft_idx;
       }
 
       if (get_commit_watermark_idx() > state->last_idx)
@@ -2384,8 +2094,7 @@ namespace aft
           }
           else
           {
-            auto progress_tracker = store->get_progress_tracker();
-            commit(progress_tracker->get_highest_committed_level());
+            LOG_FAIL_FMT("Unsupported consensus type");
           }
         }
       }

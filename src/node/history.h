@@ -314,34 +314,11 @@ namespace ccf
         ccf::Tables::SERIALISED_MERKLE_TREE);
       crypto::Sha256Hash root = history.get_replicated_state_root();
 
+      // TODO: Remove?
       Nonce hashed_nonce;
       std::vector<uint8_t> primary_sig;
       auto consensus = store.get_consensus();
-      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-      {
-        auto progress_tracker = store.get_progress_tracker();
-        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-        auto r = progress_tracker->record_primary(
-          txid, id, true, root, primary_sig, hashed_nonce);
-        if (r != kv::TxHistory::Result::OK)
-        {
-          throw ccf::ccf_logic_error(fmt::format(
-            "Expected success when primary added signature to the "
-            "progress "
-            "tracker. r:{}, view:{}, seqno:{}",
-            r,
-            txid.term,
-            txid.version));
-        }
-
-        // The nonce is generated in progress_racker->record_primary so it must
-        // exist.
-        hashed_nonce = progress_tracker->get_node_hashed_nonce(txid).value();
-      }
-      else
-      {
-        hashed_nonce.h.fill(0);
-      }
+      hashed_nonce.h.fill(0);
 
       primary_sig = kp.sign_hash(root.h.data(), root.h.size());
 
@@ -355,13 +332,6 @@ namespace ccf
         hashed_nonce,
         primary_sig,
         endorsed_cert);
-
-      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-      {
-        auto progress_tracker = store.get_progress_tracker();
-        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-        progress_tracker->record_primary_signature(txid, primary_sig);
-      }
 
       signatures->put(sig_value);
       serialised_tree->put(
@@ -671,17 +641,6 @@ namespace ccf
       }
 
       kv::TxHistory::Result result = kv::TxHistory::Result::OK;
-
-      auto progress_tracker = store.get_progress_tracker();
-      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-      result = progress_tracker->record_primary(
-        {sig.view, sig.seqno},
-        sig.node,
-        false,
-        sig.root,
-        sig.sig,
-        sig.hashed_nonce,
-        config);
 
       sig.node = id;
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
