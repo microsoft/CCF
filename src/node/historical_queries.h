@@ -218,7 +218,7 @@ namespace ccf::historical
             const auto next_seqno = last_requested_seqno + 1;
             supporting_signature =
               std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-            ret.insert(std::make_pair(next_seqno, next_seqno));
+            ret.emplace(next_seqno, next_seqno);
           }
         }
 
