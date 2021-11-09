@@ -13,8 +13,7 @@
   "out": "html",
   "theme": "default",
   "categorizeByGroup": false,
-  "validation":
-  {
+  "validation": {
     "invalidLink": true
   }
 }
