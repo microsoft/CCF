@@ -158,7 +158,6 @@ namespace ccf
       kv::CommittableTx& tx,
       const PreExec& pre_exec = {},
       kv::Version prescribed_commit_version = kv::NoVersion,
-      ccf::SeqNo max_conflict_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN)
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
@@ -326,8 +325,7 @@ namespace ccf
               return std::make_tuple(prescribed_commit_version, kv::NoVersion);
             };
             tx.set_view(replicated_view);
-            result = tx.commit(
-              track_read_versions, version_resolver, max_conflict_version);
+            result = tx.commit(track_read_versions, version_resolver);
           }
           else
           {
@@ -612,7 +610,6 @@ namespace ccf
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
       ccf::SeqNo prescribed_commit_version,
-      ccf::SeqNo max_conflict_version,
       ccf::View replicated_view) override
     {
       auto tx = tables.create_tx();
@@ -620,7 +617,6 @@ namespace ccf
         ctx,
         tx,
         prescribed_commit_version,
-        max_conflict_version,
         replicated_view);
     }
 
@@ -629,14 +625,12 @@ namespace ccf
      * @param ctx Context for this RPC
      * @param tx Transaction
      * @param prescribed_commit_version Prescribed commit version
-     * @param max_conflict_version Maximum conflict version
      * @param replicated_view Prescribed view
      */
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::CommittableTx& tx,
       ccf::SeqNo prescribed_commit_version = kv::NoVersion,
-      ccf::SeqNo max_conflict_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN) override
     {
       // Note: this can only happen if the primary is malicious,
@@ -661,12 +655,7 @@ namespace ccf
       };
 
       auto rep = process_command(
-        ctx,
-        tx,
-        fn,
-        prescribed_commit_version,
-        max_conflict_version,
-        replicated_view);
+        ctx, tx, fn, prescribed_commit_version, replicated_view);
 
       version = tx.get_version();
       return {std::move(rep.value()), version};

@@ -564,7 +564,7 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(bool track_commits, Version& max_conflict_version) = 0;
+    virtual bool prepare(bool track_commits) = 0;
     virtual void commit(Version v, bool track_read_versions) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
@@ -641,7 +641,6 @@ namespace kv
     virtual kv::Version get_index() = 0;
     virtual ccf::PrimarySignature& get_signature() = 0;
     virtual aft::Request& get_request() = 0;
-    virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
 

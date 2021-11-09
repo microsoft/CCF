@@ -39,7 +39,6 @@ namespace aft
       bool is_create_request,
       ccf::SeqNo prescribed_commit_version = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
-      ccf::SeqNo max_conflict_version = kv::NoVersion,
       ccf::View replicated_view = kv::NoVersion) = 0;
 
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
@@ -50,7 +49,6 @@ namespace aft
       aft::Request& request,
       std::shared_ptr<aft::RequestTracker> request_tracker,
       ccf::SeqNo prescribed_commit_version,
-      ccf::SeqNo max_conflict_version,
       ccf::View replicated_view) = 0;
 
     virtual void mark_request_executed(
@@ -80,7 +78,6 @@ namespace aft
       bool is_create_request,
       ccf::SeqNo prescribed_commit_version = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
-      ccf::SeqNo max_conflict_version = kv::NoVersion,
       ccf::View replicated_view = kv::NoVersion) override;
 
     std::unique_ptr<aft::RequestMessage> create_request_message(
@@ -91,7 +88,6 @@ namespace aft
       aft::Request& request,
       std::shared_ptr<aft::RequestTracker> request_tracker,
       ccf::SeqNo prescribed_commit_version,
-      ccf::SeqNo max_conflict_version,
       ccf::View replicated_view) override;
 
     void mark_request_executed(

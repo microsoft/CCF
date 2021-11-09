@@ -61,8 +61,7 @@ namespace aft
       execution_start_idx = max_tx_idx_in_block;
     }
 
-    bool should_exec_next_append_entry(
-      bool support_async_execution, uint64_t max_conflict_version)
+    bool should_exec_next_append_entry(bool support_async_execution)
     {
       if (run_sync)
       {
@@ -77,13 +76,6 @@ namespace aft
       if (execution_status() == AsyncSchedulingResult::SYNCH_POINT)
       {
         if (!support_async_execution && state != AsyncExecutorState::INITIAL_TX)
-        {
-          return false;
-        }
-
-        if (
-          support_async_execution &&
-          max_conflict_version >= execution_start_idx)
         {
           return false;
         }

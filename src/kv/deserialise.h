@@ -20,7 +20,6 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
-      kv::Version& max_conflict_version,
       kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
@@ -65,16 +64,8 @@ namespace kv
 
     ApplyResult apply() override
     {
-      kv::Version max_conflict_version = 0;
       if (!store->fill_maps(
-            data,
-            public_only,
-            version,
-            max_conflict_version,
-            term,
-            changes,
-            new_maps,
-            true))
+            data, public_only, version, term, changes, new_maps, true))
       {
         return ApplyResult::FAIL;
       }
@@ -176,11 +167,6 @@ namespace kv
       throw std::logic_error("get_request not implemented");
     }
 
-    kv::Version get_max_conflict_version() override
-    {
-      return version - 1;
-    }
-
     bool support_async_execution() override
     {
       return false;
@@ -267,11 +253,6 @@ namespace kv
     aft::Request& get_request() override
     {
       return req;
-    }
-
-    kv::Version get_max_conflict_version() override
-    {
-      return v - 1;
     }
 
     virtual bool support_async_execution() override
@@ -534,7 +515,6 @@ namespace kv
   class TxBFTExec : public BFTExecutionWrapper
   {
   private:
-    uint64_t max_conflict_version;
     std::unique_ptr<CommittableTx> tx;
 
   public:
@@ -545,7 +525,6 @@ namespace kv
       bool public_only_,
       std::unique_ptr<CommittableTx> tx_,
       kv::Version v_,
-      kv::Version max_conflict_version_,
       ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
@@ -559,10 +538,8 @@ namespace kv
         v_,
         view_,
         std::move(changes_),
-        std::move(new_maps_)),
-      max_conflict_version(max_conflict_version_)
+        std::move(new_maps_))
     {
-      max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
     }
 
@@ -580,11 +557,6 @@ namespace kv
       return ApplyResult::PASS;
     }
 
-    kv::Version get_max_conflict_version() override
-    {
-      return max_conflict_version;
-    }
-
     bool support_async_execution() override
     {
       return true;
@@ -599,7 +571,6 @@ namespace kv
   class TxBFTApply : public BFTExecutionWrapper
   {
   private:
-    uint64_t max_conflict_version;
     std::unique_ptr<CommittableTx> tx;
 
   public:
@@ -610,7 +581,6 @@ namespace kv
       bool public_only_,
       std::unique_ptr<CommittableTx> tx_,
       kv::Version v_,
-      kv::Version max_conflict_version_,
       ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
@@ -624,10 +594,8 @@ namespace kv
         v_,
         view_,
         std::move(changes_),
-        std::move(new_maps_)),
-      max_conflict_version(max_conflict_version_)
+        std::move(new_maps_))
     {
-      max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
     }
 
@@ -656,11 +624,6 @@ namespace kv
       }
 
       return ApplyResult::PASS_APPLY;
-    }
-
-    kv::Version get_max_conflict_version() override
-    {
-      return max_conflict_version;
     }
 
     bool support_async_execution() override

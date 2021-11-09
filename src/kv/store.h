@@ -421,7 +421,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return ApplyResult::FAIL;
       }
-      auto [v, _] = v_.value();
+      auto v = v_.value();
 
       std::lock_guard<std::mutex> mguard(maps_lock);
 
@@ -688,7 +688,6 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
-      kv::Version& max_conflict_version,
       kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
@@ -712,7 +711,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return false;
       }
-      std::tie(v, max_conflict_version) = v_.value();
+      v = v_.value();
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -797,14 +796,12 @@ namespace kv
       {
         kv::Version v;
         kv::Term view;
-        kv::Version max_conflict_version;
         OrderedChanges changes;
         MapCollection new_maps;
         if (!fill_maps(
               data,
               public_only,
               v,
-              max_conflict_version,
               view,
               changes,
               new_maps,
@@ -882,7 +879,6 @@ namespace kv
             public_only,
             std::make_unique<CommittableTx>(this),
             v,
-            max_conflict_version,
             view,
             std::move(changes),
             std::move(new_maps));
@@ -896,7 +892,6 @@ namespace kv
             public_only,
             std::make_unique<CommittableTx>(this),
             v,
-            max_conflict_version,
             view,
             std::move(changes),
             std::move(new_maps));

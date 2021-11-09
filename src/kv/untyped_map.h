@@ -110,37 +110,11 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare(
-        bool track_read_versions, kv::Version& max_conflict_version) override
+      bool prepare(bool track_read_versions) override
       {
         auto& roll = map.get_roll();
         if (change_set.writes.empty())
         {
-          if (track_read_versions && map.include_conflict_read_version)
-          {
-            auto state = roll.commits->get_tail()->state;
-            for (auto it = change_set.reads.begin();
-                 it != change_set.reads.end();
-                 ++it)
-            {
-              auto search = state.get(it->first);
-              if (search.has_value())
-              {
-                max_conflict_version = std::max(
-                  max_conflict_version,
-                  static_cast<kv::Version>(abs(search->version)));
-              }
-              else
-              {
-                // If the key does not exist set the conflict version to version
-                // NoVersion as dependency tracking does not work for keys that
-                // do not exist. The appropriate max_conflict_version will be
-                // set when this transaction's version is assigned.
-                max_conflict_version = kv::NoVersion;
-                break;
-              }
-            }
-          }
           return true;
         }
 
@@ -188,46 +162,6 @@ namespace kv::untyped
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
-            }
-          }
-
-          if (track_read_versions && map.include_conflict_read_version)
-          {
-            if (search.has_value() && max_conflict_version != kv::NoVersion)
-            {
-              max_conflict_version = std::max(
-                max_conflict_version,
-                static_cast<kv::Version>(abs(search->version)));
-            }
-            else
-            {
-              max_conflict_version = kv::NoVersion;
-            }
-          }
-        }
-
-        if (track_read_versions && map.include_conflict_read_version)
-        {
-          for (auto it = change_set.writes.begin();
-               it != change_set.writes.end();
-               ++it)
-          {
-            auto search = current->state.get(it->first);
-            if (search.has_value() && max_conflict_version != kv::NoVersion)
-            {
-              max_conflict_version = std::max(
-                max_conflict_version,
-                static_cast<kv::Version>(abs(search->version)));
-              max_conflict_version =
-                std::max(max_conflict_version, search->read_version);
-            }
-            else
-            {
-              // If the key does not exist set the conflict version to version
-              // NoVersion as dependency tracking does not work for keys that do
-              // not exist. The appropriate max_conflict_version will be set
-              // when this transaction's version is assigned.
-              max_conflict_version = kv::NoVersion;
             }
           }
         }
@@ -475,7 +409,7 @@ namespace kv::untyped
         return true;
       }
 
-      bool prepare(bool, kv::Version&) override
+      bool prepare(bool) override
       {
         // Snapshots never conflict
         return true;

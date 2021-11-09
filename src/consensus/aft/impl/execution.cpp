@@ -53,7 +53,6 @@ namespace aft
     bool is_create_request,
     ccf::SeqNo prescribed_commit_version,
     std::shared_ptr<aft::RequestTracker> request_tracker,
-    ccf::SeqNo max_conflict_version,
     ccf::View replicated_view)
   {
     std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
@@ -84,7 +83,7 @@ namespace aft
     ctx->execute_on_node = true;
 
     enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(
-      ctx, prescribed_commit_version, max_conflict_version, replicated_view);
+      ctx, prescribed_commit_version, replicated_view);
 
     request->callback(std::move(rep.result));
 
@@ -119,7 +118,6 @@ namespace aft
     aft::Request& request,
     std::shared_ptr<aft::RequestTracker> request_tracker,
     ccf::SeqNo prescribed_commit_version,
-    ccf::SeqNo max_conflict_version,
     ccf::View replicated_view)
   {
     auto ctx = create_request_ctx(request);
@@ -132,7 +130,6 @@ namespace aft
       state->commit_idx == 0,
       prescribed_commit_version,
       request_tracker,
-      max_conflict_version,
       replicated_view);
   }
 

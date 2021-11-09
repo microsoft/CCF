@@ -537,10 +537,8 @@ TEST_CASE("process_bft")
   ctx->execute_on_node = true;
   const auto prescribed_commit_version =
     bft_network.tables->current_version() + 1;
-  const auto max_conflict_version = kv::NoVersion;
   const auto replicated_view = ccf::VIEW_UNKNOWN;
-  frontend.process_bft(
-    ctx, prescribed_commit_version, max_conflict_version, replicated_view);
+  frontend.process_bft(ctx, prescribed_commit_version, replicated_view);
 
   auto tx = bft_network.tables->create_tx();
   auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
