@@ -780,7 +780,7 @@ namespace ccf::historical
       default_expiry_duration = duration;
     }
 
-    bool drop_request(RequestHandle handle) override
+    bool drop_cached_states(RequestHandle handle) override
     {
       std::lock_guard<std::mutex> guard(requests_lock);
       const auto erased_count = requests.erase(handle);

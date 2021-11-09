@@ -1200,11 +1200,7 @@ namespace aft
           }
         }
       }
-      else if (
-        consensus_type != ConsensusType::BFT &&
-        replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Retiring &&
-        replica_state != kv::ReplicaState::Learner)
+      else if (consensus_type != ConsensusType::BFT)
       {
         if (
           can_endorse_primary() && ticking &&
@@ -3089,16 +3085,16 @@ namespace aft
         rollback(last_committable_index());
       }
 
-      if (!is_retiring() && !is_retired())
-      {
-        is_new_follower = true;
+      is_new_follower = true;
 
-        if (can_endorse_primary())
-        {
-          replica_state = kv::ReplicaState::Follower;
-          LOG_INFO_FMT(
-            "Becoming follower {}: {}", state->my_node_id, state->current_view);
-        }
+      if (can_endorse_primary() && replica_state != kv::ReplicaState::Retiring)
+      {
+        replica_state = kv::ReplicaState::Follower;
+        LOG_INFO_FMT(
+          "Becoming follower {}: {}.{}",
+          state->my_node_id,
+          state->current_view,
+          state->commit_idx);
       }
     }
 

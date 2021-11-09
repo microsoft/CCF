@@ -155,7 +155,7 @@ namespace ccf::js
     if (handle < 0)
       return JS_ThrowRangeError(ctx, "Invalid handle: cannot be negative");
 
-    auto found = historical_state->drop_request(handle);
+    auto found = historical_state->drop_cached_states(handle);
     return JS_NewBool(ctx, found);
   }
 

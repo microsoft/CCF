@@ -192,7 +192,7 @@ namespace ccf
       return {};
     }
 
-    bool drop_request(historical::RequestHandle handle)
+    bool drop_cached_states(historical::RequestHandle handle)
     {
       return true;
     }
