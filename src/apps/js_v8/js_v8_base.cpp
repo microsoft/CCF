@@ -11,6 +11,7 @@
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "v8_runner.h"
+#include "v8_util.h"
 #include "kv_module_loader.h"
 
 #include <memory>
@@ -266,16 +267,19 @@ namespace ccfapp
       //   nullptr,
       //   ctx);
 
-      try
+      v8::HandleScope handle_scope(isolate);
+      v8::TryCatch try_catch(isolate);
+      v8::Local<v8::Value> v = ctx.run(props.js_module, props.js_function);
+      
+      if (v.IsEmpty())
       {
-        ctx.run(props.js_module, props.js_function);
-      }
-      catch (std::exception& exc)
-      {
+        v8_util::ReportException(isolate, &try_catch);
+        auto exception_str = v8_util::get_exception_message(isolate, &try_catch);
+
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          exc.what());
+          std::move(exception_str));
         return;
       }
       

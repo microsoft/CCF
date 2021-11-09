@@ -2,7 +2,10 @@
 // Licensed under the Apache 2.0 License.
 
 #include "v8_runner.h"
+#include "v8_util.h"
 #include "ds/logger.h"
+
+#include "libplatform/libplatform.h"
 
 #include <stdexcept>
 #include <sstream>
@@ -21,68 +24,6 @@ namespace ccf
   static std::unique_ptr<v8::Platform> platform = nullptr;
 
   #define CHECK(expr) if (!(expr)) LOG_FATAL_FMT("CHECK failed")
-
-  // Extracts a C string from a V8 Utf8Value.
-  // Adapted from v8/samples/shell.cc::ToCString.
-  static const char* ToCString(const v8::String::Utf8Value& value) {
-    return *value ? *value : "<string conversion failed>";
-  }
-
-  // Adapted from v8/src/d8/d8.cc.
-  static std::string ToSTLString(v8::Isolate* isolate, v8::Local<v8::String> v8_str) {
-    v8::String::Utf8Value utf8(isolate, v8_str);
-    // Should not be able to fail since the input is a v8::String.
-    CHECK(*utf8);
-    return *utf8;
-  }
-
-  static inline v8::Local<v8::String> v8_str(v8::Isolate* isolate, const char* x) {
-    return v8::String::NewFromUtf8(isolate, x).ToLocalChecked();
-  }
-
-  // Adapted from v8/samples/shell.cc::ReportException.
-  static void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch) {
-    v8::HandleScope handle_scope(isolate);
-    v8::String::Utf8Value exception(isolate, try_catch->Exception());
-    const char* exception_string = ToCString(exception);
-    v8::Local<v8::Message> message = try_catch->Message();
-    if (message.IsEmpty()) {
-      // V8 didn't provide any extra information about this error; just
-      // print the exception.
-      LOG_INFO_FMT("Throw: {}", exception_string);
-    } else {
-      // Print (filename):(line number): (message).
-      v8::String::Utf8Value filename(isolate,
-                                    message->GetScriptOrigin().ResourceName());
-      v8::Local<v8::Context> context(isolate->GetCurrentContext());
-      const char* filename_string = ToCString(filename);
-      int linenum = message->GetLineNumber(context).FromJust();
-      LOG_INFO_FMT("{}:{}: {}", filename_string, linenum, exception_string);
-      // Print line of source code.
-      v8::String::Utf8Value sourceline(
-          isolate, message->GetSourceLine(context).ToLocalChecked());
-      const char* sourceline_string = ToCString(sourceline);
-      LOG_INFO_FMT("{}", sourceline_string);
-      // Print wavy underline (GetUnderline is deprecated).
-      // int start = message->GetStartColumn(context).FromJust();
-      // for (int i = 0; i < start; i++) {
-      //   LOG_INFO_FMT((stderr, " ");
-      // }
-      // int end = message->GetEndColumn(context).FromJust();
-      // for (int i = start; i < end; i++) {
-      //   fprintf(stderr, "^");
-      // }
-      // fprintf(stderr, "\n");
-      v8::Local<v8::Value> stack_trace_string;
-      if (try_catch->StackTrace(context).ToLocal(&stack_trace_string) &&
-          stack_trace_string->IsString() &&
-          stack_trace_string.As<v8::String>()->Length() > 0) {
-        v8::String::Utf8Value stack_trace(isolate, stack_trace_string);
-        const char* stack_trace_string = ToCString(stack_trace);
-        LOG_INFO_FMT("{}", stack_trace_string);
-      }
-    }
-  }
 
   // Adapted from v8/src/d8/d8.cc.
   static bool IsAbsolutePath(const std::string& path) {
@@ -224,10 +165,17 @@ namespace ccf
   {
     if (platform)
     {
-      throw std::runtime_error("V8Isolate::initialize must only be called once");
+      throw std::runtime_error("v8_initialize() must only be called once");
     }
-    int thread_pool_size = 1;
-    platform = v8::platform::NewDefaultPlatform(thread_pool_size);
+
+    // See https://github.com/v8/v8/blob/master/src/flags/flag-definitions.h
+    // for all available flags.
+
+    // Disables runtime allocation of executable memory.
+    // Uses only the Ignition interpreter.
+    v8::V8::SetFlagsFromString("--jitless");
+    
+    platform = v8::platform::NewSingleThreadedDefaultPlatform();
     v8::V8::InitializePlatform(platform.get());
     v8::V8::Initialize();
   }
@@ -237,7 +185,7 @@ namespace ccf
     if (!platform)
     {
       throw std::runtime_error(
-        "V8Isolate::shutdown must only be called after initialize and exactly "
+        "v8_shutdown must only be called after initialize and exactly "
         "once");
     }
     v8::V8::Dispose();
@@ -259,21 +207,34 @@ namespace ccf
     isolate_->Dispose();
   }
 
+  // Instantiating a V8Context also establishes
+  // the scopes for the isolate and the underlying context
+  // by manually Enter()'ing them (and Exit()'ing them at destruction)
+  // instead of using v8::Isolate::Scope and v8::Context::Scope.
+  // This simplifies writing code.
   V8Context::V8Context(V8Isolate& isolate)
   {
-    // TODO do we need to Enter the isolate?
-    isolate_ = isolate.GetIsolate();
+    isolate_ = isolate.get_isolate();
+    isolate_->Enter();
     v8::HandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = v8::Context::New(isolate_);
-    this->context_.Reset(isolate_, context);
+    context->Enter();
+    context_.Reset(isolate_, context);
   }
 
   V8Context::~V8Context()
   {
-    // Dispose the persistent handles.  When no one else has any
+    {
+      v8::HandleScope handle_scope(isolate_);
+      v8::Local<v8::Context> context = get_context();
+      context->Exit();
+    }
+    // Dispose the persistent handle.  When no one else has any
     // references to the objects stored in the handles they will be
     // automatically reclaimed.
     context_.Reset();
+
+    isolate_->Exit();
   }
 
   void V8Context::set_module_load_callback(ModuleLoadCallback callback, void* data)
@@ -282,35 +243,14 @@ namespace ccf
     module_load_cb_data_ = data;
   }
 
-  void V8Context::run(
+  v8::Local<v8::Value> V8Context::run(
     const std::string& module_name,
-    const std::string& exported_function_name)
-  {
-    v8::Isolate::Scope isolate_scope(isolate_);
-    v8::HandleScope handle_scope(isolate_);
-    v8::Local<v8::Context> context = get_context();
-    v8::Context::Scope context_scope(context);
-    ModuleEmbedderData::Scope embedder_data_scope(context, module_load_cb_, module_load_cb_data_);
-    
-    v8::TryCatch try_catch(isolate_);
-    v8::Local<v8::Value> v = do_run(context, module_name, exported_function_name);
-    if (v.IsEmpty())
-    {
-      ReportException(isolate_, &try_catch);
-      v8::String::Utf8Value exception(isolate_, try_catch.Exception());
-      const char* exception_str = ToCString(exception);
-      throw std::runtime_error(exception_str);
-    }
-
-    // TODO handle return value
-  }
-
-  v8::Local<v8::Value> V8Context::do_run(
-    v8::Local<v8::Context> context,
-    const std::string& module_name,
-    const std::string& exported_function_name)
+    const std::string& exported_function_name,
+    const std::vector<v8::Local<v8::Value>>& args)
   {
     v8::EscapableHandleScope handle_scope(isolate_);
+    v8::Local<v8::Context> context = get_context();
+    ModuleEmbedderData::Scope embedder_data_scope(context, module_load_cb_, module_load_cb_data_);
     v8::Local<v8::Module> module;
     if (!FetchModuleTree(v8::Local<v8::Module>(), context, module_name).ToLocal(&module))
       return v8::Local<v8::Value>();
@@ -322,7 +262,7 @@ namespace ccf
     CHECK(ns_val->IsModuleNamespaceObject());
     v8::Local<v8::Object> ns = ns_val.As<v8::Object>();
     v8::Local<v8::Value> exported_val;
-    if (!ns->Get(context, v8_str(isolate_, exported_function_name.c_str())).ToLocal(&exported_val))
+    if (!ns->Get(context, v8_util::v8_str(isolate_, exported_function_name.c_str())).ToLocal(&exported_val))
     {
       isolate_->ThrowError("Could not find exported function");
       return v8::Local<v8::Value>();
@@ -333,13 +273,12 @@ namespace ccf
       return v8::Local<v8::Value>();
     }
     v8::Local<v8::Function> exported_function = v8::Local<v8::Function>::Cast(exported_val);
-    int argc = 0;
-    v8::Local<v8::Value> args[1];
+    int argc = args.size();
+    v8::Local<v8::Value>* argv = const_cast<v8::Local<v8::Value>*>(args.data());
     v8::Local<v8::Value> result;
-    if (!exported_function->Call(context, v8::Undefined(isolate_), argc, args).ToLocal(&result))
+    if (!exported_function->Call(context, v8::Undefined(isolate_), argc, argv).ToLocal(&result))
       return v8::Local<v8::Value>();
     
-    // TODO when is this needed? for async functions only?
     while (v8::platform::PumpMessageLoop(platform.get(), isolate_))
       continue;
     
@@ -411,8 +350,9 @@ namespace ccf
       d->module_to_specifier_map.find(v8::Global<v8::Module>(isolate, referrer));
     CHECK(specifier_it != d->module_to_specifier_map.end());
 
-    std::string absolute_path = NormalizePath(ToSTLString(isolate, specifier),
-                                            DirName(specifier_it->second));
+    std::string absolute_path = NormalizePath(
+      v8_util::ToSTLString(isolate, specifier),
+      DirName(specifier_it->second));
 
     auto module_it = d->module_map.find(absolute_path);
     CHECK(module_it != d->module_map.end());
@@ -483,7 +423,7 @@ namespace ccf
       v8::Local<v8::String> name = module_request->GetSpecifier();
       v8::Local<v8::FixedArray> import_assertions = module_request->GetImportAssertions();
       std::string absolute_path =
-        NormalizePath(ToSTLString(isolate, name), dir_name);
+        NormalizePath(v8_util::ToSTLString(isolate, name), dir_name);
       if (d->module_map.count(absolute_path)) {
         continue;
       }

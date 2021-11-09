@@ -15,7 +15,7 @@ namespace ccf
     auto tx = (kv::Tx*)opaque;
     const auto modules = tx->ro<ccf::Modules>(ccf::Tables::MODULES);
     LOG_TRACE_FMT("Loading module '{}'", module_name);
-    auto module = modules->get(module_name_kv);
+    auto module = modules->get(module_name);
     return module;
   }
 } // namespace ccf

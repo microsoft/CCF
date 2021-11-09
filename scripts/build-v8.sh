@@ -78,6 +78,7 @@ echo " + Build V8 monolith mode..."
 # v8_monolithic=true: build a single static archive
 # v8_use_external_startup_data=false: bundle startup data in the archive
 # v8_enable_i18n_support=false & icu_use_data_file=false: disable i18n (ECMA-402) support
+# v8_enable_webassembly=false: disable wasm support 
 # use_sysroot=false: use system libraries instead of vendored ones
 # use_custom_libcxx=false: don't add flags for using V8's custom libc++
 #   Note: Flags to use the system libc++ are added through a patch.
@@ -108,7 +109,7 @@ else
   exit 1
 fi
 OUT_DIR="out.gn/x64.$MODE"
-gn gen "$OUT_DIR" --args="$MODE_ARGS v8_monolithic=true is_component_build=false v8_use_external_startup_data=false v8_enable_i18n_support=false icu_use_data_file=false use_sysroot=false use_custom_libcxx=false use_lld=true target_cpu=\"x64\" use_goma=false is_clang=true"
+gn gen "$OUT_DIR" --args="$MODE_ARGS v8_monolithic=true is_component_build=false v8_use_external_startup_data=false v8_enable_i18n_support=false icu_use_data_file=false v8_enable_webassembly=false use_sysroot=false use_custom_libcxx=false use_lld=true target_cpu=\"x64\" use_goma=false is_clang=true"
 ninja -C "$OUT_DIR" v8_monolith
 if [ ! -f "$OUT_DIR/obj/libv8_monolith.a" ]; then
   echo "ERROR: Compilation unsuccessful, bailing out"
@@ -117,6 +118,7 @@ fi
 
 echo " + Create install dir..."
 INSTALL_DIR="../../$MODE"
+rm -rf "$INSTALL_DIR"
 mkdir -p "$INSTALL_DIR/lib"
 cp -rv include "$INSTALL_DIR"
 cp -v "$OUT_DIR"/obj/libv8_monolith.a "$INSTALL_DIR/lib"
@@ -125,13 +127,6 @@ du -sh "$INSTALL_DIR"
 # Always test, even when we don't want to publish
 echo " + Test install..."
 COMPILER=clang++-10
-$COMPILER -fuse-ld=lld -stdlib=libc++ "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/hello-world.cc -o hello_world -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14 -DV8_COMPRESS_POINTERS
-OUTPUT="$(./hello_world | grep "3 + 4 = 7")"
-if [ "$OUTPUT" == "" ]; then
-  echo "ERROR: Hello World test failed"
-  exit 1
-fi
-
 $COMPILER -fuse-ld=lld -stdlib=libc++ "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/process.cc -o process -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14 -DV8_COMPRESS_POINTERS
 OUTPUT="$(./process samples/count-hosts.js | grep "yahoo.com: 3")"
 if [ "$OUTPUT" == "" ]; then
