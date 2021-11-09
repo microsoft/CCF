@@ -291,7 +291,7 @@ export interface CCFHistorical {
    * to completely fetch and validate. The call should be repeated later with
    * the same arguments to retrieve the requested entries. This state is kept
    * until it is deleted for one of the following reasons:
-   *  - A call to {@linkcode dropCachedStateRange}
+   *  - A call to {@linkcode dropCachedStates}
    *  - `seconds_until_expiry` seconds elapse without calling this function
    *  - This handle is used to request a different seqno or range
    *
