@@ -283,8 +283,6 @@ namespace ccfapp
           std::move(exception_str));
         return;
       }
-
-      try_catch.Reset();
       
       // Handle return value: {body, headers, statusCode}
       if (!val->IsObject())
@@ -299,9 +297,16 @@ namespace ccfapp
       // Response body (also sets a default response content-type header)
       v8::Local<v8::Object> obj = val.As<v8::Object>();
       v8::Local<v8::Value> response_body_js;
-      // TODO handle exception properly (IsEmpty())
-      obj->Get(context, v8_util::to_v8_str(isolate, "body")).ToLocal(&response_body_js);
-      if (!response_body_js.IsEmpty() && !response_body_js->IsUndefined())
+      if (!obj->Get(context, v8_util::to_v8_str(isolate, "body")).ToLocal(&response_body_js))
+      {
+        v8_util::ReportException(isolate, &try_catch);
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Invalid endpoint function return value (cannot access body).");
+        return;
+      }
+      if (!response_body_js->IsUndefined())
       {
         std::vector<uint8_t> response_body;
         size_t buf_size;
@@ -366,10 +371,25 @@ namespace ccfapp
      
       // Response headers
       v8::Local<v8::Value> response_headers_js;
-      // TODO handle exception properly (IsEmpty())
-      obj->Get(context, v8_util::to_v8_str(isolate, "headers")).ToLocal(&response_headers_js);
-      if (!response_headers_js.IsEmpty() && response_headers_js->IsObject())
+      if (!obj->Get(context, v8_util::to_v8_str(isolate, "headers")).ToLocal(&response_headers_js))
       {
+        v8_util::ReportException(isolate, &try_catch);
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Invalid endpoint function return value (cannot access headers).");
+        return;
+      }
+      if (!response_headers_js->IsNullOrUndefined())
+      {
+        if (!response_headers_js->IsObject())
+        {
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Invalid endpoint function return value (headers is not an object).");
+          return;
+        }
         v8::Local<v8::Object> headers_obj = response_headers_js.As<v8::Object>();
         v8::Local<v8::Array> headers_arr = headers_obj->GetOwnPropertyNames(context).ToLocalChecked();
         for (uint32_t i = 0; i < headers_arr->Length(); i++)
@@ -393,9 +413,16 @@ namespace ccfapp
       // Response status code
       int response_status_code = HTTP_STATUS_OK;
       v8::Local<v8::Value> status_code_js;
-      // TODO handle exception properly (IsEmpty())
-      obj->Get(context, v8_util::to_v8_str(isolate, "statusCode")).ToLocal(&status_code_js);
-      if (!status_code_js.IsEmpty() && !status_code_js->IsNullOrUndefined())
+      if (!obj->Get(context, v8_util::to_v8_str(isolate, "statusCode")).ToLocal(&status_code_js))
+      {
+        v8_util::ReportException(isolate, &try_catch);
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Invalid endpoint function return value (cannot access statusCode).");
+        return;
+      }
+      if (!status_code_js->IsNullOrUndefined())
       {
         v8::Local<v8::Uint32> status_code;
         if (!status_code_js->IsNumber() || !status_code_js->ToUint32(context).ToLocal(&status_code))
