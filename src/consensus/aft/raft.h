@@ -5,6 +5,7 @@
 #include "ccf/tx_id.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
+#include "enclave/reconfiguration_type.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"
 #include "node/node_client.h"
@@ -1455,8 +1456,7 @@ namespace aft
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
             ledger->truncate(state->last_idx);
-            send_append_entries_response(
-              from, AppendEntriesResponseType::FAIL);
+            send_append_entries_response(from, AppendEntriesResponseType::FAIL);
             break;
           }
 
