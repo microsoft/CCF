@@ -14,6 +14,7 @@
 #include "node/resharing_tracker.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
+#include "orc_requests.h"
 #include "raft_types.h"
 
 #include <algorithm>
@@ -109,8 +110,9 @@ namespace aft
     // Configurations
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
-    bool use_two_tx_reconfig = false;
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
+    ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
     std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
@@ -169,7 +171,9 @@ namespace aft
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
-      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower) :
+      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower,
+      ReconfigurationType reconfiguration_type_ =
+        ReconfigurationType::ONE_TRANSACTION) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
@@ -184,6 +188,7 @@ namespace aft
 
       sig_tx_interval(sig_tx_interval_),
 
+      reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
 
@@ -199,6 +204,10 @@ namespace aft
       rpc_map(rpc_map_)
 
     {
+      LOG_DEBUG_FMT(
+        "reconfiguration type: {}",
+        reconfiguration_type == ONE_TRANSACTION ? "1tx" : "2tx");
+
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
@@ -210,7 +219,6 @@ namespace aft
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
-        use_two_tx_reconfig = true;
         require_identity_for_reconfig = true;
         ticking = true;
       }
@@ -482,7 +490,8 @@ namespace aft
     void add_configuration(
       Index idx,
       const kv::Configuration::Nodes& conf,
-      const std::unordered_set<ccf::NodeId>& new_learners = {})
+      const std::unordered_set<ccf::NodeId>& new_learners = {},
+      const std::unordered_set<ccf::NodeId>& new_retired_nodes = {})
     {
       LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
@@ -495,7 +504,7 @@ namespace aft
         guard.lock();
       }
 
-      if (!use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
         assert(new_learners.empty());
 
@@ -526,9 +535,23 @@ namespace aft
             fmt::join(new_learners, ", "));
           for (auto& id : new_learners)
           {
-            if (learners.find(id) == learners.end())
+            if (learner_nodes.find(id) == learner_nodes.end())
             {
-              learners[id] = idx;
+              learner_nodes[id] = idx;
+            }
+          }
+        }
+
+        if (!new_retired_nodes.empty())
+        {
+          LOG_DEBUG_FMT(
+            "Configurations: newly retired nodes: {{{}}}",
+            fmt::join(new_retired_nodes, ", "));
+          for (auto& id : new_retired_nodes)
+          {
+            if (retired_nodes.find(id) == retired_nodes.end())
+            {
+              retired_nodes[id] = idx;
             }
           }
         }
@@ -539,11 +562,11 @@ namespace aft
           {
             if (
               nodes.find(nid) != nodes.end() &&
-              learners.find(nid) != learners.end() &&
+              learner_nodes.find(nid) != learner_nodes.end() &&
               new_learners.find(nid) == new_learners.end())
             {
               // Promotion of known learner
-              learners.erase(nid);
+              learner_nodes.erase(nid);
             }
             if (is_learner() && nid == state->my_node_id)
             {
@@ -555,11 +578,14 @@ namespace aft
         }
       }
 
-      uint32_t offset = get_bft_offset(conf);
-      configurations.push_back({idx, std::move(conf), offset, 0});
+      if (conf != configurations.back().nodes)
+      {
+        uint32_t offset = get_bft_offset(conf);
+        configurations.push_back({idx, std::move(conf), offset, 0});
 
-      backup_nodes.clear();
-      create_and_remove_node_state();
+        backup_nodes.clear();
+        create_and_remove_node_state();
+      }
     }
 
     void start_ticking()
@@ -598,15 +624,6 @@ namespace aft
 
       assert(!configurations.empty());
 
-      for (const auto& nid : netconfig.nodes)
-      {
-        if (nid != state->my_node_id && nodes.find(nid) == nodes.end())
-        {
-          LOG_FAIL_FMT("Configurations: node {} is unknown", nid);
-          return;
-        }
-      }
-
       network_configurations[netconfig.rid] = netconfig;
 
       if (orc_sets.find(netconfig.rid) == orc_sets.end())
@@ -635,15 +652,34 @@ namespace aft
       kv::ReconfigurationId rid,
       const ccf::ResharingResult& result)
     {
-      if (use_two_tx_reconfig && require_identity_for_reconfig)
+      if (
+        reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
+        require_identity_for_reconfig)
       {
         assert(resharing_tracker);
         resharing_tracker->add_resharing_result(seqno, rid, result);
       }
     }
 
+    void clear_orc_sets()
+    {
+      for (auto& [_, s] : orc_sets)
+      {
+        s.clear();
+      }
+    }
+
     // For more info about Observed Reconfiguration Commits see
-    // https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration
+    // https://microsoft.github.io/CCF/main/overview/consensus/2tx-reconfig.html
+    //
+    // Note that this call is not `const` and that it modifies `orc_sets`. This
+    // is safe, despite the fact that the primary may change or a
+    // reconfiguration may be (partially) rolled back, because the `orc_sets`
+    // are cleared upon entering/exiting the leader/follower replica states.
+    // This means that we never record spurious ORCs, while it is still
+    // guaranteed that we will eventually receive all of them, since all
+    // nodes keep re-submitting ORCs until they are able to switch to the next
+    // pending configuration.
     bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
     {
       LOG_DEBUG_FMT(
@@ -674,6 +710,12 @@ namespace aft
         oit->second.size(),
         ncnodes.size(),
         rid);
+
+      // Note: Learners in the next configuration become trusted when there is
+      // quorum in the next configuration, i.e. they may become trusted in the
+      // nodes table before they are fully caught up and have submitted their
+      // own ORC.
+
       return oit->second.size() >= get_quorum(ncnodes.size());
     }
 
@@ -706,9 +748,9 @@ namespace aft
       {
         details.acks[k] = v.match_idx;
       }
-      if (use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
-        details.learners = learners;
+        details.learners = learner_nodes;
       }
       return details;
     }
@@ -807,7 +849,12 @@ namespace aft
         }
 
         state->last_idx = index;
-        ledger->put_entry(*data, globally_committable, force_ledger_chunk);
+        ledger->put_entry(
+          *data,
+          globally_committable,
+          force_ledger_chunk,
+          state->current_view,
+          index);
         entry_size_not_limited += data->size();
         entry_count++;
 
@@ -1035,20 +1082,40 @@ namespace aft
 
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
-      Index end_idx = (state->last_idx == 0) ?
-        0 :
-        std::min(start_idx + entries_batch_size, state->last_idx);
+      LOG_TRACE_FMT(
+        "Sending append entries to node {} in batches of {}, covering the "
+        "range {} -> {}",
+        to,
+        entries_batch_size,
+        start_idx,
+        state->last_idx);
 
-      for (Index i = end_idx; i < state->last_idx; i += entries_batch_size)
-      {
-        send_append_entries_range(to, start_idx, i);
-        start_idx = std::min(i + 1, state->last_idx);
-      }
+      auto calculate_end_index = [this](Index start) {
+        // Cap the end index in 2 ways:
+        // - Must contain no more than entries_batch_size entries
+        // - Must contain entries from a single term
+        auto max_idx = state->last_idx;
+        const auto term_of_ae = state->view_history.view_at(start);
+        const auto index_at_end_of_term =
+          state->view_history.end_of_view(term_of_ae);
+        if (index_at_end_of_term != kv::NoVersion)
+        {
+          max_idx = index_at_end_of_term;
+        }
+        return std::min(start + entries_batch_size, max_idx);
+      };
 
-      if (state->last_idx == 0 || end_idx <= state->last_idx)
+      Index end_idx;
+
+      // We break _after_ sending, so that in the case where this is called
+      // with start==last, we send a single empty heartbeat
+      do
       {
-        send_append_entries_range(to, start_idx, state->last_idx);
-      }
+        end_idx = calculate_end_index(start_idx);
+        LOG_TRACE_FMT("Sending sub range {} -> {}", start_idx, end_idx);
+        send_append_entries_range(to, start_idx, end_idx);
+        start_idx = std::min(end_idx + 1, state->last_idx);
+      } while (end_idx != state->last_idx);
     }
 
     void send_append_entries_range(
@@ -1210,7 +1277,7 @@ namespace aft
       // Then check if those append entries extend past our retirement
       if (
         retirement_committable_idx.has_value() &&
-        r.idx > retirement_committable_idx)
+        r.idx > retirement_committable_idx && !is_retiring())
       {
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
@@ -1320,7 +1387,8 @@ namespace aft
           return;
         }
 
-        auto ds = store->apply(entry, consensus_type, public_only);
+        kv::TxID expected{r.term_of_idx, i};
+        auto ds = store->apply(entry, consensus_type, public_only, expected);
         if (ds == nullptr)
         {
           LOG_FAIL_FMT(
@@ -1374,7 +1442,11 @@ namespace aft
         }
 
         ledger->put_entry(
-          ds->get_entry(), globally_committable, force_ledger_chunk);
+          ds->get_entry(),
+          globally_committable,
+          force_ledger_chunk,
+          ds->get_term(),
+          ds->get_index());
 
         switch (apply_success)
         {
@@ -1863,16 +1935,12 @@ namespace aft
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
-      // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
-      {
-        LOG_FAIL_FMT(
-          "Recv request vote to {} from {}: unknown node",
-          state->my_node_id,
-          from);
-        return;
-      }
+      // Do not check that from is a known node. It is possible to receive
+      // RequestVotes from nodes that this node doesn't yet know, just as it
+      // receives AppendEntries from those nodes. These should be obeyed just
+      // like any other RequestVote - it is possible that this node is needed to
+      // produce a primary in the new term, who will then help this node catch
+      // up.
 
       if (state->current_view > r.term)
       {
@@ -2033,6 +2101,8 @@ namespace aft
     {
       replica_state = kv::ReplicaState::Candidate;
       leader_id.reset();
+      clear_orc_sets();
+
       voted_for = state->my_node_id;
       votes_for_me.clear();
       state->current_view++;
@@ -2128,6 +2198,7 @@ namespace aft
         replica_state != kv::ReplicaState::Learner;
     }
 
+  public:
     // Called when a replica becomes aware of the existence of a new term
     // If retired already, state remains unchanged, but the replica otherwise
     // becomes a follower in the new term.
@@ -2139,25 +2210,31 @@ namespace aft
       state->current_view = term;
       voted_for.reset();
       votes_for_me.clear();
+      clear_orc_sets();
 
       rollback(last_committable_index());
 
       is_new_follower = true;
 
-      if (can_endorse_primary())
+      if (can_endorse_primary() && replica_state != kv::ReplicaState::Retiring)
       {
         replica_state = kv::ReplicaState::Follower;
         LOG_INFO_FMT(
-          "Becoming follower {}: {}", state->my_node_id, state->current_view);
+          "Becoming follower {}: {}.{}",
+          state->my_node_id,
+          state->current_view,
+          state->commit_idx);
       }
     }
 
+  private:
     void become_retiring()
     {
-      assert(use_two_tx_reconfig);
-
       LOG_INFO_FMT(
-        "Becoming retiring {}: {}", state->my_node_id, state->current_view);
+        "Becoming retiring {}: {} at {}",
+        state->my_node_id,
+        state->current_view,
+        state->commit_idx);
 
       replica_state = kv::ReplicaState::Retiring;
       leader_id.reset();
@@ -2167,7 +2244,6 @@ namespace aft
         "retirement_idx already set to {}",
         retirement_idx.value());
       retirement_idx = state->commit_idx;
-      LOG_INFO_FMT("Node retiring at {}", state->commit_idx);
     }
 
     void become_retired()
@@ -2183,7 +2259,7 @@ namespace aft
     {
       size_t quorum = -1;
 
-      if (use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         const auto& cfg = configurations.front();
 
@@ -2322,9 +2398,42 @@ namespace aft
       {
         if (
           (nodes.find(id) != nodes.end() &&
-           learners.find(id) == learners.end()) ||
+           learner_nodes.find(id) == learner_nodes.end()) ||
           (id == state->my_node_id && !is_learner()))
         {
+          r++;
+        }
+      }
+      return r;
+    }
+
+    size_t num_retired(
+      const kv::Configuration& from, const kv::Configuration& to) const
+    {
+      size_t r = 0;
+      for (const auto& [id, _] : from.nodes)
+      {
+        auto rit = retired_nodes.find(id);
+        if (
+          to.nodes.find(id) == to.nodes.end() && rit != retired_nodes.end() &&
+          rit->second <= state->commit_idx)
+        {
+          LOG_DEBUG_FMT("Configurations: is retired: {}", id);
+          r++;
+        }
+      }
+      return r;
+    }
+
+    size_t num_required_retirements(
+      const kv::Configuration& from, const kv::Configuration& to) const
+    {
+      size_t r = 0;
+      for (auto& [nid, _] : from.nodes)
+      {
+        if (to.nodes.find(nid) == to.nodes.end())
+        {
+          LOG_DEBUG_FMT("Configurations: required retirement: {}", nid);
           r++;
         }
       }
@@ -2373,7 +2482,7 @@ namespace aft
       if (
         retirement_committable_idx.has_value() &&
         idx >= retirement_committable_idx.value() &&
-        (!use_two_tx_reconfig || is_retiring()))
+        reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
         become_retired();
       }
@@ -2422,7 +2531,7 @@ namespace aft
           }
         }
 
-        if (!use_two_tx_reconfig)
+        if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
           configurations.pop_front();
           backup_nodes.clear();
@@ -2430,26 +2539,53 @@ namespace aft
         }
         else
         {
-          if (num_trusted(*next) == next->nodes.size())
+          bool retiring_primary = false;
+
+          if (
+            !is_retired() &&
+            conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
+            next->nodes.find(state->my_node_id) == next->nodes.end())
+          {
+            auto rit = retired_nodes.find(state->my_node_id);
+            if (
+              is_retiring() && rit != retired_nodes.end() && rit->second <= idx)
+            {
+              retiring_primary = is_primary();
+              become_retired();
+            }
+            else if (!is_retiring())
+            {
+              retiring_primary = is_primary();
+              become_retiring();
+            }
+          }
+
+          size_t num_trusted_nodes = num_trusted(*next);
+          size_t num_retired_nodes = num_retired(*conf, *next);
+          size_t num_required_retired_nodes =
+            num_required_retirements(*conf, *next);
+          if (
+            num_trusted_nodes == next->nodes.size() &&
+            num_retired_nodes == num_required_retired_nodes)
           {
             LOG_TRACE_FMT(
-              "Configurations: all nodes trusted, switching to configuration "
-              "#{}",
+              "Configurations: all nodes trusted ({}) or retired ({}), "
+              "switching to configuration #{}",
+              num_trusted_nodes,
+              num_retired_nodes,
               next->rid);
-
-            if (!is_retiring() && !is_retired())
-            {
-              if (
-                conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
-                next->nodes.find(state->my_node_id) == next->nodes.end())
-              {
-                become_retiring();
-              }
-            }
 
             for (auto& [nid, _] : next->nodes)
             {
-              learners.erase(nid);
+              learner_nodes.erase(nid);
+            }
+
+            for (auto& [nid, _] : conf->nodes)
+            {
+              if (next->nodes.find(nid) == next->nodes.end())
+              {
+                retired_nodes.erase(nid);
+              }
             }
 
             if (
@@ -2467,18 +2603,26 @@ namespace aft
           }
           else
           {
+            LOG_TRACE_FMT(
+              "Configurations: not enough trusted or retired nodes for "
+              "configuration #{} ({}/{} trusted, {}/{} retired)",
+              next->rid,
+              num_trusted_nodes,
+              next->nodes.size(),
+              num_retired_nodes,
+              num_required_retired_nodes);
             if (
-              use_two_tx_reconfig && !is_learner() && !is_retired() &&
-              node_client &&
-              next->nodes.find(state->my_node_id) != next->nodes.end())
+              node_client && !is_learner() && !is_retired() &&
+              ((next->nodes.find(state->my_node_id) != next->nodes.end()) ||
+               (is_retiring() &&
+                next->nodes.find(state->my_node_id) == next->nodes.end())))
             {
-              LOG_TRACE_FMT(
-                "Configurations: not enough trusted nodes for configuration "
-                "#{} ({} out of {}); submitting ORC",
+              schedule_submit_orc(
+                node_client,
+                state->my_node_id,
                 next->rid,
-                num_trusted(*next),
-                next->nodes.size());
-              node_client->schedule_submit_orc(state->my_node_id, next->rid);
+                retiring_primary ? 2 * election_timeout :
+                                   std::chrono::milliseconds(0));
             }
             break;
           }
@@ -2536,6 +2680,7 @@ namespace aft
       }
     }
 
+  public:
     void rollback(Index idx)
     {
       if (
@@ -2588,13 +2733,25 @@ namespace aft
         changed = true;
       }
 
-      if (use_two_tx_reconfig)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
-        for (auto it = learners.begin(); it != learners.end();)
+        for (auto it = learner_nodes.begin(); it != learner_nodes.end();)
         {
           if (it->second > idx)
           {
-            it = learners.erase(it);
+            it = learner_nodes.erase(it);
+          }
+          else
+          {
+            it++;
+          }
+        }
+
+        for (auto it = retired_nodes.begin(); it != retired_nodes.end();)
+        {
+          if (it->second > idx)
+          {
+            it = retired_nodes.erase(it);
           }
           else
           {
@@ -2609,6 +2766,7 @@ namespace aft
       }
     }
 
+  private:
     void create_and_remove_node_state()
     {
       // Find all nodes present in any active configuration.

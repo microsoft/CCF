@@ -936,7 +936,8 @@ const actions = new Map([
         if (node !== undefined) {
           const node_obj = ccf.bufToJsonCompatible(node);
           node_obj.status =
-            serviceConfig.reconfiguration_type == "TwoTransaction"
+            serviceConfig.reconfiguration_type === "TwoTransaction" &&
+            node_obj.status !== "Pending"
               ? "Retiring"
               : "Retired";
           ccf.kv["public:ccf.gov.nodes.info"].set(

@@ -109,8 +109,8 @@ namespace ccf
           }
         }
         ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          ccf::errors::PrimaryNotFound,
           "RPC could not be forwarded to unknown primary.");
         update_metrics(ctx, endpoint);
         return ctx->serialise_response();

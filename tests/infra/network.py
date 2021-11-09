@@ -110,6 +110,7 @@ class Network:
         "client_connection_timeout_ms",
         "initial_node_cert_validity_days",
         "max_allowed_node_cert_validity_days",
+        "reconfiguration_type",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -412,6 +413,7 @@ class Network:
             initial_members_info,
             args.participants_curve,
             authenticate_session=not args.disable_member_session_auth,
+            reconfiguration_type=args.reconfiguration_type,
         )
         initial_users = [
             f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
@@ -632,7 +634,9 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args, valid_from=None, validity_period_days=None):
+    def trust_node(
+        self, node, args, valid_from=None, validity_period_days=None, no_wait=False
+    ):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
@@ -646,10 +650,11 @@ class Network:
                     validity_period_days=validity_period_days,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
-            # Here, quote verification has already been run when the node
-            # was added as pending. Only wait for the join timer for the
-            # joining node to retrieve network secrets.
-            node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            if not no_wait:
+                # Here, quote verification has already been run when the node
+                # was added as pending. Only wait for the join timer for the
+                # joining node to retrieve network secrets.
+                node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()
@@ -659,10 +664,11 @@ class Network:
         node.set_certificate_validity_period(
             valid_from, validity_period_days or args.max_allowed_node_cert_validity_days
         )
-        self.wait_for_all_nodes_to_commit(primary=primary)
+        if not no_wait:
+            self.wait_for_all_nodes_to_commit(primary=primary)
 
-    def retire_node(self, remote_node, node_to_retire):
-        self.consortium.retire_node(remote_node, node_to_retire)
+    def retire_node(self, remote_node, node_to_retire, timeout=10):
+        self.consortium.retire_node(remote_node, node_to_retire, timeout=timeout)
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -1080,7 +1086,8 @@ class Network:
         while time.time() < end_time:
             try:
                 return call(seqno)
-            except Exception:
+            except Exception as ex:
+                LOG.info(f"Exception: {ex}")
                 self.consortium.create_and_withdraw_large_proposal(node)
                 time.sleep(0.1)
         raise TimeoutError(

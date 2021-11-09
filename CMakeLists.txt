@@ -296,6 +296,12 @@ if(BUILD_TESTS)
     target_link_libraries(crypto_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
+      key_exchange_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/key_exchange.cpp
+    )
+    target_link_libraries(key_exchange_test PRIVATE)
+
+    add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
     target_link_libraries(history_test PRIVATE ccfcrypto.host http_parser.host)
@@ -340,12 +346,6 @@ if(BUILD_TESTS)
 
     add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
     target_link_libraries(cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
-    add_unit_test(
-      key_exchange_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
-    )
-    target_link_libraries(key_exchange_test PRIVATE)
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
@@ -616,16 +616,21 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  # Higher snapshot interval as the test currently assumes that no transactions
+  # are emitted while partitions are up. To be removed when
+  # https://github.com/microsoft/CCF/issues/2577 is implemented
+  set(PARTITIONS_TEST_ARGS --snapshot-tx-interval 10000)
+  if(ENABLE_2TX_RECONFIG)
+    list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
+  endif()
+
   add_e2e_test(
     NAME partitions_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
     LABEL partitions
     CONFIGURATIONS partitions
-    # Higher snapshot interval as the test currently assumes that no
-    # transactions are emitted while partitions are up. To be removed when
-    # https://github.com/microsoft/CCF/issues/2577 is implemented
-    ADDITIONAL_ARGS --snapshot-tx-interval 10000
+    ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
   )
 
   if(NOT SAN)
@@ -691,11 +696,15 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
+  set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
+  if(ENABLE_2TX_RECONFIG)
+    list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
+  endif()
   add_e2e_test(
     NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
   )
 
   add_e2e_test(

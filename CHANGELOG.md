@@ -7,9 +7,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Renamed
+
+- `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()`
+
+## [2.0.0-dev6]
+
+### Added
+
+- Added experimental support for 2-transaction reconfiguration with CFT consensus (#3097), see [documentation](https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration). Note that mixing 1tx and 2tx nodes in the same network is unsupported and unsafe at this stage.
+
 ### Changed
 
 - DNS resolution of client connections is now asynchronous.
+
+### Fixed
+
+- Fixed issue with join nodes which could get stuck if an election was triggered while catching up (#3169).
 
 ## [2.0.0-dev5]
 
@@ -1009,6 +1023,8 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev6
+[ccf-2.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev5
 [ccf-2.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev4
 [ccf-2.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev3
 [ccf-2.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev2

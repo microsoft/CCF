@@ -13,6 +13,7 @@
 #include "ds/logger.h"
 #include "ds/net.h"
 #include "ds/state_machine.h"
+#include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "entities.h"
@@ -333,7 +334,11 @@ namespace ccf
             open_frontend(ActorsType::members);
           }
 
-          setup_consensus(ServiceStatus::OPENING, false, endorsed_node_cert);
+          setup_consensus(
+            ServiceStatus::OPENING,
+            config.genesis.reconfiguration_type,
+            false,
+            endorsed_node_cert);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -511,6 +516,8 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
+              resp.network_info->reconfiguration_type.value_or(
+                ReconfigurationType::ONE_TRANSACTION),
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -946,7 +953,11 @@ namespace ccf
         progress_tracker->set_node_id(self);
       }
 
-      setup_consensus(ServiceStatus::OPENING, true);
+      auto service_config = tx.ro(network.config)->get();
+      auto reconfiguration_type = service_config->reconfiguration_type.value_or(
+        ReconfigurationType::ONE_TRANSACTION);
+
+      setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
@@ -1585,14 +1596,11 @@ namespace ccf
           genesis_info.members_info.push_back(m_info);
         }
         genesis_info.constitution = config.genesis.constitution;
-        auto reconf_type = network.consensus_type == ConsensusType::BFT ?
-          ReconfigurationType::TWO_TRANSACTION :
-          ReconfigurationType::ONE_TRANSACTION;
 
         genesis_info.configuration = {
           config.genesis.recovery_threshold,
           network.consensus_type,
-          reconf_type,
+          config.genesis.reconfiguration_type,
           config.genesis.max_allowed_node_cert_validity_days};
         create_params.genesis_info = genesis_info;
       }
@@ -1939,6 +1947,7 @@ namespace ccf
 
     void setup_consensus(
       ServiceStatus service_status,
+      ReconfigurationType reconfiguration_type,
       bool public_only = false,
       const std::optional<crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
@@ -1948,24 +1957,22 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      std::shared_ptr<ccf::SplitIdentityResharingTracker> resharing_tracker;
-
-      if (network.consensus_type == ConsensusType::BFT)
+      auto resharing_tracker = nullptr;
+      if (consensus_config.consensus_type == ConsensusType::BFT)
       {
-        resharing_tracker =
-          std::make_shared<ccf::SplitIdentityResharingTracker>(
-            shared_state,
-            rpc_map,
-            node_sign_kp,
-            self_signed_node_cert,
-            endorsed_node_cert);
+        std::make_shared<ccf::SplitIdentityResharingTracker>(
+          shared_state,
+          rpc_map,
+          node_sign_kp,
+          self_signed_node_cert,
+          endorsed_node_cert);
       }
 
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
       kv::ReplicaState initial_state =
-        (network.consensus_type == ConsensusType::BFT &&
+        (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
          service_status == ServiceStatus::OPEN) ?
         kv::ReplicaState::Learner :
         kv::ReplicaState::Follower;
@@ -1986,7 +1993,8 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
         public_only,
-        initial_state);
+        initial_state,
+        reconfiguration_type);
 
       consensus = std::make_shared<RaftConsensusType>(
         std::move(raft), network.consensus_type);
