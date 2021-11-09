@@ -42,7 +42,7 @@ export const historicalState = ccf.historicalState;
 export const getStateRange = ccf.historical.getStateRange.bind(ccf.historical);
 
 /**
- * @inheritDoc CCFHistorical.dropCachedStateRange
+ * @inheritDoc CCFHistorical.dropCachedStates
  */
 export const dropCachedStates = ccf.historical.dropCachedStates.bind(
   ccf.historical

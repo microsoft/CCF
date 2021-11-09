@@ -11,7 +11,9 @@
     "src/polyfill.ts"
   ],
   "out": "html",
-  "theme": "./doc/theme",
+  "theme": "default",
   "categorizeByGroup": false,
-  "listInvalidSymbolLinks": true
+  "validation": {
+    "invalidLink": true
+  }
 }
