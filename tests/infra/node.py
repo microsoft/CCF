@@ -153,6 +153,8 @@ class Node:
 
         self.max_open_sessions = host.max_open_sessions
         self.max_open_sessions_hard = host.max_open_sessions_hard
+
+        # TODO: Still needed??
         self.additional_raw_node_args = host.additional_raw_node_args
 
     def __hash__(self):
@@ -190,7 +192,6 @@ class Node:
         workspace,
         label,
         common_dir,
-        snapshot_dir,
         **kwargs,
     ):
         self._start(
@@ -200,7 +201,6 @@ class Node:
             workspace,
             label,
             common_dir,
-            snapshot_dir=snapshot_dir,
             **kwargs,
         )
 
@@ -227,8 +227,6 @@ class Node:
         workspace,
         label,
         common_dir,
-        target_rpc_address=None,
-        snapshot_dir=None,
         members_info=[],
         **kwargs,
     ):
@@ -250,14 +248,14 @@ class Node:
 
         self.remote = self.remote_shim(
             start_type,
+            lib_path,
+            enclave_type,
             self.remote_impl,
             workspace,
             common_dir,
             binary_dir=self.binary_dir,
             label=label,
             local_node_id=self.local_node_id,
-            enclave_file=lib_path,
-            enclave_type=enclave_type,
             rpc_address_hostname=self.rpc_host,
             rpc_address_port=self.rpc_port,
             node_address_hostname=self.node_host,
@@ -265,10 +263,8 @@ class Node:
             public_rpc_address_hostname=self.pubhost,
             public_rpc_address_port=self.rpc_port,
             node_client_interface=self.node_client_host,
-            target_rpc_address=target_rpc_address,
-            members_info=members_info,
-            snapshot_dir=snapshot_dir,
             additional_raw_node_args=self.additional_raw_node_args,
+            members_info=members_info,
             version=self.version,
             major_version=self.major_version,
             **kwargs,
@@ -428,7 +424,7 @@ class Node:
                 if is_file_committed(f):
                     infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
 
-        return current_ledger_dir, committed_ledger_dir
+        return current_ledger_dir, [committed_ledger_dir]
 
     def get_snapshots(self):
         return self.remote.get_snapshots()

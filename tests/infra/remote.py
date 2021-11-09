@@ -540,12 +540,17 @@ class CCFRemote(object):
     def __init__(
         self,
         start_type,
+        enclave_file,
+        enclave_type,
         remote_class,
         workspace,
         common_dir,
         label="",
         binary_dir=".",
         local_node_id=None,
+        ledger_dir=None,
+        read_only_ledger_dirs=[],
+        snapshot_dir=None,
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         **kwargs,
         # rpc_host=None,
@@ -591,25 +596,22 @@ class CCFRemote(object):
         Run a ccf binary on a remote host.
         """
 
-        members_info = kwargs.get("members_info")
-
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_address_file = f"{local_node_id}.rpc_address"
-        self.binary_dir = binary_dir
         self.BIN = infra.path.build_bin_path(
-            self.BIN, kwargs.get("enclave_type"), binary_dir=binary_dir
+            self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
         self.pub_host = kwargs.get("public_rpc_address_hostname")
-        self.enclave_file = kwargs.get("enclave_file")
+        data_files = []
+        exe_files = []
 
+        # Main ledger directory
         ledger_dir = kwargs.get("ledger_dir")
-        snapshot_dir = kwargs.get("snapshot_dir")
-
         self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
             os.path.basename(self.ledger_dir)
@@ -617,20 +619,23 @@ class CCFRemote(object):
             else f"{local_node_id}.ledger"
         )
 
-        self.read_only_ledger_dir = kwargs.get("read_only_ledger_dir")
-        self.read_only_ledger_dir_name = (
-            os.path.basename(self.read_only_ledger_dir)
-            if self.read_only_ledger_dir
-            else None
-        )
+        # Read-only ledger directories
+        LOG.warning(f"R/O dirs: {read_only_ledger_dirs}")
+        self.read_only_ledger_dirs = read_only_ledger_dirs
+        self.read_only_ledger_dirs_names = []
+        for d in self.read_only_ledger_dirs:
+            self.read_only_ledger_dirs_names.append(os.path.basename(d))
+        LOG.error(f"R/O dir names: {self.read_only_ledger_dirs_names}")
         self.common_read_only_ledger_dir = common_read_only_ledger_dir
 
+        # Snapshots
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
         self.snapshot_dir_name = (
             os.path.basename(self.snapshot_dir)
             if self.snapshot_dir
             else f"{local_node_id}.snapshots"
         )
+        LOG.error(self.snapshot_dir_name)
 
         ## CONFIG PLAYGROUND
         loader = FileSystemLoader("../tests")
@@ -638,24 +643,35 @@ class CCFRemote(object):
         t = env.get_template("config.jinja")
         LOG.success(f"kwargs:{kwargs}")
         output = t.render(
-            enclave_file=f'./{os.path.basename(kwargs.pop("enclave_file"))}',
+            enclave_file=f"./{os.path.basename(enclave_file)}",
+            enclave_type=enclave_type,
             node_cert_file=self.pem,
             node_address_file=self.node_address_file,
             rpc_address_file=self.rpc_address_file,
-            **kwargs,  # TODO: Ugly!
+            ledger_dir=self.ledger_dir_name,
+            read_only_ledger_dirs=self.read_only_ledger_dirs_names,
+            snapshot_dir=self.snapshot_dir_name,
+            **kwargs,
         )
 
         config_file_name = f"{local_node_id}.config.json"
         config_file = os.path.join(common_dir, config_file_name)
-        data_files = [config_file]
+        data_files += [config_file]
 
         with open(config_file, "w") as f:
             f.write(output)
         #################
 
-        exe_files = [self.BIN, self.enclave_file] + self.DEPS
+        exe_files += [self.BIN, enclave_file] + self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []
         data_files += [self.snapshot_dir] if self.snapshot_dir else []
+        if self.read_only_ledger_dirs_names:
+            data_files.extend(
+                [os.path.join(self.common_dir, f) for f in self.read_only_ledger_dirs]
+            )
+
+        LOG.error(data_files)
+        LOG.error(exe_files)
 
         # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able
@@ -870,14 +886,14 @@ class CCFRemote(object):
             self.ledger_dir_name, self.common_dir, target_name=ledger_dir_name
         )
         read_only_ledger_dirs = []
-        if include_read_only_dirs and self.read_only_ledger_dir is not None:
+        if include_read_only_dirs and self.read_only_ledger_dirs:
             read_only_ledger_dir_name = (
                 f"{ledger_dir_name}.ro"
                 if ledger_dir_name
-                else self.read_only_ledger_dir
+                else self.read_only_ledger_dirs[0]
             )
             self.remote.get(
-                os.path.basename(self.read_only_ledger_dir),
+                os.path.basename(self.read_only_ledger_dirs[0]),
                 self.common_dir,
                 target_name=read_only_ledger_dir_name,
             )
@@ -887,6 +903,9 @@ class CCFRemote(object):
         return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
     def get_snapshots(self):
+        LOG.error(
+            f"Getting snapshot at: {self.snapshot_dir_name} on node {self.local_node_id}"
+        )
         self.remote.get(self.snapshot_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
@@ -903,8 +922,9 @@ class CCFRemote(object):
 
     def ledger_paths(self):
         paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
-        if self.read_only_ledger_dir_name is not None:
-            paths += [os.path.join(self.remote.root, self.read_only_ledger_dir_name)]
+        paths += [
+            os.path.join(self.remote.root, f) for f in self.read_only_ledger_dirs_names
+        ]
         return paths
 
     def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):

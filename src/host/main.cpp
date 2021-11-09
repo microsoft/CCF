@@ -469,7 +469,7 @@ int main(int argc, char** argv)
   //   "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
   //   ->required();
 
-  std::optional<size_t> recovery_threshold = std::nullopt;
+  size_t recovery_threshold = 0;
   // start
   //   ->add_option(
   //     "--recovery-threshold",
@@ -623,7 +623,7 @@ int main(int argc, char** argv)
         }
       }
 
-      auto recovery_threshold =
+      recovery_threshold =
         config.start.service_configuration.recovery_threshold;
       if (recovery_threshold == 0)
       {
@@ -869,11 +869,13 @@ int main(int argc, char** argv)
       }
       startup_config.start.service_configuration =
         config.start.service_configuration;
+      startup_config.start.service_configuration.recovery_threshold =
+        recovery_threshold;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
         config.start.members.size(),
-        config.start.service_configuration.recovery_threshold);
+        recovery_threshold);
     }
     else if (*join)
     {

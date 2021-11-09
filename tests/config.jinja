@@ -6,6 +6,17 @@
   "node_address_file": "{{ node_address_file }}",
   "rpc_address_file" : "{{ rpc_address_file}}",
   "network_cert_file": "networkcert.pem",
+  "ledger":
+  {
+    "ledger_dir": "{{ ledger_dir }}",
+    "read_only_ledger_dirs": {{ read_only_ledger_dirs|tojson }},
+    "ledger_chunk_bytes": {{ ledger_chunk_bytes }}
+  },
+  "snapshots":
+  {
+    "snapshot_dir": "{{ snapshot_dir }}",
+    "snapshot_tx_interval": {{ snapshot_tx_interval }}
+  },
   "node_certificate":
   {
     "subject_name": "CN=CCF Node",
@@ -59,17 +70,6 @@
       }
     ]
   },
-  "ledger":
-  {
-    "ledger_dir": "{{ ledger_dir or "ledger" }}",
-    "read_only_ledger_dirs": {{ read_only_ledger_dirs or [] }},
-    "ledger_chunk_bytes": {{ ledger_chunk_bytes }}
-  },
-  "snapshots":
-  {
-    "snapshot_dir": "0.snapshots",
-    "snapshot_tx_interval": {{ snapshot_tx_interval }}
-  },
   "memory":
   {
     "circuit_size_shift": 22,
@@ -78,7 +78,7 @@
   },
   "start":
   {
-    "members": {{ members_info|tojson or [] }},
+    "members": {{ members_info|tojson }},
     "constitution_files": {{ constitution|tojson }},
     "service_configuration":
     {

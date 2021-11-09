@@ -211,7 +211,7 @@ class Network:
         recovery=False,
         ledger_dir=None,
         copy_ledger_read_only=False,
-        read_only_ledger_dir=None,
+        read_only_ledger_dirs=[],
         from_snapshot=False,
         snapshot_dir=None,
     ):
@@ -222,15 +222,17 @@ class Network:
             )
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
-        committed_ledger_dir = read_only_ledger_dir
+        committed_ledger_dirs = read_only_ledger_dirs
         current_ledger_dir = ledger_dir
 
         # By default, only copy historical ledger if node is started from snapshot
-        if read_only_ledger_dir is None and (from_snapshot or copy_ledger_read_only):
+        if not read_only_ledger_dirs and (from_snapshot or copy_ledger_read_only):
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
-            current_ledger_dir, committed_ledger_dir = target_node.get_ledger(
+            current_ledger_dir, committed_ledger_dirs = target_node.get_ledger(
                 include_read_only_dirs=True
             )
+
+        LOG.error(committed_ledger_dirs)
 
         if from_snapshot:
             # Only retrieve snapshot from target node if the snapshot directory is not
@@ -261,7 +263,7 @@ class Network:
             target_rpc_address_port=target_node.rpc_port,
             snapshot_dir=snapshot_dir,
             ledger_dir=current_ledger_dir,
-            read_only_ledger_dir=committed_ledger_dir,
+            read_only_ledger_dirs=committed_ledger_dirs,
             **forwarded_args,
         )
 
@@ -278,7 +280,7 @@ class Network:
         args,
         recovery=False,
         ledger_dir=None,
-        read_only_ledger_dir=None,
+        read_only_ledger_dirs=[],
         snapshot_dir=None,
     ):
         self.args = args
@@ -314,7 +316,7 @@ class Network:
                             label=args.label,
                             common_dir=self.common_dir,
                             ledger_dir=ledger_dir,
-                            read_only_ledger_dir=read_only_ledger_dir,
+                            read_only_ledger_dirs=read_only_ledger_dirs,
                             snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
@@ -332,7 +334,7 @@ class Network:
                         recovery=recovery,
                         ledger_dir=ledger_dir,
                         from_snapshot=snapshot_dir is not None,
-                        read_only_ledger_dir=read_only_ledger_dir,
+                        read_only_ledger_dirs=read_only_ledger_dirs,
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:
@@ -472,7 +474,7 @@ class Network:
             args,
             recovery=True,
             ledger_dir=ledger_dir,
-            read_only_ledger_dir=committed_ledger_dir,
+            read_only_ledger_dirs=[committed_ledger_dir],
             snapshot_dir=snapshot_dir,
         )
 
