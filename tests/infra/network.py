@@ -1001,10 +1001,15 @@ class Network:
                 except PrimaryNotFound:
                     pass
             # Stop checking once all primaries are the same
-            if len(self.get_joined_nodes()) == len(primaries) and len(set(primaries)) <= 1:
+            if (
+                len(self.get_joined_nodes()) == len(primaries)
+                and len(set(primaries)) <= 1
+            ):
                 break
             time.sleep(0.1)
-        all_good = len(self.get_joined_nodes()) == len(primaries) and len(set(primaries)) <= 1
+        all_good = (
+            len(self.get_joined_nodes()) == len(primaries) and len(set(primaries)) <= 1
+        )
         if not all_good:
             flush_info(logs)
             for node in self.get_joined_nodes():
