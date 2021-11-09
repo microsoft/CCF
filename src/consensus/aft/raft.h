@@ -1200,11 +1200,7 @@ namespace aft
           }
         }
       }
-      else if (
-        consensus_type != ConsensusType::BFT &&
-        replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Retiring &&
-        replica_state != kv::ReplicaState::Learner)
+      else if (consensus_type != ConsensusType::BFT)
       {
         if (
           can_endorse_primary() && ticking &&
@@ -2800,16 +2796,12 @@ namespace aft
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
-      // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
-      {
-        LOG_FAIL_FMT(
-          "Recv request vote to {} from {}: unknown node",
-          state->my_node_id,
-          from);
-        return;
-      }
+      // Do not check that from is a known node. It is possible to receive
+      // RequestVotes from nodes that this node doesn't yet know, just as it
+      // receives AppendEntries from those nodes. These should be obeyed just
+      // like any other RequestVote - it is possible that this node is needed to
+      // produce a primary in the new term, who will then help this node catch
+      // up.
 
       if (state->current_view > r.term)
       {
@@ -3093,16 +3085,16 @@ namespace aft
         rollback(last_committable_index());
       }
 
-      if (!is_retiring() && !is_retired())
-      {
-        is_new_follower = true;
+      is_new_follower = true;
 
-        if (can_endorse_primary())
-        {
-          replica_state = kv::ReplicaState::Follower;
-          LOG_INFO_FMT(
-            "Becoming follower {}: {}", state->my_node_id, state->current_view);
-        }
+      if (can_endorse_primary() && replica_state != kv::ReplicaState::Retiring)
+      {
+        replica_state = kv::ReplicaState::Follower;
+        LOG_INFO_FMT(
+          "Becoming follower {}: {}.{}",
+          state->my_node_id,
+          state->current_view,
+          state->commit_idx);
       }
     }
 

@@ -209,7 +209,7 @@ class Partitioner:
             raise ValueError("Some nodes are repeated in multiple partitions")
 
         # Check that all nodes belong to network
-        if not set(nodes).issubset(set(self.network.get_joined_nodes())):
+        if not set(nodes).issubset(set(self.network.nodes)):
             raise ValueError("Some nodes do not belong to network")
 
         # Also partition from nodes that are not explicitly passed in in a partition
