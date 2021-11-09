@@ -840,11 +840,14 @@ namespace ccf::historical
           }
         }
 
-        // TODO: Can we pass data and size here, rather than re-copying?
-        deserialise_result =
-          store
-            ->deserialize({data, data + size}, ConsensusType::CFT, public_only)
-            ->apply();
+        auto exec = store->deserialize(
+          {data, data + size}, ConsensusType::CFT, public_only);
+        if (exec == nullptr)
+        {
+          return false;
+        }
+
+        deserialise_result = exec->apply();
       }
       catch (const std::exception& e)
       {

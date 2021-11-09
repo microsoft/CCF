@@ -586,25 +586,29 @@ namespace asynchost
       return match_file;
     }
 
-    std::shared_ptr<LedgerFile> get_file_from_idx(size_t idx)
+    std::shared_ptr<LedgerFile> get_file_from_idx(
+      size_t idx, bool read_cache_only = false)
     {
       if (idx == 0)
       {
         return nullptr;
       }
 
-      // First, check if the file is in the list of files open for writing
-      auto f = std::upper_bound(
-        files.rbegin(),
-        files.rend(),
-        idx,
-        [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
-          return idx >= f->get_start_idx();
-        });
-
-      if (f != files.rend())
+      if (!read_cache_only)
       {
-        return *f;
+        // First, check if the file is in the list of files open for writing
+        auto f = std::upper_bound(
+          files.rbegin(),
+          files.rend(),
+          idx,
+          [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
+            return idx >= f->get_start_idx();
+          });
+
+        if (f != files.rend())
+        {
+          return *f;
+        }
       }
 
       // Otherwise, return file from read cache
@@ -621,7 +625,7 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_entries_range(
-      size_t from, size_t to)
+      size_t from, size_t to, bool read_cache_only = false)
     {
       if ((from <= 0) || (to > last_idx) || (to < from))
       {
@@ -632,7 +636,7 @@ namespace asynchost
       size_t idx = from;
       while (idx <= to)
       {
-        auto f_from = get_file_from_idx(idx);
+        auto f_from = get_file_from_idx(idx, read_cache_only);
         if (f_from == nullptr)
         {
           return std::nullopt;
@@ -1034,8 +1038,8 @@ namespace asynchost
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      // TODO: This is no longer purely accessing the file cache!
-      data->entry = data->ledger->read_entries_range(data->from_idx, data->to_idx);
+      data->entry =
+        data->ledger->read_entries_range(data->from_idx, data->to_idx, true);
     }
 
     static void on_ledger_get_async_complete(uv_work_t* req, int status)
