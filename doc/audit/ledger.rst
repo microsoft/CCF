@@ -20,7 +20,9 @@ The serialised transactions follow the 8-byte offset, as described in :ref:`audi
 Transaction Format
 ------------------
 
-The following table describes the structure of a serialised transaction as it is stored in the ledger.
+The following table describes the structure of a serialised transaction as it is stored in the ledger. 
+
+.. note:: These serialised transactions in CCF currently describes only the final write set rather than the internal execution path of a transaction; writes are reordered, only the final writes are present, and reads are omitted (read count will be 0).
 
 +----------+------------------------------------------+-------------------------------------------------------------------------+
 |          | Field Type                               | Description                                                             |

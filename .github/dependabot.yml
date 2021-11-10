@@ -8,9 +8,9 @@ updates:
   - package-ecosystem: "npm"
     directory: "/js/ccf-app" # Location of package manifests
     schedule:
-      interval: "daily"
+      interval: "weekly"
 
   - package-ecosystem: "pip"
     directory: "/python" # Location of package manifests
     schedule:
-      interval: "daily"
+      interval: "weekly"
