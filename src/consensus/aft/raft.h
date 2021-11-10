@@ -3116,7 +3116,10 @@ namespace aft
         "unexpected attempt to pull retirement_idx forward from {} to {}",
         retirement_idx.value(),
         state->commit_idx);
-      retirement_idx = state->commit_idx;
+      if (!retirement_idx.has_value())
+      {
+        retirement_idx = state->commit_idx;
+      }
     }
 
     void become_retired()
