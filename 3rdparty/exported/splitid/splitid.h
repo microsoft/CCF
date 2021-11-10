@@ -644,6 +644,7 @@ namespace SplitIdentity
 
   typedef struct
   {
+    uint64_t id;
     EncryptedShares encrypted_shares;
     std::vector<std::vector<EC::CompressedPoint>> commitments;
   } EncryptedDeal;
@@ -752,11 +753,19 @@ namespace SplitIdentity
       return get_node_index(nid) + 1;
     }
 
+    virtual NID get_node_id(size_t node_index) const
+    {
+      if (node_index >= config.size())
+        throw std::logic_error("invalid node index");
+      return config[node_index];
+    }
+
     EncryptedShares mk_encrypted_shares(
       const NID& nid,
       const Deal& deal,
       const std::map<NID, std::vector<uint8_t>>& public_keys,
-      const std::vector<NID>& cfg) const
+      const std::vector<NID>& cfg,
+      uint64_t deal_id) const
     {
       EncryptedShares r;
 
@@ -770,6 +779,10 @@ namespace SplitIdentity
       }
 
       std::vector<uint8_t> iv(GCM_SIZE_IV, 0);
+      for (size_t i = 0; i < GCM_SIZE_IV; i++)
+      {
+        iv[i] = i < 8 ? deal_id >> (i * 8) : 0;
+      }
 
       for (auto onid : cfg)
       {
@@ -791,10 +804,16 @@ namespace SplitIdentity
       size_t node_index,
       KeyPair& node_key,
       const std::vector<uint8_t>& shared_public_key,
-      const EncryptedShares& encrypted_shares) const
+      const EncryptedShares& encrypted_shares,
+      uint64_t deal_id) const
     {
-      std::vector<uint8_t> iv(GCM_SIZE_IV, 0);
       std::vector<uint8_t> tag(GCM_SIZE_TAG, 0);
+
+      std::vector<uint8_t> iv(GCM_SIZE_IV, 0);
+      for (size_t i = 0; i < GCM_SIZE_IV; i++)
+      {
+        iv[i] = i < 8 ? deal_id >> (i * 8) : 0;
+      }
 
       auto eit = encrypted_shares.node_shares.find(node_index);
       if (eit != encrypted_shares.node_shares.end())
@@ -819,7 +838,8 @@ namespace SplitIdentity
           node_index,
           node_key,
           deal.encrypted_shares.public_key,
-          deal.encrypted_shares);
+          deal.encrypted_shares,
+          deal.id);
       }
       return r;
     }
@@ -837,7 +857,8 @@ namespace SplitIdentity
           node_index,
           node_key,
           resharing.encrypted_shares.public_key,
-          resharing.encrypted_shares);
+          resharing.encrypted_shares,
+          0);
       }
       return r;
     }
@@ -943,9 +964,12 @@ namespace SplitIdentity
       return get_node_index(nid, next) + 1;
     }
 
-    NID get_node_id(size_t node_index, bool next = false) const
+    virtual NID get_node_id(size_t node_index, bool next = false) const
     {
-      return next ? next_config[node_index] : config[node_index];
+      if (next && node_index >= next_config.size())
+        throw std::logic_error("invalid node index");
+      return next ? next_config[node_index] :
+                    Session<NID>::get_node_id(node_index);
     }
 
     void add_deal(const NID& from, const EncryptedDeal& encrypted_deal)
@@ -1197,7 +1221,8 @@ namespace SplitIdentity
     EncryptedDeal mk_deal(
       const NID& nid,
       const KeyPair& node_key,
-      const std::map<NID, std::vector<uint8_t>>& public_keys) const
+      const std::map<NID, std::vector<uint8_t>>& public_keys,
+      uint64_t deal_id) const
     {
       LOG_DEBUG_FMT(
         "SPLITID: {}: resharing mk_deal lower: {} lower next: {}",
@@ -1212,8 +1237,10 @@ namespace SplitIdentity
         t_next++;
       ResharingDeal deal(t, t_next, sharing_indices, next_sharing_indices);
       EncryptedDeal r;
-      r.encrypted_shares = mk_encrypted_shares(nid, deal, public_keys, config);
+      r.encrypted_shares =
+        mk_encrypted_shares(nid, deal, public_keys, config, deal_id);
       r.commitments = deal.commitments();
+      r.id = deal_id;
       return r;
     }
 
@@ -1309,7 +1336,8 @@ namespace SplitIdentity
       const BigNum& x,
       const BigNum& x_witness,
       KeyPair& node_key,
-      const std::map<NID, std::vector<uint8_t>>& public_keys) const
+      const std::map<NID, std::vector<uint8_t>>& public_keys,
+      std::map<NID, uint64_t>& max_deal_ids_seen) const
     {
       if (encrypted_deals.size() < lower_threshold())
       {
@@ -1317,6 +1345,17 @@ namespace SplitIdentity
           "invalid number of deals: {}, expected at least {}",
           encrypted_deals.size(),
           lower_threshold()));
+      }
+
+      for (const auto& [from, ed] : encrypted_deals)
+      {
+        auto from_nid = get_node_id(from);
+        auto dit = max_deal_ids_seen.find(from_nid);
+        if (dit != max_deal_ids_seen.end() && dit->second > ed.id)
+        {
+          throw std::runtime_error("at risk of re-using a deal, abort session");
+        }
+        max_deal_ids_seen.emplace(from_nid, ed.id);
       }
 
       if (defensive)
@@ -1499,12 +1538,15 @@ namespace SplitIdentity
     EncryptedDeal mk_deal(
       const NID& nid,
       const KeyPair& node_key,
-      const std::map<NID, std::vector<uint8_t>>& public_keys) const
+      const std::map<NID, std::vector<uint8_t>>& public_keys,
+      uint64_t deal_id) const
     {
       SamplingDeal deal(lower_threshold() - 1, sharing_indices, defensive);
       EncryptedDeal r;
-      r.encrypted_shares = mk_encrypted_shares(nid, deal, public_keys, config);
+      r.encrypted_shares =
+        mk_encrypted_shares(nid, deal, public_keys, config, deal_id);
       r.commitments = deal.commitments();
+      r.id = deal_id;
       return r;
     }
 
@@ -1685,6 +1727,7 @@ namespace SplitIdentity
     using Session<NID>::mk_encrypted_shares;
     using Session<NID>::lower_threshold;
     using Session<NID>::upper_threshold;
+    using Session<NID>::get_node_id;
 
     std::vector<uint8_t> message; // message to be signed
 
@@ -1695,15 +1738,18 @@ namespace SplitIdentity
     EncryptedDeal mk_deal(
       const NID& nid,
       KeyPair& node_key,
-      const std::map<NID, std::vector<uint8_t>>& public_keys) const
+      const std::map<NID, std::vector<uint8_t>>& public_keys,
+      uint64_t deal_id) const
     {
       size_t lt = lower_threshold();
       size_t lower_degree = config.size() <= 3 ? 1 : lt - 1;
       SigningDeal deal(
         lower_degree, upper_threshold(), sharing_indices, defensive);
       EncryptedDeal r;
-      r.encrypted_shares = mk_encrypted_shares(nid, deal, public_keys, config);
+      r.encrypted_shares =
+        mk_encrypted_shares(nid, deal, public_keys, config, deal_id);
       r.commitments = {deal.commitments()};
+      r.id = deal_id;
       return r;
     }
 
@@ -1845,7 +1891,8 @@ namespace SplitIdentity
     OpenK mk_openk(
       const NID& nid,
       KeyPair& node_key,
-      const std::map<NID, std::vector<uint8_t>>& public_keys) const
+      const std::map<NID, std::vector<uint8_t>>& public_keys,
+      std::map<NID, uint64_t>& max_deal_ids_seen) const
     {
       if (encrypted_deals.size() != lower_threshold())
       {
@@ -1853,6 +1900,17 @@ namespace SplitIdentity
           "invalid number of deals: {}, expected {}",
           encrypted_deals.size(),
           lower_threshold()));
+      }
+
+      for (const auto& [from, ed] : encrypted_deals)
+      {
+        auto from_nid = get_node_id(from);
+        auto dit = max_deal_ids_seen.find(from_nid);
+        if (dit != max_deal_ids_seen.end() && dit->second > ed.id)
+        {
+          throw std::runtime_error("at risk of re-using a deal, abort session");
+        }
+        max_deal_ids_seen.emplace(from_nid, ed.id);
       }
 
       auto decrypted_shares = decrypt_deal_shares(
@@ -2211,13 +2269,17 @@ namespace SplitIdentity
   {
     NodeState(const NID& nid, EC::CurveID curve = EC::CurveID::SECP384R1) :
       nid(nid),
-      node_key(curve)
+      node_key(curve),
+      next_deal_id(0)
     {
       x = BigNum::make_zero();
       x_witness = BigNum::make_zero();
     }
 
-    NodeState(const NID& nid, EVP_PKEY* key) : nid(nid), node_key(key)
+    NodeState(const NID& nid, EVP_PKEY* key) :
+      nid(nid),
+      node_key(key),
+      next_deal_id(0)
     {
       x = BigNum::make_zero();
       x_witness = BigNum::make_zero();
@@ -2230,6 +2292,10 @@ namespace SplitIdentity
     NID nid;
     KeyPair node_key;
     std::map<NID, std::vector<uint8_t>> public_keys;
+
+    uint64_t
+      next_deal_id; // unversioned; we cannot reuse deals after a rollback.
+    std::map<NID, uint64_t> max_deal_ids_seen;
 
     BigNum x;
     BigNum x_witness;
@@ -2328,8 +2394,6 @@ namespace SplitIdentity
     Context(Context&) = delete;
 
     virtual ~Context() {}
-
-    // virtual const std::vector<NID>& current_config() const = 0;
 
     virtual bool register_public_key() const
     {
@@ -2490,7 +2554,9 @@ namespace SplitIdentity
           s.encrypted_deals.end())
         {
           r = request_adapter->submit_signing_deal(
-            id, s.mk_deal(nid, state.node_key, state.public_keys));
+            id,
+            s.mk_deal(
+              nid, state.node_key, state.public_keys, state.next_deal_id++));
         }
 
         if (r)
@@ -2509,7 +2575,9 @@ namespace SplitIdentity
         if (s.openks.find(nid) == s.openks.end())
         {
           r = request_adapter->submit_openk(
-            id, s.mk_openk(nid, state.node_key, state.public_keys));
+            id,
+            s.mk_openk(
+              nid, state.node_key, state.public_keys, state.max_deal_ids_seen));
         }
 
         if (r)
@@ -2644,7 +2712,9 @@ namespace SplitIdentity
           s.encrypted_deals.end())
         {
           r = request_adapter->submit_sampling_deal(
-            id, s.mk_deal(nid, state.node_key, state.public_keys));
+            id,
+            s.mk_deal(
+              nid, state.node_key, state.public_keys, state.next_deal_id++));
         }
 
         if (r)
@@ -2671,7 +2741,8 @@ namespace SplitIdentity
               state.x,
               state.x_witness,
               state.node_key,
-              state.public_keys));
+              state.public_keys,
+              state.max_deal_ids_seen));
         }
 
         if (r)
@@ -2799,7 +2870,9 @@ namespace SplitIdentity
           s.encrypted_deals.end())
         {
           r = request_adapter->submit_resharing_deal(
-            id, s.mk_deal(nid, state.node_key, state.public_keys));
+            id,
+            s.mk_deal(
+              nid, state.node_key, state.public_keys, state.next_deal_id++));
         }
 
         if (r)
@@ -2830,7 +2903,8 @@ namespace SplitIdentity
               state.x,
               state.x_witness,
               state.node_key,
-              state.public_keys));
+              state.public_keys,
+              state.max_deal_ids_seen));
         }
 
         if (r)

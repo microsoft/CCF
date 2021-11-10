@@ -356,7 +356,7 @@ Identity sample(
   for (size_t i = 0; i < s.lower_threshold(); i++)
   {
     s.encrypted_deals[s.get_node_index(nodes[i].nid)] =
-      s.mk_deal(nodes[i].nid, nodes[i].node_key, public_keys);
+      s.mk_deal(nodes[i].nid, nodes[i].node_key, public_keys, 0);
   }
 
   INFO("All nodes validate shares");
@@ -364,7 +364,12 @@ Identity sample(
   {
     REQUIRE_NOTHROW(
       s.encrypted_reshares[s.get_node_index(node.nid)] = s.mk_resharing(
-        node.nid, node.x, node.x_witness, node.node_key, public_keys));
+        node.nid,
+        node.x,
+        node.x_witness,
+        node.node_key,
+        public_keys,
+        node.max_deal_ids_seen));
 
     if (s.batched_commits.empty())
       s.batched_commits =
@@ -435,7 +440,7 @@ Identity reshare(
     if (std::find(nids.begin(), nids.end(), nodes[i].nid) != nids.end())
     {
       s.encrypted_deals[s.get_node_index(nodes[i].nid)] =
-        s.mk_deal(nodes[i].nid, nodes[i].node_key, public_keys);
+        s.mk_deal(nodes[i].nid, nodes[i].node_key, public_keys, 0);
       i++;
     }
   }
@@ -447,7 +452,12 @@ Identity reshare(
     {
       REQUIRE_NOTHROW(
         s.encrypted_reshares[s.get_node_index(node.nid)] = s.mk_resharing(
-          node.nid, node.x, node.x_witness, node.node_key, public_keys));
+          node.nid,
+          node.x,
+          node.x_witness,
+          node.node_key,
+          public_keys,
+          node.max_deal_ids_seen));
 
       if (s.batched_commits.empty())
         s.batched_commits =
@@ -514,7 +524,7 @@ void sign(
     if (std::find(nids.begin(), nids.end(), nodes[i].nid) != nids.end())
     {
       ss.encrypted_deals[ss.get_node_index(nodes[i].nid)] =
-        ss.mk_deal(nodes[i].nid, nodes[i].node_key, public_keys);
+        ss.mk_deal(nodes[i].nid, nodes[i].node_key, public_keys, 0);
     }
   }
 
@@ -524,8 +534,8 @@ void sign(
     if (std::find(nids.begin(), nids.end(), node.nid) != nids.end())
     {
       REQUIRE_NOTHROW(
-        ss.openks[node.nid] =
-          ss.mk_openk(node.nid, node.node_key, public_keys));
+        ss.openks[node.nid] = ss.mk_openk(
+          node.nid, node.node_key, public_keys, node.max_deal_ids_seen));
     }
   }
 

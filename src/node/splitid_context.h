@@ -76,7 +76,8 @@ namespace SplitIdentity
   DECLARE_JSON_TYPE(EncryptedShares);
   DECLARE_JSON_REQUIRED_FIELDS(EncryptedShares, node_shares, public_key, zkp);
   DECLARE_JSON_TYPE(EncryptedDeal);
-  DECLARE_JSON_REQUIRED_FIELDS(EncryptedDeal, encrypted_shares, commitments);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    EncryptedDeal, id, encrypted_shares, commitments);
   DECLARE_JSON_TYPE(EncryptedResharing);
   DECLARE_JSON_REQUIRED_FIELDS(
     EncryptedResharing, encrypted_shares, batched_commits);
