@@ -1024,21 +1024,21 @@ namespace asynchost
       size_t from_idx;
       size_t to_idx;
 
-      // First argument is ledger entry (or nullopt if not found)
+      // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
       using ResultCallback =
         std::function<void(std::optional<std::vector<uint8_t>>&&, int)>;
       ResultCallback result_cb;
 
       // Final result
-      std::optional<std::vector<uint8_t>> entry = std::nullopt;
+      std::optional<std::vector<uint8_t>> entries = std::nullopt;
     };
 
     static void on_ledger_get_async(uv_work_t* req)
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      data->entry =
+      data->entries =
         data->ledger->read_entries_range(data->from_idx, data->to_idx, true);
     }
 
@@ -1046,7 +1046,7 @@ namespace asynchost
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      data->result_cb(std::move(data->entry), status);
+      data->result_cb(std::move(data->entries), status);
 
       delete data;
       delete req;

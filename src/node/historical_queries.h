@@ -135,6 +135,8 @@ namespace ccf::historical
         return nullptr;
       }
 
+      using SeqNoRange = std::pair<ccf::SeqNo, ccf::SeqNo>;
+
       // Keep as many existing entries as possible, return indices that weren't
       // already present to indicate they should be fetched. For example, if we
       // were previously fetching:
@@ -146,7 +148,7 @@ namespace ccf::historical
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
-      std::set<std::pair<ccf::SeqNo, ccf::SeqNo>> adjust_range(
+      std::set<SeqNoRange> adjust_range(
         ccf::SeqNo start_seqno,
         size_t num_following_indices,
         bool should_include_receipts)
@@ -160,9 +162,8 @@ namespace ccf::historical
           return {};
         }
 
-        std::set<std::pair<ccf::SeqNo, ccf::SeqNo>> ret;
-        std::optional<std::pair<ccf::SeqNo, ccf::SeqNo>> current_range =
-          std::nullopt;
+        std::set<SeqNoRange> ret;
+        std::optional<SeqNoRange> current_range = std::nullopt;
         std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
         for (auto seqno = start_seqno; seqno <=
              static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
@@ -599,7 +600,7 @@ namespace ccf::historical
 
       // Update this Request to represent the currently requested range,
       // returning any newly requested indices
-      auto new_indices = request.adjust_range(
+      auto new_index_ranges = request.adjust_range(
         start_seqno, num_following_indices, include_receipts);
 
       // If the earliest target entry cannot be deserialised with the earliest
@@ -622,7 +623,7 @@ namespace ccf::historical
         // If we have sufficiently early secrets, begin fetching any newly
         // requested entries. If we don't fall into this branch, they'll only
         // begin to be fetched once the secret arrives.
-        for (const auto& [from, to] : new_indices)
+        for (const auto& [from, to] : new_index_ranges)
         {
           fetch_entries_range(from, to);
         }
