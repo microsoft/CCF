@@ -1132,31 +1132,6 @@ namespace aft
       node.sent_idx = end_idx;
     }
 
-    struct AsyncExecution
-    {
-      AsyncExecution(
-        Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
-        std::vector<std::tuple<
-          std::unique_ptr<kv::AbstractExecutionWrapper>,
-          kv::Version>>&& append_entries_,
-        const ccf::NodeId& from_,
-        AppendEntries&& r_) :
-        self(self_),
-        append_entries(std::move(append_entries_)),
-        from(from_),
-        r(std::move(r_)),
-        next_append_entry_index(0)
-      {}
-
-      Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
-      std::vector<
-        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
-        append_entries;
-      ccf::NodeId from;
-      AppendEntries r;
-      uint64_t next_append_entry_index;
-    };
-
     void recv_append_entries(
       const ccf::NodeId& from,
       AppendEntries r,
