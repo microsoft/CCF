@@ -291,7 +291,7 @@ namespace ccf
         config.node_certificate.subject_name,
         config.node_certificate.subject_alt_names,
         config.startup_host_time,
-        config.node_certificate.initial_validity_days);
+        config.node_certificate.initial_validity_period_days);
 
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -327,7 +327,7 @@ namespace ccf
           if (network.consensus_type == ConsensusType::BFT)
           {
             endorsed_node_cert = create_endorsed_node_cert(
-              config.node_certificate.initial_validity_days);
+              config.node_certificate.initial_validity_period_days);
             history->set_endorsed_certificate(endorsed_node_cert.value());
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
@@ -908,7 +908,7 @@ namespace ccf
       if (network.consensus_type == ConsensusType::BFT)
       {
         endorsed_node_cert = create_endorsed_node_cert(
-          config.node_certificate.initial_validity_days);
+          config.node_certificate.initial_validity_period_days);
         history->set_endorsed_certificate(endorsed_node_cert.value());
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
@@ -1610,7 +1610,7 @@ namespace ccf
       create_params.node_info_network = config.network;
       create_params.node_cert_valid_from = config.startup_host_time;
       create_params.initial_node_cert_validity_period_days =
-        config.node_certificate.initial_validity_days;
+        config.node_certificate.initial_validity_period_days;
 
       // Record self-signed certificate in create request if the node does not
       // require endorsement by the service (i.e. BFT)

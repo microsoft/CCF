@@ -648,7 +648,7 @@ class CCFRemote(object):
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type,
                 rpc_interfaces=host.json(),
-                node_cert_file=self.pem,
+                node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
                 rpc_address_file=self.rpc_address_file,
                 ledger_dir=self.ledger_dir_name,

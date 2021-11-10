@@ -71,8 +71,7 @@ struct CCFConfig
     std::string subject_name = "CN=CCF Node";
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
     crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
-    size_t initial_validity_days =
-      1; // TODO: Rename to initial_validity_period_days
+    size_t initial_validity_period_days = 1;
   };
   NodeCertificateInfo node_certificate = {};
 
@@ -91,7 +90,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   subject_name,
   subject_alt_names,
   curve_id,
-  initial_validity_days);
+  initial_validity_period_days);
 
 DECLARE_JSON_TYPE(CCFConfig::Intervals);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -152,7 +151,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 DECLARE_JSON_OPTIONAL_FIELDS(
   StartupConfig, startup_snapshot_evidence_seqno_for_1_x);
 
-enum EnclaveType
+enum class EnclaveType
 {
   RELEASE,
   DEBUG,
@@ -185,17 +184,17 @@ struct CCHostConfig : CCFConfig
   std::string enclave_file;
   EnclaveType enclave_type = EnclaveType::RELEASE;
 
-  std::string node_cert_file = "nodecert.pem";
+  std::string node_certificate_file = "nodecert.pem";
   std::string node_pid_file = "cchost.pid";
 
-  std::string network_cert_file = "networkcert.pem";
+  std::string network_certificate_file = "networkcert.pem";
 
   // Address files
   std::string node_address_file = "";
-  std::string rpc_address_file = "";
+  std::string rpc_addresses_file = "";
 
   // Other
-  size_t tick_period_ms = 1;
+  size_t tick_period_ms = 10;
   size_t io_logging_threshold_ns = 10'000'000;
   std::optional<std::string> node_client_interface = std::nullopt;
   size_t client_connection_timeout_ms = 2000;
@@ -284,14 +283,14 @@ DECLARE_JSON_REQUIRED_FIELDS(
   CCHostConfig, enclave_file, enclave_type, ledger, snapshots, logging, memory);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig,
-  node_cert_file,
+  node_certificate_file,
   node_pid_file,
   node_address_file,
-  rpc_address_file,
+  rpc_addresses_file,
   tick_period_ms,
   io_logging_threshold_ns,
   client_connection_timeout_ms,
-  network_cert_file,
+  network_certificate_file,
   start,
   join);
 

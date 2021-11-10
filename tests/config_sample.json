@@ -1,95 +1,79 @@
 {
   "enclave_file": "./samples/apps/logging/liblogging.virtual.so",
   "enclave_type": "virtual",
-  "node_cert_file": "node.pem",
+  "node_certificate_file": "node.pem",
   "node_pid_file": "node.pid",
   "node_address_file": "",
-  "rpc_address_file" : "",
-  "network_cert_file": "networkcert.pem",
+  "rpc_addresses_file": "",
+  "network_certificate_file": "networkcert.pem",
   "tick_period_ms": 1,
   "io_logging_threshold_ns": 10000000,
   "node_client_interface": null,
   "client_connection_timeout_ms": 2000,
-  "ledger":
-  {
+  "ledger": {
     "ledger_dir": "ledger",
     "read_only_ledger_dirs": [],
     "ledger_chunk_bytes": 20000
   },
-  "snapshots":
-  {
+  "snapshots": {
     "snapshot_dir": "snapshots",
     "snapshot_tx_interval": 10000
   },
-  "logging":
-  {
+  "logging": {
     "host_log_level": "info",
     "log_format_json": false
   },
-  "memory":
-  {
+  "memory": {
     "circuit_size_shift": 22,
     "max_msg_size_shift": 24,
     "max_fragment_size_shift": 16
   },
 
-  "start":
-  {
-    "constitution_files" : [],
-    "members":
-    [
+  "start": {
+    "constitution_files": [],
+    "members": [
       {
         "certificate_file": "member0_cert.pem",
         "encryption_public_key_file": "member0_enc_pubk.pem",
         "data_json_file": ""
       }
     ],
-    "service_configuration":
-    {
+    "service_configuration": {
       "recovery_threshold": 0,
       "max_allowed_node_cert_validity_days": 365
     }
   },
 
-
-
   "worker_threads": 0,
-  "node_certificate":
-  {
+  "node_certificate": {
     "subject_name": "CN=CCF Node",
     "subject_alt_names": ["TODO:These should be Ip:Dns: strings, not JSON"],
     "curve_id": "secp384r1",
-    "initial_validity_days": 1
+    "initial_validity_period_days": 1
   },
-  "intervals":
-  {
+  "intervals": {
     "sig_tx_interval": 5000,
     "sig_ms_interval": 1000,
     "jwt_key_refresh_interval_s": 1800
   },
-  "consensus":
-  {
+  "consensus": {
     "type": "CFT",
     "raft_timeout_ms": 100,
     "raft_election_timeout_ms": 4000
   },
   "network": {
-    "node_address":
-    {
+    "node_address": {
       "hostname": "127.0.0.1",
       "port": "0"
     },
-    "rpc_interfaces":
-    [
+    "rpc_interfaces": [
       {
-        "rpc_address":
-        {
+        "rpc_address": {
           "hostname": "127.0.0.1",
           "port": "0"
         },
-        "public_rpc_address":
-        {
-          "hostname":"127.0.0.1",
+        "public_rpc_address": {
+          "hostname": "127.0.0.1",
           "port": "0"
         },
         "max_open_sessions_soft": 1000,
@@ -97,11 +81,9 @@
       }
     ]
   },
-  "join":
-  {
+  "join": {
     "join_timer_ms": 1000,
-    "target_rpc_address":
-    {
+    "target_rpc_address": {
       "hostname": "127.0.0.1",
       "port": "0"
     }

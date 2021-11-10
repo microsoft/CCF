@@ -1,0 +1,33 @@
+{
+  "enclave_file": "./samples/apps/logging/liblogging.virtual.so",
+  "enclave_type": "virtual",
+  "network": {
+    "node_address": { "hostname": "127.0.0.1", "port": "0" },
+    "rpc_interfaces": [
+      {
+        "rpc_address": { "hostname": "127.0.0.1", "port": "0" },
+        "public_rpc_address": { "hostname": "127.0.0.1", "port": "0" },
+        "max_open_sessions_soft": 1000,
+        "max_open_sessions_hard": 1010
+      }
+    ]
+  },
+  "start": {
+    "constitution_files": [],
+    "members": [
+      {
+        "certificate_file": "member0_cert.pem",
+        "encryption_public_key_file": "member0_enc_pubk.pem",
+        "data_json_file": ""
+      }
+    ],
+    "service_configuration": {
+      "recovery_threshold": 0,
+      "max_allowed_node_cert_validity_days": 365
+    }
+  },
+  "join": {
+    "join_timer_ms": 1000,
+    "target_rpc_address": { "hostname": "127.0.0.1", "port": "0" }
+  }
+}

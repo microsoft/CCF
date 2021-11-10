@@ -13,6 +13,8 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
+// TODO: Delete most of this?
+
 namespace cli
 {
   using ParsedAddress = ccf::NodeInfoNetwork_v2::NetAddress;

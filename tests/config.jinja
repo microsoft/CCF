@@ -1,11 +1,11 @@
 {
   "enclave_file": "{{ enclave_file }}",
   "enclave_type": "{{ enclave_type or "release" }}",
-  "node_cert_file": "{{ node_cert_file or "node.pem" }}",
+  "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
   "node_pid_file": "{{ node_pid_file or "node.pid" }}",
   "node_address_file": "{{ node_address_file }}",
   "rpc_address_file" : "{{ rpc_address_file}}",
-  "network_cert_file": "networkcert.pem",
+  "network_certificate_file": "networkcert.pem",
   "ledger":
   {
     "ledger_dir": "{{ ledger_dir }}",
@@ -22,7 +22,7 @@
     "subject_name": "CN=CCF Node",
     "subject_alt_names": [],
     "curve_id": "secp384r1",
-    "initial_validity_days": 1
+    "initial_validity_period_days": 1
   },
   "io_logging_threshold_ns": 10000000,
   "tick_period_ms": 10,

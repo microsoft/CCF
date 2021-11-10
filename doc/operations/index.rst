@@ -6,7 +6,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 .. panels::
 
     :fa:`laptop-code` :doc:`run_setup`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Set up a VM or a container to run a CCF application node.
 
@@ -16,6 +16,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Start a new instance of a CCF service, and add an initial set of execution nodes.
+
+    ---
+
+    :fa:`cogs` :doc:`configuration`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Configure CCF nodes from JSON configuration file.
 
     ---
 
@@ -64,7 +71,9 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     run_setup
     start_network
+    configuration
     ledger_snapshot
+    certificates
     recovery
     node_output
     resource_usage
