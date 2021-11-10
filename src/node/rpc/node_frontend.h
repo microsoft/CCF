@@ -33,9 +33,9 @@ namespace ccf
     std::string mrenclave = {}; // < Hex-encoded
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote)
-  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, endorsements, format)
-  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote);
+  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, endorsements, format);
+  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave);
 
   struct GetQuotes
   {
@@ -47,16 +47,16 @@ namespace ccf
     };
   };
 
-  DECLARE_JSON_TYPE(GetQuotes::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
+  DECLARE_JSON_TYPE(GetQuotes::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes);
 
   struct NodeMetrics
   {
     ccf::SessionMetrics sessions;
   };
 
-  DECLARE_JSON_TYPE(NodeMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions)
+  DECLARE_JSON_TYPE(NodeMetrics);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions);
 
   struct JavaScriptMetrics
   {
@@ -64,8 +64,8 @@ namespace ccf
     bool bytecode_used;
   };
 
-  DECLARE_JSON_TYPE(JavaScriptMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used)
+  DECLARE_JSON_TYPE(JavaScriptMetrics);
+  DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used);
 
   struct SetJwtPublicSigningKeys
   {
@@ -73,8 +73,26 @@ namespace ccf
     JsonWebKeySet jwks;
   };
 
-  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
-  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
+  DECLARE_JSON_TYPE(SetJwtPublicSigningKeys);
+  DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks);
+
+  struct ConsensusNodeConfig
+  {
+    std::string address;
+  };
+
+  DECLARE_JSON_TYPE(ConsensusNodeConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusNodeConfig, address);
+
+  using ConsensusConfig = std::map<std::string, ConsensusNodeConfig>;
+
+  struct ConsensusConfigDetails
+  {
+    kv::ConsensusDetails details;
+  };
+
+  DECLARE_JSON_TYPE(ConsensusConfigDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusConfigDetails, details);
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -303,7 +321,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.2.0";
+      openapi_info.document_version = "2.5.0";
     }
 
     void init_handlers() override
@@ -974,52 +992,62 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto consensus_config = [this](auto& args) {
+      auto consensus_config = [this](auto& args, nlohmann::json&&) {
         // Query node for configurations, separate current from pending
         if (consensus != nullptr)
         {
           auto cfg = consensus->get_latest_configuration();
-          nlohmann::json c;
+          ConsensusConfig cc;
           for (auto& [nid, ninfo] : cfg)
           {
-            nlohmann::json n;
-            n["address"] = fmt::format("{}:{}", ninfo.hostname, ninfo.port);
-            c[nid.value()] = n;
+            cc.emplace(
+              nid.value(),
+              ConsensusNodeConfig{
+                fmt::format("{}:{}", ninfo.hostname, ninfo.port)});
           }
-          args.rpc_ctx->set_response_body(c.dump());
+          return make_success(cc);
         }
         else
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          args.rpc_ctx->set_response_body("No configured consensus");
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No configured consensus");
         }
       };
 
       make_command_endpoint(
-        "/config", HTTP_GET, consensus_config, no_auth_required)
+        "/config",
+        HTTP_GET,
+        json_command_adapter(consensus_config),
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, ConsensusConfig>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto consensus_state = [this](auto& args) {
+      auto consensus_state = [this](auto& args, nlohmann::json&&) {
         if (consensus != nullptr)
         {
-          auto d = consensus->get_details();
-          nlohmann::json c;
-          c["details"] = d;
-          args.rpc_ctx->set_response_body(c.dump());
+          return make_success(ConsensusConfigDetails{consensus->get_details()});
         }
         else
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          args.rpc_ctx->set_response_body("No configured consensus");
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No configured consensus");
         }
       };
 
       make_command_endpoint(
-        "/consensus", HTTP_GET, consensus_state, no_auth_required)
+        "/consensus",
+        HTTP_GET,
+        json_command_adapter(consensus_state),
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, ConsensusConfigDetails>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
