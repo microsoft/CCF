@@ -26,6 +26,10 @@ namespace ccf::v8_util
     return v8::String::NewFromUtf8(isolate, x).ToLocalChecked();
   }
 
+  v8::Local<v8::String> to_v8_str(v8::Isolate* isolate, const std::string& x) {
+    return to_v8_str(isolate, x.c_str());
+  }
+
   // Adapted from v8/samples/shell.cc::ReportException.
   void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch) {
     v8::HandleScope handle_scope(isolate);

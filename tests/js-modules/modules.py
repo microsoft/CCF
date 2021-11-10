@@ -52,6 +52,22 @@ def test_module_import(network, args):
 
     return network
 
+@reqs.description("Test dynamic module import")
+def test_dynamic_module_import(network, args):
+    # TODO disable test if not V8
+    primary, _ = network.find_nodes()
+
+    # Update JS app, deploying modules _and_ app script that imports module
+    bundle_dir = os.path.join(THIS_DIR, "dynamic-module-import")
+    network.consortium.set_js_app(primary, bundle_dir)
+
+    with primary.client("user0") as c:
+        r = c.post("/app/test_module", {})
+        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
+        assert r.body.text() == "Hello world!"
+
+    return network
+
 
 @reqs.description("Test module bytecode caching")
 def test_bytecode_cache(network, args):
@@ -581,15 +597,17 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_module_import(network, args)
-        network = test_bytecode_cache(network, args)
-        network = test_app_bundle(network, args)
-        network = test_dynamic_endpoints(network, args)
-        network = test_npm_app(network, args)
+        network = test_dynamic_module_import(network, args)
+        #network = test_bytecode_cache(network, args)
+        #network = test_app_bundle(network, args)
+        #network = test_dynamic_endpoints(network, args)
+        #network = test_npm_app(network, args)
 
 
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "libjs_generic"
+    #args.package = "libjs_generic"
+    args.package = "libjs_v8"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)

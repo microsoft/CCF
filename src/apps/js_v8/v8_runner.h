@@ -43,6 +43,10 @@ namespace ccf
     operator v8::Isolate*() { return isolate_; }
 
   private:
+    static void on_fatal_error(const char* location, const char* message);
+    static size_t on_near_heap_limit(void* data, size_t current_heap_limit,
+                                         size_t initial_heap_limit);
+
     v8::Isolate* isolate_;
   };
 
@@ -103,6 +107,10 @@ namespace ccf
       v8::Local<v8::String> specifier,
       v8::Local<v8::FixedArray> import_assertions,
       v8::Local<v8::Module> referrer);
+
+    static v8::MaybeLocal<v8::Promise> HostImportModuleDynamically(
+      v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> script_or_module,
+      v8::Local<v8::String> specifier, v8::Local<v8::FixedArray> import_assertions);
         
     static v8::MaybeLocal<v8::Module> FetchModuleTree(
       v8::Local<v8::Module> referrer,

@@ -199,12 +199,27 @@ namespace ccf
     create_params.array_buffer_allocator =
       v8::ArrayBuffer::Allocator::NewDefaultAllocator();
     isolate_ = v8::Isolate::New(create_params);
+    // Note: Out-of-memory also calls the fatal error handler.
+    isolate_->SetFatalErrorHandler(V8Isolate::on_fatal_error);
+    isolate_->AddNearHeapLimitCallback(V8Isolate::on_near_heap_limit, nullptr);
   }
 
   V8Isolate::~V8Isolate()
   {
     delete isolate_->GetArrayBufferAllocator();
     isolate_->Dispose();
+  }
+
+  void V8Isolate::on_fatal_error(const char* location, const char* message)
+  {
+    LOG_FATAL_FMT("Fatal error in V8: {}: {}", location, message);    
+  }
+
+  size_t V8Isolate::on_near_heap_limit(void* data, size_t current_heap_limit,
+    size_t initial_heap_limit)
+  {
+    LOG_INFO_FMT("WARNING: Approaching heap limit in V8 (limit: {})", current_heap_limit);
+    return current_heap_limit;
   }
 
   // Instantiating a V8Context also establishes
@@ -251,6 +266,7 @@ namespace ccf
     v8::EscapableHandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = get_context();
     ModuleEmbedderData::Scope embedder_data_scope(context, module_load_cb_, module_load_cb_data_);
+    isolate_->SetHostImportModuleDynamicallyCallback(V8Context::HostImportModuleDynamically);
     v8::Local<v8::Module> module;
     if (!FetchModuleTree(v8::Local<v8::Module>(), context, module_name).ToLocal(&module))
       return v8::Local<v8::Value>();
@@ -281,6 +297,25 @@ namespace ccf
     
     while (v8::platform::PumpMessageLoop(platform.get(), isolate_))
       continue;
+
+    if (result->IsPromise())
+    {
+      v8::Local<v8::Promise> promise = result.As<v8::Promise>();
+      v8::Local<v8::Value> promise_result = promise->Result();
+      if (promise->State() == v8::Promise::kFulfilled)
+      {
+        result = promise_result;
+      }
+      else if (promise->State() == v8::Promise::kRejected)
+      {
+        isolate_->ThrowException(promise_result);
+        return v8::Local<v8::Value>();
+      }
+      else
+      {
+        CHECK(false);
+      }
+    }
     
     return handle_scope.Escape(result);
   }
@@ -305,19 +340,11 @@ namespace ccf
       false,
       true);
 
-    // TODO: cache compiled code using KV?
-    // V8 caches automatically per Isolate, maybe that's enough?
-    // TODO check how Isolate cache works, eviction?
-    // see CodeCache test in v8/test/cctest/test-api.cc
-    // https://v8.dev/blog/code-caching
-    // https://v8.dev/blog/code-caching-for-devs
-    v8::ScriptCompiler::CachedData* cached_code = nullptr;
-    v8::ScriptCompiler::Source script_source(source_text, origin, cached_code);
+    // Note: V8 automatically caches bytecode per Isolate.
+    // See https://v8.dev/blog/code-caching-for-devs.
+    v8::ScriptCompiler::Source script_source(source_text, origin);
     v8::MaybeLocal<v8::Module> result =
-        v8::ScriptCompiler::CompileModule(isolate, &script_source,
-                  cached_code ? v8::ScriptCompiler::kConsumeCodeCache
-                              : v8::ScriptCompiler::kNoCompileOptions);
-    if (cached_code) CHECK(!cached_code->rejected);
+        v8::ScriptCompiler::CompileModule(isolate, &script_source);
     return result;
   }
 
@@ -357,6 +384,61 @@ namespace ccf
     auto module_it = d->module_map.find(absolute_path);
     CHECK(module_it != d->module_map.end());
     return module_it->second.Get(isolate);
+  }
+
+  // Adapted from v8/src/d8/d8.cc::HostImportModuleDynamically.
+  v8::MaybeLocal<v8::Promise> V8Context::HostImportModuleDynamically(
+      v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> script_or_module,
+      v8::Local<v8::String> specifier, v8::Local<v8::FixedArray> import_assertions)
+  {
+    v8::Isolate* isolate = context->GetIsolate();
+    ModuleEmbedderData* d = ModuleEmbedderData::GetFromContext(context);
+
+    // Instantiate a Promise
+    v8::Local<v8::Promise::Resolver> resolver;
+    if (!v8::Promise::Resolver::New(context).ToLocal(&resolver))
+      return v8::MaybeLocal<v8::Promise>();
+    v8::Local<v8::Promise> promise = resolver->GetPromise();
+
+    // Lookup already-resolved referrer module
+    v8::Local<v8::String> referrer_module_name = script_or_module->GetResourceName().As<v8::String>();
+    std::string referrer_module_name_str = v8_util::ToSTLString(isolate, referrer_module_name);
+    auto module_it = d->module_map.find(referrer_module_name_str);
+    CHECK(module_it != d->module_map.end());
+    v8::Local<v8::Module> referrer = module_it->second.Get(isolate);
+
+    // Compute absolute path of module to be resolved
+    std::string absolute_path = NormalizePath(
+        v8_util::ToSTLString(isolate, specifier),
+        DirName(referrer_module_name_str));
+
+    // Check if module has already been resolved, otherwise resolve it
+    v8::TryCatch try_catch(isolate);
+    module_it = d->module_map.find(absolute_path);
+    v8::Local<v8::Module> module;      
+    if (module_it != d->module_map.end())
+    {
+      module = module_it->second.Get(isolate);
+    }
+    else if (!FetchModuleTree(referrer, context, absolute_path).ToLocal(&module))
+    {
+      CHECK(try_catch.HasCaught());
+      resolver->Reject(context, try_catch.Exception()).ToChecked();
+      return promise;
+    }
+
+    if (!exec_module(context, module))
+    {
+      CHECK(try_catch.HasCaught());
+      resolver->Reject(context, try_catch.Exception()).ToChecked();
+      return promise;
+    }
+
+    // Get the module namespace object
+    v8::Local<v8::Value> module_namespace = module->GetModuleNamespace();
+    CHECK(!try_catch.HasCaught());
+    resolver->Resolve(context, module_namespace).ToChecked();
+    return promise;
   }
 
   // Adapted from v8/d8/d8.cc::ReadFile
