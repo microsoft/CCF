@@ -17,7 +17,7 @@ LABELS_TO_COLOURS = {
     "ccf::add_node": "lime",
     "ccf::node_outbound": "darkgreen",
     "consensus::ledger_append": "red",
-    "consensus::ledger_get": "indianred",
+    "consensus::ledger_get_range": "indianred",
     "consensus::ledger_commit": "maroon",
     "consensus::ledger_truncate": "rosybrown",
     "tls::tls_closed": "darkkhaki",
@@ -27,7 +27,7 @@ LABELS_TO_COLOURS = {
     # Processed in enclave
     "AdminMessage::tick": "dimgray",
     "ccf::node_inbound": "darkgreen",
-    "consensus::ledger_entry": "red",
+    "consensus::ledger_entry_range": "red",
     "tls::tls_close": "darkkhaki",
     "tls::tls_inbound": "gold",
     "tls::tls_start": "goldenrod",

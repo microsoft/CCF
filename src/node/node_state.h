@@ -2092,8 +2092,9 @@ namespace ccf
     void read_ledger_idx(consensus::Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_get,
+        consensus::ledger_get_range,
         to_host,
+        idx,
         idx,
         consensus::LedgerRequestPurpose::Recovery);
     }
