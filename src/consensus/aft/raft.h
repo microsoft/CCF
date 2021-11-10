@@ -1236,18 +1236,14 @@ namespace aft
       // Third, check index consistency, making sure entries are not in the past
       // or in the future
       if (
-        (consensus_type == ConsensusType::CFT &&
-         r.prev_idx < state->commit_idx) ||
-        r.prev_idx < state->bft_watermark_idx)
+        consensus_type == ConsensusType::CFT && r.prev_idx < state->commit_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}), bft_watermark "
-          "({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
           state->my_node_id,
           from,
           r.prev_idx,
-          state->bft_watermark_idx,
           state->commit_idx);
         return;
       }
@@ -2326,14 +2322,7 @@ namespace aft
 
     Index get_commit_watermark_idx()
     {
-      if (consensus_type == ConsensusType::BFT)
-      {
-        return state->bft_watermark_idx;
-      }
-      else
-      {
-        return state->cft_watermark_idx;
-      }
+      return state->cft_watermark_idx;
     }
 
     const Configuration::Nodes& get_last_configuration_nodes()
@@ -2367,17 +2356,13 @@ namespace aft
   public:
     void rollback(Index idx)
     {
-      if (
-        (consensus_type == ConsensusType::CFT && idx < state->commit_idx) ||
-        (consensus_type == ConsensusType::BFT &&
-         idx < state->bft_watermark_idx))
+      if (consensus_type == ConsensusType::CFT && idx < state->commit_idx)
       {
         LOG_FAIL_FMT(
-          "Asked to rollback to idx:{} but committed to commit_idx:{}, "
-          "bft_watermark_idx:{} - ignoring rollback request",
+          "Asked to rollback to idx:{} but committed to commit_idx:{} - "
+          "ignoring rollback request",
           idx,
-          state->commit_idx,
-          state->bft_watermark_idx);
+          state->commit_idx);
         return;
       }
 

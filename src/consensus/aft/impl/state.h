@@ -144,7 +144,6 @@ namespace aft
       last_idx(0),
       commit_idx(0),
       cft_watermark_idx(0),
-      bft_watermark_idx(0),
       new_view_idx(0)
     {}
 
@@ -157,9 +156,6 @@ namespace aft
     kv::Version commit_idx;
 
     kv::Version cft_watermark_idx;
-
-    // TODO: Remove
-    kv::Version bft_watermark_idx;
 
     ViewHistory view_history;
     kv::Version new_view_idx;

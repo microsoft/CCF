@@ -314,11 +314,8 @@ namespace ccf
         ccf::Tables::SERIALISED_MERKLE_TREE);
       crypto::Sha256Hash root = history.get_replicated_state_root();
 
-      // TODO: Remove?
-      Nonce hashed_nonce;
       std::vector<uint8_t> primary_sig;
       auto consensus = store.get_consensus();
-      hashed_nonce.h.fill(0);
 
       primary_sig = kp.sign_hash(root.h.data(), root.h.size());
 
@@ -329,7 +326,7 @@ namespace ccf
         commit_txid.version,
         commit_txid.term,
         root,
-        hashed_nonce,
+        {}, // Nonce is currently empty
         primary_sig,
         endorsed_cert);
 
