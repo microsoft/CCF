@@ -3111,9 +3111,11 @@ namespace aft
       leader_id.reset();
 
       CCF_ASSERT_FMT(
-        !retirement_idx.has_value(),
-        "retirement_idx already set to {}",
-        retirement_idx.value());
+        !retirement_idx.has_value() ||
+          retirement_idx.value() <= state->commit_idx,
+        "unexpected attempt to pull retirement_idx forward from {} to {}",
+        retirement_idx.value(),
+        state->commit_idx);
       retirement_idx = state->commit_idx;
     }
 
