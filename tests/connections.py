@@ -5,6 +5,7 @@ import time
 import infra.network
 import infra.proc
 import infra.checker
+import infra.interfaces
 import contextlib
 import resource
 import psutil
@@ -48,7 +49,7 @@ def run(args):
         caps = interface_caps(i)
         for host, cap in caps.items():
             node_spec.rpc_interfaces.append(
-                infra.e2e_args.RPCInterface(rpc_host=host, max_open_sessions_soft=cap)
+                infra.interfaces.RPCInterface(rpc_host=host, max_open_sessions_soft=cap)
             )
 
     # Chunk often, so that new fds are regularly requested
@@ -76,7 +77,7 @@ def run(args):
         initial_metrics = get_session_metrics(primary)
         assert initial_metrics["active"] <= initial_metrics["peak"], initial_metrics
 
-        for rpc_interface in primary.rpc_interfaces.rpc_interfaces:
+        for rpc_interface in primary.host.rpc_interfaces:
             metrics = initial_metrics["interfaces"][
                 f"{rpc_interface.rpc_host}:{rpc_interface.rpc_port}"
             ]

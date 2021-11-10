@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
+import infra.interfaces
 import infra.network
 import http
 import time
@@ -13,7 +14,7 @@ DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 def run(args):
     hosts = args.node or DEFAULT_NODES
-    hosts = [infra.e2e_args.HostSpec.from_str(node) for node in hosts]
+    hosts = [infra.interfaces.from_str(node) for node in hosts]
 
     if not args.verbose:
         LOG.remove()

@@ -548,7 +548,7 @@ class CCFRemote(object):
         label="",
         binary_dir=".",
         local_node_id=None,
-        rpc_interfaces=[],
+        host=[],
         ledger_dir=None,
         read_only_ledger_dirs=[],
         snapshot_dir=None,
@@ -610,7 +610,7 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
-        self.pub_rpc_host = rpc_interfaces.rpc_interfaces[0].public_rpc_host
+        self.pub_rpc_host = host.rpc_interfaces[0].public_rpc_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
         data_files = []
         exe_files = []
@@ -647,7 +647,7 @@ class CCFRemote(object):
             output = t.render(
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type,
-                rpc_interfaces=rpc_interfaces.json(),
+                rpc_interfaces=host.json(),
                 node_cert_file=self.pem,
                 node_address_file=self.node_address_file,
                 rpc_address_file=self.rpc_address_file,

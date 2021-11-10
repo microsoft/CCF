@@ -232,8 +232,6 @@ class Network:
                 include_read_only_dirs=True
             )
 
-        LOG.error(committed_ledger_dirs)
-
         if from_snapshot:
             # Only retrieve snapshot from target node if the snapshot directory is not
             # specified

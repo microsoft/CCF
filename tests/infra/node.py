@@ -9,6 +9,7 @@ import infra.remote_shim
 from datetime import datetime, timedelta
 import infra.net
 import infra.path
+import infra.interfaces
 import ccf.clients
 import ccf.ledger
 import os
@@ -102,7 +103,7 @@ class Node:
         self.suspended = False
         self.node_id = None
         self.node_client_host = None
-        self.rpc_interfaces = host
+        self.host = host
         self.version = version
         self.major_version = (
             Version(strip_version(self.version)).release[0]
@@ -119,11 +120,9 @@ class Node:
             self.remote_shim = infra.remote_shim.PassThroughShim
 
         if isinstance(host, str):
-            self.rpc_interfaces = infra.e2e_args.HostSpec.from_str(host)
+            self.host = infra.interfaces.HostSpec.from_str(host)
 
-        for idx, rpc_interface in enumerate(
-            self.rpc_interfaces.rpc_interfaces
-        ):  # TODO: Weird nested type
+        for idx, rpc_interface in enumerate(self.host.rpc_interfaces):
             # Main RPC interface determines remote implementation
             if idx == 0:
                 if rpc_interface.protocol == "local":
@@ -249,7 +248,7 @@ class Node:
             binary_dir=self.binary_dir,
             label=label,
             local_node_id=self.local_node_id,
-            rpc_interfaces=self.rpc_interfaces,
+            host=self.host,
             node_address_hostname=self.node_host,
             node_address_port=self.node_port,
             node_client_interface=self.node_client_host,
@@ -323,7 +322,7 @@ class Node:
             lines = f.read().splitlines()
             it = [iter(lines)] * 2
             for (rpc_host, rpc_port), rpc_interface in zip(
-                zip(*it), self.rpc_interfaces.rpc_interfaces
+                zip(*it), self.host.rpc_interfaces
             ):
                 if self.remote_shim != infra.remote_shim.DockerShim:
                     assert (
@@ -439,7 +438,7 @@ class Node:
         return self.remote.get_host()
 
     def get_public_rpc_port(self):
-        return self.rpc_interfaces.rpc_interfaces[0].rpc_port
+        return self.host.rpc_interfaces[0].rpc_port
 
     def client(self, identity=None, signing_identity=None, interface_idx=0, **kwargs):
         if self.network_state == NodeNetworkState.stopped:
@@ -457,10 +456,10 @@ class Node:
             akwargs["curl"] = True
 
         try:
-            rpc_interface = self.rpc_interfaces.rpc_interfaces[interface_idx]
+            rpc_interface = self.host.rpc_interfaces[interface_idx]
         except IndexError:
             LOG.error(
-                f"Cannot create client on interface {interface_idx} - this node only has {len(self.rpc_interfaces)} interfaces"
+                f"Cannot create client on interface {interface_idx} - this node only has {len(self.host)} interfaces"
             )
             raise
 
