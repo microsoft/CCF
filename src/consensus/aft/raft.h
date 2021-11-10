@@ -274,18 +274,9 @@ namespace aft
       return replica_state == kv::ReplicaState::Leader;
     }
 
-    bool is_bft_reexecution()
-    {
-      return consensus_type == ConsensusType::BFT && !is_primary();
-    }
-
     bool can_replicate()
     {
-      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
-      if (!is_bft_reexecution())
-      {
-        guard.lock();
-      }
+      std::unique_lock<std::mutex> guard(state->lock);
       return replica_state == kv::ReplicaState::Leader &&
         !retirement_committable_idx.has_value();
     }
@@ -470,15 +461,6 @@ namespace aft
     {
       LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
-      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
-      // It is safe to call is_follower() by construction as the consensus
-      // can only change from leader or follower while in a view-change during
-      // which time transaction cannot be executed.
-      if (is_bft_reexecution() && threading::ThreadMessaging::thread_count > 1)
-      {
-        guard.lock();
-      }
-
       if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
         assert(new_learners.empty());
@@ -590,12 +572,6 @@ namespace aft
       ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig)
     {
       LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
-
-      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
-      if (is_bft_reexecution() && threading::ThreadMessaging::thread_count > 1)
-      {
-        guard.lock();
-      }
 
       assert(!configurations.empty());
 
@@ -737,19 +713,6 @@ namespace aft
         entries,
       Term term)
     {
-      if (is_bft_reexecution())
-      {
-        // Already under lock in the current BFT path
-        for (auto& [_, __, ___, hooks] : entries)
-        {
-          for (auto& hook : *hooks)
-          {
-            hook->call(this);
-          }
-        }
-        return true;
-      }
-
       std::lock_guard<std::mutex> guard(state->lock);
 
       if (replica_state != kv::ReplicaState::Leader)
