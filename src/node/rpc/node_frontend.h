@@ -992,19 +992,27 @@ namespace ccf
           ConsensusConfig cc;
           for (auto& [nid, ninfo] : cfg)
           {
-            cc.emplace(nid.value(), ConsensusNodeConfig{fmt::format("{}:{}", ninfo.hostname, ninfo.port)});
+            cc.emplace(
+              nid.value(),
+              ConsensusNodeConfig{
+                fmt::format("{}:{}", ninfo.hostname, ninfo.port)});
           }
           return make_success(cc);
         }
         else
         {
           return make_error(
-            HTTP_STATUS_NOT_FOUND, ccf::errors::ResourceNotFound, "No configured consensus");
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No configured consensus");
         }
       };
 
       make_command_endpoint(
-        "/config", HTTP_GET, json_command_adapter(consensus_config), no_auth_required)
+        "/config",
+        HTTP_GET,
+        json_command_adapter(consensus_config),
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ConsensusConfig>()
         .set_execute_outside_consensus(
