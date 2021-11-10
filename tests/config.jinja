@@ -38,7 +38,7 @@
   {
     "sig_tx_interval": 5000,
     "sig_ms_interval": 1000,
-    "jwt_key_refresh_interval_s": {{ jwt_key_refresh_interval_s }}
+    "jwt_key_refresh_interval_s": {{ jwt_key_refresh_interval_s or 1800 }}
   },
   "consensus":
   {
@@ -52,23 +52,7 @@
       "hostname": "{{ node_address_hostname }}",
       "port": "{{ node_address_port }}"
     },
-    "rpc_interfaces":
-    [
-      {
-        "rpc_address":
-        {
-          "hostname": "{{ rpc_address_hostname }}",
-          "port": "{{ rpc_address_port }}"
-        },
-        "public_rpc_address":
-        {
-          "hostname": "{{ public_rpc_address_hostname }}",
-          "port": "{{ public_rpc_address_port }}"
-        },
-        "max_open_sessions_soft": {{ max_open_sessions_soft or 1000 }},
-        "max_open_sessions_hard": {{ max_open_sessions_hard or 1010 }}
-      }
-    ]
+    "rpc_interfaces": {{ rpc_interfaces|tojson }}
   },
   "memory":
   {

@@ -102,7 +102,7 @@ class Node:
         self.suspended = False
         self.node_id = None
         self.node_client_host = None
-        self.interfaces = []
+        self.rpc_interfaces = host
         self.version = version
         self.major_version = (
             Version(strip_version(self.version)).release[0]
@@ -119,43 +119,40 @@ class Node:
             self.remote_shim = infra.remote_shim.PassThroughShim
 
         if isinstance(host, str):
-            host = infra.e2e_args.HostSpec.from_str(host)
+            self.rpc_interfaces = infra.e2e_args.HostSpec.from_str(host)
 
-        if host.protocol == "local":
-            self.remote_impl = infra.remote.LocalRemote
-            # Node client address does not currently work with DockerShim
-            if self.remote_shim != infra.remote_shim.DockerShim:
-                if not self.major_version or self.major_version > 1:
-                    self.node_client_host = str(
-                        ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
-                    )
-        elif host.protocol == "ssh":
-            self.remote_impl = infra.remote.SSHRemote
-        else:
-            assert False, f"{host} does not start with 'local://' or 'ssh://'"
+        for idx, rpc_interface in enumerate(
+            self.rpc_interfaces.rpc_interfaces
+        ):  # TODO: Weird nested type
+            # Main RPC interface determines remote implementation
+            if idx == 0:
+                if rpc_interface.protocol == "local":
+                    self.remote_impl = infra.remote.LocalRemote
+                    # Node client address does not currently work with DockerShim
+                    if self.remote_shim != infra.remote_shim.DockerShim:
+                        if not self.major_version or self.major_version > 1:
+                            self.node_client_host = str(
+                                ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
+                                + self.local_node_id
+                            )
+                elif rpc_interface.protocol == "ssh":
+                    self.remote_impl = infra.remote.SSHRemote
+                else:
+                    assert (
+                        False
+                    ), f"{rpc_interface.protocol} is not 'local://' or 'ssh://'"
 
-        host_ = host.rpchost
-        self.rpc_host, *port = host_.split(":")
-        self.rpc_port = int(port[0]) if port else 0
-        if self.rpc_host == "localhost":
-            self.rpc_host = infra.net.expand_localhost()
+            if rpc_interface.rpc_host == "localhost":
+                rpc_interface.rpc_host = infra.net.expand_localhost()
 
-        pubhost_ = host.public_rpchost
-        if pubhost_:
-            self.pubhost, *pubport = pubhost_.split(":")
-            self.pubport = int(pubport[0]) if pubport else self.rpc_port
-        else:
-            self.pubhost = self.rpc_host
-            self.pubport = self.rpc_port
+            if rpc_interface.public_rpc_host is None:
+                rpc_interface.public_rpc_host = rpc_interface.rpc_host
+                rpc_interface.public_rpc_port = rpc_interface.rpc_port
 
-        self.node_host = self.rpc_host
-        self.node_port = node_port
-
-        self.max_open_sessions = host.max_open_sessions
-        self.max_open_sessions_hard = host.max_open_sessions_hard
-
-        # TODO: Still needed??
-        self.additional_raw_node_args = host.additional_raw_node_args
+            # Default node address host to same host as main RPC interface
+            if idx == 0:
+                self.node_host = rpc_interface.rpc_host
+            self.node_port = node_port
 
     def __hash__(self):
         return self.local_node_id
@@ -240,10 +237,6 @@ class Node:
         lib_path = infra.path.build_lib_path(
             lib_name, enclave_type, library_dir=self.library_dir
         )
-        if self.max_open_sessions:
-            kwargs["max_open_sessions"] = self.max_open_sessions
-        if self.max_open_sessions_hard:
-            kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
 
         self.remote = self.remote_shim(
@@ -256,14 +249,10 @@ class Node:
             binary_dir=self.binary_dir,
             label=label,
             local_node_id=self.local_node_id,
-            rpc_address_hostname=self.rpc_host,
-            rpc_address_port=self.rpc_port,
+            rpc_interfaces=self.rpc_interfaces,
             node_address_hostname=self.node_host,
             node_address_port=self.node_port,
-            public_rpc_address_hostname=self.pubhost,
-            public_rpc_address_port=self.rpc_port,
             node_client_interface=self.node_client_host,
-            additional_raw_node_args=self.additional_raw_node_args,
             members_info=members_info,
             version=self.version,
             major_version=self.major_version,
@@ -333,21 +322,18 @@ class Node:
         with open(rpc_address_file, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
             it = [iter(lines)] * 2
-            for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
-                rpc_port = int(rpc_port)
-                if i == 0:
-                    if self.remote_shim != infra.remote_shim.DockerShim:
-                        assert (
-                            rpc_host == self.rpc_host
-                        ), f"Unexpected change in RPC address from {self.rpc_host} to {rpc_host}"
-                    if self.rpc_port is not None and self.rpc_port != 0:
-                        assert (
-                            rpc_port == self.rpc_port
-                        ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
-                    self.rpc_port = rpc_port
-                    if self.pubport == 0:
-                        self.pubport = self.rpc_port
-                self.interfaces.append((rpc_host, rpc_port))
+            for (rpc_host, rpc_port), rpc_interface in zip(
+                zip(*it), self.rpc_interfaces.rpc_interfaces
+            ):
+                if self.remote_shim != infra.remote_shim.DockerShim:
+                    assert (
+                        rpc_host == rpc_interface.rpc_host
+                    ), f"Unexpected change in RPC address from {rpc_interface.rpc_host} to {rpc_host}"
+                if rpc_interface.rpc_port != 0:
+                    assert (
+                        rpc_port == rpc_interface.rpc_port
+                    ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
+                rpc_interface.rpc_port = int(rpc_port)
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -452,9 +438,10 @@ class Node:
     def get_public_rpc_host(self):
         return self.remote.get_host()
 
-    def client(
-        self, identity=None, signing_identity=None, interface_idx=None, **kwargs
-    ):
+    def get_public_rpc_port(self):
+        return self.rpc_interfaces.rpc_interfaces[0].rpc_port
+
+    def client(self, identity=None, signing_identity=None, interface_idx=0, **kwargs):
         if self.network_state == NodeNetworkState.stopped:
             raise RuntimeError(
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
@@ -469,25 +456,23 @@ class Node:
         if self.curl:
             akwargs["curl"] = True
 
-        if interface_idx is None:
-            return ccf.clients.client(
-                self.get_public_rpc_host(), self.pubport, **akwargs
+        try:
+            rpc_interface = self.rpc_interfaces.rpc_interfaces[interface_idx]
+        except IndexError:
+            LOG.error(
+                f"Cannot create client on interface {interface_idx} - this node only has {len(self.rpc_interfaces)} interfaces"
             )
-        else:
-            try:
-                host, port = self.interfaces[interface_idx]
-            except IndexError:
-                LOG.error(
-                    f"Cannot create client on interface {interface_idx} - this node only has {len(self.interfaces)} interfaces"
-                )
-                raise
-            return ccf.clients.client(host, port, **akwargs)
+            raise
+
+        return ccf.clients.client(
+            rpc_interface.rpc_host, rpc_interface.rpc_port, **akwargs
+        )
 
     def get_tls_certificate_pem(self, use_public_rpc_host=True):
         return ssl.get_server_certificate(
             (
                 self.get_public_rpc_host() if use_public_rpc_host else self.rpc_host,
-                self.rpc_port,
+                self.get_public_rpc_port(),
             )
         )
 

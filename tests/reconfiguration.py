@@ -281,16 +281,20 @@ def test_node_replacement(network, args):
 
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
-        f"local://{node_to_replace.rpc_host}:{node_to_replace.rpc_port}",
+        f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
         node_port=node_to_replace.node_port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
-    assert replacement_node.rpc_host == node_to_replace.rpc_host
+    assert (
+        replacement_node.get_public_rpc_host() == node_to_replace.get_public_rpc_host()
+    )
     assert replacement_node.node_port == node_to_replace.node_port
-    assert replacement_node.rpc_port == node_to_replace.rpc_port
+    assert (
+        replacement_node.get_public_rpc_port() == node_to_replace.get_public_rpc_port()
+    )
 
     allowed_to_suspend_count = network.get_f() - len(network.get_stopped_nodes())
     backups_to_suspend = backups[:allowed_to_suspend_count]

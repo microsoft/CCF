@@ -260,7 +260,7 @@ class Network:
             label=args.label,
             common_dir=self.common_dir,
             target_rpc_address_hostname=target_node.get_public_rpc_host(),
-            target_rpc_address_port=target_node.rpc_port,
+            target_rpc_address_port=target_node.get_public_rpc_port(),
             snapshot_dir=snapshot_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,

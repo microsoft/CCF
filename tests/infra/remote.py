@@ -548,13 +548,14 @@ class CCFRemote(object):
         label="",
         binary_dir=".",
         local_node_id=None,
+        rpc_interfaces=[],
         ledger_dir=None,
         read_only_ledger_dirs=[],
         snapshot_dir=None,
-        common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
+        common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes TODO: Fix!
         version=None,
         major_version=None,
-        include_addresses=True,
+        include_addresses=True,  #  TODO: Fix container wrapper!
         **kwargs,
         # rpc_host=None,
         # node_host=None,
@@ -599,8 +600,6 @@ class CCFRemote(object):
         Run a ccf binary on a remote host.
         """
 
-        LOG.error(major_version)
-
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
@@ -611,7 +610,7 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
-        self.pub_host = kwargs.get("public_rpc_address_hostname")
+        self.pub_rpc_host = rpc_interfaces.rpc_interfaces[0].public_rpc_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
         data_files = []
         exe_files = []
@@ -626,12 +625,10 @@ class CCFRemote(object):
         )
 
         # Read-only ledger directories
-        LOG.warning(f"R/O dirs: {read_only_ledger_dirs}")
         self.read_only_ledger_dirs = read_only_ledger_dirs
         self.read_only_ledger_dirs_names = []
         for d in self.read_only_ledger_dirs:
             self.read_only_ledger_dirs_names.append(os.path.basename(d))
-        LOG.error(f"R/O dir names: {self.read_only_ledger_dirs_names}")
         self.common_read_only_ledger_dir = common_read_only_ledger_dir
 
         # Snapshots
@@ -641,17 +638,16 @@ class CCFRemote(object):
             if self.snapshot_dir
             else f"{local_node_id}.snapshots"
         )
-        LOG.error(self.snapshot_dir_name)
 
-        ## CONFIG PLAYGROUND
+        # Configuration file
         if major_version is None or major_version > 1:
             loader = FileSystemLoader("../tests")
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template("config.jinja")
-            LOG.success(f"kwargs:{kwargs}")
             output = t.render(
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type,
+                rpc_interfaces=rpc_interfaces.json(),
                 node_cert_file=self.pem,
                 node_address_file=self.node_address_file,
                 rpc_address_file=self.rpc_address_file,
@@ -661,13 +657,12 @@ class CCFRemote(object):
                 **kwargs,
             )
 
-            config_file_name = f"{local_node_id}.config.json"
+            config_file_name = f"{self.local_node_id}.config.json"
             config_file = os.path.join(common_dir, config_file_name)
             data_files += [config_file]
 
             with open(config_file, "w") as f:
                 f.write(output)
-        #################
 
         exe_files += [self.BIN, enclave_file] + self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []
@@ -683,8 +678,7 @@ class CCFRemote(object):
         bin_path = os.path.join(".", os.path.basename(self.BIN))
 
         if major_version is None or major_version > 1:
-            # TODO: Config should be full path!
-            cmd = [bin_path, "--config", config_file_name]
+            cmd = [bin_path, "--config", config_file]
             if start_type == StartType.new:
                 cmd += ["start"]
             elif start_type == StartType.join:
@@ -753,6 +747,7 @@ class CCFRemote(object):
                     f"--public-rpc-address={make_address(pub_host, rpc_port)}",
                 ]
 
+            # TODO: Re-add
             # if log_format_json:
             #     cmd += ["--log-format-json"]
 
@@ -974,7 +969,7 @@ class CCFRemote(object):
         return self.remote.get_logs(tail_lines_len=tail_lines_len)
 
     def get_host(self):
-        return self.pub_host
+        return self.pub_rpc_host
 
 
 class StartType(Enum):
