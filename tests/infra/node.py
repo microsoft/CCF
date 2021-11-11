@@ -400,12 +400,12 @@ class Node:
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
 
-    def get_ledger(self, include_read_only_dirs=False):
+    def get_ledger(self):
         """
         Triage committed and un-committed (i.e. current) ledger files
         """
         main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(
-            f"{self.local_node_id}.ledger", include_read_only_dirs
+            f"{self.local_node_id}.ledger"
         )
 
         current_ledger_dir = os.path.join(
@@ -429,7 +429,7 @@ class Node:
                 if is_file_committed(f):
                     infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
 
-        return current_ledger_dir, committed_ledger_dir
+        return current_ledger_dir, [committed_ledger_dir]
 
     def get_snapshots(self):
         return self.remote.get_snapshots()
