@@ -605,7 +605,7 @@ class CCFRemote(object):
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
         self.node_address_file = f"{local_node_id}.node_address"
-        self.rpc_address_file = f"{local_node_id}.rpc_address"
+        self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
@@ -650,7 +650,7 @@ class CCFRemote(object):
                 rpc_interfaces=host.json(),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
-                rpc_address_file=self.rpc_address_file,
+                rpc_addresses_file=self.rpc_addresses_file,
                 ledger_dir=self.ledger_dir_name,
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
                 snapshot_dir=self.snapshot_dir_name,
@@ -731,7 +731,7 @@ class CCFRemote(object):
                 f"--enclave-type={enclave_type}",
                 f"--node-address-file={self.node_address_file}",
                 f"--rpc-address={make_address(rpc_host, rpc_port)}",
-                f"--rpc-address-file={self.rpc_address_file}",
+                f"--rpc-address-file={self.rpc_addresses_file}",
                 f"--ledger-dir={self.ledger_dir_name}",
                 f"--snapshot-dir={self.snapshot_dir_name}",
                 f"--node-cert-file={self.pem}",
@@ -895,7 +895,7 @@ class CCFRemote(object):
     def get_startup_files(self, dst_path):
         self.remote.get(self.pem, dst_path)
         self.remote.get(self.node_address_file, dst_path)
-        self.remote.get(self.rpc_address_file, dst_path)
+        self.remote.get(self.rpc_addresses_file, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
 

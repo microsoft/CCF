@@ -11,11 +11,9 @@ The configuration for each CCF node must be contained in a single JSON configura
 
 TODO:
 
-- Update `start_network` and `recovery` pages
 - Link to sample JSON configuration file
 - Which options are optional?
 - Minimal config on startup (move some options to misc or bottom of page?)
-- Enclave vs. host
 - Remove BFT timeouts
 - IP/DNS.
 - Remove reserved memory.
@@ -81,7 +79,9 @@ Example:
 - ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
 - ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``public_rpc_address``. Default value: ``[]``.
 - ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``secp384r1``.
-- ``initial_validity_period_days``: Initial validity period (days) for node certificate. Default value: ``1``day.
+- ``initial_validity_period_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
+
+.. _start configuration:
 
 ``start``
 ~~~~~~~~~
@@ -89,17 +89,23 @@ Example:
 .. note:: This only needs to be set when the node started in ``start`` mode.
 
 - ``constitution_files``: List of constitution files. These typically include ``actions.js``, ``validate.js``, ``resolve.js`` and ``apply.js``.
-- ``members``: Information of members
-- ``service_configuration``: Initial service configuration.
 
-TODO: What if recovery_threshold is 0?
+- ``members``: List of initial consortium members files, including identity certificates, public encryption keys and member data files.
+
+.. note:: Common examples:
+
+    - A recovery member with member data: ``{"certificate_file": "member_cert.pem", "encryption_public_key_file": "member_enc_pubk.pem", "data_json_file": "member_data.json"}``
+    - A recovery member with no member data: ``{"certificate_file": "member_cert.pem", "encryption_public_key_file": "member_enc_pubk.pem"}``
+    - A non-recovery member with member data: ``{"certificate_file": "member_cert.pem", "data_json_file": "member_data.json"}``
+    - A non-recovery member with no member data: ``{"certificate_file": "member_cert.pem"}``
+
+- ``service_configuration``: Initial service configuration, including ``recovery_threshold``.
 
 Example:
 
 .. code-block:: json
 
-    "start":
-    {
+    "start": {
         "constitution_files": ["actions.js", "validate.js", "resolve.js", "apply.js"],
         "members": [
             {"certificate_file": "member0_cert.pem", "data_json_file": null, "encryption_public_key_file": "member0_enc_pubk.pem"},
@@ -113,13 +119,24 @@ Example:
         }
     }
 
+.. _join configuration:
+
 ``join``
 ~~~~~~~~
 
 .. note:: This only needs to be set when the node is started in ``join`` mode.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
-- ``join_timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1,000``ms.
+- ``join_timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1,000`` ms.
+
+Example:
+
+.. code-block:: json
+
+    "join": {
+        "join_timer_ms": 1000,
+        "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
+    }
 
 ``ledger``
 ~~~~~~~~~~
@@ -144,15 +161,21 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``type``: Type of consensus protocol. Only ``CFT`` (crash-fault tolerant) is currently supported in production. Default value: ``CFT``.
-- ``raft_timeout_ms``: Hearbeat interval (ms) at which primary node sends messages to backup nodes to maintain primary-ship. This should be set to a significantly lower value than ``raft_election_timeout_ms``. Default value: ``100``ms.
-- ``raft_election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4,000``ms.
+- ``raft_timeout_ms``: Hearbeat interval (ms) at which primary node sends messages to backup nodes to maintain primary-ship. This should be set to a significantly lower value than ``raft_election_timeout_ms``. Default value: ``100`` ms.
+- ``raft_election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4,000`` ms.
 
 ``intervals``
 ~~~~~~~~~~~~~
 
 - ``sig_tx_interval``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5,000``.
-- ``sig_ms_interval``: Maximum duration (milliseconds) after which a signature transaction is automatically triggered. Default value: ``1,000``ms.
-- ``jwt_key_refresh_interval_s``: Interval (seconds) after which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1,800``s.
+- ``sig_ms_interval``: Maximum duration (milliseconds) after which a signature transaction is automatically triggered. Default value: ``1,000`` ms.
+
+.. note::
+    Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
+
+    The signature interval options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution of transactions, the actual intervals between signature transactions may be slightly larger.
+
+- ``jwt_key_refresh_interval_s``: Interval (seconds) after which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1,800`` s.
 
 ``network_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -190,12 +213,12 @@ TODO: These options aren't as required and have sensible defaults.
 ``tick_period_ms``
 ~~~~~~~~~~~~~~~~~~
 
-Interval (milliseconds) at which the enclave time will be updated by the host. Default value: ``10``ms.
+Interval (milliseconds) at which the enclave time will be updated by the host. Default value: ``10`` ms.
 
 ``io_logging_threshold_ns``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration (nanoseconds) of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10,000,000``ns.
+Maximum duration (nanoseconds) of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10,000,000`` ns.
 
 ``node_client_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -206,7 +229,7 @@ This option is particularly useful for testing purposes (e.g. establishing netwo
 ``client_connection_timeout_ms``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration (milliseconds) after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``2000``ms.
+Maximum duration (milliseconds) after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``2000`` ms.
 
 ``worker_threads``
 ~~~~~~~~~~~~~~~~~~

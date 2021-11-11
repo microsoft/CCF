@@ -50,13 +50,10 @@ int main(int argc, char** argv)
 
   CLI::App app{"ccf"};
 
-  // app.set_config("--config", "", "Read an INI or TOML file", false);
-  // app.allow_config_extras(false);
-
   std::string config_file_path = "config.json";
   app
     .add_option(
-      "-c,--config", config_file_path, "File to JSON configuration file")
+      "-c,--config", config_file_path, "Path to JSON configuration file")
     ->check(CLI::ExistingFile);
 
   app.add_flag(
@@ -64,148 +61,11 @@ int main(int argc, char** argv)
 
   app.require_subcommand(1, 1);
 
-  std::string enclave_file;
-  // app.add_option("-e,--enclave-file", enclave_file, "CCF application")
-  //   ->required()
-  //   ->check(CLI::ExistingFile);
-
-  ConsensusType consensus = ConsensusType::CFT;
-  std::vector<std::pair<std::string, ConsensusType>> consensus_map{
-    {"cft", ConsensusType::CFT}, {"bft", ConsensusType::BFT}};
-  // app.add_option("-c,--consensus", consensus, "Consensus")
-  //   ->required()
-  //   ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
-
-  size_t num_worker_threads = 0;
-  // app
-  //   .add_option(
-  //     "-w,--worker-threads",
-  //     num_worker_threads,
-  //     "Number of worker threads inside the enclave")
-  //   ->capture_default_str();
-
-  cli::ParsedAddress node_address;
-  // cli::add_address_option(
-  //   app,
-  //   node_address,
-  //   "--node-address",
-  //   "Address on which to listen for commands coming from other nodes")
-  //   ->required();
-
-  cli::ParsedAddress public_rpc_address;
-  // auto public_rpc_address_option =
-  //   cli::add_address_option(
-  //     app,
-  //     public_rpc_address,
-  //     "--public-rpc-address",
-  //     "Address to advertise publicly to clients (defaults to same as "
-  //     "--rpc-address)",
-  //     "443")
-  //     ->needs(rpc_address_option);
-
-  size_t memory_reserve_startup = 0;
-  //   app
-  //     .add_option(
-  //       "--memory-reserve-startup",
-  //       memory_reserve_startup,
-  // #ifdef DEBUG_CONFIG
-  //       "Reserve unused memory inside the enclave, to simulate high memory
-  //       use"
-  // #else
-  //       "Unused"
-  // #endif
-  //       )
-  //     ->capture_default_str();
-
-  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
-  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
-    {"secp384r1", crypto::CurveID::SECP384R1},
-    {"secp256r1", crypto::CurveID::SECP256R1}};
-  // app
-  // .add_option(
-  //   "--curve-id",
-  //   curve_id,
-  //   "Elliptic curve to use as for node and network identities (used for TLS
-  //   " "and ledger signatures)")
-  // ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
-  // ->capture_default_str();
-
-  // By default, node certificates are only valid for one day. It is
-  // expected that members will submit a proposal to renew the node
-  // certificates before expiry, at the point the service is open.
-  size_t initial_node_certificate_validity_period_days = 1;
-  // app
-  //   .add_option(
-  //     "--initial-node-cert-validity-days",
-  //     initial_node_certificate_validity_period_days,
-  //     "Initial validity period (days) for certificates of nodes before the "
-  //     "service is open by members")
-  //   ->check(CLI::PositiveNumber)
-  //   ->type_name("UINT");
-
-  // The network certificate file can either be an input or output parameter,
-  // depending on the subcommand.
-
   auto start = app.add_subcommand("start", "Start new network");
   start->configurable();
 
-  std::vector<std::string> constitution_paths;
-  // start
-  //   ->add_option(
-  //     "--constitution",
-  //     constitution_paths,
-  //     "Path to one or more JS file that are concatenated to define the "
-  //     "contents of the "
-  //     "public:ccf.gov.constitution table")
-  //   ->type_size(-1);
-
-  std::vector<cli::ParsedMemberInfo> members;
-  // cli::add_member_info_option(
-  //   *start,
-  //   members,
-  //   "--member-info",
-  //   "Initial consortium members information "
-  //   "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
-  //   ->required();
-
-  size_t recovery_threshold = 0;
-  // start
-  //   ->add_option(
-  //     "--recovery-threshold",
-  //     recovery_threshold,
-  //     "Number of member shares required for recovery. Defaults to total
-  //     number " "of initial consortium members with a public encryption key.")
-  //   ->check(CLI::PositiveNumber)
-  //   ->type_name("UINT");
-
-  size_t max_allowed_node_cert_validity_days = 365;
-  // start
-  //   ->add_option(
-  //     "--max-allowed-node-cert-validity-days",
-  //     max_allowed_node_cert_validity_days,
-  //     "Maximum validity period (days) for certificates of trusted nodes")
-  //   ->check(CLI::PositiveNumber)
-  //   ->type_name("UINT");
-
   auto join = app.add_subcommand("join", "Join existing network");
   join->configurable();
-
-  size_t join_timer = 1000;
-  // join
-  //   ->add_option(
-  //     "--join-timer",
-  //     join_timer,
-  //     "Duration after which the join node will resend join requests to "
-  //     "existing network (ms)")
-  //   ->capture_default_str();
-
-  cli::ParsedAddress target_rpc_address;
-  // cli::add_address_option(
-  //   *join,
-  //   target_rpc_address,
-  //   "--target-rpc-address",
-  //   "RPC over TLS listening address of target network node")
-  //   ->required();
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
   recover->configurable();
@@ -213,33 +73,15 @@ int main(int argc, char** argv)
   try
   {
     app.parse(argc, argv);
-
-    // nlohmann::json::parse()
-
-    // // Add an additional check not represented by existing ->needs,
-    // ->requires
-    // // etc
-    // if (!(*rpc_address_option || *rpc_interfaces_option))
-    // {
-    //   const auto option_list = fmt::format(
-    //     "{}, {}",
-    //     rpc_address_option->get_name(),
-    //     rpc_interfaces_option->get_name());
-    //   throw CLI::RequiredError::Option(1, 0, 0, option_list);
-    // }
   }
   catch (const CLI::ParseError& e)
   {
     return app.exit(e);
   }
 
-  LOG_FAIL_FMT("Config file: {}", config_file_path);
-
-  auto config_str = files::slurp_string(config_file_path);
-
-  LOG_FAIL_FMT("Config: {}", config_str);
-
+  std::string config_str = files::slurp_string(config_file_path);
   CCHostConfig config = nlohmann::json::parse(config_str);
+  LOG_INFO_FMT("Configuration: {}", config_str);
 
   // set json log formatter to write to std::out
   if (config.logging.log_format_json)
@@ -247,35 +89,13 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
-  // Fill in derived default values
-  // if (!(*public_rpc_address_option))
-  // {
-  //   public_rpc_address = rpc_address;
-  // }
+  // TODO: Set default public RPC address if none is set!
+  // TODO: Set mosh option is none is set!
 
-  // if (!(*mosh_option))
-  // {
-  //   max_open_sessions_hard =
-  //     max_open_sessions + cli::ParsedRpcInterface::default_mosh_diff;
-  // }
-
-  // If --rpc-address etc were specified, they populate a single object at the
-  // start of the rpc_interfaces list
-  // if (*rpc_address_option)
-  // {
-  //   cli::ParsedRpcInterface first;
-  //   first.rpc_address = rpc_address;
-  //   first.public_rpc_address = public_rpc_address;
-  //   first.max_open_sessions = max_open_sessions;
-  //   first.max_open_sessions_hard = max_open_sessions_hard;
-  //   rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
-  // }
-
-  // const auto cli_config = app.config_to_str(true, false);
   LOG_INFO_FMT("Version: {}", ccf::ccf_version);
-  // LOG_INFO_FMT("Run with following options:\n{}", cli_config);
 
   uint32_t oe_flags = 0;
+  size_t recovery_threshold = 0;
   try
   {
     const auto& ledger_dir = config.ledger.ledger_dir;
@@ -407,7 +227,7 @@ int main(int argc, char** argv)
 
   {
     // provide regular ticks to the enclave
-    const std::chrono::milliseconds tick_period(tick_period_ms);
+    const std::chrono::milliseconds tick_period(config.tick_period_ms);
     asynchost::Ticker ticker(tick_period, writer_factory);
 
     // reset the inbound-TCP processing quota each iteration
@@ -564,8 +384,8 @@ int main(int argc, char** argv)
     {
       LOG_INFO_FMT(
         "Creating new node - join existing network at {}:{}",
-        target_rpc_address.hostname,
-        target_rpc_address.port);
+        config.join.target_rpc_address.hostname,
+        config.join.target_rpc_address.port);
       start_type = StartType::Join;
       startup_config.join.target_rpc_address = config.join.target_rpc_address;
       startup_config.join.join_timer_ms = config.join.join_timer_ms;
@@ -610,7 +430,7 @@ int main(int argc, char** argv)
       }
     }
 
-    if (consensus == ConsensusType::BFT)
+    if (config.consensus.type == ConsensusType::BFT)
     {
 #ifdef ENABLE_BFT
       LOG_INFO_FMT(
@@ -627,7 +447,7 @@ int main(int argc, char** argv)
       node_cert,
       network_cert,
       start_type,
-      num_worker_threads,
+      config.worker_threads,
       time_updater->behaviour.get_value());
 
     LOG_INFO_FMT("Created new node");
@@ -636,7 +456,7 @@ int main(int argc, char** argv)
     files::dump(node_cert, config.node_certificate_file);
     if (*start || *recover)
     {
-      files::dump(network_cert, network_certificate_file);
+      files::dump(network_cert, config.network_certificate_file);
     }
 
     auto enclave_thread_start = [&]() {
@@ -663,7 +483,7 @@ int main(int argc, char** argv)
 
     // Start threads which will ECall and process messages inside the enclave
     std::vector<std::thread> threads;
-    for (uint32_t i = 0; i < (num_worker_threads + 1); ++i)
+    for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
     {
       threads.emplace_back(std::thread(enclave_thread_start));
     }

@@ -1579,22 +1579,6 @@ namespace ccf
       // ledger
       if (create_consortium)
       {
-        // CreateNetworkNodeToNode::In::GenesisInfo genesis_info;
-        // for (auto const& m_info : config.start.members_info)
-        // {
-        //   genesis_info.members_info.push_back(m_info);
-        // }
-        // genesis_info.constitution = config.genesis.constitution;
-        // // Fix once #3097 is merged
-        // // auto reconf_type = network.consensus_type == ConsensusType::BFT ?
-        // //   ReconfigurationType::TWO_TRANSACTION :
-        // //   ReconfigurationType::ONE_TRANSACTION;
-
-        // genesis_info.configuration = {
-        //   config.genesis.recovery_threshold,
-        //   network.consensus_type,
-        //   reconf_type,
-        //   config.genesis.max_allowed_node_cert_validity_days};
         create_params.genesis_info = config.start;
       }
 

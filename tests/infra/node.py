@@ -317,7 +317,7 @@ class Node:
                 ), f"Unexpected change in node port from {self.node_port} to {node_port}"
             self.node_port = node_port
 
-        rpc_address_file = os.path.join(self.common_dir, self.remote.rpc_address_file)
+        rpc_address_file = os.path.join(self.common_dir, self.remote.rpc_addresses_file)
         with open(rpc_address_file, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
             it = [iter(lines)] * 2
