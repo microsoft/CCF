@@ -11,7 +11,7 @@ namespace ds
   // some contiguous ranges. Stores a sequence of ranges, rather than individual
   // values.
   template <typename T>
-  class ContiguousContainer
+  class ContiguousSet
   {
   public:
     // Ranges are represented by their first value, and a count of additional
@@ -95,19 +95,19 @@ namespace ds
       }
     }
 
-    ContiguousContainer() = default;
+    ContiguousSet() = default;
 
     template <typename Iterator>
-    ContiguousContainer(Iterator first, Iterator end)
+    ContiguousSet(Iterator first, Iterator end)
     {
       populate_ranges(first, end);
     }
 
-    ContiguousContainer(const std::set<T>& set) :
-      ContiguousContainer(set.begin(), set.end())
+    ContiguousSet(const std::set<T>& set) :
+      ContiguousSet(set.begin(), set.end())
     {}
 
-    ContiguousContainer(std::vector<T> vec)
+    ContiguousSet(std::vector<T> vec)
     {
       std::sort(vec.begin(), vec.end());
       populate_ranges(vec.begin(), vec.end());

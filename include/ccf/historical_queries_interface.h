@@ -5,7 +5,7 @@
 #include "ccf/receipt.h"
 #include "ccf/tx_id.h"
 #include "consensus/ledger_enclave_types.h"
-#include "ds/contiguous_container.h"
+#include "ds/contiguous_set.h"
 #include "kv/store.h"
 #include "node/history.h"
 #include "node/tx_receipt.h"
@@ -53,7 +53,7 @@ namespace ccf::historical
 
   using ExpiryDuration = std::chrono::seconds;
 
-  using SeqNoCollection = ds::ContiguousContainer<ccf::SeqNo>;
+  using SeqNoCollection = ds::ContiguousSet<ccf::SeqNo>;
 
   /** Stores the progress of historical query requests.
    *
@@ -161,16 +161,14 @@ namespace ccf::historical
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) = 0;
     virtual std::vector<StorePtr> get_stores_for(
-      RequestHandle handle,
-      const SeqNoCollection& seqnos) = 0;
+      RequestHandle handle, const SeqNoCollection& seqnos) = 0;
 
     virtual std::vector<StatePtr> get_states_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) = 0;
     virtual std::vector<StatePtr> get_states_for(
-      RequestHandle handle,
-      const SeqNoCollection& seqnos) = 0;
+      RequestHandle handle, const SeqNoCollection& seqnos) = 0;
 
     /** Drop state for the given handle.
      *
