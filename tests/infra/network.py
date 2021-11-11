@@ -210,7 +210,7 @@ class Network:
         recovery=False,
         ledger_dir=None,
         copy_ledger_read_only=False,
-        read_only_ledger_dirs=[],
+        read_only_ledger_dirs=None,
         from_snapshot=False,
         snapshot_dir=None,
     ):
@@ -221,11 +221,11 @@ class Network:
             )
         LOG.info(f"Joining from target node {target_node.local_node_id}")
 
-        committed_ledger_dirs = read_only_ledger_dirs
+        committed_ledger_dirs = read_only_ledger_dirs or []
         current_ledger_dir = ledger_dir
 
         # By default, only copy historical ledger if node is started from snapshot
-        if read_only_ledger_dirs and (from_snapshot or copy_ledger_read_only):
+        if not committed_ledger_dirs and (from_snapshot or copy_ledger_read_only):
             LOG.info(f"Copying ledger from target node {target_node.local_node_id}")
             current_ledger_dir, committed_ledger_dirs = target_node.get_ledger()
 
@@ -274,7 +274,7 @@ class Network:
         args,
         recovery=False,
         ledger_dir=None,
-        read_only_ledger_dirs=[],
+        read_only_ledger_dirs=None,
         snapshot_dir=None,
     ):
         self.args = args
@@ -443,7 +443,7 @@ class Network:
         self,
         args,
         ledger_dir,
-        committed_ledger_dirs=[],
+        committed_ledger_dirs=None,
         snapshot_dir=None,
         common_dir=None,
     ):

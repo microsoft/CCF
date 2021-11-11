@@ -564,7 +564,7 @@ class CCFRemote(object):
         worker_threads=0,
         constitution=None,
         ledger_dir=None,
-        read_only_ledger_dirs=[],  # Read-only ledger dirs to copy to node directory
+        read_only_ledger_dirs=None,  # Read-only ledger dirs to copy to node directory
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         log_format_json=None,
         binary_dir=".",
@@ -607,7 +607,7 @@ class CCFRemote(object):
             else f"{local_node_id}.ledger"
         )
 
-        self.read_only_ledger_dirs = read_only_ledger_dirs
+        self.read_only_ledger_dirs = read_only_ledger_dirs or []
         self.read_only_ledger_dirs_names = []
         for d in self.read_only_ledger_dirs:
             self.read_only_ledger_dirs_names.append(os.path.basename(d))
@@ -814,15 +814,13 @@ class CCFRemote(object):
         )
         read_only_ledger_dirs = []
         for read_only_ledger_dir in self.read_only_ledger_dirs:
-            read_only_ledger_dir_name = f"{read_only_ledger_dir}.ro"
+            name = f"{read_only_ledger_dir}.ro"
             self.remote.get(
                 os.path.basename(read_only_ledger_dir),
                 self.common_dir,
-                target_name=read_only_ledger_dir_name,
+                target_name=name,
             )
-            read_only_ledger_dirs.append(
-                os.path.join(self.common_dir, read_only_ledger_dir_name)
-            )
+            read_only_ledger_dirs.append(os.path.join(self.common_dir, name))
         return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
     def get_snapshots(self):
