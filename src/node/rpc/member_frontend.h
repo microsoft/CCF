@@ -994,6 +994,7 @@ namespace ccf
           // If the proposal failed to apply, we want to discard the tx and not
           // apply its side-effects to the KV state.
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          return;
         }
         else
         {
@@ -1006,6 +1007,7 @@ namespace ccf
              std::nullopt,
              rv.failure});
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          return;
         }
       };
 
