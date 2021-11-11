@@ -19,9 +19,6 @@ namespace ds
     using Range = std::pair<T, size_t>;
     using Ranges = std::vector<Range>;
 
-    // TODO: Make this private, only const& access
-    Ranges ranges;
-
     // Define an iterator for accessing each contained element, rather than the
     // ranges
     template <typename RangeIt>
@@ -52,12 +49,16 @@ namespace ds
         ++(*this);
         return temp;
       }
+      // TODO: Is this addition typesafe?
       T operator*() const { return it->first + offset; }
       // clang-format on
     };
 
     using Iterator = TIterator<typename Ranges::iterator>;
     using ConstIterator = TIterator<typename Ranges::const_iterator>;
+
+  private:
+    Ranges ranges;
 
     template <typename Iterator>
     void populate_ranges(Iterator first, Iterator end)
@@ -87,6 +88,7 @@ namespace ds
       auto next_it = std::next(it);
       if (next_it != ranges.end())
       {
+        // TODO: Is this addition typesafe?
         if (it->first + it->second + 1 == next_it->first)
         {
           it->second = it->second + 1 + next_it->second;
@@ -95,6 +97,7 @@ namespace ds
       }
     }
 
+  public:
     ContiguousSet() = default;
 
     template <typename Iterator>
@@ -113,6 +116,11 @@ namespace ds
       populate_ranges(vec.begin(), vec.end());
     }
 
+    const Ranges& get_ranges() const
+    {
+      return ranges;
+    }
+
     size_t size() const
     {
       size_t n = 0;
@@ -128,7 +136,8 @@ namespace ds
       auto it = ranges.begin();
       while (it != ranges.end())
       {
-        const auto& [from, additional] = *it;
+        const T& from = it->first;
+        const T additional = it->second;
         if (t < from)
         {
           // Precedes this range
@@ -172,12 +181,66 @@ namespace ds
       return;
     }
 
-    T first() const
+    bool erase(const T& t)
+    {
+      auto it = ranges.begin();
+      while (it != ranges.end())
+      {
+        const T& from = it->first;
+        const T additional = it->second;
+        if (from <= t && t <= from + additional)
+        {
+          if (from == t)
+          {
+            if (additional == 0)
+            {
+              // Remove range entirely
+              ranges.erase(it);
+              return true;
+            }
+            else
+            {
+              // Shrink start of range
+              ++it->first;
+              --it->second;
+              return true;
+            }
+          }
+          else if (t == from + additional)
+          {
+            // Shrink end of range
+            --it->second;
+            return true;
+          }
+          else
+          {
+            const auto before = t - it->first - 1;
+            const auto after = it->first + it->second - t - 1;
+
+            it->second = before;
+
+            auto next_it = std::next(it);
+            ranges.emplace(next_it, t + 1, after);
+            return true;
+          }
+        }
+        ++it;
+      }
+
+      return false;
+    }
+
+    void clear()
+    {
+      ranges.clear();
+    }
+
+    T front() const
     {
       return ranges.front().first;
     }
 
-    T last() const
+    T back() const
     {
       const auto back = ranges.back();
       return back.first + back.second;
