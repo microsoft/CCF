@@ -677,7 +677,7 @@ TEST_CASE("StateCache range queries")
       {
         auto& store = stores[i];
         REQUIRE(store != nullptr);
-        const auto seqno = range_start + i;
+        const auto seqno = store->current_version();
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
@@ -713,6 +713,133 @@ TEST_CASE("StateCache range queries")
         const auto range_end = range_start + range_size;
         fetch_and_validate_range(range_start, range_end);
       }
+    }
+  }
+}
+
+TEST_CASE("StateCache sparse queries")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  std::vector<kv::Version> signature_versions;
+
+  const auto begin_seqno = kv_store.current_version() + 1;
+
+  {
+    INFO("Build some interesting state in the store");
+    for (size_t batch_size : {10, 5, 2, 20, 5})
+    {
+      signature_versions.push_back(
+        write_transactions_and_signature(kv_store, batch_size));
+    }
+  }
+
+  const auto end_seqno = kv_store.current_version();
+
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  auto provide_ledger_entry = [&](size_t i) {
+    bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
+    return accepted;
+  };
+
+  auto signing_version = [&signature_versions](kv::Version seqno) {
+    const auto begin = signature_versions.begin();
+    const auto end = signature_versions.end();
+
+    const auto exact_it = std::find(begin, end, seqno);
+    if (exact_it != end)
+    {
+      return seqno;
+    }
+
+    const auto next_sig_it = std::upper_bound(begin, end, seqno);
+    REQUIRE(next_sig_it != end);
+    return *next_sig_it;
+  };
+
+  std::random_device rd;
+  std::mt19937 g(rd());
+  auto next_handle = 0;
+  auto fetch_and_validate_sparse_set =
+    [&](const ccf::historical::SeqNoCollection& seqnos) {
+      const auto this_handle = next_handle++;
+      {
+        auto stores = cache.get_stores_for(this_handle, seqnos);
+        REQUIRE(stores.empty());
+      }
+
+      // Cache is robust to receiving these out-of-order, so stress that by
+      // submitting out-of-order
+      std::vector<ccf::SeqNo> to_provide;
+      for (auto it = seqnos.begin(); it != seqnos.end(); ++it)
+      {
+        to_provide.emplace_back(*it);
+      }
+      std::shuffle(to_provide.begin(), to_provide.end(), g);
+
+      for (const auto seqno : to_provide)
+      {
+        // Some of these may be unrequested since they overlapped with the
+        // previous range so are already known. Provide them all blindly for
+        // simplicity, and make no assertion on the return code.
+        provide_ledger_entry(seqno);
+      }
+
+      {
+        auto stores = cache.get_stores_for(this_handle, seqnos);
+        REQUIRE(!stores.empty());
+
+        const auto range_size = to_provide.size();
+        REQUIRE(stores.size() == range_size);
+        for (auto& store : stores)
+        {
+          REQUIRE(store != nullptr);
+          const auto seqno = store->current_version();
+
+          // Don't validate anything about signature transactions, just the
+          // business transactions between them
+          if (
+            std::find(
+              signature_versions.begin(), signature_versions.end(), seqno) ==
+            signature_versions.end())
+          {
+            validate_business_transaction(store, seqno);
+          }
+        }
+      }
+    };
+
+  {
+    INFO("Fetch a single explicit sparse set");
+
+    ccf::historical::SeqNoCollection seqnos;
+    seqnos.ranges.emplace_back(4, 1);
+    seqnos.ranges.emplace_back(7, 0);
+    seqnos.ranges.emplace_back(9, 3);
+
+    fetch_and_validate_sparse_set(seqnos);
+  }
+
+  {
+    INFO(
+      "Fetch sparse sets of various sizes, including across multiple "
+      "signatures");
+    for (size_t n = 0; n < 10; ++n)
+    {
+      ccf::historical::SeqNoCollection seqnos;
+      for (auto seqno = begin_seqno; seqno < end_seqno; ++seqno)
+      {
+        if (rand() % 3 == 0)
+        {
+          seqnos.insert(seqno);
+        }
+      }
+
+      fetch_and_validate_sparse_set(seqnos);
     }
   }
 }
@@ -904,6 +1031,8 @@ TEST_CASE("StateCache concurrent access")
       }
     }
   };
+
+  // TODO: Add test that queries random sparse queries
 
   const auto num_threads = 20;
   std::atomic<size_t> next_handle = 0;

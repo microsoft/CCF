@@ -690,6 +690,16 @@ namespace ccf::historical
       }
     }
 
+    std::vector<StorePtr> states_to_stores(const std::vector<StatePtr>& states)
+    {
+      std::vector<StorePtr> stores;
+      for (size_t i = 0; i < states.size(); i++)
+      {
+        stores.push_back(states[i]->store);
+      }
+      return stores;
+    }
+
   public:
     StateCache(
       kv::Store& store,
@@ -747,17 +757,11 @@ namespace ccf::historical
       ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      auto range = get_states_internal(
+      return states_to_stores(get_states_internal(
         handle,
         collection_from_single_range(start_seqno, end_seqno),
         seconds_until_expiry,
-        false);
-      std::vector<StorePtr> stores;
-      for (size_t i = 0; i < range.size(); i++)
-      {
-        stores.push_back(range[i]->store);
-      }
-      return stores;
+        false));
     }
 
     std::vector<StorePtr> get_store_range(
@@ -791,12 +795,33 @@ namespace ccf::historical
         handle, start_seqno, end_seqno, default_expiry_duration);
     }
 
+    std::vector<StorePtr> get_stores_for(
+      RequestHandle handle,
+      const SeqNoCollection& seqnos,
+      ExpiryDuration seconds_until_expiry) override
+    {
+      return states_to_stores(
+        get_states_internal(handle, seqnos, seconds_until_expiry, false));
+    }
+
+    std::vector<StorePtr> get_stores_for(
+      RequestHandle handle, const SeqNoCollection& seqnos) override
+    {
+      return get_stores_for(handle, seqnos, default_expiry_duration);
+    }
+
     std::vector<StatePtr> get_states_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) override
     {
       return get_states_internal(handle, seqnos, seconds_until_expiry, true);
+    }
+
+    std::vector<StatePtr> get_states_for(
+      RequestHandle handle, const SeqNoCollection& seqnos) override
+    {
+      return get_states_for(handle, seqnos, default_expiry_duration);
     }
 
     void set_default_expiry_duration(ExpiryDuration duration) override

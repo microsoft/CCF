@@ -18,6 +18,8 @@ namespace ds
     // values. This disallows negative ranges
     using Range = std::pair<T, size_t>;
     using Ranges = std::vector<Range>;
+
+    // TODO: Make this private, only const& access
     Ranges ranges;
 
     // Define an iterator for accessing each contained element, rather than the
@@ -54,7 +56,43 @@ namespace ds
         }
         return temp;
       }
-      T& operator*() { return it->first + offset; }
+      T operator*() { return it->first + offset; }
+      // clang-format on
+    };
+
+    struct ConstIterator
+    {
+      typename Ranges::const_iterator it;
+      size_t offset = 0;
+
+      // clang-format off
+      ConstIterator(typename Ranges::const_iterator i): it(i), offset(0) {}
+
+      bool operator==(const ConstIterator& other) const { return (it == other.it && offset == other.offset); }
+      bool operator!=(const ConstIterator& other) const { return !(*this == other); }
+
+      ConstIterator& operator++()
+      {
+        ++offset;
+        if (offset > it->second)
+        {
+          ++it;
+          offset = 0;
+        }
+        return (*this);
+      }
+      ConstIterator operator++(int)
+      {
+        auto temp(*this);
+        ++offset;
+        if (offset > it->second)
+        {
+          ++it;
+          offset = 0;
+        }
+        return temp;
+      }
+      const T operator*() const { return it->first + offset; }
       // clang-format on
     };
 
@@ -109,6 +147,50 @@ namespace ds
       return n;
     }
 
+    void insert(const T& t)
+    {
+      auto it = ranges.begin();
+      while (it != ranges.end())
+      {
+        const auto& [from, additional] = *it;
+        if (t < from)
+        {
+          // Precedes this range
+          if (t + 1 == from)
+          {
+            // Precedes directly, extend this range by 1
+            it->first = t;
+            it->second++;
+            return;
+          }
+          else
+          {
+            // Insert new range before this
+            break;
+          }
+        }
+        else if (from <= t && t <= from + additional)
+        {
+          // Already present
+          return;
+        }
+        else
+        {
+          // t > from + additional
+          // Is it adjacent?
+          if (from + additional + 1 == t)
+          {
+            it->second++;
+            return;
+          }
+        }
+        ++it;
+      }
+
+      ranges.emplace(it, t, 0);
+      return;
+    }
+
     T first() const
     {
       return ranges.front().first;
@@ -125,9 +207,19 @@ namespace ds
       return Iterator(ranges.begin());
     }
 
+    ConstIterator begin() const
+    {
+      return ConstIterator(ranges.begin());
+    }
+
     Iterator end()
     {
       return Iterator(ranges.end());
+    }
+
+    ConstIterator end() const
+    {
+      return ConstIterator(ranges.end());
     }
   };
 }

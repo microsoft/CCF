@@ -156,15 +156,21 @@ namespace ccf::historical
       RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
 
     // TODO: Document, and maybe a better name?
-    // virtual std::vector<StatePtr> get_stores_for(
-    //   RequestHandle handle,
-    //   const SeqNoCollection& seqnos,
-    //   ExpiryDuration seconds_until_expiry) = 0;
+    virtual std::vector<StorePtr> get_stores_for(
+      RequestHandle handle,
+      const SeqNoCollection& seqnos,
+      ExpiryDuration seconds_until_expiry) = 0;
+    virtual std::vector<StorePtr> get_stores_for(
+      RequestHandle handle,
+      const SeqNoCollection& seqnos) = 0;
 
     virtual std::vector<StatePtr> get_states_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) = 0;
+    virtual std::vector<StatePtr> get_states_for(
+      RequestHandle handle,
+      const SeqNoCollection& seqnos) = 0;
 
     /** Drop state for the given handle.
      *
