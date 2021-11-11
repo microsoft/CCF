@@ -5,7 +5,7 @@ CCF supports multiple consensus protocols.
 
 The default consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`) and there is an experimental option of enabling Byzantine Fault Tolerance (:term:`BFT`).
 
-Below, we give an overview over the nodes state machine in both settings and the retirement mechanics that apply across the two protocols. 
+Below, we give an overview over the nodes state machine in both settings and the retirement mechanics that apply across the two protocols.
 
 CFT Consensus Protocol
 -----------------------
@@ -24,12 +24,6 @@ BFT Consensus Protocol
 More details on this mode is given :doc:`here <2tx-reconfig>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
 By default CCF runs with CFT **and BFT is disabled on release versions**. To run CCF with BFT, CCF first needs to be :doc:`built from source </contribute/build_ccf>`. Then, the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
-
-BFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CLI are:
-
-- ``bft-view-change-timeout-ms`` is the BFT view change timeout in milliseconds. If a backup does not receive the pre-prepare message for a request forwarded to the primary after this timeout, the backup triggers a view change.
-- ``bft-status-interval-ms`` is the BFT status timer interval in milliseconds. All BFT nodes send messages containing their status to all other known nodes at regular intervals defined by this timer interval.
-
 
 Replica State Machine
 ---------------------

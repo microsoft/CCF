@@ -92,7 +92,6 @@ class Network:
         "sig_tx_interval",
         "sig_ms_interval",
         "raft_election_timeout_ms",
-        "bft_view_change_timeout_ms",
         "consensus",
         "memory_reserve_startup",
         "log_format_json",
@@ -339,11 +338,7 @@ class Network:
                 LOG.exception("Failed to start node {}".format(node.local_node_id))
                 raise
 
-        self.election_duration = (
-            args.bft_view_change_timeout_ms / 1000
-            if args.consensus == "bft"
-            else args.raft_election_timeout_ms / 1000
-        )
+        self.election_duration = args.raft_election_timeout_ms / 1000
         # After an election timeout, we need some additional roundtrips to complete before
         # the nodes _observe_ that an election has occurred
         self.observed_election_duration = self.election_duration + 1
