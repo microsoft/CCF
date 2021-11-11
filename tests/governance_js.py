@@ -507,7 +507,7 @@ def test_apply(network, args):
             "/gov/proposals",
             proposal(action("always_throw_in_apply")),
         )
-        assert r.status_code == 200, r.body.text()
+        assert r.status_code == 500, r.body.text()
         assert r.body.json()["state"] == "Failed", r.body.json()
         assert (
             r.body.json()["failure"]["reason"]
@@ -519,7 +519,7 @@ def test_apply(network, args):
             "/gov/proposals",
             proposal(action("always_throw_in_resolve")),
         )
-        assert r.status_code == 200, r.body.text()
+        assert r.status_code == 500, r.body.text()
         assert r.body.json()["state"] == "Failed", r.body.json()
         assert (
             r.body.json()["failure"]["reason"]

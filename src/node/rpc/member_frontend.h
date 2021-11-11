@@ -985,19 +985,28 @@ namespace ccf
           proposal_id,
           ctx.rpc_ctx->get_request_body(),
           constitution.value());
-        pi->put(
-          proposal_id,
-          {caller_identity.member_id,
-           rv.state,
-           {},
-           {},
-           std::nullopt,
-           rv.failure});
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
+        if (rv.state == ProposalState::FAILED)
+        {
+          // If the proposal failed to apply, we want to discard the tx and not
+          // apply its side-effects to the KV state.
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        }
+        else
+        {
+          pi->put(
+            proposal_id,
+            {caller_identity.member_id,
+             rv.state,
+             {},
+             {},
+             std::nullopt,
+             rv.failure});
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        }
       };
 
       make_endpoint("/proposals", HTTP_POST, post_proposals_js, member_sig_only)
