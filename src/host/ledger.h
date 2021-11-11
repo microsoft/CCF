@@ -586,25 +586,29 @@ namespace asynchost
       return match_file;
     }
 
-    std::shared_ptr<LedgerFile> get_file_from_idx(size_t idx)
+    std::shared_ptr<LedgerFile> get_file_from_idx(
+      size_t idx, bool read_cache_only = false)
     {
       if (idx == 0)
       {
         return nullptr;
       }
 
-      // First, check if the file is in the list of files open for writing
-      auto f = std::upper_bound(
-        files.rbegin(),
-        files.rend(),
-        idx,
-        [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
-          return idx >= f->get_start_idx();
-        });
-
-      if (f != files.rend())
+      if (!read_cache_only)
       {
-        return *f;
+        // First, check if the file is in the list of files open for writing
+        auto f = std::upper_bound(
+          files.rbegin(),
+          files.rend(),
+          idx,
+          [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
+            return idx >= f->get_start_idx();
+          });
+
+        if (f != files.rend())
+        {
+          return *f;
+        }
       }
 
       // Otherwise, return file from read cache
@@ -621,7 +625,7 @@ namespace asynchost
     }
 
     std::optional<std::vector<uint8_t>> read_entries_range(
-      size_t from, size_t to)
+      size_t from, size_t to, bool read_cache_only = false)
     {
       if ((from <= 0) || (to > last_idx) || (to < from))
       {
@@ -632,7 +636,7 @@ namespace asynchost
       size_t idx = from;
       while (idx <= to)
       {
-        auto f_from = get_file_from_idx(idx);
+        auto f_from = get_file_from_idx(idx, read_cache_only);
         if (f_from == nullptr)
         {
           return std::nullopt;
@@ -1017,58 +1021,61 @@ namespace asynchost
     {
       // Filled on construction
       Ledger* ledger;
-      size_t idx;
+      size_t from_idx;
+      size_t to_idx;
 
-      // First argument is ledger entry (or nullopt if not found)
+      // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
       using ResultCallback =
         std::function<void(std::optional<std::vector<uint8_t>>&&, int)>;
       ResultCallback result_cb;
 
       // Final result
-      std::optional<std::vector<uint8_t>> entry = std::nullopt;
+      std::optional<std::vector<uint8_t>> entries = std::nullopt;
     };
 
     static void on_ledger_get_async(uv_work_t* req)
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      auto lf = data->ledger->get_file_from_cache(data->idx);
-      if (lf == nullptr)
-      {
-        LOG_FAIL_FMT("Unable to find a file containing {}", data->idx);
-        uv_cancel((uv_req_t*)req);
-      }
-      else
-      {
-        data->entry = lf->read_framed_entries(data->idx, data->idx);
-      }
+      data->entries =
+        data->ledger->read_entries_range(data->from_idx, data->to_idx, true);
     }
 
     static void on_ledger_get_async_complete(uv_work_t* req, int status)
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      data->result_cb(std::move(data->entry), status);
+      data->result_cb(std::move(data->entries), status);
 
       delete data;
       delete req;
     }
 
-    void write_ledger_get_response(
-      size_t idx,
-      std::optional<std::vector<uint8_t>>&& entry,
+    void write_ledger_get_range_response(
+      size_t from_idx,
+      size_t to_idx,
+      std::optional<std::vector<uint8_t>>&& entries,
       consensus::LedgerRequestPurpose purpose)
     {
-      if (entry.has_value())
+      if (entries.has_value())
       {
         RINGBUFFER_WRITE_MESSAGE(
-          consensus::ledger_entry, to_enclave, idx, purpose, entry.value());
+          consensus::ledger_entry_range,
+          to_enclave,
+          from_idx,
+          to_idx,
+          purpose,
+          entries.value());
       }
       else
       {
         RINGBUFFER_WRITE_MESSAGE(
-          consensus::ledger_no_entry, to_enclave, idx, purpose);
+          consensus::ledger_no_entry_range,
+          to_enclave,
+          from_idx,
+          to_idx,
+          purpose);
       }
     }
 
@@ -1107,28 +1114,37 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
-          auto [idx, purpose] =
-            ringbuffer::read_message<consensus::ledger_get>(data, size);
+        disp,
+        consensus::ledger_get_range,
+        [&](const uint8_t* data, size_t size) {
+          auto [from_idx, to_idx, purpose] =
+            ringbuffer::read_message<consensus::ledger_get_range>(data, size);
 
-          if (is_in_committed_file(idx))
+          if (is_in_committed_file(to_idx))
           {
             // Start an asynchronous job to do this, since it is committed and
             // can be accessed independently (and in parallel)
             uv_work_t* work_handle = new uv_work_t;
 
             {
-              auto data = new AsyncLedgerGet;
-              data->ledger = this;
-              data->idx = idx;
-              data->result_cb =
-                [this, idx = idx, purpose = purpose](auto&& entry, int status) {
-                  // NB: Even if status is cancelled (and entry is empty), we
-                  // want to write this result back to the enclave
-                  write_ledger_get_response(idx, std::move(entry), purpose);
-                };
+              auto job = new AsyncLedgerGet;
+              job->ledger = this;
+              job->from_idx = from_idx;
+              job->to_idx = to_idx;
+              job->result_cb = [this,
+                                from_idx = from_idx,
+                                to_idx = to_idx,
+                                purpose = purpose](auto&& entry, int status) {
+                // NB: Even if status is cancelled (and entry is empty), we
+                // want to write this result back to the enclave
+                write_ledger_get_range_response(
+                  from_idx,
+                  to_idx,
+                  read_framed_entries(from_idx, to_idx),
+                  purpose);
+              };
 
-              work_handle->data = data;
+              work_handle->data = job;
             }
 
             uv_queue_work(
@@ -1141,7 +1157,8 @@ namespace asynchost
           {
             // Read synchronously, since this accesses uncommitted state and
             // must accurately reflect changing files
-            write_ledger_get_response(idx, read_entry(idx), purpose);
+            write_ledger_get_range_response(
+              from_idx, to_idx, read_framed_entries(from_idx, to_idx), purpose);
           }
         });
     }
