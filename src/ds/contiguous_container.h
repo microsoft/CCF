@@ -119,6 +119,19 @@ namespace ds
       }
     }
 
+    void maybe_merge_with_following(typename Ranges::iterator it)
+    {
+      auto next_it = std::next(it);
+      if (next_it != ranges.end())
+      {
+        if (it->first + it->second + 1 == next_it->first)
+        {
+          it->second = it->second + 1 + next_it->second;
+          ranges.erase(next_it);
+        }
+      }
+    }
+
     ContiguousContainer() = default;
 
     template <typename Iterator>
@@ -161,6 +174,10 @@ namespace ds
             // Precedes directly, extend this range by 1
             it->first = t;
             it->second++;
+            if (it != ranges.begin())
+            {
+              maybe_merge_with_following(std::prev(it));
+            }
             return;
           }
           else
@@ -181,6 +198,7 @@ namespace ds
           if (from + additional + 1 == t)
           {
             it->second++;
+            maybe_merge_with_following(it);
             return;
           }
         }

@@ -817,9 +817,14 @@ TEST_CASE("StateCache sparse queries")
     INFO("Fetch a single explicit sparse set");
 
     ccf::historical::SeqNoCollection seqnos;
-    seqnos.ranges.emplace_back(4, 1);
-    seqnos.ranges.emplace_back(7, 0);
-    seqnos.ranges.emplace_back(9, 3);
+    seqnos.insert(4);
+    seqnos.insert(5);
+    seqnos.insert(7);
+    seqnos.insert(9);
+    seqnos.insert(10);
+    seqnos.insert(11);
+    seqnos.insert(12);
+    seqnos.insert(13);
 
     fetch_and_validate_sparse_set(seqnos);
   }
