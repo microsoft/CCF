@@ -295,10 +295,12 @@ TEST_CASE("StateCache point queries")
     {
       const uint8_t* data = write.contents.data();
       size_t size = write.contents.size();
-      auto [seqno, purpose] =
-        ringbuffer::read_message<consensus::ledger_get>(data, size);
+      REQUIRE(write.m == consensus::ledger_get_range);
+      auto [from_seqno, to_seqno, purpose] =
+        ringbuffer::read_message<consensus::ledger_get_range>(data, size);
       REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
-      actual.insert(seqno);
+      REQUIRE(from_seqno == to_seqno);
+      actual.insert(from_seqno);
     }
     REQUIRE(actual == expected);
   }
@@ -768,13 +770,26 @@ TEST_CASE("StateCache concurrent access")
       {
         auto data = write.contents.data();
         auto size = write.contents.size();
-        const auto [seqno, purpose] =
-          ringbuffer::read_message<consensus::ledger_get>(data, size);
-        REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+        if (write.m == consensus::ledger_get_range)
+        {
+          const auto [from_seqno, to_seqno, purpose] =
+            ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+          REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
 
-        const auto it = ledger.find(seqno);
-        REQUIRE(it != ledger.end());
-        cache.handle_ledger_entry(seqno, it->second);
+          std::vector<uint8_t> combined;
+          for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+          {
+            const auto it = ledger.find(seqno);
+            REQUIRE(it != ledger.end());
+            combined.insert(
+              combined.end(), it->second.begin(), it->second.end());
+          }
+          cache.handle_ledger_entries(from_seqno, to_seqno, combined);
+        }
+        else
+        {
+          REQUIRE(false);
+        }
       }
 
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -878,7 +893,7 @@ TEST_CASE("StateCache concurrent access")
       {
         auto& store = stores[i];
         REQUIRE(store != nullptr);
-        const auto seqno = range_start + i;
+        const auto seqno = store->current_version();
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
