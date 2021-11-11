@@ -148,7 +148,7 @@ Example:
 ``snapshots``
 ~~~~~~~~~~~~~
 
-- ``snapshots_dir``: Path to snapshot directory. Default value: ``snapshots``.
+- ``snapshots_dir``: Path to snapshot directory. Default value: ``snapshots``. TODO: Should be snapshots_dir in code too!
 - ``snapshot_tx_interval``: Minimum number of transactions between snapshots. Default value: ``10,000``.
 
 ``logging``
