@@ -93,11 +93,19 @@ namespace ccf::historical
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
+    // TODO: This approach is wrong. Contiguous requests have an advantage, they
+    // can store their requested_stores in a single vector. Non-contiguous
+    // requests need a map, so we can go from SeqNo to store. So Request needs
+    // to become virtual, implemented by an efficient ContiguousRequest and a
+    // map-requiring NonContiguousRequest.
+    // TODO: The above comment has reduced from a "we must" to a "should we/can
+    // we?"
     struct Request
     {
       ccf::SeqNo first_requested_seqno = 0;
       ccf::SeqNo last_requested_seqno = 0;
-      std::vector<StoreDetailsPtr> requested_stores;
+      SeqNoCollection requested_seqnos;
+      std::map<ccf::SeqNo, StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
 
       bool include_receipts;
@@ -116,13 +124,10 @@ namespace ccf::historical
 
       StoreDetailsPtr get_store_details(ccf::SeqNo seqno) const
       {
-        if (seqno >= first_requested_seqno && seqno <= last_requested_seqno)
+        auto it = requested_stores.find(seqno);
+        if (it != requested_stores.end())
         {
-          const auto offset = seqno - first_requested_seqno;
-          if (static_cast<size_t>(offset) < requested_stores.size())
-          {
-            return requested_stores[offset];
-          }
+          return it->second;
         }
 
         if (
@@ -148,68 +153,53 @@ namespace ccf::historical
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
-      std::set<SeqNoRange> adjust_range(
-        ccf::SeqNo start_seqno,
-        size_t num_following_indices,
-        bool should_include_receipts)
+      // TODO: This no longer returns, so I guess we need to iterate through all
+      // requested and see what state they're in to fetch?
+      SeqNoCollection adjust_ranges(
+        const SeqNoCollection& new_seqnos, bool should_include_receipts)
       {
         if (
-          start_seqno == first_requested_seqno &&
-          (num_following_indices + 1) == requested_stores.size() &&
+          new_seqnos.ranges == requested_seqnos.ranges &&
           should_include_receipts == include_receipts)
         {
-          // This is precisely the range we're already tracking - do nothing
+          // This is precisely the request we're already tracking - do nothing
           return {};
         }
 
-        std::set<SeqNoRange> ret;
-        std::optional<SeqNoRange> current_range = std::nullopt;
-        std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
-        for (auto seqno = start_seqno; seqno <=
-             static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
-             ++seqno)
+        std::set<SeqNo> newly_requested;
+        std::map<ccf::SeqNo, StoreDetailsPtr> new_stores;
+
+        for (const auto& [start_seqno, num_following_indices] :
+             new_seqnos.ranges)
         {
-          auto existing_details = get_store_details(seqno);
-          if (existing_details == nullptr)
+          for (auto seqno = start_seqno; seqno <=
+               static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
+               ++seqno)
           {
-            if (current_range.has_value())
+            auto existing_details = get_store_details(seqno);
+            if (existing_details == nullptr)
             {
-              if (current_range->second + 1 == seqno)
-              {
-                current_range->second = seqno;
-              }
-              else
-              {
-                ret.insert(*current_range);
-                current_range.reset();
-              }
+              newly_requested.insert(seqno);
+              new_stores[seqno] = std::make_shared<StoreDetails>();
             }
-            if (!current_range.has_value())
+            else
             {
-              current_range = std::make_pair(seqno, seqno);
+              new_stores[seqno] = std::move(existing_details);
             }
-            new_stores[seqno - start_seqno] = std::make_shared<StoreDetails>();
           }
-          else
-          {
-            new_stores[seqno - start_seqno] = std::move(existing_details);
-          }
-        }
-        if (current_range.has_value())
-        {
-          ret.insert(*current_range);
         }
 
         requested_stores = std::move(new_stores);
-        first_requested_seqno = start_seqno;
-        last_requested_seqno = first_requested_seqno + num_following_indices;
+        first_requested_seqno = new_seqnos.first();
+        last_requested_seqno = new_seqnos.last();
 
         // If the final entry in the new range is known and not a signature,
-        // then we may need a subsequent signature to support it (or an earlier
-        // entry received out-of-order!) So start fetching subsequent entries to
-        // find supporting signature. It's possible this was the supporting
-        // entry we already had, or a signature in the range we already had, but
-        // working that out is tricky so be pessimistic and refetch instead.
+        // then we may need a subsequent signature to support it (or an
+        // earlier entry received out-of-order!) So start fetching subsequent
+        // entries to find supporting signature. It's possible this was the
+        // supporting entry we already had, or a signature in the range we
+        // already had, but working that out is tricky so be pessimistic and
+        // refetch instead.
         supporting_signature.reset();
         if (should_include_receipts)
         {
@@ -219,7 +209,7 @@ namespace ccf::historical
             const auto next_seqno = last_requested_seqno + 1;
             supporting_signature =
               std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-            ret.emplace(next_seqno, next_seqno);
+            newly_requested.insert(next_seqno);
           }
         }
 
@@ -227,9 +217,10 @@ namespace ccf::historical
         // fetching - the caller can begin asking for them again
         ledger_secret_recovery_info = nullptr;
 
+        requested_seqnos = new_seqnos;
         include_receipts = should_include_receipts;
 
-        return ret;
+        return newly_requested;
       }
 
       enum class PopulateReceiptsResult
@@ -465,6 +456,9 @@ namespace ccf::historical
           {
             // Newly have all required secrets - begin fetching the actual
             // entries
+            // TODO: This is horribly inefficient! Should use the same
+            // adjust_range thing that we do in the main path, to fetch only the
+            // required
             fetch_entries_range(
               request.first_requested_seqno, request.last_requested_seqno);
           }
@@ -566,15 +560,9 @@ namespace ccf::historical
       return true;
     }
 
-    std::vector<StatePtr> get_state_range_internal(
-      RequestHandle handle,
-      ccf::SeqNo start_seqno,
-      ccf::SeqNo end_seqno,
-      ExpiryDuration seconds_until_expiry,
-      bool include_receipts)
+    SeqNoCollection collection_from_single_range(
+      ccf::SeqNo start_seqno, ccf::SeqNo end_seqno)
     {
-      std::lock_guard<std::mutex> guard(requests_lock);
-
       if (end_seqno < start_seqno)
       {
         throw std::logic_error(fmt::format(
@@ -583,7 +571,18 @@ namespace ccf::historical
           start_seqno));
       }
 
-      const auto num_following_indices = end_seqno - start_seqno;
+      SeqNoCollection c;
+      c.ranges.push_back({start_seqno, end_seqno - start_seqno});
+      return c;
+    }
+
+    std::vector<StatePtr> get_states_internal(
+      RequestHandle handle,
+      const SeqNoCollection& seqno_ranges,
+      ExpiryDuration seconds_until_expiry,
+      bool include_receipts)
+    {
+      std::lock_guard<std::mutex> guard(requests_lock);
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -598,10 +597,9 @@ namespace ccf::historical
 
       Request& request = it->second;
 
-      // Update this Request to represent the currently requested range,
+      // Update this Request to represent the currently requested ranges,
       // returning any newly requested indices
-      auto new_index_ranges = request.adjust_range(
-        start_seqno, num_following_indices, include_receipts);
+      auto new_seqnos = request.adjust_ranges(seqno_ranges, include_receipts);
 
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
@@ -623,9 +621,9 @@ namespace ccf::historical
         // If we have sufficiently early secrets, begin fetching any newly
         // requested entries. If we don't fall into this branch, they'll only
         // begin to be fetched once the secret arrives.
-        for (const auto& [from, to] : new_index_ranges)
+        for (const auto& [start_seqno, additional] : new_seqnos.ranges)
         {
-          fetch_entries_range(from, to);
+          fetch_entries_range(start_seqno, start_seqno + additional);
         }
       }
 
@@ -634,28 +632,37 @@ namespace ccf::historical
 
       std::vector<StatePtr> trusted_states;
 
-      for (ccf::SeqNo seqno = start_seqno; seqno <=
-           static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
-           ++seqno)
+      for (const auto& [start_seqno, num_following_indices] :
+           seqno_ranges.ranges)
       {
-        auto target_details = request.get_store_details(seqno);
-        if (
-          target_details->current_stage == RequestStage::Trusted &&
-          (!request.include_receipts || target_details->receipt != nullptr))
+        for (ccf::SeqNo seqno = start_seqno; seqno <=
+             static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
+             ++seqno)
         {
-          // Have this store, associated txid and receipt and trust it - add it
-          // to return list
-          StatePtr state = std::make_shared<State>(
-            target_details->store,
-            target_details->receipt,
-            target_details->transaction_id);
-          trusted_states.push_back(state);
-        }
-        else
-        {
-          // Still fetching this store or don't trust it yet, so range is
-          // incomplete - return empty vector
-          return {};
+          auto target_details = request.get_store_details(seqno);
+          if (target_details == nullptr)
+          {
+            throw std::logic_error("Request isn't tracking state for seqno");
+          }
+
+          if (
+            target_details->current_stage == RequestStage::Trusted &&
+            (!request.include_receipts || target_details->receipt != nullptr))
+          {
+            // Have this store, associated txid and receipt and trust it - add
+            // it to return list
+            StatePtr state = std::make_shared<State>(
+              target_details->store,
+              target_details->receipt,
+              target_details->transaction_id);
+            trusted_states.push_back(state);
+          }
+          else
+          {
+            // Still fetching this store or don't trust it yet, so range is
+            // incomplete - return empty vector
+            return {};
+          }
         }
       }
 
@@ -737,8 +744,11 @@ namespace ccf::historical
       ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      auto range = get_state_range_internal(
-        handle, start_seqno, end_seqno, seconds_until_expiry, false);
+      auto range = get_states_internal(
+        handle,
+        collection_from_single_range(start_seqno, end_seqno),
+        seconds_until_expiry,
+        false);
       std::vector<StorePtr> stores;
       for (size_t i = 0; i < range.size(); i++)
       {
@@ -762,9 +772,11 @@ namespace ccf::historical
       ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      auto range = get_state_range_internal(
-        handle, start_seqno, end_seqno, seconds_until_expiry, true);
-      return range;
+      return get_states_internal(
+        handle,
+        collection_from_single_range(start_seqno, end_seqno),
+        seconds_until_expiry,
+        true);
     }
 
     std::vector<StatePtr> get_state_range(
@@ -774,6 +786,14 @@ namespace ccf::historical
     {
       return get_state_range(
         handle, start_seqno, end_seqno, default_expiry_duration);
+    }
+
+    std::vector<StatePtr> get_states_for(
+      RequestHandle handle,
+      const SeqNoCollection& seqnos,
+      ExpiryDuration seconds_until_expiry) override
+    {
+      return get_states_internal(handle, seqnos, seconds_until_expiry, true);
     }
 
     void set_default_expiry_duration(ExpiryDuration duration) override

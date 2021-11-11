@@ -52,6 +52,65 @@ namespace ccf::historical
 
   using ExpiryDuration = std::chrono::seconds;
 
+  // Efficient representation of a set of SeqNos, assuming it contains some
+  // contiguous ranges. Stores a sequence of ranges, rather than individual
+  // SeqNos.
+  struct SeqNoCollection
+  {
+    // Ranges are represented by their first SeqNo, and a count of additional
+    // SeqNos. This disallows negative ranges
+    using Range = std::pair<ccf::SeqNo, size_t>;
+    using Ranges = std::vector<Range>;
+    Ranges ranges;
+
+    static Ranges construct_ranges(const std::set<ccf::SeqNo>& set)
+    {
+      auto first = set.begin();
+      auto end = set.end();
+      Ranges ranges;
+      while (first != end)
+      {
+        auto next = std::adjacent_find(
+          first, end, [](ccf::SeqNo a, ccf::SeqNo b) { return (a + 1) != b; });
+        if (next == end)
+        {
+          ranges.emplace_back(*first, size_t(std::distance(first, end)) - 1);
+          break;
+        }
+        ranges.emplace_back(*first, size_t(std::distance(first, next)));
+        first = std::next(next);
+      }
+      return ranges;
+    }
+
+    SeqNoCollection() = default;
+
+    SeqNoCollection(const std::set<ccf::SeqNo>& set) :
+      ranges(construct_ranges(set))
+    {}
+
+    size_t size() const
+    {
+      size_t n = 0;
+      for (const auto& [_, additional] : ranges)
+      {
+        n += 1 + additional;
+      }
+      return n;
+    }
+
+    ccf::SeqNo first() const
+    {
+      return ranges.front().first;
+    }
+
+    ccf::SeqNo last() const
+    {
+      const auto back = ranges.back();
+      return back.first + back.second;
+    }
+  };
+
   /** Stores the progress of historical query requests.
    *
    * A request will generally need to be made multiple times (with the same
@@ -151,6 +210,17 @@ namespace ccf::historical
      */
     virtual std::vector<StatePtr> get_state_range(
       RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
+
+    // TODO: Document, and maybe a better name?
+    // virtual std::vector<StatePtr> get_stores_for(
+    //   RequestHandle handle,
+    //   const SeqNoCollection& seqnos,
+    //   ExpiryDuration seconds_until_expiry) = 0;
+
+    virtual std::vector<StatePtr> get_states_for(
+      RequestHandle handle,
+      const SeqNoCollection& seqnos,
+      ExpiryDuration seconds_until_expiry) = 0;
 
     /** Drop state for the given handle.
      *
