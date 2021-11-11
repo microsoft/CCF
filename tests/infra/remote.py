@@ -563,7 +563,6 @@ class CCFRemote(object):
         bft_view_change_timeout_ms=5000,
         consensus="cft",
         worker_threads=0,
-        memory_reserve_startup=0,
         constitution=None,
         ledger_dir=None,
         read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
@@ -670,9 +669,6 @@ class CCFRemote(object):
 
         if sig_ms_interval:
             cmd += [f"--sig-ms-interval={sig_ms_interval}"]
-
-        if memory_reserve_startup:
-            cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
 
         if ledger_chunk_bytes:
             cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]

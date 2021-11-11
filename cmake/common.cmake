@@ -63,13 +63,6 @@ if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
 endif()
 
-option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
-       OFF
-)
-if(DEBUG_CONFIG)
-  add_compile_definitions(DEBUG_CONFIG)
-endif()
-
 option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
 if(USE_NLJSON_KV_SERIALISER)
   add_compile_definitions(USE_NLJSON_KV_SERIALISER)

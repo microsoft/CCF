@@ -94,7 +94,6 @@ class Network:
         "raft_election_timeout_ms",
         "bft_view_change_timeout_ms",
         "consensus",
-        "memory_reserve_startup",
         "log_format_json",
         "constitution",
         "join_timer",
