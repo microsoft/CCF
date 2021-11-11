@@ -304,27 +304,6 @@ int main(int argc, char** argv)
       "a new election.")
     ->capture_default_str();
 
-  size_t bft_view_change_timeout = 5000;
-  app
-    .add_option(
-      "--bft-view-change-timeout-ms",
-      bft_view_change_timeout,
-      "bft view change timeout in milliseconds. If a backup does not receive "
-      "the pre-prepare message for a request forwarded to the primary after "
-      "this timeout, the backup triggers a new view change.")
-    ->capture_default_str();
-
-  size_t bft_status_interval = 100;
-  app
-    .add_option(
-      "--bft-status-interval-ms",
-      bft_status_interval,
-      "bft status timer interval in milliseconds. All bft nodes send "
-      "messages "
-      "containing their status to all other known nodes at regular intervals "
-      "defined by this timer interval.")
-    ->capture_default_str();
-
   size_t client_connection_timeout = 2000;
   app
     .add_option(
@@ -791,11 +770,7 @@ int main(int argc, char** argv)
 
     CCFConfig ccf_config;
     ccf_config.consensus_config = {
-      consensus,
-      raft_timeout,
-      raft_election_timeout,
-      bft_view_change_timeout,
-      bft_status_interval};
+      consensus, raft_timeout, raft_election_timeout};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
 
     ccf_config.node_info_network.node_address = {
