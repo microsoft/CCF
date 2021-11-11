@@ -49,7 +49,6 @@ namespace ds
         ++(*this);
         return temp;
       }
-      // TODO: Is this addition typesafe?
       T operator*() const { return it->first + offset; }
       // clang-format on
     };
@@ -88,7 +87,6 @@ namespace ds
       auto next_it = std::next(it);
       if (next_it != ranges.end())
       {
-        // TODO: Is this addition typesafe?
         if (it->first + it->second + 1 == next_it->first)
         {
           it->second = it->second + 1 + next_it->second;
@@ -164,15 +162,13 @@ namespace ds
           return;
         }
         else
-        {
           // t > from + additional
           // Is it adjacent?
           if (from + additional + 1 == t)
-          {
-            it->second++;
-            maybe_merge_with_following(it);
-            return;
-          }
+        {
+          it->second++;
+          maybe_merge_with_following(it);
+          return;
         }
         ++it;
       }

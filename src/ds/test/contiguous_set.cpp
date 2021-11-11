@@ -52,7 +52,9 @@ TEST_CASE_TEMPLATE(
   ds::ContiguousSet<T> cs;
   const auto& ccs = cs;
 
-  T default_value = {};
+  T min_value = std::numeric_limits<T>::min();
+  T max_value = std::numeric_limits<T>::max();
+  T default_value = (min_value / 2) + (max_value / 2);
 
   REQUIRE(cs.size() == 0);
   REQUIRE(ccs.size() == 0);
@@ -69,6 +71,40 @@ TEST_CASE_TEMPLATE(
 
   // Insert again makes no change
   cs.insert(default_value);
+  REQUIRE(cs.size() == 1);
+  REQUIRE(ccs.size() == 1);
+  REQUIRE(cs.begin() != cs.end());
+  REQUIRE(ccs.begin() != ccs.end());
+  REQUIRE(cs.front() == cs.back());
+  REQUIRE(ccs.front() == ccs.back());
+
+  cs.insert(min_value);
+  REQUIRE(cs.size() == 2);
+  REQUIRE(ccs.size() == 2);
+  REQUIRE(cs.begin() != cs.end());
+  REQUIRE(ccs.begin() != ccs.end());
+  REQUIRE(cs.front() != cs.back());
+  REQUIRE(ccs.front() != ccs.back());
+
+  cs.insert(max_value);
+  REQUIRE(cs.size() == 3);
+  REQUIRE(ccs.size() == 3);
+  REQUIRE(cs.begin() != cs.end());
+  REQUIRE(ccs.begin() != ccs.end());
+  REQUIRE(cs.front() != cs.back());
+  REQUIRE(ccs.front() != ccs.back());
+
+  REQUIRE(cs.erase(min_value));
+  REQUIRE_FALSE(cs.erase(min_value));
+  REQUIRE(cs.size() == 2);
+  REQUIRE(ccs.size() == 2);
+  REQUIRE(cs.begin() != cs.end());
+  REQUIRE(ccs.begin() != ccs.end());
+  REQUIRE(cs.front() != cs.back());
+  REQUIRE(ccs.front() != ccs.back());
+
+  REQUIRE(cs.erase(max_value));
+  REQUIRE_FALSE(cs.erase(max_value));
   REQUIRE(cs.size() == 1);
   REQUIRE(ccs.size() == 1);
   REQUIRE(cs.begin() != cs.end());
