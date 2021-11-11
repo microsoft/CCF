@@ -4,7 +4,10 @@
   "network": {
     "node_address": { "hostname": "127.0.0.1", "port": "0" },
     "rpc_interfaces": [
-      { "rpc_address": { "hostname": "127.0.0.1", "port": "0" } }
+      {
+        "rpc_address": { "hostname": "127.0.0.1", "port": "0" },
+        "public_rpc_address": { "hostname": "127.0.0.1", "port": "0" }
+      }
     ]
   },
   "start": {

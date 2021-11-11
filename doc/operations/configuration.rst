@@ -14,9 +14,7 @@ TODO:
 - Link to sample JSON configuration file
 - Which options are optional?
 - Minimal config on startup (move some options to misc or bottom of page?)
-- Remove BFT timeouts
 - IP/DNS.
-- Remove reserved memory.
 - raft_timeout -> cft_timeout
 - Default RPC and node-to-node values?
 - Description for each section.
@@ -33,13 +31,12 @@ Path to CCF enclave application.
 ``enclave_type``
 ~~~~~~~~~~~~~~~~
 
-Type of enclave application. Default value: ``release``.
-
-.. doxygenenum:: EnclaveType
-   :project: CCF
+Type of enclave application (either ``release``, ``debug`` or ``virtual``). Default value: ``release``.
 
 ``network``
 ~~~~~~~~~~~
+
+The ``network`` section includes configuration for the interfaces a node listens on (both node-to-node and RPC).
 
 - ``node_address``: Address (hostname and port) to listen on for incoming node-to-node connections.
 
@@ -75,6 +72,8 @@ Example:
 
 ``node_certificate``
 ~~~~~~~~~~~~~~~~~~~~
+
+The ``node_certificate`` section includes configuration for the node x509 certificate.
 
 - ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
 - ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``public_rpc_address``. Default value: ``[]``.
@@ -127,7 +126,7 @@ Example:
 .. note:: This only needs to be set when the node is started in ``join`` mode.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
-- ``join_timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1,000`` ms.
+- ``join_timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1000`` ms.
 
 Example:
 
@@ -143,39 +142,42 @@ Example:
 
 - ``ledger_dir``: Path to main ledger directory. Default value: ``ledger``.
 - ``read_only_ledger_dirs``: Optional. Paths to read-only ledger directories. Note that only ``.committed`` files will be read from these directories. Default value: ``[]``.
-- ``ledger_chunk_bytes``: Minimum size (bytes) of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5,000,000`` bytes.
+- ``ledger_chunk_bytes``: Minimum size (bytes) of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5000000`` bytes.
 
 ``snapshots``
 ~~~~~~~~~~~~~
 
 - ``snapshots_dir``: Path to snapshot directory. Default value: ``snapshots``. TODO: Should be snapshots_dir in code too!
-- ``snapshot_tx_interval``: Minimum number of transactions between snapshots. Default value: ``10,000``.
+- ``snapshot_tx_interval``: Minimum number of transactions between snapshots. Default value: ``10000``.
 
 ``logging``
 ~~~~~~~~~~~
 
-- ``host_log_level``: Logging level for the untrusted `host`. Note that it is not possible to change the log level of the enclave at runtime. Default value: ``INFO``.
+- ``host_log_level``: Logging level for the untrusted `host`. Default value: ``INFO``.
+
+.. note:: While it is possible to set the host log level at startup, it is not possible to change the log level of the enclave.
+
 - ``log_format_json``: If ``true``, node logs will be formatted as JSON. Default value: ``false``.
 
 ``consensus``
 ~~~~~~~~~~~~~
 
-- ``type``: Type of consensus protocol. Only ``CFT`` (crash-fault tolerant) is currently supported in production. Default value: ``CFT``.
+- ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported in production. Default value: ``CFT``.
 - ``raft_timeout_ms``: Hearbeat interval (ms) at which primary node sends messages to backup nodes to maintain primary-ship. This should be set to a significantly lower value than ``raft_election_timeout_ms``. Default value: ``100`` ms.
-- ``raft_election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4,000`` ms.
+- ``raft_election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4000`` ms.
 
 ``intervals``
 ~~~~~~~~~~~~~
 
-- ``sig_tx_interval``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5,000``.
-- ``sig_ms_interval``: Maximum duration (milliseconds) after which a signature transaction is automatically triggered. Default value: ``1,000`` ms.
+- ``sig_tx_interval``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5000``.
+- ``sig_ms_interval``: Maximum duration (milliseconds) after which a signature transaction is automatically triggered. Default value: ``1000`` ms.
 
 .. note::
     Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
 
     The signature interval options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution of transactions, the actual intervals between signature transactions may be slightly larger.
 
-- ``jwt_key_refresh_interval_s``: Interval (seconds) after which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1,800`` s.
+- ``jwt_key_refresh_interval_s``: Interval (seconds) after which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1800`` s.
 
 ``network_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -208,7 +210,7 @@ This option is particularly useful when binding to port ``0`` and getting auto-a
 Advanced Configuration Options
 ------------------------------
 
-TODO: These options aren't as required and have sensible defaults.
+.. warning:: The following configuration options have sensible default options and should only be modified with care.
 
 ``tick_period_ms``
 ~~~~~~~~~~~~~~~~~~
@@ -218,12 +220,12 @@ Interval (milliseconds) at which the enclave time will be updated by the host. D
 ``io_logging_threshold_ns``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration (nanoseconds) of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10,000,000`` ns.
+Maximum duration (nanoseconds) of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10000000`` ns.
 
 ``node_client_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Optional. Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS.
+Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS.
 This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).
 
 ``client_connection_timeout_ms``

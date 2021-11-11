@@ -80,6 +80,9 @@ struct CCFConfig
     size_t sig_tx_interval = 5000;
     size_t sig_ms_interval = 1000;
     size_t jwt_key_refresh_interval_s = 1800;
+
+    bool operator==(const Intervals&) const = default;
+    bool operator!=(const Intervals&) const = default;
   };
   Intervals intervals = {};
 };
@@ -99,8 +102,9 @@ DECLARE_JSON_REQUIRED_FIELDS(
   sig_ms_interval,
   jwt_key_refresh_interval_s);
 
-DECLARE_JSON_TYPE(CCFConfig);
-DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, consensus, network, intervals);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
+DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig, consensus, intervals);
 
 // Enclave configuration
 struct StartupConfig : CCFConfig
@@ -204,6 +208,8 @@ struct CCHostConfig : CCFConfig
     std::string ledger_dir = "ledger";
     std::vector<std::string> read_only_ledger_dirs = {};
     size_t ledger_chunk_bytes = 5'000'000;
+
+    bool operator==(const Ledger&) const = default;
   };
   Ledger ledger = {};
 
@@ -211,6 +217,8 @@ struct CCHostConfig : CCFConfig
   {
     std::string snapshot_dir = "snapshots";
     size_t snapshot_tx_interval = 10'000;
+
+    bool operator==(const Snapshots&) const = default;
   };
   Snapshots snapshots = {};
 
@@ -218,6 +226,8 @@ struct CCHostConfig : CCFConfig
   {
     logger::Level host_log_level = logger::Level::INFO;
     bool log_format_json = false;
+
+    bool operator==(const Logging&) const = default;
   };
   Logging logging = {};
 
@@ -226,6 +236,8 @@ struct CCHostConfig : CCFConfig
     size_t circuit_size_shift = 22;
     size_t max_msg_size_shift = 24;
     size_t max_fragment_size_shift = 16;
+
+    bool operator==(const Memory&) const = default;
   };
   Memory memory = {};
 
@@ -235,7 +247,7 @@ struct CCHostConfig : CCFConfig
     std::vector<std::string> constitution_files = {};
     ccf::ServiceConfiguration service_configuration;
 
-    bool operator==(const Start& other) const = default;
+    bool operator==(const Start&) const = default;
   };
   Start start = {};
 
@@ -244,7 +256,7 @@ struct CCHostConfig : CCFConfig
     ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
     size_t join_timer_ms = 1000;
 
-    bool operator==(const Join& other) const = default;
+    bool operator==(const Join&) const = default;
   };
   Join join = {};
 };
@@ -277,10 +289,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   CCHostConfig::Join, target_rpc_address, join_timer_ms);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
-// TODO: Should most of these fields actually be optional so we can have a
-// minimal config?
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCHostConfig, enclave_file, enclave_type, ledger, snapshots, logging, memory);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave_file, enclave_type);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig,
   node_certificate_file,
@@ -291,6 +300,10 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   io_logging_threshold_ns,
   client_connection_timeout_ms,
   network_certificate_file,
+  ledger,
+  snapshots,
+  logging,
+  memory,
   start,
   join);
 

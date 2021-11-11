@@ -41,8 +41,8 @@ namespace ccf
       NetAddress rpc_address;
       NetAddress public_rpc_address;
 
-      size_t max_open_sessions_soft;
-      size_t max_open_sessions_hard;
+      std::optional<size_t> max_open_sessions_soft = std::nullopt;
+      std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
       bool operator==(const RpcAddresses& other) const
       {
@@ -60,9 +60,9 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetAddress, hostname, port);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::RpcAddresses);
   DECLARE_JSON_REQUIRED_FIELDS(
+    NodeInfoNetwork_v2::RpcAddresses, rpc_address, public_rpc_address);
+  DECLARE_JSON_OPTIONAL_FIELDS(
     NodeInfoNetwork_v2::RpcAddresses,
-    rpc_address,
-    public_rpc_address,
     max_open_sessions_soft,
     max_open_sessions_hard);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
