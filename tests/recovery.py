@@ -96,8 +96,6 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    LOG.error(current_ledger_dir)
-
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
