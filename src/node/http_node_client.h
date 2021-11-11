@@ -66,9 +66,8 @@ namespace ccf
 
     virtual bool make_request(
       http::Request& request,
-      std::optional<
-        std::function<bool(const http::SimpleResponseProcessor::Response&)>>
-        response_callback = std::nullopt) override
+      std::optional<std::function<bool(bool, std::vector<uint8_t>)>>
+        response_callback = std::nullopt) const override
     {
       LOG_DEBUG_FMT("RPC to {}", request.get_path());
 
@@ -86,7 +85,6 @@ namespace ccf
       auto session_ctx =
         std::make_shared<enclave::SessionContext>(session_id, node_cert.raw());
       auto ctx = enclave::make_rpc_context(session_ctx, packed);
-      // ctx->execute_on_node = true;
 
       const auto actor_opt = http::extract_actor(*ctx);
       if (!actor_opt.has_value())
@@ -103,57 +101,48 @@ namespace ccf
       }
 
       auto frontend = frontend_opt.value();
-      frontend->process(ctx);
-      
-      if (response_callback) 
+      auto result = frontend->process(ctx);
+
+      if (ctx->get_response_status() == HTTP_STATUS_OK)
       {
-        threading::retry_until(
-          [rpc_sessions = NodeClient::rpc_sessions,
-          ctx,
-          response_callback,
-          endpoint,
-          frontend]() {
-            switch (endpoint->response.status)
-            {
-              case HTTP_STATUS_CONTINUE:
-                // Just continue to monitor
-                return false;
-              case HTTP_STATUS_OK:
-              case HTTP_STATUS_NO_CONTENT:
-                // OK, handle response
-                if (response_callback)
+        if (response_callback.has_value())
+        {
+          if (result.has_value())
+          {
+            LOG_TRACE_FMT("CLIENT: have immediate result");
+            response_callback.value()(true, result.value());
+          }
+          else
+          {
+            LOG_TRACE_FMT("CLIENT: submitting response check task");
+            threading::retry_until(
+              [endpoint, response_callback]() {
+                if (endpoint->response.status == HTTP_STATUS_CONTINUE)
                 {
-                  response_callback.value()(endpoint->response);
+                  LOG_TRACE_FMT("CLIENT: continue waiting for response");
+                  return false;
                 }
-                rpc_sessions->remove_session(ctx->session->client_session_id);
-                return true;
-              default:
-                // Error: report and resubmit
-                std::string str(
-                  (char*)endpoint->response.body.data(),
-                  endpoint->response.body.size());
-                LOG_INFO_FMT(
-                  "resubmitting failed RPC to {}{}: {}",
-                  ctx->get_request_path(),
-                  ctx->get_request_query(),
-                  str);
-                ctx->reset_response();
-                ctx->set_response_status(HTTP_STATUS_CONTINUE);
-                frontend->process(ctx);
-            }
-            return false;
-          },
-          std::chrono::milliseconds(100));        
+                return response_callback.value()(
+                  endpoint->response.status == HTTP_STATUS_OK,
+                  endpoint->response.body);
+              },
+              std::chrono::milliseconds(100));
+          }
+        }
+
+        return true;
       }
-      else if (ctx->get_response_status() != HTTP_STATUS_OK)
+      else
       {
         auto ser_res = ctx->serialise_response();
         std::string str((char*)ser_res.data(), ser_res.size());
-        LOG_DEBUG_FMT("Request failed: {}", str);      
+        LOG_DEBUG_FMT("Request failed: {}", str);
+        if (response_callback.has_value())
+        {
+          response_callback.value()(false, ser_res);
+        }
         return false;
       }
-
-      return true;
     }
   };
 }

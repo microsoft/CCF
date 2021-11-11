@@ -61,7 +61,7 @@ namespace ccf
     std::optional<T> session;
   };
 
-  inline std::shared_ptr<CCFSplitIdContext> get_splitid_ctx(
+  inline std::shared_ptr<SplitIdContext> get_splitid_ctx(
     ccfapp::AbstractNodeContext& context)
   {
     auto ctx = context.get_node_state().get_identity_context();
@@ -88,13 +88,21 @@ namespace ccf
           auto x = tx->get(in.node_id);
           if (x.has_value())
           {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InternalError,
-              "Node is already registered");
+            // Node is already registered
+            if (x == in.public_key)
+            {
+              make_success(true);
+            }
+            else
+            {
+              return make_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InternalError,
+                "Node cannot change public key");
+            }
           }
           tx->put(in.node_id, in.public_key);
-          return make_success();
+          return make_success(true);
         }
         catch (std::exception& ex)
         {
@@ -158,9 +166,9 @@ namespace ccf
           fmt::join(in.config, ", "));
 
         SamplingSession ns(in.config, in.defensive, in.app_id);
-        uint64_t id = 0; // TODO
-        // auto vals = args.tx.template rw<ccf::Values>(ccf::Tables::VALUES);
-        // auto id = ccf::get_next_id(vals, ccf::NEXT_SAMPLING_SESSION_ID);
+        auto vals = args.tx.template rw<SplitIdContext::IDs>(ctx->ids);
+        auto id =
+          ctx->get_next_id(vals, SplitIdContext::IdIndex::NEXT_SAMPLING_ID);
         auto sss = args.tx.rw(ctx->sampling_sessions);
         sss->put(id, ns);
         return make_success(SampleRPC::Out({id, false}));
@@ -252,9 +260,9 @@ namespace ccf
             in.next_config,
             in.defensive,
             in.app_id);
-          uint64_t id = 0; // TODO
-          // auto vals = args.tx.template rw<ccf::Values>(ccf::Tables::VALUES);
-          // auto id = ccf::get_next_id(vals, ccf::NEXT_RESHARING_SESSION_ID);
+          auto vals = args.tx.template rw<SplitIdContext::IDs>(ctx->ids);
+          auto id =
+            ctx->get_next_id(vals, SplitIdContext::IdIndex::NEXT_RESHARING_ID);
           rss->put(id, s);
           return make_success(ReshareRPC::Out({id}));
         }
@@ -313,9 +321,9 @@ namespace ccf
           in.message,
           in.defensive,
           in.app_id);
-        uint64_t id = 0; // TODO
-        // auto vals = args.tx.template rw<ccf::Values>(ccf::Tables::VALUES);
-        // auto id = ccf::get_next_id(vals, ccf::NEXT_SIGNING_SESSION_ID);
+        auto vals = args.tx.template rw<SplitIdContext::IDs>(ctx->ids);
+        auto id =
+          ctx->get_next_id(vals, SplitIdContext::IdIndex::NEXT_SIGNING_ID);
         auto signing_session = args.tx.rw(ctx->signing_sessions);
         signing_session->put(id, ns);
         return make_success(SignRPC::Out({id}));
@@ -410,7 +418,7 @@ namespace ccf
 
           rss->remove(in.session_id);
 
-          return make_success();
+          return make_success(true);
         }
         catch (std::exception& ex)
         {
@@ -596,7 +604,7 @@ namespace ccf
 
           rss->remove(in.session_id);
 
-          return make_success();
+          return make_success(true);
         }
         catch (std::exception& ex)
         {

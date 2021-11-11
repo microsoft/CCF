@@ -122,7 +122,7 @@ namespace ccf
       return {};
     }
 
-    virtual std::shared_ptr<CCFSplitIdContext> get_identity_context() override
+    virtual std::shared_ptr<SplitIdContext> get_identity_context() override
     {
       return nullptr;
     }

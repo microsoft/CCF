@@ -56,10 +56,12 @@ def bench(
                     # log_capture=[],
                     timeout=60,
                 )
-                if res.status_code != http.HTTPStatus.NOT_FOUND.value:
+                if res.status_code == http.HTTPStatus.OK.value:                    
                     sig = res.body.json()["signature"]
                     have_result.append(session_id)
                     signatures.append(sig)
+                else:                
+                    sleep(0.25)
         for session_id in have_result:
             session_ids.remove(session_id)
         have_result.clear()
@@ -187,11 +189,9 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/liblogging"
-    # args.max_message_size = 26 # Some messages may become large
-    args.consensus = "bft"
+    args.package = "samples/apps/logging/liblogging"    
+    args.consensus = "cft"
+    args.reconfiguration_type = "2tx"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    # args.bft_view_change_timeout_ms=20000
-    # args.nodes = ["local://localhost"] * 4
 
     run(args)

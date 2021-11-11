@@ -36,8 +36,7 @@ namespace ccf
 
     virtual bool make_request(
       http::Request& request,
-      std::optional<
-        std::function<bool(const http::SimpleResponseProcessor::Response&)>>
-        response_callback = std::nullopt) = 0;
+      std::optional<std::function<bool(bool, std::vector<uint8_t>)>>
+        response_callback = std::nullopt) const = 0;
   };
 }

@@ -29,6 +29,7 @@
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
 #include "node/resharing.h"
+#include "node/resharing_types.h"
 #include "node/rpc/serdes.h"
 #include "node/splitid_context.h"
 #include "node_to_node.h"
@@ -154,7 +155,7 @@ namespace ccf
     //
     // Split/shared Identity
     //
-    std::shared_ptr<CCFSplitIdContext> splitid_context;
+    std::shared_ptr<SplitIdContext> splitid_context;
     std::shared_ptr<ccf::SplitIdentityResharingTracker> resharing_tracker;
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
@@ -1975,8 +1976,8 @@ namespace ccf
         self_signed_node_cert,
         endorsed_node_cert);
 
-      setup_splitid(node_client);
-      setup_resharing_tracker();
+      setup_splitid(reconfiguration_type, node_client);
+      setup_resharing_tracker(reconfiguration_type);
 
       kv::ReplicaState initial_state =
         (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
@@ -2092,15 +2093,17 @@ namespace ccf
       }
     }
 
-    void setup_splitid(std::shared_ptr<HTTPNodeClient> node_client)
+    void setup_splitid(
+      ReconfigurationType reconfiguration_type,
+      std::shared_ptr<HTTPNodeClient> node_client)
     {
-      if (network.consensus_type == ConsensusType::BFT)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         LOG_TRACE_FMT("SPLITID: {}: setup", self);
         std::shared_ptr<SplitIdentity::RequestAdapter<ccf::NodeId>>
           splitid_request_adapter =
             std::make_shared<CCFRequestAdapter>(node_client, self);
-        splitid_context = std::make_shared<CCFSplitIdContext>(
+        splitid_context = std::make_shared<SplitIdContext>(
           self,
           network.tables,
           splitid_request_adapter,
@@ -2112,9 +2115,9 @@ namespace ccf
       }
     }
 
-    void setup_resharing_tracker()
+    void setup_resharing_tracker(ReconfigurationType reconfiguration_type)
     {
-      if (network.consensus_type == ConsensusType::BFT)
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         resharing_tracker =
           std::make_shared<ccf::SplitIdentityResharingTracker>(
@@ -2137,7 +2140,7 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
 
-    virtual std::shared_ptr<CCFSplitIdContext> get_identity_context() override
+    virtual std::shared_ptr<SplitIdContext> get_identity_context() override
     {
       return splitid_context;
     }

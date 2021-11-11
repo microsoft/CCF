@@ -324,21 +324,74 @@ namespace ccf
 
     virtual ~CCFRequestAdapter() {}
 
+    template <typename T>
+    bool submit_rpc(const std::string url, const T& in) const
+    {
+      auto req = std::make_shared<http::Request>(fmt::format(
+        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), url));
+      req->set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+      auto body = serdes::pack(in, serdes::Pack::Text);
+
+      std::shared_ptr<bool> have_response = nullptr;
+      std::shared_ptr<bool> request_succeeded = nullptr;
+
+      threading::retry_until(
+        [nc = node_client,
+         req,
+         body,
+         have_response,
+         request_succeeded]() mutable {
+          req->set_body(&body);
+          if (have_response == nullptr)
+          {
+            // Submit request
+            LOG_TRACE_FMT("SPLITID: submit request");
+            have_response = std::make_shared<bool>(false);
+            request_succeeded = std::make_shared<bool>(false);
+            auto submitted = nc->make_request(
+              *req, [have_response, request_succeeded](auto status, auto r) {
+                LOG_TRACE_FMT("SPLITID: client done, status={}", status);
+                *have_response = true;
+                *request_succeeded = status;
+                return true;
+              });
+            return false;
+          }
+          else if (*have_response)
+          {
+            LOG_TRACE_FMT("SPLITID: have response");
+            if (*request_succeeded)
+            {
+              return true;
+            }
+            else
+            {
+              LOG_TRACE_FMT("SPLITID: failed; resubmit");
+              // Done, but query failed; resubmit.
+              have_response = nullptr;
+              request_succeeded = nullptr;
+              return false;
+            }
+          }
+          else
+          {
+            LOG_TRACE_FMT("SPLITID: checked; keep waiting");
+            // Keep waiting
+            return false;
+          }
+        },
+        std::chrono::milliseconds(250));
+
+      return true;
+    }
+
     virtual bool submit_registration(
       const std::vector<uint8_t>& public_key) const override
     {
       RegisterRPC::In in = {nid, public_key};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/register"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/register", in);
     }
 
     virtual uint64_t sample(
@@ -347,35 +400,14 @@ namespace ccf
       uint64_t app_id = 0) const override
     {
       SampleRPC::In in = {config, defensive, app_id};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/sample"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      node_client->make_request(request);
-      return true;
+      return submit_rpc("splitid/sample", in);
     }
 
     virtual bool submit_sampling_deal(
       uint64_t session_id, const EncryptedDeal& encrypted_deal) const override
     {
       SamplingDealRPC::In in = {session_id, encrypted_deal};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/sampling/deal"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/sampling/deal", in);
     }
 
     virtual bool submit_sampling_resharing(
@@ -383,51 +415,21 @@ namespace ccf
       const EncryptedResharing& encrypted_resharing) const override
     {
       SamplingReshareRPC::In in = {session_id, encrypted_resharing};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/sampling/resharing"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/sampling/resharing", in);
     }
 
     virtual bool submit_open_key(
       uint64_t session_id, const OpenKey& open_key) const override
     {
       OpenKeyRPC::In in = {session_id, open_key};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/sampling/open_key"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/sampling/open_key", in);
     }
 
     virtual bool submit_identity(
       uint64_t session_id, const Identity& identity) const override
     {
       UpdateIdentityRPC::In in = {session_id, identity};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/update-identity"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/update-identity", in);
     }
 
     virtual uint64_t sign(
@@ -437,83 +439,35 @@ namespace ccf
       uint64_t app_id = 0) const override
     {
       SignRPC::In in = {message, defensive, app_id};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/sign"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/sign", in);
     }
 
     virtual bool submit_signing_deal(
       uint64_t session_id, const EncryptedDeal& encrypted_deal) const override
     {
       SigningDealRPC::In in = {session_id, encrypted_deal};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/signing/deal"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/signing/deal", in);
     }
 
     virtual bool submit_openk(
       uint64_t session_id, const OpenK& openk) const override
     {
       OpenKRPC::In in = {session_id, openk};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/signing/openk"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/signing/openk", in);
     }
 
     virtual bool submit_signature_share(
       uint64_t session_id, const SignatureShare& signature_share) const override
     {
       SignatureShareRPC::In in = {session_id, signature_share};
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/signing/signature_share"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/signing/signature_share", in);
     }
 
     virtual bool submit_signature(
       uint64_t session_id, const std::vector<uint8_t>& signature) const override
     {
       SignatureRPC::In in = {session_id, signature};
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/signing/signature"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/signing/signature", in);
     }
 
     virtual uint64_t reshare(
@@ -524,34 +478,14 @@ namespace ccf
       uint64_t app_id = 0) const override
     {
       ReshareRPC::In in = {current_identity, next_config, defensive, app_id};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/reshare"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/reshare", in);
     }
 
     virtual bool submit_resharing_deal(
       uint64_t session_id, const EncryptedDeal& encrypted_deal) const override
     {
       ResharingDealRPC::In in = {session_id, encrypted_deal};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/resharing/deal"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/resharing/deal", in);
     }
 
     virtual bool submit_resharing_resharing(
@@ -559,33 +493,13 @@ namespace ccf
       const EncryptedResharing& encrypted_resharing) const override
     {
       ResharingReshareRPC::In in = {session_id, encrypted_resharing};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/resharing/reshare"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(in, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      return submit_rpc("splitid/resharing/reshare", in);
     }
 
     virtual bool complete_resharing(uint64_t session_id) const override
     {
-      CompleteResharingRPC::In ps = {session_id, false};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "splitid/resharing/complete"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(ps, serdes::Pack::Text);
-      request.set_body(&body);
-      return node_client->make_request(request);
+      CompleteResharingRPC::In in = {session_id, false};
+      return submit_rpc("splitid/resharing/complete", in);
     }
 
   protected:
@@ -593,23 +507,32 @@ namespace ccf
     std::shared_ptr<HTTPNodeClient> node_client;
   };
 
-  class CCFSplitIdContext : public SplitIdentity::Context<ccf::NodeId>
+  class SplitIdContext : public SplitIdentity::Context<ccf::NodeId>
   {
   public:
     using PublicKeys = ccf::ServiceMap<ccf::NodeId, std::vector<uint8_t>>;
     using SamplingSessions =
-      ccf::ServiceMap<size_t, SamplingSession<ccf::NodeId>>;
+      ccf::ServiceMap<uint64_t, SamplingSession<ccf::NodeId>>;
     using SigningSessions =
-      ccf::ServiceMap<size_t, SigningSession<ccf::NodeId>>;
+      ccf::ServiceMap<uint64_t, SigningSession<ccf::NodeId>>;
     using ResharingSessions =
-      ccf::ServiceMap<size_t, ResharingSession<ccf::NodeId>>;
-    using CurrentIdentity = ccf::ServiceMap<size_t, Identity>;
+      ccf::ServiceMap<uint64_t, ResharingSession<ccf::NodeId>>;
+    using CurrentIdentity = ccf::ServiceMap<uint64_t, Identity>;
+    using IDs = ccf::ServiceMap<uint8_t, uint64_t>;
 
     PublicKeys public_keys;
     SamplingSessions sampling_sessions;
     SigningSessions signing_sessions;
     ResharingSessions resharing_sessions;
     CurrentIdentity current_identity;
+    IDs ids;
+
+    enum IdIndex : uint8_t
+    {
+      NEXT_SAMPLING_ID = 0,
+      NEXT_RESHARING_ID = 1,
+      NEXT_SIGNING_ID = 2
+    };
 
     using LocalSigningState = ccf::ServiceMap<size_t, SigningSessionCache>;
     using LocalResharingState = ccf::ServiceMap<size_t, ResharingSessionCache>;
@@ -618,7 +541,7 @@ namespace ccf
     LocalResharingState local_resharing_state;
     LocalSamplingState local_sampling_state;
 
-    CCFSplitIdContext(
+    SplitIdContext(
       const ccf::NodeId& nid,
       std::shared_ptr<kv::Store> store,
       std::shared_ptr<RequestAdapter<ccf::NodeId>> request_adapter,
@@ -629,6 +552,7 @@ namespace ccf
       signing_sessions("public:ccf.splitid.signing"),
       resharing_sessions("public:ccf.splitid.resharing"),
       current_identity("public:ccf.splitid.current"),
+      ids("public:ccf.splitid.ids"),
       local_signing_state("public:ccf.splitid.local.signing"),
       local_resharing_state("public:ccf.splitid.local.resharing"),
       local_sampling_state("public:ccf.splitid.local.sampling"),
@@ -677,7 +601,7 @@ namespace ccf
         std::make_shared<kv::Store>(kv::ReplicateType::ALL, local_tables);
     }
 
-    virtual ~CCFSplitIdContext() {}
+    virtual ~SplitIdContext() {}
 
     using SplitIdentity::Context<ccf::NodeId>::sign;
     using SplitIdentity::Context<ccf::NodeId>::sample;
@@ -686,6 +610,30 @@ namespace ccf
     using SplitIdentity::Context<ccf::NodeId>::on_sampling_update;
     using SplitIdentity::Context<ccf::NodeId>::on_signing_update;
     using SplitIdentity::Context<ccf::NodeId>::on_resharing_update;
+
+    inline uint64_t get_next_id(IDs::Handle* handle, IdIndex id)
+    {
+      auto search = handle->get(id);
+
+      if (!search.has_value())
+      {
+        handle->put(id, 1);
+        return 0;
+      }
+      else
+      {
+        auto& v = search.value();
+        auto nextId = v + 1;
+
+        if (nextId < v)
+        {
+          throw std::overflow_error("Overflow in ID");
+        }
+
+        handle->put(id, nextId);
+        return v;
+      }
+    }
 
     virtual std::optional<SigningSessionCache> get_local_signing_state(
       uint64_t session_id) const override
@@ -828,7 +776,7 @@ namespace ccf
     struct CheckSamplingMsg
     {
       CheckSamplingMsg(
-        CCFSplitIdContext& context,
+        SplitIdContext& context,
         uint64_t session_id,
         const SamplingSession<ccf::NodeId>& session) :
         context(context),
@@ -836,7 +784,7 @@ namespace ccf
         session(session)
       {}
 
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
       uint64_t session_id;
       SamplingSession<ccf::NodeId> session;
     };
@@ -857,14 +805,14 @@ namespace ccf
 
     class SamplingSessionsHook : public kv::ConsensusHook
     {
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
       std::map<uint64_t, SamplingSession<ccf::NodeId>> sessions;
 
     public:
       SamplingSessionsHook(
         kv::Version version_,
         const typename SamplingSessions::Write& w,
-        CCFSplitIdContext& context) :
+        SplitIdContext& context) :
         context(context)
       {
         for (auto& [id, s] : w)
@@ -886,7 +834,7 @@ namespace ccf
     struct CheckSigningMsg
     {
       CheckSigningMsg(
-        CCFSplitIdContext& context,
+        SplitIdContext& context,
         uint64_t session_id,
         const SigningSession<ccf::NodeId>& session) :
         context(context),
@@ -894,7 +842,7 @@ namespace ccf
         session(session)
       {}
 
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
       uint64_t session_id;
       SigningSession<ccf::NodeId> session;
     };
@@ -915,14 +863,14 @@ namespace ccf
 
     class SigningSessionsHook : public kv::ConsensusHook
     {
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
       std::map<uint64_t, SigningSession<ccf::NodeId>> sessions;
 
     public:
       SigningSessionsHook(
         kv::Version version_,
         const typename SigningSessions::Write& w,
-        CCFSplitIdContext& context) :
+        SplitIdContext& context) :
         context(context)
       {
         for (auto& [id, s] : w)
@@ -944,7 +892,7 @@ namespace ccf
     struct CheckResharingMsg
     {
       CheckResharingMsg(
-        CCFSplitIdContext& context,
+        SplitIdContext& context,
         uint64_t session_id,
         const ResharingSession<ccf::NodeId>& session) :
         context(context),
@@ -952,7 +900,7 @@ namespace ccf
         session(session)
       {}
 
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
       uint64_t session_id;
       ResharingSession<ccf::NodeId> session;
     };
@@ -973,14 +921,14 @@ namespace ccf
 
     class ResharingSessionsHook : public kv::ConsensusHook
     {
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
       std::map<uint64_t, ResharingSession<ccf::NodeId>> sessions;
 
     public:
       ResharingSessionsHook(
         kv::Version version_,
         const typename ResharingSessions::Write& w,
-        CCFSplitIdContext& context) :
+        SplitIdContext& context) :
         context(context)
       {
         for (auto& [id, s] : w)
@@ -1001,7 +949,7 @@ namespace ccf
 
     class PublicKeysHook : public kv::ConsensusHook
     {
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
       std::map<ccf::NodeId, std::vector<uint8_t>> to_add;
       std::unordered_set<ccf::NodeId> to_remove;
 
@@ -1009,7 +957,7 @@ namespace ccf
       PublicKeysHook(
         kv::Version version_,
         const typename PublicKeys::Write& w,
-        CCFSplitIdContext& context) :
+        SplitIdContext& context) :
         context(context)
       {
         for (auto& [nid, public_key] : w)
@@ -1026,13 +974,13 @@ namespace ccf
 
     class CurrentIdentityHook : public kv::ConsensusHook
     {
-      CCFSplitIdContext& context;
+      SplitIdContext& context;
 
     public:
       CurrentIdentityHook(
         kv::Version version_,
         const typename CurrentIdentity::Write& w,
-        CCFSplitIdContext& context) :
+        SplitIdContext& context) :
         context(context)
       {
         for (auto& [n, identity] : w)

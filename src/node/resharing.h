@@ -65,7 +65,7 @@ namespace ccf
     SplitIdentityResharingTracker(
       const ccf::NodeId& nid_,
       std::shared_ptr<kv::Store> store_,
-      std::shared_ptr<CCFSplitIdContext> splitid_context_) :
+      std::shared_ptr<SplitIdContext> splitid_context_) :
       nid(nid_),
       splitid_context(splitid_context_),
       first_id_sampled(false)
@@ -223,7 +223,7 @@ namespace ccf
     const ccf::NodeId& nid;
     std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
     std::deque<ResharingSession> sessions;
-    std::shared_ptr<CCFSplitIdContext> splitid_context;
+    std::shared_ptr<SplitIdContext> splitid_context;
     bool first_id_sampled;
     std::mutex lock;
     kv::NetworkConfiguration active_config_;
