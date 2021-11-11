@@ -211,7 +211,7 @@ checked. Note that the key for each logging message is unique (per table).
 
     # Test-specific values so that it is likely that ledger files contain
     # at least two signatures, so that they can be split at the first one
-    args.ledger_chunk_bytes = "50KB"
+    args.ledger_chunk_bytes = 50000
     args.snapshot_tx_interval = 30
 
     run(args)

@@ -199,7 +199,7 @@ if __name__ == "__main__":
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=1,
-        ledger_chunk_bytes="1",  # Chunk ledger at every signature transaction
+        ledger_chunk_bytes=1,  # Chunk ledger at every signature transaction
     )
 
     cr.run()

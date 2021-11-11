@@ -53,7 +53,7 @@ def run(args):
             )
 
     # Chunk often, so that new fds are regularly requested
-    args.ledger_chunk_bytes = "500"
+    args.ledger_chunk_bytes = 500
 
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
