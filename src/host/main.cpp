@@ -370,19 +370,6 @@ int main(int argc, char** argv)
       "Interval in seconds for JWT public signing key refresh.")
     ->capture_default_str();
 
-  size_t memory_reserve_startup = 0;
-  app
-    .add_option(
-      "--memory-reserve-startup",
-      memory_reserve_startup,
-#ifdef DEBUG_CONFIG
-      "Reserve unused memory inside the enclave, to simulate high memory use"
-#else
-      "Unused"
-#endif
-      )
-    ->capture_default_str();
-
   crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
   std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
     {"secp384r1", crypto::CurveID::SECP384R1},
@@ -780,9 +767,6 @@ int main(int argc, char** argv)
     enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
     enclave_config.writer_config = writer_config;
-#ifdef DEBUG_CONFIG
-    enclave_config.debug_config = {memory_reserve_startup};
-#endif
 
     CCFConfig ccf_config;
     ccf_config.consensus_config = {
