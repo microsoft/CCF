@@ -24,18 +24,19 @@ namespace ds
 
     // Define an iterator for accessing each contained element, rather than the
     // ranges
-    struct Iterator
+    template <typename RangeIt>
+    struct TIterator
     {
-      typename Ranges::iterator it;
+      RangeIt it;
       size_t offset = 0;
 
       // clang-format off
-      Iterator(typename Ranges::iterator i): it(i), offset(0) {}
+      TIterator(RangeIt i): it(i), offset(0) {}
 
-      bool operator==(const Iterator& other) const { return (it == other.it && offset == other.offset); }
-      bool operator!=(const Iterator& other) const { return !(*this == other); }
+      bool operator==(const TIterator& other) const { return (it == other.it && offset == other.offset); }
+      bool operator!=(const TIterator& other) const { return !(*this == other); }
 
-      Iterator& operator++()
+      TIterator& operator++()
       {
         ++offset;
         if (offset > it->second)
@@ -45,56 +46,18 @@ namespace ds
         }
         return (*this);
       }
-      Iterator operator++(int)
+      TIterator operator++(int)
       {
         auto temp(*this);
-        ++offset;
-        if (offset > it->second)
-        {
-          ++it;
-          offset = 0;
-        }
+        ++(*this);
         return temp;
       }
-      T operator*() { return it->first + offset; }
+      T operator*() const { return it->first + offset; }
       // clang-format on
     };
 
-    struct ConstIterator
-    {
-      typename Ranges::const_iterator it;
-      size_t offset = 0;
-
-      // clang-format off
-      ConstIterator(typename Ranges::const_iterator i): it(i), offset(0) {}
-
-      bool operator==(const ConstIterator& other) const { return (it == other.it && offset == other.offset); }
-      bool operator!=(const ConstIterator& other) const { return !(*this == other); }
-
-      ConstIterator& operator++()
-      {
-        ++offset;
-        if (offset > it->second)
-        {
-          ++it;
-          offset = 0;
-        }
-        return (*this);
-      }
-      ConstIterator operator++(int)
-      {
-        auto temp(*this);
-        ++offset;
-        if (offset > it->second)
-        {
-          ++it;
-          offset = 0;
-        }
-        return temp;
-      }
-      const T operator*() const { return it->first + offset; }
-      // clang-format on
-    };
+    using Iterator = TIterator<typename Ranges::iterator>;
+    using ConstIterator = TIterator<typename Ranges::const_iterator>;
 
     template <typename Iterator>
     void populate_ranges(Iterator first, Iterator end)
