@@ -22,10 +22,11 @@ def run(args):
         rc = infra.proc.ccall(*cmd).returncode
         assert rc == 0, f"Failed to run tutorial script: {rc}"
 
+    _, committed_ledger_dirs = primary.get_ledger()
     cmd = [
         "python",
         args.ledger_tutorial,
-        primary.get_ledger()[1],
+        committed_ledger_dirs[0],
     ]
     rc = infra.proc.ccall(*cmd).returncode
     assert rc == 0, f"Failed to run tutorial script: {rc}"
