@@ -1997,7 +1997,7 @@ namespace ccf
         node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
-        std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
+        std::chrono::milliseconds(consensus_config.raft_election_timeout),
         sig_tx_interval,
         public_only,
         initial_state,
