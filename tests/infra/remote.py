@@ -633,7 +633,6 @@ class CCFRemote(object):
         bin_path = os.path.join(".", os.path.basename(self.BIN))
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
-
         cmd = [
             bin_path,
             f"--enclave-file={enclave_path}",
