@@ -148,13 +148,10 @@ namespace ccf::historical
       //        2  3  4  5
       // and then we adjust to:
       //              4  5
-      // we don't need to fetch anything new; this is a subrange, we just need
-      // to shift where these are in our requested_stores vector. But if we
+      // we don't need to fetch anything new; this is a subrange. But if we
       // adjust to:
       //  0  1  2  3  4  5  6
-      // we need to shift _and_ start fetching 0, 1, and 6.
-      // TODO: This no longer returns, so I guess we need to iterate through all
-      // requested and see what state they're in to fetch?
+      // we need to start fetching 0, 1, and 6.
       SeqNoCollection adjust_ranges(
         const SeqNoCollection& new_seqnos, bool should_include_receipts)
       {
@@ -269,6 +266,11 @@ namespace ccf::historical
           // covers this one
           const auto& untrusted_digest = new_details->entry_digest;
           bool sig_seen = false;
+          // TODO: Fix this. Iterate only over requested seqnos, not this huge
+          // range
+          // TODO: Is there just a bug in this fundamental approach? Sparse
+          // ranges means we don't know when/where we need to scan for further
+          // signatures...
           for (auto seqno = new_seqno + 1; seqno <= last_requested_seqno;
                ++seqno)
           {
@@ -456,11 +458,12 @@ namespace ccf::historical
           {
             // Newly have all required secrets - begin fetching the actual
             // entries
-            // TODO: This is horribly inefficient! Should use the same
-            // adjust_range thing that we do in the main path, to fetch only the
-            // required
-            fetch_entries_range(
-              request.first_requested_seqno, request.last_requested_seqno);
+            for (const auto& [first_requested_seqno, num_following] :
+                 request.requested_seqnos.ranges)
+            {
+              fetch_entries_range(
+                first_requested_seqno, first_requested_seqno + num_following);
+            }
           }
 
           // In either case, done with this request, try the next

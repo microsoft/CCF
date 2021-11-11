@@ -192,6 +192,14 @@ namespace ccf
       return {};
     }
 
+    std::vector<historical::StatePtr> get_states_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos,
+      historical::ExpiryDuration seconds_until_expiry)
+    {
+      return {};
+    }
+
     bool drop_cached_states(historical::RequestHandle handle)
     {
       return true;
