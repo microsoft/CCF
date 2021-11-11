@@ -10,7 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-from ccf.ledger import NodeStatus, Ledger
+from ccf.ledger import NodeStatus, Ledger, COMMITTED_FILE_SUFFIX
 from ccf.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
@@ -545,9 +545,9 @@ class Network:
 
             longest_ledger_seqno = 0
             for node in self.nodes:
-                _, committed = node.get_ledger()
-                last_seqno = Ledger(committed).get_latest_public_state()[1]
-                nodes_ledger[node.local_node_id] = [committed, last_seqno]
+                ledger = node.remote.ledger_paths()
+                last_seqno = Ledger(ledger).get_latest_public_state()[1]
+                nodes_ledger[node.local_node_id] = [ledger, last_seqno]
                 if last_seqno > longest_ledger_seqno:
                     longest_ledger_seqno = last_seqno
                     longest_ledger_node = node
@@ -559,6 +559,7 @@ class Network:
                         (f, infra.path.compute_file_checksum(os.path.join(d, f)))
                         for d in dirs
                         for f in os.listdir(d)
+                        if f.endswith(COMMITTED_FILE_SUFFIX)
                     ]
 
                 longest_ledger_dirs, _ = nodes_ledger[longest_ledger_node.local_node_id]
