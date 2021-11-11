@@ -616,7 +616,6 @@ class CCFRemote(object):
         exe_files = []
 
         # Main ledger directory
-        ledger_dir = kwargs.get("ledger_dir")
         self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
             os.path.basename(self.ledger_dir)

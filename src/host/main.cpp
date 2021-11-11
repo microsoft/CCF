@@ -98,16 +98,11 @@ int main(int argc, char** argv)
   size_t recovery_threshold = 0;
   try
   {
-    const auto& ledger_dir = config.ledger.ledger_dir;
-    if (*start && files::exists(ledger_dir))
+    if (*start && files::exists(config.ledger.ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start, ledger directory should not exist ({})", ledger_dir));
-    }
-    else if (*recover && !files::exists(ledger_dir))
-    {
-      throw std::logic_error(fmt::format(
-        "On recovery, ledger directory should exist ({}) ", ledger_dir));
+        "On start, ledger directory should not exist ({})",
+        config.ledger.ledger_dir));
     }
 
     if (*start)
