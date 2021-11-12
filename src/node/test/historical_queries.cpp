@@ -1015,8 +1015,7 @@ TEST_CASE("StateCache concurrent access")
   using Clock = std::chrono::system_clock;
   // Add a watchdog timeout. Even in Debug+SAN this entire test takes <3 secs,
   // so 10 seconds for any single entry is surely deadlock
-  const auto too_long = std::chrono::seconds(2);
-  // const auto too_long = std::chrono::seconds(10);
+  const auto too_long = std::chrono::seconds(10);
 
   auto fetch_until_timeout = [&](
                                const auto& fetch_result,
@@ -1164,9 +1163,6 @@ TEST_CASE("StateCache concurrent access")
       validate_all_stores(stores);
     };
 
-  // TODO: Fails when fetching a range that ends on a signature, which was
-  // previously requested for a sparse range (ie - NO signatures)
-
   auto run_n_queries = [&](size_t handle) {
     std::vector<std::string> previously_requested;
     for (size_t i = 0; i < per_thread_queries; ++i)
@@ -1259,45 +1255,22 @@ TEST_CASE("StateCache concurrent access")
     }
   };
 
-  {
-    // Explicitly test some of the problematic permutations
-    const auto handle = 0;
-    const auto i = 42;
-    std::vector<std::string> previously_requested;
-    auto error_printer = [&]() {
-      default_error_printer(handle, i, previously_requested);
-    };
-
-    const auto to = signature_versions[0];
-    const auto from = to - 1;
-    {
-      previously_requested.push_back(fmt::format("Range {}->{}", from, to));
-      query_random_range_stores(from, to, handle, error_printer);
-    }
-    {
-      previously_requested.push_back(fmt::format("Range {}->{}", from, to));
-      query_random_range_states(from, to, handle, error_printer);
-    }
-
-    cache.drop_cached_states(handle);
-  }
-
   srand(time(NULL));
 
-  // const auto num_threads = 30;
-  // std::vector<std::thread> random_queries;
-  // for (size_t i = 0; i < num_threads; ++i)
-  // {
-  //   random_queries.emplace_back(run_n_queries, i);
-  // }
+  const auto num_threads = 30;
+  std::vector<std::thread> random_queries;
+  for (size_t i = 0; i < num_threads; ++i)
+  {
+    random_queries.emplace_back(run_n_queries, i);
+  }
 
-  // for (auto& thread : random_queries)
-  // {
-  //   thread.join();
-  // }
+  for (auto& thread : random_queries)
+  {
+    thread.join();
+  }
 
-  // finished = true;
-  // host_thread.join();
+  finished = true;
+  host_thread.join();
 }
 
 TEST_CASE("Recover historical ledger secrets")
