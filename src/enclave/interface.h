@@ -276,8 +276,9 @@ DECLARE_JSON_REQUIRED_FIELDS(
   max_msg_size_shift,
   max_fragment_size_shift);
 
-DECLARE_JSON_TYPE(CCHostConfig::Start);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Start);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Start, members, constitution_files);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig::Start, members, constitution_files, service_configuration);
 
 DECLARE_JSON_TYPE(CCHostConfig::Join);
