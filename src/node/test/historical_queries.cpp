@@ -1013,7 +1013,8 @@ TEST_CASE("StateCache concurrent access")
   using Clock = std::chrono::system_clock;
   // Add a watchdog timeout. Even in Debug+SAN this entire test takes <3 secs,
   // so 10 seconds for any single entry is surely deadlock
-  const auto too_long = std::chrono::seconds(10);
+  const auto too_long = std::chrono::seconds(2);
+  // const auto too_long = std::chrono::seconds(10);
 
   auto fetch_until_timeout = [&](
                                const auto& fetch_result,
@@ -1034,7 +1035,7 @@ TEST_CASE("StateCache concurrent access")
         return false;
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     return true;
@@ -1202,24 +1203,6 @@ TEST_CASE("StateCache concurrent access")
           {
             std::swap(range_start, range_end);
           }
-
-          // TODO: Temp hack to prevent ranges ending on sigs
-          if (
-            std::find(
-              signature_versions.begin(),
-              signature_versions.end(),
-              range_end) != signature_versions.end())
-          {
-            if (range_start == range_end)
-            {
-              ++range_end;
-            }
-            else
-            {
-              --range_end;
-            }
-          }
-
           previously_requested.push_back(
             fmt::format("Range {}->{} [{}]", range_start, range_end, ss));
           if (store_or_state)
@@ -1286,11 +1269,8 @@ TEST_CASE("StateCache concurrent access")
     const auto to = signature_versions[0];
     const auto from = to - 1;
     {
-      ccf::historical::SeqNoCollection seqnos;
-      seqnos.insert(from);
-      seqnos.insert(to);
-      previously_requested.push_back(fmt::format("Ranges [{}->{}]", from, to));
-      query_random_sparse_set_stores(seqnos, handle, error_printer);
+      previously_requested.push_back(fmt::format("Range {}->{}", from, to));
+      query_random_range_stores(from, to, handle, error_printer);
     }
     {
       previously_requested.push_back(fmt::format("Range {}->{}", from, to));
@@ -1302,20 +1282,20 @@ TEST_CASE("StateCache concurrent access")
 
   srand(time(NULL));
 
-  const auto num_threads = 30;
-  std::vector<std::thread> random_queries;
-  for (size_t i = 0; i < num_threads; ++i)
-  {
-    random_queries.emplace_back(run_n_queries, i);
-  }
+  // const auto num_threads = 30;
+  // std::vector<std::thread> random_queries;
+  // for (size_t i = 0; i < num_threads; ++i)
+  // {
+  //   random_queries.emplace_back(run_n_queries, i);
+  // }
 
-  for (auto& thread : random_queries)
-  {
-    thread.join();
-  }
+  // for (auto& thread : random_queries)
+  // {
+  //   thread.join();
+  // }
 
-  finished = true;
-  host_thread.join();
+  // finished = true;
+  // host_thread.join();
 }
 
 TEST_CASE("Recover historical ledger secrets")
