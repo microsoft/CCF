@@ -156,7 +156,7 @@ namespace ccf::historical
         const SeqNoCollection& new_seqnos, bool should_include_receipts)
       {
         if (
-          new_seqnos.ranges == requested_seqnos.ranges &&
+          new_seqnos == requested_seqnos &&
           should_include_receipts == include_receipts)
         {
           // This is precisely the request we're already tracking - do nothing
@@ -167,7 +167,7 @@ namespace ccf::historical
         std::map<ccf::SeqNo, StoreDetailsPtr> new_stores;
 
         for (const auto& [start_seqno, num_following_indices] :
-             new_seqnos.ranges)
+             new_seqnos.get_ranges())
         {
           for (auto seqno = start_seqno; seqno <=
                static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
@@ -459,7 +459,7 @@ namespace ccf::historical
             // Newly have all required secrets - begin fetching the actual
             // entries
             for (const auto& [first_requested_seqno, num_following] :
-                 request.requested_seqnos.ranges)
+                 request.requested_seqnos.get_ranges())
             {
               fetch_entries_range(
                 first_requested_seqno, first_requested_seqno + num_following);
@@ -575,7 +575,11 @@ namespace ccf::historical
       }
 
       SeqNoCollection c;
-      c.ranges.push_back({start_seqno, end_seqno - start_seqno});
+      for (auto seqno = start_seqno; seqno < end_seqno; ++seqno)
+      {
+        // TODO: Add a range insert, this is way too slow!
+        c.insert(seqno);
+      }
       return c;
     }
 
@@ -624,7 +628,7 @@ namespace ccf::historical
         // If we have sufficiently early secrets, begin fetching any newly
         // requested entries. If we don't fall into this branch, they'll only
         // begin to be fetched once the secret arrives.
-        for (const auto& [start_seqno, additional] : new_seqnos.ranges)
+        for (const auto& [start_seqno, additional] : new_seqnos.get_ranges())
         {
           fetch_entries_range(start_seqno, start_seqno + additional);
         }
@@ -636,7 +640,7 @@ namespace ccf::historical
       std::vector<StatePtr> trusted_states;
 
       for (const auto& [start_seqno, num_following_indices] :
-           seqno_ranges.ranges)
+           seqno_ranges.get_ranges())
       {
         for (ccf::SeqNo seqno = start_seqno; seqno <=
              static_cast<ccf::SeqNo>(start_seqno + num_following_indices);

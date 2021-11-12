@@ -28,7 +28,7 @@ void test(T from, T to)
   ds::ContiguousSet<T> cs;
   for (const auto& n : sample)
   {
-    cs.insert(n);
+    REQUIRE(cs.insert(n));
   }
 
   // Confirm that all are present, and retrieved in-order
@@ -60,7 +60,7 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.size() == 0);
   REQUIRE(cs.begin() == cs.end());
   REQUIRE(ccs.begin() == ccs.end());
-  cs.insert(default_value);
+  REQUIRE(cs.insert(default_value));
   // ccs.insert({}); // insert is non-const
   REQUIRE(cs.size() == 1);
   REQUIRE(ccs.size() == 1);
@@ -70,7 +70,7 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.front() == ccs.back());
 
   // Insert again makes no change
-  cs.insert(default_value);
+  REQUIRE_FALSE(cs.insert(default_value));
   REQUIRE(cs.size() == 1);
   REQUIRE(ccs.size() == 1);
   REQUIRE(cs.begin() != cs.end());
@@ -78,7 +78,18 @@ TEST_CASE_TEMPLATE(
   REQUIRE(cs.front() == cs.back());
   REQUIRE(ccs.front() == ccs.back());
 
-  cs.insert(min_value);
+  {
+    ds::ContiguousSet<T> cs2(ccs);
+    REQUIRE(cs == cs2);
+
+    REQUIRE(cs2.erase(default_value));
+    REQUIRE(cs != cs2);
+
+    REQUIRE(cs2.insert(default_value));
+    REQUIRE(cs == cs2);
+  }
+
+  REQUIRE(cs.insert(min_value));
   REQUIRE(cs.size() == 2);
   REQUIRE(ccs.size() == 2);
   REQUIRE(cs.begin() != cs.end());
@@ -86,7 +97,7 @@ TEST_CASE_TEMPLATE(
   REQUIRE(cs.front() != cs.back());
   REQUIRE(ccs.front() != ccs.back());
 
-  cs.insert(max_value);
+  REQUIRE(cs.insert(max_value));
   REQUIRE(cs.size() == 3);
   REQUIRE(ccs.size() == 3);
   REQUIRE(cs.begin() != cs.end());
@@ -156,12 +167,12 @@ TEST_CASE_TEMPLATE(
     }
   }
 
-  cs.erase(default_value);
+  REQUIRE(cs.erase(default_value));
   // ccs.erase(default_value); // erase is non-const
   REQUIRE(cs.size() == 0);
   REQUIRE(cs.begin() == cs.end());
 
-  cs.insert(default_value);
+  REQUIRE(cs.insert(default_value));
   REQUIRE(cs.size() == 1);
   REQUIRE(cs.begin() != cs.end());
   cs.clear();
@@ -173,17 +184,17 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
 {
   ds::ContiguousSet<size_t> cs;
 
-  cs.insert(10);
-  cs.insert(8);
-  cs.insert(12);
+  REQUIRE(cs.insert(10));
+  REQUIRE(cs.insert(8));
+  REQUIRE(cs.insert(12));
   REQUIRE(cs.size() == 3);
   REQUIRE(cs.get_ranges().size() == 3);
 
-  cs.insert(11);
+  REQUIRE(cs.insert(11));
   REQUIRE(cs.size() == 4);
   REQUIRE(cs.get_ranges().size() == 2);
 
-  cs.insert(9);
+  REQUIRE(cs.insert(9));
   REQUIRE(cs.size() == 5);
   REQUIRE(cs.get_ranges().size() == 1);
 
@@ -207,10 +218,10 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
   REQUIRE(cs.size() == 1);
   REQUIRE(cs.get_ranges().size() == 1);
 
-  cs.insert(5);
-  cs.insert(8);
-  cs.insert(11);
-  cs.insert(10);
+  REQUIRE(cs.insert(5));
+  REQUIRE(cs.insert(8));
+  REQUIRE(cs.insert(11));
+  REQUIRE(cs.insert(10));
   REQUIRE(cs.size() == 5);
   REQUIRE(cs.get_ranges().size() == 2);
 

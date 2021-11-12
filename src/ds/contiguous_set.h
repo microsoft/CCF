@@ -2,14 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <set>
 #include <vector>
 
 namespace ds
 {
   // Efficient representation of an ordered set of values, assuming it contains
-  // some contiguous ranges. Stores a sequence of ranges, rather than individual
-  // values.
+  // some contiguous ranges of adjacent values. Stores a sequence of ranges,
+  // rather than individual values.
   template <typename T>
   class ContiguousSet
   {
@@ -104,14 +103,14 @@ namespace ds
       populate_ranges(first, end);
     }
 
-    ContiguousSet(const std::set<T>& set) :
-      ContiguousSet(set.begin(), set.end())
-    {}
-
-    ContiguousSet(std::vector<T> vec)
+    bool operator==(const ContiguousSet& other) const
     {
-      std::sort(vec.begin(), vec.end());
-      populate_ranges(vec.begin(), vec.end());
+      return ranges == other.ranges;
+    }
+
+    bool operator!=(const ContiguousSet& other) const
+    {
+      return !(*this == other);
     }
 
     const Ranges& get_ranges() const
@@ -129,7 +128,7 @@ namespace ds
       return n;
     }
 
-    void insert(const T& t)
+    bool insert(const T& t)
     {
       auto it = ranges.begin();
       while (it != ranges.end())
@@ -148,7 +147,7 @@ namespace ds
             {
               maybe_merge_with_following(std::prev(it));
             }
-            return;
+            return true;
           }
           else
           {
@@ -159,7 +158,7 @@ namespace ds
         else if (from <= t && t <= from + additional)
         {
           // Already present
-          return;
+          return false;
         }
         else
           // t > from + additional
@@ -168,13 +167,13 @@ namespace ds
         {
           it->second++;
           maybe_merge_with_following(it);
-          return;
+          return true;
         }
         ++it;
       }
 
       ranges.emplace(it, t, 0);
-      return;
+      return true;
     }
 
     bool erase(const T& t)
