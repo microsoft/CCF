@@ -380,12 +380,12 @@ class Node:
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
 
-    def get_ledger(self, include_read_only_dirs=False):
+    def get_ledger(self):
         """
         Triage committed and un-committed (i.e. current) ledger files
         """
         main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(
-            f"{self.local_node_id}.ledger", include_read_only_dirs
+            f"{self.local_node_id}.ledger"
         )
 
         current_ledger_dir = os.path.join(
@@ -426,10 +426,7 @@ class Node:
             )
 
     def session_auth(self, name=None):
-        return {
-            "session_auth": self.identity(name),
-            "ca": os.path.join(self.common_dir, "networkcert.pem"),
-        }
+        return {"session_auth": self.identity(name)}
 
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
@@ -440,12 +437,27 @@ class Node:
     def get_public_rpc_port(self):
         return self.host.rpc_interfaces[0].rpc_port
 
-    def client(self, identity=None, signing_identity=None, interface_idx=0, **kwargs):
+    def session_ca(self, self_signed_ok):
+        if self_signed_ok:
+            return {"ca": ""}
+        else:
+            return {"ca": os.path.join(self.common_dir, "networkcert.pem")}
+
+    def client(
+        self,
+        identity=None,
+        signing_identity=None,
+        interface_idx=0,
+        self_signed_ok=False,
+        **kwargs,
+    ):
         if self.network_state == NodeNetworkState.stopped:
             raise RuntimeError(
                 f"Cannot create client for node {self.local_node_id} as node is stopped"
             )
-        akwargs = self.session_auth(identity)
+
+        akwargs = self.session_ca(self_signed_ok)
+        akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
             "description"

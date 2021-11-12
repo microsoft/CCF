@@ -311,9 +311,6 @@ int main(int argc, char** argv)
     enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
 
     enclave_config.writer_config = writer_config;
-#ifdef DEBUG_CONFIG
-    enclave_config.debug_config = {memory_reserve_startup};
-#endif
 
     StartupConfig startup_config; // TODO: Rename
 

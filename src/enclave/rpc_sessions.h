@@ -154,6 +154,7 @@ namespace enclave
         auto& li = listening_interfaces[interface_name];
         li.max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
           max_open_sessions_soft_default);
+        // TODO: Hard should have sensible value is not set but soft is set!
         li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
           max_open_sessions_hard_default);
         LOG_INFO_FMT(

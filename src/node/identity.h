@@ -5,6 +5,7 @@
 #include "crypto/curve.h"
 #include "crypto/openssl/key_pair.h"
 
+#include <openssl/crypto.h>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,8 @@ namespace ccf
 
     NetworkIdentity() : type(IdentityType::REPLICATED) {}
     NetworkIdentity(IdentityType type) : type(type) {}
+
+    virtual ~NetworkIdentity() {}
   };
 
   class ReplicatedNetworkIdentity : public NetworkIdentity
@@ -56,6 +59,11 @@ namespace ccf
       }
       priv_key = other.priv_key;
       cert = other.cert;
+    }
+
+    ~ReplicatedNetworkIdentity() override
+    {
+      OPENSSL_cleanse(priv_key.data(), priv_key.size());
     }
   };
 

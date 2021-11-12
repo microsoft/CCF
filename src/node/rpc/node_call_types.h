@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
-#include "enclave/interface.h" // TODO: Not great!
+#include "enclave/interface.h"
 #include "node/config.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
@@ -75,20 +75,6 @@ namespace ccf
       std::optional<crypto::Pem> node_cert = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
-      // struct GenesisInfo
-      // {
-      //   std::vector<NewMember> members_info;
-      //   std::string constitution;
-      //   ServiceConfiguration configuration;
-
-      //   bool operator==(const GenesisInfo& other) const
-      //   {
-      //     return members_info == other.members_info &&
-      //       constitution == other.constitution &&
-      //       configuration == other.configuration;
-      //   }
-      // };
-      // TODO: Use Config::Start
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;
     };
   };
@@ -117,6 +103,7 @@ namespace ccf
         bool public_only = false;
         kv::Version last_recovered_signed_idx = kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
+        std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
@@ -130,6 +117,7 @@ namespace ccf
           bool public_only,
           kv::Version last_recovered_signed_idx,
           ConsensusType consensus_type,
+          ReconfigurationType reconfiguration_type,
           const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,
           ServiceStatus service_status,
@@ -137,6 +125,7 @@ namespace ccf
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
           consensus_type(consensus_type),
+          reconfiguration_type(reconfiguration_type),
           ledger_secrets(ledger_secrets),
           identity(identity),
           service_status(service_status),
@@ -148,6 +137,7 @@ namespace ccf
           return public_only == other.public_only &&
             last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
+            reconfiguration_type == other.reconfiguration_type &&
             ledger_secrets == other.ledger_secrets &&
             identity == other.identity &&
             service_status == other.service_status &&
@@ -182,16 +172,5 @@ namespace ccf
       size_t current_allocated_heap_size = 0;
       size_t peak_allocated_heap_size = 0;
     };
-  };
-
-  struct ObservedReconfigurationCommit
-  {
-    struct In
-    {
-      NodeId from;
-      kv::ReconfigurationId reconfiguration_id;
-    };
-
-    using Out = void;
   };
 }

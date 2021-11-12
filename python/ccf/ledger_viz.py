@@ -64,9 +64,9 @@ class DefaultLiner(Liner):
 
     def help(self):
         print(
-            " ".join(
+            " | ".join(
                 [
-                    f"{category}: {cs(' ', 'White', bg_colour)}"
+                    f"{category} {cs(' ', 'White', bg_colour)}"
                     for category, bg_colour in self._bg_colour_mapping.items()
                 ]
             )

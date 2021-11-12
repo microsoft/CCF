@@ -12,6 +12,7 @@
 #include "network_state.h"
 #include "secret_share.h"
 
+#include <openssl/crypto.h>
 #include <vector>
 
 namespace ccf
@@ -34,6 +35,11 @@ namespace ccf
         std::make_move_iterator(split_secret.begin()),
         std::make_move_iterator(split_secret.begin() + split_secret.size()))
     {}
+
+    ~LedgerSecretWrappingKey()
+    {
+      OPENSSL_cleanse(data.data(), data.size());
+    }
 
     template <typename T>
     T get_raw_data() const
@@ -141,8 +147,12 @@ namespace ccf
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
         encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
+        OPENSSL_cleanse(raw_share.data(), raw_share.size());
+        OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());
         share_index++;
       }
+
+      OPENSSL_cleanse(secret_to_split.data(), secret_to_split.size());
 
       return encrypted_shares;
     }
@@ -261,6 +271,7 @@ namespace ccf
           encrypted_share, network.ledger_secrets->get_latest(tx).second);
         std::copy_n(
           decrypted_share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
         shares.emplace_back(share);
         return true;
       });
@@ -403,6 +414,8 @@ namespace ccf
           break;
         }
 
+        // This seems potentially dangerous, in that it requires that RVO
+        // occurs and std::move does not leave an unscrubbed copy on the stack
         auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(
           latest_ls, std::move(it->previous_ledger_secret->encrypted_data));
 

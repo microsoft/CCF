@@ -24,7 +24,6 @@ namespace ccf
 
   struct NodeInfoNetwork_v2
   {
-    // TODO: Why split hostname:port here?
     struct NetAddress
     {
       std::string hostname;

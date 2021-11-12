@@ -10,7 +10,7 @@ Below, we give an overview over the nodes state machine in both settings and the
 CFT Consensus Protocol
 ----------------------
 
-The crash fault tolerant implementation in CCF is based on Raft. You can find more information on the Raft implementation in CCF :doc:`here <cft>`.
+The crash fault tolerant implementation in CCF is based on Raft. You can find more information on the Raft implementation of reconfiguration in CCF :doc:`here <1tx-reconfig>`.
 
 CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
@@ -22,9 +22,9 @@ BFT Consensus Protocol
 
 .. warning:: CCF with BFT is currently in development and should not be used in a production environment.
 
-More details on this mode is given :doc:`here <bft>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
+More details on this mode is given :doc:`here <2tx-reconfig>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
-By default CCF runs with CFT **and BFT is disabled on release versions**. To run CCF with BFT, CCF first needs to be :doc:`built from source </contribute/build_ccf>`. Then, the ``consensus.type "bft"`` configuration entry must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
+By default CCF runs with CFT **and BFT is disabled on release versions**. To run CCF with BFT, CCF first needs to be :doc:`built from source </contribute/build_ccf>`. Then, the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
 
 Replica State Machine
 ---------------------
@@ -76,6 +76,8 @@ A node permanently transitions to ``Retired`` once it has observed commit reachi
 Note that because the rollback triggered when a node becomes aware of a new term never preserves unsigned transactions,
 and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
 
+Further information about the reconfiguration schemes:
+
 .. toctree::
-    cft
-    bft
+    1tx-reconfig
+    2tx-reconfig

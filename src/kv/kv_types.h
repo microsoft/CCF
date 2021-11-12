@@ -95,6 +95,11 @@ namespace kv
         hostname(hostname_),
         port(port_)
       {}
+
+      bool operator==(const NodeInfo& other) const
+      {
+        return hostname == other.hostname && port == other.port;
+      }
     };
 
     using Nodes = std::map<NodeId, NodeInfo>;
@@ -116,6 +121,22 @@ namespace kv
     const auto& [h, p] = nonstd::split_1(addr, ":");
     ni.hostname = h;
     ni.port = p;
+  }
+
+  inline std::string schema_name(const Configuration::NodeInfo&)
+  {
+    return "Configuration__NodeInfo";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, const Configuration::NodeInfo&)
+  {
+    schema["type"] = "object";
+    schema["required"] = nlohmann::json::array();
+    schema["required"].push_back("address");
+    schema["properties"] = nlohmann::json::object();
+    schema["properties"]["address"] = nlohmann::json::object();
+    schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
   }
 
   enum class ReplicaState
@@ -173,7 +194,8 @@ namespace kv
     virtual void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {}) = 0;
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retired_nodes = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
@@ -696,7 +718,8 @@ namespace kv
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
-      bool public_only = false) = 0;
+      bool public_only = false,
+      const std::optional<TxID>& expected_txid = std::nullopt) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
     virtual void initialise_term(Term t) = 0;

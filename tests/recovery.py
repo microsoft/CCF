@@ -56,9 +56,7 @@ def test(network, args, from_snapshot=False, split_ledger=False):
 
     network.stop_all_nodes()
 
-    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger(
-        include_read_only_dirs=True
-    )
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     if split_ledger:
         # Test that ledger files can be arbitrarily split and that recovery
@@ -96,11 +94,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     network.stop_all_nodes()
 
-    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger(
-        include_read_only_dirs=True
-    )
-
-    LOG.error(current_ledger_dir)
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network

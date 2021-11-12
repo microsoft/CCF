@@ -168,12 +168,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=4000,
     )
     parser.add_argument(
-        "--bft-view-change-timeout-ms",
-        help="bft maximum view change timeout for each node in the network",
-        type=int,
-        default=5000,
-    )
-    parser.add_argument(
         "--consensus",
         help="Consensus",
         default="cft",
@@ -322,6 +316,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Maximum allowed validity period in days for certificates of trusted nodes",
         type=int,
         default=365,
+    )
+    parser.add_argument(
+        "--reconfiguration-type",
+        help="Reconfiguration type",
+        default="1tx",
+        choices=("1tx", "2tx"),
     )
 
     add(parser)
