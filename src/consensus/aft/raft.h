@@ -908,11 +908,7 @@ namespace aft
           }
         }
       }
-      else if (
-        consensus_type != ConsensusType::BFT &&
-        replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Retiring &&
-        replica_state != kv::ReplicaState::Learner)
+      else if (consensus_type != ConsensusType::BFT)
       {
         if (
           can_endorse_primary() && ticking &&
