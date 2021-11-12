@@ -1274,6 +1274,32 @@ TEST_CASE("StateCache concurrent access")
     }
   };
 
+  {
+    // Explicitly test some of the problematic permutations
+    const auto handle = 0;
+    const auto i = 42;
+    std::vector<std::string> previously_requested;
+    auto error_printer = [&]() {
+      default_error_printer(handle, i, previously_requested);
+    };
+
+    const auto to = signature_versions[0];
+    const auto from = to - 1;
+    {
+      ccf::historical::SeqNoCollection seqnos;
+      seqnos.insert(from);
+      seqnos.insert(to);
+      previously_requested.push_back(fmt::format("Ranges [{}->{}]", from, to));
+      query_random_sparse_set_stores(seqnos, handle, error_printer);
+    }
+    {
+      previously_requested.push_back(fmt::format("Range {}->{}", from, to));
+      query_random_range_states(from, to, handle, error_printer);
+    }
+
+    cache.drop_cached_states(handle);
+  }
+
   srand(time(NULL));
 
   const auto num_threads = 30;
