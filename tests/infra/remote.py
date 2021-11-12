@@ -557,44 +557,6 @@ class CCFRemote(object):
         major_version=None,
         include_addresses=True,  #  TODO: Fix container wrapper!
         **kwargs,
-        # rpc_host=None,
-        # node_host=None,
-        # pub_host=None,
-        # node_port=0,
-        # rpc_port=0,
-        # node_client_host=None,
-        # target_rpc_address=None,
-        # members_info=None,
-        # snapshots_dir=None,
-        # join_timer=None,
-        # host_log_level="info",
-        # sig_tx_interval=5000,
-        # sig_ms_interval=1000,
-        # raft_election_timeout_ms=1000,
-        # bft_view_change_timeout_ms=5000,
-        # consensus="cft",
-        # worker_threads=0,
-        # memory_reserve_startup=0,
-        # constitution=None,
-        # ledger_dir=None,
-        # read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
-        # common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
-        # log_format_json=None,
-        # binary_dir=".",
-        # ledger_chunk_bytes=(5 * 1000 * 1000),
-        # san=None,
-        # snapshot_tx_interval=None,
-        # max_open_sessions=None,
-        # max_open_sessions_hard=None,
-        # jwt_key_refresh_interval_s=None,
-        # curve_id=None,
-        # client_connection_timeout_ms=None,
-        # initial_node_cert_validity_days=None,
-        # max_allowed_node_cert_validity_days=None,
-        # version=None,
-        # major_version=None,
-        # include_addresses=True,
-        # additional_raw_node_args=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -716,6 +678,9 @@ class CCFRemote(object):
                 "max_allowed_node_cert_validity_days"
             )
             reconfiguration_type = kwargs.get("reconfiguration_type")
+            log_format_json = kwargs.get("log_format_json")
+            sig_tx_interval = kwargs.get("sig_tx_interval")
+            sig_ms_interval = kwargs.get("sig_ms_interval")
 
             cmd = [
                 bin_path,
@@ -739,18 +704,14 @@ class CCFRemote(object):
                     f"--public-rpc-address={make_address(pub_host, rpc_port)}",
                 ]
 
-            # TODO: Re-add
-            # if log_format_json:
-            #     cmd += ["--log-format-json"]
+            if log_format_json:
+                cmd += ["--log-format-json"]
 
-            # if sig_tx_interval:
-            #     cmd += [f"--sig-tx-interval={sig_tx_interval}"]
+            if sig_tx_interval:
+                cmd += [f"--sig-tx-interval={sig_tx_interval}"]
 
-            # if sig_ms_interval:
-            #     cmd += [f"--sig-ms-interval={sig_ms_interval}"]
-
-            # if memory_reserve_startup:
-            #     cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
+            if sig_ms_interval:
+                cmd += [f"--sig-ms-interval={sig_ms_interval}"]
 
             if ledger_chunk_bytes:
                 cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]

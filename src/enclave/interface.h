@@ -103,11 +103,10 @@ DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig, worker_threads, node_certificate, consensus, intervals);
 
-// Enclave configuration
 struct StartupConfig : CCFConfig
 {
   // Only if joining or recovering
-  std::vector<uint8_t> startup_snapshot = {}; // TODO: Should this be optional?
+  std::vector<uint8_t> startup_snapshot = {};
 
   std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
 

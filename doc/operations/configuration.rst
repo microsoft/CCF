@@ -8,10 +8,6 @@ The configuration for each CCF node must be contained in a single JSON configura
     - Minimal configuration: https://github.com/microsoft/CCF/blob/main/samples/config/minimal_config.json
     - Full configuration: https://github.com/microsoft/CCF/blob/main/samples/config/config.json
 
-
-- IP/DNS.
-
-
 Configuration Options
 ---------------------
 
@@ -87,7 +83,11 @@ Optional. The ``node_certificate`` section includes configuration for the node x
     - A non-recovery member with member data: ``{"certificate_file": "member_cert.pem", "data_json_file": "member_data.json"}``
     - A non-recovery member with no member data: ``{"certificate_file": "member_cert.pem"}``
 
-- ``service_configuration``: Initial service configuration, including ``recovery_threshold``.
+- ``service_configuration``: Initial service configuration, including:
+
+    - ``max_allowed_node_cert_validity_days``: The maximum number of days allowed for node certificate validity period. Default value: ``365`` days. TODO: Rename
+    - ``recovery_threshold``. Note that if the recovery threshold is set to ``0``, it is automatically set to the number of recovery members specified in ``members``.
+    - ``reconfiguration_type``. The type of reconfiguration for new nodes. Default value: ``OneTransaction``.
 
 Example:
 
@@ -103,7 +103,8 @@ Example:
         "service_configuration":
         {
             "recovery_threshold": 0,
-            "max_allowed_node_cert_validity_days": 365
+            "max_allowed_node_cert_validity_days": 365,
+            "reconfiguration_type": "OneTransaction"
         }
     }
 

@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
 #include "crypto/openssl/x509_time.h"
-#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "ds/net.h"
@@ -312,7 +311,7 @@ int main(int argc, char** argv)
 
     enclave_config.writer_config = writer_config;
 
-    StartupConfig startup_config; // TODO: Rename
+    StartupConfig startup_config;
 
     startup_config.snapshot_tx_interval = config.snapshots.snapshot_tx_interval;
     startup_config.consensus = config.consensus;
