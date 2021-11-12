@@ -657,21 +657,23 @@ TEST_CASE("StateCache get store vs get state")
     {
       REQUIRE(cache
                 .get_store_range(
-                  default_handle, signature_transaction, signature_transaction)
+                  default_handle, seqno_a, signature_transaction)
                 .empty());
-      REQUIRE(provide_ledger_entry(signature_transaction));
+      REQUIRE(provide_ledger_entry_range(seqno_a, signature_transaction));
       REQUIRE_FALSE(
         cache
           .get_store_range(
-            default_handle, signature_transaction, signature_transaction)
+            default_handle, seqno_a, signature_transaction)
           .empty());
 
       auto states = cache.get_state_range(
-        default_handle, signature_transaction, signature_transaction);
+        default_handle, seqno_a, signature_transaction);
       REQUIRE_FALSE(states.empty());
-      const auto& state_sig = states[0];
-      REQUIRE(state_sig != nullptr);
-      REQUIRE(state_sig->receipt != nullptr);
+      for (auto& state : states)
+      {
+        REQUIRE(state != nullptr);
+        REQUIRE(state->receipt != nullptr);
+      }
       cache.drop_cached_states(default_handle);
     }
   }
