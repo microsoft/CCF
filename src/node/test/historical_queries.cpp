@@ -1092,100 +1092,72 @@ TEST_CASE("StateCache concurrent access")
       }
     };
 
-  auto query_random_point = [&](
-                              size_t handle,
-                              const auto& error_printer,
-                              std::vector<std::string>& previously_requested) {
-    const auto target_seqno = random_seqno();
-
-    previously_requested.push_back(fmt::format("Point {}", target_seqno));
-
-    ccf::historical::StatePtr state;
-
-    auto fetch_result = [&]() {
-      state = cache.get_state_at(handle, target_seqno);
+  auto query_random_point_store =
+    [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
+      ccf::historical::StorePtr store;
+      auto fetch_result = [&]() {
+        store = cache.get_store_at(handle, target_seqno);
+      };
+      auto check_result = [&]() { return store != nullptr; };
+      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+      REQUIRE(store != nullptr);
+      validate_all_stores({store});
     };
-    auto check_result = [&]() { return state != nullptr; };
 
+  auto query_random_point_state =
+    [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
+      ccf::historical::StatePtr state;
+      auto fetch_result = [&]() {
+        state = cache.get_state_at(handle, target_seqno);
+      };
+      auto check_result = [&]() { return state != nullptr; };
+      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+      REQUIRE(state != nullptr);
+      validate_all_states({state});
+    };
+
+  auto query_random_range_stores = [&](
+                                     ccf::SeqNo range_start,
+                                     ccf::SeqNo range_end,
+                                     size_t handle,
+                                     const auto& error_printer) {
+    std::vector<ccf::historical::StorePtr> stores;
+    auto fetch_result = [&]() {
+      stores = cache.get_store_range(handle, range_start, range_end);
+    };
+    auto check_result = [&]() { return !stores.empty(); };
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-
-    REQUIRE(state != nullptr);
-    validate_all_states({state});
+    REQUIRE(stores.size() == range_end - range_start + 1);
+    validate_all_stores(stores);
   };
 
-  auto query_random_range = [&](
-                              size_t handle,
-                              const auto& error_printer,
-                              std::vector<std::string>& previously_requested) {
-    auto range_start = random_seqno();
-    auto range_end = random_seqno();
-
-    if (range_start > range_end)
-    {
-      std::swap(range_start, range_end);
-    }
-
-    previously_requested.push_back(
-      fmt::format("Range {}->{}", range_start, range_end));
-
+  auto query_random_range_states = [&](
+                                     ccf::SeqNo range_start,
+                                     ccf::SeqNo range_end,
+                                     size_t handle,
+                                     const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
-
     auto fetch_result = [&]() {
       states = cache.get_state_range(handle, range_start, range_end);
     };
     auto check_result = [&]() { return !states.empty(); };
-
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-
     REQUIRE(states.size() == range_end - range_start + 1);
     validate_all_states(states);
   };
 
-  auto query_random_sparse_set =
+  auto query_random_sparse_set_stores =
     [&](
+      const ccf::historical::SeqNoCollection& seqnos,
       size_t handle,
-      const auto& error_printer,
-      std::vector<std::string>& previously_requested) {
-      auto range_start = random_seqno();
-      auto range_end = random_seqno();
-
-      if (range_start > range_end)
-      {
-        std::swap(range_start, range_end);
-      }
-
-      ccf::historical::SeqNoCollection this_request;
-      this_request.insert(range_start);
-      for (auto i = range_start; i != range_end; ++i)
-      {
-        if (i % 3 != 0)
-        {
-          this_request.insert(i);
-        }
-      }
-      this_request.insert(range_end);
-
-      std::vector<std::string> range_descriptions;
-      for (const auto& [from, additional] : this_request.get_ranges())
-      {
-        range_descriptions.push_back(
-          fmt::format("{}->{}", from, from + additional));
-      }
-      previously_requested.push_back(fmt::format(
-        "{} values: [{}]",
-        this_request.size(),
-        fmt::join(range_descriptions, ", ")));
-
+      const auto& error_printer) {
       std::vector<ccf::historical::StorePtr> stores;
-
       auto fetch_result = [&]() {
-        stores = cache.get_stores_for(handle, this_request);
+        stores = cache.get_stores_for(handle, seqnos);
       };
       auto check_result = [&]() { return !stores.empty(); };
-
       REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-
-      REQUIRE(stores.size() == this_request.size());
+      REQUIRE(stores.size() == seqnos.size());
       validate_all_stores(stores);
     };
 
@@ -1198,21 +1170,79 @@ TEST_CASE("StateCache concurrent access")
       };
 
       const auto query_kind = rand() % 3;
+      const bool store_or_state = rand() % 2;
+      const auto ss = store_or_state ? "Stores" : "States";
       switch (query_kind)
       {
         case 0:
         {
-          query_random_point(handle, error_printer, previously_requested);
+          // Fetch a single point
+          const auto target_seqno = random_seqno();
+          previously_requested.push_back(
+            fmt::format("Point {} [{}]", target_seqno, ss));
+          if (store_or_state)
+          {
+            query_random_point_store(target_seqno, handle, error_printer);
+          }
+          else
+          {
+            query_random_point_store(target_seqno, handle, error_printer);
+          }
           break;
         }
         case 1:
         {
-          query_random_range(handle, error_printer, previously_requested);
+          // Fetch a single range
+          auto range_start = random_seqno();
+          auto range_end = random_seqno();
+          if (range_start > range_end)
+          {
+            std::swap(range_start, range_end);
+          }
+          previously_requested.push_back(
+            fmt::format("Range {}->{} [()]", range_start, range_end, ss));
+          if (store_or_state)
+          {
+            query_random_range_stores(
+              range_start, range_end, handle, error_printer);
+          }
+          else
+          {
+            query_random_range_states(
+              range_start, range_end, handle, error_printer);
+          }
           break;
         }
         case 2:
         {
-          query_random_sparse_set(handle, error_printer, previously_requested);
+          // Fetch a sparse set of ranges
+          auto range_start = random_seqno();
+          auto range_end = random_seqno();
+          if (range_start > range_end)
+          {
+            std::swap(range_start, range_end);
+          }
+          ccf::historical::SeqNoCollection seqnos;
+          seqnos.insert(range_start);
+          for (auto i = range_start; i != range_end; ++i)
+          {
+            if (i % 3 != 0)
+            {
+              seqnos.insert(i);
+            }
+          }
+          seqnos.insert(range_end);
+          std::vector<std::string> range_descriptions;
+          for (const auto& [from, additional] : seqnos.get_ranges())
+          {
+            range_descriptions.push_back(
+              fmt::format("{}->{}", from, from + additional));
+          }
+          previously_requested.push_back(fmt::format(
+            "Ranges {} [{}]", fmt::join(range_descriptions, ", "), ss));
+
+          // TODO: query_random_sparse_set_states
+          query_random_sparse_set_stores(seqnos, handle, error_printer);
           break;
         }
         default:
@@ -1223,10 +1253,7 @@ TEST_CASE("StateCache concurrent access")
     }
   };
 
-  // TODO: Fetch both states and stores, to intermingle with-receipt and
-  // without-receipt requests
-
-  const auto num_threads = 30;
+  const auto num_threads = 3;
   std::vector<std::thread> random_queries;
   for (size_t i = 0; i < num_threads; ++i)
   {
