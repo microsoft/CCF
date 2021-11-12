@@ -165,12 +165,12 @@ def test_add_node_from_snapshot(
             break
 
     target_node = None
-    snapshot_dir = None
+    snapshots_dir = None
     if from_backup:
         primary, target_node = network.find_primary_and_any_backup()
         # Retrieve snapshot from primary as only primary node
         # generates snapshots
-        snapshot_dir = network.get_committed_snapshots(primary)
+        snapshots_dir = network.get_committed_snapshots(primary)
 
     new_node = network.create_node("local://localhost")
     network.join_node(
@@ -179,7 +179,7 @@ def test_add_node_from_snapshot(
         args,
         copy_ledger_read_only=copy_ledger_read_only,
         target_node=target_node,
-        snapshot_dir=snapshot_dir,
+        snapshots_dir=snapshots_dir,
         from_snapshot=True,
     )
     network.trust_node(new_node, args)
@@ -593,7 +593,7 @@ def run_join_old_snapshot(args):
                     args.package,
                     args,
                     from_snapshot=True,
-                    snapshot_dir=tmp_dir,
+                    snapshots_dir=tmp_dir,
                     timeout=3,
                 )
             except infra.network.StartupSnapshotIsOld:

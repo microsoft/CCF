@@ -1,6 +1,6 @@
 {
-  "enclave_file": "./samples/apps/logging/liblogging.virtual.so",
-  "enclave_type": "virtual",
+  "enclave_file": "lib_jsgeneric.enclave.so.signed",
+  "enclave_type": "release",
   "network": {
     "node_address": { "hostname": "127.0.0.1", "port": "0" },
     "rpc_interfaces": [

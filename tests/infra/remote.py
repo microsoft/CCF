@@ -551,7 +551,7 @@ class CCFRemote(object):
         host=[],
         ledger_dir=None,
         read_only_ledger_dirs=[],
-        snapshot_dir=None,
+        snapshots_dir=None,
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes TODO: Fix!
         version=None,
         major_version=None,
@@ -565,7 +565,7 @@ class CCFRemote(object):
         # node_client_host=None,
         # target_rpc_address=None,
         # members_info=None,
-        # snapshot_dir=None,
+        # snapshots_dir=None,
         # join_timer=None,
         # host_log_level="info",
         # sig_tx_interval=5000,
@@ -630,10 +630,10 @@ class CCFRemote(object):
         self.common_read_only_ledger_dir = common_read_only_ledger_dir
 
         # Snapshots
-        self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
+        self.snapshots_dir = os.path.normpath(snapshots_dir) if snapshots_dir else None
         self.snapshot_dir_name = (
-            os.path.basename(self.snapshot_dir)
-            if self.snapshot_dir
+            os.path.basename(self.snapshots_dir)
+            if self.snapshots_dir
             else f"{local_node_id}.snapshots"
         )
 
@@ -651,7 +651,7 @@ class CCFRemote(object):
                 rpc_addresses_file=self.rpc_addresses_file,
                 ledger_dir=self.ledger_dir_name,
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
-                snapshot_dir=self.snapshot_dir_name,
+                snapshots_dir=self.snapshot_dir_name,
                 **kwargs,
             )
 
@@ -664,7 +664,7 @@ class CCFRemote(object):
 
         exe_files += [self.BIN, enclave_file] + self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []
-        data_files += [self.snapshot_dir] if self.snapshot_dir else []
+        data_files += [self.snapshots_dir] if self.snapshots_dir else []
         if self.read_only_ledger_dirs_names:
             data_files.extend(
                 [os.path.join(self.common_dir, f) for f in self.read_only_ledger_dirs]
@@ -701,12 +701,10 @@ class CCFRemote(object):
             max_open_sessions_hard = kwargs.get("max_open_sessions_hard")
             jwt_key_refresh_interval_s = kwargs.get("jwt_key_refresh_interval_s")
             curve_id = kwargs.get("curve_id")
-            client_connection_timeout_ms = kwargs.get("client_connection_timeout_ms")
             initial_node_cert_validity_days = kwargs.get(
                 "initial_node_cert_validity_days"
             )
             node_client_host = kwargs.get("node_client_host")
-            additional_raw_node_args = kwargs.get("additional_raw_node_args")
             constitution = kwargs.get("constitution")
             members_info = kwargs.get("members_info")
             join_timer = kwargs.get("join_timer")
@@ -781,11 +779,6 @@ class CCFRemote(object):
 
             if curve_id is not None:
                 cmd += [f"--curve-id={curve_id.name}"]
-
-            if client_connection_timeout_ms:
-                cmd += [
-                    f"--client-connection-timeout-ms={client_connection_timeout_ms}"
-                ]
 
             # Added in 1.x
             if not major_version or major_version > 1:

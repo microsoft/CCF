@@ -74,7 +74,7 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  LOG_INFO_FMT("Version: {}", ccf::ccf_version);
+  LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
   std::string config_str = files::slurp_string(config_file_path);
   CCHostConfig config = nlohmann::json::parse(config_str);
@@ -241,7 +241,8 @@ int main(int argc, char** argv)
       config.ledger.read_only_ledger_dirs);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(config.snapshots.snapshot_dir, ledger);
+    asynchost::SnapshotManager snapshots(
+      config.snapshots.snapshots_dir, ledger);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.

@@ -1,21 +1,9 @@
 {
   "enclave_file": "{{ enclave_file }}",
   "enclave_type": "{{ enclave_type or "release" }}",
-  "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
-  "node_pid_file": "{{ node_pid_file or "node.pid" }}",
-  "node_address_file": "{{ node_address_file }}",
-  "rpc_addresses_file" : "{{ rpc_addresses_file }}",
-  "network_certificate_file": "networkcert.pem",
-  "ledger":
-  {
-    "ledger_dir": "{{ ledger_dir }}",
-    "read_only_ledger_dirs": {{ read_only_ledger_dirs|tojson }},
-    "ledger_chunk_bytes": {{ ledger_chunk_bytes }}
-  },
-  "snapshots":
-  {
-    "snapshot_dir": "{{ snapshot_dir }}",
-    "snapshot_tx_interval": {{ snapshot_tx_interval }}
+  "network": {
+    "node_address": { "hostname": "{{ node_address_hostname }}",  "port": "{{ node_address_port }}" },
+    "rpc_interfaces": {{ rpc_interfaces|tojson }}
   },
   "node_certificate":
   {
@@ -24,59 +12,60 @@
     "curve_id": "secp384r1",
     "initial_validity_period_days": 1
   },
-  "io_logging_threshold_ns": 10000000,
-  "tick_period_ms": 10,
-  "worker_threads": 0,
-  "node_client_interface": "{{ node_client_interface }}",
-  "client_connection_timeout_ms": {{ client_connection_timeout_ms or 2000}},
-  "logging":
-  {
-    "host_log_level": "debug",
-    "log_format_json": false
-  },
-  "intervals":
-  {
-    "sig_tx_interval": 5000,
-    "sig_ms_interval": 1000,
-    "jwt_key_refresh_interval_s": {{ jwt_key_refresh_interval_s or 1800 }}
-  },
-  "consensus":
-  {
-    "type": "CFT",
-    "raft_timeout_ms": {{ raft_timeout_ms or 100 }},
-    "raft_election_timeout_ms": {{ raft_election_timeout_ms or 5000 }}
-  },
-  "network": {
-    "node_address":
-    {
-      "hostname": "{{ node_address_hostname }}",
-      "port": "{{ node_address_port }}"
-    },
-    "rpc_interfaces": {{ rpc_interfaces|tojson }}
-  },
-  "memory":
-  {
-    "circuit_size_shift": 22,
-    "max_msg_size_shift": 24,
-    "max_fragment_size_shift": 16
-  },
   "start":
   {
     "members": {{ members_info|tojson }},
     "constitution_files": {{ constitution|tojson }},
     "service_configuration":
     {
-      "recovery_threshold": 0,
-      "max_allowed_node_cert_validity_days": 365
+      "recovery_threshold": {{ recovery_threshold or 0 }},
+      "max_allowed_node_cert_validity_days": {{ max_allowed_node_cert_validity_days }}
     }
   },
   "join":
   {
     "join_timer_ms": {{ join_timer }},
-    "target_rpc_address":
-    {
-      "hostname": "{{ target_rpc_address_hostname }}",
-      "port": "{{ target_rpc_address_port }}"
-    }
+    "target_rpc_address": { "hostname": "{{ target_rpc_address_hostname }}", "port": "{{ target_rpc_address_port }}" }
+  },
+  "ledger":
+  {
+    "ledger_dir": "{{ ledger_dir }}",
+    "read_only_ledger_dirs": {{ read_only_ledger_dirs|tojson }},
+    "ledger_chunk_bytes": {{ ledger_chunk_bytes }}
+  },
+  "snapshots":
+  {
+    "snapshots_dir": "{{ snapshots_dir }}",
+    "snapshot_tx_interval": {{ snapshot_tx_interval }}
+  },
+  "logging":
+  {
+    "host_log_level": "debug",
+    "log_format_json": false
+  },
+  "consensus":
+  {
+    "type": "CFT",
+    "raft_timeout_ms": {{ raft_timeout_ms or 100 }},
+    "raft_election_timeout_ms": {{ raft_election_timeout_ms }}
+  },
+  "intervals":
+  {
+    "sig_tx_interval": 5000,
+    "sig_ms_interval": 1000,
+    "jwt_key_refresh_interval_s": {{ jwt_key_refresh_interval_s }}
+  },
+  "network_certificate_file": "networkcert.pem",
+  "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
+  "node_pid_file": "{{ node_pid_file or "node.pid" }}",
+  "node_address_file": "{{ node_address_file }}",
+  "rpc_addresses_file" : "{{ rpc_addresses_file }}",
+  "node_client_interface": "{{ node_client_interface }}",
+  "worker_threads": 0,
+  "memory":
+  {
+    "circuit_size_shift": 22,
+    "max_msg_size_shift": 24,
+    "max_fragment_size_shift": 16
   }
 }

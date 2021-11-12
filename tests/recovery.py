@@ -50,9 +50,9 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
 def test(network, args, from_snapshot=False, split_ledger=False):
     old_primary, _ = network.find_primary()
 
-    snapshot_dir = None
+    snapshots_dir = None
     if from_snapshot:
-        snapshot_dir = network.get_committed_snapshots(old_primary)
+        snapshots_dir = network.get_committed_snapshots(old_primary)
 
     network.stop_all_nodes()
 
@@ -76,7 +76,7 @@ def test(network, args, from_snapshot=False, split_ledger=False):
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
-        snapshot_dir=snapshot_dir,
+        snapshots_dir=snapshots_dir,
     )
     recovered_network.recover(args)
 
@@ -88,9 +88,9 @@ def test(network, args, from_snapshot=False, split_ledger=False):
 def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    snapshot_dir = None
+    snapshots_dir = None
     if from_snapshot:
-        snapshot_dir = network.get_committed_snapshots(old_primary)
+        snapshots_dir = network.get_committed_snapshots(old_primary)
 
     network.stop_all_nodes()
 
@@ -103,7 +103,7 @@ def test_share_resilience(network, args, from_snapshot=False):
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
-        snapshot_dir=snapshot_dir,
+        snapshots_dir=snapshots_dir,
     )
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.transition_service_to_open(primary)

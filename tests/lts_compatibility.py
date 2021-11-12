@@ -380,7 +380,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         args,
                         ledger_dir,
                         committed_ledger_dir,
-                        snapshot_dir=snapshot_dir,
+                        snapshots_dir=snapshots_dir,
                     )
                     network.recover(args)
 
@@ -421,7 +421,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
-                snapshot_dir = (
+                snapshots_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
                 ledger_dir, committed_ledger_dir = primary.get_ledger()
@@ -429,10 +429,10 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                 # Check that ledger and snapshots can be parsed
                 ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
-                if snapshot_dir:
-                    for s in os.listdir(snapshot_dir):
+                if snapshots_dir:
+                    for s in os.listdir(snapshots_dir):
                         with ccf.ledger.Snapshot(
-                            os.path.join(snapshot_dir, s)
+                            os.path.join(snapshots_dir, s)
                         ) as snapshot:
                             snapshot.get_public_domain()
 

@@ -275,7 +275,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--jwt-key-refresh-interval-s",
         help="JWT key refresh interval in seconds",
-        default=None,
+        type=int,
+        default=1800,
     )
     parser.add_argument(
         "--disable-member-session-auth",
@@ -299,11 +300,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--ccf-version",
         help="CCF version of local checkout",
         type=str,
-    )
-    parser.add_argument(
-        "--client-connection-timeout-ms",
-        help="TCP client connection timeout in ms",
-        default=None,
     )
     parser.add_argument(
         "--initial-node-cert-validity-days",

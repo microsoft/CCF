@@ -105,7 +105,6 @@ class Network:
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
         "curve_id",
-        "client_connection_timeout_ms",
         "initial_node_cert_validity_days",
         "max_allowed_node_cert_validity_days",
         "reconfiguration_type",
@@ -212,7 +211,7 @@ class Network:
         copy_ledger_read_only=False,
         read_only_ledger_dirs=None,
         from_snapshot=False,
-        snapshot_dir=None,
+        snapshots_dir=None,
     ):
         # Contact primary if no target node is set
         if target_node is None:
@@ -232,12 +231,12 @@ class Network:
         if from_snapshot:
             # Only retrieve snapshot from target node if the snapshot directory is not
             # specified
-            snapshot_dir = snapshot_dir or self.get_committed_snapshots(target_node)
-            if os.listdir(snapshot_dir):
-                LOG.info(f"Joining from snapshot directory: {snapshot_dir}")
+            snapshots_dir = snapshots_dir or self.get_committed_snapshots(target_node)
+            if os.listdir(snapshots_dir):
+                LOG.info(f"Joining from snapshot directory: {snapshots_dir}")
             else:
                 LOG.warning(
-                    f"Attempting to join from snapshot but {snapshot_dir} is empty: defaulting to complete replay of transaction history"
+                    f"Attempting to join from snapshot but {snapshots_dir} is empty: defaulting to complete replay of transaction history"
                 )
         else:
             LOG.info(
@@ -256,7 +255,7 @@ class Network:
             common_dir=self.common_dir,
             target_rpc_address_hostname=target_node.get_public_rpc_host(),
             target_rpc_address_port=target_node.get_public_rpc_port(),
-            snapshot_dir=snapshot_dir,
+            snapshots_dir=snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
             **forwarded_args,
@@ -276,7 +275,7 @@ class Network:
         recovery=False,
         ledger_dir=None,
         read_only_ledger_dirs=None,
-        snapshot_dir=None,
+        snapshots_dir=None,
     ):
         self.args = args
         hosts = self.hosts
@@ -312,7 +311,7 @@ class Network:
                             common_dir=self.common_dir,
                             ledger_dir=ledger_dir,
                             read_only_ledger_dirs=read_only_ledger_dirs,
-                            snapshot_dir=snapshot_dir,
+                            snapshots_dir=snapshots_dir,
                             **forwarded_args,
                         )
                         self.wait_for_state(
@@ -328,9 +327,9 @@ class Network:
                         args,
                         recovery=recovery,
                         ledger_dir=ledger_dir,
-                        from_snapshot=snapshot_dir is not None,
+                        from_snapshot=snapshots_dir is not None,
                         read_only_ledger_dirs=read_only_ledger_dirs,
-                        snapshot_dir=snapshot_dir,
+                        snapshots_dir=snapshots_dir,
                     )
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.local_node_id))
@@ -445,14 +444,14 @@ class Network:
         args,
         ledger_dir,
         committed_ledger_dirs=None,
-        snapshot_dir=None,
+        snapshots_dir=None,
         common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         :param ledger_dir: ledger directory to recover from.
-        :param snapshot_dir: snapshot directory to recover from.
+        :param snapshots_dir: snapshot directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
         self.common_dir = common_dir or get_common_folder_name(
@@ -465,7 +464,7 @@ class Network:
             recovery=True,
             ledger_dir=ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
-            snapshot_dir=snapshot_dir,
+            snapshots_dir=snapshots_dir,
         )
 
         # If a common directory was passed in, initialise the consortium from it

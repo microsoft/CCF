@@ -3,21 +3,14 @@ Configuration
 
 The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config </path/to/configuration/file>`` argument.
 
-.. tip:: Link to sample configurations:
+.. tip:: JSON configuration samples:
 
-    - Minimal sample configuration
-    - Full sample configuration
+    - Minimal configuration: https://github.com/microsoft/CCF/blob/main/samples/config/minimal_config.json
+    - Full configuration: https://github.com/microsoft/CCF/blob/main/samples/config/config.json
 
 
-TODO:
-
-- Link to sample JSON configuration file
-- Which options are optional?
-- Minimal config on startup (move some options to misc or bottom of page?)
 - IP/DNS.
 - raft_timeout -> cft_timeout
-- Default RPC and node-to-node values?
-- Description for each section.
 
 
 Configuration Options
@@ -44,9 +37,9 @@ The ``network`` section includes configuration for the interfaces a node listens
 Each RPC address must contain:
 
 - The local RPC address (``rpc_address``) the node listens on.
-- The public RPC address (``public_rpc_address``) advertised to clients.
-- The maximum number of active client sessions (``max_open_sessions_soft``) on that interface after which clients will receive a HTTP 503 error.
-- The maximum number of active client sessions (``max_open_sessions_hard``) on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``.
+- The public RPC address (``public_rpc_address``) advertised to clients. Default value: value of ``rpc_address`.
+- The maximum number of active client sessions (``max_open_sessions_soft``) on that interface after which clients will receive a HTTP 503 error. Default value: ``1000``.
+- The maximum number of active client sessions (``max_open_sessions_hard``) on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``. Default value: ``1010``.
 
 Example:
 
@@ -57,13 +50,10 @@ Example:
         "rpc_interfaces": [
             {
                 "rpc_address":{"hostname": "127.0.0.1", "port": "0"},
-                "public_rpc_address":{"hostname":"127.0.0.1","port": "0"},
-                "max_open_sessions_soft": 1000,
-                "max_open_sessions_hard": 1010
+                "public_rpc_address":{"hostname":"foo.dummy.com","port": "12345"},
             },
             {
                 "rpc_address":{"hostname": "127.0.0.2", "port": "8080"},
-                "public_rpc_address":{"hostname":"<public_address>","port": "80"},
                 "max_open_sessions_soft": 200,
                 "max_open_sessions_hard": 210
             }
@@ -73,7 +63,7 @@ Example:
 ``node_certificate``
 ~~~~~~~~~~~~~~~~~~~~
 
-The ``node_certificate`` section includes configuration for the node x509 certificate.
+Optional. The ``node_certificate`` section includes configuration for the node x509 certificate.
 
 - ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
 - ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``public_rpc_address``. Default value: ``[]``.
@@ -147,13 +137,13 @@ Example:
 ``snapshots``
 ~~~~~~~~~~~~~
 
-- ``snapshots_dir``: Path to snapshot directory. Default value: ``snapshots``. TODO: Should be snapshots_dir in code too!
+- ``snapshots_dir``: Path to snapshot directory. Default value: ``snapshots``.
 - ``snapshot_tx_interval``: Minimum number of transactions between snapshots. Default value: ``10000``.
 
 ``logging``
 ~~~~~~~~~~~
 
-- ``host_log_level``: Logging level for the untrusted `host`. Default value: ``INFO``.
+- ``host_log_level``: Logging level for the `untrusted host`. Default value: ``INFO``.
 
 .. note:: While it is possible to set the host log level at startup, it is not possible to change the log level of the enclave.
 
@@ -182,8 +172,7 @@ Example:
 ``network_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For ``start`` and ``recover`` nodes, path to which network/service certificate will be written to on startup.
-For ``join`` nodes, path to the certificate of the existing network/service to join.
+For ``start`` and ``recover`` nodes, path to which network/service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network/service to join. Default value: ``networkcert.pem``.
 
 ``node_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -210,7 +199,7 @@ This option is particularly useful when binding to port ``0`` and getting auto-a
 Advanced Configuration Options
 ------------------------------
 
-.. warning:: The following configuration options have sensible default options and should only be modified with care.
+.. warning:: The following configuration options have sensible default values and should be modified with care.
 
 ``tick_period_ms``
 ~~~~~~~~~~~~~~~~~~
@@ -236,7 +225,7 @@ Maximum duration (milliseconds) after which unestablished client connections wil
 ``worker_threads``
 ~~~~~~~~~~~~~~~~~~
 
-Experimental. Number of threads processing incoming client requests in the enclave.
+Experimental. Number of additional threads processing incoming client requests in the enclave. Default value: ``0``.
 
 ``memory``
 ~~~~~~~~~~

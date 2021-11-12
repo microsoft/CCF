@@ -40,8 +40,8 @@ def run(args):
             LOG.info("Recovering network from:")
             LOG.info(f" - Common directory: {args.common_dir}")
             LOG.info(f" - Ledger: {args.ledger_dir}")
-            if args.snapshot_dir:
-                LOG.info(f" - Snapshots: {args.snapshot_dir}")
+            if args.snapshots_dir:
+                LOG.info(f" - Snapshots: {args.snapshots_dir}")
             else:
                 LOG.warning(
                     "No available snapshot to recover from. Entire transaction history will be replayed."
@@ -49,7 +49,7 @@ def run(args):
             network.start_in_recovery(
                 args,
                 args.ledger_dir,
-                snapshot_dir=args.snapshot_dir,
+                snapshots_dir=args.snapshots_dir,
                 common_dir=args.common_dir,
             )
             network.recover(args)

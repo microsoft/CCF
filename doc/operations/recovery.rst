@@ -24,7 +24,7 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
 
 Each node will then immediately restore the public entries of its ledger ("ledger.ledger_dir`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``GET /node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
-The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.snapshot_dir`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
+The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.snapshots_dir`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
 
 The state machine for the ``recover`` node is as follows:
 
