@@ -30,6 +30,17 @@ namespace ccf::v8_util
     return to_v8_str(isolate, x.c_str());
   }
 
+  v8::Local<v8::String> to_v8_istr(v8::Isolate* isolate, const char* x) {
+    return v8::String::NewFromUtf8(isolate, x, v8::NewStringType::kInternalized).ToLocalChecked();
+  }
+
+  v8::Local<v8::Value> to_v8_obj(v8::Isolate* isolate, const nlohmann::json& json)
+  {
+    std::string json_str = json.dump();
+    return v8::JSON::Parse(isolate->GetCurrentContext(),
+      to_v8_str(isolate, json_str)).ToLocalChecked(); 
+  }
+
   // Adapted from v8/samples/shell.cc::ReportException.
   void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch) {
     v8::HandleScope handle_scope(isolate);

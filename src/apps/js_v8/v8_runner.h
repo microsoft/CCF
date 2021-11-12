@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#pragma once
 
 #include "v8.h"
 
@@ -8,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <optional>
 
 namespace ccf
@@ -29,8 +31,54 @@ namespace ccf
    * An instance cannot be used from multiple threads.
    */
   class V8Isolate
-  {
+  {   
   public:
+    class TemplateCache
+    {
+    public:
+      explicit TemplateCache(v8::Isolate* isolate);
+
+      // Using strings for keys is not ideal but we need something
+      // that is extensible.
+
+      /**
+       * Return whether a template with the given name is cached.
+       */
+      bool has(const std::string& key);
+
+      /**
+       * Return the template with the given name from the cache.
+       */
+      v8::Local<v8::Template> get(const std::string& name);
+      
+      /**
+       * Add a template to the cache.
+       * 
+       * Once set, a template cannot be changed. This prevents
+       * overriding core templates by plugins.
+       */
+      void set(const std::string& name, v8::Local<v8::Template> value);
+
+    private:
+      v8::Isolate* isolate_;
+      std::unordered_map<std::string, v8::Global<v8::Template>> templates_;
+    };
+
+    // Adapted from v8/src/d8/d8.h::PerIsolateData.
+    class Data
+    {
+    public:
+      explicit Data(v8::Isolate* isolate);
+      ~Data();
+
+      TemplateCache& get_template_cache() { return template_cache_; }
+
+      static Data* Get(v8::Isolate* isolate);
+    private:
+      v8::Isolate* isolate_;
+      TemplateCache template_cache_;
+    };
+
     V8Isolate();
     ~V8Isolate();
 
@@ -48,6 +96,7 @@ namespace ccf
                                          size_t initial_heap_limit);
 
     v8::Isolate* isolate_;
+    std::unique_ptr<Data> data_;
   };
 
   /**

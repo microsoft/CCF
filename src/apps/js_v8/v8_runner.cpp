@@ -75,27 +75,6 @@ namespace ccf
     return os.str();
   }
 
-  // Adapted from v8/src/d8/d8.h::PerIsolateData.
-  // Not used currently, but may be useful in the future.
-  class PerIsolateData {
-  public:
-    explicit PerIsolateData(v8::Isolate* isolate) : isolate_(isolate)
-    {
-      isolate->SetData(0, this);
-    }
-
-    ~PerIsolateData()
-    {
-      isolate_->SetData(0, nullptr);
-    }
-
-    inline static PerIsolateData* Get(v8::Isolate* isolate) {
-      return reinterpret_cast<PerIsolateData*>(isolate->GetData(0));
-    }
-  private:
-    v8::Isolate* isolate_;
-  };
-
   // Adapted from v8/src/d8/d8.cc::ModuleEmbedderData.
   // Per-context Module data, allowing sharing of module maps
   // across top-level module loads.
@@ -193,6 +172,43 @@ namespace ccf
     platform = nullptr;
   }
 
+  V8Isolate::Data::Data(v8::Isolate* isolate) : isolate_(isolate), template_cache_(isolate)
+  {
+    isolate->SetData(0, this);
+  }
+
+  V8Isolate::Data::~Data()
+  {
+    isolate_->SetData(0, nullptr);
+  }
+
+  V8Isolate::TemplateCache::TemplateCache(v8::Isolate* isolate) : isolate_(isolate)
+  {}
+
+  bool V8Isolate::TemplateCache::has(const std::string& name)
+  {
+    return templates_.contains(name);
+  }
+
+  v8::Local<v8::Template> V8Isolate::TemplateCache::get(const std::string& name)
+  {
+    auto it = templates_.find(name);
+    CHECK(it != templates_.end());
+    return it->second.Get(isolate_);
+  }
+
+  void V8Isolate::TemplateCache::set(const std::string& name, v8::Local<v8::Template> value)
+  {
+    auto it = templates_.find(name);
+    CHECK(it == templates_.end());
+    templates_[name].Reset(isolate_, value);
+  }
+
+  V8Isolate::Data* V8Isolate::Data::Get(v8::Isolate* isolate)
+  {
+    return static_cast<V8Isolate::Data*>(isolate->GetData(0));
+  }
+
   V8Isolate::V8Isolate()
   {
     v8::Isolate::CreateParams create_params;
@@ -202,11 +218,13 @@ namespace ccf
     // Note: Out-of-memory also calls the fatal error handler.
     isolate_->SetFatalErrorHandler(V8Isolate::on_fatal_error);
     isolate_->AddNearHeapLimitCallback(V8Isolate::on_near_heap_limit, nullptr);
+    data_ = std::make_unique<V8Isolate::Data>(isolate_);
   }
 
   V8Isolate::~V8Isolate()
   {
     delete isolate_->GetArrayBufferAllocator();
+    data_.release();
     isolate_->Dispose();
   }
 

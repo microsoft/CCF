@@ -405,6 +405,10 @@ if("virtual" IN_LIST COMPILE_TARGETS)
       ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
       ${CCF_DIR}/src/apps/js_v8/v8_util.cpp
       ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/request.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/request_authn_identity.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/request_body.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/string_map.cpp
     )
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)

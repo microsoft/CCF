@@ -54,7 +54,7 @@ namespace ccfapp
   }
 
   template <typename T>
-  constexpr char const* get_policy_name_from_ident(const T*)
+  constexpr char const* get_policy_name_from_ident()
   {
     if constexpr (std::is_same_v<T, ccf::UserCertAuthnIdentity>)
     {

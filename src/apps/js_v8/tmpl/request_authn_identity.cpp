@@ -1,0 +1,305 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+#include "template.h"
+#include "request_authn_identity.h"
+// TODO adjust
+#include "../named_auth_policies.h"
+#include "ccf/base_endpoint_registry.h"
+
+using ccf::endpoints::EndpointContext;
+using ccf::BaseEndpointRegistry;
+
+namespace ccf::v8_tmpl
+{
+  v8::Local<v8::Value> RequestAuthnIdentity::wrap(v8::Local<v8::Context> context, EndpointContext& endpoint_ctx, BaseEndpointRegistry& endpoint_registry)
+  {
+    v8::Isolate* isolate = context->GetIsolate();
+    if (endpoint_ctx.caller == nullptr)
+      return v8::Null(isolate);
+
+    if (auto empty_ident =
+          endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
+    {
+      // Ideally, this should be a template as well.
+      v8::Local<v8::Object> caller = v8::Object::New(isolate);
+      caller->Set(context,
+        v8_util::to_v8_istr(isolate, "policy"),
+        v8_util::to_v8_istr(isolate, ccfapp::get_policy_name_from_ident<ccf::EmptyAuthnIdentity>()));
+      return caller;
+    }
+
+    if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
+      return RequestJwtAuthnIdentity::wrap(context, *jwt_ident);
+    
+    ReadOnlyTx& tx = endpoint_ctx.tx;
+    if (auto user_cert_ident =
+         endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
+      return RequestUserCertAuthnIdentity::wrap(context, *user_cert_ident, endpoint_registry, tx);
+    if (auto member_cert_ident =
+          endpoint_ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
+      return RequestMemberCertAuthnIdentity::wrap(context, *member_cert_ident, endpoint_registry, tx);
+    if (auto user_sig_ident =
+          endpoint_ctx.try_get_caller<ccf::UserSignatureAuthnIdentity>())
+      return RequestUserSignatureAuthnIdentity::wrap(context, *user_sig_ident, endpoint_registry, tx);
+    if (auto member_sig_ident =
+          endpoint_ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+      return RequestMemberSignatureAuthnIdentity::wrap(context, *member_sig_ident, endpoint_registry, tx);
+    LOG_FATAL_FMT("Unknown caller type");
+    return v8::Null(isolate);
+  }
+
+  template<typename T>
+  void set_policy_name(v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> tmpl)
+  {
+    tmpl->Set(
+        isolate, "policy",
+        v8_util::to_v8_istr(
+          isolate,
+          ccfapp::get_policy_name_from_ident<T>())
+        );
+  }
+
+  static ccf::JwtAuthnIdentity* unwrap_jwt_authn_identity(v8::Local<v8::Object> obj)
+  {
+    return static_cast<ccf::JwtAuthnIdentity*>(obj->GetAlignedPointerFromInternalField(0));
+  }
+
+  static void get_jwt_object(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    ccf::JwtAuthnIdentity* jwt_ident = unwrap_jwt_authn_identity(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    
+    // Ideally, this should be a template as well.
+    v8::Local<v8::Object> jwt = v8::Object::New(isolate);
+
+    jwt->Set(context,
+      v8_util::to_v8_istr(isolate, "keyIssuer"),
+      v8_util::to_v8_str(isolate, jwt_ident->key_issuer));
+
+    jwt->Set(context,
+      v8_util::to_v8_istr(isolate, "header"),
+      v8_util::to_v8_obj(isolate, jwt_ident->header));
+
+    jwt->Set(context,
+      v8_util::to_v8_istr(isolate, "payload"),
+      v8_util::to_v8_obj(isolate, jwt_ident->payload));
+
+    info.GetReturnValue().Set(jwt);
+  }
+
+  v8::Local<v8::ObjectTemplate> RequestJwtAuthnIdentity::create_template(v8::Isolate* isolate)
+  {
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
+    
+    // Field 0: ccf::JwtAuthnIdentity
+    tmpl->SetInternalFieldCount(1);
+
+    set_policy_name<ccf::JwtAuthnIdentity>(isolate, tmpl);
+
+    tmpl->SetLazyDataProperty(
+        v8_util::to_v8_istr(isolate, "jwt"),
+        get_jwt_object);
+
+    return handle_scope.Escape(tmpl);
+  }
+
+  v8::Local<v8::Object> RequestJwtAuthnIdentity::wrap(v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity)
+  {
+    v8::Isolate* isolate = context->GetIsolate();
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<RequestJwtAuthnIdentity>(isolate);
+
+    v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
+    result->SetAlignedPointerInInternalField(0, (void*)&identity);
+
+    return handle_scope.Escape(result);
+  }
+
+  template<class> inline constexpr bool dependent_false_v = false;
+
+  template<typename T>
+  static std::string do_get_user_or_member_id(T* ident)
+  {
+    std::string id;
+    if constexpr (std::is_same_v<T, ccf::UserCertAuthnIdentity> || std::is_same_v<T, ccf::UserSignatureAuthnIdentity>)
+      id = ident->user_id;
+    else if constexpr (std::is_same_v<T, ccf::MemberCertAuthnIdentity> || std::is_same_v<T, ccf::MemberSignatureAuthnIdentity>)
+      id = ident->member_id;
+    else
+      static_assert(dependent_false_v<T>, "Unknown type");
+
+    return id;
+  }
+
+  template<typename T>
+  T* unwrap_authn_identity(v8::Local<v8::Object> obj)
+  {
+    return static_cast<T*>(obj->GetAlignedPointerFromInternalField(0));
+  }
+
+  static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(v8::Local<v8::Object> obj)
+  {
+    return static_cast<ccf::BaseEndpointRegistry*>(obj->GetAlignedPointerFromInternalField(1));
+  }
+
+  static ReadOnlyTx* unwrap_tx(v8::Local<v8::Object> obj)
+  {
+    return static_cast<ReadOnlyTx*>(obj->GetAlignedPointerFromInternalField(2));
+  }
+
+  template<typename T>
+  static void get_user_or_member_id(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    T* ident = unwrap_authn_identity<T>(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+    
+    std::string id = do_get_user_or_member_id(ident);
+
+    info.GetReturnValue().Set(v8_util::to_v8_str(isolate, id));
+  }
+
+  template<typename T>
+  static void get_user_or_member_data(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    T* ident = unwrap_authn_identity<T>(info.Holder());
+    BaseEndpointRegistry* endpoint_registry = unwrap_endpoint_registry(info.Holder());
+    ReadOnlyTx* tx = unwrap_tx(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    std::string id = do_get_user_or_member_id(ident);
+  
+    ccf::ApiResult result = ccf::ApiResult::OK;
+    nlohmann::json data = nullptr;
+    if constexpr (std::is_same_v<T, ccf::UserCertAuthnIdentity> || std::is_same_v<T, ccf::UserSignatureAuthnIdentity>)
+      result = endpoint_registry->get_user_data_v1(*tx, id, data);
+    else if constexpr (std::is_same_v<T, ccf::MemberCertAuthnIdentity> || std::is_same_v<T, ccf::MemberSignatureAuthnIdentity>)
+      result = endpoint_registry->get_member_data_v1(*tx, id, data);
+    else
+      static_assert(dependent_false_v<T>, "Unknown type");
+
+    // FIXME this cannot be a C++ exception as this code runs from JS
+    if (result == ccf::ApiResult::InternalError)
+      throw std::logic_error(
+        fmt::format("Failed to get data for caller {}", id));
+
+    info.GetReturnValue().Set(v8_util::to_v8_obj(isolate, data));
+  }
+
+  template<typename T>
+  static void get_user_or_member_cert(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    T* ident = unwrap_authn_identity<T>(info.Holder());
+    BaseEndpointRegistry* endpoint_registry = unwrap_endpoint_registry(info.Holder());
+    ReadOnlyTx* tx = unwrap_tx(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+  
+    std::string id = do_get_user_or_member_id(ident);
+
+    ccf::ApiResult result = ccf::ApiResult::OK;
+    crypto::Pem cert;
+    if constexpr (std::is_same_v<T, ccf::UserCertAuthnIdentity> || std::is_same_v<T, ccf::UserSignatureAuthnIdentity>)
+      result = endpoint_registry->get_user_cert_v1(*tx, id, cert);
+    else if constexpr (std::is_same_v<T, ccf::MemberCertAuthnIdentity> || std::is_same_v<T, ccf::MemberSignatureAuthnIdentity>)
+      result = endpoint_registry->get_member_cert_v1(*tx, id, cert);
+    else
+      static_assert(dependent_false_v<T>, "Unknown type");
+
+    // FIXME this cannot be a C++ exception as this code runs from JS
+    if (result == ccf::ApiResult::InternalError)
+      throw std::logic_error(
+        fmt::format("Failed to get certificate for caller {}", id));
+
+    info.GetReturnValue().Set(v8_util::to_v8_str(isolate, cert.str()));
+  }
+
+  template<typename T>
+  v8::Local<v8::ObjectTemplate> create_cert_or_sig_authn_template(v8::Isolate* isolate)
+  {
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
+    
+    // Field 0: T (AuthnIdent)
+    // Field 1: BaseEndpointRegistry
+    // Field 2: ReadOnlyTx
+    tmpl->SetInternalFieldCount(3);
+
+    set_policy_name<T>(isolate, tmpl);
+
+    tmpl->SetLazyDataProperty(
+        v8_util::to_v8_istr(isolate, "id"),
+        get_user_or_member_id<T>);
+    
+    tmpl->SetLazyDataProperty(
+        v8_util::to_v8_istr(isolate, "data"),
+        get_user_or_member_data<T>);
+    
+    tmpl->SetLazyDataProperty(
+        v8_util::to_v8_istr(isolate, "cert"),
+        get_user_or_member_cert<T>);
+
+    return handle_scope.Escape(tmpl);
+  }
+
+  template<typename T, typename U>
+  v8::Local<v8::Object> wrap_user_or_sig_authn(v8::Local<v8::Context> context, const T& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx)
+  {
+    v8::Isolate* isolate = context->GetIsolate();
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<U>(isolate);
+
+    v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
+    result->SetAlignedPointerInInternalField(0, (void*)&identity);
+    result->SetAlignedPointerInInternalField(1, &endpoint_registry);
+    result->SetAlignedPointerInInternalField(2, &tx);
+
+    return handle_scope.Escape(result);
+  }
+
+  v8::Local<v8::ObjectTemplate> RequestUserCertAuthnIdentity::create_template(v8::Isolate* isolate)
+  {
+    return create_cert_or_sig_authn_template<ccf::UserCertAuthnIdentity>(isolate);
+  }
+
+  v8::Local<v8::Object> RequestUserCertAuthnIdentity::wrap(v8::Local<v8::Context> context, const ccf::UserCertAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx)
+  {
+    return wrap_user_or_sig_authn<ccf::UserCertAuthnIdentity, RequestUserCertAuthnIdentity>(context, identity, endpoint_registry, tx);
+  }
+
+  v8::Local<v8::ObjectTemplate> RequestMemberCertAuthnIdentity::create_template(v8::Isolate* isolate)
+  {
+    return create_cert_or_sig_authn_template<ccf::MemberCertAuthnIdentity>(isolate);
+  }
+
+  v8::Local<v8::Object> RequestMemberCertAuthnIdentity::wrap(v8::Local<v8::Context> context, const ccf::MemberCertAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx)
+  {
+    return wrap_user_or_sig_authn<ccf::MemberCertAuthnIdentity, RequestMemberCertAuthnIdentity>(context, identity, endpoint_registry, tx);
+  }
+
+  v8::Local<v8::ObjectTemplate> RequestUserSignatureAuthnIdentity::create_template(v8::Isolate* isolate)
+  {
+    return create_cert_or_sig_authn_template<ccf::UserSignatureAuthnIdentity>(isolate);
+  }
+
+  v8::Local<v8::Object> RequestUserSignatureAuthnIdentity::wrap(v8::Local<v8::Context> context, const ccf::UserSignatureAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx)
+  {
+    return wrap_user_or_sig_authn<ccf::UserSignatureAuthnIdentity, RequestUserSignatureAuthnIdentity>(context, identity, endpoint_registry, tx);
+  }
+
+  v8::Local<v8::ObjectTemplate> RequestMemberSignatureAuthnIdentity::create_template(v8::Isolate* isolate)
+  {
+    return create_cert_or_sig_authn_template<ccf::MemberSignatureAuthnIdentity>(isolate);
+  }
+
+  v8::Local<v8::Object> RequestMemberSignatureAuthnIdentity::wrap(v8::Local<v8::Context> context, const ccf::MemberSignatureAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx)
+  {
+    return wrap_user_or_sig_authn<ccf::MemberSignatureAuthnIdentity, RequestMemberSignatureAuthnIdentity>(context, identity, endpoint_registry, tx);
+  }
+
+} // namespace ccf::v8_tmpl

@@ -9,10 +9,11 @@
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
 #include "kv/untyped_map.h"
-#include "named_auth_policies.h"
 #include "v8_runner.h"
 #include "v8_util.h"
 #include "kv_module_loader.h"
+#include "tmpl/request.h"
+#include "named_auth_policies.h"
 
 #include <memory>
 #include <stdexcept>
@@ -44,197 +45,6 @@ namespace ccfapp
     ccfapp::AbstractNodeContext& context;
     ::metrics::Tracker metrics_tracker;
 
-    // static Local<Object> create_json_obj(const nlohmann::json& j, Isolate* iso)
-    // {
-    //   const auto buf = j.dump();
-    //   HandleScope scope(iso);
-    //   MaybeLocal<String> result = String::NewFromUtf8(
-    //   iso, buf.c_str(), NewStringType::kNormal, static_cast<int>(buf.size()));
-    //   // TODO: Parse the JSON first
-    //   // In theory, JSON is contained in the ECMAScript standard, and V8 supports
-    //   // it, so in theory, parsing a JSON object structure could "just work"?
-    //   return result;
-    // }
-
-    // Local<Object> create_caller_obj(
-    //   ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
-    // {
-    //   // No callers, return null
-    //   if (endpoint_ctx.caller == nullptr)
-    //   {
-    //     return Null(iso);
-    //   }
-
-    //   // Jwt/Empty identity
-    //   auto caller = Object::New(iso);
-    //   char const* policy_name = nullptr;
-    //   Local<Object> jwt = Null(iso);
-    //   if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
-    //   {
-    //     policy_name = get_policy_name_from_ident(jwt_ident);
-    //     /**
-    //      * TODO: Create structure using ObjectTemplate
-    //      *   jwt {
-    //      *     keyIssuer: StringLen(iso, jwt_ident->key_issuer.data(), ...size())
-    //      *     header: create_json_obj(jwt_ident->header, iso)
-    //      *     payload: create_json_obj(jwt_ident->payload, iso)
-    //      *   }
-    //      */
-    //   }
-    //   else if (
-    //     auto empty_ident =
-    //       endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
-    //   {
-    //     policy_name = get_policy_name_from_ident(empty_ident);
-    //     // jwt here is null
-    //   }
-    //   if (policy_name)
-    //   {
-    //     /**
-    //      * TODO: Create structure using ObjectTemplate
-    //      *   caller {
-    //      *     policy: policy_name
-    //      *     jwt: jwt (if not null)
-    //      *   }
-    //      */
-    //     return caller;
-    //   }
-
-    //   // If not, it has to be {User/Member} x {Cert/Signature} identity
-    //   string id;
-    //   bool is_member = false;
-    //   if (
-    //     auto user_cert_ident =
-    //       endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
-    //   {
-    //     policy_name = get_policy_name_from_ident(user_cert_ident);
-    //     id = user_cert_ident->user_id;
-    //     is_member = false;
-    //   }
-    //   else if (
-    //     auto member_cert_ident =
-    //       endpoint_ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
-    //   {
-    //     policy_name = get_policy_name_from_ident(member_cert_ident);
-    //     id = member_cert_ident->member_id;
-    //     is_member = true;
-    //   }
-    //   else if (
-    //     auto user_sig_ident =
-    //       endpoint_ctx.try_get_caller<ccf::UserSignatureAuthnIdentity>())
-    //   {
-    //     policy_name = get_policy_name_from_ident(user_sig_ident);
-    //     id = user_sig_ident->user_id;
-    //     is_member = false;
-    //   }
-    //   else if (
-    //     auto member_sig_ident =
-    //       endpoint_ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-    //   {
-    //     policy_name = get_policy_name_from_ident(member_sig_ident);
-    //     id = member_sig_ident->member_id;
-    //     is_member = true;
-    //   }
-    //   if (policy_name == nullptr)
-    //   {
-    //     throw std::logic_error("Unable to convert caller info to JS object");
-    //   }
-
-    //   // Retrieve user/member data from authenticated caller id
-    //   nlohmann::json data = nullptr;
-    //   ccf::ApiResult result = ccf::ApiResult::OK;
-    //   if (is_member)
-    //   {
-    //     result = get_member_data_v1(endpoint_ctx.tx, id, data);
-    //   }
-    //   else
-    //   {
-    //     result = get_user_data_v1(endpoint_ctx.tx, id, data);
-    //   }
-    //   if (result == ccf::ApiResult::InternalError)
-    //   {
-    //     throw std::logic_error(
-    //       fmt::format("Failed to get data for caller {}", id));
-    //   }
-
-    //   // Retrieve the certificate
-    //   crypto::Pem cert;
-    //   if (is_member)
-    //   {
-    //     result = get_member_cert_v1(endpoint_ctx.tx, id, cert);
-    //   }
-    //   else
-    //   {
-    //     result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
-    //   }
-    //   if (result == ccf::ApiResult::InternalError)
-    //   {
-    //     throw std::logic_error(
-    //       fmt::format("Failed to get certificate for caller {}", id));
-    //   }
-
-    //   /**
-    //    * TODO: Create structure using ObjectTemplate
-    //    *   caller {
-    //    *     policy: policy_name
-    //    *     id: StringLen(iso, id.data(), id.size())
-    //    *     data: create_json_obj(data, iso)
-    //    *     cert: StringLen(iso, cert.str().data(), cert.size())
-    //    *   }
-    //    */
-    //   return caller;
-    // }
-
-    // Local<Object> create_request_obj(
-    //   ccf::endpoints::EndpointContext& endpoint_ctx, Isolate* iso)
-    // {
-    //   // Request object
-    //   auto request = Object::New(iso);
-
-    //   // Set header list (possibly empty)
-    //   auto headers = Object::New(iso);
-    //   for (auto& [header_name, header_value] :
-    //        endpoint_ctx.rpc_ctx->get_request_headers())
-    //   {
-    //     // JS_SetPropertyStr(
-    //     //   ctx,
-    //     //   headers,
-    //     //   header_name.c_str(),
-    //     //   StringLen(iso, header_value.c_str(), header_value.size()));
-    //   }
-
-    //   const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
-    //   // auto query_str =
-    //   //   StringLen(iso, request_query.c_str(), request_query.size());
-
-    //   auto params = Object::New(iso);
-    //   for (auto& [param_name, param_value] :
-    //        endpoint_ctx.rpc_ctx->get_request_path_params())
-    //   {
-    //     // JS_SetPropertyStr(
-    //     //   ctx,
-    //     //   params,
-    //     //   param_name.c_str(),
-    //     //   StringLen(iso, param_value.c_str(), param_value.size()));
-    //   }
-
-    //   const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
-    //   // auto body = Object::NewClass(iso, js::body_class_id);
-    //   // JS_SetOpaque(body, (void*)&request_body);
-
-    //   /**
-    //    * TODO: Create structure using ObjectTemplate
-    //    *   request {
-    //    *     headers: headers
-    //    *     query: query_str
-    //    *     params: params
-    //    *     body: body
-    //    *     caller: create_caller_obj(endpoint_ctx, ctx)
-    //    *   }
-    //    */
-    //   return request;
-    // }
-
     /// Unpacks the request, load the JavaScript, executes the code
     void do_execute_request(
       const ccf::endpoints::EndpointProperties& props,
@@ -247,7 +57,7 @@ namespace ccfapp
       // For now, create a new isolate for each request.
       // TODO reuse isolate per-thread
       V8Isolate isolate;
-
+      
       // Each request is executed in a new context
       V8Context ctx(isolate);
 
@@ -270,7 +80,11 @@ namespace ccfapp
       v8::HandleScope handle_scope(isolate);
       v8::Local<v8::Context> context = ctx.get_context();
       v8::TryCatch try_catch(isolate);
-      v8::Local<v8::Value> val = ctx.run(props.js_module, props.js_function);
+
+      // Call exported function
+      v8::Local<v8::Value> request = ccf::v8_tmpl::Request::wrap(context, endpoint_ctx, *this);
+      std::vector<v8::Local<v8::Value>> args {request};
+      v8::Local<v8::Value> val = ctx.run(props.js_module, props.js_function, args);
       
       if (val.IsEmpty())
       {
