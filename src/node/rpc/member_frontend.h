@@ -990,13 +990,10 @@ namespace ccf
         {
           // If the proposal failed to apply, we want to discard the tx and not
           // apply its side-effects to the KV state.
-          auto reason = rv.failure.has_value() ? rv.failure->reason : "N/A";
-          auto trace =
-            rv.failure.has_value() ? rv.failure->trace.value_or("N/A") : "N/A";
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("{}\nTrace: {}", reason, trace));
+            fmt::format("{}", rv.failure));
           return;
         }
         else
@@ -1319,13 +1316,10 @@ namespace ccf
         {
           // If the proposal failed to apply, we want to discard the tx and not
           // apply its side-effects to the KV state.
-          auto reason = rv.failure.has_value() ? rv.failure->reason : "N/A";
-          auto trace =
-            rv.failure.has_value() ? rv.failure->trace.value_or("N/A") : "N/A";
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            fmt::format("{}\nTrace: {}", reason, trace));
+            fmt::format("{}", rv.failure));
           return;
         }
         else
