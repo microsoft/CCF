@@ -94,15 +94,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/rollbear/trompeloeil",
-          "commitHash": "08cba57ed7207c8ad5c94fd2a20dc0bfecabe878"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
           "commitHash": "a4aa7a70e8b9a67f378b53264c61bb044a224366"
         }
