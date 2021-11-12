@@ -609,6 +609,72 @@ TEST_CASE("StateCache get store vs get state")
       cache.drop_cached_states(default_handle);
     }
   }
+
+  {
+    INFO("Switching between range store requests and range state requests");
+    {
+      REQUIRE(cache.get_store_range(default_handle, seqno_a, seqno_b).empty());
+      REQUIRE(provide_ledger_entry_range(seqno_a, seqno_b));
+      REQUIRE_FALSE(
+        cache.get_store_range(default_handle, seqno_a, seqno_b).empty());
+
+      REQUIRE(cache.get_state_range(default_handle, seqno_a, seqno_b).empty());
+      REQUIRE(provide_ledger_entry_range(seqno_b + 1, signature_transaction));
+      auto states = cache.get_state_range(default_handle, seqno_a, seqno_b);
+      REQUIRE_FALSE(states.empty());
+      for (auto& state : states)
+      {
+        REQUIRE(state != nullptr);
+        REQUIRE(state->receipt != nullptr);
+      }
+      cache.drop_cached_states(default_handle);
+    }
+
+    {
+      REQUIRE(cache.get_state_range(default_handle, seqno_a, seqno_b).empty());
+      REQUIRE(provide_ledger_entry_range(seqno_a, signature_transaction));
+      auto states = cache.get_state_range(default_handle, seqno_a, seqno_b);
+      REQUIRE_FALSE(states.empty());
+      for (auto& state : states)
+      {
+        REQUIRE(state != nullptr);
+        REQUIRE(state->receipt != nullptr);
+      }
+
+      REQUIRE_FALSE(
+        cache.get_store_range(default_handle, seqno_a, seqno_b).empty());
+
+      states = cache.get_state_range(default_handle, seqno_a, seqno_b);
+      REQUIRE_FALSE(states.empty());
+      for (auto& state : states)
+      {
+        REQUIRE(state != nullptr);
+        REQUIRE(state->receipt != nullptr);
+      }
+      cache.drop_cached_states(default_handle);
+    }
+
+    {
+      REQUIRE(cache
+                .get_store_range(
+                  default_handle, signature_transaction, signature_transaction)
+                .empty());
+      REQUIRE(provide_ledger_entry(signature_transaction));
+      REQUIRE_FALSE(
+        cache
+          .get_store_range(
+            default_handle, signature_transaction, signature_transaction)
+          .empty());
+
+      auto states = cache.get_state_range(
+        default_handle, signature_transaction, signature_transaction);
+      REQUIRE_FALSE(states.empty());
+      const auto& state_sig = states[0];
+      REQUIRE(state_sig != nullptr);
+      REQUIRE(state_sig->receipt != nullptr);
+      cache.drop_cached_states(default_handle);
+    }
+  }
 }
 
 TEST_CASE("StateCache range queries")
@@ -1002,12 +1068,12 @@ TEST_CASE("StateCache concurrent access")
 
       requested.push_back(std::make_pair(range_start, range_end));
 
-      std::vector<ccf::historical::StorePtr> stores;
+      std::vector<ccf::historical::StatePtr> states;
       const auto start_time = Clock::now();
       while (true)
       {
-        stores = cache.get_store_range(handle, range_start, range_end);
-        if (!stores.empty())
+        states = cache.get_state_range(handle, range_start, range_end);
+        if (!states.empty())
         {
           break;
         }
@@ -1034,18 +1100,17 @@ TEST_CASE("StateCache concurrent access")
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
 
-      REQUIRE(stores.size() == range_end - range_start + 1);
-      for (size_t i = 0; i < stores.size(); ++i)
+      REQUIRE(states.size() == range_end - range_start + 1);
+      for (auto& state : states)
       {
-        auto& store = stores[i];
-        REQUIRE(store != nullptr);
-        const auto seqno = store->current_version();
+        REQUIRE(state != nullptr);
+        const auto seqno = state->store->current_version();
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==
           signature_versions.end())
         {
-          validate_business_transaction(store, seqno);
+          validate_business_transaction(state, seqno);
         }
       }
     }
@@ -1130,6 +1195,9 @@ TEST_CASE("StateCache concurrent access")
       }
     }
   };
+
+  // TODO: Fetch both states and stores, to intermingle with-receipt and
+  // without-receipt requests
 
   const auto num_threads = 30;
   std::atomic<size_t> next_handle = 0;

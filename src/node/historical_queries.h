@@ -241,6 +241,7 @@ namespace ccf::historical
           const auto sig = get_signature(new_details->store);
           ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
 
+          // TODO: Iterate over only requested entries
           for (auto seqno = first_requested_seqno; seqno < new_seqno; ++seqno)
           {
             if (tree.in_range(seqno))
@@ -284,13 +285,13 @@ namespace ccf::historical
                 if (tree.in_range(new_seqno))
                 {
                   auto proof = tree.get_proof(new_seqno);
-                  details->receipt = std::make_shared<TxReceipt>(
+                  new_details->receipt = std::make_shared<TxReceipt>(
                     sig->sig,
                     proof.get_root(),
                     proof.get_path(),
                     sig->node,
                     sig->cert);
-                  details->transaction_id = {sig->view, new_seqno};
+                  new_details->transaction_id = {sig->view, new_seqno};
                 }
 
                 // Break here - if this signature doesn't cover us, no later
@@ -327,6 +328,9 @@ namespace ccf::historical
           // signature, request the _next_ seqno to find supporting signature
           if (new_details->receipt == nullptr)
           {
+            // TODO: This isn't just last_requested_seqno! This should be any
+            // end-of-range newly-requested thing, which may require a
+            // supporting signature to be fetched!
             if (
               new_seqno == last_requested_seqno ||
               (supporting_signature.has_value() &&
