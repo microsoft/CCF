@@ -547,7 +547,7 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      // NB: If we want to re-excute on backups, the original command could be
+      // NB: If we want to re-execute on backups, the original command could be
       // propagated from here
       return process_command(ctx, tx);
     }
