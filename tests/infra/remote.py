@@ -552,7 +552,7 @@ class CCFRemote(object):
         ledger_dir=None,
         read_only_ledger_dirs=[],
         snapshots_dir=None,
-        common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes TODO: Fix!
+        common_read_only_ledger_dir=None,
         version=None,
         major_version=None,
         include_addresses=True,  #  TODO: Fix container wrapper!
@@ -623,11 +623,13 @@ class CCFRemote(object):
             else f"{local_node_id}.ledger"
         )
 
+        # Read-only ledger directories
         self.read_only_ledger_dirs = read_only_ledger_dirs or []
         self.read_only_ledger_dirs_names = []
         for d in self.read_only_ledger_dirs:
             self.read_only_ledger_dirs_names.append(os.path.basename(d))
-        self.common_read_only_ledger_dir = common_read_only_ledger_dir
+        if common_read_only_ledger_dir is not None:
+            self.read_only_ledger_dirs_names.append(common_read_only_ledger_dir)
 
         # Snapshots
         self.snapshots_dir = os.path.normpath(snapshots_dir) if snapshots_dir else None
@@ -695,7 +697,7 @@ class CCFRemote(object):
             host_log_level = kwargs.get("host_log_level")
             worker_threads = kwargs.get("worker_threads")
             ledger_chunk_bytes = kwargs.get("ledger_chunk_bytes")
-            san = kwargs.get("san")
+            subject_alt_names = kwargs.get("subject_alt_names")
             snapshot_tx_interval = kwargs.get("snapshot_tx_interval")
             max_open_sessions = kwargs.get("max_open_sessions")
             max_open_sessions_hard = kwargs.get("max_open_sessions_hard")
@@ -753,8 +755,8 @@ class CCFRemote(object):
             if ledger_chunk_bytes:
                 cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
 
-            if san:
-                cmd += [f"--san={s}" for s in san]
+            if subject_alt_names:
+                cmd += [f"--san={s}" for s in subject_alt_names]
 
             if snapshot_tx_interval:
                 cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]

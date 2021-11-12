@@ -7,7 +7,7 @@ from typing import Optional, List
 
 def split_address(addr, default_port=0):
     host, *port = addr.split(":")
-    return host, (port[0] if port else default_port)
+    return host, (int(port[0]) if port else default_port)
 
 
 @dataclass

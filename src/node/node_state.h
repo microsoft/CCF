@@ -94,6 +94,8 @@ namespace ccf
     std::mutex lock;
 
     CurveID curve_id;
+    std::vector<crypto::SubjectAltName> subject_alt_names = {};
+
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
@@ -284,14 +286,13 @@ namespace ccf
       sm.expect(State::initialized);
 
       config = std::move(config_);
-      config.node_certificate.subject_alt_names =
-        get_subject_alternative_names();
+      subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
       self_signed_node_cert = create_self_signed_cert(
         node_sign_kp,
         config.node_certificate.subject_name,
-        config.node_certificate.subject_alt_names,
+        subject_alt_names,
         config.startup_host_time,
         config.node_certificate.initial_validity_period_days);
 
@@ -613,8 +614,7 @@ namespace ccf
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
       join_params.certificate_signing_request = node_sign_kp->create_csr(
-        config.node_certificate.subject_name,
-        config.node_certificate.subject_alt_names);
+        config.node_certificate.subject_name, subject_alt_names);
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -1513,7 +1513,8 @@ namespace ccf
       // specified SANs.
       if (!config.node_certificate.subject_alt_names.empty())
       {
-        return config.node_certificate.subject_alt_names;
+        return crypto::sans_from_string_list(
+          config.node_certificate.subject_alt_names);
       }
       else
       {
@@ -1537,7 +1538,7 @@ namespace ccf
       return create_endorsed_cert(
         node_sign_kp,
         config.node_certificate.subject_name,
-        config.node_certificate.subject_alt_names,
+        subject_alt_names,
         config.startup_host_time,
         validity_period_days,
         network.identity->priv_key,
@@ -1597,8 +1598,7 @@ namespace ccf
 
       create_params.node_id = self;
       create_params.certificate_signing_request = node_sign_kp->create_csr(
-        config.node_certificate.subject_name,
-        config.node_certificate.subject_alt_names);
+        config.node_certificate.subject_name, subject_alt_names);
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;

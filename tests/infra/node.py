@@ -17,6 +17,7 @@ import socket
 import re
 import ipaddress
 import ssl
+import copy
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -103,7 +104,9 @@ class Node:
         self.suspended = False
         self.node_id = None
         self.node_client_host = None
-        self.host = host
+        # Note: Do not modify host argument as it may be passed to multiple
+        # nodes or networks
+        self.host = copy.deepcopy(host)
         self.version = version
         self.major_version = (
             Version(strip_version(self.version)).release[0]
@@ -119,8 +122,8 @@ class Node:
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim
 
-        if isinstance(host, str):
-            self.host = infra.interfaces.HostSpec.from_str(host)
+        if isinstance(self.host, str):
+            self.host = infra.interfaces.HostSpec.from_str(self.host)
 
         for idx, rpc_interface in enumerate(self.host.rpc_interfaces):
             # Main RPC interface determines remote implementation
@@ -310,29 +313,29 @@ class Node:
                 assert (
                     node_host == self.node_host
                 ), f"Unexpected change in node address from {self.node_host} to {node_host}"
-            if self.node_port is None and self.node_port != 0:
-                self.node_port = node_port
+            if self.node_port != 0:
                 assert (
-                    node_port == self.node_port
+                    int(node_port) == self.node_port
                 ), f"Unexpected change in node port from {self.node_port} to {node_port}"
+                self.node_port = node_port
             self.node_port = node_port
 
         rpc_address_file = os.path.join(self.common_dir, self.remote.rpc_addresses_file)
         with open(rpc_address_file, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
             it = [iter(lines)] * 2
-            for (rpc_host, rpc_port), rpc_interface in zip(
-                zip(*it), self.host.rpc_interfaces
-            ):
-                if self.remote_shim != infra.remote_shim.DockerShim:
-                    assert (
-                        rpc_host == rpc_interface.rpc_host
-                    ), f"Unexpected change in RPC address from {rpc_interface.rpc_host} to {rpc_host}"
-                if rpc_interface.rpc_port != 0:
-                    assert (
-                        rpc_port == rpc_interface.rpc_port
-                    ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
-                rpc_interface.rpc_port = int(rpc_port)
+        for (rpc_host, rpc_port), rpc_interface in zip(
+            zip(*it), self.host.rpc_interfaces
+        ):
+            if self.remote_shim != infra.remote_shim.DockerShim:
+                assert (
+                    rpc_host == rpc_interface.rpc_host
+                ), f"Unexpected change in RPC address from {rpc_interface.rpc_host} to {rpc_host}"
+            if rpc_interface.rpc_port != 0:
+                assert (
+                    int(rpc_port) == rpc_interface.rpc_port
+                ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
+            rpc_interface.rpc_port = int(rpc_port)
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -479,12 +482,9 @@ class Node:
             rpc_interface.rpc_host, rpc_interface.rpc_port, **akwargs
         )
 
-    def get_tls_certificate_pem(self, use_public_rpc_host=True):
+    def get_tls_certificate_pem(self):
         return ssl.get_server_certificate(
-            (
-                self.get_public_rpc_host() if use_public_rpc_host else self.rpc_host,
-                self.get_public_rpc_port(),
-            )
+            (self.get_public_rpc_host(), self.get_public_rpc_port())
         )
 
     def suspend(self):

@@ -62,9 +62,11 @@ struct CCFConfig
   struct NodeCertificateInfo
   {
     std::string subject_name = "CN=CCF Node";
-    std::vector<crypto::SubjectAltName> subject_alt_names = {};
+    std::vector<std::string> subject_alt_names = {};
     crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
     size_t initial_validity_period_days = 1;
+
+    bool operator==(const NodeCertificateInfo&) const = default;
   };
   NodeCertificateInfo node_certificate = {};
 
@@ -75,21 +77,22 @@ struct CCFConfig
     size_t jwt_key_refresh_interval_s = 1800;
 
     bool operator==(const Intervals&) const = default;
-    bool operator!=(const Intervals&) const = default;
   };
   Intervals intervals = {};
 };
 
-DECLARE_JSON_TYPE(CCFConfig::NodeCertificateInfo);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo)
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig::NodeCertificateInfo,
   subject_name,
   subject_alt_names,
   curve_id,
   initial_validity_period_days);
 
-DECLARE_JSON_TYPE(CCFConfig::Intervals);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Intervals);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Intervals);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig::Intervals,
   sig_tx_interval,
   sig_ms_interval,
@@ -97,7 +100,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
-DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig, consensus, intervals);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCFConfig, worker_threads, node_certificate, consensus, intervals);
 
 // Enclave configuration
 struct StartupConfig : CCFConfig

@@ -8,7 +8,7 @@
   "node_certificate":
   {
     "subject_name": "CN=CCF Node",
-    "subject_alt_names": [],
+    "subject_alt_names": {{ subject_alt_names|tojson }},
     "curve_id": "secp384r1",
     "initial_validity_period_days": 1
   },
