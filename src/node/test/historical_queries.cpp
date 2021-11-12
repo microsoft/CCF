@@ -1015,35 +1015,72 @@ TEST_CASE("StateCache concurrent access")
   // so 10 seconds for any single entry is surely deadlock
   const auto too_long = std::chrono::seconds(10);
 
+  auto fetch_until_timeout = [&](
+                               const auto& fetch_result,
+                               const auto& check_result,
+                               const auto& error_printer) {
+    const auto start_time = Clock::now();
+    while (true)
+    {
+      fetch_result();
+      if (check_result())
+      {
+        break;
+      }
+
+      if (Clock::now() - start_time > too_long)
+      {
+        error_printer();
+        return false;
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    return true;
+  };
+
+  auto default_error_printer =
+    [&](
+      size_t handle,
+      size_t i,
+      const std::vector<std::string>& previously_requested) {
+      std::cout << fmt::format(
+                     "Thread <{}>, i [{}]: {} - still no answer!",
+                     handle,
+                     i,
+                     previously_requested.back())
+                << std::endl;
+      std::cout << fmt::format(
+                     "I've previously used handle {} to request:", handle)
+                << std::endl;
+      for (const auto& s : previously_requested)
+      {
+        std::cout << "  " << s << std::endl;
+      }
+    };
+
   auto query_random_point = [&](size_t handle) {
+    std::vector<std::string> previously_requested;
     for (size_t i = 0; i < per_thread_queries; ++i)
     {
       const auto target_seqno = random_seqno();
 
+      previously_requested.push_back(fmt::format("Point {}", target_seqno));
+
       ccf::historical::StatePtr state;
-      const auto start_time = Clock::now();
-      while (true)
-      {
+
+      auto fetch_result = [&]() {
         state = cache.get_state_at(handle, target_seqno);
-        if (state != nullptr)
-        {
-          break;
-        }
+      };
+      auto check_result = [&]() { return state != nullptr; };
+      auto error_printer = [&]() {
+        default_error_printer(handle, i, previously_requested);
+      };
 
-        if (Clock::now() - start_time > too_long)
-        {
-          std::cout << fmt::format(
-                         "Thread <{}>, i [{}]: {} - still no answer!",
-                         handle,
-                         i,
-                         target_seqno)
-                    << std::endl;
-          REQUIRE(false);
-        }
+      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
-
+      REQUIRE(state != nullptr);
       if (
         std::find(
           signature_versions.begin(), signature_versions.end(), target_seqno) ==
@@ -1055,7 +1092,7 @@ TEST_CASE("StateCache concurrent access")
   };
 
   auto query_random_range = [&](size_t handle) {
-    std::vector<std::pair<size_t, size_t>> requested;
+    std::vector<std::string> previously_requested;
     for (size_t i = 0; i < per_thread_queries; ++i)
     {
       auto range_start = random_seqno();
@@ -1066,39 +1103,20 @@ TEST_CASE("StateCache concurrent access")
         std::swap(range_start, range_end);
       }
 
-      requested.push_back(std::make_pair(range_start, range_end));
+      previously_requested.push_back(
+        fmt::format("Range {}->{}", range_start, range_end));
 
       std::vector<ccf::historical::StatePtr> states;
-      const auto start_time = Clock::now();
-      while (true)
-      {
+
+      auto fetch_result = [&]() {
         states = cache.get_state_range(handle, range_start, range_end);
-        if (!states.empty())
-        {
-          break;
-        }
+      };
+      auto check_result = [&]() { return !states.empty(); };
+      auto error_printer = [&]() {
+        default_error_printer(handle, i, previously_requested);
+      };
 
-        if (Clock::now() - start_time > too_long)
-        {
-          std::cout << fmt::format(
-                         "Thread <{}>, i [{}]: {}-{} - still no answer!",
-                         handle,
-                         i,
-                         range_start,
-                         range_end)
-                    << std::endl;
-          std::cout << fmt::format(
-                         "I've previously used handle {} to request:", handle)
-                    << std::endl;
-          for (const auto& [a, b] : requested)
-          {
-            std::cout << fmt::format("  {} to {}", a, b) << std::endl;
-          }
-          REQUIRE(false);
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
+      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
 
       REQUIRE(states.size() == range_end - range_start + 1);
       for (auto& state : states)
@@ -1117,7 +1135,7 @@ TEST_CASE("StateCache concurrent access")
   };
 
   auto query_random_sparse_set = [&](size_t handle) {
-    std::vector<ccf::historical::SeqNoCollection> requested;
+    std::vector<std::string> previously_requested;
     for (size_t i = 0; i < per_thread_queries; ++i)
     {
       auto range_start = random_seqno();
@@ -1130,55 +1148,32 @@ TEST_CASE("StateCache concurrent access")
 
       ccf::historical::SeqNoCollection this_request;
       this_request.insert(range_start);
-      for (auto i = range_start; i != range_end; ++i)
+      for (auto j = range_start; j != range_end; ++j)
       {
-        if (i % 3 != 0)
+        if (j % 3 != 0)
         {
-          this_request.insert(i);
+          this_request.insert(j);
         }
       }
       this_request.insert(range_end);
 
-      requested.push_back(this_request);
+      previously_requested.push_back(fmt::format(
+        "{} values between {} and {}",
+        this_request.size(),
+        this_request.front(),
+        this_request.back()));
 
       std::vector<ccf::historical::StorePtr> stores;
-      const auto start_time = Clock::now();
-      while (true)
-      {
+
+      auto fetch_result = [&]() {
         stores = cache.get_stores_for(handle, this_request);
-        if (!stores.empty())
-        {
-          break;
-        }
+      };
+      auto check_result = [&]() { return !stores.empty(); };
+      auto error_printer = [&]() {
+        default_error_printer(handle, i, previously_requested);
+      };
 
-        if (Clock::now() - start_time > too_long)
-        {
-          std::cout << fmt::format(
-                         "Thread <{}>, i [{}]: {} values between {} and {} - "
-                         "still no answer!",
-                         handle,
-                         i,
-                         this_request.size(),
-                         this_request.front(),
-                         this_request.back())
-                    << std::endl;
-          std::cout << fmt::format(
-                         "I've previously used handle {} to request:", handle)
-                    << std::endl;
-          for (const auto& collection : requested)
-          {
-            std::cout << fmt::format(
-                           "  {} values between {} and {}",
-                           collection.size(),
-                           collection.front(),
-                           collection.back())
-                      << std::endl;
-          }
-          REQUIRE(false);
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
+      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
 
       REQUIRE(stores.size() == this_request.size());
       for (auto& store : stores)
