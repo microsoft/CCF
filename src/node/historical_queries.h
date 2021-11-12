@@ -819,6 +819,10 @@ namespace ccf::historical
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) override
     {
+      if (seqnos.empty())
+      {
+        throw std::runtime_error("Cannot request empty range");
+      }
       return get_states_internal(handle, seqnos, seconds_until_expiry, true);
     }
 

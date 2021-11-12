@@ -1037,20 +1037,108 @@ TEST_CASE("StateCache concurrent access")
     }
   };
 
-  // TODO: Add test that queries random sparse queries
+  auto query_random_sparse_set = [&](size_t handle) {
+    std::vector<ccf::historical::SeqNoCollection> requested;
+    for (size_t i = 0; i < per_thread_queries; ++i)
+    {
+      auto range_start = random_seqno();
+      auto range_end = random_seqno();
 
-  const auto num_threads = 20;
+      if (range_start > range_end)
+      {
+        std::swap(range_start, range_end);
+      }
+
+      ccf::historical::SeqNoCollection this_request;
+      this_request.insert(range_start);
+      for (auto i = range_start; i != range_end; ++i)
+      {
+        if (i % 3 != 0)
+        {
+          this_request.insert(i);
+        }
+      }
+      this_request.insert(range_end);
+
+      requested.push_back(this_request);
+
+      std::vector<ccf::historical::StorePtr> stores;
+      const auto start_time = Clock::now();
+      while (true)
+      {
+        stores = cache.get_stores_for(handle, this_request);
+        if (!stores.empty())
+        {
+          break;
+        }
+
+        if (Clock::now() - start_time > too_long)
+        {
+          std::cout << fmt::format(
+                         "Thread <{}>, i [{}]: {} values between {} and {} - "
+                         "still no answer!",
+                         handle,
+                         i,
+                         this_request.size(),
+                         this_request.front(),
+                         this_request.back())
+                    << std::endl;
+          std::cout << fmt::format(
+                         "I've previously used handle {} to request:", handle)
+                    << std::endl;
+          for (const auto& collection : requested)
+          {
+            std::cout << fmt::format(
+                           "  {} values between {} and {}",
+                           collection.size(),
+                           collection.front(),
+                           collection.back())
+                      << std::endl;
+          }
+          REQUIRE(false);
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+
+      REQUIRE(stores.size() == this_request.size());
+      for (auto& store : stores)
+      {
+        REQUIRE(store != nullptr);
+        const auto seqno = store->current_version();
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), seqno) ==
+          signature_versions.end())
+        {
+          validate_business_transaction(store, seqno);
+        }
+      }
+    }
+  };
+
+  const auto num_threads = 30;
   std::atomic<size_t> next_handle = 0;
   std::vector<std::thread> random_queries;
   for (size_t i = 0; i < num_threads; ++i)
   {
-    if (i % 3 == 0)
+    switch (i % 3)
     {
-      random_queries.emplace_back(query_random_range, ++next_handle);
-    }
-    else
-    {
-      random_queries.emplace_back(query_random_point, ++next_handle);
+      case 0:
+      {
+        random_queries.emplace_back(query_random_point, ++next_handle);
+        break;
+      }
+      case 1:
+      {
+        random_queries.emplace_back(query_random_range, ++next_handle);
+        break;
+      }
+      case 2:
+      {
+        random_queries.emplace_back(query_random_sparse_set, ++next_handle);
+        break;
+      }
     }
   }
 
