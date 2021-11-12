@@ -220,6 +220,20 @@ void validate_business_transaction(
   REQUIRE(private_count == 1);
 }
 
+void validate_business_transaction(
+  ccf::historical::StatePtr state, ccf::SeqNo seqno)
+{
+  REQUIRE(state != nullptr);
+  validate_business_transaction(state->store, seqno);
+
+  REQUIRE(state->receipt != nullptr);
+
+  const auto state_txid = state->transaction_id;
+  const auto store_txid = state->store->current_txid();
+  REQUIRE(state_txid.view == store_txid.term);
+  REQUIRE(state_txid.seqno == store_txid.version);
+}
+
 std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   std::shared_ptr<kv::Consensus> c)
 {
@@ -347,7 +361,7 @@ TEST_CASE("StateCache point queries")
     auto state_at_seqno = cache.get_state_at(high_handle, high_seqno);
     REQUIRE(state_at_seqno != nullptr);
 
-    validate_business_transaction(state_at_seqno->store, high_seqno);
+    validate_business_transaction(state_at_seqno, high_seqno);
   }
 
   {
@@ -969,7 +983,7 @@ TEST_CASE("StateCache concurrent access")
           signature_versions.begin(), signature_versions.end(), target_seqno) ==
         signature_versions.end())
       {
-        validate_business_transaction(state->store, target_seqno);
+        validate_business_transaction(state, target_seqno);
       }
     }
   };
@@ -1219,7 +1233,7 @@ TEST_CASE("Recover historical ledger secrets")
     auto historical_state = cache.get_state_at(default_handle, third_seqno);
     REQUIRE(historical_state != nullptr);
 
-    validate_business_transaction(historical_state->store, third_seqno);
+    validate_business_transaction(historical_state, third_seqno);
   }
 
   {
@@ -1246,7 +1260,7 @@ TEST_CASE("Recover historical ledger secrets")
     auto historical_state = cache.get_state_at(default_handle, second_seqno);
     REQUIRE(historical_state != nullptr);
 
-    validate_business_transaction(historical_state->store, second_seqno);
+    validate_business_transaction(historical_state, second_seqno);
   }
 
   {
@@ -1267,6 +1281,6 @@ TEST_CASE("Recover historical ledger secrets")
     auto historical_state = cache.get_state_at(default_handle, first_seqno);
     REQUIRE(historical_state != nullptr);
 
-    validate_business_transaction(historical_state->store, first_seqno);
+    validate_business_transaction(historical_state, first_seqno);
   }
 }
