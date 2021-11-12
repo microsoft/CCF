@@ -201,12 +201,22 @@ namespace ccf::historical
         if (should_include_receipts)
         {
           const auto last_details = get_store_details(last_requested_seqno);
-          if (last_details->store != nullptr && !last_details->is_signature)
+          if (last_details->store != nullptr)
           {
-            const auto next_seqno = last_requested_seqno + 1;
-            supporting_signature =
-              std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-            newly_requested.insert(next_seqno);
+            if (!last_details->is_signature)
+            {
+              const auto next_seqno = last_requested_seqno + 1;
+              supporting_signature =
+                std::make_pair(next_seqno, std::make_shared<StoreDetails>());
+              newly_requested.insert(next_seqno);
+            }
+            else
+            {
+              // last_requested _is_ a signature, use it to fill in receipts
+              // for others (which may have been fetched, but not had receipts
+              // filled, by a previous request)
+              populate_receipts(last_requested_seqno);
+            }
           }
         }
 
