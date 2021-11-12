@@ -1060,122 +1060,8 @@ TEST_CASE("StateCache concurrent access")
       }
     };
 
-  auto query_random_point = [&](size_t handle) {
-    std::vector<std::string> previously_requested;
-    for (size_t i = 0; i < per_thread_queries; ++i)
-    {
-      const auto target_seqno = random_seqno();
-
-      previously_requested.push_back(fmt::format("Point {}", target_seqno));
-
-      ccf::historical::StatePtr state;
-
-      auto fetch_result = [&]() {
-        state = cache.get_state_at(handle, target_seqno);
-      };
-      auto check_result = [&]() { return state != nullptr; };
-      auto error_printer = [&]() {
-        default_error_printer(handle, i, previously_requested);
-      };
-
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-
-      REQUIRE(state != nullptr);
-      if (
-        std::find(
-          signature_versions.begin(), signature_versions.end(), target_seqno) ==
-        signature_versions.end())
-      {
-        validate_business_transaction(state, target_seqno);
-      }
-    }
-  };
-
-  auto query_random_range = [&](size_t handle) {
-    std::vector<std::string> previously_requested;
-    for (size_t i = 0; i < per_thread_queries; ++i)
-    {
-      auto range_start = random_seqno();
-      auto range_end = random_seqno();
-
-      if (range_start > range_end)
-      {
-        std::swap(range_start, range_end);
-      }
-
-      previously_requested.push_back(
-        fmt::format("Range {}->{}", range_start, range_end));
-
-      std::vector<ccf::historical::StatePtr> states;
-
-      auto fetch_result = [&]() {
-        states = cache.get_state_range(handle, range_start, range_end);
-      };
-      auto check_result = [&]() { return !states.empty(); };
-      auto error_printer = [&]() {
-        default_error_printer(handle, i, previously_requested);
-      };
-
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-
-      REQUIRE(states.size() == range_end - range_start + 1);
-      for (auto& state : states)
-      {
-        REQUIRE(state != nullptr);
-        const auto seqno = state->store->current_version();
-        if (
-          std::find(
-            signature_versions.begin(), signature_versions.end(), seqno) ==
-          signature_versions.end())
-        {
-          validate_business_transaction(state, seqno);
-        }
-      }
-    }
-  };
-
-  auto query_random_sparse_set = [&](size_t handle) {
-    std::vector<std::string> previously_requested;
-    for (size_t i = 0; i < per_thread_queries; ++i)
-    {
-      auto range_start = random_seqno();
-      auto range_end = random_seqno();
-
-      if (range_start > range_end)
-      {
-        std::swap(range_start, range_end);
-      }
-
-      ccf::historical::SeqNoCollection this_request;
-      this_request.insert(range_start);
-      for (auto j = range_start; j != range_end; ++j)
-      {
-        if (j % 3 != 0)
-        {
-          this_request.insert(j);
-        }
-      }
-      this_request.insert(range_end);
-
-      previously_requested.push_back(fmt::format(
-        "{} values between {} and {}",
-        this_request.size(),
-        this_request.front(),
-        this_request.back()));
-
-      std::vector<ccf::historical::StorePtr> stores;
-
-      auto fetch_result = [&]() {
-        stores = cache.get_stores_for(handle, this_request);
-      };
-      auto check_result = [&]() { return !stores.empty(); };
-      auto error_printer = [&]() {
-        default_error_printer(handle, i, previously_requested);
-      };
-
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-
-      REQUIRE(stores.size() == this_request.size());
+  auto validate_all_stores =
+    [&](const std::vector<ccf::historical::StorePtr>& stores) {
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
@@ -1188,6 +1074,152 @@ TEST_CASE("StateCache concurrent access")
           validate_business_transaction(store, seqno);
         }
       }
+    };
+
+  auto validate_all_states =
+    [&](const std::vector<ccf::historical::StatePtr>& states) {
+      for (auto& state : states)
+      {
+        REQUIRE(state != nullptr);
+        const auto seqno = state->store->current_version();
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), seqno) ==
+          signature_versions.end())
+        {
+          validate_business_transaction(state, seqno);
+        }
+      }
+    };
+
+  auto query_random_point = [&](
+                              size_t handle,
+                              const auto& error_printer,
+                              std::vector<std::string>& previously_requested) {
+    const auto target_seqno = random_seqno();
+
+    previously_requested.push_back(fmt::format("Point {}", target_seqno));
+
+    ccf::historical::StatePtr state;
+
+    auto fetch_result = [&]() {
+      state = cache.get_state_at(handle, target_seqno);
+    };
+    auto check_result = [&]() { return state != nullptr; };
+
+    REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+
+    REQUIRE(state != nullptr);
+    validate_all_states({state});
+  };
+
+  auto query_random_range = [&](
+                              size_t handle,
+                              const auto& error_printer,
+                              std::vector<std::string>& previously_requested) {
+    auto range_start = random_seqno();
+    auto range_end = random_seqno();
+
+    if (range_start > range_end)
+    {
+      std::swap(range_start, range_end);
+    }
+
+    previously_requested.push_back(
+      fmt::format("Range {}->{}", range_start, range_end));
+
+    std::vector<ccf::historical::StatePtr> states;
+
+    auto fetch_result = [&]() {
+      states = cache.get_state_range(handle, range_start, range_end);
+    };
+    auto check_result = [&]() { return !states.empty(); };
+
+    REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+
+    REQUIRE(states.size() == range_end - range_start + 1);
+    validate_all_states(states);
+  };
+
+  auto query_random_sparse_set =
+    [&](
+      size_t handle,
+      const auto& error_printer,
+      std::vector<std::string>& previously_requested) {
+      auto range_start = random_seqno();
+      auto range_end = random_seqno();
+
+      if (range_start > range_end)
+      {
+        std::swap(range_start, range_end);
+      }
+
+      ccf::historical::SeqNoCollection this_request;
+      this_request.insert(range_start);
+      for (auto i = range_start; i != range_end; ++i)
+      {
+        if (i % 3 != 0)
+        {
+          this_request.insert(i);
+        }
+      }
+      this_request.insert(range_end);
+
+      std::vector<std::string> range_descriptions;
+      for (const auto& [from, additional] : this_request.get_ranges())
+      {
+        range_descriptions.push_back(
+          fmt::format("{}->{}", from, from + additional));
+      }
+      previously_requested.push_back(fmt::format(
+        "{} values: [{}]",
+        this_request.size(),
+        fmt::join(range_descriptions, ", ")));
+
+      std::vector<ccf::historical::StorePtr> stores;
+
+      auto fetch_result = [&]() {
+        stores = cache.get_stores_for(handle, this_request);
+      };
+      auto check_result = [&]() { return !stores.empty(); };
+
+      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+
+      REQUIRE(stores.size() == this_request.size());
+      validate_all_stores(stores);
+    };
+
+  auto run_n_queries = [&](size_t handle) {
+    std::vector<std::string> previously_requested;
+    for (size_t i = 0; i < per_thread_queries; ++i)
+    {
+      auto error_printer = [&]() {
+        default_error_printer(handle, i, previously_requested);
+      };
+
+      const auto query_kind = rand() % 3;
+      switch (query_kind)
+      {
+        case 0:
+        {
+          query_random_point(handle, error_printer, previously_requested);
+          break;
+        }
+        case 1:
+        {
+          query_random_range(handle, error_printer, previously_requested);
+          break;
+        }
+        case 2:
+        {
+          query_random_sparse_set(handle, error_printer, previously_requested);
+          break;
+        }
+        default:
+        {
+          throw std::logic_error("Oops, miscounted!");
+        }
+      }
     }
   };
 
@@ -1195,28 +1227,10 @@ TEST_CASE("StateCache concurrent access")
   // without-receipt requests
 
   const auto num_threads = 30;
-  std::atomic<size_t> next_handle = 0;
   std::vector<std::thread> random_queries;
   for (size_t i = 0; i < num_threads; ++i)
   {
-    switch (i % 3)
-    {
-      case 0:
-      {
-        random_queries.emplace_back(query_random_point, ++next_handle);
-        break;
-      }
-      case 1:
-      {
-        random_queries.emplace_back(query_random_range, ++next_handle);
-        break;
-      }
-      case 2:
-      {
-        random_queries.emplace_back(query_random_sparse_set, ++next_handle);
-        break;
-      }
-    }
+    random_queries.emplace_back(run_n_queries, i);
   }
 
   for (auto& thread : random_queries)
