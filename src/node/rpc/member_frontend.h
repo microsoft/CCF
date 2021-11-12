@@ -986,14 +986,17 @@ namespace ccf
           ctx.rpc_ctx->get_request_body(),
           constitution.value());
 
-        ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
         if (rv.state == ProposalState::FAILED)
         {
           // If the proposal failed to apply, we want to discard the tx and not
           // apply its side-effects to the KV state.
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          auto reason = rv.failure.has_value() ? rv.failure->reason : "N/A";
+          auto trace =
+            rv.failure.has_value() ? rv.failure->trace.value_or("N/A") : "N/A";
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("{}\nTrace: {}", reason, trace));
           return;
         }
         else
@@ -1006,6 +1009,9 @@ namespace ccf
              {},
              std::nullopt,
              rv.failure});
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
         }
@@ -1309,14 +1315,17 @@ namespace ccf
 
         auto rv = resolve_proposal(
           ctx.tx, proposal_id, p.value(), constitution.value());
-        ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
         if (rv.state == ProposalState::FAILED)
         {
           // If the proposal failed to apply, we want to discard the tx and not
           // apply its side-effects to the KV state.
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          auto reason = rv.failure.has_value() ? rv.failure->reason : "N/A";
+          auto trace =
+            rv.failure.has_value() ? rv.failure->trace.value_or("N/A") : "N/A";
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("{}\nTrace: {}", reason, trace));
           return;
         }
         else
@@ -1326,6 +1335,9 @@ namespace ccf
           pi_.value().vote_failures = rv.vote_failures;
           pi_.value().failure = rv.failure;
           pi->put(proposal_id, pi_.value());
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
         }

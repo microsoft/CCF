@@ -184,7 +184,9 @@ def recovery_shares_scenario(args):
             test_remove_member(network, args, recovery_member=True)
             assert False, "Removing a recovery member should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.FAILED
+            assert (
+                e.proposal.state == infra.proposal.ProposalState.FAILED
+            ), e.proposal.__dict__
 
         # However, removing a non-recovery member is allowed
         LOG.info("Removing a non-recovery member is still possible")

@@ -509,9 +509,9 @@ def test_apply(network, args):
             proposal(action("always_throw_in_apply")),
         )
         assert r.status_code == 500, r.body.text()
-        assert r.body.json()["state"] == "Failed", r.body.json()
+        assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
         assert (
-            r.body.json()["failure"]["reason"]
+            r.body.json()["error"]["message"].split("\n")[0]
             == "Failed to apply(): Error: Error message"
         ), r.body.json()
 
@@ -530,9 +530,9 @@ def test_apply(network, args):
 
         with node.client(None, "member1") as c:
             r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot_yes)
-            assert r.body.json()["state"] == "Failed", r.body.json()
+            assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
             assert (
-                r.body.json()["failure"]["reason"]
+                r.body.json()["error"]["message"].split("\n")[0]
                 == "Failed to apply(): Error: Error message"
             ), r.body.json()
 
@@ -542,9 +542,9 @@ def test_apply(network, args):
             proposal(action("always_throw_in_resolve")),
         )
         assert r.status_code == 500, r.body.text()
-        assert r.body.json()["state"] == "Failed", r.body.json()
+        assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
         assert (
-            r.body.json()["failure"]["reason"]
+            r.body.json()["error"]["message"].split("\n")[0]
             == "Failed to resolve(): Error: Resolve message"
         ), r.body.json()
 

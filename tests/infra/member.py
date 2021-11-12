@@ -11,6 +11,7 @@ import os
 import base64
 import json
 from typing import NamedTuple, Optional
+import pprint
 
 from loguru import logger as LOG
 
@@ -149,6 +150,7 @@ class Member:
                 f"/gov/proposals/{proposal.proposal_id}/ballots",
                 body=ballot,
             )
+            pprint.pprint(r)
 
         return r
 
