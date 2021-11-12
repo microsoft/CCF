@@ -10,7 +10,6 @@ The configuration for each CCF node must be contained in a single JSON configura
 
 
 - IP/DNS.
-- raft_timeout -> cft_timeout
 
 
 Configuration Options
@@ -153,8 +152,8 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported in production. Default value: ``CFT``.
-- ``raft_timeout_ms``: Hearbeat interval (ms) at which primary node sends messages to backup nodes to maintain primary-ship. This should be set to a significantly lower value than ``raft_election_timeout_ms``. Default value: ``100`` ms.
-- ``raft_election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4000`` ms.
+- ``timeout_ms``: Hearbeat interval (ms) at which primary node sends messages to backup nodes to maintain primary-ship. This should be set to a significantly lower value than ``election_timeout_ms``. Default value: ``100`` ms.
+- ``election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4000`` ms.
 
 ``intervals``
 ~~~~~~~~~~~~~

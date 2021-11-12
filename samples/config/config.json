@@ -51,8 +51,8 @@
   },
   "consensus": {
     "type": "CFT",
-    "raft_timeout_ms": 100,
-    "raft_election_timeout_ms": 4000
+    "timeout_ms": 100,
+    "election_timeout_ms": 4000
   },
   "intervals": {
     "sig_tx_interval": 5000,

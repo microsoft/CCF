@@ -11,8 +11,8 @@ namespace consensus
   struct Configuration
   {
     ConsensusType type = ConsensusType::CFT;
-    size_t raft_timeout_ms;
-    size_t raft_election_timeout_ms;
+    size_t timeout_ms;
+    size_t election_timeout_ms;
 
     bool operator==(const Configuration&) const = default;
     bool operator!=(const Configuration&) const = default;
@@ -20,7 +20,7 @@ namespace consensus
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    Configuration, type, raft_timeout_ms, raft_election_timeout_ms);
+    Configuration, type, timeout_ms, election_timeout_ms);
 
 #pragma pack(push, 1)
   template <typename T>

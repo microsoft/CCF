@@ -686,7 +686,7 @@ class CCFRemote(object):
                 cmd += ["recover"]
         else:
             consensus = kwargs.get("consensus")
-            raft_election_timeout_ms = kwargs.get("raft_election_timeout_ms")
+            election_timeout_ms = kwargs.get("election_timeout_ms")
             rpc_host = kwargs.get("rpc_address_hostname")
             rpc_port = kwargs.get("rpc_address_port")
             pub_host = kwargs.get("public_rpc_address_hostname")
@@ -726,7 +726,7 @@ class CCFRemote(object):
                 f"--snapshot-dir={self.snapshot_dir_name}",
                 f"--node-cert-file={self.pem}",
                 f"--host-log-level={host_log_level}",
-                f"--raft-election-timeout-ms={raft_election_timeout_ms}",
+                f"--raft-election-timeout-ms={election_timeout_ms}",
                 f"--consensus={consensus}",
                 f"--worker-threads={worker_threads}",
             ]

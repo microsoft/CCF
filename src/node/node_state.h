@@ -1949,7 +1949,7 @@ namespace ccf
       auto request_tracker = std::make_shared<aft::RequestTracker>();
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
         tracker_store,
-        std::chrono::milliseconds(consensus_config.raft_election_timeout_ms));
+        std::chrono::milliseconds(consensus_config.election_timeout_ms));
       auto shared_state = std::make_shared<aft::State>(self);
 
       auto resharing_tracker = nullptr;
@@ -1986,9 +1986,9 @@ namespace ccf
         std::move(view_change_tracker),
         std::move(resharing_tracker),
         node_client,
-        std::chrono::milliseconds(consensus_config.raft_timeout_ms),
-        std::chrono::milliseconds(consensus_config.raft_election_timeout_ms),
-        std::chrono::milliseconds(consensus_config.raft_election_timeout_ms),
+        std::chrono::milliseconds(consensus_config.timeout_ms),
+        std::chrono::milliseconds(consensus_config.election_timeout_ms),
+        std::chrono::milliseconds(consensus_config.election_timeout_ms),
         sig_tx_interval,
         public_only,
         initial_state,

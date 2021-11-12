@@ -46,8 +46,8 @@
   "consensus":
   {
     "type": "CFT",
-    "raft_timeout_ms": {{ raft_timeout_ms or 100 }},
-    "raft_election_timeout_ms": {{ raft_election_timeout_ms }}
+    "timeout_ms": {{ timeout_ms or 100 }},
+    "election_timeout_ms": {{ election_timeout_ms }}
   },
   "intervals":
   {

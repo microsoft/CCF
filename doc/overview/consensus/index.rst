@@ -14,8 +14,8 @@ The crash fault tolerant implementation in CCF is based on Raft. You can find mo
 
 CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
-- ``consensus.raft_timeout_ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.raft_election_timeout_ms``.
-- ``consensus.raft_election_timeout_ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
+- ``consensus.timeout_ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.election_timeout_ms``.
+- ``consensus.election_timeout_ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
 BFT Consensus Protocol
 ----------------------
