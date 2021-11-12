@@ -457,6 +457,7 @@ class Network:
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
+        committed_ledger_dirs = committed_ledger_dirs or []
         ledger_dirs = [ledger_dir, *committed_ledger_dirs]
 
         primary = self._start_all_nodes(
