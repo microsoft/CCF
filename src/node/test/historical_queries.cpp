@@ -1253,7 +1253,9 @@ TEST_CASE("StateCache concurrent access")
     }
   };
 
-  const auto num_threads = 3;
+  srand(time(NULL));
+
+  const auto num_threads = 30;
   std::vector<std::thread> random_queries;
   for (size_t i = 0; i < num_threads; ++i)
   {
