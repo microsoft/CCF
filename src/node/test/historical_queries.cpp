@@ -1200,7 +1200,7 @@ TEST_CASE("StateCache concurrent access")
             std::swap(range_start, range_end);
           }
           previously_requested.push_back(
-            fmt::format("Range {}->{} [()]", range_start, range_end, ss));
+            fmt::format("Range {}->{} [{}]", range_start, range_end, ss));
           if (store_or_state)
           {
             query_random_range_stores(
@@ -1255,7 +1255,7 @@ TEST_CASE("StateCache concurrent access")
 
   srand(time(NULL));
 
-  const auto num_threads = 30;
+  const auto num_threads = 3;
   std::vector<std::thread> random_queries;
   for (size_t i = 0; i < num_threads; ++i)
   {
