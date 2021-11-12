@@ -1186,7 +1186,7 @@ TEST_CASE("StateCache concurrent access")
           }
           else
           {
-            query_random_point_store(target_seqno, handle, error_printer);
+            query_random_point_state(target_seqno, handle, error_printer);
           }
           break;
         }
