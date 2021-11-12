@@ -62,13 +62,8 @@ int main(int argc, char** argv)
   app.require_subcommand(1, 1);
 
   auto start = app.add_subcommand("start", "Start new network");
-  start->configurable();
-
   auto join = app.add_subcommand("join", "Join existing network");
-  join->configurable();
-
   auto recover = app.add_subcommand("recover", "Recover crashed network");
-  recover->configurable();
 
   try
   {
@@ -79,9 +74,14 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
+  LOG_INFO_FMT("Version: {}", ccf::ccf_version);
+
   std::string config_str = files::slurp_string(config_file_path);
   CCHostConfig config = nlohmann::json::parse(config_str);
   LOG_INFO_FMT("Configuration: {}", config_str);
+
+  LOG_FAIL_FMT(
+    "{}", config.network.rpc_interfaces[0].max_open_sessions_soft.has_value());
 
   // set json log formatter to write to std::out
   if (config.logging.log_format_json)
@@ -91,8 +91,6 @@ int main(int argc, char** argv)
 
   // TODO: Set default public RPC address if none is set!
   // TODO: Set mosh option is none is set!
-
-  LOG_INFO_FMT("Version: {}", ccf::ccf_version);
 
   uint32_t oe_flags = 0;
   size_t recovery_threshold = 0;

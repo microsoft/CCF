@@ -186,7 +186,7 @@ struct CCHostConfig : CCFConfig
 
   std::string network_certificate_file = "networkcert.pem";
 
-  // Address files
+  // Addresses files
   std::string node_address_file = "";
   std::string rpc_addresses_file = "";
 

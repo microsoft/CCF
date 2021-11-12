@@ -269,7 +269,7 @@ class Node:
             print("")
             print(
                 "================= Please run the below command on "
-                + self.rpc_host
+                + self.get_public_rpc_host()
                 + " and press enter to continue ================="
             )
             print("")
