@@ -655,19 +655,16 @@ TEST_CASE("StateCache get store vs get state")
     }
 
     {
-      REQUIRE(cache
-                .get_store_range(
-                  default_handle, seqno_a, signature_transaction)
-                .empty());
+      REQUIRE(
+        cache.get_store_range(default_handle, seqno_a, signature_transaction)
+          .empty());
       REQUIRE(provide_ledger_entry_range(seqno_a, signature_transaction));
       REQUIRE_FALSE(
-        cache
-          .get_store_range(
-            default_handle, seqno_a, signature_transaction)
+        cache.get_store_range(default_handle, seqno_a, signature_transaction)
           .empty());
 
-      auto states = cache.get_state_range(
-        default_handle, seqno_a, signature_transaction);
+      auto states =
+        cache.get_state_range(default_handle, seqno_a, signature_transaction);
       REQUIRE_FALSE(states.empty());
       for (auto& state : states)
       {
@@ -1010,7 +1007,7 @@ TEST_CASE("StateCache concurrent access")
     }
   });
 
-  constexpr auto per_thread_queries = 20;
+  constexpr auto per_thread_queries = 30;
 
   using Clock = std::chrono::system_clock;
   // Add a watchdog timeout. Even in Debug+SAN this entire test takes <3 secs,
@@ -1163,6 +1160,21 @@ TEST_CASE("StateCache concurrent access")
       validate_all_stores(stores);
     };
 
+  auto query_random_sparse_set_states =
+    [&](
+      const ccf::historical::SeqNoCollection& seqnos,
+      size_t handle,
+      const auto& error_printer) {
+      std::vector<ccf::historical::StatePtr> states;
+      auto fetch_result = [&]() {
+        states = cache.get_states_for(handle, seqnos);
+      };
+      auto check_result = [&]() { return !states.empty(); };
+      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+      REQUIRE(states.size() == seqnos.size());
+      validate_all_states(states);
+    };
+
   auto run_n_queries = [&](size_t handle) {
     std::vector<std::string> previously_requested;
     for (size_t i = 0; i < per_thread_queries; ++i)
@@ -1243,8 +1255,14 @@ TEST_CASE("StateCache concurrent access")
           previously_requested.push_back(fmt::format(
             "Ranges {} [{}]", fmt::join(range_descriptions, ", "), ss));
 
-          // TODO: query_random_sparse_set_states
-          query_random_sparse_set_stores(seqnos, handle, error_printer);
+          if (store_or_state)
+          {
+            query_random_sparse_set_stores(seqnos, handle, error_printer);
+          }
+          else
+          {
+            query_random_sparse_set_states(seqnos, handle, error_printer);
+          }
           break;
         }
         default:
