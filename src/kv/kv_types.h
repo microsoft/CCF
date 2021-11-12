@@ -123,6 +123,22 @@ namespace kv
     ni.port = p;
   }
 
+  inline std::string schema_name(const Configuration::NodeInfo&)
+  {
+    return "Configuration__NodeInfo";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, const Configuration::NodeInfo&)
+  {
+    schema["type"] = "object";
+    schema["required"] = nlohmann::json::array();
+    schema["required"].push_back("address");
+    schema["properties"] = nlohmann::json::object();
+    schema["properties"]["address"] = nlohmann::json::object();
+    schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
+  }
+
   enum class ReplicaState
   {
     Leader,

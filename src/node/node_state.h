@@ -1981,7 +1981,7 @@ namespace ccf
         node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
-        std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
+        std::chrono::milliseconds(consensus_config.raft_election_timeout),
         sig_tx_interval,
         public_only,
         initial_state,
@@ -2050,8 +2050,9 @@ namespace ccf
     void read_ledger_idx(consensus::Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_get,
+        consensus::ledger_get_range,
         to_host,
+        idx,
         idx,
         consensus::LedgerRequestPurpose::Recovery);
     }

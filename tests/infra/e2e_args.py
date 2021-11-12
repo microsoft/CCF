@@ -208,12 +208,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=4000,
     )
     parser.add_argument(
-        "--bft-view-change-timeout-ms",
-        help="bft maximum view change timeout for each node in the network",
-        type=int,
-        default=5000,
-    )
-    parser.add_argument(
         "--consensus",
         help="Consensus",
         default="cft",
