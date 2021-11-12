@@ -403,7 +403,8 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      splitid_test ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/splitid/test/splitid.cpp
+      splitid_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/splitid/test/splitid.cpp
     )
     target_compile_options(splitid_test PUBLIC -fno-omit-frame-pointer)
 

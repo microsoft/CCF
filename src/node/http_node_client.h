@@ -7,7 +7,6 @@
 #include "node/node_client.h"
 
 #include <chrono>
-
 #include <optional>
 
 namespace ccf
