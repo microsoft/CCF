@@ -80,17 +80,11 @@ int main(int argc, char** argv)
   CCHostConfig config = nlohmann::json::parse(config_str);
   LOG_INFO_FMT("Configuration: {}", config_str);
 
-  LOG_FAIL_FMT(
-    "{}", config.network.rpc_interfaces[0].max_open_sessions_soft.has_value());
-
   // set json log formatter to write to std::out
   if (config.logging.log_format_json)
   {
     logger::config::initialize_with_json_console();
   }
-
-  // TODO: Set default public RPC address if none is set!
-  // TODO: Set mosh option is none is set!
 
   uint32_t oe_flags = 0;
   size_t recovery_threshold = 0;
@@ -283,7 +277,14 @@ int main(int argc, char** argv)
       rpc_addresses += fmt::format(
         "{}\n{}\n", interface.rpc_address.hostname, interface.rpc_address.port);
 
-      if (interface.public_rpc_address.port == "0")
+      // If public RPC address is not set, default to local RPC address
+      if (interface.public_rpc_address.hostname.empty())
+      {
+        interface.public_rpc_address.hostname = interface.rpc_address.hostname;
+      }
+      if (
+        interface.public_rpc_address.port.empty() ||
+        interface.public_rpc_address.port == "0")
       {
         interface.public_rpc_address.port = interface.rpc_address.port;
       }

@@ -58,12 +58,12 @@ namespace ccf
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::NetAddress);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetAddress, hostname, port);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::RpcAddresses);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfoNetwork_v2::RpcAddresses, rpc_address, public_rpc_address);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::RpcAddresses, rpc_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
     NodeInfoNetwork_v2::RpcAddresses,
     max_open_sessions_soft,
-    max_open_sessions_hard);
+    max_open_sessions_hard,
+    public_rpc_address);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_address, rpc_interfaces);
