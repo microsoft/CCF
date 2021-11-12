@@ -27,10 +27,10 @@ def bench(
     session_ids = []
     LOG.info(f"Submitting {num_signatures} signing requests...")
     msg_bytes_string = base64.b64encode(msg).decode("ascii")
+    time_before = time()
     for _ in range(num_signatures):
-        timeout_before = time()
-        while time() < timeout_before + retry_timeout:
-            with primary.client(timeout=60) as c:
+        while time() < time_before + retry_timeout:
+            with primary.client() as c:
                 res = c.post(
                     "/node/splitid/sign",
                     {"message": msg_bytes_string, "defensive": defensive, "app_id": 0},
@@ -44,17 +44,16 @@ def bench(
                     sleep(0.1)
 
     signatures = []
-    timeout_before = time()
+    time_before = time()
     LOG.info(f"Collecting {num_signatures} signing responses...")
-    while time() < timeout_before + retry_timeout and session_ids:
+    while time() < time_before + retry_timeout and session_ids:
         have_result = []
         for session_id in session_ids:
-            with primary.client(timeout=60) as c:
+            with primary.client() as c:
                 res = c.post(
                     "/node/splitid/get-signature",
                     {"session_id": session_id},
-                    # log_capture=[],
-                    timeout=60,
+                    # log_capture=[],                    
                 )
                 if res.status_code == http.HTTPStatus.OK.value:                    
                     sig = res.body.json()["signature"]
