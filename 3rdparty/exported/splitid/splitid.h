@@ -2363,7 +2363,7 @@ namespace SplitIdentity
     virtual bool submit_resharing_resharing(
       uint64_t session_id,
       const EncryptedResharing& encrypted_reshare) const = 0;
-    virtual bool complete_resharing(uint64_t session_id) const = 0;
+    virtual bool submit_complete_resharing(uint64_t session_id) const = 0;
   };
 
   template <typename NID>
@@ -2942,7 +2942,7 @@ namespace SplitIdentity
         // The first node in the config saves the result.
         if (s.config.front() == nid)
         {
-          r = request_adapter->complete_resharing(id);
+          r = request_adapter->submit_complete_resharing(id);
         }
 
         if (r)

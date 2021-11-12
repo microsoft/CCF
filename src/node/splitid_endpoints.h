@@ -316,6 +316,14 @@ namespace ccf
             "A sampling or resharing session is in progress");
         }
 
+        if (rtracker->active_config().nodes.empty())
+        {
+          return make_error(
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
+            ccf::errors::InternalError,
+            "The current configuration is empty");
+        }
+
         SigningSession<ccf::NodeId> ns(
           rtracker->active_config().to_vector(),
           in.message,

@@ -831,7 +831,7 @@ public:
       nid, encrypted_resharing);
     return true;
   }
-  virtual bool complete_resharing(uint64_t session_id) const override
+  virtual bool submit_complete_resharing(uint64_t session_id) const override
   {
     return true;
   }

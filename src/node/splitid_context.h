@@ -324,6 +324,13 @@ namespace ccf
 
     virtual ~CCFRequestAdapter() {}
 
+    struct RPCResult
+    {
+      bool have_response = false;
+      bool request_succeeded = false;
+      std::vector<uint8_t> response_body;
+    };
+
     template <typename T>
     bool submit_rpc(const std::string url, const T& in) const
     {
@@ -334,51 +341,38 @@ namespace ccf
 
       auto body = serdes::pack(in, serdes::Pack::Text);
 
-      std::shared_ptr<bool> have_response = nullptr;
-      std::shared_ptr<bool> request_succeeded = nullptr;
+      std::shared_ptr<RPCResult> rpc_result = nullptr;
 
       threading::retry_until(
-        [nc = node_client,
-         req,
-         body,
-         have_response,
-         request_succeeded]() mutable {
+        [nc = node_client, req, body, rpc_result]() mutable {
           req->set_body(&body);
-          if (have_response == nullptr)
+          if (rpc_result == nullptr)
           {
-            // Submit request
             LOG_TRACE_FMT("SPLITID: submit request");
-            have_response = std::make_shared<bool>(false);
-            request_succeeded = std::make_shared<bool>(false);
-            auto submitted = nc->make_request(
-              *req, [have_response, request_succeeded](auto status, auto r) {
-                LOG_TRACE_FMT("SPLITID: client done, status={}", status);
-                *have_response = true;
-                *request_succeeded = status;
-                return true;
-              });
+            rpc_result = std::make_shared<RPCResult>();
+            nc->make_request(*req, [rpc_result](auto status, auto r) {
+              LOG_TRACE_FMT("SPLITID: client done, status={}", status);
+              rpc_result->have_response = true;
+              rpc_result->request_succeeded = status;
+              rpc_result->response_body = r;
+              return true;
+            });
             return false;
           }
-          else if (*have_response)
+          else if (rpc_result->have_response)
           {
             LOG_TRACE_FMT("SPLITID: have response");
-            if (*request_succeeded)
+            if (!rpc_result->request_succeeded)
             {
-              return true;
-            }
-            else
-            {
-              LOG_TRACE_FMT("SPLITID: failed; resubmit");
-              // Done, but query failed; resubmit.
-              have_response = nullptr;
-              request_succeeded = nullptr;
+              LOG_TRACE_FMT("SPLITID: query failed; resubmitting");
+              rpc_result = nullptr;
               return false;
             }
+            return true;
           }
           else
           {
             LOG_TRACE_FMT("SPLITID: checked; keep waiting");
-            // Keep waiting
             return false;
           }
         },
@@ -403,34 +397,23 @@ namespace ccf
       return submit_rpc("splitid/sample", in);
     }
 
-    virtual bool submit_sampling_deal(
-      uint64_t session_id, const EncryptedDeal& encrypted_deal) const override
-    {
-      SamplingDealRPC::In in = {session_id, encrypted_deal};
-      return submit_rpc("splitid/sampling/deal", in);
-    }
+#define IRPC(NAME, ARGTYPE, RPCTYPE, URL) \
+  virtual bool submit_##NAME(uint64_t session_id, const ARGTYPE& arg) \
+    const override \
+  { \
+    RPCTYPE::In in = {session_id, arg}; \
+    return submit_rpc(URL, in); \
+  }
 
-    virtual bool submit_sampling_resharing(
-      uint64_t session_id,
-      const EncryptedResharing& encrypted_resharing) const override
-    {
-      SamplingReshareRPC::In in = {session_id, encrypted_resharing};
-      return submit_rpc("splitid/sampling/resharing", in);
-    }
-
-    virtual bool submit_open_key(
-      uint64_t session_id, const OpenKey& open_key) const override
-    {
-      OpenKeyRPC::In in = {session_id, open_key};
-      return submit_rpc("splitid/sampling/open_key", in);
-    }
-
-    virtual bool submit_identity(
-      uint64_t session_id, const Identity& identity) const override
-    {
-      UpdateIdentityRPC::In in = {session_id, identity};
-      return submit_rpc("splitid/update-identity", in);
-    }
+    IRPC(
+      sampling_deal, EncryptedDeal, SamplingDealRPC, "splitid/sampling/deal");
+    IRPC(
+      sampling_resharing,
+      EncryptedResharing,
+      SamplingReshareRPC,
+      "splitid/sampling/resharing");
+    IRPC(open_key, OpenKey, OpenKeyRPC, "splitid/sampling/open_key");
+    IRPC(identity, Identity, UpdateIdentityRPC, "splitid/update-identity");
 
     virtual uint64_t sign(
       const std::vector<ccf::NodeId>& config,
@@ -442,33 +425,18 @@ namespace ccf
       return submit_rpc("splitid/sign", in);
     }
 
-    virtual bool submit_signing_deal(
-      uint64_t session_id, const EncryptedDeal& encrypted_deal) const override
-    {
-      SigningDealRPC::In in = {session_id, encrypted_deal};
-      return submit_rpc("splitid/signing/deal", in);
-    }
-
-    virtual bool submit_openk(
-      uint64_t session_id, const OpenK& openk) const override
-    {
-      OpenKRPC::In in = {session_id, openk};
-      return submit_rpc("splitid/signing/openk", in);
-    }
-
-    virtual bool submit_signature_share(
-      uint64_t session_id, const SignatureShare& signature_share) const override
-    {
-      SignatureShareRPC::In in = {session_id, signature_share};
-      return submit_rpc("splitid/signing/signature_share", in);
-    }
-
-    virtual bool submit_signature(
-      uint64_t session_id, const std::vector<uint8_t>& signature) const override
-    {
-      SignatureRPC::In in = {session_id, signature};
-      return submit_rpc("splitid/signing/signature", in);
-    }
+    IRPC(signing_deal, EncryptedDeal, SigningDealRPC, "splitid/signing/deal");
+    IRPC(openk, OpenK, OpenKRPC, "splitid/signing/openk");
+    IRPC(
+      signature_share,
+      SignatureShare,
+      SignatureShareRPC,
+      "splitid/signing/signature_share");
+    IRPC(
+      signature,
+      std::vector<uint8_t>,
+      SignatureRPC,
+      "splitid/signing/signature");
 
     virtual uint64_t reshare(
       const Identity& current_identity,
@@ -481,22 +449,18 @@ namespace ccf
       return submit_rpc("splitid/reshare", in);
     }
 
-    virtual bool submit_resharing_deal(
-      uint64_t session_id, const EncryptedDeal& encrypted_deal) const override
-    {
-      ResharingDealRPC::In in = {session_id, encrypted_deal};
-      return submit_rpc("splitid/resharing/deal", in);
-    }
+    IRPC(
+      resharing_deal,
+      EncryptedDeal,
+      ResharingDealRPC,
+      "splitid/resharing/deal");
+    IRPC(
+      resharing_resharing,
+      EncryptedResharing,
+      ResharingReshareRPC,
+      "splitid/resharing/reshare");
 
-    virtual bool submit_resharing_resharing(
-      uint64_t session_id,
-      const EncryptedResharing& encrypted_resharing) const override
-    {
-      ResharingReshareRPC::In in = {session_id, encrypted_resharing};
-      return submit_rpc("splitid/resharing/reshare", in);
-    }
-
-    virtual bool complete_resharing(uint64_t session_id) const override
+    virtual bool submit_complete_resharing(uint64_t session_id) const override
     {
       CompleteResharingRPC::In in = {session_id, false};
       return submit_rpc("splitid/resharing/complete", in);
