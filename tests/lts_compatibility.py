@@ -424,9 +424,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 snapshot_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
-                ledger_dir, committed_ledger_dir = primary.get_ledger(
-                    include_read_only_dirs=True
-                )
+                ledger_dir, committed_ledger_dir = primary.get_ledger()
                 network.stop_all_nodes(skip_verification=True)
 
                 # Check that ledger and snapshots can be parsed
