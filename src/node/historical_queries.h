@@ -187,8 +187,8 @@ namespace ccf::historical
         }
 
         requested_stores = std::move(new_stores);
-        first_requested_seqno = new_seqnos.first();
-        last_requested_seqno = new_seqnos.last();
+        first_requested_seqno = new_seqnos.front();
+        last_requested_seqno = new_seqnos.back();
 
         // If the final entry in the new range is known and not a signature,
         // then we may need a subsequent signature to support it (or an
@@ -217,7 +217,7 @@ namespace ccf::historical
         requested_seqnos = new_seqnos;
         include_receipts = should_include_receipts;
 
-        return newly_requested;
+        return SeqNoCollection(newly_requested.begin(), newly_requested.end());
       }
 
       enum class PopulateReceiptsResult
@@ -575,7 +575,7 @@ namespace ccf::historical
       }
 
       SeqNoCollection c;
-      for (auto seqno = start_seqno; seqno < end_seqno; ++seqno)
+      for (auto seqno = start_seqno; seqno <= end_seqno; ++seqno)
       {
         // TODO: Add a range insert, this is way too slow!
         c.insert(seqno);
