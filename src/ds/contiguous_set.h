@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <numeric>
 #include <vector>
 
 namespace ds
@@ -120,12 +121,15 @@ namespace ds
 
     size_t size() const
     {
-      size_t n = 0;
-      for (const auto& [_, additional] : ranges)
-      {
-        n += 1 + additional;
-      }
-      return n;
+      return std::accumulate(
+        ranges.begin(), ranges.end(), 0u, [](size_t n, const Range& r) {
+          return n + r.second + 1;
+        });
+    }
+
+    bool empty() const
+    {
+      return ranges.empty();
     }
 
     bool insert(const T& t)
