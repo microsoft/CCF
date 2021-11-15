@@ -197,11 +197,6 @@ namespace aft
 
     void emit_signature() override {}
 
-    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
-    {
-      return aft->on_request(args);
-    }
-
     ConsensusType type() override
     {
       return consensus_type;

@@ -515,45 +515,6 @@ void add_callers_bft_store()
   CHECK(gen_tx.commit() == kv::CommitResult::SUCCESS);
 }
 
-TEST_CASE("process_bft")
-{
-  add_callers_bft_store();
-  TestUserFrontend frontend(*bft_network.tables);
-  auto simple_call = create_simple_request();
-
-  const nlohmann::json call_body = {{"foo", "bar"}, {"baz", 42}};
-  const auto serialized_body = serdes::pack(call_body, default_pack);
-  simple_call.set_body(&serialized_body);
-
-  kv::TxHistory::RequestID rid = {1, 1};
-
-  const auto serialized_call = simple_call.build_request();
-  aft::Request request = {
-    rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
-
-  auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, user_caller_der);
-  auto ctx = enclave::make_rpc_context(session, request.raw);
-  ctx->execute_on_node = true;
-  const auto prescribed_commit_version =
-    bft_network.tables->current_version() + 1;
-  const auto max_conflict_version = kv::NoVersion;
-  const auto replicated_view = ccf::VIEW_UNKNOWN;
-  frontend.process_bft(
-    ctx, prescribed_commit_version, max_conflict_version, replicated_view);
-
-  auto tx = bft_network.tables->create_tx();
-  auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-  auto request_value = aft_requests->get();
-  REQUIRE(request_value.has_value());
-
-  aft::Request deserialised_req = request_value.value();
-
-  REQUIRE(deserialised_req.caller_cert == user_caller_der);
-  REQUIRE(deserialised_req.raw == serialized_call);
-  REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
-}
-
 TEST_CASE("SignedReq to and from json")
 {
   SignedReq sr;
