@@ -29,3 +29,10 @@ cd ..
 rm -rf lldb-mi
 
 echo " + All done"
+
+# https://github.com/microsoft/vscode-cpptools/issues/5415#issuecomment-662603085
+echo "IMPORTANT:"
+echo "For some reason VS Code expects /usr/bin/lldb-server-10.0.0"
+echo "instead of /usr/bin/lldb-server-10."
+echo "Run the following to create a symlink:"
+echo "sudo ln -s /usr/bin/lldb-server-10 /usr/bin/lldb-server-10.0.0"
