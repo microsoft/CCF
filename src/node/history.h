@@ -182,15 +182,6 @@ namespace ccf
 
     void try_emit_signature() override {}
 
-    bool add_request(
-      kv::TxHistory::RequestID,
-      const std::vector<uint8_t>&,
-      const std::vector<uint8_t>&,
-      uint8_t) override
-    {
-      return true;
-    }
-
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return crypto::Sha256Hash(std::to_string(version));
@@ -323,34 +314,8 @@ namespace ccf
         ccf::Tables::SERIALISED_MERKLE_TREE);
       crypto::Sha256Hash root = history.get_replicated_state_root();
 
-      Nonce hashed_nonce;
       std::vector<uint8_t> primary_sig;
       auto consensus = store.get_consensus();
-      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-      {
-        auto progress_tracker = store.get_progress_tracker();
-        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-        auto r = progress_tracker->record_primary(
-          txid, id, true, root, primary_sig, hashed_nonce);
-        if (r != kv::TxHistory::Result::OK)
-        {
-          throw ccf::ccf_logic_error(fmt::format(
-            "Expected success when primary added signature to the "
-            "progress "
-            "tracker. r:{}, view:{}, seqno:{}",
-            r,
-            txid.term,
-            txid.version));
-        }
-
-        // The nonce is generated in progress_racker->record_primary so it must
-        // exist.
-        hashed_nonce = progress_tracker->get_node_hashed_nonce(txid).value();
-      }
-      else
-      {
-        hashed_nonce.h.fill(0);
-      }
 
       primary_sig = kp.sign_hash(root.h.data(), root.h.size());
 
@@ -361,16 +326,9 @@ namespace ccf
         commit_txid.version,
         commit_txid.term,
         root,
-        hashed_nonce,
+        {}, // Nonce is currently empty
         primary_sig,
         endorsed_cert);
-
-      if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
-      {
-        auto progress_tracker = store.get_progress_tracker();
-        CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-        progress_tracker->record_primary_signature(txid, primary_sig);
-      }
 
       signatures->put(sig_value);
       serialised_tree->put(
@@ -681,17 +639,6 @@ namespace ccf
 
       kv::TxHistory::Result result = kv::TxHistory::Result::OK;
 
-      auto progress_tracker = store.get_progress_tracker();
-      CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
-      result = progress_tracker->record_primary(
-        {sig.view, sig.seqno},
-        sig.node,
-        false,
-        sig.root,
-        sig.sig,
-        sig.hashed_nonce,
-        config);
-
       sig.node = id;
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
 
@@ -844,23 +791,6 @@ namespace ccf
       std::lock_guard<std::mutex> guard(state_lock);
       auto leaf = replicated_state_tree.get_leaf(index);
       return {leaf.h.begin(), leaf.h.end()};
-    }
-
-    bool add_request(
-      kv::TxHistory::RequestID id,
-      const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request,
-      uint8_t frame_format) override
-    {
-      LOG_DEBUG_FMT("HISTORY: add_request {0}", id);
-
-      auto consensus = store.get_consensus();
-      if (!consensus)
-      {
-        return false;
-      }
-
-      return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
     void append(const std::vector<uint8_t>& data) override

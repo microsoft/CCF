@@ -25,7 +25,6 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
@@ -126,8 +125,6 @@ namespace ccf
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
 
     std::shared_ptr<kv::TxHistory> history;
-    std::shared_ptr<ccf::ProgressTracker> progress_tracker;
-    std::shared_ptr<ccf::ProgressTrackerStoreAdapter> tracker_store;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     ShareManager& share_manager;
@@ -314,7 +311,6 @@ namespace ccf
 #endif
 
       setup_history();
-      setup_progress_tracker();
       setup_snapshotter();
       setup_encryptor();
 
@@ -947,11 +943,6 @@ namespace ccf
       if (h)
       {
         h->set_node_id(self);
-      }
-
-      if (progress_tracker != nullptr)
-      {
-        progress_tracker->set_node_id(self);
       }
 
       auto service_config = tx.ro(network.config)->get();
@@ -1946,10 +1937,6 @@ namespace ccf
       setup_n2n_channels(endorsed_node_certificate_);
       setup_cmd_forwarder();
 
-      auto request_tracker = std::make_shared<aft::RequestTracker>();
-      auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
-        tracker_store,
-        std::chrono::milliseconds(consensus_config.election_timeout_ms));
       auto shared_state = std::make_shared<aft::State>(self);
 
       auto resharing_tracker = nullptr;
@@ -1981,9 +1968,6 @@ namespace ccf
         rpcsessions,
         rpc_map,
         shared_state,
-        std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
-        request_tracker,
-        std::move(view_change_tracker),
         std::move(resharing_tracker),
         node_client,
         std::chrono::milliseconds(consensus_config.timeout_ms),
@@ -1998,7 +1982,6 @@ namespace ccf
         std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
-      cmd_forwarder->set_request_tracker(request_tracker);
 
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
@@ -2045,22 +2028,6 @@ namespace ccf
       setup_basic_hooks();
     }
 
-    void setup_progress_tracker()
-    {
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        if (progress_tracker)
-        {
-          throw std::logic_error("Progress tracker already initialised");
-        }
-
-        setup_tracker_store();
-        progress_tracker =
-          std::make_shared<ccf::ProgressTracker>(tracker_store, self);
-        network.tables->set_progress_tracker(progress_tracker);
-      }
-    }
-
     void setup_snapshotter()
     {
       if (snapshotter)
@@ -2069,15 +2036,6 @@ namespace ccf
       }
       snapshotter = std::make_shared<Snapshotter>(
         writer_factory, network.tables, config.snapshot_tx_interval);
-    }
-
-    void setup_tracker_store()
-    {
-      if (tracker_store == nullptr)
-      {
-        tracker_store = std::make_shared<ccf::ProgressTrackerStoreAdapter>(
-          *network.tables.get(), *node_sign_kp);
-      }
     }
 
     void read_ledger_idx(consensus::Index idx)

@@ -10,7 +10,6 @@
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 #include "mbedtls/ecdsa.h"
-#include "node/progress_tracker.h"
 
 #include <array>
 #include <chrono>
@@ -44,7 +43,6 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) = 0;
-    virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
   };
 
   template <typename T>
@@ -81,16 +79,6 @@ namespace aft
       {
         p->initialise_term(t);
       }
-    }
-
-    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->get_progress_tracker();
-      }
-      return nullptr;
     }
 
     std::unique_ptr<kv::AbstractExecutionWrapper> apply(

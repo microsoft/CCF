@@ -97,9 +97,6 @@ void keep_earliest_append_entries_for_each_target(
     std::make_shared<aft::State>(node_id##N), \
     nullptr, \
     nullptr, \
-    nullptr, \
-    nullptr, \
-    nullptr, \
     request_timeout, \
     election_timeout, \
     election_timeout); \
