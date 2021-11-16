@@ -89,7 +89,7 @@ def test_quote(network, args):
             assert (
                 infra.proc.ccall(
                     "verify_quote.sh",
-                    f"https://{primary.pubhost}:{primary.pubport}",
+                    f"https://{primary.get_public_rpchost()}:{primary.get_public_rpc_port()}",
                     "--cacert",
                     f"{cafile}",
                     log_output=True,
@@ -165,7 +165,7 @@ def test_node_ids(network, args):
     nodes = network.find_nodes()
     for node in nodes:
         with node.client() as c:
-            r = c.get(f"/node/network/nodes?host={node.pubhost}&port={node.pubport}")
+            r = c.get(f"/node/network/nodes?host={node.get_public_rpc_host()}&port={node.get_public_rpc_port()}")
             assert r.status_code == http.HTTPStatus.OK.value
             info = r.body.json()["nodes"]
             assert len(info) == 1
@@ -187,7 +187,7 @@ def test_invalid_client_signature(network, args):
 
     def post_proposal_request_raw(node, headers=None, expected_error_msg=None):
         r = requests.post(
-            f"https://{node.pubhost}:{node.pubport}/gov/proposals",
+            f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/gov/proposals",
             headers=headers,
             verify=os.path.join(node.common_dir, "networkcert.pem"),
         ).json()

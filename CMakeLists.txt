@@ -535,7 +535,7 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/src/apps/batched
-      --raft-election-timeout-ms
+      --election-timeout-ms
       10000 # Larger election timeout as recording large JS applications may
             # trigger leadership changes
   )
@@ -545,7 +545,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --raft-election-timeout-ms 10000 # Larger election timeout as recording
+      --election-timeout-ms 10000 # Larger election timeout as recording
                                        # large JS applications may trigger
                                        # leadership changes
   )

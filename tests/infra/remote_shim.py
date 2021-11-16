@@ -65,7 +65,7 @@ class DockerShim(infra.remote.CCFRemote):
         except docker.errors.NotFound:
             pass
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, host=[], **kwargs):
         self.docker_client = docker.DockerClient()
         self.container_ip = None  # Assigned when container is started
 
@@ -142,9 +142,9 @@ class DockerShim(infra.remote.CCFRemote):
             self.docker_client.images.pull(image_name)
 
         # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
-        kwargs["rpc_host"] = "0.0.0.0"
+        host.rpc_interfaces[0].rpc_host = "0.0.0.0"
         kwargs["include_addresses"] = False
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, host=host, **kwargs)
 
         self.command = f'./{NODE_STARTUP_WRAPPER_SCRIPT} "{self.remote.get_cmd(include_dir=False)}"'
 

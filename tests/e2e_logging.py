@@ -83,7 +83,7 @@ def test_illegal(network, args, verify=True):
         conn = context.wrap_socket(
             sock, server_side=False, server_hostname=primary.get_public_rpc_host()
         )
-        conn.connect((primary.get_public_rpc_host(), primary.pubport))
+        conn.connect((primary.get_public_rpc_host(), primary.get_public_rpc_port()))
         LOG.info(f"Sending: {content}")
         conn.sendall(content)
         response = HTTPResponse(conn)
@@ -1084,7 +1084,7 @@ def test_primary(network, args):
         assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
-            == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
+            == f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}/node/primary"
         )
     return network
 
@@ -1104,7 +1104,7 @@ def test_network_node_info(network, args):
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
             assert node["host"] == n.get_public_rpc_host()
-            assert node["port"] == str(n.pubport)
+            assert node["port"] == str(n.get_public_rpc_port())
             assert node["primary"] == (n == primary)
             del nodes_by_id[n.node_id]
 
@@ -1119,7 +1119,7 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             assert (
                 r.headers["location"]
-                == f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{node.node_id}"
+                == f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/node/network/nodes/{node.node_id}"
             ), r.headers["location"]
 
             # Following that redirect gets you the node info
@@ -1128,7 +1128,7 @@ def test_network_node_info(network, args):
             body = r.body.json()
             assert body["node_id"] == node.node_id
             assert body["host"] == node.get_public_rpc_host()
-            assert body["port"] == str(node.pubport)
+            assert body["port"] == str(node.get_public_rpc_port())
             assert body["primary"] == (node == primary)
 
             node_infos[node.node_id] = body
@@ -1141,7 +1141,7 @@ def test_network_node_info(network, args):
                 assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
                 assert (
                     r.headers["location"]
-                    == f"https://{primary.get_public_rpc_host()}:{primary.pubport}/node/primary"
+                    == f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}/node/primary"
                 ), r.headers["location"]
                 r = c.head("/node/primary", allow_redirects=True)
 
@@ -1151,7 +1151,7 @@ def test_network_node_info(network, args):
             r = c.get("/node/network/nodes/primary", allow_redirects=False)
             assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
             actual = r.headers["location"]
-            expected = f"https://{node.get_public_rpc_host()}:{node.pubport}/node/network/nodes/{primary.node_id}"
+            expected = f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/node/network/nodes/{primary.node_id}"
             assert actual == expected, f"{actual} != {expected}"
 
             # Following that redirect gets you the primary's node info
@@ -1342,14 +1342,14 @@ def run(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
     cr.add(
         "cpp",
