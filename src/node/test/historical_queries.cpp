@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#define OVERRIDE_MAX_HISTORY_LEN 4
+
 #include "node/historical_queries.h"
 
 #include "crypto/rsa_key_pair.h"
@@ -164,6 +166,15 @@ kv::Version write_transactions_and_signature(
   write_transactions(kv_store, tx_count);
 
   kv_store.get_history()->emit_signature();
+
+  auto consensus =
+    dynamic_cast<kv::test::StubConsensus*>(kv_store.get_consensus().get());
+  REQUIRE(consensus != nullptr);
+  REQUIRE(consensus->get_committed_seqno() == kv_store.current_version());
+
+  consensus->set_last_signature_at(kv_store.current_version());
+
+  kv_store.compact(kv_store.current_version());
 
   return kv_store.current_version();
 }

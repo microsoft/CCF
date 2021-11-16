@@ -23,8 +23,10 @@ namespace kv::test
   private:
     std::vector<BatchVector::value_type> replica;
     ConsensusType consensus_type;
-    ccf::TxID committed_txid;
-    ccf::View current_view;
+    ccf::TxID committed_txid = {};
+    ccf::View current_view = 0;
+
+    ccf::SeqNo last_signature = 0;
 
   public:
     aft::ViewHistory view_history;
@@ -103,7 +105,7 @@ namespace kv::test
       SignableTxIndices r;
       r.term = txid.first;
       r.version = txid.second;
-      r.previous_version = 0;
+      r.previous_version = last_signature;
       return r;
     }
 
@@ -213,6 +215,11 @@ namespace kv::test
     ConsensusType type() override
     {
       return consensus_type;
+    }
+
+    void set_last_signature_at(ccf::SeqNo seqno)
+    {
+      last_signature = seqno;
     }
   };
 
