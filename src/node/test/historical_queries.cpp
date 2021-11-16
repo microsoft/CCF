@@ -1229,6 +1229,7 @@ TEST_CASE("StateCache concurrent access")
         }
         case 2:
         {
+          break;
           // Fetch a sparse set of ranges
           auto range_start = random_seqno();
           auto range_end = random_seqno();
@@ -1273,19 +1274,39 @@ TEST_CASE("StateCache concurrent access")
     }
   };
 
-  srand(time(NULL));
-
-  const auto num_threads = 30;
-  std::vector<std::thread> random_queries;
-  for (size_t i = 0; i < num_threads; ++i)
   {
-    random_queries.emplace_back(run_n_queries, i);
+    // Explicitly test some problematic cases
+    std::vector<std::string> previously_requested;
+    const auto i = 0;
+    const auto handle = 42;
+    auto error_printer = [&]() {
+      default_error_printer(handle, i, previously_requested);
+    };
+
+    previously_requested.push_back("A");
+    query_random_range_states(1007, 1011, handle, error_printer);
+
+    ccf::historical::SeqNoCollection seqnos;
+    seqnos.insert(3);
+    seqnos.insert(1007);
+    seqnos.insert(1011);
+    previously_requested.push_back("B");
+    query_random_sparse_set_states(seqnos, handle, error_printer);
   }
 
-  for (auto& thread : random_queries)
-  {
-    thread.join();
-  }
+  // srand(time(NULL));
+
+  // const auto num_threads = 30;
+  // std::vector<std::thread> random_queries;
+  // for (size_t i = 0; i < num_threads; ++i)
+  // {
+  //   random_queries.emplace_back(run_n_queries, i);
+  // }
+
+  // for (auto& thread : random_queries)
+  // {
+  //   thread.join();
+  // }
 
   finished = true;
   host_thread.join();
