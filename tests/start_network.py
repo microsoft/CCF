@@ -14,7 +14,7 @@ DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 def run(args):
     hosts = args.node or DEFAULT_NODES
-    hosts = [infra.interfaces.from_str(node) for node in hosts]
+    hosts = [infra.interfaces.HostSpec.from_str(node) for node in hosts]
 
     if not args.verbose:
         LOG.remove()
@@ -75,7 +75,9 @@ def run(args):
         for node in nodes:
             LOG.info(
                 "  Node [{}] = https://{}:{}".format(
-                    pad_node_id(node.local_node_id), node.pubhost, node.pubport
+                    pad_node_id(node.local_node_id),
+                    node.get_public_rpc_host(),
+                    node.get_public_rpc_port(),
                 )
             )
 

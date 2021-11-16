@@ -556,6 +556,7 @@ class CCFRemote(object):
         version=None,
         major_version=None,
         include_addresses=True,  #  TODO: Fix container wrapper!
+        config_file=None,
         **kwargs,
     ):
         """
@@ -602,7 +603,13 @@ class CCFRemote(object):
         )
 
         # Configuration file
-        if major_version is None or major_version > 1:
+        if config_file:
+            LOG.info(
+                f"Node {self.local_node_id}: Using configuration file {config_file}"
+            )
+
+        elif major_version is None or major_version > 1:
+            # TODO: Fix!
             loader = FileSystemLoader("../tests")
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template("config.jinja")
@@ -815,7 +822,7 @@ class CCFRemote(object):
 
         self.remote = remote_class(
             self.name,
-            kwargs.get("public_rpc_address_hostname"),
+            self.pub_rpc_host,
             exe_files,
             data_files,
             cmd,

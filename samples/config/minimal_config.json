@@ -4,11 +4,16 @@
   "network": {
     "node_address": { "hostname": "127.0.0.1", "port": "0" },
     "rpc_interfaces": [
-      { "rpc_address": { "hostname": "127.0.0.1", "port": "0" } }
+      { "rpc_address": { "hostname": "127.0.0.1", "port": "8000" } }
     ]
   },
   "start": {
-    "constitution_files": [],
+    "constitution_files": [
+      "validate.js",
+      "apply.js",
+      "resolve.js",
+      "actions.js"
+    ],
     "members": [
       {
         "certificate_file": "member0_cert.pem",

@@ -334,14 +334,16 @@ int main(int argc, char** argv)
       {
         std::optional<std::vector<uint8_t>> public_encryption_key =
           std::nullopt;
-        if (m.encryption_public_key_file.has_value())
+        if (
+          m.encryption_public_key_file.has_value() &&
+          !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key =
             files::slurp(m.encryption_public_key_file.value());
         }
 
         nlohmann::json md = nullptr;
-        if (m.data_json_file.has_value())
+        if (m.data_json_file.has_value() && !m.data_json_file.value().empty())
         {
           md = nlohmann::json::parse(files::slurp(m.data_json_file.value()));
         }
@@ -445,9 +447,15 @@ int main(int argc, char** argv)
 
     // Write the node and network certs to disk.
     files::dump(node_cert, config.node_certificate_file);
+    LOG_INFO_FMT(
+      "Output self-signed node certificate to {}",
+      config.node_certificate_file);
+
     if (*start || *recover)
     {
       files::dump(network_cert, config.network_certificate_file);
+      LOG_INFO_FMT(
+        "Output service certificate to {}", config.network_certificate_file);
     }
 
     auto enclave_thread_start = [&]() {
