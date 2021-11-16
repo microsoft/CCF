@@ -104,10 +104,12 @@ if __name__ == "__main__":
             elif k.endswith("rpc_address") and s != "join":
                 output["network"]["rpc_interfaces"][0][k] = split_address(v)
             elif k == "max_open_sessions":
-                output["network"]["rpc_interfaces"][0] = {
-                    "max_open_sessions_soft": int(v),
-                    "max_open_sessions_hard": int(v) + 10,
-                }
+                output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = int(
+                    v
+                )
+                output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = (
+                    int(v) + 10
+                )
             elif k == "node_address":
                 output["network"]["node_address"] = split_address(v)
             elif k == "network_cert_file":
@@ -133,7 +135,7 @@ if __name__ == "__main__":
             elif k == "snapshot_dir":  # plural
                 output["snapshots"]["snapshots_dir"] = v
             elif k == "snapshot_tx_interval":  # TODO: snapshot_interval_tx?
-                output["snapshots"][k] = v
+                output["snapshots"][k] = int(v)
 
             # logging
             elif k == "log_format_json":
@@ -161,9 +163,11 @@ if __name__ == "__main__":
             elif "size" in k:
                 output["memory"][k] = int(v)
 
+            elif k in ("worker_threads", "tick_period_ms"):
+                output[k] = int(v)
+
             # all other options are converted at the top level
             else:
-                LOG.warning(k)
                 output[k] = v
 
     with open(output_path, "w", encoding="utf-8") as output_file:

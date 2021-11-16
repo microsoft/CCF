@@ -257,20 +257,24 @@ struct CCHostConfig : CCFConfig
   Join join = {};
 };
 
-DECLARE_JSON_TYPE(CCHostConfig::Ledger);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig::Ledger, ledger_dir, read_only_ledger_dirs, ledger_chunk_bytes);
 
-DECLARE_JSON_TYPE(CCHostConfig::Snapshots);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Snapshots);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Snapshots);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig::Snapshots, snapshots_dir, snapshot_tx_interval);
 
-DECLARE_JSON_TYPE(CCHostConfig::Logging);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig::Logging, host_log_level, log_format_json);
 
-DECLARE_JSON_TYPE(CCHostConfig::Memory);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Memory);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Memory);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig::Memory,
   circuit_size_shift,
   max_msg_size_shift,
@@ -281,9 +285,9 @@ DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Start, members, constitution_files);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig::Start, members, constitution_files, service_configuration);
 
-DECLARE_JSON_TYPE(CCHostConfig::Join);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCHostConfig::Join, target_rpc_address, join_timer_ms);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Join);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Join, target_rpc_address);
+DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Join, join_timer_ms);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave_file, enclave_type);
