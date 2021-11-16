@@ -5,6 +5,7 @@ variables:
   pushArtifact: $(PUSH_ARTIFACT)
   pkg-ver: $(VERSION)
   mode: $(MODE)
+  target: $(TARGET)
 
 jobs:
   - job: build_v8
@@ -22,7 +23,7 @@ jobs:
         displayName: "Install dependencies"
         continueOnError: false
 
-      - script: scripts/build-v8.sh $(VERSION) $(MODE) $(PUSH_ARTIFACT)
+      - script: scripts/build-v8.sh $(VERSION) $(MODE) $(TARGET) $(PUSH_ARTIFACT)
         displayName: "Build V8"
         continueOnError: false
 
@@ -35,7 +36,7 @@ jobs:
           #   Ex: 9.4.146.17 -> 94.14617.$(Build.BuildId)
           export MINOR=$(echo $(VERSION) | cut -d "." -f 3,4 | sed 's/\.//')
           echo '##vso[task.setvariable variable=pkg-ver]'$MAJOR.$MINOR.$(Build.BuildId)
-          mv build-v8/v8-$(VERSION)-$(MODE).tar.xz $(Build.ArtifactStagingDirectory)
+          mv build-v8/v8-$(VERSION)-$(MODE)-$(TARGET).tar.xz $(Build.ArtifactStagingDirectory)
         displayName: "Prepare Artifact Staging Directory"
         condition: eq(variables.pushArtifact, 'true')
         continueOnError: false
@@ -46,7 +47,7 @@ jobs:
           command: publish
           publishDirectory: "$(Build.ArtifactStagingDirectory)"
           vstsFeedPublish: "CCF/V8"
-          vstsFeedPackagePublish: "v8-monolith-$(MODE)"
+          vstsFeedPackagePublish: "v8-monolith-$(MODE)-$(TARGET)"
           versionOption: custom
           versionPublish: "$(pkg-ver)"
           packagePublishDescription: "CCF build of monolith V8"

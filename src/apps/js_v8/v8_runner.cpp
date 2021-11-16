@@ -187,7 +187,8 @@ namespace ccf
 
   bool V8Isolate::TemplateCache::has(const std::string& name)
   {
-    return templates_.contains(name);
+    auto it = templates_.find(name);
+    return it != templates_.end();
   }
 
   v8::Local<v8::Template> V8Isolate::TemplateCache::get(const std::string& name)

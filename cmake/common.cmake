@@ -397,56 +397,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 endif()
 if("virtual" IN_LIST COMPILE_TARGETS)
-  if (ENABLE_V8)
-    message(STATUS "WARNING: V8 utilisation is experimental")
-    add_library(
-      js_v8_base.virtual STATIC
-      ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
-      ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
-      ${CCF_DIR}/src/apps/js_v8/v8_util.cpp
-      ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/request.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/request_authn_identity.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/request_body.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/string_map.cpp
-    )
-    add_san(js_v8_base.virtual)
-    add_warning_checks(js_v8_base.virtual)
-    if (CMAKE_BUILD_TYPE STREQUAL Debug)
-     set(V8_DEBUG_DEFAULT ON)
-    else()
-     set(V8_DEBUG_DEFAULT OFF)
-    endif()
-    option(V8_DEBUG "Use V8 debug build" ${V8_DEBUG_DEFAULT})
-    if (V8_DEBUG)
-      set(V8_BUILD_TYPE "debug")
-    else()
-      set(V8_BUILD_TYPE "release")
-    endif()
-    message(STATUS "Using V8 ${V8_BUILD_TYPE} build")
-    set(v8_dir ${CMAKE_CURRENT_SOURCE_DIR}/build-v8/${V8_BUILD_TYPE})
-    set(v8_include_dir ${v8_dir}/include)
-    set(v8_lib ${v8_dir}/lib/libv8_monolith.a)
-    target_include_directories(js_v8_base.virtual PRIVATE ${v8_include_dir})
-    target_link_libraries(js_v8_base.virtual PUBLIC ccf.virtual ${v8_lib})
-    target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
-    target_compile_definitions(
-      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                     _LIBCPP_HAS_THREAD_API_PTHREAD
-                                     V8_COMPRESS_POINTERS
-                                     V8_CC_MSVC=0
-    )
-    set_property(
-      TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-    )
-    use_client_mbedtls(js_v8_base.virtual)
-    install(
-      TARGETS js_v8_base.virtual
-      EXPORT ccf
-      DESTINATION lib
-    )
-  endif()
-
   add_library(
     js_generic_base.virtual STATIC
     ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
@@ -484,6 +434,89 @@ sign_app_library(
 # SNIPPET_END: JS generic application
 
 if (ENABLE_V8)
+  message(STATUS "WARNING: V8 utilisation is experimental")
+
+  if (CMAKE_BUILD_TYPE STREQUAL Debug)
+    set(V8_DEBUG_DEFAULT ON)
+  else()
+    set(V8_DEBUG_DEFAULT OFF)
+  endif()
+  option(V8_DEBUG "Use V8 debug build" ${V8_DEBUG_DEFAULT})
+  if (V8_DEBUG)
+    set(V8_BUILD_TYPE "debug")
+  else()
+    set(V8_BUILD_TYPE "release")
+  endif()
+  message(STATUS "Using V8 ${V8_BUILD_TYPE} build")
+
+  set(v8_include_dir_relative include)
+  set(v8_lib_relative lib/libv8_monolith.a)
+  set(v8_base_dir ${CMAKE_CURRENT_SOURCE_DIR}/build-v8)
+  set(v8_virtual_dir ${v8_base_dir}/${V8_BUILD_TYPE}-virtual)
+  set(v8_virtual_include_dir ${v8_virtual_dir}/${v8_include_dir_relative})
+  set(v8_virtual_lib ${v8_virtual_dir}/${v8_lib_relative})
+  set(v8_sgx_dir ${v8_base_dir}/${V8_BUILD_TYPE}-sgx)
+  set(v8_sgx_include_dir ${v8_sgx_dir}/${v8_include_dir_relative})
+  set(v8_sgx_lib ${v8_sgx_dir}/${v8_lib_relative})
+
+  set(v8_defs
+    V8_CC_MSVC=0
+  )
+
+  set(js_v8_src 
+    ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
+    ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
+    ${CCF_DIR}/src/apps/js_v8/v8_util.cpp
+    ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/request.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/request_authn_identity.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/request_body.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/string_map.cpp
+  )
+
+  if("virtual" IN_LIST COMPILE_TARGETS)
+    add_library(js_v8_base.virtual STATIC ${js_v8_src})
+    add_san(js_v8_base.virtual)
+    add_warning_checks(js_v8_base.virtual)
+    target_include_directories(js_v8_base.virtual PRIVATE ${v8_virtual_include_dir})
+    target_link_libraries(js_v8_base.virtual PUBLIC ccf.virtual ${v8_virtual_lib})
+    target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
+    target_compile_definitions(
+      js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                     _LIBCPP_HAS_THREAD_API_PTHREAD
+                                     ${v8_defs}
+    )
+    set_property(
+      TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+    )
+    use_client_mbedtls(js_v8_base.virtual)
+    install(
+      TARGETS js_v8_base.virtual
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+  if("sgx" IN_LIST COMPILE_TARGETS)
+    add_enclave_library(
+      v8_oe_stubs.enclave ${CCF_DIR}/src/apps/js_v8/v8_oe_stubs.cpp
+    )
+    add_lvi_mitigations(v8_oe_stubs.enclave)
+
+    add_enclave_library(
+      js_v8_base.enclave ${js_v8_src}
+    )
+    use_oe_mbedtls(js_v8_base.enclave)
+    target_include_directories(js_v8_base.enclave PRIVATE ${v8_sgx_include_dir})
+    target_link_libraries(js_v8_base.enclave PUBLIC ccf.enclave ${v8_sgx_lib} v8_oe_stubs.enclave)
+    target_compile_definitions(js_v8_base.enclave PUBLIC ${v8_defs})
+    add_lvi_mitigations(js_v8_base.enclave)
+    install(
+      TARGETS js_v8_base.enclave v8_oe_stubs.enclave
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
+
   add_ccf_app(
     js_v8
     SRCS ${CCF_DIR}/src/apps/js_v8/js_v8.cpp

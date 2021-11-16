@@ -5,7 +5,7 @@
 # Fetches the Universal Artifact from Azire that was built and published with
 # build-v8.sh. Doesn't fetch if the tarball already exists.
 
-SYNTAX="fetch-v8.sh <version (ex. 9.4.146.17)> <mode (debug|release)> [-f(orce)]"
+SYNTAX="fetch-v8.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [-f(orce)]"
 if [ "$1" == "" ]; then
   echo "ERROR: Missing expected argument 'version'"
   echo "$SYNTAX"
@@ -23,7 +23,14 @@ if [ "$MODE" != "debug" ] && [ "$MODE" != "release" ]; then
   exit 1
 fi
 
-TARBALL="v8-$VERSION-$MODE.tar.xz"
+TARGET="$3"
+if [ "$TARGET" != "virtual" ] && [ "$TARGET" != "sgx" ]; then
+  echo "ERROR: 'target' argument must be 'virtual' or 'sgx'"
+  echo "$SYNTAX"
+  exit 1
+fi
+
+TARBALL="v8-$VERSION-$MODE-$TARGET.tar.xz"
 
 ## Check that the package exists, override with -f
 FORCE="$3"
@@ -56,7 +63,7 @@ az artifacts universal download \
   --project CCF \
   --scope project \
   --feed V8 \
-  --name "v8-monolith-$MODE" \
+  --name "v8-monolith-$MODE-$TARGET" \
   --version "$PKG_VERSION.*" \
   --path .
 
@@ -67,6 +74,6 @@ fi
 
 ## Unpack on the same directory as it was built
 echo " + Unpack the tarball..."
-INSTALL_DIR="build-v8/$MODE"
+INSTALL_DIR="build-v8/$MODE-$TARGET"
 mkdir -p "$INSTALL_DIR"
 tar Jxf "$TARBALL" -C "$INSTALL_DIR"
