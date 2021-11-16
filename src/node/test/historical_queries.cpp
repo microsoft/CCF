@@ -1295,12 +1295,12 @@ TEST_CASE("StateCache concurrent access")
     };
 
     previously_requested.push_back("A");
-    query_random_range_states(1007, 1011, handle, error_printer);
+    query_random_range_states(9, 12, handle, error_printer);
 
     ccf::historical::SeqNoCollection seqnos;
     seqnos.insert(3);
-    seqnos.insert(1007);
-    seqnos.insert(1011);
+    seqnos.insert(9);
+    seqnos.insert(12);
     previously_requested.push_back("B");
     query_random_sparse_set_states(seqnos, handle, error_printer);
   }
