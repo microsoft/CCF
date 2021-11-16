@@ -19,7 +19,53 @@
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
+      "sourceFileMap":{
+        "./../../src": "${workspaceFolder}/build-v8/tmp/v8/src"
+      },
       "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "logging": {
+        "engineLogging": true
+      },
+      "setupCommands": [
+        {
+          "description": "Follow fork",
+          "text": "set follow-fork-mode child",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Ignore SIGILL",
+          "text": "handle SIGILL nostop",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Enable pretty-printing",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "name": "Debug node (SGX via gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/bin/bash",
+      "miDebuggerPath": "/opt/openenclave/bin/oegdb",
+      "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "additionalSOLibSearchPath": "${workspaceFolder}/build",
+      "sourceFileMap":{
+        "./../../src": "${workspaceFolder}/build-v8/tmp/v8/src",
+        "/source/openenclave": "${workspaceFolder}/../openenclave"
+      },
+      "environment": [
+        {"name": "OE_LOG_LEVEL", "value": "WARNING"}
+      ],
+      "logging": {
+        "engineLogging": true
+      },
       "externalConsole": false,
       "MIMode": "gdb",
       "setupCommands": [
@@ -41,35 +87,35 @@
       ]
     },
     {
-      "name": "Debug node (SGX)",
+      "name": "Debug node (SGX via lldb)",
       "type": "cppdbg",
       "request": "launch",
+      "miDebuggerPath": "${workspaceFolder}/scripts/oelldb-mi.sh",
+      "logging": {
+        "engineLogging": true
+      },
+      "MIMode": "lldb",
       "program": "/bin/bash",
-      "miDebuggerPath": "/opt/openenclave/bin/oegdb",
       "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
+      "sourceFileMap":{
+        "../../src": "${workspaceFolder}/build-v8/tmp/v8/src",
+        "/source/openenclave": "${workspaceFolder}/../openenclave"
+      },
       "environment": [
-        {"name": "OE_LOG_LEVEL", "value": "VERBOSE"}
+        {"name": "OE_LOG_LEVEL", "value": "WARNING"}
       ],
       "externalConsole": false,
-      "MIMode": "gdb",
       "setupCommands": [
         {
-          "description": "Follow fork",
-          "text": "set follow-fork-mode child",
-          "ignoreFailures": false
+          "description": "Load helper plugin",
+          "text": "command script import ${workspaceFolder}/scripts/oelldb_helper.py"
         },
         {
-          "description": "Ignore SIGILL",
-          "text": "handle SIGILL nostop",
-          "ignoreFailures": false
-        },
-        {
-          "description": "Enable pretty-printing",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
+          "description": "Don't stop on exec",
+          "text": "settings set target.process.stop-on-exec false"
         }
       ]
     }

@@ -276,7 +276,7 @@ class Node:
             with open("/tmp/vscode-gdb.sh", "a", encoding="utf-8") as f:
                 f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
                 f.write(f"cd {self.remote.remote.root}\n")
-                f.write(f"{' '.join(self.remote.remote.cmd)}\n")
+                f.write(f"exec {' '.join(self.remote.remote.cmd)}\n")
                 f.write("fi\n")
 
             print("")
