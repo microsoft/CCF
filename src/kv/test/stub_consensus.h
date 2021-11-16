@@ -23,6 +23,10 @@ namespace kv::test
   private:
     std::vector<BatchVector::value_type> replica;
     ConsensusType consensus_type;
+    ccf::TxID committed_txid = {};
+    ccf::View current_view = 0;
+
+    ccf::SeqNo last_signature = 0;
 
   public:
     aft::ViewHistory view_history;
@@ -39,9 +43,18 @@ namespace kv::test
       {
         replica.push_back(entry);
 
+        const auto& [v, data, committable, hooks] = entry;
+
         // Simplification: all entries are replicated in the same term
-        view_history.update(std::get<0>(entry), view);
+        view_history.update(v, view);
+
+        if (committable)
+        {
+          // All committable indices are instantly committed
+          committed_txid = {view, v};
+        }
       }
+      current_view = view;
       return true;
     }
 
@@ -83,7 +96,7 @@ namespace kv::test
 
     std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
     {
-      return {0, 0};
+      return {committed_txid.view, committed_txid.seqno};
     }
 
     std::optional<SignableTxIndices> get_signable_txid() override
@@ -92,13 +105,13 @@ namespace kv::test
       SignableTxIndices r;
       r.term = txid.first;
       r.version = txid.second;
-      r.previous_version = 0;
+      r.previous_version = last_signature;
       return r;
     }
 
     ccf::SeqNo get_committed_seqno() override
     {
-      return 0;
+      return committed_txid.seqno;
     }
 
     std::optional<NodeId> primary() override
@@ -128,7 +141,7 @@ namespace kv::test
 
     ccf::View get_view() override
     {
-      return 0;
+      return current_view;
     }
 
     std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo seqno) override
@@ -202,6 +215,11 @@ namespace kv::test
     ConsensusType type() override
     {
       return consensus_type;
+    }
+
+    void set_last_signature_at(ccf::SeqNo seqno)
+    {
+      last_signature = seqno;
     }
   };
 
