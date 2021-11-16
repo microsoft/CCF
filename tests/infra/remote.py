@@ -609,8 +609,7 @@ class CCFRemote(object):
             )
 
         elif major_version is None or major_version > 1:
-            # TODO: Fix!
-            loader = FileSystemLoader("../tests")
+            loader = FileSystemLoader("../tests/infra")
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template("config.jinja")
             output = t.render(
