@@ -123,6 +123,22 @@ namespace kv
     ni.port = p;
   }
 
+  inline std::string schema_name(const Configuration::NodeInfo&)
+  {
+    return "Configuration__NodeInfo";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, const Configuration::NodeInfo&)
+  {
+    schema["type"] = "object";
+    schema["required"] = nlohmann::json::array();
+    schema["required"].push_back("address");
+    schema["properties"] = nlohmann::json::object();
+    schema["properties"]["address"] = nlohmann::json::object();
+    schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
+  }
+
   enum class ReplicaState
   {
     Leader,
@@ -374,11 +390,6 @@ namespace kv
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
 
-    virtual bool add_request(
-      TxHistory::RequestID id,
-      const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request,
-      uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
     virtual void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
@@ -464,11 +475,6 @@ namespace kv
 
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
-
-    virtual bool on_request(const TxHistory::RequestCallbackArgs&)
-    {
-      return true;
-    }
 
     virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}

@@ -7,7 +7,6 @@
 #include "http/http_rpc_context.h"
 #include "kv/kv_types.h"
 #include "node/node_to_node.h"
-#include "node/request_tracker.h"
 
 namespace ccf
 {
@@ -27,7 +26,6 @@ namespace ccf
     std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
     std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::shared_ptr<aft::RequestTracker> request_tracker;
     ConsensusType consensus_type;
     NodeId self;
 
@@ -48,12 +46,6 @@ namespace ccf
     void initialize(const NodeId& self_)
     {
       self = self_;
-    }
-
-    void set_request_tracker(
-      std::shared_ptr<aft::RequestTracker> request_tracker_)
-    {
-      request_tracker = request_tracker_;
     }
 
     bool forward_command(
@@ -116,10 +108,6 @@ namespace ccf
           n2n_channels->send_authenticated(to, NodeMsgType::forwarded_msg, msg);
         }
       }
-
-      request_tracker->insert(
-        msg.hash,
-        threading::ThreadMessaging::thread_messaging.get_current_time_offset());
     }
 
     std::shared_ptr<enclave::RpcContext> recv_forwarded_command(
@@ -332,11 +320,6 @@ namespace ccf
             {
               return;
             }
-
-            request_tracker->insert(
-              hash->hash,
-              threading::ThreadMessaging::thread_messaging
-                .get_current_time_offset());
             break;
           }
 

@@ -355,11 +355,6 @@ namespace aft
       return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
         data, expected_txid);
     }
-
-    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
-    {
-      return nullptr;
-    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore
