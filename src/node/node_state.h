@@ -253,7 +253,6 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::uninitialized);
 
-      // TODO: Remove these??
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
       sig_tx_interval = sig_tx_interval_;

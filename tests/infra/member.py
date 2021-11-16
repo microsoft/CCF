@@ -29,13 +29,6 @@ class MemberStatus(Enum):
     ACTIVE = "Active"
 
 
-# TODO: Remove!
-# class MemberInfo(NamedTuple):
-#     certificate_file: str
-#     encryption_pub_key_file: Optional[str]
-#     member_data_file: Optional[str]
-
-
 class Member:
     def __init__(
         self,

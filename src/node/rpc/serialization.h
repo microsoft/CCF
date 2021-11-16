@@ -69,14 +69,6 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out, node_id, network_info)
 
-  // TODO: Remove
-  // DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In::Start)
-  // DECLARE_JSON_REQUIRED_FIELDS(
-  //   CreateNetworkNodeToNode::In::Start,
-  //   members,
-  //   constitution,
-  //   service_configuration)
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CreateNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In,
