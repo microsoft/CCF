@@ -66,6 +66,10 @@ TEST_CASE_TEMPLATE(
   T max_value = std::numeric_limits<T>::max();
   T default_value = (min_value / 2) + (max_value / 2);
 
+  REQUIRE_FALSE(cs.erase(min_value));
+  REQUIRE_FALSE(cs.erase(max_value));
+  REQUIRE_FALSE(cs.erase(default_value));
+
   REQUIRE(cs.size() == 0);
   REQUIRE(ccs.size() == 0);
   REQUIRE(cs.begin() == cs.end());
