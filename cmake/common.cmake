@@ -436,12 +436,7 @@ sign_app_library(
 if (ENABLE_V8)
   message(STATUS "WARNING: V8 utilisation is experimental")
 
-  if (CMAKE_BUILD_TYPE STREQUAL Debug)
-    set(V8_DEBUG_DEFAULT ON)
-  else()
-    set(V8_DEBUG_DEFAULT OFF)
-  endif()
-  option(V8_DEBUG "Use V8 debug build" ${V8_DEBUG_DEFAULT})
+  option(V8_DEBUG "Use V8 debug build" OFF)
   if (V8_DEBUG)
     set(V8_BUILD_TYPE "debug")
   else()
