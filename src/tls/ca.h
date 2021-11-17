@@ -29,7 +29,7 @@ namespace tls
           mbedtls_x509_crt_parse(tmp_ca.get(), pem_ca.data(), pem_ca.size());
         if (ret != 0)
           throw std::logic_error(
-            "Could not parse CA: " + tls::error_string(ret));
+            "Could not parse CA: " + crypto::error_string(ret));
       }
 
       if (crl_.n > 0)
@@ -39,7 +39,7 @@ namespace tls
           mbedtls_x509_crl_parse(tmp_crl.get(), pem_crl.data(), pem_crl.size());
         if (ret != 0)
           throw std::logic_error(
-            "Could not parse CRL: " + tls::error_string(ret));
+            "Could not parse CRL: " + crypto::error_string(ret));
       }
 
       ca = std::move(tmp_ca);

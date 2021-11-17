@@ -5,7 +5,7 @@
 #include "../ds/buffer.h"
 #include "../tls/ca.h"
 #include "../tls/cert.h"
-#include "../tls/error_string.h"
+#include "crypto/mbedtls/error_string.h"
 
 #include <cstdint>
 #include <cstring>
@@ -49,12 +49,12 @@ protected:
     auto err = mbedtls_ctr_drbg_seed(
       tmp_ctr_drbg.get(), mbedtls_entropy_func, tmp_entropy.get(), nullptr, 0);
     if (err)
-      throw std::logic_error(tls::error_string(err));
+      throw std::logic_error(crypto::error_string(err));
 
     err = mbedtls_net_connect(
       tmp_server_fd.get(), host.c_str(), port.c_str(), MBEDTLS_NET_PROTO_TCP);
     if (err)
-      throw std::logic_error(tls::error_string(err));
+      throw std::logic_error(crypto::error_string(err));
 
     err = mbedtls_ssl_config_defaults(
       tmp_conf.get(),
@@ -62,7 +62,7 @@ protected:
       MBEDTLS_SSL_TRANSPORT_STREAM,
       MBEDTLS_SSL_PRESET_DEFAULT);
     if (err)
-      throw std::logic_error(tls::error_string(err));
+      throw std::logic_error(crypto::error_string(err));
 
     if (cert != nullptr)
       cert->use(tmp_ssl.get(), tmp_conf.get());
@@ -75,10 +75,10 @@ protected:
 
     err = mbedtls_ssl_setup(tmp_ssl.get(), tmp_conf.get());
     if (err)
-      throw std::logic_error(tls::error_string(err));
+      throw std::logic_error(crypto::error_string(err));
 
     if (err)
-      throw std::logic_error(tls::error_string(err));
+      throw std::logic_error(crypto::error_string(err));
 
     mbedtls_ssl_set_bio(
       tmp_ssl.get(),
@@ -95,7 +95,7 @@ protected:
       if (
         (err != MBEDTLS_ERR_SSL_WANT_READ) &&
         (err != MBEDTLS_ERR_SSL_WANT_WRITE))
-        throw std::logic_error(tls::error_string(err));
+        throw std::logic_error(crypto::error_string(err));
     }
     connected = true;
 
@@ -149,7 +149,7 @@ public:
       if (ret > 0)
         written += ret;
       else
-        throw std::logic_error(tls::error_string(ret));
+        throw std::logic_error(crypto::error_string(ret));
     }
   }
 
@@ -168,7 +168,7 @@ public:
     }
     else
     {
-      throw std::logic_error(tls::error_string(ret));
+      throw std::logic_error(crypto::error_string(ret));
     }
 
     return buf;
@@ -195,7 +195,7 @@ public:
     }
     else
     {
-      throw std::logic_error(tls::error_string(ret));
+      throw std::logic_error(crypto::error_string(ret));
     }
 
     return buf;

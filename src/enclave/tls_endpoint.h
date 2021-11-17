@@ -153,7 +153,8 @@ namespace enclave
         case MBEDTLS_ERR_NET_CONN_RESET:
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
         {
-          LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
+          LOG_TRACE_FMT(
+            "TLS {} on read: {}", session_id, crypto::error_string(r));
 
           stop(closed);
 
@@ -188,7 +189,8 @@ namespace enclave
 
       if (r < 0)
       {
-        LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
+        LOG_TRACE_FMT(
+          "TLS {} on read: {}", session_id, crypto::error_string(r));
         stop(error);
         return 0;
       }
@@ -304,7 +306,7 @@ namespace enclave
         else
         {
           LOG_TRACE_FMT(
-            "TLS {} on flush: {}", session_id, tls::error_string(r));
+            "TLS {} on flush: {}", session_id, crypto::error_string(r));
           stop(error);
         }
       }
@@ -366,7 +368,7 @@ namespace enclave
             default:
             {
               LOG_TRACE_FMT(
-                "TLS {} on_close: {}", session_id, tls::error_string(r));
+                "TLS {} on_close: {}", session_id, crypto::error_string(r));
               stop(error);
               break;
             }
@@ -406,7 +408,7 @@ namespace enclave
         case MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED:
         {
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
+            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
           stop(authfail);
           break;
         }
@@ -414,7 +416,7 @@ namespace enclave
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
         {
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
+            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
           stop(closed);
           break;
         }
@@ -437,7 +439,7 @@ namespace enclave
           }
 
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
+            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
           stop(authfail);
           return;
         }
@@ -445,7 +447,7 @@ namespace enclave
         default:
         {
           LOG_TRACE_FMT(
-            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
+            "TLS {} on handshake: {}", session_id, crypto::error_string(rc));
           stop(error);
           break;
         }

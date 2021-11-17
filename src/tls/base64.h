@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/mbedtls/error_string.h"
 #include "ds/logger.h"
-#include "error_string.h"
 
 #include <mbedtls/base64.h>
 #include <string>
@@ -23,7 +23,7 @@ namespace tls
     {
       throw std::logic_error(fmt::format(
         "Could not obtain length of decoded base64 buffer: {}",
-        error_string(rc)));
+        crypto::error_string(rc)));
     }
 
     std::vector<uint8_t> decoded(len_written);
@@ -32,8 +32,8 @@ namespace tls
       decoded.data(), decoded.size(), &len_written, data, size);
     if (rc != 0)
     {
-      throw std::invalid_argument(
-        fmt::format("Could not decode base64 string: {}", error_string(rc)));
+      throw std::invalid_argument(fmt::format(
+        "Could not decode base64 string: {}", crypto::error_string(rc)));
     }
 
     return decoded;
@@ -71,7 +71,7 @@ namespace tls
     {
       throw std::logic_error(fmt::format(
         "Could not obtain length required for encoded base64 buffer: {}",
-        error_string(rc)));
+        crypto::error_string(rc)));
     }
 
     std::string b64_string(len_written, '\0');
@@ -81,8 +81,8 @@ namespace tls
       mbedtls_base64_encode(dest, b64_string.size(), &len_written, data, size);
     if (rc != 0)
     {
-      throw std::logic_error(
-        fmt::format("Could not encode base64 string: {}", error_string(rc)));
+      throw std::logic_error(fmt::format(
+        "Could not encode base64 string: {}", crypto::error_string(rc)));
     }
 
     if (b64_string.size() > 0)
