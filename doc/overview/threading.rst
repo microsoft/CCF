@@ -17,7 +17,7 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-.. warning:: Multiple enclave threads are expiremental for now. The ``worker_threads`` configuration option should be set to ``0`` in production environments.
+.. warning:: Multiple enclave threads are experimental for now. The ``worker_threads`` configuration option should be set to ``0`` in production environments.
 
 To enable multiple worker threads, the ``worker_threads`` configuration option can be used  along with the number of desired threads to ``cchost`` when starting a CCF node.
 
