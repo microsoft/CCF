@@ -207,6 +207,18 @@ TEST_CASE_TEMPLATE(
   REQUIRE_FALSE(cs.contains(default_value));
 }
 
+TEST_CASE("foo" * doctest::test_suite("contiguousset"))
+{
+  ds::ContiguousSet<size_t> cs;
+
+  cs.insert(5);
+  cs.insert(6);
+  cs.insert(7);
+  cs.insert(8);
+
+  REQUIRE(cs.get_ranges().size() == 1);
+}
+
 TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
 {
   ds::ContiguousSet<size_t> cs;
@@ -266,8 +278,8 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
 
   REQUIRE(cs.insert(5));
   REQUIRE(cs.insert(8));
-  REQUIRE(cs.insert(11));
   REQUIRE(cs.insert(10));
+  REQUIRE(cs.insert(11));
   REQUIRE(cs.size() == 5);
   REQUIRE(cs.get_ranges().size() == 2);
 
