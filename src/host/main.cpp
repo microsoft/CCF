@@ -133,7 +133,7 @@ int main(int argc, char** argv)
       }
     }
 
-    switch (config.enclave_type)
+    switch (config.enclave.type)
     {
       case EnclaveType::RELEASE:
       {
@@ -152,7 +152,7 @@ int main(int argc, char** argv)
       default:
       {
         throw std::logic_error(
-          fmt::format("Invalid enclave type: {}", config.enclave_type));
+          fmt::format("Invalid enclave type: {}", config.enclave.type));
       }
     }
   }
@@ -174,7 +174,7 @@ int main(int argc, char** argv)
   logger::config::level() = config.logging.host_log_level;
 
   // create the enclave
-  host::Enclave enclave(config.enclave_file, oe_flags);
+  host::Enclave enclave(config.enclave.file, oe_flags);
 
   // messaging ring buffers
   const auto buffer_size = 1 << config.memory.circuit_size_shift;

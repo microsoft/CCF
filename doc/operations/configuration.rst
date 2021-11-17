@@ -11,15 +11,11 @@ The configuration for each CCF node must be contained in a single JSON configura
 Configuration Options
 ---------------------
 
-``enclave_file``
-~~~~~~~~~~~~~~~~
+``enclave``
+~~~~~~~~~~
 
-Path to CCF enclave application.
-
-``enclave_type``
-~~~~~~~~~~~~~~~~
-
-Type of enclave application (either ``release``, ``debug`` or ``virtual``). Default value: ``release``.
+- ``file``: Path to enclave application.
+- ``type``: Type of enclave application (either ``release``, ``debug`` or ``virtual``). Default value: ``release``.
 
 ``network``
 ~~~~~~~~~~~

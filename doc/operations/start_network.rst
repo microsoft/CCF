@@ -134,7 +134,7 @@ To start a CCF node in ``virtual`` mode, operators should use the ``virtual`` va
 
     $ cchost.virtual --config /path/to/config/file [start|join|recover]
 
-In the JSON configuration file, the ``enclave_file`` should specify the path of a ``.virtual.so`` enclave library and the ``enclave_type`` should be set to ``virtual``.
+In the JSON configuration file, ``enclave.file`` should specify the path of a ``.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
 

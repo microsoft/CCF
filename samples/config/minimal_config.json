@@ -1,6 +1,8 @@
 {
-  "enclave_file": "lib_jsgeneric.enclave.so.signed",
-  "enclave_type": "release",
+  "enclave": {
+    "file": "lib_jsgeneric.enclave.so.signed",
+    "type": "release"
+  },
   "network": {
     "node_address": { "hostname": "127.0.0.1", "port": "0" },
     "rpc_interfaces": [

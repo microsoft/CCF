@@ -1,6 +1,8 @@
 {
-  "enclave_file": "{{ enclave_file }}",
-  "enclave_type": "{{ enclave_type or "release" }}",
+  "enclave": {
+    "file": "{{ enclave_file }}",
+    "type": "{{ enclave_type }}"
+  },
   "network": {
     "node_address": { "hostname": "{{ node_address_hostname }}",  "port": "{{ node_address_port }}" },
     "rpc_interfaces": {{ rpc_interfaces|tojson }}

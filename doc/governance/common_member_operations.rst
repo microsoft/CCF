@@ -15,7 +15,7 @@ Once the proposal successfully completes, the new node automatically becomes par
 Updating Code Version
 ---------------------
 
-For new nodes to be able to join the network, the version of the code they run (as specified by ``enclave_file``) should be first trusted by the consortium of members.
+For new nodes to be able to join the network, the version of the code they run (as specified by ``enclave.file``) should be first trusted by the consortium of members.
 
 If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create an ``add_node_code`` proposal, specifying the new code version.
 

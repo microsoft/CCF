@@ -181,8 +181,12 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 // Host configuration
 struct CCHostConfig : CCFConfig
 {
-  std::string enclave_file;
-  EnclaveType enclave_type = EnclaveType::RELEASE;
+  struct Enclave
+  {
+    std::string file;
+    EnclaveType type = EnclaveType::RELEASE;
+  };
+  Enclave enclave = {};
 
   std::string node_certificate_file = "nodecert.pem";
   std::string node_pid_file = "cchost.pid";
@@ -257,6 +261,9 @@ struct CCHostConfig : CCFConfig
   Join join = {};
 };
 
+DECLARE_JSON_TYPE(CCHostConfig::Enclave);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file);
+
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
 DECLARE_JSON_OPTIONAL_FIELDS(
@@ -290,7 +297,7 @@ DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Join, target_rpc_address);
 DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Join, join_timer_ms);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
-DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave_file, enclave_type);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig,
   node_certificate_file,
