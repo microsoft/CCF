@@ -93,13 +93,6 @@ namespace ccf::historical
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
-    // TODO: This approach is wrong. Contiguous requests have an advantage, they
-    // can store their requested_stores in a single vector. Non-contiguous
-    // requests need a map, so we can go from SeqNo to store. So Request needs
-    // to become virtual, implemented by an efficient ContiguousRequest and a
-    // map-requiring NonContiguousRequest.
-    // TODO: The above comment has reduced from a "we must" to a "should we/can
-    // we?"
     struct Request
     {
       ccf::SeqNo first_requested_seqno = 0;
@@ -113,8 +106,7 @@ namespace ccf::historical
       // Entries from outside the requested range (such as the next signature)
       // may be needed to produce receipts. They are stored here, distinct from
       // user-requested stores.
-      std::optional<std::pair<ccf::SeqNo, StoreDetailsPtr>>
-        supporting_signature;
+      std::map<ccf::SeqNo, StoreDetailsPtr> supporting_signatures;
 
       // Only set when recovering ledger secrets
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
@@ -130,11 +122,10 @@ namespace ccf::historical
           return it->second;
         }
 
-        if (
-          supporting_signature.has_value() &&
-          supporting_signature->first == seqno)
+        auto supporting_it = supporting_signatures.find(seqno);
+        if (supporting_it != supporting_signatures.end())
         {
-          return supporting_signature->second;
+          return supporting_it->second;
         }
 
         return nullptr;
@@ -190,6 +181,8 @@ namespace ccf::historical
         first_requested_seqno = new_seqnos.front();
         last_requested_seqno = new_seqnos.back();
 
+        requested_seqnos = new_seqnos;
+
         // If the final entry in the new range is known and not a signature,
         // then we may need a subsequent signature to support it (or an
         // earlier entry received out-of-order!) So start fetching subsequent
@@ -197,25 +190,24 @@ namespace ccf::historical
         // supporting entry we already had, or a signature in the range we
         // already had, but working that out is tricky so be pessimistic and
         // refetch instead.
-        supporting_signature.reset();
-        if (should_include_receipts)
+        // TODO: Maybe maintain supporting sigs here? Do we also need to
+        // populate_receipts from them?
+        supporting_signatures.clear();
+        if (should_include_receipts && !include_receipts)
         {
-          const auto last_details = get_store_details(last_requested_seqno);
-          if (last_details->store != nullptr)
+          // If we're newly requesting signatures, populate receipts for each
+          // entry. Normally this would be done when each entry was received,
+          // but in the case that we have the entries already and only request
+          // signatures now, we delay that work to now.
+
+          for (auto seqno : new_seqnos)
           {
-            if (!last_details->is_signature)
+            const auto next_seqno = populate_receipts(seqno);
+            if (next_seqno.has_value())
             {
-              const auto next_seqno = last_requested_seqno + 1;
-              supporting_signature =
-                std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-              newly_requested.insert(next_seqno);
-            }
-            else
-            {
-              // last_requested _is_ a signature, use it to fill in receipts
-              // for others (which may have been fetched, but not had receipts
-              // filled, by a previous request)
-              populate_receipts(last_requested_seqno);
+              newly_requested.insert(*next_seqno);
+              supporting_signatures[*next_seqno] =
+                std::make_shared<StoreDetails>();
             }
           }
         }
@@ -224,7 +216,6 @@ namespace ccf::historical
         // fetching - the caller can begin asking for them again
         ledger_secret_recovery_info = nullptr;
 
-        requested_seqnos = new_seqnos;
         include_receipts = should_include_receipts;
 
         return SeqNoCollection(newly_requested.begin(), newly_requested.end());
@@ -241,7 +232,7 @@ namespace ccf::historical
         FetchNext,
       };
 
-      PopulateReceiptsResult populate_receipts(ccf::SeqNo new_seqno)
+      std::optional<ccf::SeqNo> populate_receipts(ccf::SeqNo new_seqno)
       {
         auto new_details = get_store_details(new_seqno);
         if (new_details->is_signature)
@@ -251,9 +242,13 @@ namespace ccf::historical
           const auto sig = get_signature(new_details->store);
           ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
 
-          // TODO: Iterate over only requested entries
-          for (auto seqno = first_requested_seqno; seqno < new_seqno; ++seqno)
+          for (auto seqno : requested_seqnos)
           {
+            if (seqno >= new_seqno)
+            {
+              break;
+            }
+
             if (tree.in_range(seqno))
             {
               auto details = get_store_details(seqno);
@@ -271,87 +266,105 @@ namespace ccf::historical
             }
           }
         }
-        else if (new_details->receipt == nullptr)
+        else
         {
-          // Iterate through later indices, see if there's a signature that
-          // covers this one
-          const auto& untrusted_digest = new_details->entry_digest;
-          bool sig_seen = false;
-          // TODO: Fix this. Iterate only over requested seqnos, not this huge
-          // range
-          // TODO: Is there just a bug in this fundamental approach? Sparse
-          // ranges means we don't know when/where we need to scan for further
-          // signatures...
-          for (auto seqno = new_seqno + 1; seqno <= last_requested_seqno;
-               ++seqno)
+          const auto sig_it = supporting_signatures.find(new_seqno);
+          if (sig_it != supporting_signatures.end())
           {
-            auto details = get_store_details(seqno);
-            if (details != nullptr)
+            // This was a search for a supporting signature, but this entry is
+            // _not_ a signature - fetch the next
+            return {new_seqno + 1};
+          }
+          else if (new_details->receipt == nullptr)
+          {
+            // Iterate through later indices, see if there's a signature that
+            // covers this one
+            const auto& untrusted_digest = new_details->entry_digest;
+            bool sig_seen = false;
+            bool complete_range = true;
+            // TODO: Is there just a bug in this fundamental approach? Sparse
+            // ranges means we don't know when/where we need to scan for further
+            // signatures...
+            // TODO: Iterate over ranges here
+            for (const auto& [first_seqno, additional] :
+                 requested_seqnos.get_ranges())
             {
-              if (details->store != nullptr && details->is_signature)
+              for (auto seqno = first_seqno; seqno <= first_seqno + additional;
+                   ++seqno)
               {
-                const auto sig = get_signature(details->store);
-                ccf::MerkleTreeHistory tree(get_tree(details->store).value());
-                if (tree.in_range(new_seqno))
+                if (seqno <= new_seqno)
                 {
-                  auto proof = tree.get_proof(new_seqno);
-                  new_details->receipt = std::make_shared<TxReceipt>(
-                    sig->sig,
-                    proof.get_root(),
-                    proof.get_path(),
-                    sig->node,
-                    sig->cert);
-                  new_details->transaction_id = {sig->view, new_seqno};
+                  continue;
                 }
 
-                // Break here - if this signature doesn't cover us, no later
-                // one can
-                sig_seen = true;
-                break;
-              }
-            }
-          }
+                auto details = get_store_details(seqno);
+                if (details != nullptr)
+                {
+                  if (details->store != nullptr && details->is_signature)
+                  {
+                    const auto sig = get_signature(details->store);
+                    ccf::MerkleTreeHistory tree(
+                      get_tree(details->store).value());
+                    if (tree.in_range(new_seqno))
+                    {
+                      auto proof = tree.get_proof(new_seqno);
+                      new_details->receipt = std::make_shared<TxReceipt>(
+                        sig->sig,
+                        proof.get_root(),
+                        proof.get_path(),
+                        sig->node,
+                        sig->cert);
+                      new_details->transaction_id = {sig->view, new_seqno};
+                      return std::nullopt;
+                    }
 
-          if (!sig_seen && supporting_signature.has_value())
-          {
-            const auto& [seqno, details] = *supporting_signature;
-            if (details->store != nullptr && details->is_signature)
-            {
-              const auto sig = get_signature(details->store);
-              ccf::MerkleTreeHistory tree(get_tree(details->store).value());
-              if (tree.in_range(new_seqno))
+                    // Break here - if this signature doesn't cover us, no later
+                    // one can
+                    sig_seen = true;
+                    break;
+                  }
+                }
+              }
+
+              if (!sig_seen)
               {
-                auto proof = tree.get_proof(new_seqno);
-                details->receipt = std::make_shared<TxReceipt>(
-                  sig->sig,
-                  proof.get_root(),
-                  proof.get_path(),
-                  sig->node,
-                  sig->cert);
-                details->transaction_id = {sig->view, new_seqno};
+                auto sig_it = supporting_signatures.lower_bound(new_seqno);
+                if (sig_it != supporting_signatures.end())
+                {
+                  const auto& [sig_seqno, details] = *sig_it;
+                  if (details->store != nullptr && details->is_signature)
+                  {
+                    const auto sig = get_signature(details->store);
+                    ccf::MerkleTreeHistory tree(
+                      get_tree(details->store).value());
+                    if (tree.in_range(new_seqno))
+                    {
+                      auto proof = tree.get_proof(new_seqno);
+                      new_details->receipt = std::make_shared<TxReceipt>(
+                        sig->sig,
+                        proof.get_root(),
+                        proof.get_path(),
+                        sig->node,
+                        sig->cert);
+                      new_details->transaction_id = {sig->view, new_seqno};
+                    }
+                  }
+                }
               }
-            }
-          }
 
-          // If still have no receipt, and this non-signature is the last
-          // requested seqno, or a previous attempt at finding supporting
-          // signature, request the _next_ seqno to find supporting signature
-          if (new_details->receipt == nullptr)
-          {
-            // TODO: This isn't just last_requested_seqno! This should be any
-            // end-of-range newly-requested thing, which may require a
-            // supporting signature to be fetched!
-            if (
-              new_seqno == last_requested_seqno ||
-              (supporting_signature.has_value() &&
-               supporting_signature->first == new_seqno))
-            {
-              return PopulateReceiptsResult::FetchNext;
+              // If still have no receipt, after considering every seqno in this
+              // range and the best-guess at a supporting signature, then we may
+              // need to fetch another supporting signature. Request the first
+              // entry after the range
+              if (new_details->receipt == nullptr)
+              {
+                return {first_seqno + additional + 1};
+              }
             }
           }
         }
 
-        return PopulateReceiptsResult::Continue;
+        return std::nullopt;
       }
     };
 
@@ -519,24 +532,15 @@ namespace ccf::historical
 
           if (request.include_receipts)
           {
-            const auto result = request.populate_receipts(seqno);
-            switch (result)
+            const auto next_seqno = request.populate_receipts(seqno);
+            if (next_seqno.has_value())
             {
-              case (Request::PopulateReceiptsResult::Continue):
-              {
-                ++request_it;
-                break;
-              }
-              case (Request::PopulateReceiptsResult::FetchNext):
-              {
-                const auto next_seqno = seqno + 1;
-                fetch_entry_at(next_seqno);
-                request.supporting_signature =
-                  std::make_pair(next_seqno, std::make_shared<StoreDetails>());
-                ++request_it;
-                break;
-              }
+              request.supporting_signatures.erase(seqno);
+              fetch_entry_at(*next_seqno);
+              request.supporting_signatures[*next_seqno] =
+                std::make_shared<StoreDetails>();
             }
+            ++request_it;
           }
         }
         else
