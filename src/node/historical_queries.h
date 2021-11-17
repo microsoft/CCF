@@ -17,6 +17,12 @@
 #include <memory>
 #include <set>
 
+#ifdef ENABLE_HISTORICAL_VERBOSE_LOGGING
+#  define HISTORICAL_LOG(...) LOG_INFO_FMT(__VA_ARGS__)
+#else
+#  define HISTORICAL_LOG(...)
+#endif
+
 namespace ccf::historical
 {
   static std::optional<ccf::PrimarySignature> get_signature(
@@ -146,7 +152,7 @@ namespace ccf::historical
       SeqNoCollection adjust_ranges(
         const SeqNoCollection& new_seqnos, bool should_include_receipts)
       {
-        LOG_INFO_FMT(
+        HISTORICAL_LOG(
           "Adjusting ranges, previously {}, new {} ({} vs {})",
           requested_seqnos.size(),
           new_seqnos.size(),
@@ -157,7 +163,7 @@ namespace ccf::historical
           should_include_receipts == include_receipts)
         {
           // This is precisely the request we're already tracking - do nothing
-          LOG_INFO_FMT("Those are the same!");
+          HISTORICAL_LOG("Already have this range");
           return {};
         }
 
@@ -176,12 +182,12 @@ namespace ccf::historical
             {
               newly_requested.insert(seqno);
               new_stores[seqno] = std::make_shared<StoreDetails>();
-              LOG_INFO_FMT("{} is new", seqno);
+              HISTORICAL_LOG("{} is new", seqno);
             }
             else
             {
               new_stores[seqno] = std::move(existing_details);
-              LOG_INFO_FMT("Found {} already", seqno);
+              HISTORICAL_LOG("Found {} already", seqno);
             }
           }
         }
@@ -208,7 +214,7 @@ namespace ccf::historical
         // supporting entry we already had, or a signature in the range we
         // already had, but working that out is tricky so be pessimistic and
         // refetch instead.
-        LOG_INFO_FMT(
+        HISTORICAL_LOG(
           "Clearing {} supporting signatures", supporting_signatures.size());
         supporting_signatures.clear();
         if (newly_requested_receipts)
@@ -220,7 +226,6 @@ namespace ccf::historical
 
           for (auto seqno : new_seqnos)
           {
-            LOG_INFO_FMT("AAAA: POPULATING RECEIPTS FOR {}", seqno);
             const auto next_seqno = populate_receipts(seqno);
             if (next_seqno.has_value())
             {
@@ -247,12 +252,12 @@ namespace ccf::historical
 
       std::optional<ccf::SeqNo> populate_receipts(ccf::SeqNo new_seqno)
       {
-        LOG_INFO_FMT(
+        HISTORICAL_LOG(
           "Looking at {}, and populating receipts from it", new_seqno);
         auto new_details = get_store_details(new_seqno);
         if (new_details->is_signature)
         {
-          LOG_INFO_FMT("{} is a signature", new_seqno);
+          HISTORICAL_LOG("{} is a signature", new_seqno);
           // Iterate through earlier indices. If this signature covers them
           // then create a receipt for them
           const auto sig = get_signature(new_details->store);
@@ -265,10 +270,8 @@ namespace ccf::historical
               break;
             }
 
-            LOG_INFO_FMT("Does it cover {}?", seqno);
             if (tree.in_range(seqno))
             {
-              LOG_INFO_FMT("Yes!");
               auto details = get_store_details(seqno);
               if (details != nullptr)
               {
@@ -280,7 +283,7 @@ namespace ccf::historical
                   sig->node,
                   sig->cert);
                 details->transaction_id = {sig->view, seqno};
-                LOG_INFO_FMT("Assigned a sig for {}!", seqno);
+                HISTORICAL_LOG("Assigned a sig for {} after given signature at {}", seqno, new_seqno);
               }
             }
           }
@@ -289,7 +292,7 @@ namespace ccf::historical
         {
           // TODO: Can we re-write this as "loop through all larger indices,
           // fetching if we don't have them"?
-          LOG_INFO_FMT("{} is not a signature", new_seqno);
+          HISTORICAL_LOG("{} is not a signature", new_seqno);
           const auto sig_it = supporting_signatures.find(new_seqno);
           if (sig_it != supporting_signatures.end())
           {
@@ -304,7 +307,7 @@ namespace ccf::historical
             {
               ++next_seqno;
             }
-            LOG_INFO_FMT(
+            HISTORICAL_LOG(
               "{} was a supporting signature attempt, fetch next {}",
               new_seqno,
               next_seqno);
@@ -312,7 +315,7 @@ namespace ccf::historical
           }
           else if (new_details->receipt == nullptr)
           {
-            LOG_INFO_FMT(
+            HISTORICAL_LOG(
               "{} also has no receipt - looking for later signature",
               new_seqno);
             // Iterate through later indices, see if there's a signature that
@@ -325,7 +328,7 @@ namespace ccf::historical
             {
               if (first_seqno + additional < new_seqno)
               {
-                LOG_INFO_FMT(
+                HISTORICAL_LOG(
                   "Ignoring range starting at {} - too early", first_seqno);
                 continue;
               }
@@ -340,7 +343,7 @@ namespace ccf::historical
               {
                 if (seqno <= new_seqno)
                 {
-                  LOG_INFO_FMT("Ignoring {} - too early", seqno);
+                  HISTORICAL_LOG("Ignoring {} - too early", seqno);
                   continue;
                 }
 
@@ -368,7 +371,7 @@ namespace ccf::historical
                     // Break here - if this signature doesn't cover us, no later
                     // one can
                     sig_seen = true;
-                    LOG_INFO_FMT("Found a sig at {}", seqno);
+                    HISTORICAL_LOG("Found a sig for {} at {}", new_seqno, seqno);
                     break;
                   }
                 }
@@ -386,7 +389,7 @@ namespace ccf::historical
               if (sig_it != supporting_signatures.end())
               {
                 const auto& [sig_seqno, details] = *sig_it;
-                LOG_INFO_FMT(
+                HISTORICAL_LOG(
                   "Considering a supporting signature for {} at {}",
                   new_seqno,
                   sig_seqno);
@@ -406,13 +409,6 @@ namespace ccf::historical
                     new_details->transaction_id = {sig->view, new_seqno};
                   }
                 }
-                else
-                {
-                  LOG_INFO_FMT(
-                    "Ignoring because ({} && {})",
-                    details->store != nullptr,
-                    details->is_signature);
-                }
               }
             }
 
@@ -424,7 +420,7 @@ namespace ccf::historical
               new_details->receipt == nullptr &&
               end_of_matching_range.has_value())
             {
-              LOG_INFO_FMT(
+              HISTORICAL_LOG(
                 "Still nothing, better fetch {}",
                 end_of_matching_range.value() + 1);
               return {end_of_matching_range.value() + 1};
@@ -686,7 +682,7 @@ namespace ccf::historical
       {
         // This is a new handle - insert a newly created Request for it
         it = requests.emplace_hint(it, handle, Request());
-        LOG_INFO_FMT("First time I've seen handle {}", handle);
+        HISTORICAL_LOG("First time I've seen handle {}", handle);
       }
 
       Request& request = it->second;
@@ -1046,7 +1042,7 @@ namespace ccf::historical
       const auto is_signature =
         deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
 
-      LOG_INFO_FMT(
+      HISTORICAL_LOG(
         "Processing historical store at {} ({})",
         seqno,
         (size_t)deserialise_result);

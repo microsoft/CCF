@@ -7,7 +7,7 @@
 
 namespace ds
 {
-  // Efficient representation of an ordered set of values, assuming it contains
+  // Dense representation of an ordered set of values, assuming it contains
   // some contiguous ranges of adjacent values. Stores a sequence of ranges,
   // rather than individual values.
   template <typename T>
