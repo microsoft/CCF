@@ -185,7 +185,7 @@ def recovery_shares_scenario(args):
             assert False, "Removing a recovery member should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
             # This is an apply() time failure, so the proposal remains Open
-            # since the last vote is effectively rolled back
+            # since the last vote is effectively discarded
             assert e.proposal.state == infra.proposal.ProposalState.OPEN
 
         # However, removing a non-recovery member is allowed
@@ -257,7 +257,7 @@ def recovery_shares_scenario(args):
             ), "Setting recovery threshold to more than number of active recovery members should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
             # This is an apply() time failure, so the proposal remains Open
-            # since the last vote is effectively rolled back
+            # since the last vote is effectively discarded
             assert e.proposal.state == infra.proposal.ProposalState.OPEN
 
         try:
