@@ -156,6 +156,7 @@ export BUILD_CXXFLAGS="$common_ignore_warn"
 # is_debug=true: include debug information
 # v8_optimized_debug=false: disable compiler optimizations for debug builds
 # v8_enable_backtrace=true: enable backtraces (for debugging)
+# use_debug_fission=false: don't use split DWARF for debug builds
 # dcheck_always_on=false: disable DCHECKs (for release)
 # is_component_build=false: don't build shared libraries
 # v8_monolithic=true: build a single static archive
@@ -186,7 +187,7 @@ export BUILD_CXXFLAGS="$common_ignore_warn"
 # clang_use_chrome_plugins=false: don't use linting plugins for Clang from Chrome
 # use_goma=false: don't use Google's internal build infrastructure
 if [ "$MODE" == "debug" ]; then
-  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true"
+  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true use_debug_fission=false"
 elif [ "$MODE" == "release" ]; then
   MODE_ARGS="is_debug=false dcheck_always_on=false"
 else
