@@ -12,6 +12,25 @@
 // Inspired by openssl/test/evp_test.c
 // Ref: https://www.openssl.org/docs/man1.1.1/man3/EVP_DecodeBlock.html
 
+namespace
+{
+  // This gets the error messages using a basic I/O instead of static
+  // char arrays and avoids the problem of allocating enough space
+  // for error messages.
+  // It does involve heap allocation and deallocation, but this is only
+  // used when there's an error and an exception is thworn, so it's fine.
+  inline std::string getOpenSSLError()
+  {
+    BIO* bio = BIO_new(BIO_s_mem());
+    ERR_print_errors(bio);
+    char* buf;
+    size_t len = BIO_get_mem_data(bio, &buf);
+    std::string ret(buf, len);
+    BIO_free(bio);
+    return ret;
+  }
+}
+
 namespace crypto
 {
   struct Base64_openssl
@@ -40,9 +59,7 @@ namespace crypto
       int rc = EVP_DecodeUpdate(ctx, output, &chunk_len, data, size);
       if (rc < 0)
       {
-        auto err = ERR_get_error();
-        char err_str[256];
-        ERR_error_string(err, err_str);
+        auto err_str = getOpenSSLError();
         throw std::invalid_argument(fmt::format(
           "OSSL: Could not decode update from base64 string: {}", err_str));
       }
@@ -51,9 +68,7 @@ namespace crypto
       rc = EVP_DecodeFinal(ctx, output + chunk_len, &chunk_len);
       if (rc != 1)
       {
-        auto err = ERR_get_error();
-        char err_str[256];
-        ERR_error_string(err, err_str);
+        auto err_str = getOpenSSLError();
         throw std::logic_error(fmt::format(
           "OSSL: Could not decode final from base64 string: {}", err_str));
       }
