@@ -87,36 +87,36 @@
       ]
     },
     {
-      "name": "Debug node (SGX via lldb)",
-      "type": "cppdbg",
+      // This launch configuration relies on the CodeLLDB VS Code extension.
+      // NOTE: This configuration only works when the following VS Code
+      // setting is set:
+      // "lldb.adapterEnv": {
+      //   "LD_PRELOAD": "/opt/openenclave/lib/openenclave/debugger/liboe_ptrace.so"
+      // }
+      // https://github.com/vadimcn/vscode-lldb/issues/577
+      "name": "Debug node (SGX via CodeLLDB)",
+      "type": "lldb",
       "request": "launch",
-      "miDebuggerPath": "${workspaceFolder}/scripts/oelldb-mi.sh",
-      "logging": {
-        "engineLogging": true
-      },
-      "MIMode": "lldb",
       "program": "/bin/bash",
       "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
-      "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
-      "additionalSOLibSearchPath": "${workspaceFolder}/build",
-      "sourceFileMap":{
+      "env": {
+        "OE_LOG_LEVEL": "WARNING"
+      },
+      "sourceMap":{
         "../../src": "${workspaceFolder}/build-v8/tmp/v8/src",
         "/source/openenclave": "${workspaceFolder}/../openenclave"
       },
-      "environment": [
-        {"name": "OE_LOG_LEVEL", "value": "WARNING"}
+      "terminal": "console",
+      "stopOnEntry": false,
+      "initCommands": [
+        "settings set target.process.stop-on-exec false"
       ],
-      "externalConsole": false,
-      "setupCommands": [
-        {
-          "description": "Load helper plugin",
-          "text": "command script import ${workspaceFolder}/scripts/oelldb_helper.py"
-        },
-        {
-          "description": "Don't stop on exec",
-          "text": "settings set target.process.stop-on-exec false"
-        }
+      "preRunCommands": [
+        "command script import /opt/openenclave/lib/openenclave/debugger/lldb-sgx-plugin/lldb_sgx_plugin.py"
+      ],
+      "postRunCommands": [
+        "process handle --pass true --stop false --notify true SIGILL"
       ]
     }
   ]
