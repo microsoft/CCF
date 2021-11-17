@@ -153,8 +153,8 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported. Default value: ``CFT``.
-- ``timeout_ms``: Hearbeat interval (ms) at which primary node sends messages to backup nodes to maintain primary-ship. This should be set to a significantly lower value than ``election_timeout_ms``. Default value: ``100`` ms.
-- ``election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4000`` ms.
+- ``timeout_ms``: Interval (ms) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout_ms``. Default value: ``100`` ms.
+- ``election_timeout_ms``: Timeout value (ms) after which backup node that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``timeout_ms``. Default timeout: ``4000`` ms.
 
 ``intervals``
 ~~~~~~~~~~~~~
@@ -165,7 +165,7 @@ Example:
 .. note::
     Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
 
-    The signature interval options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution of transactions, the actual intervals between signature transactions may be slightly larger.
+    The signature interval options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution and queuing of transactions, the intervals between signature transactions may be slightly larger in practice.
 
 - ``jwt_key_refresh_interval_s``: Interval (seconds) after which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1800`` s.
 
