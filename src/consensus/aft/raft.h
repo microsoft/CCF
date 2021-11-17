@@ -2282,14 +2282,6 @@ namespace aft
               membership_state = kv::MembershipState::Active;
             }
 
-            // if (is_retired() && retirement_phase ==
-            // kv::RetirementPhase::Signed)
-            // {
-            //   assert(retirement_committable_idx.has_value());
-            //   assert(idx >= retirement_committable_idx.value());
-            //   become_retired(idx, kv::RetirementPhase::Completed);
-            // }
-
             for (auto& [nid, _] : next->nodes)
             {
               learner_nodes.erase(nid);
