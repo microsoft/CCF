@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../crypto/mbedtls/mbedtls_wrappers.h"
-#include "../crypto/pem.h"
-#include "../ds/buffer.h"
+#include "crypto/mbedtls/mbedtls_wrappers.h"
+#include "crypto/pem.h"
+#include "ds/buffer.h"
 
 #include <exception>
 
