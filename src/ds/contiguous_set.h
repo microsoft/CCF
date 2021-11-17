@@ -162,12 +162,19 @@ namespace ds
 
     bool insert(const T& t)
     {
-      auto it = ranges.begin();
-      while (it != ranges.end())
+      Range estimated_range{t, 0};
+      auto it = std::lower_bound(ranges.begin(), ranges.end(), estimated_range);
+
+      if (it != ranges.end())
       {
         const T& from = it->first;
         const T additional = it->second;
-        if (t < from)
+        if (from <= t && t <= from + additional)
+        {
+          // Already present
+          return false;
+        }
+        else if (t < from)
         {
           // Precedes this range
           if (t + 1 == from)
@@ -183,14 +190,8 @@ namespace ds
           }
           else
           {
-            // Insert new range before this
-            break;
+            // Insert new range before this, in fall-through exit path
           }
-        }
-        else if (from <= t && t <= from + additional)
-        {
-          // Already present
-          return false;
         }
         else
           // t > from + additional
@@ -201,7 +202,6 @@ namespace ds
           maybe_merge_with_following(it);
           return true;
         }
-        ++it;
       }
 
       ranges.emplace(it, t, 0);
