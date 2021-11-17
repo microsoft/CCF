@@ -210,14 +210,26 @@ namespace ds
 
     bool erase(const T& t)
     {
-      // TODO: These should use lower_bound, not linear search
-      auto it = ranges.begin();
-      while (it != ranges.end())
+      Range estimated_range{t, 0};
+      auto it = std::lower_bound(
+        ranges.begin(),
+        ranges.end(),
+        estimated_range,
+        // Custom comparator - ignore the second element
+        [](const Range& left, const Range& right) { return left.first < right.first; });
+
+      if (it != ranges.begin() && t != it->first)
+      {
+        it = std::prev(it);
+      }
+
+      if (it != ranges.end())
       {
         const T& from = it->first;
         const T additional = it->second;
         if (from <= t && t <= from + additional)
         {
+          // Contained within this range
           if (from == t)
           {
             if (additional == 0u)
@@ -252,7 +264,6 @@ namespace ds
             return true;
           }
         }
-        ++it;
       }
 
       return false;
