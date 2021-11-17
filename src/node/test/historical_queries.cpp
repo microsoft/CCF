@@ -1314,6 +1314,26 @@ TEST_CASE("StateCache concurrent access")
     previously_requested.push_back("B");
     query_random_range_states(14, 17, handle, error_printer);
   }
+  {
+    std::vector<std::string> previously_requested;
+    const auto i = 0;
+    const auto handle = 42;
+    auto error_printer = [&]() {
+      default_error_printer(handle, i, previously_requested);
+    };
+    ccf::historical::SeqNoCollection seqnos;
+    seqnos.insert(4);
+    seqnos.insert(5);
+    seqnos.insert(7);
+    seqnos.insert(8);
+    seqnos.insert(10);
+    seqnos.insert(11);
+    seqnos.insert(13);
+    seqnos.insert(14);
+    seqnos.insert(16);
+    previously_requested.push_back("A");
+    query_random_sparse_set_states(seqnos, handle, error_printer);
+  }
 
   srand(time(NULL));
 
