@@ -200,6 +200,7 @@ namespace ccf::historical
         requested_seqnos = new_seqnos;
         include_receipts = should_include_receipts;
 
+        // TODO: Correct comments
         // If the final entry in the new range is known and not a signature,
         // then we may need a subsequent signature to support it (or an
         // earlier entry received out-of-order!) So start fetching subsequent
@@ -207,8 +208,6 @@ namespace ccf::historical
         // supporting entry we already had, or a signature in the range we
         // already had, but working that out is tricky so be pessimistic and
         // refetch instead.
-        // TODO: Maybe maintain supporting sigs here? Do we also need to
-        // populate_receipts from them?
         LOG_INFO_FMT(
           "Clearing {} supporting signatures", supporting_signatures.size());
         supporting_signatures.clear();
@@ -321,9 +320,6 @@ namespace ccf::historical
             const auto& untrusted_digest = new_details->entry_digest;
             bool sig_seen = false;
             std::optional<ccf::SeqNo> end_of_matching_range = std::nullopt;
-            // TODO: Is there just a bug in this fundamental approach? Sparse
-            // ranges means we don't know when/where we need to scan for further
-            // signatures...
             for (const auto& [first_seqno, additional] :
                  requested_seqnos.get_ranges())
             {
