@@ -28,7 +28,7 @@ namespace ds
       size_t offset = 0;
 
       // clang-format off
-      TIterator(RangeIt i): it(i), offset(0) {}
+      TIterator(RangeIt i, size_t o = 0): it(i), offset(o) {}
 
       bool operator==(const TIterator& other) const { return (it == other.it && offset == other.offset); }
       bool operator!=(const TIterator& other) const { return !(*this == other); }
@@ -53,14 +53,13 @@ namespace ds
       // clang-format on
     };
 
-    using Iterator = TIterator<typename Ranges::iterator>;
     using ConstIterator = TIterator<typename Ranges::const_iterator>;
 
   private:
     Ranges ranges;
 
-    template <typename Iterator>
-    void populate_ranges(Iterator first, Iterator end)
+    template <typename It>
+    void populate_ranges(It first, It end)
     {
       if (!std::is_sorted(first, end))
       {
@@ -95,11 +94,40 @@ namespace ds
       }
     }
 
+    typename Ranges::const_iterator find_internal(const T& t) const
+    {
+      Range estimated_range{t, 0};
+      auto it = std::lower_bound(ranges.begin(), ranges.end(), estimated_range);
+      if (it != ranges.end())
+      {
+        // If lower_bound found {t, n}, then return that result
+        if (it->first == t)
+        {
+          return it;
+        }
+      }
+
+      // else, most of the time, we found {x, n}, where x > t. Check if there
+      // is a previous range, and if that contains t
+      if (it != ranges.begin())
+      {
+        it = std::prev(it);
+        const T& from = it->first;
+        const T additional = it->second;
+        if (from + additional >= t)
+        {
+          return it;
+        }
+      }
+
+      return ranges.end();
+    }
+
   public:
     ContiguousSet() = default;
 
-    template <typename Iterator>
-    ContiguousSet(Iterator first, Iterator end)
+    template <typename It>
+    ContiguousSet(It first, It end)
     {
       populate_ranges(first, end);
     }
@@ -192,7 +220,7 @@ namespace ds
         {
           if (from == t)
           {
-            if (additional == 0)
+            if (additional == 0u)
             {
               // Remove range entirely
               ranges.erase(it);
@@ -232,18 +260,18 @@ namespace ds
 
     bool contains(const T& t) const
     {
-      auto it = ranges.begin();
-      while (it != ranges.end())
+      return find_internal(t) != end();
+    }
+
+    ConstIterator find(const T& t) const
+    {
+      auto it = find_internal(t);
+      if (it != ranges.end())
       {
-        const T& from = it->first;
-        const T additional = it->second;
-        if (from <= t && t <= from + additional)
-        {
-          return true;
-        }
-        ++it;
+        return ConstIterator(it, t - it->first);
       }
-      return false;
+
+      return end();
     }
 
     void clear()
@@ -262,19 +290,9 @@ namespace ds
       return back.first + back.second;
     }
 
-    Iterator begin()
-    {
-      return Iterator(ranges.begin());
-    }
-
     ConstIterator begin() const
     {
       return ConstIterator(ranges.begin());
-    }
-
-    Iterator end()
-    {
-      return Iterator(ranges.end());
     }
 
     ConstIterator end() const

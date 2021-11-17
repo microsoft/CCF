@@ -37,12 +37,21 @@ void test(T from, T to)
   std::sort(sample.begin(), sample.end());
   auto sample_it = sample.begin();
   auto cs_it = cs.begin();
-  while (sample_it != sample.end())
+  for (T n = from; n <= to; ++n)
   {
-    REQUIRE(cs.contains(*sample_it));
-    REQUIRE(*sample_it == *cs_it);
-    ++sample_it;
-    ++cs_it;
+    if (sample_it != sample.end() && *sample_it == n)
+    {
+      REQUIRE(cs.contains(n));
+      REQUIRE(cs.find(n) != cs.end());
+      REQUIRE(n == *cs_it);
+      ++sample_it;
+      ++cs_it;
+    }
+    else
+    {
+      REQUIRE_FALSE(cs.contains(n));
+      REQUIRE(cs.find(n) == cs.end());
+    }
   }
   REQUIRE(cs_it == cs.end());
 }
@@ -204,23 +213,42 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
   REQUIRE(cs.size() == 3);
   REQUIRE(cs.get_ranges().size() == 3);
 
+  REQUIRE(cs.find(10) != cs.end());
+  REQUIRE(cs.find(10).it->first == 10);
+  REQUIRE(cs.find(10).offset == 0);
+  REQUIRE(cs.find(9) == cs.end());
+
   REQUIRE(cs.insert(11));
   REQUIRE(cs.size() == 4);
   REQUIRE(cs.get_ranges().size() == 2);
+
+  REQUIRE(cs.find(10) != cs.end());
+  REQUIRE(cs.find(10).it->first == 10);
+  REQUIRE(cs.find(10).offset == 0);
+  REQUIRE(cs.find(9) == cs.end());
 
   REQUIRE(cs.insert(9));
   REQUIRE(cs.size() == 5);
   REQUIRE(cs.get_ranges().size() == 1);
 
+  REQUIRE(cs.find(10) != cs.end());
+  REQUIRE(cs.find(10).it->first == 8);
+  REQUIRE(cs.find(10).offset == 2);
+  REQUIRE(cs.find(9) != cs.end());
+  REQUIRE(cs.find(9).it->first == 8);
+  REQUIRE(cs.find(9).offset == 1);
+
   REQUIRE(cs.erase(11));
   REQUIRE_FALSE(cs.erase(11));
   REQUIRE(cs.size() == 4);
   REQUIRE(cs.get_ranges().size() == 2);
+  REQUIRE(cs.find(10) != cs.end());
 
   REQUIRE(cs.erase(10));
   REQUIRE_FALSE(cs.erase(10));
   REQUIRE(cs.size() == 3);
   REQUIRE(cs.get_ranges().size() == 2);
+  REQUIRE(cs.find(10) == cs.end());
 
   REQUIRE(cs.erase(12));
   REQUIRE_FALSE(cs.erase(12));
@@ -238,6 +266,13 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
   REQUIRE(cs.insert(10));
   REQUIRE(cs.size() == 5);
   REQUIRE(cs.get_ranges().size() == 2);
+
+  REQUIRE(cs.find(5) != cs.end());
+  REQUIRE(cs.find(5).it->first == 5);
+  REQUIRE(cs.find(5).offset == 0);
+  REQUIRE(cs.find(9) != cs.end());
+  REQUIRE(cs.find(9).it->first == 8);
+  REQUIRE(cs.find(9).offset == 1);
 
   cs.clear();
   REQUIRE(cs.size() == 0);
