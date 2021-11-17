@@ -230,7 +230,6 @@ namespace ds
       return false;
     }
 
-    // TODO: Add unit test of this
     bool contains(const T& t) const
     {
       auto it = ranges.begin();

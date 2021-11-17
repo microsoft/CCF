@@ -39,6 +39,7 @@ void test(T from, T to)
   auto cs_it = cs.begin();
   while (sample_it != sample.end())
   {
+    REQUIRE(cs.contains(*sample_it));
     REQUIRE(*sample_it == *cs_it);
     ++sample_it;
     ++cs_it;
@@ -96,6 +97,9 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() != cs.back());
   REQUIRE(ccs.front() != ccs.back());
+  REQUIRE(cs.contains(default_value));
+  REQUIRE(cs.contains(min_value));
+  REQUIRE_FALSE(cs.contains(max_value));
 
   REQUIRE(cs.insert(max_value));
   REQUIRE(cs.size() == 3);
@@ -104,6 +108,9 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() != cs.back());
   REQUIRE(ccs.front() != ccs.back());
+  REQUIRE(cs.contains(default_value));
+  REQUIRE(cs.contains(min_value));
+  REQUIRE(cs.contains(max_value));
 
   REQUIRE(cs.erase(min_value));
   REQUIRE_FALSE(cs.erase(min_value));
@@ -113,6 +120,9 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() != cs.back());
   REQUIRE(ccs.front() != ccs.back());
+  REQUIRE(cs.contains(default_value));
+  REQUIRE_FALSE(cs.contains(min_value));
+  REQUIRE(cs.contains(max_value));
 
   REQUIRE(cs.erase(max_value));
   REQUIRE_FALSE(cs.erase(max_value));
@@ -122,6 +132,9 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() == cs.back());
   REQUIRE(ccs.front() == ccs.back());
+  REQUIRE(cs.contains(default_value));
+  REQUIRE_FALSE(cs.contains(min_value));
+  REQUIRE_FALSE(cs.contains(max_value));
 
   {
     auto it = cs.begin();
@@ -178,6 +191,7 @@ TEST_CASE_TEMPLATE(
   cs.clear();
   REQUIRE(cs.size() == 0);
   REQUIRE(cs.begin() == cs.end());
+  REQUIRE_FALSE(cs.contains(default_value));
 }
 
 TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
