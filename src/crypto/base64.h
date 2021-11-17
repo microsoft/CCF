@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace tls
+namespace crypto
 {
   inline std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
   {
