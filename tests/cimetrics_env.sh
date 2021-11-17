@@ -10,6 +10,7 @@ if [ ! -f "env/bin/activate" ]
 fi
 
 source env/bin/activate
-pip install -q -U cimetrics
+#pip install -q -U cimetrics
+pip install -q "pyparsing<3,>=2.0.2" cimetrics
 
 "$@"
