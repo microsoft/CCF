@@ -43,7 +43,7 @@ fi
 
 echo " + Cleaning up environment..."
 rm -rf build-v8/tmp
-mkdir build-v8/tmp
+mkdir -p build-v8/tmp
 # This should never fail but CI lint requires it
 cd build-v8/tmp || exit
 
