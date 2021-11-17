@@ -17,7 +17,6 @@
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/node_interface.h"
-#include "tls/base64.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
