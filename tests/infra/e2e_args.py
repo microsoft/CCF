@@ -322,7 +322,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--config-file",
-        help="Absoliute path to node JSON configuration file",
+        help="Absolute path to node JSON configuration file",
         default=None,
     )
 

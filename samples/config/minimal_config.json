@@ -17,8 +17,7 @@
     "members": [
       {
         "certificate_file": "member0_cert.pem",
-        "encryption_public_key_file": "member0_enc_pubk.pem",
-        "data_json_file": ""
+        "encryption_public_key_file": "member0_enc_pubk.pem"
       }
     ]
   },

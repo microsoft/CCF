@@ -11,13 +11,21 @@
 
 # Note: This should become less hacky once https://github.com/microsoft/CCF/issues/2612 is implemented
 
-set -e
+set -ex
 
 cmd=$*
 container_ip=$(hostname -i | cut -d " " -f 2) # Network container IP address
 addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"
 
-# Required for 1.x releases
+# TODO: Fix:
+# 1. For 1.x nodes leave as it is (for LTS compatibility)
+# 2. For 2.x nodes, modify configuration JSON file
+# - Extract config path from `--config argument`
+# - Using jq, modify RPC address in place
+
+echo "lala"
+
+# Required for 1.x releases TODO: Still required?
 addresses="${addresses} --san=iPAddress:${container_ip}"
 
 startup_cmd=""
@@ -28,7 +36,7 @@ for c in " start " " join" " recover "; do
 done
 
 if [ -z "${startup_cmd}" ]; then
-    echo "Command does not container valid cchost startup command"
+    echo "Command does not contain valid cchost startup command"
     exit 1
 fi
 

@@ -96,9 +96,9 @@ Example:
     "start": {
         "constitution_files": ["actions.js", "validate.js", "resolve.js", "apply.js"],
         "members": [
-            {"certificate_file": "member0_cert.pem", "data_json_file": null, "encryption_public_key_file": "member0_enc_pubk.pem"},
-            {"certificate_file": "member1_cert.pem", "data_json_file": "member1_data.json", "encryption_public_key_file": null},
-            {"certificate_file": "member2_cert.pem", "data_json_file": null, "encryption_public_key_file": "member2_enc_pubk.pem"}
+            {"certificate_file": "member0_cert.pem", "encryption_public_key_file": "member0_enc_pubk.pem"},
+            {"certificate_file": "member1_cert.pem", "data_json_file": "member1_data.json"},
+            {"certificate_file": "member2_cert.pem", "encryption_public_key_file": "member2_enc_pubk.pem"}
         ],
         "service_configuration":
         {
@@ -145,14 +145,14 @@ Example:
 
 - ``host_log_level``: Logging level for the `untrusted host`. Default value: ``INFO``.
 
-.. note:: While it is possible to set the host log level at startup, it is not possible to change the log level of the enclave.
+.. note:: While it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity.
 
 - ``log_format_json``: If ``true``, node logs will be formatted as JSON. Default value: ``false``.
 
 ``consensus``
 ~~~~~~~~~~~~~
 
-- ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported in production. Default value: ``CFT``.
+- ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported. Default value: ``CFT``.
 - ``timeout_ms``: Hearbeat interval (ms) at which primary node sends messages to backup nodes to maintain primary-ship. This should be set to a significantly lower value than ``election_timeout_ms``. Default value: ``100`` ms.
 - ``election_timeout_ms``: Timeout value (ms) after which backup node that have not received primary heartbeats will trigger a new election. Default timeout: ``4000`` ms.
 
