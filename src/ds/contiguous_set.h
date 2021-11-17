@@ -182,6 +182,7 @@ namespace ds
 
     bool erase(const T& t)
     {
+      // TODO: These should use lower_bound, not linear search
       auto it = ranges.begin();
       while (it != ranges.end())
       {
@@ -226,6 +227,23 @@ namespace ds
         ++it;
       }
 
+      return false;
+    }
+
+    // TODO: Add unit test of this
+    bool contains(const T& t) const
+    {
+      auto it = ranges.begin();
+      while (it != ranges.end())
+      {
+        const T& from = it->first;
+        const T additional = it->second;
+        if (from <= t && t <= from + additional)
+        {
+          return true;
+        }
+        ++it;
+      }
       return false;
     }
 
