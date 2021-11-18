@@ -163,7 +163,10 @@ Example:
 
     The signature interval options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution and queuing of transactions, the intervals between signature transactions may be slightly larger in practice.
 
-- ``jwt_key_refresh_interval_s``: Interval (seconds) after which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1800`` s.
+``jwt``
+~~~~~~~
+
+- ``key_refresh_interval_s``: Interval (seconds) at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1800`` s.
 
 ``network_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

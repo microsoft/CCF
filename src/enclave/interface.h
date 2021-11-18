@@ -74,11 +74,18 @@ struct CCFConfig
   {
     size_t sig_tx_interval = 5000;
     size_t sig_ms_interval = 1000;
-    size_t jwt_key_refresh_interval_s = 1800;
 
     bool operator==(const Intervals&) const = default;
   };
   Intervals intervals = {};
+
+  struct JWT
+  {
+    size_t key_refresh_interval_s = 1800;
+
+    bool operator==(const JWT&) const = default;
+  };
+  JWT jwt = {};
 };
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
@@ -93,15 +100,16 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Intervals);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Intervals);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Intervals,
-  sig_tx_interval,
-  sig_ms_interval,
-  jwt_key_refresh_interval_s);
+  CCFConfig::Intervals, sig_tx_interval, sig_ms_interval);
+
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
+DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval_s);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig, worker_threads, node_certificate, consensus, intervals);
+  CCFConfig, worker_threads, node_certificate, consensus, intervals, jwt);
 
 struct StartupConfig : CCFConfig
 {

@@ -672,7 +672,7 @@ namespace ccf
         return;
       }
       jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
-        config.intervals.jwt_key_refresh_interval_s,
+        config.jwt.key_refresh_interval_s,
         network,
         consensus,
         rpcsessions,

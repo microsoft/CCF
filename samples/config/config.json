@@ -62,8 +62,10 @@
   },
   "intervals": {
     "sig_tx_interval": 5000,
-    "sig_ms_interval": 1000,
-    "jwt_key_refresh_interval_s": 1800
+    "sig_ms_interval": 1000
+  },
+  "jwt": {
+    "key_refresh_interval_s": 1800
   },
   "network_certificate_file": "networkcert.pem",
   "node_certificate_file": "node.pem",

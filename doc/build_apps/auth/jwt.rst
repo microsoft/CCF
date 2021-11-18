@@ -68,7 +68,7 @@ Now the issuer can be created with auto-refresh enabled:
 
 .. note::
 
-    The key refresh interval is set via the ``intervals.jwt_key_refresh_interval_s`` configuration entry, where the default is 30 min (1800 seconds).
+    The key refresh interval is set via the ``jwt.key_refresh_interval_s`` configuration entry, where the default is 30 min (1800 seconds).
 
 Removing a token issuer
 -----------------------

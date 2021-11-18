@@ -157,7 +157,7 @@ if __name__ == "__main__":
             elif k == "sig_ms_interval":
                 output["intervals"][k] = int(v)
             elif k == "jwt_key_refresh_interval_s":
-                output["intervals"][k] = int(v)
+                output["jwt"]["key_refresh_interval_s"] = int(v)
 
             # memory
             elif "size" in k:
