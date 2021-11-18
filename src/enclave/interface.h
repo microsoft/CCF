@@ -64,7 +64,7 @@ struct CCFConfig
     std::string subject_name = "CN=CCF Node";
     std::vector<std::string> subject_alt_names = {};
     crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
-    size_t initial_validity_period_days = 1;
+    size_t initial_validity_days = 1;
 
     bool operator==(const NodeCertificateInfo&) const = default;
   };
@@ -95,7 +95,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   subject_name,
   subject_alt_names,
   curve_id,
-  initial_validity_period_days);
+  initial_validity_days);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Intervals);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Intervals);

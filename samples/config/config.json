@@ -18,7 +18,7 @@
     "subject_name": "CN=CCF Node",
     "subject_alt_names": ["IPAddress:127.0.0.1", "dNSName:ccf.dummy.com"],
     "curve_id": "secp384r1",
-    "initial_validity_period_days": 1
+    "initial_validity_days": 1
   },
   "start": {
     "constitution_files": [
@@ -35,7 +35,7 @@
     ],
     "service_configuration": {
       "recovery_threshold": 1,
-      "maximum_allowed_node_certificate_validity_days": 365
+      "maximum_node_certificate_validity_days": 365
     }
   },
   "join": {

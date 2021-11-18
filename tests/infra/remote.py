@@ -680,8 +680,8 @@ class CCFRemote(object):
             join_timer = kwargs.get("join_timer")
             target_rpc_address_hostname = kwargs.get("target_rpc_address_hostname")
             target_rpc_address_port = kwargs.get("target_rpc_address_port")
-            maximum_allowed_node_certificate_validity_days = kwargs.get(
-                "maximum_allowed_node_certificate_validity_days"
+            maximum_node_certificate_validity_days = kwargs.get(
+                "maximum_node_certificate_validity_days"
             )
             reconfiguration_type = kwargs.get("reconfiguration_type")
             log_format_json = kwargs.get("log_format_json")
@@ -786,9 +786,9 @@ class CCFRemote(object):
 
                 # Added in 1.x
                 if not major_version or major_version > 1:
-                    if maximum_allowed_node_certificate_validity_days:
+                    if maximum_node_certificate_validity_days:
                         cmd += [
-                            f"--max-allowed-node-cert-validity-days={maximum_allowed_node_certificate_validity_days}"
+                            f"--max-allowed-node-cert-validity-days={maximum_node_certificate_validity_days}"
                         ]
 
             elif start_type == StartType.join:

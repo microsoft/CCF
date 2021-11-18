@@ -106,7 +106,7 @@ class Network:
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",
-        "maximum_allowed_node_certificate_validity_days",
+        "maximum_node_certificate_validity_days",
         "reconfiguration_type",
         "config_file",
     ]
@@ -643,7 +643,7 @@ class Network:
         node.network_state = infra.node.NodeNetworkState.joined
         node.set_certificate_validity_period(
             valid_from,
-            validity_period_days or args.maximum_allowed_node_certificate_validity_days,
+            validity_period_days or args.maximum_node_certificate_validity_days,
         )
         if not no_wait:
             self.wait_for_all_nodes_to_commit(primary=primary)

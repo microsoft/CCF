@@ -225,8 +225,8 @@ def test_invalid_client_signature(network, args):
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
     now = datetime.now()
-    validity_period_allowed = args.maximum_allowed_node_certificate_validity_days - 1
-    validity_period_forbidden = args.maximum_allowed_node_certificate_validity_days + 1
+    validity_period_allowed = args.maximum_node_certificate_validity_days - 1
+    validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
     test_vectors = [
         (now, validity_period_allowed, None),
@@ -259,7 +259,7 @@ def test_each_node_cert_renewal(network, args):
                     node.set_certificate_validity_period(
                         valid_from_x509,
                         validity_period_days
-                        or args.maximum_allowed_node_certificate_validity_days,
+                        or args.maximum_node_certificate_validity_days,
                     )
                 except Exception as e:
                     assert isinstance(e, expected_exception)
@@ -289,7 +289,7 @@ def test_all_nodes_cert_renewal(network, args):
     primary, _ = network.find_primary()
 
     valid_from = str(infra.crypto.datetime_to_X509time(datetime.now()))
-    validity_period_days = args.maximum_allowed_node_certificate_validity_days
+    validity_period_days = args.maximum_node_certificate_validity_days
 
     network.consortium.set_all_nodes_certificate_validity(
         primary,

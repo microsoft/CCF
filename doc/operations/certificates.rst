@@ -10,7 +10,7 @@ Node Certificates
 
 At startup, operators can set the validity period for a node using the ``node_certificate.initial_node_cert_validity_days`` configuration entry. The default value is set to 1 day and it is expected that members will issue a proposal to renew the certificate before it expires, when the service is open. Initial nodes certificates are valid from the current system time when the ``cchost`` executable is launched.
 
-The ``start.service_configuration.maximum_allowed_node_certificate_validity_days`` configuration entry (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when a node certificate is renewed but the validity period is omitted.
+The ``start.service_configuration.maximum_node_certificate_validity_days`` configuration entry (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when a node certificate is renewed but the validity period is omitted.
 
 .. tip:: Once a node certificate has expired, clients will no longer trust the node serving their request. It is expected that operators and members will monitor the certificate validity dates with regards to current time and renew the node certificate before expiration. See :ref:`governance/common_member_operations:Renewing Node Certificate` for more details.
 

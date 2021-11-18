@@ -59,7 +59,7 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 - ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
 - ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``public_rpc_address``. Default value: ``[]``.
 - ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``secp384r1``.
-- ``initial_validity_period_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
+- ``initial_validity_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
 
 .. _start configuration:
 
@@ -81,7 +81,7 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 
 - ``service_configuration``: Initial service configuration, including:
 
-    - ``maximum_allowed_node_certificate_validity_days``: The maximum number of days allowed for node certificate validity period. Default value: ``365`` days. TODO: Rename
+    - ``maximum_node_certificate_validity_days``: The maximum number of days allowed for node certificate validity period. Default value: ``365`` days. TODO: Rename
     - ``recovery_threshold``. Note that if the recovery threshold is set to ``0``, it is automatically set to the number of recovery members specified in ``members``.
     - ``reconfiguration_type``. The type of reconfiguration for new nodes. Default value: ``OneTransaction``.
 
@@ -99,7 +99,7 @@ Example:
         "service_configuration":
         {
             "recovery_threshold": 0,
-            "maximum_allowed_node_certificate_validity_days": 365,
+            "maximum_node_certificate_validity_days": 365,
             "reconfiguration_type": "OneTransaction"
         }
     }

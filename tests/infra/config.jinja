@@ -12,7 +12,7 @@
     "subject_name": "CN=CCF Node",
     "subject_alt_names": {{ subject_alt_names|tojson }},
     "curve_id": "secp384r1",
-    "initial_validity_period_days": 1
+    "initial_validity_days": 1
   },
   "start":
   {
@@ -21,7 +21,7 @@
     "service_configuration":
     {
       "recovery_threshold": {{ recovery_threshold or 0 }},
-      "maximum_allowed_node_certificate_validity_days": {{ maximum_allowed_node_certificate_validity_days }}
+      "maximum_node_certificate_validity_days": {{ maximum_node_certificate_validity_days }}
     }
   },
   "join":

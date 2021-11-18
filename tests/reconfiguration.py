@@ -77,7 +77,7 @@ def test_add_node(network, args):
     network.trust_node(
         new_node,
         args,
-        validity_period_days=args.maximum_allowed_node_certificate_validity_days // 2,
+        validity_period_days=args.maximum_node_certificate_validity_days // 2,
     )
     with new_node.client() as c:
         s = c.get("/node/state")
@@ -100,8 +100,7 @@ def test_add_node_invalid_validity_period(network, args):
         network.trust_node(
             new_node,
             args,
-            validity_period_days=args.maximum_allowed_node_certificate_validity_days
-            + 1,
+            validity_period_days=args.maximum_node_certificate_validity_days + 1,
         )
     except infra.proposal.ProposalNotAccepted:
         LOG.info(
