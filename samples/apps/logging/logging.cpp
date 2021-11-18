@@ -1244,7 +1244,7 @@ namespace loggingapp
         get_historical_multi,
         auth_policies)
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
-        .add_query_parameter<std::vector<size_t>>("seqnos")
+        .add_query_parameter<std::string>("seqnos")
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
@@ -1370,7 +1370,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "1.2.0";
+      logger_handlers.openapi_info.document_version = "1.3.0";
     }
   };
 }
