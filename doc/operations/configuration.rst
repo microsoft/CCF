@@ -81,7 +81,7 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 
 - ``service_configuration``: Initial service configuration, including:
 
-    - ``max_allowed_node_cert_validity_days``: The maximum number of days allowed for node certificate validity period. Default value: ``365`` days. TODO: Rename
+    - ``maximum_allowed_node_certificate_validity_days``: The maximum number of days allowed for node certificate validity period. Default value: ``365`` days. TODO: Rename
     - ``recovery_threshold``. Note that if the recovery threshold is set to ``0``, it is automatically set to the number of recovery members specified in ``members``.
     - ``reconfiguration_type``. The type of reconfiguration for new nodes. Default value: ``OneTransaction``.
 
@@ -99,7 +99,7 @@ Example:
         "service_configuration":
         {
             "recovery_threshold": 0,
-            "max_allowed_node_cert_validity_days": 365,
+            "maximum_allowed_node_certificate_validity_days": 365,
             "reconfiguration_type": "OneTransaction"
         }
     }

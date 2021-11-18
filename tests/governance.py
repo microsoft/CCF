@@ -165,7 +165,9 @@ def test_node_ids(network, args):
     nodes = network.find_nodes()
     for node in nodes:
         with node.client() as c:
-            r = c.get(f"/node/network/nodes?host={node.get_public_rpc_host()}&port={node.get_public_rpc_port()}")
+            r = c.get(
+                f"/node/network/nodes?host={node.get_public_rpc_host()}&port={node.get_public_rpc_port()}"
+            )
             assert r.status_code == http.HTTPStatus.OK.value
             info = r.body.json()["nodes"]
             assert len(info) == 1
@@ -223,8 +225,8 @@ def test_invalid_client_signature(network, args):
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
     now = datetime.now()
-    validity_period_allowed = args.max_allowed_node_cert_validity_days - 1
-    validity_period_forbidden = args.max_allowed_node_cert_validity_days + 1
+    validity_period_allowed = args.maximum_allowed_node_certificate_validity_days - 1
+    validity_period_forbidden = args.maximum_allowed_node_certificate_validity_days + 1
 
     test_vectors = [
         (now, validity_period_allowed, None),
@@ -257,7 +259,7 @@ def test_each_node_cert_renewal(network, args):
                     node.set_certificate_validity_period(
                         valid_from_x509,
                         validity_period_days
-                        or args.max_allowed_node_cert_validity_days,
+                        or args.maximum_allowed_node_certificate_validity_days,
                     )
                 except Exception as e:
                     assert isinstance(e, expected_exception)
@@ -287,7 +289,7 @@ def test_all_nodes_cert_renewal(network, args):
     primary, _ = network.find_primary()
 
     valid_from = str(infra.crypto.datetime_to_X509time(datetime.now()))
-    validity_period_days = args.max_allowed_node_cert_validity_days
+    validity_period_days = args.maximum_allowed_node_certificate_validity_days
 
     network.consortium.set_all_nodes_certificate_validity(
         primary,

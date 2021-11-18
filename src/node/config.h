@@ -24,7 +24,8 @@ namespace ccf
      *  Fields below are added in 2.x
      */
 
-    std::optional<size_t> node_cert_allowed_validity_period_days = std::nullopt;
+    std::optional<size_t> maximum_allowed_node_certificate_validity_days =
+      std::nullopt;
 
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
@@ -33,8 +34,8 @@ namespace ccf
       return recovery_threshold == other.recovery_threshold &&
         consensus == other.consensus &&
         reconfiguration_type == other.reconfiguration_type &&
-        node_cert_allowed_validity_period_days ==
-        other.node_cert_allowed_validity_period_days;
+        maximum_allowed_node_certificate_validity_days ==
+        other.maximum_allowed_node_certificate_validity_days;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
@@ -43,7 +44,7 @@ namespace ccf
     ServiceConfiguration,
     consensus,
     reconfiguration_type,
-    node_cert_allowed_validity_period_days)
+    maximum_allowed_node_certificate_validity_days)
 
   // The there is always only one active configuration, so this is a single
   // Value

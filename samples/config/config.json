@@ -35,7 +35,7 @@
     ],
     "service_configuration": {
       "recovery_threshold": 1,
-      "max_allowed_node_cert_validity_days": 365
+      "maximum_allowed_node_certificate_validity_days": 365
     }
   },
   "join": {

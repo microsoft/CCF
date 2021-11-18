@@ -77,7 +77,7 @@ if __name__ == "__main__":
     }
     output["start"]["members"] = []
     output["start"]["service_configuration"] = {
-        "max_allowed_node_cert_validity_days": 365
+        "maximum_allowed_node_certificate_validity_days": 365
     }
 
     for s in config.sections():
