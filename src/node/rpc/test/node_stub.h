@@ -192,30 +192,32 @@ namespace ccf
       return {};
     }
 
-    std::vector<StatePtr> get_stores_for(
-      RequestHandle handle,
-      const SeqNoCollection& seqnos,
-      ExpiryDuration seconds_until_expiry)
+    std::vector<historical::StorePtr> get_stores_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos,
+      historical::ExpiryDuration seconds_until_expiry)
     {
       return {};
     }
 
-    std::vector<StatePtr> get_stores_for(
-      RequestHandle handle, const SeqNoCollection& seqnos)
+    std::vector<historical::StorePtr> get_stores_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos)
     {
       return {};
     }
 
-    std::vector<StatePtr> get_states_for(
-      RequestHandle handle,
-      const SeqNoCollection& seqnos,
-      ExpiryDuration seconds_until_expiry)
+    std::vector<historical::StatePtr> get_states_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos,
+      historical::ExpiryDuration seconds_until_expiry)
     {
       return {};
     }
 
-    std::vector<StatePtr> get_states_for(
-      RequestHandle handle, const SeqNoCollection& seqnos)
+    std::vector<historical::StatePtr> get_states_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos)
     {
       return {};
     }
