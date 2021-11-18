@@ -4,6 +4,9 @@
 
 # Check https://omahaproxy.appspot.com for known stable versions
 
+SKIP_CLEAN=${SKIP_CLEAN:-0}
+VERBOSE=${VERBOSE:-0}
+
 SYNTAX="build-v8.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [publish (true|false)]"
 if [ "$1" == "" ]; then
   echo "ERROR: Missing expected argument 'version'"
@@ -42,13 +45,17 @@ if [ ! -f "$PATCH_PATH" ]; then
 fi
 
 echo " + Cleaning up environment..."
-rm -rf build-v8/tmp
+if [ "$SKIP_CLEAN" != "1" ]; then
+  rm -rf build-v8/tmp
+fi
 mkdir -p build-v8/tmp
 # This should never fail but CI lint requires it
 cd build-v8/tmp || exit
 
 echo " + Checking V8 build dependencies..."
-git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+if [ ! -d depot_tools ]; then
+  git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+fi
 export PATH=$PATH:$PWD/depot_tools
 if command -v gn > /dev/null &&
    command -v fetch > /dev/null &&
@@ -59,8 +66,10 @@ else
   exit 1
 fi
 
-echo " + Fetching V8 $VERSION..."
-fetch v8
+if [ ! -d v8 ]; then
+  echo " + Fetching V8 $VERSION..."
+  fetch v8
+fi
 cd v8 || exit
 if ! git checkout "refs/tags/$VERSION"; then
   echo "ERROR: Invalid version $VERSION for checkout"
@@ -78,16 +87,15 @@ gclient sync -D
 # diff -u src/base/cpu.original.cc src/base/cpu.cc >> $PATCH_PATH
 
 echo " + Apply V8 patches..."
-if ! patch -p0 < "$PATCH_PATH"; then
-  echo "ERROR: Patching V8 failed"
-  exit 1
+if ! patch --forward -p0 < "$PATCH_PATH"; then
+  if [ "$SKIP_CLEAN" != "1" ]; then
+    echo "ERROR: Patching V8 failed"
+    exit 1
+  fi
 fi
 
 echo " + Build V8 monolith library..."
 OUT_DIR="out.gn/x64.$MODE.$TARGET"
-
-# TODO cannot start OE enclave with V8
-# run with TEST_ENCLAVE=debug to debug with gdb!
 
 V8_CLANG_VERSION=14
 CCF_CLANG_VERSION=10
@@ -120,7 +128,9 @@ if [ "$TARGET" == "sgx" ]; then
   other_ignore_warn="-Wno-unused-const-variable"
 
   oe_include_dir="/opt/openenclave/include"
-  export CFLAGS="$common_ignore_warn $oe_ignore_warn $other_ignore_warn -nostdinc -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
+  # FIXME V8 crashes weirdly at MemCopy at initialization
+  #       probably some compiler flag?
+  export CFLAGS="$common_ignore_warn $oe_ignore_warn $other_ignore_warn -frtti -fexceptions -nostdinc -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
   export CXXFLAGS="-isystem $oe_include_dir/openenclave/3rdparty/libcxx $CFLAGS"
 elif [  "$TARGET" == "virtual" ]; then
   # Use the same libc++ version that CCF uses.
@@ -164,7 +174,7 @@ export BUILD_CXXFLAGS="$common_ignore_warn"
 # v8_enable_i18n_support=false & icu_use_data_file=false: disable i18n (ECMA-402) support
 # v8_enable_webassembly=false: disable wasm support
 # v8_enable_pointer_compression=false: don't use pointer compression (not compatible with OE/SGX)
-# use_lld=true: use lld for linking (host tools)
+# use_lld=false: do not use lld for linking (host tools)
 # use_sysroot=false: use system libraries instead of vendored ones
 # use_custom_libcxx=false: don't add flags for using V8's custom libc++
 #   Note: Flags to use the system libc++ are added through a patch.
@@ -205,7 +215,8 @@ GN_ARGS="\
   target_cpu=\"x64\" \
   use_sysroot=false \
   use_custom_libcxx=false \
-  use_lld=true \
+  use_glib=false \
+  use_lld=false \
   v8_monolithic=true \
   is_component_build=false \
   v8_use_external_startup_data=false \
@@ -215,7 +226,14 @@ GN_ARGS="\
   use_goma=false \
   "
 gn gen "$OUT_DIR" --args="$GN_ARGS"
-ninja -C "$OUT_DIR" v8_monolith
+
+if [ "$VERBOSE" == 1 ]; then
+  verbose_flag="--verbose"
+else
+  verbose_flag=""
+fi
+
+ninja "$verbose_flag" -C "$OUT_DIR" v8_monolith
 if [ ! -f "$OUT_DIR/obj/libv8_monolith.a" ]; then
   echo "ERROR: Compilation unsuccessful, bailing out"
   exit 1
@@ -233,7 +251,7 @@ du -sh "$INSTALL_DIR"
 if [ "$TARGET" == "virtual" ]; then
   echo " + Test install..."
   # shellcheck disable=SC2086
-  $CXX -fuse-ld=lld -stdlib=libc++ $CXXFLAGS "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/process.cc -o process -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14
+  $CXX -stdlib=libc++ $CXXFLAGS "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/process.cc -o process -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14
   OUTPUT="$(./process samples/count-hosts.js | grep "yahoo.com: 3")"
   if [ "$OUTPUT" == "" ]; then
     echo "ERROR: Process test failed"
