@@ -155,7 +155,8 @@ namespace ccf::historical
     virtual std::vector<StatePtr> get_state_range(
       RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
 
-    // TODO: Document, and maybe a better name?
+    /** Retrieve stores for a set of given indices.
+     */
     virtual std::vector<StorePtr> get_stores_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
@@ -163,6 +164,8 @@ namespace ccf::historical
     virtual std::vector<StorePtr> get_stores_for(
       RequestHandle handle, const SeqNoCollection& seqnos) = 0;
 
+    /** Retrieve states for a set of given indices.
+     */
     virtual std::vector<StatePtr> get_states_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
