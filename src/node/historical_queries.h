@@ -169,25 +169,19 @@ namespace ccf::historical
         std::set<SeqNo> newly_requested;
         std::map<ccf::SeqNo, StoreDetailsPtr> new_stores;
 
-        for (const auto& [start_seqno, num_following_indices] :
-             new_seqnos.get_ranges())
+        for (auto seqno : new_seqnos)
         {
-          for (auto seqno = start_seqno; seqno <=
-               static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
-               ++seqno)
+          auto existing_details = get_store_details(seqno);
+          if (existing_details == nullptr)
           {
-            auto existing_details = get_store_details(seqno);
-            if (existing_details == nullptr)
-            {
-              newly_requested.insert(seqno);
-              new_stores[seqno] = std::make_shared<StoreDetails>();
-              HISTORICAL_LOG("{} is new", seqno);
-            }
-            else
-            {
-              new_stores[seqno] = std::move(existing_details);
-              HISTORICAL_LOG("Found {} already", seqno);
-            }
+            newly_requested.insert(seqno);
+            new_stores[seqno] = std::make_shared<StoreDetails>();
+            HISTORICAL_LOG("{} is new", seqno);
+          }
+          else
+          {
+            new_stores[seqno] = std::move(existing_details);
+            HISTORICAL_LOG("Found {} already", seqno);
           }
         }
 
