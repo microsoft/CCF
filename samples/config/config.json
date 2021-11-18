@@ -49,7 +49,7 @@
   },
   "snapshots": {
     "directory": "snapshots",
-    "snapshot_tx_interval": 10000
+    "interval_size": 10000
   },
   "logging": {
     "host_log_level": "info",

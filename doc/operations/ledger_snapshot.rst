@@ -52,9 +52,9 @@ To avoid this, it is possible for a new node to be added (or a service to be rec
 Snapshot Generation
 ~~~~~~~~~~~~~~~~~~~
 
-Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``snapshots.directory`` configuration entry (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``snapshots.snapshot_tx_interval`` configuration entry (defaults to a new snapshot generated every ``10,000`` committed transactions).
+Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``snapshots.directory`` configuration entry (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``snapshots.interval_size`` configuration entry (defaults to a new snapshot generated every ``10,000`` committed transactions).
 
-.. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``snapshots.snapshot_tx_interval``` value.
+.. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``snapshots.interval_size``` value.
 
 To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.internal.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/start_network:Signature Interval`).
 
@@ -83,6 +83,6 @@ It is recommended for operators to backup the ledger and snapshot files as soon 
 
 A low value for ``ledger.ledger_chunk_bytes`` means that smaller ledger files are generated and can thus be backed up by operators more regularly, at the cost of having to manage a large number of ledger files.
 
-Similarly, a low value for ``snapshots.snapshot_tx_interval`` means that snapshots are generated often and that join/recovery time will be short, at the cost of additional workload on the primary node for snapshot generation.
+Similarly, a low value for ``snapshots.interval_size`` means that snapshots are generated often and that join/recovery time will be short, at the cost of additional workload on the primary node for snapshot generation.
 
 .. tip:: Uncommitted ledger files (which are likely to contain committed transactions) can also be used on join/recovery, as long as they are copied to the node's ``ledger.directory`` directory.

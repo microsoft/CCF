@@ -216,7 +216,7 @@ struct CCHostConfig : CCFConfig
   struct Snapshots
   {
     std::string directory = "snapshots";
-    size_t snapshot_tx_interval = 10'000;
+    size_t interval_size = 10'000;
 
     bool operator==(const Snapshots&) const = default;
   };
@@ -271,8 +271,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Snapshots);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Snapshots);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCHostConfig::Snapshots, directory, snapshot_tx_interval);
+DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Snapshots, directory, interval_size);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);

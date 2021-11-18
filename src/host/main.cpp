@@ -312,7 +312,7 @@ int main(int argc, char** argv)
 
     StartupConfig startup_config;
 
-    startup_config.snapshot_tx_interval = config.snapshots.snapshot_tx_interval;
+    startup_config.snapshot_tx_interval = config.snapshots.interval_size;
     startup_config.consensus = config.consensus;
     startup_config.intervals = config.intervals;
     startup_config.network = config.network;
