@@ -1072,6 +1072,185 @@ namespace loggingapp
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
+      static constexpr auto get_historical_multi_path =
+        "/log/private/historical/multi";
+      auto get_historical_multi = [&,
+                                   this](ccf::endpoints::EndpointContext& ctx) {
+        // Parse arguments from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+          return;
+        }
+
+        std::vector<size_t> seqnos;
+        {
+          std::string seqnos_s;
+          if (!http::get_query_value(
+                parsed_query, "seqnos", seqnos_s, error_reason))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
+
+          const auto terms = nonstd::split(seqnos_s, ",");
+          for (const auto& term : terms)
+          {
+            size_t val;
+            const auto [p, ec] = std::from_chars(term.begin(), term.end(), val);
+            if (ec != std::errc() || p != term.end())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                fmt::format("Unable to parse '{}' as a seqno", term));
+              return;
+            }
+            seqnos.push_back(val);
+          }
+        }
+
+        // End of range must be committed
+        if (consensus == nullptr)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Node is not fully operational");
+          return;
+        }
+
+        std::sort(seqnos.begin(), seqnos.end());
+
+        const auto final_seqno = seqnos.back();
+        const auto view_of_final_seqno = consensus->get_view(final_seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+        const auto tx_status = ccf::evaluate_tx_status(
+          view_of_final_seqno,
+          final_seqno,
+          view_of_final_seqno,
+          committed_view,
+          committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            fmt::format(
+              "Only committed transactions can be queried. Transaction {}.{} "
+              "is {}",
+              view_of_final_seqno,
+              final_seqno,
+              ccf::tx_status_to_str(tx_status)));
+          return;
+        }
+
+        // NB: Currently ignoring pagination, as this endpoint is temporary
+
+        // Use hash of request as RequestHandle. WARNING: This means identical
+        // requests from different users will collide, and overwrite each
+        // other's progress!
+        auto make_handle = [](size_t begin, size_t end, size_t id) {
+          auto size = sizeof(begin) + sizeof(end) + sizeof(id);
+          std::vector<uint8_t> v(size);
+          auto data = v.data();
+          serialized::write(data, size, begin);
+          serialized::write(data, size, end);
+          serialized::write(data, size, id);
+          return std::hash<decltype(v)>()(v);
+        };
+
+        ccf::historical::RequestHandle handle;
+        {
+          std::hash<size_t> h;
+          handle = h(id);
+          for (const auto& seqno : seqnos)
+          {
+            ds::hashutils::hash_combine(handle, seqno, h);
+          }
+        }
+
+        // Fetch the requested range
+        auto& historical_cache = context.get_historical_state();
+
+        ccf::historical::SeqNoCollection seqno_collection(
+          seqnos.begin(), seqnos.end());
+
+        auto stores = historical_cache.get_stores_for(handle, seqno_collection);
+        if (stores.empty())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          ctx.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          ctx.rpc_ctx->set_response_body(fmt::format(
+            "Historical transactions are not yet available, fetching now"));
+          return;
+        }
+
+        // Process the fetched Stores
+        LoggingGetHistoricalRange::Out response;
+        for (const auto& store : stores)
+        {
+          auto historical_tx = store->create_read_only_tx();
+          auto records_handle =
+            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
+          const auto v = records_handle->get(id);
+
+          if (v.has_value())
+          {
+            LoggingGetHistoricalRange::Entry e;
+            e.seqno = store->current_txid().version;
+            e.id = id;
+            e.msg = v.value();
+            response.entries.push_back(e);
+          }
+          // This response do not include any entry when the given key wasn't
+          // modified at this seqno. It could instead indicate that the store
+          // was checked with an empty tombstone object, but this approach gives
+          // smaller responses
+        }
+
+        // Construct the HTTP response
+        nlohmann::json j_response = response;
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(j_response.dump());
+
+        // ALSO: Assume this response makes it all the way to the client, and
+        // they're finished with it, so we can drop the retrieved state. In a
+        // real app this may be driven by a separate client request or an LRU
+        historical_cache.drop_cached_states(handle);
+      };
+      make_endpoint(
+        get_historical_multi_path,
+        HTTP_GET,
+        get_historical_multi,
+        auth_policies)
+        .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
+        .add_query_parameter<std::vector<size_t>>("seqnos")
+        .add_query_parameter<size_t>("id")
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
       auto record_admin_only = [this](
                                  ccf::endpoints::EndpointContext& ctx,
                                  nlohmann::json&& params) {
