@@ -46,7 +46,7 @@ namespace kv
       // serialized.
       // Note: Snapshots are always taken at compacted state so version only is
       // unique enough to prevent IV reuse
-      KvStoreSerialiser serialiser(encryptor, {0, version}, version - 1, true);
+      KvStoreSerialiser serialiser(encryptor, {0, version}, true);
 
       if (hash_at_snapshot.has_value())
       {

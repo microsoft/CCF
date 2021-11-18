@@ -9,7 +9,6 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "node/service.h"
-#include "tls/base64.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>

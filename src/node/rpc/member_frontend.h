@@ -4,6 +4,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/json_handler.h"
+#include "crypto/base64.h"
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
@@ -17,7 +18,6 @@
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
-#include "tls/base64.h"
 
 #include <charconv>
 #include <exception>
@@ -684,7 +684,7 @@ namespace ccf
         }
 
         return make_success(
-          GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
+          GetRecoveryShare::Out{crypto::b64_from_raw(encrypted_share.value())});
       };
       make_endpoint(
         "/recovery_share",
@@ -731,7 +731,7 @@ namespace ccf
         }
 
         const auto in = params.get<SubmitRecoveryShare::In>();
-        auto raw_recovery_share = tls::raw_from_b64(in.share);
+        auto raw_recovery_share = crypto::raw_from_b64(in.share);
         OPENSSL_cleanse(const_cast<char*>(in.share.data()), in.share.size());
 
         size_t submitted_shares_count = 0;

@@ -23,7 +23,6 @@ namespace kv
     W private_writer;
     W* current_writer;
     TxID tx_id;
-    Version max_conflict_version;
     bool is_snapshot;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
@@ -58,17 +57,16 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
-      const Version& max_conflict_version_,
       bool is_snapshot_ = false) :
       tx_id(tx_id_),
-      max_conflict_version(max_conflict_version_),
       is_snapshot(is_snapshot_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(is_snapshot);
       serialise_internal(tx_id.version);
-      serialise_internal(max_conflict_version);
+      // Write a placeholder max_conflict_version for compatibility
+      serialise_internal((Version)0u);
     }
 
     void start_map(const std::string& name, SecurityDomain domain)
@@ -225,7 +223,6 @@ namespace kv
     std::vector<uint8_t> decrypted_buffer;
     bool is_snapshot;
     Version version;
-    Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
 
@@ -235,7 +232,9 @@ namespace kv
     {
       is_snapshot = public_reader.template read_next<bool>();
       version = public_reader.template read_next<Version>();
-      max_conflict_version = public_reader.template read_next<Version>();
+      // max_conflict_version is included for compatibility, but currently
+      // ignored
+      const auto _ = public_reader.template read_next<Version>();
     }
 
   public:
@@ -246,7 +245,7 @@ namespace kv
       domain_restriction(domain_restriction)
     {}
 
-    std::optional<std::tuple<Version, Version>> init(
+    std::optional<Version> init(
       const uint8_t* data,
       size_t size,
       kv::Term& term,
@@ -287,7 +286,7 @@ namespace kv
       {
         public_reader.init(data_, size_);
         read_public_header();
-        return std::make_tuple(version, max_conflict_version);
+        return version;
       }
 
       serialized::skip(data_, size_, crypto_util->get_header_length());
@@ -309,7 +308,7 @@ namespace kv
         term =
           crypto_util->get_term(gcm_hdr_data, crypto_util->get_header_length());
 
-        return std::make_tuple(version, max_conflict_version);
+        return version;
       }
 
       serialized::skip(data_, size_, public_domain_length);
@@ -328,7 +327,7 @@ namespace kv
       }
 
       private_reader.init(decrypted_buffer.data(), decrypted_buffer.size());
-      return std::make_tuple(version, max_conflict_version);
+      return version;
     }
 
     std::optional<std::string> start_map()
