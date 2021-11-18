@@ -48,7 +48,7 @@
     "ledger_chunk_bytes": 20000
   },
   "snapshots": {
-    "snapshots_dir": "snapshots",
+    "directory": "snapshots",
     "snapshot_tx_interval": 10000
   },
   "logging": {

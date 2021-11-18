@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
             # snapshots
             elif k == "snapshot_dir":  # plural
-                output["snapshots"]["snapshots_dir"] = v
+                output["snapshots"]["directory"] = v
             elif k == "snapshot_tx_interval":  # TODO: snapshot_interval_tx?
                 output["snapshots"][k] = int(v)
 

@@ -240,8 +240,7 @@ int main(int argc, char** argv)
       config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(
-      config.snapshots.snapshots_dir, ledger);
+    asynchost::SnapshotManager snapshots(config.snapshots.directory, ledger);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.
