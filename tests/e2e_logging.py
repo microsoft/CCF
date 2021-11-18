@@ -807,7 +807,7 @@ def test_historical_query_multi(network, args):
         # Need to submit through network.txs so these can be verified at shutdown, but also need to submit one at a
         # time to retrieve the submitted transactions
         msgs = {}
-        n_entries = 1000
+        n_entries = 100
 
         for i in range(n_entries):
             network.txs.issue(
@@ -1402,38 +1402,38 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # network = test(network, args, verify=args.package != "libjs_generic")
-        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        # network = test_large_messages(network, args)
-        # network = test_remove(network, args)
-        # network = test_clear(network, args)
-        # network = test_record_count(network, args)
-        # network = test_forwarding_frontends(network, args)
-        # network = test_signed_escapes(network, args)
-        # network = test_user_data_ACL(network, args)
-        # network = test_cert_prefix(network, args)
-        # network = test_anonymous_caller(network, args)
-        # network = test_multi_auth(network, args)
-        # network = test_custom_auth(network, args)
-        # network = test_custom_auth_safety(network, args)
-        # network = test_raw_text(network, args)
-        # network = test_historical_query(network, args)
-        # network = test_historical_query_range(network, args)
+        network = test(network, args, verify=args.package != "libjs_generic")
+        network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        network = test_large_messages(network, args)
+        network = test_remove(network, args)
+        network = test_clear(network, args)
+        network = test_record_count(network, args)
+        network = test_forwarding_frontends(network, args)
+        network = test_signed_escapes(network, args)
+        network = test_user_data_ACL(network, args)
+        network = test_cert_prefix(network, args)
+        network = test_anonymous_caller(network, args)
+        network = test_multi_auth(network, args)
+        network = test_custom_auth(network, args)
+        network = test_custom_auth_safety(network, args)
+        network = test_raw_text(network, args)
+        network = test_historical_query(network, args)
+        network = test_historical_query_range(network, args)
         network = test_historical_query_multi(network, args)
-        # network = test_view_history(network, args)
-        # network = test_primary(network, args)
-        # network = test_network_node_info(network, args)
-        # network = test_metrics(network, args)
-        # network = test_memory(network, args)
-        # # BFT does not handle re-keying yet
-        # if args.consensus == "cft":
-        #     network = test_liveness(network, args)
-        #     network = test_rekey(network, args)
-        #     network = test_liveness(network, args)
-        #     network = test_random_receipts(network, args, False)
-        # if args.package == "samples/apps/logging/liblogging":
-        #     network = test_receipts(network, args)
-        # network = test_historical_receipts(network, args)
+        network = test_view_history(network, args)
+        network = test_primary(network, args)
+        network = test_network_node_info(network, args)
+        network = test_metrics(network, args)
+        network = test_memory(network, args)
+        # BFT does not handle re-keying yet
+        if args.consensus == "cft":
+            network = test_liveness(network, args)
+            network = test_rekey(network, args)
+            network = test_liveness(network, args)
+            network = test_random_receipts(network, args, False)
+        if args.package == "samples/apps/logging/liblogging":
+            network = test_receipts(network, args)
+        network = test_historical_receipts(network, args)
 
 
 if __name__ == "__main__":
