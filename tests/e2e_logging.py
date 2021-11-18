@@ -797,7 +797,7 @@ def test_historical_query_range(network, args):
 @reqs.description("Read state at multiple distinct historical points")
 @reqs.supports_methods("log/private", "log/private/historical/multi")
 def test_historical_query_multi(network, args):
-    id = 142
+    idx = 142
 
     seqnos = []
 
@@ -809,16 +809,16 @@ def test_historical_query_multi(network, args):
         msgs = {}
         n_entries = 100
 
-        for i in range(n_entries):
+        for _ in range(n_entries):
             network.txs.issue(
                 network,
                 repeat=True,
-                idx=id,
+                idx=idx,
                 wait_for_sync=False,
                 log_capture=[],
                 send_public=False,
             )
-            _, tx = network.txs.get_last_tx(idx=id)
+            _, tx = network.txs.get_last_tx(idx=idx)
             msg = tx["msg"]
             seqno = tx["seqno"]
             view = tx["view"]
@@ -864,15 +864,15 @@ def test_historical_query_multi(network, args):
             flush_info(logs, None)
             raise TimeoutError(f"Historical multi not available after {timeout}s")
 
-        entries_all, _ = get_multi(c, id, seqnos)
+        entries_all, _ = get_multi(c, idx, seqnos)
 
         seqnos_a = [s for s in seqnos if random.random() < 0.7]
-        entries_a, _ = get_multi(c, id, seqnos_a)
+        entries_a, _ = get_multi(c, idx, seqnos_a)
         seqnos_b = [s for s in seqnos if random.random() < 0.5]
-        entries_b, _ = get_multi(c, id, seqnos_b)
+        entries_b, _ = get_multi(c, idx, seqnos_b)
         small_range = len(seqnos) // 20
         seqnos_c = seqnos[:small_range] + seqnos[-small_range:]
-        entries_c, _ = get_multi(c, id, seqnos_c)
+        entries_c, _ = get_multi(c, idx, seqnos_c)
 
         def check_presence(expected, entries, seqno):
             if seqno in expected:
