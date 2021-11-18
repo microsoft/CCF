@@ -52,8 +52,8 @@
     "interval_size": 10000
   },
   "logging": {
-    "host_log_level": "info",
-    "log_format_json": false
+    "host_level": "info",
+    "format": "text"
   },
   "consensus": {
     "type": "CFT",

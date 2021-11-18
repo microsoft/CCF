@@ -139,11 +139,11 @@ Example:
 ``logging``
 ~~~~~~~~~~~
 
-- ``host_log_level``: Logging level for the `untrusted host`. Default value: ``INFO``.
+- ``host_level``: Logging level for the `untrusted host`. Default value: ``INFO``.
 
 .. note:: While it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity.
 
-- ``log_format_json``: If ``true``, node logs will be formatted as JSON. Default value: ``false``.
+- ``format``: If ``"json"``, node logs will be formatted as JSON. Default value: ``"text"``.
 
 ``consensus``
 ~~~~~~~~~~~~~

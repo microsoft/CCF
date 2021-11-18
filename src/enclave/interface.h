@@ -171,7 +171,16 @@ DECLARE_JSON_ENUM(
   EnclaveType,
   {{EnclaveType::RELEASE, "release"},
    {EnclaveType::DEBUG, "debug"},
-   {EnclaveType::VIRTUAL, "virtual"}})
+   {EnclaveType::VIRTUAL, "virtual"}});
+
+enum class LogFormat
+{
+  TEXT,
+  JSON
+};
+
+DECLARE_JSON_ENUM(
+  LogFormat, {{LogFormat::TEXT, "text"}, {LogFormat::JSON, "json"}});
 
 struct ParsedMemberInfo
 {
@@ -233,8 +242,8 @@ struct CCHostConfig : CCFConfig
 
   struct Logging
   {
-    logger::Level host_log_level = logger::Level::INFO;
-    bool log_format_json = false;
+    logger::Level host_level = logger::Level::INFO;
+    LogFormat format = LogFormat::TEXT;
 
     bool operator==(const Logging&) const = default;
   };
@@ -284,8 +293,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Snapshots, directory, interval_size);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCHostConfig::Logging, host_log_level, log_format_json);
+DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, host_level, format);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Memory);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Memory);

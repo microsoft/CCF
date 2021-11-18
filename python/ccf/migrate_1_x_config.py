@@ -145,9 +145,9 @@ if __name__ == "__main__":
 
             # logging
             elif k == "log_format_json":
-                output["logging"][k] = bool(v)
+                output["logging"]["log_format"] = "json" if bool(v) else "text"
             elif k == "host_log_level":
-                output["logging"][k] = v
+                output["logging"]["host_level"] = v
 
             # consensus
             elif k == "consensus":

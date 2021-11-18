@@ -79,8 +79,7 @@ int main(int argc, char** argv)
   CCHostConfig config = nlohmann::json::parse(config_str);
   LOG_INFO_FMT("Configuration: {}", config_str);
 
-  // set json log formatter to write to std::out
-  if (config.logging.log_format_json)
+  if (config.logging.format == LogFormat::JSON)
   {
     logger::config::initialize_with_json_console();
   }
@@ -171,7 +170,7 @@ int main(int argc, char** argv)
   files::dump(fmt::format("{}", ::getpid()), config.node_pid_file);
 
   // set the host log level
-  logger::config::level() = config.logging.host_log_level;
+  logger::config::level() = config.logging.host_level;
 
   // create the enclave
   host::Enclave enclave(config.enclave.file, oe_flags);
