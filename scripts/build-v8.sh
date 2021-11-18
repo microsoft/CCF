@@ -97,20 +97,27 @@ fi
 echo " + Build V8 monolith library..."
 OUT_DIR="out.gn/x64.$MODE.$TARGET"
 
-V8_CLANG_VERSION=14
 CCF_CLANG_VERSION=10
 
 # target toolchain
-common_ignore_warn="-Wno-bitwise-instead-of-logical"
-export CC=clang-$V8_CLANG_VERSION
-export CXX=clang++-$V8_CLANG_VERSION
+LLVM_ROOT=$PWD/third_party/llvm-build/Release+Asserts
+export CC=$LLVM_ROOT/bin/clang
+export CXX=$CC++
 export AR=ar
 export NM=nm
+echo "CC=$CC"
+echo "CXX=$CXX"
+echo "AR=$AR"
+echo "NM=$NM"
 if [ "$TARGET" == "sgx" ]; then
   # -nostdinc causes the compiler include dir to be excluded,
   # but V8 needs it for intrinsics and those headers are not part
   # of Open Enclave. Therefore, add it back manually.
-  compiler_include_dir="/usr/lib/clang/$V8_CLANG_VERSION/include"
+  compiler_include_dir=("$LLVM_ROOT"/lib/clang/*/include)
+  if [ "${#compiler_include_dir[@]}" -ne 1 ]; then
+    echo "ERROR: Found multiple compiler include dirs"
+    exit 1
+  fi
   
   # V8 uses some standard library functions unsupported and marked
   # as deprecated in OE, triggering a warning that fails the build.
@@ -130,12 +137,12 @@ if [ "$TARGET" == "sgx" ]; then
   oe_include_dir="/opt/openenclave/include"
   # FIXME V8 crashes weirdly at MemCopy at initialization
   #       probably some compiler flag?
-  export CFLAGS="$common_ignore_warn $oe_ignore_warn $other_ignore_warn -frtti -fexceptions -nostdinc -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
+  export CFLAGS="$oe_ignore_warn $other_ignore_warn -frtti -fexceptions -nostdinc -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
   export CXXFLAGS="-isystem $oe_include_dir/openenclave/3rdparty/libcxx $CFLAGS"
 elif [  "$TARGET" == "virtual" ]; then
   # Use the same libc++ version that CCF uses.
-  export CFLAGS="$common_ignore_warn"
-  export CXXFLAGS="$common_ignore_warn -nostdinc++ -isystem /usr/lib/llvm-$CCF_CLANG_VERSION/include/c++/v1/"
+  export CFLAGS=""
+  export CXXFLAGS="-nostdinc++ -isystem /usr/lib/llvm-$CCF_CLANG_VERSION/include/c++/v1/"
 else
   echo "ERROR: Invalid target '$TARGET'"
   exit 1
@@ -146,8 +153,8 @@ export BUILD_CC=$CC
 export BUILD_CXX=$CXX
 export BUILD_AR=$AR
 export BUILD_NM=$NM
-export BUILD_CFLAGS="$common_ignore_warn"
-export BUILD_CXXFLAGS="$common_ignore_warn"
+export BUILD_CFLAGS=""
+export BUILD_CXXFLAGS=""
 
 # See v8/infra/mb/mb_config.pyl for options.
 # custom_toolchain=".../unbundle:default": use environment variables to configure the target toolchain
@@ -233,9 +240,12 @@ else
   verbose_flag=""
 fi
 
-ninja $verbose_flag -C "$OUT_DIR" v8_monolith
+if ! ninja $verbose_flag -C "$OUT_DIR" v8_monolith; then
+  echo "ERROR: Failed to build V8"
+  exit 1
+fi
 if [ ! -f "$OUT_DIR/obj/libv8_monolith.a" ]; then
-  echo "ERROR: Compilation unsuccessful, bailing out"
+  echo "ERROR: libv8_monolith.a not found"
   exit 1
 fi
 
