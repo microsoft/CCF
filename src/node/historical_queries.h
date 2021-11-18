@@ -102,7 +102,6 @@ namespace ccf::historical
     struct Request
     {
       ccf::SeqNo first_requested_seqno = 0;
-      ccf::SeqNo last_requested_seqno = 0;
       SeqNoCollection requested_seqnos;
       std::map<ccf::SeqNo, StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
@@ -194,7 +193,6 @@ namespace ccf::historical
 
         requested_stores = std::move(new_stores);
         first_requested_seqno = new_seqnos.front();
-        last_requested_seqno = new_seqnos.back();
 
         // If the range has changed, forget what ledger secrets we may have been
         // fetching - the caller can begin asking for them again
