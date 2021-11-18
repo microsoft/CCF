@@ -126,7 +126,7 @@ struct StartupConfig : CCFConfig
   struct Join
   {
     ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    size_t join_timer_ms = 1000;
+    size_t timer_ms = 1000;
     std::vector<uint8_t> network_cert = {};
   };
   Join join = {};
@@ -138,7 +138,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(StartupConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig::Join, target_rpc_address, join_timer_ms, network_cert);
+  StartupConfig::Join, target_rpc_address, timer_ms, network_cert);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -254,7 +254,7 @@ struct CCHostConfig : CCFConfig
   struct Join
   {
     ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    size_t join_timer_ms = 1000;
+    size_t timer_ms = 1000;
 
     bool operator==(const Join&) const = default;
   };
@@ -294,7 +294,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Join, target_rpc_address);
-DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Join, join_timer_ms);
+DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Join, timer_ms);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave);

@@ -39,7 +39,7 @@
     }
   },
   "join": {
-    "join_timer_ms": 1000,
+    "timer_ms": 1000,
     "target_rpc_address": { "hostname": "127.0.0.1", "port": "0" }
   },
   "ledger": {

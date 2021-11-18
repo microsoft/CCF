@@ -112,14 +112,14 @@ Example:
 .. note:: This only needs to be set when the node is started in ``join`` mode.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
-- ``join_timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1000`` ms.
+- ``timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1000`` ms.
 
 Example:
 
 .. code-block:: json
 
     "join": {
-        "join_timer_ms": 1000,
+        "timer_ms": 1000,
         "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
     }
 

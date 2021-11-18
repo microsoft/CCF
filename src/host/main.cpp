@@ -381,7 +381,7 @@ int main(int argc, char** argv)
         config.join.target_rpc_address.port);
       start_type = StartType::Join;
       startup_config.join.target_rpc_address = config.join.target_rpc_address;
-      startup_config.join.join_timer_ms = config.join.join_timer_ms;
+      startup_config.join.timer_ms = config.join.timer_ms;
       startup_config.join.network_cert =
         files::slurp(config.network_certificate_file);
     }

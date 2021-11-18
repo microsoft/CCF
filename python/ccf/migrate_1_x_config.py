@@ -98,7 +98,7 @@ if __name__ == "__main__":
             elif k == "target_rpc_address":
                 output[s][k] = split_address(v)
             elif k == "join_timer":
-                output[s]["join_timer_ms"] = int(v)
+                output[s]["timer_ms"] = int(v)
 
             # network
             elif k.endswith("rpc_address") and s != "join":

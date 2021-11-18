@@ -637,13 +637,13 @@ namespace ccf
         NodeState& self;
       };
 
-      auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
+      auto timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
           if (msg->data.self.sm.check(State::pending))
           {
             msg->data.self.initiate_join();
-            auto delay = std::chrono::milliseconds(
-              msg->data.self.config.join.join_timer_ms);
+            auto delay =
+              std::chrono::milliseconds(msg->data.self.config.join.timer_ms);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
@@ -652,8 +652,7 @@ namespace ccf
         *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(join_timer_msg),
-        std::chrono::milliseconds(config.join.join_timer_ms));
+        std::move(timer_msg), std::chrono::milliseconds(config.join.timer_ms));
     }
 
     void join()
