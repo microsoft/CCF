@@ -4,7 +4,6 @@
 
 #include "http_consts.h"
 #include "http_status.h"
-#include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

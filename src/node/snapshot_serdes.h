@@ -81,7 +81,7 @@ namespace ccf
       auto receipt = j.get<Receipt>();
 
       auto root = compute_root_from_receipt(receipt);
-      auto raw_sig = tls::raw_from_b64(receipt.signature);
+      auto raw_sig = crypto::raw_from_b64(receipt.signature);
     }
 
     LOG_INFO_FMT(
@@ -111,7 +111,7 @@ namespace ccf
       auto receipt = j.get<Receipt>();
 
       auto root = compute_root_from_receipt(receipt);
-      auto raw_sig = tls::raw_from_b64(receipt.signature);
+      auto raw_sig = crypto::raw_from_b64(receipt.signature);
 
       if (!receipt.cert.has_value())
       {

@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "crypto/base64.h"
 #include "crypto/csr.h"
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
@@ -18,7 +19,6 @@
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-#include "tls/base64.h"
 
 #include <chrono>
 #include <cstring>
@@ -27,7 +27,6 @@
 #include <optional>
 
 using namespace std;
-using namespace tls;
 using namespace crypto;
 
 static const string contents_ =

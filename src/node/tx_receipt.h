@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/base64.h"
 #include "node/history.h"
-#include "tls/base64.h"
 
 namespace ccf
 {
@@ -30,7 +30,7 @@ namespace ccf
 
     void describe(ccf::Receipt& r, bool include_root = false)
     {
-      r.signature = tls::b64_from_raw(signature);
+      r.signature = crypto::b64_from_raw(signature);
       if (include_root)
       {
         r.root = root.to_string();

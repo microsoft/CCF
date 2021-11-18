@@ -3,6 +3,7 @@
 
 #include "verifier.h"
 
+#include "error_string.h"
 #include "public_key.h"
 #include "rsa_key_pair.h"
 
