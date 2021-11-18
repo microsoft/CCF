@@ -128,7 +128,7 @@ Example:
 
 - ``directory``: Path to main ledger directory. Default value: ``ledger``.
 - ``read_only_directories``: Optional. Paths to read-only ledger directories. Note that only ``.committed`` files will be read from these directories. Default value: ``[]``.
-- ``ledger_chunk_bytes``: Minimum size (bytes) of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5000000`` bytes.
+- ``chunk_size``: Minimum size (bytes) of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5000000`` bytes.
 
 ``snapshots``
 ~~~~~~~~~~~~~
