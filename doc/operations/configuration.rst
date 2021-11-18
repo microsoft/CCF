@@ -27,8 +27,8 @@ The ``network`` section includes configuration for the interfaces a node listens
 - ``rpc_interfaces``: Addresses (hostname and port) to listen on for incoming client TLS connections.
 Each RPC address must contain:
 
-- The local RPC address (``rpc_address``) the node listens on.
-- The public RPC address (``public_rpc_address``) advertised to clients. Default value: value of ``rpc_address`.
+- The local RPC address (``bind_address``) the node binds to and listens on.
+- The published RPC address (``published_address``) advertised to clients. Default value: value of ``rpc_address`.
 - The maximum number of active client sessions (``max_open_sessions_soft``) on that interface after which clients will receive a HTTP 503 error. Default value: ``1000``.
 - The maximum number of active client sessions (``max_open_sessions_hard``) on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``. Default value: ``1010``.
 
@@ -40,11 +40,11 @@ Example:
         "node_address": {"hostname": "127.0.0.1", "port": "0"},
         "rpc_interfaces": [
             {
-                "rpc_address":{"hostname": "127.0.0.1", "port": "0"},
-                "public_rpc_address":{"hostname":"foo.dummy.com","port": "12345"},
+                "bind_address":{"hostname": "127.0.0.1", "port": "0"},
+                "published_address":{"hostname":"foo.dummy.com","port": "12345"},
             },
             {
-                "rpc_address":{"hostname": "127.0.0.2", "port": "8080"},
+                "bind_address":{"hostname": "127.0.0.2", "port": "8080"},
                 "max_open_sessions_soft": 200,
                 "max_open_sessions_hard": 210
             }
@@ -57,7 +57,7 @@ Example:
 Optional. The ``node_certificate`` section includes configuration for the node x509 certificate.
 
 - ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
-- ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``public_rpc_address``. Default value: ``[]``.
+- ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``published_address``. Default value: ``[]``.
 - ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``secp384r1``.
 - ``initial_validity_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
 

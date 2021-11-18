@@ -7,8 +7,8 @@
     "node_address": { "hostname": "127.0.0.1", "port": "0" },
     "rpc_interfaces": [
       {
-        "rpc_address": { "hostname": "127.0.0.1", "port": "0" },
-        "public_rpc_address": { "hostname": "ccf.dummy.com", "port": "12345" },
+        "bind_address": { "hostname": "127.0.0.1", "port": "0" },
+        "published_address": { "hostname": "ccf.dummy.com", "port": "12345" },
         "max_open_sessions_soft": 1000,
         "max_open_sessions_hard": 1010
       }

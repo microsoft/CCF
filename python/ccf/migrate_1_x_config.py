@@ -101,8 +101,14 @@ if __name__ == "__main__":
                 output[s]["timer_ms"] = int(v)
 
             # network
-            elif k.endswith("rpc_address") and s != "join":
-                output["network"]["rpc_interfaces"][0][k] = split_address(v)
+            elif k == "rpc_address":
+                output["network"]["rpc_interfaces"][0]["bind_address"] = split_address(
+                    v
+                )
+            elif k == "public_rpc_address":
+                output["network"]["rpc_interfaces"][0][
+                    "published_address"
+                ] = split_address(v)
             elif k == "max_open_sessions":
                 output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = int(
                     v

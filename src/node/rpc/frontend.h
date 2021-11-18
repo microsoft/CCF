@@ -137,7 +137,7 @@ namespace ccf
 
           if (info)
           {
-            const auto& address = info->rpc_interfaces[0].public_rpc_address;
+            const auto& address = info->rpc_interfaces[0].published_address;
             const auto location = fmt::format(
               "https://{}:{}{}",
               address.hostname,

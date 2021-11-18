@@ -1513,8 +1513,8 @@ namespace ccf
         for (const auto& interface : config.network.rpc_interfaces)
         {
           sans.push_back(
-            {interface.public_rpc_address.hostname,
-             is_ip(interface.public_rpc_address.hostname)});
+            {interface.published_address.hostname,
+             is_ip(interface.published_address.hostname)});
         }
         return sans;
       }

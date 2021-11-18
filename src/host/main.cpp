@@ -272,20 +272,23 @@ int main(int argc, char** argv)
     std::string rpc_addresses;
     for (auto& interface : config.network.rpc_interfaces)
     {
-      rpc.listen(0, interface.rpc_address.hostname, interface.rpc_address.port);
+      rpc.listen(
+        0, interface.bind_address.hostname, interface.bind_address.port);
       rpc_addresses += fmt::format(
-        "{}\n{}\n", interface.rpc_address.hostname, interface.rpc_address.port);
+        "{}\n{}\n",
+        interface.bind_address.hostname,
+        interface.bind_address.port);
 
       // If public RPC address is not set, default to local RPC address
-      if (interface.public_rpc_address.hostname.empty())
+      if (interface.published_address.hostname.empty())
       {
-        interface.public_rpc_address.hostname = interface.rpc_address.hostname;
+        interface.published_address.hostname = interface.bind_address.hostname;
       }
       if (
-        interface.public_rpc_address.port.empty() ||
-        interface.public_rpc_address.port == "0")
+        interface.published_address.port.empty() ||
+        interface.published_address.port == "0")
       {
-        interface.public_rpc_address.port = interface.rpc_address.port;
+        interface.published_address.port = interface.bind_address.port;
       }
     }
     if (!config.rpc_addresses_file.empty())

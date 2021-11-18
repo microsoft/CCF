@@ -69,10 +69,10 @@ TEST_CASE("Multiple versions of NodeInfo")
     REQUIRE(converted.rpc_interfaces.size() > 0);
     const auto& current_interface = current.rpc_interfaces[0];
     const auto& converted_interface = converted.rpc_interfaces[0];
-    REQUIRE(current_interface.rpc_address == converted_interface.rpc_address);
+    REQUIRE(current_interface.bind_address == converted_interface.bind_address);
     REQUIRE(
-      current_interface.public_rpc_address ==
-      converted_interface.public_rpc_address);
+      current_interface.published_address ==
+      converted_interface.published_address);
     REQUIRE(
       current_interface.max_open_sessions_hard !=
       converted_interface.max_open_sessions_hard);

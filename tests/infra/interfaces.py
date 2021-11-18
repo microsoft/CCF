@@ -22,8 +22,8 @@ class RPCInterface:
 
     def json(self):
         return {
-            "rpc_address": {"hostname": self.rpc_host, "port": str(self.rpc_port)},
-            "public_rpc_address": {
+            "bind_address": {"hostname": self.rpc_host, "port": str(self.rpc_port)},
+            "published_address": {
                 "hostname": self.public_rpc_host,
                 "port": str(self.public_rpc_port),
             },

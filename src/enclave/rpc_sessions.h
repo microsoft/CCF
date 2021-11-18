@@ -150,7 +150,9 @@ namespace enclave
       for (const auto& interface : node_info.rpc_interfaces)
       {
         const auto interface_name = fmt::format(
-          "{}:{}", interface.rpc_address.hostname, interface.rpc_address.port);
+          "{}:{}",
+          interface.bind_address.hostname,
+          interface.bind_address.port);
         auto& li = listening_interfaces[interface_name];
 
         li.max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
