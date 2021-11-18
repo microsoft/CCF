@@ -1419,7 +1419,6 @@ def run(args):
         network = test_raw_text(network, args)
         network = test_historical_query(network, args)
         network = test_historical_query_range(network, args)
-        network = test_historical_query_multi(network, args)
         network = test_view_history(network, args)
         network = test_primary(network, args)
         network = test_network_node_info(network, args)
@@ -1433,6 +1432,7 @@ def run(args):
             network = test_random_receipts(network, args, False)
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
+            network = test_historical_query_multi(network, args)
         network = test_historical_receipts(network, args)
 
 
