@@ -65,7 +65,7 @@ namespace kv
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(is_snapshot);
       serialise_internal(tx_id.version);
-      // TODO: Remove?
+      // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);
     }
 
@@ -232,7 +232,8 @@ namespace kv
     {
       is_snapshot = public_reader.template read_next<bool>();
       version = public_reader.template read_next<Version>();
-      // TODO: Remove?
+      // max_conflict_version is included for compatibility, but currently
+      // ignored
       const auto _ = public_reader.template read_next<Version>();
     }
 
