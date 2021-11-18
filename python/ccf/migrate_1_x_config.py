@@ -151,11 +151,10 @@ if __name__ == "__main__":
             elif k == "raft_election_timeout_ms":
                 output["consensus"]["election_timeout_ms"] = int(v)
 
-            # intervals TODO: Rename those to sig_interval_ms/tx
             elif k == "sig_tx_interval":
-                output["intervals"][k] = int(v)
+                output["intervals"]["signature_interval_size"] = int(v)
             elif k == "sig_ms_interval":
-                output["intervals"][k] = int(v)
+                output["intervals"]["signature_interval_duration"] = int(v)
             elif k == "jwt_key_refresh_interval_s":
                 output["jwt"]["key_refresh_interval_s"] = int(v)
 

@@ -156,8 +156,8 @@ extern "C"
     {
       enclave = new enclave::Enclave(
         ec,
-        cc.intervals.sig_tx_interval,
-        cc.intervals.sig_ms_interval,
+        cc.intervals.signature_interval_size,
+        cc.intervals.signature_interval_duration,
         cc.consensus,
         cc.node_certificate.curve_id);
     }

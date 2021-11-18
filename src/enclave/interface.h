@@ -72,8 +72,8 @@ struct CCFConfig
 
   struct Intervals
   {
-    size_t sig_tx_interval = 5000;
-    size_t sig_ms_interval = 1000;
+    size_t signature_interval_size = 5000;
+    size_t signature_interval_duration = 1000;
 
     bool operator==(const Intervals&) const = default;
   };
@@ -100,7 +100,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Intervals);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Intervals);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Intervals, sig_tx_interval, sig_ms_interval);
+  CCFConfig::Intervals, signature_interval_size, signature_interval_duration);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
