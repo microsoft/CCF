@@ -237,7 +237,7 @@ int main(int argc, char** argv)
       writer_factory,
       config.ledger.ledger_chunk_bytes,
       asynchost::ledger_max_read_cache_files_default,
-      config.ledger.read_only_ledger_dirs);
+      config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
     asynchost::SnapshotManager snapshots(

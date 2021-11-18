@@ -125,9 +125,9 @@ if __name__ == "__main__":
 
             # ledger
             elif k == "ledger_dir":
-                output["ledger"][k] = v
-            elif k == "read_only_ledger_dir":  # plural/list
-                output["ledger"]["read_only_ledger_dirs"] = [v]
+                output["ledger"]["directory"] = v
+            elif k == "read_only_ledger_dir":
+                output["ledger"]["read_only_directories"] = [v]
             elif k == "ledger_chunk_bytes":
                 output["ledger"][k] = int(v)
 

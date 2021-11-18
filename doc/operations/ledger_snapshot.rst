@@ -12,7 +12,7 @@ The ledger is the persistent replicated append-only record of the transactions t
 
 On each node, the ledger is written to disk in a directory specified by the ``ledger.directory`` configuration entry.
 
-It is also possible to specify optional `read-only` ledger directories ``ledger.read_only_ledger_dirs``. This enables CCF to have access to historical transactions, for example after joining from a snapshot (see :ref:`operations/ledger_snapshot:Historical Transactions`). Note that only committed ledger files (those whose name ends with ``.committed``) can be read from this directory.
+It is also possible to specify optional `read-only` ledger directories ``ledger.read_only_directories``. This enables CCF to have access to historical transactions, for example after joining from a snapshot (see :ref:`operations/ledger_snapshot:Historical Transactions`). Note that only committed ledger files (those whose name ends with ``.committed``) can be read from this directory.
 
 File Layout
 ~~~~~~~~~~~
@@ -74,7 +74,7 @@ From 2.x releases (specifically, from `-dev5`), committed snapshot files embed t
 Historical Transactions
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Nodes that started from a snapshot can still process historical queries if the historical ledger files (i.e. the ledger files preceding the snapshot) are made accessible to the node via the ``ledger.read_only_ledger_dirs`` option to ``cchost``. Although the read-only ledger directory must be specified to the node on start-up, the historical ledger files can be copied to this directory `after` the node is started.
+Nodes that started from a snapshot can still process historical queries if the historical ledger files (i.e. the ledger files preceding the snapshot) are made accessible to the node via the ``ledger.read_only_directories`` option to ``cchost``. Although the read-only ledger directory must be specified to the node on start-up, the historical ledger files can be copied to this directory `after` the node is started.
 
 Best Practices
 --------------
