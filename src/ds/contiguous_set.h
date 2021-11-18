@@ -70,7 +70,7 @@ namespace ds
       while (first != end)
       {
         auto next = std::adjacent_find(
-          first, end, [](const T& a, const T& b) { return (a + 1) != b; });
+          first, end, [](const T& a, const T& b) { return a + 1 != b; });
         if (next == end)
         {
           ranges.emplace_back(*first, size_t(std::distance(first, end)) - 1);
@@ -83,14 +83,25 @@ namespace ds
 
     void maybe_merge_with_following(typename Ranges::iterator it)
     {
-      auto next_it = std::next(it);
-      if (next_it != ranges.end())
+      if (it != ranges.end())
       {
-        if (it->first + it->second + 1 == next_it->first)
+        auto next_it = std::next(it);
+        if (next_it != ranges.end())
         {
-          it->second = it->second + 1 + next_it->second;
-          ranges.erase(next_it);
+          if (it->first + it->second + 1 == next_it->first)
+          {
+            it->second = it->second + 1 + next_it->second;
+            ranges.erase(next_it);
+          }
         }
+      }
+    }
+
+    void maybe_merge_with_following(typename Ranges::reverse_iterator it)
+    {
+      if (it != ranges.rend())
+      {
+        maybe_merge_with_following(std::next(it).base());
       }
     }
 
@@ -162,10 +173,15 @@ namespace ds
 
     bool insert(const T& t)
     {
-      Range estimated_range{t, 0};
-      auto it = std::lower_bound(ranges.begin(), ranges.end(), estimated_range);
+      // Search backwards, to find the range with the highest starting point
+      // lower than this value. Offset by one, to find ranges adjacent to this
+      // value. eg - if inserting 5 into [{2, 1}, {6, 2}, {10, 2}], we want to
+      // find {6, 2}, and extend this range down by 1
+      const Range estimated_range(t + 1, 0);
+      auto it = std::lower_bound(
+        ranges.rbegin(), ranges.rend(), estimated_range, std::greater<>());
 
-      if (it != ranges.end())
+      if (it != ranges.rend())
       {
         const T& from = it->first;
         const T additional = it->second;
@@ -174,37 +190,29 @@ namespace ds
           // Already present
           return false;
         }
-        else if (t < from)
+        else if (from + additional + 1 == t)
         {
-          // Precedes this range
-          if (t + 1 == from)
-          {
-            // Precedes directly, extend this range by 1
-            it->first = t;
-            it->second++;
-            if (it != ranges.begin())
-            {
-              maybe_merge_with_following(std::prev(it));
-            }
-            return true;
-          }
-          else
-          {
-            // Insert new range before this, in fall-through exit path
-          }
-        }
-        else
-          // t > from + additional
-          // Is it adjacent?
-          if (from + additional + 1 == t)
-        {
+          // Adjacent to the end of the existing range
           it->second++;
           maybe_merge_with_following(it);
           return true;
         }
+        else if (t + 1 == from)
+        {
+          // Precedes directly, extend this range by 1
+          it->first = t;
+          it->second++;
+          if (it != ranges.rend())
+          {
+            maybe_merge_with_following(std::next(it));
+          }
+          return true;
+        }
+        // Else fall through to emplace new entry
       }
 
-      ranges.emplace(it, t, 0);
+      ranges.emplace(it.base(), t, 0);
+
       return true;
     }
 
@@ -216,7 +224,9 @@ namespace ds
         ranges.end(),
         estimated_range,
         // Custom comparator - ignore the second element
-        [](const Range& left, const Range& right) { return left.first < right.first; });
+        [](const Range& left, const Range& right) {
+          return left.first < right.first;
+        });
 
       if (it != ranges.begin() && t != it->first)
       {

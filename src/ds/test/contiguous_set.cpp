@@ -62,19 +62,29 @@ TEST_CASE_TEMPLATE(
   ds::ContiguousSet<T> cs;
   const auto& ccs = cs;
 
-  T min_value = std::numeric_limits<T>::min();
-  T max_value = std::numeric_limits<T>::max();
-  T default_value = (min_value / 2) + (max_value / 2);
+  T a, b, c;
+  if constexpr (std::is_same_v<T, size_t>)
+  {
+    a = 0;
+    b = 10;
+    c = 20;
+  }
+  else if constexpr (std::is_same_v<T, int>)
+  {
+    a = -10;
+    b = 0;
+    c = 10;
+  }
 
-  REQUIRE_FALSE(cs.erase(min_value));
-  REQUIRE_FALSE(cs.erase(max_value));
-  REQUIRE_FALSE(cs.erase(default_value));
+  REQUIRE_FALSE(cs.erase(a));
+  REQUIRE_FALSE(cs.erase(b));
+  REQUIRE_FALSE(cs.erase(c));
 
   REQUIRE(cs.size() == 0);
   REQUIRE(ccs.size() == 0);
   REQUIRE(cs.begin() == cs.end());
   REQUIRE(ccs.begin() == ccs.end());
-  REQUIRE(cs.insert(default_value));
+  REQUIRE(cs.insert(b));
   // ccs.insert({}); // insert is non-const
   REQUIRE(cs.size() == 1);
   REQUIRE(ccs.size() == 1);
@@ -84,7 +94,7 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.front() == ccs.back());
 
   // Insert again makes no change
-  REQUIRE_FALSE(cs.insert(default_value));
+  REQUIRE_FALSE(cs.insert(b));
   REQUIRE(cs.size() == 1);
   REQUIRE(ccs.size() == 1);
   REQUIRE(cs.begin() != cs.end());
@@ -96,81 +106,81 @@ TEST_CASE_TEMPLATE(
     ds::ContiguousSet<T> cs2(ccs);
     REQUIRE(cs == cs2);
 
-    REQUIRE(cs2.erase(default_value));
+    REQUIRE(cs2.erase(b));
     REQUIRE(cs != cs2);
 
-    REQUIRE(cs2.insert(default_value));
+    REQUIRE(cs2.insert(b));
     REQUIRE(cs == cs2);
   }
 
-  REQUIRE(cs.insert(min_value));
+  REQUIRE(cs.insert(a));
   REQUIRE(cs.size() == 2);
   REQUIRE(ccs.size() == 2);
   REQUIRE(cs.begin() != cs.end());
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() != cs.back());
   REQUIRE(ccs.front() != ccs.back());
-  REQUIRE(cs.contains(default_value));
-  REQUIRE(cs.contains(min_value));
-  REQUIRE_FALSE(cs.contains(max_value));
+  REQUIRE(cs.contains(b));
+  REQUIRE(cs.contains(a));
+  REQUIRE_FALSE(cs.contains(c));
 
-  REQUIRE(cs.insert(max_value));
+  REQUIRE(cs.insert(c));
   REQUIRE(cs.size() == 3);
   REQUIRE(ccs.size() == 3);
   REQUIRE(cs.begin() != cs.end());
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() != cs.back());
   REQUIRE(ccs.front() != ccs.back());
-  REQUIRE(cs.contains(default_value));
-  REQUIRE(cs.contains(min_value));
-  REQUIRE(cs.contains(max_value));
+  REQUIRE(cs.contains(b));
+  REQUIRE(cs.contains(a));
+  REQUIRE(cs.contains(c));
 
-  REQUIRE(cs.erase(min_value));
-  REQUIRE_FALSE(cs.erase(min_value));
+  REQUIRE(cs.erase(a));
+  REQUIRE_FALSE(cs.erase(a));
   REQUIRE(cs.size() == 2);
   REQUIRE(ccs.size() == 2);
   REQUIRE(cs.begin() != cs.end());
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() != cs.back());
   REQUIRE(ccs.front() != ccs.back());
-  REQUIRE(cs.contains(default_value));
-  REQUIRE_FALSE(cs.contains(min_value));
-  REQUIRE(cs.contains(max_value));
+  REQUIRE(cs.contains(b));
+  REQUIRE_FALSE(cs.contains(a));
+  REQUIRE(cs.contains(c));
 
-  REQUIRE(cs.erase(max_value));
-  REQUIRE_FALSE(cs.erase(max_value));
+  REQUIRE(cs.erase(c));
+  REQUIRE_FALSE(cs.erase(c));
   REQUIRE(cs.size() == 1);
   REQUIRE(ccs.size() == 1);
   REQUIRE(cs.begin() != cs.end());
   REQUIRE(ccs.begin() != ccs.end());
   REQUIRE(cs.front() == cs.back());
   REQUIRE(ccs.front() == ccs.back());
-  REQUIRE(cs.contains(default_value));
-  REQUIRE_FALSE(cs.contains(min_value));
-  REQUIRE_FALSE(cs.contains(max_value));
+  REQUIRE(cs.contains(b));
+  REQUIRE_FALSE(cs.contains(a));
+  REQUIRE_FALSE(cs.contains(c));
 
   {
     auto it = cs.begin();
-    REQUIRE(*it == default_value);
+    REQUIRE(*it == b);
     ++it;
     REQUIRE(it == cs.end());
   }
   {
     auto it = cs.begin();
-    REQUIRE(*it == default_value);
+    REQUIRE(*it == b);
     it++;
     REQUIRE(it == cs.end());
   }
 
   {
     auto it = ccs.begin();
-    REQUIRE(*it == default_value);
+    REQUIRE(*it == b);
     ++it;
     REQUIRE(it == ccs.end());
   }
   {
     auto it = ccs.begin();
-    REQUIRE(*it == default_value);
+    REQUIRE(*it == b);
     it++;
     REQUIRE(it == ccs.end());
   }
@@ -180,7 +190,7 @@ TEST_CASE_TEMPLATE(
     for (auto n : cs)
     {
       REQUIRE(count++ == 0);
-      REQUIRE(n == default_value);
+      REQUIRE(n == b);
     }
   }
 
@@ -189,22 +199,22 @@ TEST_CASE_TEMPLATE(
     for (auto n : ccs)
     {
       REQUIRE(count++ == 0);
-      REQUIRE(n == default_value);
+      REQUIRE(n == b);
     }
   }
 
-  REQUIRE(cs.erase(default_value));
-  // ccs.erase(default_value); // erase is non-const
+  REQUIRE(cs.erase(b));
+  // ccs.erase(b); // erase is non-const
   REQUIRE(cs.size() == 0);
   REQUIRE(cs.begin() == cs.end());
 
-  REQUIRE(cs.insert(default_value));
+  REQUIRE(cs.insert(b));
   REQUIRE(cs.size() == 1);
   REQUIRE(cs.begin() != cs.end());
   cs.clear();
   REQUIRE(cs.size() == 0);
   REQUIRE(cs.begin() == cs.end());
-  REQUIRE_FALSE(cs.contains(default_value));
+  REQUIRE_FALSE(cs.contains(b));
 }
 
 TEST_CASE("foo" * doctest::test_suite("contiguousset"))

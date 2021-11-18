@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #define OVERRIDE_MAX_HISTORY_LEN 4
+// Uncomment this to aid debugging
+//#define ENABLE_HISTORICAL_VERBOSE_LOGGING
 
 #include "node/historical_queries.h"
 
@@ -1023,7 +1025,7 @@ TEST_CASE("StateCache concurrent access")
   using Clock = std::chrono::system_clock;
   // Add a watchdog timeout. Even in Debug+SAN this entire test takes <3 secs,
   // so 10 seconds for any single entry is surely deadlock
-  const auto too_long = std::chrono::seconds(10);
+  const auto too_long = std::chrono::seconds(3);
 
   auto fetch_until_timeout = [&](
                                const auto& fetch_result,
@@ -1263,6 +1265,7 @@ TEST_CASE("StateCache concurrent access")
             range_descriptions.push_back(
               fmt::format("{}->{}", from, from + additional));
           }
+
           previously_requested.push_back(fmt::format(
             "Ranges {} [{}]", fmt::join(range_descriptions, ", "), ss));
 
@@ -1369,6 +1372,21 @@ TEST_CASE("StateCache concurrent access")
       previously_requested.push_back("B");
       query_random_sparse_set_states(seqnos, handle, error_printer);
     }
+  }
+  {
+    std::vector<std::string> previously_requested;
+    const auto i = 0;
+    const auto handle = 42;
+    auto error_printer = [&]() {
+      default_error_printer(handle, i, previously_requested);
+    };
+    ccf::historical::SeqNoCollection seqnos;
+    seqnos.insert(22);
+    seqnos.insert(23);
+    previously_requested.push_back("A");
+    query_random_sparse_set_states(seqnos, handle, error_printer);
+    previously_requested.push_back("B");
+    query_random_range_states(20, 23, handle, error_printer);
   }
 
   srand(time(NULL));
