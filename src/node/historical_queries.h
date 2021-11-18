@@ -239,102 +239,149 @@ namespace ccf::historical
         HISTORICAL_LOG(
           "Looking at {}, and populating receipts from it", new_seqno);
         auto new_details = get_store_details(new_seqno);
-        if (new_details->is_signature)
+        if (new_details->store != nullptr)
         {
-          HISTORICAL_LOG("{} is a signature", new_seqno);
-          // Iterate through earlier indices. If this signature covers them
-          // then create a receipt for them
-          const auto sig = get_signature(new_details->store);
-          ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
+          if (new_details->is_signature)
+          {
+            HISTORICAL_LOG("{} is a signature", new_seqno);
+            // Iterate through earlier indices. If this signature covers them
+            // then create a receipt for them
+            const auto sig = get_signature(new_details->store);
+            ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
 
-          for (auto seqno : requested_seqnos)
-          {
-            if (seqno >= new_seqno)
+            for (auto seqno : requested_seqnos)
             {
-              break;
-            }
-
-            if (tree.in_range(seqno))
-            {
-              auto details = get_store_details(seqno);
-              if (details != nullptr)
+              if (seqno >= new_seqno)
               {
-                auto proof = tree.get_proof(seqno);
-                details->receipt = std::make_shared<TxReceipt>(
-                  sig->sig,
-                  proof.get_root(),
-                  proof.get_path(),
-                  sig->node,
-                  sig->cert);
-                details->transaction_id = {sig->view, seqno};
-                HISTORICAL_LOG(
-                  "Assigned a sig for {} after given signature at {}",
-                  seqno,
-                  new_seqno);
-              }
-            }
-          }
-        }
-        else
-        {
-          HISTORICAL_LOG("{} is not a signature", new_seqno);
-          const auto sig_it = supporting_signatures.find(new_seqno);
-          if (sig_it != supporting_signatures.end())
-          {
-            // This was a search for a supporting signature, but this entry is
-            // _not_ a signature - fetch the next
-            // NB: We skip any entries we already have here. It is possible we
-            // are fetching 10, previously had entries at 13, 14, 15, and the
-            // signature for all of these is at 20. The supporting signature for
-            // 10 tries 11, then 12. Next, it should try 16, not 13.
-            auto next_seqno = new_seqno + 1;
-            while (requested_seqnos.contains(next_seqno))
-            {
-              ++next_seqno;
-            }
-            HISTORICAL_LOG(
-              "{} was a supporting signature attempt, fetch next {}",
-              new_seqno,
-              next_seqno);
-            return {next_seqno};
-          }
-          else if (new_details->receipt == nullptr)
-          {
-            HISTORICAL_LOG(
-              "{} also has no receipt - looking for later signature",
-              new_seqno);
-            // Iterate through later indices, see if there's a signature that
-            // covers this one
-            const auto& untrusted_digest = new_details->entry_digest;
-            bool sig_seen = false;
-            std::optional<ccf::SeqNo> end_of_matching_range = std::nullopt;
-            for (const auto& [first_seqno, additional] :
-                 requested_seqnos.get_ranges())
-            {
-              if (first_seqno + additional < new_seqno)
-              {
-                HISTORICAL_LOG(
-                  "Ignoring range starting at {} - too early", first_seqno);
-                continue;
+                break;
               }
 
-              if (!end_of_matching_range.has_value())
+              if (tree.in_range(seqno))
               {
-                end_of_matching_range = first_seqno + additional;
-              }
-
-              for (auto seqno = first_seqno; seqno <= first_seqno + additional;
-                   ++seqno)
-              {
-                if (seqno <= new_seqno)
-                {
-                  HISTORICAL_LOG("Ignoring {} - too early", seqno);
-                  continue;
-                }
-
                 auto details = get_store_details(seqno);
                 if (details != nullptr)
                 {
+                  auto proof = tree.get_proof(seqno);
+                  details->receipt = std::make_shared<TxReceipt>(
+                    sig->sig,
+                    proof.get_root(),
+                    proof.get_path(),
+                    sig->node,
+                    sig->cert);
+                  details->transaction_id = {sig->view, seqno};
+                  HISTORICAL_LOG(
+                    "Assigned a sig for {} after given signature at {}",
+                    seqno,
+                    new_seqno);
+                }
+              }
+            }
+          }
+          else
+          {
+            HISTORICAL_LOG("{} is not a signature", new_seqno);
+            const auto sig_it = supporting_signatures.find(new_seqno);
+            if (sig_it != supporting_signatures.end())
+            {
+              // This was a search for a supporting signature, but this entry is
+              // _not_ a signature - fetch the next
+              // NB: We skip any entries we already have here. It is possible we
+              // are fetching 10, previously had entries at 13, 14, 15, and the
+              // signature for all of these is at 20. The supporting signature
+              // for 10 tries 11, then 12. Next, it should try 16, not 13.
+              auto next_seqno = new_seqno + 1;
+              while (requested_seqnos.contains(next_seqno))
+              {
+                ++next_seqno;
+              }
+              HISTORICAL_LOG(
+                "{} was a supporting signature attempt, fetch next {}",
+                new_seqno,
+                next_seqno);
+              return {next_seqno};
+            }
+            else if (new_details->receipt == nullptr)
+            {
+              HISTORICAL_LOG(
+                "{} also has no receipt - looking for later signature",
+                new_seqno);
+              // Iterate through later indices, see if there's a signature that
+              // covers this one
+              const auto& untrusted_digest = new_details->entry_digest;
+              bool sig_seen = false;
+              std::optional<ccf::SeqNo> end_of_matching_range = std::nullopt;
+              for (const auto& [first_seqno, additional] :
+                   requested_seqnos.get_ranges())
+              {
+                if (first_seqno + additional < new_seqno)
+                {
+                  HISTORICAL_LOG(
+                    "Ignoring range starting at {} - too early", first_seqno);
+                  continue;
+                }
+
+                if (!end_of_matching_range.has_value())
+                {
+                  end_of_matching_range = first_seqno + additional;
+                }
+
+                for (auto seqno = first_seqno;
+                     seqno <= first_seqno + additional;
+                     ++seqno)
+                {
+                  if (seqno <= new_seqno)
+                  {
+                    HISTORICAL_LOG("Ignoring {} - too early", seqno);
+                    continue;
+                  }
+
+                  auto details = get_store_details(seqno);
+                  if (details != nullptr)
+                  {
+                    if (details->store != nullptr && details->is_signature)
+                    {
+                      const auto sig = get_signature(details->store);
+                      ccf::MerkleTreeHistory tree(
+                        get_tree(details->store).value());
+                      if (tree.in_range(new_seqno))
+                      {
+                        auto proof = tree.get_proof(new_seqno);
+                        new_details->receipt = std::make_shared<TxReceipt>(
+                          sig->sig,
+                          proof.get_root(),
+                          proof.get_path(),
+                          sig->node,
+                          sig->cert);
+                        new_details->transaction_id = {sig->view, new_seqno};
+                        return std::nullopt;
+                      }
+
+                      // Break here - if this signature doesn't cover us, no
+                      // later one can
+                      sig_seen = true;
+                      HISTORICAL_LOG(
+                        "Found a sig for {} at {}", new_seqno, seqno);
+                      break;
+                    }
+                  }
+                }
+
+                if (sig_seen)
+                {
+                  break;
+                }
+              }
+
+              if (!sig_seen)
+              {
+                auto sig_it = supporting_signatures.lower_bound(new_seqno);
+                if (sig_it != supporting_signatures.end())
+                {
+                  const auto& [sig_seqno, details] = *sig_it;
+                  HISTORICAL_LOG(
+                    "Considering a supporting signature for {} at {}",
+                    new_seqno,
+                    sig_seqno);
                   if (details->store != nullptr && details->is_signature)
                   {
                     const auto sig = get_signature(details->store);
@@ -350,66 +397,24 @@ namespace ccf::historical
                         sig->node,
                         sig->cert);
                       new_details->transaction_id = {sig->view, new_seqno};
-                      return std::nullopt;
                     }
-
-                    // Break here - if this signature doesn't cover us, no later
-                    // one can
-                    sig_seen = true;
-                    HISTORICAL_LOG(
-                      "Found a sig for {} at {}", new_seqno, seqno);
-                    break;
                   }
                 }
               }
 
-              if (sig_seen)
+              // If still have no receipt, after considering every larger value
+              // we have, and the best-guess at a supporting signature, then we
+              // may need to fetch another supporting signature. Request the
+              // first entry after the range
+              if (
+                new_details->receipt == nullptr &&
+                end_of_matching_range.has_value())
               {
-                break;
-              }
-            }
-
-            if (!sig_seen)
-            {
-              auto sig_it = supporting_signatures.lower_bound(new_seqno);
-              if (sig_it != supporting_signatures.end())
-              {
-                const auto& [sig_seqno, details] = *sig_it;
                 HISTORICAL_LOG(
-                  "Considering a supporting signature for {} at {}",
-                  new_seqno,
-                  sig_seqno);
-                if (details->store != nullptr && details->is_signature)
-                {
-                  const auto sig = get_signature(details->store);
-                  ccf::MerkleTreeHistory tree(get_tree(details->store).value());
-                  if (tree.in_range(new_seqno))
-                  {
-                    auto proof = tree.get_proof(new_seqno);
-                    new_details->receipt = std::make_shared<TxReceipt>(
-                      sig->sig,
-                      proof.get_root(),
-                      proof.get_path(),
-                      sig->node,
-                      sig->cert);
-                    new_details->transaction_id = {sig->view, new_seqno};
-                  }
-                }
+                  "Still nothing, better fetch {}",
+                  end_of_matching_range.value() + 1);
+                return {end_of_matching_range.value() + 1};
               }
-            }
-
-            // If still have no receipt, after considering every larger value we
-            // have, and the best-guess at a supporting signature, then we may
-            // need to fetch another supporting signature. Request the first
-            // entry after the range
-            if (
-              new_details->receipt == nullptr &&
-              end_of_matching_range.has_value())
-            {
-              HISTORICAL_LOG(
-                "Still nothing, better fetch {}",
-                end_of_matching_range.value() + 1);
-              return {end_of_matching_range.value() + 1};
             }
           }
         }
