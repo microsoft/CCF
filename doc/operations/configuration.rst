@@ -156,7 +156,7 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``signature_interval_size``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5000``.
-- ``signature_interval_duration``: Maximum duration (milliseconds) after which a signature transaction is automatically triggered. Default value: ``1000`` ms.
+- ``signature_interval_duration_ms``: Maximum duration (milliseconds) after which a signature transaction is automatically triggered. Default value: ``1000`` ms.
 
 .. note::
     Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.

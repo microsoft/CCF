@@ -45,7 +45,7 @@
   "ledger": {
     "directory": "ledger",
     "read_only_directories": [],
-    "ledger_chunk_bytes": 20000
+    "chunk_size": 20000
   },
   "snapshots": {
     "directory": "snapshots",
@@ -62,7 +62,7 @@
   },
   "intervals": {
     "signature_interval_size": 5000,
-    "signature_interval_duration": 1000
+    "signature_interval_duration_ms": 1000
   },
   "jwt": {
     "key_refresh_interval_s": 1800

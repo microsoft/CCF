@@ -154,7 +154,7 @@ if __name__ == "__main__":
             elif k == "sig_tx_interval":
                 output["intervals"]["signature_interval_size"] = int(v)
             elif k == "sig_ms_interval":
-                output["intervals"]["signature_interval_duration"] = int(v)
+                output["intervals"]["signature_interval_duration_ms"] = int(v)
             elif k == "jwt_key_refresh_interval_s":
                 output["jwt"]["key_refresh_interval_s"] = int(v)
 
