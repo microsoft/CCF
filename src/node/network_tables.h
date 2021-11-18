@@ -29,6 +29,7 @@
 #include "snapshot_evidence.h"
 #include "submitted_shares.h"
 #include "users.h"
+#include "view_change.h"
 
 #include <memory>
 #include <tuple>

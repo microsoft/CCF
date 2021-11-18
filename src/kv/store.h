@@ -9,7 +9,6 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "node/entities.h"
-#include "node/progress_tracker.h"
 #include "node/signatures.h"
 #include "snapshot.h"
 
@@ -87,7 +86,6 @@ namespace kv
     std::shared_ptr<Consensus> consensus = nullptr;
 
     std::shared_ptr<TxHistory> history = nullptr;
-    std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
 
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
@@ -198,17 +196,6 @@ namespace kv
     void set_history(std::shared_ptr<TxHistory> history_)
     {
       history = history_;
-    }
-
-    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
-    {
-      return progress_tracker;
-    }
-
-    void set_progress_tracker(
-      std::shared_ptr<ccf::ProgressTracker> progress_tracker_)
-    {
-      progress_tracker = progress_tracker_;
     }
 
     void set_encryptor(const EncryptorPtr& encryptor_)
@@ -794,120 +781,8 @@ namespace kv
       }
       else
       {
-        kv::Version v;
-        kv::Term view;
-        OrderedChanges changes;
-        MapCollection new_maps;
-        if (!fill_maps(
-              data,
-              public_only,
-              v,
-              view,
-              changes,
-              new_maps,
-              true))
-        {
-          return nullptr;
-        }
-
-        std::unique_ptr<BFTExecutionWrapper> exec;
-
-        if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
-        {
-          exec = std::make_unique<SignatureBFTExec>(
-            this,
-            get_history(),
-            get_consensus(),
-            std::move(data),
-            public_only,
-            v,
-            view,
-            std::move(changes),
-            std::move(new_maps));
-        }
-        else if (changes.find(ccf::Tables::BACKUP_SIGNATURES) != changes.end())
-        {
-          exec = std::make_unique<BackupSignatureBFTExec>(
-            this,
-            get_history(),
-            get_progress_tracker(),
-            get_consensus(),
-            std::move(data),
-            public_only,
-            v,
-            view,
-            std::move(changes),
-            std::move(new_maps));
-        }
-        else if (changes.find(ccf::Tables::NONCES) != changes.end())
-        {
-          exec = std::make_unique<NoncesBFTExec>(
-            this,
-            get_history(),
-            get_progress_tracker(),
-            std::move(data),
-            public_only,
-            v,
-            view,
-            std::move(changes),
-            std::move(new_maps));
-        }
-        else if (changes.find(ccf::Tables::NEW_VIEWS) != changes.end())
-        {
-          exec = std::make_unique<NewViewBFTExec>(
-            this,
-            get_history(),
-            get_progress_tracker(),
-            get_consensus(),
-            std::move(data),
-            public_only,
-            v,
-            view,
-            std::move(changes),
-            std::move(new_maps));
-        }
-        else if (
-          changes.find(ccf::Tables::SHARES) != changes.end() || public_only)
-        {
-          // The currently logic for creating shares uses entropy. This needs to
-          // be fixed to use this in a proper BFT way.
-          // https://github.com/microsoft/CCF/issues/2679
-          exec = std::make_unique<TxBFTApply>(
-            this,
-            get_history(),
-            std::move(data),
-            public_only,
-            std::make_unique<CommittableTx>(this),
-            v,
-            view,
-            std::move(changes),
-            std::move(new_maps));
-        }
-        else if (changes.find(ccf::Tables::AFT_REQUESTS) != changes.end())
-        {
-          exec = std::make_unique<TxBFTExec>(
-            this,
-            get_history(),
-            std::move(data),
-            public_only,
-            std::make_unique<CommittableTx>(this),
-            v,
-            view,
-            std::move(changes),
-            std::move(new_maps));
-        }
-        else
-        {
-          // we have deserialised an entry that didn't belong to the bft
-          // requests nor the signatures table
-          for (const auto& it : changes)
-          {
-            LOG_FAIL_FMT("Request contains unexpected table - {}", it.first);
-          }
-          CCF_ASSERT_FMT_FAIL(
-            "Request contains unexpected table - {}", changes.begin()->first);
-        }
-        return exec;
+        LOG_FAIL_FMT("Unsupported consensus type");
+        return {};
       }
     }
 

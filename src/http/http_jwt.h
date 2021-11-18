@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/base64.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
 #include "http_consts.h"
 #include "http_parser.h"
-#include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -90,9 +90,9 @@ namespace http
       std::string_view payload_b64url =
         token.substr(first_dot + 1, payload_size);
       std::string_view signature_b64url = token.substr(second_dot + 1);
-      auto header_raw = tls::raw_from_b64url(header_b64url);
-      auto payload_raw = tls::raw_from_b64url(payload_b64url);
-      auto signature_raw = tls::raw_from_b64url(signature_b64url);
+      auto header_raw = crypto::raw_from_b64url(header_b64url);
+      auto payload_raw = crypto::raw_from_b64url(payload_b64url);
+      auto signature_raw = crypto::raw_from_b64url(signature_b64url);
       auto signed_content = token.substr(0, second_dot);
       nlohmann::json header;
       nlohmann::json payload;

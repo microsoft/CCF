@@ -8,6 +8,7 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import os
 from loguru import logger as LOG
+import pprint
 
 
 def action(name, **args):
@@ -498,7 +499,7 @@ def test_actions(network, args):
     return network
 
 
-@reqs.description("Test apply")
+@reqs.description("Test resolve and apply failures")
 def test_apply(network, args):
     node = network.find_random_node()
 
@@ -507,23 +508,48 @@ def test_apply(network, args):
             "/gov/proposals",
             proposal(action("always_throw_in_apply")),
         )
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Failed", r.body.json()
+        assert r.status_code == 500, r.body.text()
+        assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
         assert (
-            r.body.json()["failure"]["reason"]
+            r.body.json()["error"]["message"].split("\n")[0]
             == "Failed to apply(): Error: Error message"
         ), r.body.json()
+
+    with node.client(None, "member0") as c:
+        pprint.pprint(
+            proposal(action("always_accept_noop"), action("always_throw_in_apply"))
+        )
+        r = c.post(
+            "/gov/proposals",
+            proposal(action("always_accept_noop"), action("always_throw_in_apply")),
+        )
+        assert r.status_code == 200, r.body().text()
+        proposal_id = r.body.json()["proposal_id"]
+        r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot_yes)
+        assert r.status_code == 200, r.body().text()
+
+        with node.client(None, "member1") as c:
+            r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot_yes)
+            assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
+            assert (
+                "Failed to apply():" in r.body.json()["error"]["message"]
+            ), r.body.json()
+            assert (
+                "Error: Error message" in r.body.json()["error"]["message"]
+            ), r.body.json()
 
     with node.client(None, "member0") as c:
         r = c.post(
             "/gov/proposals",
             proposal(action("always_throw_in_resolve")),
         )
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Failed", r.body.json()
+        assert r.status_code == 500, r.body.text()
+        assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
         assert (
-            r.body.json()["failure"]["reason"]
-            == "Failed to resolve(): Error: Resolve message"
+            "Failed to resolve():" in r.body.json()["error"]["message"]
+        ), r.body.json()
+        assert (
+            "Error: Resolve message" in r.body.json()["error"]["message"]
         ), r.body.json()
 
     return network

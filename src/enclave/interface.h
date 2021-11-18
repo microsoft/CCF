@@ -17,7 +17,6 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "reconfiguration_type.h"
-#include "tls/tls.h"
 
 #include <chrono>
 
@@ -32,14 +31,6 @@ struct EnclaveConfig
   ringbuffer::Offsets* from_enclave_buffer_offsets;
 
   oversized::WriterConfig writer_config = {};
-
-#ifdef DEBUG_CONFIG
-  struct DebugConfig
-  {
-    size_t memory_reserve_startup;
-  };
-  DebugConfig debug_config = {};
-#endif
 };
 
 struct CCFConfig

@@ -4,6 +4,7 @@
 
 #include "openssl_wrappers.h"
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <time.h>
 

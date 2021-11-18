@@ -6,6 +6,7 @@
 #include "crypto/mbedtls/hash.h"
 #include "crypto/mbedtls/rsa_public_key.h"
 #include "entropy.h"
+#include "error_string.h"
 #include "hash.h"
 #include "mbedtls_wrappers.h"
 

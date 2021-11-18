@@ -560,13 +560,11 @@ class CCFRemote(object):
         sig_tx_interval=5000,
         sig_ms_interval=1000,
         raft_election_timeout_ms=1000,
-        bft_view_change_timeout_ms=5000,
         consensus="cft",
         worker_threads=0,
-        memory_reserve_startup=0,
         constitution=None,
         ledger_dir=None,
-        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
+        read_only_ledger_dirs=None,  # Read-only ledger dirs to copy to node directory
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         log_format_json=None,
         binary_dir=".",
@@ -609,12 +607,10 @@ class CCFRemote(object):
             else f"{local_node_id}.ledger"
         )
 
-        self.read_only_ledger_dir = read_only_ledger_dir
-        self.read_only_ledger_dir_name = (
-            os.path.basename(self.read_only_ledger_dir)
-            if self.read_only_ledger_dir
-            else None
-        )
+        self.read_only_ledger_dirs = read_only_ledger_dirs or []
+        self.read_only_ledger_dirs_names = []
+        for d in self.read_only_ledger_dirs:
+            self.read_only_ledger_dirs_names.append(os.path.basename(d))
         self.common_read_only_ledger_dir = common_read_only_ledger_dir
 
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
@@ -634,12 +630,6 @@ class CCFRemote(object):
         bin_path = os.path.join(".", os.path.basename(self.BIN))
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
-        election_timeout_arg = (
-            f"--bft-view-change-timeout-ms={bft_view_change_timeout_ms}"
-            if consensus == "bft"
-            else f"--raft-election-timeout-ms={raft_election_timeout_ms}"
-        )
-
         cmd = [
             bin_path,
             f"--enclave-file={enclave_path}",
@@ -651,7 +641,7 @@ class CCFRemote(object):
             f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
-            election_timeout_arg,
+            f"--raft-election-timeout-ms={raft_election_timeout_ms}",
             f"--consensus={consensus}",
             f"--worker-threads={worker_threads}",
         ]
@@ -671,9 +661,6 @@ class CCFRemote(object):
         if sig_ms_interval:
             cmd += [f"--sig-ms-interval={sig_ms_interval}"]
 
-        if memory_reserve_startup:
-            cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
-
         if ledger_chunk_bytes:
             cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
 
@@ -692,9 +679,11 @@ class CCFRemote(object):
         if jwt_key_refresh_interval_s:
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
-        if self.read_only_ledger_dir is not None:
-            cmd += [f"--read-only-ledger-dir={self.read_only_ledger_dir_name}"]
-            data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
+        for dir_names in self.read_only_ledger_dirs_names:
+            cmd += [f"--read-only-ledger-dir={dir_names}"]
+
+        for dirs in self.read_only_ledger_dirs:
+            data_files += [os.path.join(self.common_dir, dirs)]
 
         if self.common_read_only_ledger_dir is not None:
             cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
@@ -819,28 +808,19 @@ class CCFRemote(object):
     def set_perf(self):
         self.remote.set_perf()
 
-    # For now, it makes sense to default include_read_only_dirs to False
-    # but when nodes started from snapshots are fully supported in the test
-    # suite, this argument will probably default to True (or be deleted entirely)
-    def get_ledger(self, ledger_dir_name, include_read_only_dirs=False):
+    def get_ledger(self, ledger_dir_name):
         self.remote.get(
             self.ledger_dir_name, self.common_dir, target_name=ledger_dir_name
         )
         read_only_ledger_dirs = []
-        if include_read_only_dirs and self.read_only_ledger_dir is not None:
-            read_only_ledger_dir_name = (
-                f"{ledger_dir_name}.ro"
-                if ledger_dir_name
-                else self.read_only_ledger_dir
-            )
+        for read_only_ledger_dir in self.read_only_ledger_dirs:
+            name = f"{read_only_ledger_dir}.ro"
             self.remote.get(
-                os.path.basename(self.read_only_ledger_dir),
+                os.path.basename(read_only_ledger_dir),
                 self.common_dir,
-                target_name=read_only_ledger_dir_name,
+                target_name=name,
             )
-            read_only_ledger_dirs.append(
-                os.path.join(self.common_dir, read_only_ledger_dir_name)
-            )
+            read_only_ledger_dirs.append(os.path.join(self.common_dir, name))
         return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
     def get_snapshots(self):
@@ -860,8 +840,8 @@ class CCFRemote(object):
 
     def ledger_paths(self):
         paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
-        if self.read_only_ledger_dir_name is not None:
-            paths += [os.path.join(self.remote.root, self.read_only_ledger_dir_name)]
+        for read_only_ledger_dir_name in self.read_only_ledger_dirs_names:
+            paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
         return paths
 
     def get_logs(self, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
