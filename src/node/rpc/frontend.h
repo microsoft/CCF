@@ -158,7 +158,6 @@ namespace ccf
       kv::CommittableTx& tx,
       const PreExec& pre_exec = {},
       kv::Version prescribed_commit_version = kv::NoVersion,
-      ccf::SeqNo max_conflict_version = kv::NoVersion,
       ccf::View replicated_view = ccf::VIEW_UNKNOWN)
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
@@ -326,8 +325,7 @@ namespace ccf
               return std::make_tuple(prescribed_commit_version, kv::NoVersion);
             };
             tx.set_view(replicated_view);
-            result = tx.commit(
-              track_read_versions, version_resolver, max_conflict_version);
+            result = tx.commit(track_read_versions, version_resolver);
           }
           else
           {

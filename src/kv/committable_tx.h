@@ -19,27 +19,6 @@ namespace kv
 
     Version version = NoVersion;
 
-    // The transaction engine supports producing a transaction's dependencies.
-    // This is materialized by providing a sequence number after which the
-    // current transaction must be run and required that transaction execution
-    // is started in the total order.  The current use case for dependency
-    // tracking is to enable parallel execution of transactions on the backup,
-    // and as such dependencies are tracked when running with the BFT consensus
-    // protocol. The backup will also calculate the dependencies to ensure there
-    // is no linearizability violation created by a malicious primary sending an
-    // incorrect transaction dependency order.
-    //
-    // Dependency tracking follows the following pseudocode
-    //
-    // OnTxCommit:
-    //   MaxSeenReadVersion = NoVersion
-    //   foreach Accessed Key-Value pair:
-    //     MaxSeenReadVersion = max(MaxSeenReadVersion, pair.last_read_version)
-    //     pair.last_read_version = pair.seqno
-    //
-    //   TxSerialize(pairs, MaxSeenReadVersion)
-    Version max_conflict_version = NoVersion;
-
     kv::TxHistory::RequestID req_id;
 
     std::vector<uint8_t> serialise(bool include_reads = false)
@@ -61,14 +40,8 @@ namespace kv
         return {};
       }
 
-      if (max_conflict_version == NoVersion)
-      {
-        max_conflict_version = version - 1;
-      }
-
       auto e = store->get_encryptor();
-      KvStoreSerialiser replicated_serialiser(
-        e, {commit_view, version}, max_conflict_version);
+      KvStoreSerialiser replicated_serialiser(e, {commit_view, version});
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -109,8 +82,7 @@ namespace kv
     CommitResult commit(
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
-        version_resolver = nullptr,
-      kv::Version replicated_max_conflict_version = kv::NoVersion)
+        version_resolver = nullptr)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -156,39 +128,7 @@ namespace kv
       else
       {
         committed = true;
-        std::tie(version, max_conflict_version) = c.value();
-
-        if (track_read_versions)
-        {
-          // This is executed on the backup and deals with the case
-          // that for any set of transactions there may be several valid
-          // serializations that do not violate the linearizability guarantees
-          // of the total order. This check validates that this tx does not read
-          // a key at a higher version than its version (i.e. does not break
-          // linearizability). After ensuring linearizability is maintained
-          // max_conflict_version is set to the same value as the one specified
-          // so that when it is inserted into the Merkle tree the same root will
-          // exist on the primary and backup.
-          if (
-            version > max_conflict_version &&
-            version > replicated_max_conflict_version &&
-            replicated_max_conflict_version != kv::NoVersion)
-          {
-            max_conflict_version = replicated_max_conflict_version;
-          }
-
-          // Check if a linearizability violation occurred
-          if (max_conflict_version > version && version != 0)
-          {
-            LOG_INFO_FMT(
-              "Detected linearizability violation - version:{}, "
-              "max_conflict_version:{}, replicated_max_conflict_version:{}",
-              version,
-              max_conflict_version,
-              replicated_max_conflict_version);
-            return CommitResult::FAIL_CONFLICT;
-          }
-        }
+        version = c.value();
 
         if (version == NoVersion)
         {
@@ -270,11 +210,6 @@ namespace kv
     Version get_version()
     {
       return version;
-    }
-
-    Version get_max_conflict_version()
-    {
-      return max_conflict_version;
     }
 
     std::optional<TxID> get_txid()
