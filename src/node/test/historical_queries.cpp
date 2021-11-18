@@ -765,9 +765,8 @@ TEST_CASE("StateCache range queries")
 
       const auto range_size = to_provide.size();
       REQUIRE(stores.size() == range_size);
-      for (size_t i = 0; i < stores.size(); ++i)
+      for (auto& store : stores)
       {
-        auto& store = stores[i];
         REQUIRE(store != nullptr);
         const auto seqno = store->current_version();
 
