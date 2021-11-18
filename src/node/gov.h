@@ -105,3 +105,30 @@ namespace ccf
     DECLARE_JSON_REQUIRED_FIELDS(Ballot, ballot);
   }
 }
+
+namespace fmt
+{
+  template <>
+  struct formatter<std::optional<ccf::jsgov::Failure>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const std::optional<ccf::jsgov::Failure>& f, FormatContext& ctx)
+    {
+      if (f.has_value())
+      {
+        return format_to(
+          ctx.out(), "{}\nTrace: {}", f->reason, f->trace.value_or("N/A"));
+      }
+      else
+      {
+        return format_to(ctx.out(), "N/A");
+      }
+    }
+  };
+}

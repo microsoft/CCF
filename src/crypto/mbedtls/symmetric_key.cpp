@@ -3,6 +3,8 @@
 
 #include "symmetric_key.h"
 
+#include "error_string.h"
+
 #include <mbedtls/aes.h>
 #include <mbedtls/error.h>
 #include <mbedtls/pk.h>

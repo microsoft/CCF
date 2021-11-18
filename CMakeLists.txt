@@ -450,7 +450,6 @@ if(BUILD_TESTS)
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
-    add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
   endif()
 
   set(CONSTITUTION_ARGS

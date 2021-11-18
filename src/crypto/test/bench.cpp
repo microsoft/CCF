@@ -1,10 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "crypto/base64.h"
+#include "crypto/hash.h"
 #include "crypto/hash_provider.h"
 #include "crypto/key_pair.h"
+#include "crypto/mbedtls/base64.h"
 #include "crypto/mbedtls/hash.h"
 #include "crypto/mbedtls/key_pair.h"
 #include "crypto/mbedtls/rsa_key_pair.h"
+#include "crypto/openssl/base64.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
@@ -374,4 +378,130 @@ namespace Hashes
   auto sha_512_ossl_100k =
     benchmark_hash<OpenSSLHashProvider, MDType::SHA512, 102400>;
   PICOBENCH(sha_512_ossl_100k).PICO_HASH_SUFFIX();
+}
+
+enum Impl
+{
+  mbedtls,
+  openssl
+};
+
+PICOBENCH_SUITE("digest sha256");
+namespace SHA256_bench
+{
+  template <Impl IMPL, size_t size>
+  static void sha256_bench(picobench::state& s)
+  {
+    std::vector<uint8_t> v(size);
+    for (size_t i = 0; i < size; ++i)
+    {
+      v[i] = rand();
+    }
+
+    crypto::Sha256Hash h;
+
+    s.start_timer();
+    for (size_t i = 0; i < 10; ++i)
+    {
+      if constexpr (IMPL == Impl::mbedtls)
+      {
+        crypto::mbedtls_sha256(v, h.h.data());
+      }
+      else if constexpr (IMPL == Impl::openssl)
+      {
+        crypto::openssl_sha256(v, h.h.data());
+      }
+    }
+    s.stop_timer();
+  }
+
+  auto mbedtls_sha256_base = sha256_bench<Impl::mbedtls, 2 << 6>;
+  PICOBENCH(mbedtls_sha256_base).PICO_HASH_SUFFIX().baseline();
+  auto openssl_sha256_base = sha256_bench<Impl::openssl, 2 << 6>;
+  PICOBENCH(openssl_sha256_base).PICO_HASH_SUFFIX();
+
+  auto mbedtls_sha256_8 = sha256_bench<Impl::mbedtls, 2 << 8>;
+  PICOBENCH(mbedtls_sha256_8).PICO_HASH_SUFFIX();
+  auto openssl_sha256_8 = sha256_bench<Impl::openssl, 2 << 8>;
+  PICOBENCH(openssl_sha256_8).PICO_HASH_SUFFIX();
+
+  auto mbedtls_sha256_12 = sha256_bench<Impl::mbedtls, 2 << 12>;
+  PICOBENCH(mbedtls_sha256_12).PICO_HASH_SUFFIX();
+  auto openssl_sha256_12 = sha256_bench<Impl::openssl, 2 << 12>;
+  PICOBENCH(openssl_sha256_12).PICO_HASH_SUFFIX();
+
+  auto mbedtls_sha256_16 = sha256_bench<Impl::mbedtls, 2 << 16>;
+  PICOBENCH(mbedtls_sha256_16).PICO_HASH_SUFFIX();
+  auto openssl_sha256_16 = sha256_bench<Impl::openssl, 2 << 16>;
+  PICOBENCH(openssl_sha256_16).PICO_HASH_SUFFIX();
+
+  auto mbedtls_sha256_18 = sha256_bench<Impl::mbedtls, 2 << 18>;
+  PICOBENCH(mbedtls_sha256_18).PICO_HASH_SUFFIX();
+  auto openssl_sha256_18 = sha256_bench<Impl::openssl, 2 << 18>;
+  PICOBENCH(openssl_sha256_18).PICO_HASH_SUFFIX();
+}
+
+PICOBENCH_SUITE("base64");
+namespace Base64_bench
+{
+  template <Impl IMPL, size_t size>
+  static void base64_bench(picobench::state& s)
+  {
+    std::vector<uint8_t> v(size);
+    for (size_t i = 0; i < size; ++i)
+    {
+      v[i] = rand();
+    }
+
+    s.start_timer();
+    for (size_t i = 0; i < 10; ++i)
+    {
+      // We don't check the outputs as this is done elsewhere
+      if constexpr (IMPL == Impl::mbedtls)
+      {
+        std::string encoded =
+          crypto::Base64_mbedtls::b64_from_raw(v.data(), v.size());
+        crypto::Base64_mbedtls::raw_from_b64(encoded);
+      }
+      else if constexpr (IMPL == Impl::openssl)
+      {
+        std::string encoded =
+          crypto::Base64_openssl::b64_from_raw(v.data(), v.size());
+        crypto::Base64_openssl::raw_from_b64(encoded);
+      }
+    }
+    s.stop_timer();
+  }
+
+  // Single line is 64 chars (48 bytes)
+  auto mbedtls_base64_base = base64_bench<Impl::mbedtls, 45>;
+  PICOBENCH(mbedtls_base64_base).PICO_HASH_SUFFIX().baseline();
+  auto openssl_base64_base = base64_bench<Impl::openssl, 45>;
+  PICOBENCH(openssl_base64_base).PICO_HASH_SUFFIX();
+
+  // Small double line
+  auto mbedtls_base64_50 = base64_bench<Impl::mbedtls, 50>;
+  PICOBENCH(mbedtls_base64_50).PICO_HASH_SUFFIX();
+  auto openssl_base64_50 = base64_bench<Impl::openssl, 50>;
+  PICOBENCH(openssl_base64_50).PICO_HASH_SUFFIX();
+
+  auto mbedtls_base64_100 = base64_bench<Impl::mbedtls, 100>;
+  PICOBENCH(mbedtls_base64_100).PICO_HASH_SUFFIX();
+  auto openssl_base64_100 = base64_bench<Impl::openssl, 100>;
+  PICOBENCH(openssl_base64_100).PICO_HASH_SUFFIX();
+
+  auto mbedtls_base64_500 = base64_bench<Impl::mbedtls, 500>;
+  PICOBENCH(mbedtls_base64_500).PICO_HASH_SUFFIX();
+  auto openssl_base64_500 = base64_bench<Impl::openssl, 500>;
+  PICOBENCH(openssl_base64_500).PICO_HASH_SUFFIX();
+
+  auto mbedtls_base64_1000 = base64_bench<Impl::mbedtls, 1000>;
+  PICOBENCH(mbedtls_base64_1000).PICO_HASH_SUFFIX();
+  auto openssl_base64_1000 = base64_bench<Impl::openssl, 1000>;
+  PICOBENCH(openssl_base64_1000).PICO_HASH_SUFFIX();
+
+  auto mbedtls_base64_5000 = base64_bench<Impl::mbedtls, 5000>;
+  PICOBENCH(mbedtls_base64_5000).PICO_HASH_SUFFIX();
+  auto openssl_base64_5000 = base64_bench<Impl::openssl, 5000>;
+  PICOBENCH(openssl_base64_5000).PICO_HASH_SUFFIX();
 }

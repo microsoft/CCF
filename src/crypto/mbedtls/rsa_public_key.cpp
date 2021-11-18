@@ -6,6 +6,7 @@
 #include "crypto/mbedtls/curve.h"
 #include "crypto/mbedtls/hash.h"
 #include "entropy.h"
+#include "error_string.h"
 #include "mbedtls_wrappers.h"
 
 #include <mbedtls/md.h>

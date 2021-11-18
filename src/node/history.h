@@ -14,7 +14,6 @@
 #include "node_signature_verify.h"
 #include "nodes.h"
 #include "signatures.h"
-#include "tls/tls.h"
 
 #include <array>
 #include <deque>
