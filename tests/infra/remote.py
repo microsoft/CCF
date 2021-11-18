@@ -743,9 +743,6 @@ class CCFRemote(object):
             for f in self.read_only_ledger_dirs:
                 data_files += [os.path.join(self.common_dir, f)]
 
-            if self.common_read_only_ledger_dir is not None:
-                cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
-
             if curve_id is not None:
                 cmd += [f"--curve-id={curve_id.name}"]
 

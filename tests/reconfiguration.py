@@ -104,7 +104,7 @@ def test_add_node_invalid_validity_period(network, args):
         )
     except infra.proposal.ProposalNotAccepted:
         LOG.info(
-            "As expected, not could not be trusted since its certificate validity period is invalid"
+            "As expected, node could not be trusted since its certificate validity period is invalid"
         )
     else:
         raise Exception(

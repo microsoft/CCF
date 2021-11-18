@@ -91,12 +91,12 @@ class Member:
                 os.path.join(self.common_dir, f"{self.local_id}_privk.pem")
             )
             assert os.path.isfile(
-                os.path.join(self.common_dir, self.member_info.certificate_file)
+                os.path.join(self.common_dir, self.member_info["certificate_file"])
             )
 
         if self.member_data is not None:
             with open(
-                os.path.join(self.common_dir, self.member_info.member_data_file),
+                os.path.join(self.common_dir, self.member_info["data_json_file"]),
                 "w",
                 encoding="utf-8",
             ) as md:
