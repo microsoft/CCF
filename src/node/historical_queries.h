@@ -206,14 +206,6 @@ namespace ccf::historical
         requested_seqnos = new_seqnos;
         include_receipts = should_include_receipts;
 
-        // TODO: Correct comments
-        // If the final entry in the new range is known and not a signature,
-        // then we may need a subsequent signature to support it (or an
-        // earlier entry received out-of-order!) So start fetching subsequent
-        // entries to find supporting signature. It's possible this was the
-        // supporting entry we already had, or a signature in the range we
-        // already had, but working that out is tricky so be pessimistic and
-        // refetch instead.
         HISTORICAL_LOG(
           "Clearing {} supporting signatures", supporting_signatures.size());
         supporting_signatures.clear();
@@ -290,8 +282,6 @@ namespace ccf::historical
         }
         else
         {
-          // TODO: Can we re-write this as "loop through all larger indices,
-          // fetching if we don't have them"?
           HISTORICAL_LOG("{} is not a signature", new_seqno);
           const auto sig_it = supporting_signatures.find(new_seqno);
           if (sig_it != supporting_signatures.end())
