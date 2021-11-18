@@ -314,3 +314,97 @@ TEST_CASE("Contiguous set correctness" * doctest::test_suite("contiguousset"))
     test<int>(-20, 20);
   }
 }
+
+TEST_CASE("Contiguous set extend" * doctest::test_suite("contiguousset"))
+{
+  ds::ContiguousSet<size_t> cs;
+
+  // Distinct range at beginning
+  cs.extend(5, 1);
+  REQUIRE(cs.size() == 2);
+  REQUIRE(cs.get_ranges().size() == 1);
+
+  // Distinct range in middle
+  cs.extend(10, 1);
+  REQUIRE(cs.size() == 4);
+  REQUIRE(cs.get_ranges().size() == 2);
+
+  // Distinct range at end
+  cs.extend(15, 1);
+  REQUIRE(cs.size() == 6);
+  REQUIRE(cs.get_ranges().size() == 3);
+
+  SUBCASE("Distinct ranges")
+  {
+    cs.extend(1, 1);
+    REQUIRE(cs.size() == 8);
+    REQUIRE(cs.get_ranges().size() == 4);
+
+    cs.extend(8, 0);
+    REQUIRE(cs.size() == 9);
+    REQUIRE(cs.get_ranges().size() == 5);
+
+    cs.extend(13, 0);
+    REQUIRE(cs.size() == 10);
+    REQUIRE(cs.get_ranges().size() == 6);
+
+    cs.extend(20, 1);
+    REQUIRE(cs.size() == 12);
+    REQUIRE(cs.get_ranges().size() == 7);
+  }
+
+  SUBCASE("Overlapping ranges")
+  {
+    cs.extend(3, 1);
+    REQUIRE(cs.size() == 8);
+    REQUIRE(cs.get_ranges().size() == 3);
+
+    cs.extend(2, 4);
+    REQUIRE(cs.size() == 9);
+    REQUIRE(cs.get_ranges().size() == 3);
+
+    cs.extend(7, 1);
+    REQUIRE(cs.size() == 11);
+    REQUIRE(cs.get_ranges().size() == 3);
+
+    cs.extend(7, 2);
+    REQUIRE(cs.size() == 12);
+    REQUIRE(cs.get_ranges().size() == 2);
+
+    cs.extend(7, 3);
+    REQUIRE(cs.size() == 12);
+    REQUIRE(cs.get_ranges().size() == 2);
+
+    REQUIRE_FALSE(cs.contains(1));
+    for (auto n = 2; n <= 11; ++n)
+    {
+      REQUIRE(cs.contains(n));
+    }
+    for (auto n = 12; n <= 14; ++n)
+    {
+      REQUIRE_FALSE(cs.contains(n));
+    }
+    REQUIRE(cs.contains(15));
+    REQUIRE(cs.contains(16));
+    REQUIRE_FALSE(cs.contains(17));
+
+    cs.extend(9, 6);
+    REQUIRE(cs.size() == 15);
+    REQUIRE(cs.get_ranges().size() == 1);
+  }
+
+  SUBCASE("Overlapping and containing ranges")
+  {
+    cs.extend(9, 3);
+    REQUIRE(cs.size() == 8);
+    REQUIRE(cs.get_ranges().size() == 3);
+
+    cs.extend(2, 11);
+    REQUIRE(cs.size() == 14);
+    REQUIRE(cs.get_ranges().size() == 2);
+
+    cs.extend(1, 20);
+    REQUIRE(cs.size() == 21);
+    REQUIRE(cs.get_ranges().size() == 1);
+  }
+}

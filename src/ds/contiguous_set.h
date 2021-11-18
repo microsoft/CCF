@@ -211,7 +211,8 @@ namespace ds
         // Else fall through to emplace new entry
       }
 
-      ranges.emplace(it.base(), t, 0);
+      auto emplaced_it = ranges.emplace(it.base(), t, 0);
+      maybe_merge_with_following(emplaced_it);
 
       return true;
     }
@@ -284,7 +285,7 @@ namespace ds
       // TODO: Implement more efficiently
       for (auto n = from; n <= from + additional; ++n)
       {
-        insert(n);
+        const auto b = insert(n);
       }
     }
 
