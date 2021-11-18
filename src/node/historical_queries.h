@@ -650,8 +650,7 @@ namespace ccf::historical
           start_seqno));
       }
 
-      SeqNoCollection c;
-      c.extend(start_seqno, end_seqno - start_seqno);
+      SeqNoCollection c(start_seqno, end_seqno - start_seqno);
       return c;
     }
 

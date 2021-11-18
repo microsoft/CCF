@@ -143,6 +143,11 @@ namespace ds
       populate_ranges(first, end);
     }
 
+    ContiguousSet(const T& from, size_t additional)
+    {
+      ranges.emplace_back(from, additional);
+    }
+
     bool operator==(const ContiguousSet& other) const
     {
       return ranges == other.ranges;
@@ -282,7 +287,6 @@ namespace ds
 
     void extend(const T& from, size_t additional)
     {
-      // TODO: Implement more efficiently
       for (auto n = from; n <= from + additional; ++n)
       {
         const auto b = insert(n);
