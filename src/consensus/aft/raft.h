@@ -174,7 +174,7 @@ namespace aft
       size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
       std::optional<kv::LeadershipState> initial_leadership_state_ =
-        kv::LeadershipState::Follower,
+        std::nullopt,
       kv::MembershipState initial_membership_state_ =
         kv::MembershipState::Active,
       ReconfigurationType reconfiguration_type_ =

@@ -1968,13 +1968,6 @@ namespace ccf
         kv::MembershipState::Learner :
         kv::MembershipState::Active;
 
-      std::optional<kv::LeadershipState> leadership_state =
-        kv::LeadershipState::Follower;
-      if (
-        reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
-        service_status == ServiceStatus::OPEN)
-        leadership_state = std::nullopt;
-
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
@@ -1991,7 +1984,7 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         sig_tx_interval,
         public_only,
-        leadership_state,
+        std::nullopt,
         membership_state,
         reconfiguration_type);
 
