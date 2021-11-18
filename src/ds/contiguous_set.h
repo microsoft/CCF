@@ -279,6 +279,15 @@ namespace ds
       return false;
     }
 
+    void extend(const T& from, size_t additional)
+    {
+      // TODO: Implement more efficiently
+      for (auto n = from; n <= from + additional; ++n)
+      {
+        insert(n);
+      }
+    }
+
     bool contains(const T& t) const
     {
       return find_internal(t) != end();

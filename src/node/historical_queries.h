@@ -275,7 +275,10 @@ namespace ccf::historical
                   sig->node,
                   sig->cert);
                 details->transaction_id = {sig->view, seqno};
-                HISTORICAL_LOG("Assigned a sig for {} after given signature at {}", seqno, new_seqno);
+                HISTORICAL_LOG(
+                  "Assigned a sig for {} after given signature at {}",
+                  seqno,
+                  new_seqno);
               }
             }
           }
@@ -361,7 +364,8 @@ namespace ccf::historical
                     // Break here - if this signature doesn't cover us, no later
                     // one can
                     sig_seen = true;
-                    HISTORICAL_LOG("Found a sig for {} at {}", new_seqno, seqno);
+                    HISTORICAL_LOG(
+                      "Found a sig for {} at {}", new_seqno, seqno);
                     break;
                   }
                 }
@@ -647,11 +651,7 @@ namespace ccf::historical
       }
 
       SeqNoCollection c;
-      for (auto seqno = start_seqno; seqno <= end_seqno; ++seqno)
-      {
-        // TODO: Add a range insert, this is way too slow!
-        c.insert(seqno);
-      }
+      c.extend(start_seqno, end_seqno - start_seqno);
       return c;
     }
 
