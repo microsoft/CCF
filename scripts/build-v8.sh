@@ -197,7 +197,7 @@ export BUILD_CXXFLAGS="$common_ignore_warn"
 # clang_use_chrome_plugins=false: don't use linting plugins for Clang from Chrome
 # use_goma=false: don't use Google's internal build infrastructure
 if [ "$MODE" == "debug" ]; then
-  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true use_debug_fission=false"
+  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true v8_enable_slow_dchecks=true use_debug_fission=false"
 elif [ "$MODE" == "release" ]; then
   MODE_ARGS="is_debug=false dcheck_always_on=false"
 else
@@ -233,7 +233,7 @@ else
   verbose_flag=""
 fi
 
-ninja "$verbose_flag" -C "$OUT_DIR" v8_monolith
+ninja $verbose_flag -C "$OUT_DIR" v8_monolith
 if [ ! -f "$OUT_DIR/obj/libv8_monolith.a" ]; then
   echo "ERROR: Compilation unsuccessful, bailing out"
   exit 1
