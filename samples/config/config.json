@@ -43,7 +43,7 @@
     "target_rpc_address": { "hostname": "127.0.0.1", "port": "0" }
   },
   "ledger": {
-    "ledger_dir": "ledger",
+    "directory": "ledger",
     "read_only_ledger_dirs": [],
     "ledger_chunk_bytes": 20000
   },

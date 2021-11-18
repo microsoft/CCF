@@ -205,7 +205,7 @@ struct CCHostConfig : CCFConfig
 
   struct Ledger
   {
-    std::string ledger_dir = "ledger";
+    std::string directory = "ledger";
     std::vector<std::string> read_only_ledger_dirs = {};
     size_t ledger_chunk_bytes = 5'000'000;
 
@@ -267,7 +267,7 @@ DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file);
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCHostConfig::Ledger, ledger_dir, read_only_ledger_dirs, ledger_chunk_bytes);
+  CCHostConfig::Ledger, directory, read_only_ledger_dirs, ledger_chunk_bytes);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Snapshots);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Snapshots);

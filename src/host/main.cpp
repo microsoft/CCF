@@ -89,11 +89,11 @@ int main(int argc, char** argv)
   size_t recovery_threshold = 0;
   try
   {
-    if (*start && files::exists(config.ledger.ledger_dir))
+    if (*start && files::exists(config.ledger.directory))
     {
       throw std::logic_error(fmt::format(
         "On start, ledger directory should not exist ({})",
-        config.ledger.ledger_dir));
+        config.ledger.directory));
     }
 
     if (*start)
@@ -233,7 +233,7 @@ int main(int argc, char** argv)
     asynchost::Sigterm sigterm(writer_factory);
 
     asynchost::Ledger ledger(
-      config.ledger.ledger_dir,
+      config.ledger.directory,
       writer_factory,
       config.ledger.ledger_chunk_bytes,
       asynchost::ledger_max_read_cache_files_default,
