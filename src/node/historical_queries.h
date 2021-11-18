@@ -648,7 +648,7 @@ namespace ccf::historical
 
     std::vector<StatePtr> get_states_internal(
       RequestHandle handle,
-      const SeqNoCollection& seqno_ranges,
+      const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry,
       bool include_receipts)
     {
@@ -670,7 +670,7 @@ namespace ccf::historical
 
       // Update this Request to represent the currently requested ranges,
       // returning any newly requested indices
-      auto new_seqnos = request.adjust_ranges(seqno_ranges, include_receipts);
+      auto new_seqnos = request.adjust_ranges(seqnos, include_receipts);
 
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
@@ -703,37 +703,31 @@ namespace ccf::historical
 
       std::vector<StatePtr> trusted_states;
 
-      for (const auto& [start_seqno, num_following_indices] :
-           seqno_ranges.get_ranges())
+      for (auto seqno : seqnos)
       {
-        for (ccf::SeqNo seqno = start_seqno; seqno <=
-             static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
-             ++seqno)
+        auto target_details = request.get_store_details(seqno);
+        if (target_details == nullptr)
         {
-          auto target_details = request.get_store_details(seqno);
-          if (target_details == nullptr)
-          {
-            throw std::logic_error("Request isn't tracking state for seqno");
-          }
+          throw std::logic_error("Request isn't tracking state for seqno");
+        }
 
-          if (
-            target_details->current_stage == RequestStage::Trusted &&
-            (!request.include_receipts || target_details->receipt != nullptr))
-          {
-            // Have this store, associated txid and receipt and trust it - add
-            // it to return list
-            StatePtr state = std::make_shared<State>(
-              target_details->store,
-              target_details->receipt,
-              target_details->transaction_id);
-            trusted_states.push_back(state);
-          }
-          else
-          {
-            // Still fetching this store or don't trust it yet, so range is
-            // incomplete - return empty vector
-            return {};
-          }
+        if (
+          target_details->current_stage == RequestStage::Trusted &&
+          (!request.include_receipts || target_details->receipt != nullptr))
+        {
+          // Have this store, associated txid and receipt and trust it - add
+          // it to return list
+          StatePtr state = std::make_shared<State>(
+            target_details->store,
+            target_details->receipt,
+            target_details->transaction_id);
+          trusted_states.push_back(state);
+        }
+        else
+        {
+          // Still fetching this store or don't trust it yet, so range is
+          // incomplete - return empty vector
+          return {};
         }
       }
 
