@@ -131,11 +131,11 @@ class Consortium:
 
         LOG.debug(f"Writing proposal to {proposal_output_path}")
         with open(proposal_output_path, "w", encoding="utf-8") as f:
-            json.dump(proposal, f, **dump_args)
+            f.write(proposal)
 
         LOG.debug(f"Writing vote to {vote_output_path}")
         with open(vote_output_path, "w", encoding="utf-8") as f:
-            json.dump(vote, f, **dump_args)
+            f.write(vote)
 
         return f"@{proposal_output_path}", f"@{vote_output_path}"
 
