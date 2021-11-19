@@ -9,37 +9,37 @@
 # based on the IP address of the container (it assumes that the container
 # is connected to service-specific network)
 
-# Note: This should become less hacky once https://github.com/microsoft/CCF/issues/2612 is implemented
-
 set -ex
 
 cmd=$*
 container_ip=$(hostname -i | cut -d " " -f 2) # Network container IP address
-addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"
 
-# TODO: Fix:
-# 1. For 1.x nodes leave as it is (for LTS compatibility)
-# 2. For 2.x nodes, modify configuration JSON file
-# - Extract config path from `--config argument`
-# - Using jq, modify RPC address in place
+if [ "$(echo "${cmd}" | grep -- '--config')" ]; then
+    # Node makes use of configuration file (2.x nodes)
+    temporary_config_file_name="config.tmp"
+    config_file_path="$(echo "${cmd}" | grep -o -P "(?<=--config).*" | cut -d " " -f 2)"
+    "${config_file_path}"  jq ".network.rpc_interfaces[0].published_address.hostname=\"${container_ip}\" | .network.node_address.hostname=\"${container_ip}\"" > "${temporary_config_file_name}" && mv "${temporary_config_file_name}" /tmp/lala
+else
+    # Legacy node that uses CLI paramters (1.x)
+    addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"
 
-echo "lala"
+    # Required for 1.x releases
+    addresses="${addresses} --san=iPAddress:${container_ip}"
 
-# Required for 1.x releases TODO: Still required?
-addresses="${addresses} --san=iPAddress:${container_ip}"
+    startup_cmd=""
+    for c in " start " " join" " recover "; do
+        if [[ $cmd == *"${c}"* ]]; then
+            startup_cmd=${c}
+        fi
+    done
 
-startup_cmd=""
-for c in " start " " join" " recover "; do
-    if [[ $cmd == *"${c}"* ]]; then
-        startup_cmd=${c}
+    if [ -z "${startup_cmd}" ]; then
+        echo "Command does not contain valid cchost startup command"
+        exit 1
     fi
-done
 
-if [ -z "${startup_cmd}" ]; then
-    echo "Command does not contain valid cchost startup command"
-    exit 1
+    # Insert node and public RPC address in command line (yikes!)
+    cmd="${cmd%%${startup_cmd}*} ${addresses} ${startup_cmd} ${cmd##*${startup_cmd}}"
 fi
 
-# Insert node and public RPC address in command line (yikes!)
-cmd="${cmd%%${startup_cmd}*} ${addresses} ${startup_cmd} ${cmd##*${startup_cmd}}"
 eval "${cmd}"

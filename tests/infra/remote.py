@@ -550,14 +550,15 @@ class CCFRemote(object):
         label="",
         binary_dir=".",
         local_node_id=None,
-        host=[],
+        host=None,
         ledger_dir=None,
-        read_only_ledger_dirs=[],
+        read_only_ledger_dirs=None,
         snapshots_dir=None,
         common_read_only_ledger_dir=None,
+        constitution=None,
         version=None,
         major_version=None,
-        include_addresses=True,  #  TODO: Fix container wrapper!
+        include_addresses=True,
         config_file=None,
         **kwargs,
     ):
@@ -604,6 +605,11 @@ class CCFRemote(object):
             else f"{local_node_id}.snapshots"
         )
 
+        # Constitution
+        constitution = [
+            os.path.join(self.common_dir, os.path.basename(f)) for f in constitution
+        ]
+
         # Configuration file
         if config_file:
             LOG.info(
@@ -629,12 +635,13 @@ class CCFRemote(object):
                 ledger_dir=self.ledger_dir_name,
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
                 snapshots_dir=self.snapshot_dir_name,
+                constitution=constitution,
                 **kwargs,
             )
 
             config_file_name = f"{self.local_node_id}.config.json"
             config_file = os.path.join(common_dir, config_file_name)
-            data_files += [config_file]
+            exe_files += [config_file]
 
             with open(config_file, "w") as f:
                 f.write(output)
@@ -682,7 +689,6 @@ class CCFRemote(object):
                 "initial_node_cert_validity_days"
             )
             node_client_host = kwargs.get("node_client_host")
-            constitution = kwargs.get("constitution")
             members_info = kwargs.get("members_info")
             join_timer = kwargs.get("join_timer")
             target_rpc_address_hostname = kwargs.get("target_rpc_address_hostname")
