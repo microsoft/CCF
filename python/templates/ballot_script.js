@@ -25,7 +25,7 @@ export function vote (rawProposal, proposerId) {
     }
 
     let args = action.args;
-{% for arg_name, arg_value in action.args.items() %}    { 
+{% if actions.args is defined and actions.args is mapping %}{% for arg_name, arg_value in action.args.items() %}    { 
       if (!('{{ arg_name }}' in args))
       {
         return false;
@@ -36,7 +36,7 @@ export function vote (rawProposal, proposerId) {
       {
         return false;
       }
-    } {% endfor %}
+    } {% endfor %}{% endif %}
   }
 {% endfor %}
   return true;
