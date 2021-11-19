@@ -25,8 +25,10 @@ namespace crypto
     OpenSSL::CHECKNULL(BN_bin2bn(signature.data() + half_size, half_size, s));
     OpenSSL::Unique_ECDSA_SIG sig;
     OpenSSL::CHECK1(ECDSA_SIG_set0(sig, r, s));
-    r.release();
-    s.release();
+    // Ignore previous pointers, as they're now managed by ECDSA_SIG_set0
+    // https://www.openssl.org/docs/man1.1.1/man3/ECDSA_SIG_get0.html
+    (void)r.release();
+    (void)s.release();
     auto der_size = i2d_ECDSA_SIG(sig, nullptr);
     OpenSSL::CHECK0(der_size);
     std::vector<uint8_t> der_sig(der_size);

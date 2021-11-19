@@ -17,6 +17,7 @@
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
+#include <uv.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -71,7 +72,7 @@ namespace asynchost
     return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
   }
 
-  std::optional<std::string> get_file_name_with_idx(
+  static std::optional<std::string> get_file_name_with_idx(
     const std::string& dir, size_t idx)
   {
     std::optional<std::string> match = std::nullopt;
@@ -120,6 +121,7 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file = nullptr;
+    std::mutex file_lock;
 
     size_t start_idx = 1;
     size_t total_len = 0;
@@ -315,28 +317,8 @@ namespace asynchost
       }
     }
 
-    std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
-    {
-      if ((idx < start_idx) || (idx > get_last_idx()))
-      {
-        return std::nullopt;
-      }
-
-      auto len = framed_entries_size(idx, idx);
-      std::vector<uint8_t> entry(len);
-      fseeko(file, positions.at(idx - start_idx), SEEK_SET);
-
-      if (fread(entry.data(), entry.size(), 1, file) != 1)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to read entry {} from file", idx));
-      }
-
-      return entry;
-    }
-
     std::optional<std::vector<uint8_t>> read_framed_entries(
-      size_t from, size_t to) const
+      size_t from, size_t to)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
@@ -344,6 +326,7 @@ namespace asynchost
         return std::nullopt;
       }
 
+      std::unique_lock<std::mutex> guard(file_lock);
       auto framed_size = framed_entries_size(from, to);
       std::vector<uint8_t> framed_entries(framed_size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
@@ -510,10 +493,13 @@ namespace asynchost
     // Cache of ledger files for reading
     size_t max_read_cache_files;
     std::list<std::shared_ptr<LedgerFile>> files_read_cache;
+    std::mutex read_cache_lock;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
     size_t committed_idx = 0;
+
+    size_t end_of_committed_files_idx = 0;
 
     // True if a new file should be created when writing an entry
     bool require_new_file;
@@ -543,12 +529,16 @@ namespace asynchost
         return nullptr;
       }
 
-      // First, try to find file from read cache
-      for (auto const& f : files_read_cache)
       {
-        if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
+        std::unique_lock<std::mutex> guard(read_cache_lock);
+
+        // First, try to find file from read cache
+        for (auto const& f : files_read_cache)
         {
-          return f;
+          if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
+          {
+            return f;
+          }
         }
       }
 
@@ -582,34 +572,43 @@ namespace asynchost
       // the read cache is full
       auto match_file =
         std::make_shared<LedgerFile>(ledger_dir_, match.value());
-      files_read_cache.emplace_back(match_file);
-      if (files_read_cache.size() > max_read_cache_files)
+
       {
-        files_read_cache.erase(files_read_cache.begin());
+        std::unique_lock<std::mutex> guard(read_cache_lock);
+
+        files_read_cache.emplace_back(match_file);
+        if (files_read_cache.size() > max_read_cache_files)
+        {
+          files_read_cache.erase(files_read_cache.begin());
+        }
       }
 
       return match_file;
     }
 
-    std::shared_ptr<LedgerFile> get_file_from_idx(size_t idx)
+    std::shared_ptr<LedgerFile> get_file_from_idx(
+      size_t idx, bool read_cache_only = false)
     {
       if (idx == 0)
       {
         return nullptr;
       }
 
-      // First, check if the file is in the list of files open for writing
-      auto f = std::upper_bound(
-        files.rbegin(),
-        files.rend(),
-        idx,
-        [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
-          return idx >= f->get_start_idx();
-        });
-
-      if (f != files.rend())
+      if (!read_cache_only)
       {
-        return *f;
+        // First, check if the file is in the list of files open for writing
+        auto f = std::upper_bound(
+          files.rbegin(),
+          files.rend(),
+          idx,
+          [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
+            return idx >= f->get_start_idx();
+          });
+
+        if (f != files.rend())
+        {
+          return *f;
+        }
       }
 
       // Otherwise, return file from read cache
@@ -623,6 +622,39 @@ namespace asynchost
         return nullptr;
       }
       return files.back();
+    }
+
+    std::optional<std::vector<uint8_t>> read_entries_range(
+      size_t from, size_t to, bool read_cache_only = false)
+    {
+      if ((from <= 0) || (to > last_idx) || (to < from))
+      {
+        return std::nullopt;
+      }
+
+      std::vector<uint8_t> entries;
+      size_t idx = from;
+      while (idx <= to)
+      {
+        auto f_from = get_file_from_idx(idx, read_cache_only);
+        if (f_from == nullptr)
+        {
+          return std::nullopt;
+        }
+        auto to_ = std::min(f_from->get_last_idx(), to);
+        auto v = f_from->read_framed_entries(idx, to_);
+        if (!v.has_value())
+        {
+          return std::nullopt;
+        }
+        entries.insert(
+          entries.end(),
+          std::make_move_iterator(v->begin()),
+          std::make_move_iterator(v->end()));
+        idx = to_ + 1;
+      }
+
+      return entries;
     }
 
   public:
@@ -658,7 +690,9 @@ namespace asynchost
         for (auto const& f : fs::directory_iterator(read_dir))
         {
           auto last_idx_ = get_last_idx_from_file_name(f.path().filename());
-          if (!last_idx_.has_value())
+          if (
+            !last_idx_.has_value() ||
+            !is_ledger_file_committed(f.path().filename()))
           {
             LOG_DEBUG_FMT(
               "Read-only ledger file {} is ignored as not committed",
@@ -670,6 +704,7 @@ namespace asynchost
           {
             last_idx = last_idx_.value();
             committed_idx = last_idx;
+            end_of_committed_files_idx = last_idx;
           }
         }
       }
@@ -733,7 +768,8 @@ namespace asynchost
         if (files.empty())
         {
           LOG_INFO_FMT(
-            "Main ledger directory \"{}\" is empty: no ledger file to recover",
+            "Main ledger directory \"{}\" is empty: no ledger file to "
+            "recover",
             ledger_dir);
           require_new_file = true;
           return;
@@ -761,10 +797,10 @@ namespace asynchost
         {
           if ((*f)->is_committed())
           {
-            committed_idx = (*f)->get_last_idx();
-            auto f_ = f;
-            f++;
-            files.erase(f_);
+            const auto f_last_idx = (*f)->get_last_idx();
+            committed_idx = f_last_idx;
+            end_of_committed_files_idx = f_last_idx;
+            f = files.erase(f);
           }
           else
           {
@@ -806,12 +842,12 @@ namespace asynchost
       TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
 
       // Used to initialise the ledger when starting from a non-empty state,
-      // i.e. snapshot. It is assumed that idx is included in a committed ledger
-      // file
+      // i.e. snapshot. It is assumed that idx is included in a committed
+      // ledger file
 
-      // As it is possible that some ledger files containing indices later than
-      // snapshot index already exist (e.g. to verify the snapshot evidence),
-      // delete those so that ledger can restart neatly.
+      // As it is possible that some ledger files containing indices later
+      // than snapshot index already exist (e.g. to verify the snapshot
+      // evidence), delete those so that ledger can restart neatly.
       bool has_deleted = false;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
@@ -848,45 +884,16 @@ namespace asynchost
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entry at {}", idx));
 
-      auto f = get_file_from_idx(idx);
-      if (f == nullptr)
-      {
-        return std::nullopt;
-      }
-      return f->read_entry(idx);
+      return read_entries_range(idx, idx);
     }
 
     std::optional<std::vector<uint8_t>> read_framed_entries(
       size_t from, size_t to)
     {
-      if ((from <= 0) || (to > last_idx) || (to < from))
-      {
-        return std::nullopt;
-      }
+      TimeBoundLogger log_if_slow(
+        fmt::format("Reading framed ledger entries from {} to {}", from, to));
 
-      std::vector<uint8_t> entries;
-      size_t idx = from;
-      while (idx <= to)
-      {
-        auto f_from = get_file_from_idx(idx);
-        if (f_from == nullptr)
-        {
-          return std::nullopt;
-        }
-        auto to_ = std::min(f_from->get_last_idx(), to);
-        auto v = f_from->read_framed_entries(idx, to_);
-        if (!v.has_value())
-        {
-          return std::nullopt;
-        }
-        entries.insert(
-          entries.end(),
-          std::make_move_iterator(v->begin()),
-          std::make_move_iterator(v->end()));
-        idx = to_ + 1;
-      }
-
-      return entries;
+      return read_entries_range(from, to);
     }
 
     size_t write_entry(
@@ -945,8 +952,8 @@ namespace asynchost
 
       for (auto it = f_from; it != f_end;)
       {
-        // Truncate the first file to the truncation index while the more recent
-        // files are deleted entirely
+        // Truncate the first file to the truncation index while the more
+        // recent files are deleted entirely
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
         if ((*it)->truncate(truncate_idx))
         {
@@ -987,14 +994,14 @@ namespace asynchost
       {
         // Commit all previous file to their latest index while the latest
         // file is committed to the committed index
-        auto commit_idx = (it == f_to) ? idx : (*it)->get_last_idx();
+        const auto last_idx_in_file = (*it)->get_last_idx();
+        auto commit_idx = (it == f_to) ? idx : last_idx_in_file;
         if (
           (*it)->commit(commit_idx) &&
-          (it != f_to || (idx == (*it)->get_last_idx())))
+          (it != f_to || (idx == last_idx_in_file)))
         {
-          auto it_ = it;
-          it++;
-          files.erase(it_);
+          end_of_committed_files_idx = last_idx_in_file;
+          it = files.erase(it);
         }
         else
         {
@@ -1003,6 +1010,73 @@ namespace asynchost
       }
 
       committed_idx = idx;
+    }
+
+    bool is_in_committed_file(size_t idx)
+    {
+      return idx <= end_of_committed_files_idx;
+    }
+
+    struct AsyncLedgerGet
+    {
+      // Filled on construction
+      Ledger* ledger;
+      size_t from_idx;
+      size_t to_idx;
+
+      // First argument is ledger entries (or nullopt if not found)
+      // Second argument is uv status code, which may indicate a cancellation
+      using ResultCallback =
+        std::function<void(std::optional<std::vector<uint8_t>>&&, int)>;
+      ResultCallback result_cb;
+
+      // Final result
+      std::optional<std::vector<uint8_t>> entries = std::nullopt;
+    };
+
+    static void on_ledger_get_async(uv_work_t* req)
+    {
+      auto data = static_cast<AsyncLedgerGet*>(req->data);
+
+      data->entries =
+        data->ledger->read_entries_range(data->from_idx, data->to_idx, true);
+    }
+
+    static void on_ledger_get_async_complete(uv_work_t* req, int status)
+    {
+      auto data = static_cast<AsyncLedgerGet*>(req->data);
+
+      data->result_cb(std::move(data->entries), status);
+
+      delete data;
+      delete req;
+    }
+
+    void write_ledger_get_range_response(
+      size_t from_idx,
+      size_t to_idx,
+      std::optional<std::vector<uint8_t>>&& entries,
+      consensus::LedgerRequestPurpose purpose)
+    {
+      if (entries.has_value())
+      {
+        RINGBUFFER_WRITE_MESSAGE(
+          consensus::ledger_entry_range,
+          to_enclave,
+          from_idx,
+          to_idx,
+          purpose,
+          entries.value());
+      }
+      else
+      {
+        RINGBUFFER_WRITE_MESSAGE(
+          consensus::ledger_no_entry_range,
+          to_enclave,
+          from_idx,
+          to_idx,
+          purpose);
+      }
     }
 
     void register_message_handlers(
@@ -1040,21 +1114,51 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
-          auto [idx, purpose] =
-            ringbuffer::read_message<consensus::ledger_get>(data, size);
+        disp,
+        consensus::ledger_get_range,
+        [&](const uint8_t* data, size_t size) {
+          auto [from_idx, to_idx, purpose] =
+            ringbuffer::read_message<consensus::ledger_get_range>(data, size);
 
-          auto entry = read_entry(idx);
-
-          if (entry.has_value())
+          if (is_in_committed_file(to_idx))
           {
-            RINGBUFFER_WRITE_MESSAGE(
-              consensus::ledger_entry, to_enclave, idx, purpose, entry.value());
+            // Start an asynchronous job to do this, since it is committed and
+            // can be accessed independently (and in parallel)
+            uv_work_t* work_handle = new uv_work_t;
+
+            {
+              auto job = new AsyncLedgerGet;
+              job->ledger = this;
+              job->from_idx = from_idx;
+              job->to_idx = to_idx;
+              job->result_cb = [this,
+                                from_idx = from_idx,
+                                to_idx = to_idx,
+                                purpose = purpose](auto&& entry, int status) {
+                // NB: Even if status is cancelled (and entry is empty), we
+                // want to write this result back to the enclave
+                write_ledger_get_range_response(
+                  from_idx,
+                  to_idx,
+                  read_framed_entries(from_idx, to_idx),
+                  purpose);
+              };
+
+              work_handle->data = job;
+            }
+
+            uv_queue_work(
+              uv_default_loop(),
+              work_handle,
+              &on_ledger_get_async,
+              &on_ledger_get_async_complete);
           }
           else
           {
-            RINGBUFFER_WRITE_MESSAGE(
-              consensus::ledger_no_entry, to_enclave, idx, purpose);
+            // Read synchronously, since this accesses uncommitted state and
+            // must accurately reflect changing files
+            write_ledger_get_range_response(
+              from_idx, to_idx, read_framed_entries(from_idx, to_idx), purpose);
           }
         });
     }

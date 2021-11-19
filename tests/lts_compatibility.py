@@ -14,6 +14,7 @@ import os
 import json
 import time
 from e2e_logging import test_random_receipts
+from governance import test_all_nodes_cert_renewal
 
 
 from loguru import logger as LOG
@@ -28,6 +29,11 @@ ENV_VAR_LATEST_LTS_BRANCH_NAME = (
 )
 
 LOCAL_CHECKOUT_DIRECTORY = "."
+
+# When a 2.x node joins a 1.x service, the node has to self-endorse
+# its certificate, using a default value for the validity period
+# hardcoded in CCF.
+DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 
 def issue_activity_on_live_service(network, args):
@@ -64,7 +70,15 @@ def get_new_constitution_for_install(args, install_path):
     return args.constitution
 
 
-def test_new_service(network, args, install_path, binary_dir, library_dir, version):
+def test_new_service(
+    network,
+    args,
+    install_path,
+    binary_dir,
+    library_dir,
+    version,
+    cycle_existing_nodes=False,
+):
     LOG.info("Update constitution")
     primary, _ = network.find_primary()
     new_constitution = get_new_constitution_for_install(args, install_path)
@@ -72,15 +86,30 @@ def test_new_service(network, args, install_path, binary_dir, library_dir, versi
 
     # Note: Changes to constitution between versions should be tested here
 
-    LOG.info("Add node to new service")
-    new_node = network.create_node(
-        "local://localhost",
-        binary_dir=binary_dir,
-        library_dir=library_dir,
-        version=version,
-    )
-    network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
+    LOG.info(f"Add node to new service [cycle nodes: {cycle_existing_nodes}]")
+    nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
+    nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
+
+    for _ in range(0, nodes_to_add_count):
+        new_node = network.create_node(
+            "local://localhost",
+            binary_dir=binary_dir,
+            library_dir=library_dir,
+            version=version,
+        )
+        network.join_node(new_node, args.package, args)
+        network.trust_node(new_node, args)
+        new_node.verify_certificate_validity_period(
+            expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
+        )
+
+    for node in nodes_to_cycle:
+        network.retire_node(primary, node)
+        if primary == node:
+            primary, _ = network.wait_for_new_primary(primary)
+        node.stop()
+
+    test_all_nodes_cert_renewal(network, args)
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -169,6 +198,13 @@ def run_code_upgrade_from(
                     new_node, args.package, args, from_snapshot=from_snapshot
                 )
                 network.trust_node(new_node, args)
+                # For 2.x nodes joining a 1.x service before the constitution is update,
+                # the node certificate validity period is set by the joining node itself
+                # as [node startup time, node startup time + 365 days]
+                new_node.verify_certificate_validity_period(
+                    expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS,
+                    ignore_proposal_valid_from=True,
+                )
                 from_snapshot = not from_snapshot
                 new_nodes.append(new_node)
 
@@ -195,11 +231,14 @@ def run_code_upgrade_from(
             )
             primary, _ = network.find_primary()
             network.consortium.retire_code(primary, old_code_id)
+
             for node in old_nodes:
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
                 node.stop()
+
+            LOG.info("Service is now made of new nodes only")
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
@@ -211,7 +250,10 @@ def run_code_upgrade_from(
             else:
                 time.sleep(3)
 
-            # From here onwards, service is only made of new nodes
+            # Code update from 1.x to 2.x requires cycling the freshly-added 2.x nodes
+            # once. This is because 2.x nodes will not have an endorsed certificate
+            # recorded in the store and thus will not be able to have their certificate
+            # refreshed, etc.
             test_new_service(
                 network,
                 args,
@@ -219,6 +261,7 @@ def run_code_upgrade_from(
                 to_binary_dir,
                 to_library_dir,
                 to_version,
+                cycle_existing_nodes=True,
             )
 
             # Check that the ledger can be parsed
@@ -336,7 +379,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network.start_in_recovery(
                         args,
                         ledger_dir,
-                        committed_ledger_dir,
+                        committed_ledger_dirs,
                         snapshot_dir=snapshot_dir,
                     )
                     network.recover(args)
@@ -346,7 +389,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                 # Verify that all nodes run the expected CCF version
                 for node in nodes:
-                    # Note: /node/version endpoint was added in 2.x
+                    # Note: /node/version endpoint and custom certificate validity
+                    # were added in 2.x
                     if not node.major_version or node.major_version > 1:
                         with node.client() as c:
                             r = c.get("/node/version")
@@ -355,6 +399,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                             assert (
                                 r.body.json()["ccf_version"] == expected_version
                             ), f"Node version is not {expected_version}"
+                        node.verify_certificate_validity_period()
 
                 # Rollover JWKS so that new primary must read historical CA bundle table
                 # and retrieve new keys via auto refresh
@@ -366,25 +411,24 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 else:
                     time.sleep(3)
 
-                test_new_service(
-                    network,
-                    args,
-                    install_path,
-                    binary_dir,
-                    library_dir,
-                    version,
-                )
+                if idx > 0:
+                    test_new_service(
+                        network,
+                        args,
+                        install_path,
+                        binary_dir,
+                        library_dir,
+                        version,
+                    )
 
                 snapshot_dir = (
                     network.get_committed_snapshots(primary) if use_snapshot else None
                 )
-                ledger_dir, committed_ledger_dir = primary.get_ledger(
-                    include_read_only_dirs=True
-                )
+                ledger_dir, committed_ledger_dirs = primary.get_ledger()
                 network.stop_all_nodes(skip_verification=True)
 
                 # Check that ledger and snapshots can be parsed
-                ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
+                ccf.ledger.Ledger(committed_ledger_dirs).get_latest_public_state()
                 if snapshot_dir:
                     for s in os.listdir(snapshot_dir):
                         with ccf.ledger.Snapshot(

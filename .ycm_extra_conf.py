@@ -18,11 +18,12 @@ import ycm_core
 flags = [
 '-Wall',
 '-Wextra',
-'-Werror',
+# There's a limit on the number of errors where compilers just give up listing
+# but not on warnings, so we can have hundreds of warnings and it will just work
+#'-Werror',
 '-fexceptions',
 '-x',
 'c++',
-'-DENABLE_BFT',
 '-D_FORTIFY_SOURCE=2',
 '-DINSIDE_ENCLAVE',
 '-DVIRTUAL_ENCLAVE',

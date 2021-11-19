@@ -253,12 +253,14 @@ namespace threading
 
     inline Task& get_task(uint16_t tid)
     {
-      CCF_ASSERT_FMT(
-        tid < thread_count || tid == 0,
-        "Attempting to add task to tid >= thread_count, tid:{}, "
-        "thread_count:{}",
-        tid,
-        thread_count);
+      if (tid >= tasks.size())
+      {
+        throw std::runtime_error(fmt::format(
+          "Attempting to add task to tid >= thread_count, tid:{}, "
+          "thread_count:{}",
+          tid,
+          tasks.size()));
+      }
       return tasks[tid];
     }
 

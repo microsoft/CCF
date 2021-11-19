@@ -24,11 +24,36 @@ namespace aft
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
     virtual void put_entry(
-      const std::vector<uint8_t>& data,
+      const std::vector<uint8_t>& original,
       bool globally_committable,
-      bool force_chunk)
+      bool force_chunk,
+      kv::Term term,
+      kv::Version index)
     {
-      ledger.push_back(data);
+      // The payload that we eventually deserialise must include the
+      // ledger entry as well as the View and Index that identify it. In
+      // the real entries, they are nested in the payload and the IV. For
+      // test purposes, we just prefix them manually (to mirror the
+      // deserialisation in LoggingStubStore::ExecutionWrapper). We also
+      // size-prefix, so in a buffer of multiple of these messages we can
+      // extract each with get_entry
+      const size_t idx = ledger.size() + 1;
+      assert(idx == index);
+      auto additional_size = sizeof(size_t) + sizeof(term) + sizeof(index);
+      std::vector<uint8_t> combined(additional_size);
+      {
+        uint8_t* data = combined.data();
+        serialized::write(
+          data,
+          additional_size,
+          (sizeof(term) + sizeof(index) + original.size()));
+        serialized::write(data, additional_size, term);
+        serialized::write(data, additional_size, index);
+      }
+
+      combined.insert(combined.end(), original.begin(), original.end());
+
+      ledger.push_back(combined);
     }
 
     void skip_entry(const uint8_t*& data, size_t& size)
@@ -56,9 +81,8 @@ namespace aft
       return std::nullopt;
     }
 
-    template <typename T>
     std::optional<std::vector<uint8_t>> get_append_entries_payload(
-      const aft::AppendEntries& ae, T& term_getter)
+      const aft::AppendEntries& ae)
     {
       std::vector<uint8_t> payload;
 
@@ -71,29 +95,6 @@ namespace aft
         }
 
         const auto& entry = *entry_opt;
-
-        // The payload that we eventually deserialise must include the
-        // ledger entry as well as the View and Index that identify it. In
-        // the real entries, they are nested in the payload and the IV. For
-        // test purposes, we just prefix them manually (to mirror the
-        // deserialisation in LoggingStubStore::ExecutionWrapper). We also
-        // size-prefix, so in a buffer of multiple of these messages we can
-        // extract each with get_entry above
-        const auto term_of_idx = term_getter->get_term(idx);
-        const auto size_before = payload.size();
-        auto additional_size =
-          sizeof(size_t) + sizeof(term_of_idx) + sizeof(idx);
-        const auto size_after = size_before + additional_size;
-        payload.resize(size_after);
-        {
-          uint8_t* data = payload.data() + size_before;
-          serialized::write(
-            data,
-            additional_size,
-            (sizeof(term_of_idx) + sizeof(idx) + entry.size()));
-          serialized::write(data, additional_size, term_of_idx);
-          serialized::write(data, additional_size, idx);
-        }
         payload.insert(payload.end(), entry.begin(), entry.end());
       }
 
@@ -264,8 +265,12 @@ namespace aft
       kv::Version index;
       std::vector<uint8_t> entry;
 
+      kv::ApplyResult result;
+
     public:
-      ExecutionWrapper(const std::vector<uint8_t>& data_)
+      ExecutionWrapper(
+        const std::vector<uint8_t>& data_,
+        const std::optional<kv::TxID>& expected_txid)
       {
         const uint8_t* data = data_.data();
         auto size = data_.size();
@@ -273,11 +278,21 @@ namespace aft
         term = serialized::read<aft::Term>(data, size);
         index = serialized::read<kv::Version>(data, size);
         entry = serialized::read(data, size, size);
+
+        result = AR;
+
+        if (expected_txid.has_value())
+        {
+          if (term != expected_txid->term || index != expected_txid->version)
+          {
+            result = kv::ApplyResult::FAIL;
+          }
+        }
       }
 
       kv::ApplyResult apply() override
       {
-        return AR;
+        return result;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -298,11 +313,6 @@ namespace aft
       kv::Version get_index() override
       {
         return index;
-      }
-
-      kv::Version get_max_conflict_version() override
-      {
-        return kv::NoVersion;
       }
 
       ccf::PrimarySignature& get_signature() override
@@ -334,14 +344,11 @@ namespace aft
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
-      bool public_only = false)
+      bool public_only = false,
+      const std::optional<kv::TxID>& expected_txid = std::nullopt)
     {
-      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(data);
-    }
-
-    std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
-    {
-      return nullptr;
+      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
+        data, expected_txid);
     }
   };
 
@@ -353,10 +360,11 @@ namespace aft
     std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
-      bool public_only = false) override
+      bool public_only = false,
+      const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
       return std::make_unique<
-        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data);
+        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(data, expected_txid);
     }
   };
 

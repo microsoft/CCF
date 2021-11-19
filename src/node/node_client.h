@@ -30,9 +30,6 @@ namespace ccf
 
     virtual ~NodeClient() {}
 
-    virtual bool submit_orc(const NodeId& from, kv::ReconfigurationId rid) = 0;
-
-    virtual void schedule_submit_orc(
-      const NodeId& from, kv::ReconfigurationId rid) = 0;
+    virtual bool make_request(http::Request& request) = 0;
   };
 }

@@ -171,7 +171,7 @@ namespace ccf
       ccf::Cert der;
       try
       {
-        der = tls::raw_from_b64(der_base64);
+        der = crypto::raw_from_b64(der_base64);
       }
       catch (const std::invalid_argument& e)
       {

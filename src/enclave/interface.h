@@ -16,7 +16,7 @@
 #include "kv/kv_types.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
-#include "tls/tls.h"
+#include "reconfiguration_type.h"
 
 #include <chrono>
 
@@ -31,14 +31,6 @@ struct EnclaveConfig
   ringbuffer::Offsets* from_enclave_buffer_offsets;
 
   oversized::WriterConfig writer_config = {};
-
-#ifdef DEBUG_CONFIG
-  struct DebugConfig
-  {
-    size_t memory_reserve_startup;
-  };
-  DebugConfig debug_config = {};
-#endif
 };
 
 struct CCFConfig
@@ -63,6 +55,8 @@ struct CCFConfig
     std::vector<ccf::NewMember> members_info;
     std::string constitution;
     size_t recovery_threshold;
+    size_t max_allowed_node_cert_validity_days;
+    ReconfigurationType reconfiguration_type;
   };
   Genesis genesis = {};
 
@@ -76,10 +70,11 @@ struct CCFConfig
   Joining joining = {};
 
   crypto::CertificateSubjectIdentity node_certificate_subject_identity;
-
   size_t jwt_key_refresh_interval_s;
-
   crypto::CurveID curve_id;
+
+  size_t initial_node_certificate_validity_period_days;
+  std::string startup_host_time;
 };
 
 DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
@@ -88,7 +83,12 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(CCFConfig::Genesis);
 DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Genesis, members_info, constitution, recovery_threshold);
+  CCFConfig::Genesis,
+  members_info,
+  constitution,
+  recovery_threshold,
+  max_allowed_node_cert_validity_days,
+  reconfiguration_type);
 
 DECLARE_JSON_TYPE(CCFConfig::Joining);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -106,7 +106,9 @@ DECLARE_JSON_REQUIRED_FIELDS(
   joining,
   node_certificate_subject_identity,
   jwt_key_refresh_interval_s,
-  curve_id);
+  curve_id,
+  initial_node_certificate_validity_period_days,
+  startup_host_time);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig, startup_snapshot_evidence_seqno_for_1_x);
 

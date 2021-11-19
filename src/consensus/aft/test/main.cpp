@@ -29,9 +29,6 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     election_timeout,
     ms(1000));
@@ -74,9 +71,6 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -134,9 +128,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -151,9 +142,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -166,9 +154,6 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -310,9 +295,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -327,9 +309,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -342,9 +321,6 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -412,7 +388,15 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Tell the leader to replicate a message");
   DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true, hooks}}, 1));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
-  DOCTEST_REQUIRE(r0.ledger->ledger.front() == entry);
+
+  // The test ledger adds its own header. Confirm that the expected data is
+  // present, at the end of this ledger entry
+  const auto& actual = r0.ledger->ledger.front();
+  DOCTEST_REQUIRE(actual.size() >= entry.size());
+  for (size_t i = 0; i < entry.size(); ++i)
+  {
+    DOCTEST_REQUIRE(actual[actual.size() - entry.size() + i] == entry[i]);
+  }
   DOCTEST_INFO("The other nodes are not told about this yet");
   DOCTEST_REQUIRE(r0c->messages.size() == 0);
 
@@ -470,9 +454,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -487,9 +468,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -502,9 +480,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -601,14 +576,14 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
 
-  auto kv_store0 = std::make_shared<Store>(node_id0);
-  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store0 = std::make_shared<SigStore>(node_id0);
+  auto kv_store1 = std::make_shared<SigStore>(node_id1);
 
   ms request_timeout(10);
 
   TRaft r0(
     ConsensusType::CFT,
-    std::make_unique<Adaptor>(kv_store0),
+    std::make_unique<SigAdaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
@@ -617,15 +592,12 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
   TRaft r1(
     ConsensusType::CFT,
-    std::make_unique<Adaptor>(kv_store1),
+    std::make_unique<SigAdaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
@@ -634,12 +606,10 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
+  auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -676,7 +646,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     auto data_1 = std::make_shared<std::vector<uint8_t>>(first_entry);
     std::vector<uint8_t> second_entry = {2, 2, 2};
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true, hooks}}, 1));
@@ -700,7 +669,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
@@ -712,6 +680,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     aer.success = aft::AppendEntriesResponseType::FAIL;
     const auto p = reinterpret_cast<uint8_t*>(&aer);
     receive_message(r1, r0, {p, p + sizeof(aer)});
+    r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
     // Only the third entry is deserialised
@@ -732,7 +701,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(request_timeout);
@@ -746,7 +714,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true, hooks}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(request_timeout);
@@ -761,6 +728,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     aer.success = aft::AppendEntriesResponseType::FAIL;
     const auto p = reinterpret_cast<uint8_t*>(&aer);
     receive_message(r1, r0, {p, p + sizeof(aer)});
+    r0.periodic(request_timeout);
     DOCTEST_REQUIRE(r0c->messages.size() == 1);
 
     // Receive append entries (idx: 5, prev_idx: 3)
@@ -768,6 +736,95 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 5);
     DOCTEST_REQUIRE(r1.ledger->skip_count == 2);
+  }
+
+  DOCTEST_INFO("Receive a maliciously crafted cross-view AppendEntries");
+  {
+    {
+      std::vector<uint8_t> entry_6 = {6, 6, 6};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_6);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{6, data, true, hooks}}, 1));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 6);
+    }
+    const auto last_correct_version = r0.ledger->ledger.size();
+
+    std::vector<uint8_t> dead_branch;
+    {
+      std::vector<uint8_t> entry_7 = {7, 7, 7};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_7);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 1));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
+      dead_branch = r0.ledger->ledger.back();
+    }
+
+    {
+      r0.rollback(last_correct_version);
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == last_correct_version);
+
+      // How do we force Raft to increment its view? Currently by hacking to
+      // follower then force_become_leader. There should be a neater way to do
+      // this.
+      r0.become_aware_of_new_term(2);
+      r0.force_become_leader(); // The term actually jumps by 2 in this
+                                // function. Oh well, what can you do
+    }
+
+    std::vector<uint8_t> live_branch;
+    {
+      std::vector<uint8_t> entry_7b = {7, 7, 'b'};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_7b);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{7, data, true, hooks}}, 4));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 7);
+      live_branch = r0.ledger->ledger.back();
+    }
+
+    {
+      std::vector<uint8_t> entry_8 = {8, 8, 8};
+      auto data = std::make_shared<std::vector<uint8_t>>(entry_8);
+      DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{8, data, true, hooks}}, 4));
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() == 8);
+      DOCTEST_REQUIRE(r0.ledger->ledger.size() > last_correct_version);
+    }
+
+    {
+      // But now a malicious host fiddles with the ledger, and inserts a valid
+      // value from an old branch!
+      // NB: It's important that node 0 has not sent any AppendEntries about the
+      // latest entries yet! It should only do so after this point, where it
+      // will include incorrect entries.
+      r0.ledger->ledger[6] = dead_branch;
+    }
+
+    {
+      // Even after multiple round trip coherence attempts, the bad ledger
+      // remains and prevents progress
+      for (size_t i = 0; i < 10; ++i)
+      {
+        r0.periodic(request_timeout);
+        dispatch_all(nodes, node_id0, r0c->messages);
+        dispatch_all(nodes, node_id1, r1c->messages);
+      }
+      // Receiver refuses these new entries, because they see a mismatch
+      DOCTEST_REQUIRE(r1.ledger->ledger.size() == last_correct_version);
+    }
+
+    {
+      // Now the ledger is corrected (ie - an honest primary takes over and
+      // sends the correct values)
+      r0.ledger->ledger[6] = live_branch;
+    }
+
+    {
+      for (size_t i = 0; i < 10; ++i)
+      {
+        r0.periodic(request_timeout);
+        dispatch_all(nodes, node_id0, r0c->messages);
+        dispatch_all(nodes, node_id1, r1c->messages);
+      }
+
+      // Now the follower has fully caught up
+      DOCTEST_REQUIRE(r1.ledger->ledger.size() == r0.ledger->ledger.size());
+    }
   }
 }
 
@@ -796,9 +853,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -813,9 +867,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(100),
     ms(1000));
@@ -828,9 +879,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id2),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,
@@ -951,84 +999,12 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto aer = r2c->messages.front().second;
   r2c->messages.pop_front();
   receive_message(r2, r0, aer);
+  r0.periodic(request_timeout);
 
   DOCTEST_REQUIRE(r0c->messages.size() > num_small_entries_sent);
-  DOCTEST_REQUIRE(
-    r0c->messages.size() <= num_small_entries_sent + num_big_entries);
   auto sent_entries = dispatch_all(nodes, node_id0, r0c->messages);
   DOCTEST_REQUIRE(sent_entries > num_small_entries_sent);
-  DOCTEST_REQUIRE(sent_entries <= num_small_entries_sent + num_big_entries);
   DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
-}
-
-DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
-{
-  DOCTEST_INFO("With 1 thread");
-  {
-    aft::AsyncExecutor aec(1);
-    for (uint32_t i = 0; i < 20; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(i % 2, 10));
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::DONE);
-    }
-  }
-
-  DOCTEST_INFO("multithreaded run upto max specified tx");
-  {
-    aft::AsyncExecutor aec(2);
-    aec.execute_as_far_as_possible(5);
-    for (uint32_t i = 0; i < 5; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
-      aec.increment_pending();
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
-    }
-    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 5) == false);
-  }
-
-  DOCTEST_INFO("multithreaded run upto sync point");
-  {
-    aft::AsyncExecutor aec(2);
-    aec.execute_as_far_as_possible(10);
-    for (uint32_t i = 0; i < 5; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
-      aec.increment_pending();
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
-    }
-
-    {
-      // execute a transaction that does not support async execution
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 5) == false);
-      aec.increment_pending();
-    }
-
-    // Reset for next round of execution
-    aec.execute_as_far_as_possible(10);
-    for (uint32_t i = 5; i < 10; ++i)
-    {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
-      aec.increment_pending();
-      DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
-    }
-  }
-
-  DOCTEST_INFO("test first tx does not allow async execution");
-  {
-    aft::AsyncExecutor aec(2);
-    aec.execute_as_far_as_possible(5);
-
-    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 0));
-
-    // As the first execution did not support async it should have been executed
-    // inline as no other transaction was pending. therefore is is safe to run
-    // the next transaction.
-    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 1));
-  }
 }
 
 DOCTEST_TEST_CASE(
@@ -1054,9 +1030,6 @@ DOCTEST_TEST_CASE(
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
     request_timeout,
     ms(20),
     ms(1000));
@@ -1069,9 +1042,6 @@ DOCTEST_TEST_CASE(
     nullptr,
     nullptr,
     std::make_shared<aft::State>(node_id1),
-    nullptr,
-    nullptr,
-    nullptr,
     nullptr,
     nullptr,
     request_timeout,

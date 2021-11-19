@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "tls/base64.h"
+#include "crypto/base64.h"
 
 #include <chrono>
 #include <doctest/doctest.h>
 #include <string>
 
 using namespace std;
-using namespace tls;
+using namespace crypto;
 
 TEST_CASE("base64")
 {

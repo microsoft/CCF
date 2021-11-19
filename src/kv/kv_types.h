@@ -95,6 +95,11 @@ namespace kv
         hostname(hostname_),
         port(port_)
       {}
+
+      bool operator==(const NodeInfo& other) const
+      {
+        return hostname == other.hostname && port == other.port;
+      }
     };
 
     using Nodes = std::map<NodeId, NodeInfo>;
@@ -116,6 +121,22 @@ namespace kv
     const auto& [h, p] = nonstd::split_1(addr, ":");
     ni.hostname = h;
     ni.port = p;
+  }
+
+  inline std::string schema_name(const Configuration::NodeInfo&)
+  {
+    return "Configuration__NodeInfo";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, const Configuration::NodeInfo&)
+  {
+    schema["type"] = "object";
+    schema["required"] = nlohmann::json::array();
+    schema["required"].push_back("address");
+    schema["properties"] = nlohmann::json::object();
+    schema["properties"]["address"] = nlohmann::json::object();
+    schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
   }
 
   enum class ReplicaState
@@ -173,7 +194,8 @@ namespace kv
     virtual void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {}) = 0;
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retired_nodes = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
@@ -368,11 +390,6 @@ namespace kv
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
 
-    virtual bool add_request(
-      TxHistory::RequestID id,
-      const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request,
-      uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
     virtual void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
@@ -458,11 +475,6 @@ namespace kv
 
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
-
-    virtual bool on_request(const TxHistory::RequestCallbackArgs&)
-    {
-      return true;
-    }
 
     virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
@@ -558,7 +570,7 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(bool track_commits, Version& max_conflict_version) = 0;
+    virtual bool prepare(bool track_commits) = 0;
     virtual void commit(Version v, bool track_read_versions) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
@@ -635,7 +647,6 @@ namespace kv
     virtual kv::Version get_index() = 0;
     virtual ccf::PrimarySignature& get_signature() = 0;
     virtual aft::Request& get_request() = 0;
-    virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
 
@@ -696,7 +707,8 @@ namespace kv
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
-      bool public_only = false) = 0;
+      bool public_only = false,
+      const std::optional<TxID>& expected_txid = std::nullopt) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
     virtual void initialise_term(Term t) = 0;

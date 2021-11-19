@@ -4,15 +4,16 @@
 
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
+#include "crypto/mbedtls/error_string.h"
 #include "crypto/mbedtls/key_pair.h"
 #include "ds/logger.h"
-#include "tls/error_string.h"
 
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/pk.h>
+#include <openssl/crypto.h>
 #include <stdexcept>
 
 namespace tls
@@ -34,7 +35,7 @@ namespace tls
 
       if (rc != 0)
       {
-        throw std::logic_error(error_string(rc));
+        throw std::logic_error(crypto::error_string(rc));
       }
 
       crypto::EntropyPtr entropy = crypto::create_entropy();
@@ -51,7 +52,7 @@ namespace tls
 
       if (rc != 0)
       {
-        throw std::logic_error(error_string(rc));
+        throw std::logic_error(crypto::error_string(rc));
       }
 
       key_share.resize(len);
@@ -84,7 +85,7 @@ namespace tls
         MBEDTLS_ECDH_OURS);
       if (rc != 0)
       {
-        throw std::logic_error(error_string(rc));
+        throw std::logic_error(crypto::error_string(rc));
       }
 
       rc = mbedtls_ecdh_get_params(
@@ -93,7 +94,7 @@ namespace tls
         MBEDTLS_ECDH_THEIRS);
       if (rc != 0)
       {
-        throw std::logic_error(error_string(rc));
+        throw std::logic_error(crypto::error_string(rc));
       }
       ctx = std::move(tmp_ctx);
     }
@@ -107,6 +108,8 @@ namespace tls
     ~KeyExchangeContext()
     {
       free_ctx();
+
+      OPENSSL_cleanse(key_share.data(), key_share.size());
     }
 
     const std::vector<uint8_t>& get_own_key_share() const
@@ -170,7 +173,7 @@ namespace tls
           ctx.get(), peer_key_share.data(), peer_key_share.size());
         if (rc != 0)
         {
-          throw std::logic_error(error_string(rc));
+          throw std::logic_error(crypto::error_string(rc));
         }
       }
 
@@ -188,7 +191,7 @@ namespace tls
         entropy->get_data());
       if (rc != 0)
       {
-        throw std::logic_error(error_string(rc));
+        throw std::logic_error(crypto::error_string(rc));
       }
 
       shared_secret.resize(len);

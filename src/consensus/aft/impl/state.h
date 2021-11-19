@@ -74,7 +74,33 @@ namespace aft
         return kv::NoVersion;
       }
 
-      return views[view - 1];
+      // NB: If views == {5, 10, 10}, then view 2 doesn't start at 10. View 2
+      // contains no transactions, and view 3 starts at 10
+      const auto tentative = views[view - 1];
+      if (view + 1 <= views.size() && views[view] == tentative)
+      {
+        return kv::NoVersion;
+      }
+      return tentative;
+    }
+
+    kv::Version end_of_view(ccf::View view)
+    {
+      // If this view has no start (potentially because it contains no
+      // transactions), then it can't have an end
+      if (start_of_view(view) == kv::NoVersion)
+      {
+        return kv::NoVersion;
+      }
+
+      if (view >= views.size() || view == InvalidView)
+      {
+        return kv::NoVersion;
+      }
+
+      // Otherwise the end of this view is the transaction before (- 1) the
+      // start of the next view (views[view])
+      return views[view] - 1;
     }
 
     std::vector<kv::Version> get_history_until(
@@ -118,7 +144,6 @@ namespace aft
       last_idx(0),
       commit_idx(0),
       cft_watermark_idx(0),
-      bft_watermark_idx(0),
       new_view_idx(0)
     {}
 
@@ -131,13 +156,12 @@ namespace aft
     kv::Version commit_idx;
 
     kv::Version cft_watermark_idx;
-    kv::Version bft_watermark_idx;
 
     ViewHistory view_history;
     kv::Version new_view_idx;
     std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
 
-    // When running with BFT replicas do not know which replica to trust as the
+    // When running with BFT, replicas do not know which replica to trust as the
     // primary during recovery startup. So what we do is just trust the first
     // replica that communicated with the replica in the view that it told us is
     // correct. This is a liveness issue if there is a failure during recovery

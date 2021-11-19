@@ -226,8 +226,13 @@ def refresh_js_app_bytecode_cache(**kwargs):
 
 
 @cli_proposal
-def transition_node_to_trusted(node_id: str, **kwargs):
-    return build_proposal("transition_node_to_trusted", {"node_id": node_id}, **kwargs)
+def transition_node_to_trusted(
+    node_id: str, valid_from: str, validity_period_days: Optional[int] = None, **kwargs
+):
+    args = {"node_id": node_id, "valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days  # type: ignore
+    return build_proposal("transition_node_to_trusted", args, **kwargs)
 
 
 @cli_proposal
@@ -267,7 +272,9 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **kwargs):
+def set_ca_cert_bundle(
+    cert_bundle_name, cert_bundle_path, skip_checks: bool = False, **kwargs
+):
     with open(cert_bundle_path, encoding="utf-8") as f:
         cert_bundle_pem = f.read()
 
@@ -323,6 +330,26 @@ def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
         raise ValueError("not a JWKS document")
     args = {"issuer": issuer, "jwks": jwks}
     return build_proposal("set_jwt_public_signing_keys", args, **kwargs)
+
+
+@cli_proposal
+def set_node_certificate_validity(
+    node_id: str, valid_from: str, validity_period_days: Optional[int] = None, **kwargs
+):
+    args = {"node_id": node_id, "valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days  # type: ignore
+    return build_proposal("set_node_certificate_validity", args, **kwargs)
+
+
+@cli_proposal
+def set_all_nodes_certificate_validity(
+    valid_from: str, validity_period_days: Optional[int] = None, **kwargs
+):
+    args = {"valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days  # type: ignore
+    return build_proposal("set_all_nodes_certificate_validity", args, **kwargs)
 
 
 if __name__ == "__main__":

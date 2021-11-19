@@ -295,10 +295,12 @@ TEST_CASE("StateCache point queries")
     {
       const uint8_t* data = write.contents.data();
       size_t size = write.contents.size();
-      auto [seqno, purpose] =
-        ringbuffer::read_message<consensus::ledger_get>(data, size);
+      REQUIRE(write.m == consensus::ledger_get_range);
+      auto [from_seqno, to_seqno, purpose] =
+        ringbuffer::read_message<consensus::ledger_get_range>(data, size);
       REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
-      actual.insert(seqno);
+      REQUIRE(from_seqno == to_seqno);
+      actual.insert(from_seqno);
     }
     REQUIRE(actual == expected);
   }
@@ -397,7 +399,7 @@ TEST_CASE("StateCache point queries")
 
     {
       INFO("Dropping a handle deletes it, and it can no longer be retrieved");
-      cache.drop_request(default_handle);
+      cache.drop_cached_states(default_handle);
       const auto state =
         cache.get_state_at(default_handle, high_signature_transaction);
       REQUIRE(state == nullptr);
@@ -505,19 +507,19 @@ TEST_CASE("StateCache get store vs get state")
     REQUIRE(cache.get_store_at(default_handle, seqno_a) == nullptr);
     REQUIRE(provide_ledger_entry(seqno_a));
     REQUIRE(cache.get_store_at(default_handle, seqno_a) != nullptr);
-    cache.drop_request(default_handle);
+    cache.drop_cached_states(default_handle);
 
     REQUIRE(cache.get_store_at(default_handle, seqno_b) == nullptr);
     REQUIRE(provide_ledger_entry(seqno_b));
     REQUIRE(cache.get_store_at(default_handle, seqno_b) != nullptr);
-    cache.drop_request(default_handle);
+    cache.drop_cached_states(default_handle);
 
     REQUIRE(
       cache.get_store_at(default_handle, signature_transaction) == nullptr);
     REQUIRE(provide_ledger_entry(signature_transaction));
     REQUIRE(
       cache.get_store_at(default_handle, signature_transaction) != nullptr);
-    cache.drop_request(default_handle);
+    cache.drop_cached_states(default_handle);
   }
 
   {
@@ -529,7 +531,7 @@ TEST_CASE("StateCache get store vs get state")
     auto state_a = cache.get_state_at(default_handle, seqno_a);
     REQUIRE(state_a != nullptr);
     REQUIRE(state_a->receipt != nullptr);
-    cache.drop_request(default_handle);
+    cache.drop_cached_states(default_handle);
 
     REQUIRE(cache.get_state_at(default_handle, seqno_b) == nullptr);
     REQUIRE(provide_ledger_entry(seqno_b));
@@ -538,7 +540,7 @@ TEST_CASE("StateCache get store vs get state")
     auto state_b = cache.get_state_at(default_handle, seqno_b);
     REQUIRE(state_b != nullptr);
     REQUIRE(state_b->receipt != nullptr);
-    cache.drop_request(default_handle);
+    cache.drop_cached_states(default_handle);
 
     REQUIRE(
       cache.get_state_at(default_handle, signature_transaction) == nullptr);
@@ -546,7 +548,7 @@ TEST_CASE("StateCache get store vs get state")
     auto state_sig = cache.get_state_at(default_handle, signature_transaction);
     REQUIRE(state_sig != nullptr);
     REQUIRE(state_sig->receipt != nullptr);
-    cache.drop_request(default_handle);
+    cache.drop_cached_states(default_handle);
   }
 
   {
@@ -561,7 +563,7 @@ TEST_CASE("StateCache get store vs get state")
       auto state_a = cache.get_state_at(default_handle, seqno_a);
       REQUIRE(state_a != nullptr);
       REQUIRE(state_a->receipt != nullptr);
-      cache.drop_request(default_handle);
+      cache.drop_cached_states(default_handle);
     }
 
     {
@@ -576,7 +578,7 @@ TEST_CASE("StateCache get store vs get state")
       state_b = cache.get_state_at(default_handle, seqno_b);
       REQUIRE(state_b != nullptr);
       REQUIRE(state_b->receipt != nullptr);
-      cache.drop_request(default_handle);
+      cache.drop_cached_states(default_handle);
     }
 
     {
@@ -590,7 +592,7 @@ TEST_CASE("StateCache get store vs get state")
         cache.get_state_at(default_handle, signature_transaction);
       REQUIRE(state_sig != nullptr);
       REQUIRE(state_sig->receipt != nullptr);
-      cache.drop_request(default_handle);
+      cache.drop_cached_states(default_handle);
     }
   }
 }
@@ -768,13 +770,26 @@ TEST_CASE("StateCache concurrent access")
       {
         auto data = write.contents.data();
         auto size = write.contents.size();
-        const auto [seqno, purpose] =
-          ringbuffer::read_message<consensus::ledger_get>(data, size);
-        REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+        if (write.m == consensus::ledger_get_range)
+        {
+          const auto [from_seqno, to_seqno, purpose] =
+            ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+          REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
 
-        const auto it = ledger.find(seqno);
-        REQUIRE(it != ledger.end());
-        cache.handle_ledger_entry(seqno, it->second);
+          std::vector<uint8_t> combined;
+          for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+          {
+            const auto it = ledger.find(seqno);
+            REQUIRE(it != ledger.end());
+            combined.insert(
+              combined.end(), it->second.begin(), it->second.end());
+          }
+          cache.handle_ledger_entries(from_seqno, to_seqno, combined);
+        }
+        else
+        {
+          REQUIRE(false);
+        }
       }
 
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -878,7 +893,7 @@ TEST_CASE("StateCache concurrent access")
       {
         auto& store = stores[i];
         REQUIRE(store != nullptr);
-        const auto seqno = range_start + i;
+        const auto seqno = store->current_version();
         if (
           std::find(
             signature_versions.begin(), signature_versions.end(), seqno) ==

@@ -4,6 +4,7 @@
 #include "curve.h"
 #include "ds/net.h"
 #include "entropy.h"
+#include "error_string.h"
 #include "hash.h"
 #include "key_pair.h"
 

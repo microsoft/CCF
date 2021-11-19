@@ -356,6 +356,18 @@ TEST_CASE("Backup catchup from many ledger secrets")
         backup_store
           .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
           ->apply() == kv::ApplyResult::PASS);
+
+      auto tx_id = backup_store.current_txid();
+      tx_id.version--;
+      // While catching up, assume the backup rolls back (e.g. because of an
+      // election)
+      backup_store.rollback(tx_id, backup_store.commit_view());
+
+      REQUIRE(
+        backup_store
+          .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
+          ->apply() == kv::ApplyResult::PASS);
+
       next_entry = consensus->pop_oldest_entry();
     }
   }

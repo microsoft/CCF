@@ -32,6 +32,7 @@ LEDGER_HEADER_SIZE = 8
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
+SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
 
@@ -81,11 +82,17 @@ class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV
 
+    view: int
+    seqno: int
+
     def __init__(self, buffer):
         if len(buffer) < GcmHeader.size():
             raise ValueError("Corrupt GCM header")
         self._gcm_tag = struct.unpack(f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
         self._gcm_iv = struct.unpack(f"@{GCM_SIZE_IV}B", buffer[GCM_SIZE_TAG:])
+
+        self.seqno = struct.unpack("@Q", bytes(self._gcm_iv[:8]))[0]
+        self.view = struct.unpack("@I", bytes(self._gcm_iv[8:]))[0] & 0x7FFFFFFF
 
     @staticmethod
     def size():
@@ -399,7 +406,11 @@ class LedgerValidator:
         # Note: A retired primary will still issue signature transactions until
         # its retirement is committed
         node_status = NodeStatus(tx_info.node_activity[tx_info.signing_node][0])
-        if node_status not in (NodeStatus.TRUSTED, NodeStatus.RETIRED):
+        if node_status not in (
+            NodeStatus.TRUSTED,
+            NodeStatus.RETIRING,
+            NodeStatus.RETIRED,
+        ):
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )
@@ -553,13 +564,14 @@ class Transaction(Entry):
         super().__init__(filename)
         self._ledger_validator = ledger_validator
 
-        self._file_size = int.from_bytes(
+        self._pos_offset = int.from_bytes(
             _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
         )
         # If the ledger chunk is not yet committed, the ledger header will be empty.
         # Default to reading the file size instead.
-        if self._file_size == 0:
-            self._file_size = os.path.getsize(filename)
+        self._file_size = (
+            self._pos_offset if self._pos_offset > 0 else os.path.getsize(filename)
+        )
 
     def _read_header(self):
         self._tx_offset = self._file.tell()
@@ -599,7 +611,8 @@ class Transaction(Entry):
         # Adds every transaction to the ledger validator
         # LedgerValidator does verification for every added transaction
         # and throws when it finds any anomaly.
-        self._ledger_validator.add_transaction(self)
+        if self._ledger_validator is not None:
+            self._ledger_validator.add_transaction(self)
 
         return self
 
@@ -650,11 +663,12 @@ class LedgerChunk:
 
     _current_tx: Transaction
     _filename: str
-    _ledger_validator: LedgerValidator
+    _ledger_validator: Optional[LedgerValidator] = None
 
-    def __init__(self, name: str, ledger_validator: LedgerValidator):
+    def __init__(self, name: str, ledger_validator: Optional[LedgerValidator] = None):
         self._ledger_validator = ledger_validator
         self._current_tx = Transaction(name, ledger_validator)
+        self._pos_offset = self._current_tx._pos_offset
         self._filename = name
 
     def __next__(self) -> Transaction:
@@ -668,6 +682,9 @@ class LedgerChunk:
 
     def is_committed(self):
         return is_ledger_chunk_committed(self._filename)
+
+    def is_complete(self):
+        return self._pos_offset > 0
 
 
 class Ledger:
