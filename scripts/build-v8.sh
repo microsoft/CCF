@@ -6,6 +6,7 @@
 
 SKIP_CLEAN=${SKIP_CLEAN:-0}
 VERBOSE=${VERBOSE:-0}
+ASAN=${ASAN:-0}
 
 SYNTAX="build-v8.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [publish (true|false)]"
 if [ "$1" == "" ]; then
@@ -138,8 +139,7 @@ if [ "$TARGET" == "sgx" ]; then
   other_ignore_warn="-Wno-unused-const-variable"
 
   oe_include_dir="/opt/openenclave/include"
-  #-frtti -fexceptions
-  export CFLAGS="$oe_ignore_warn $other_ignore_warn -fPIE -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
+  export CFLAGS="$oe_ignore_warn $other_ignore_warn -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
   export CXXFLAGS="-isystem $oe_include_dir/openenclave/3rdparty/libcxx $CFLAGS"
 elif [  "$TARGET" == "virtual" ]; then
   # Use the same libc++ version that CCF uses.
@@ -214,8 +214,19 @@ else
   exit 1
 fi
 
+if [ "$ASAN" == "1" ]; then
+  if [ "$TARGET" == "sgx" ]; then
+    echo "ERROR: ASAN is not supported on sgx"
+    exit 1
+  fi
+  ASAN_ARGS="is_asan=true v8_enable_test_features=true use_rtti=true"
+else
+  ASAN_ARGS=""
+fi
+
 GN_ARGS="\
   $MODE_ARGS \
+  $ASAN_ARGS \
   custom_toolchain=\"//build/toolchain/linux/unbundle:default\" \
   host_toolchain=\"//build/toolchain/linux/unbundle:host\" \
   v8_snapshot_toolchain=\"//build/toolchain/linux/unbundle:host\" \
@@ -261,15 +272,19 @@ du -sh "$INSTALL_DIR"
 
 # Always test, even when we don't want to publish
 if [ "$TARGET" == "virtual" ]; then
-  echo " + Test install..."
-  # shellcheck disable=SC2086
-  $CXX -stdlib=libc++ $CXXFLAGS "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/process.cc -o process -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14
-  OUTPUT="$(./process samples/count-hosts.js | grep "yahoo.com: 3")"
-  if [ "$OUTPUT" == "" ]; then
-    echo "ERROR: Process test failed"
-    exit 1
+  if [ "$ASAN" == "1" ]; then
+    echo " + Skipping tests, ASAN=1 not supported..."
+  else
+    echo " + Test install..."
+    # shellcheck disable=SC2086
+    $CXX -stdlib=libc++ $CXXFLAGS "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/process.cc -o process -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14
+    OUTPUT="$(./process samples/count-hosts.js | grep "yahoo.com: 3")"
+    if [ "$OUTPUT" == "" ]; then
+      echo "ERROR: Process test failed"
+      exit 1
+    fi
+    echo " + Tests succeeded"
   fi
-  echo " + Tests succeeded"
 else
   echo " + Skipping tests, target 'sgx' not supported..."
 fi
