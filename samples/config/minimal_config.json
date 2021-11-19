@@ -1,7 +1,7 @@
 {
   "enclave": {
-    "file": "libjs_generic.virtual.so",
-    "type": "virtual"
+    "file": "libjs_generic.enclave.so.signed",
+    "type": "release"
   },
   "network": {
     "node_address": { "hostname": "127.0.0.1", "port": "8081" },

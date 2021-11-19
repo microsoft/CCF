@@ -122,7 +122,7 @@ endforeach()
 
 # Copy utilities from tests directory
 set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh test_python_cli.sh docker_wrap.sh
+                       test_install.sh test_python_cli.sh docker_wrap.sh config.jinja
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -132,6 +132,7 @@ endforeach()
 
 # Install additional utilities
 install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
+install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(

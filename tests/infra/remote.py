@@ -616,7 +616,7 @@ class CCFRemote(object):
             self.rpc_addresses_file = config.get("rpc_addresses_file")
 
         elif major_version is None or major_version > 1:
-            loader = FileSystemLoader("../tests/infra")
+            loader = FileSystemLoader(binary_dir)
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(

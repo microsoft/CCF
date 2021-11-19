@@ -74,7 +74,6 @@
   "tick_period_ms": 1,
   "io_logging_threshold_ns": 10000000,
   "client_connection_timeout_ms": 2000,
-  "node_client_interface": null,
   "worker_threads": 0,
   "memory": {
     "circuit_size_shift": 22,

@@ -5,11 +5,12 @@ import json
 from loguru import logger as LOG
 
 
-DEFAULT_OUTPUT_PATH = "2.x_config.json"
+DEFAULT_OUTPUT_PATH = "2_x_config.json"
 DEFAULT_INI_SECTION = "default"
 
 
 SECTIONS_2_X = [
+    "enclave",
     "network",
     "node_certificate",
     "start",
@@ -19,6 +20,7 @@ SECTIONS_2_X = [
     "logging",
     "consensus",
     "intervals",
+    "jwt",
     "memory",
 ]
 
@@ -99,6 +101,12 @@ if __name__ == "__main__":
                 output[s][k] = split_address(v)
             elif k == "join_timer":
                 output[s]["timer_ms"] = int(v)
+
+            # enclave
+            elif k == "enclave_file":
+                output["enclave"]["file"] = v
+            elif k == "enclave_type":
+                output["enclave"]["type"] = v
 
             # network
             elif k == "rpc_address":
