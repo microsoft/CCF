@@ -100,9 +100,11 @@ OUT_DIR="out.gn/x64.$MODE.$TARGET"
 CCF_CLANG_VERSION=10
 
 # target toolchain
-LLVM_ROOT=$PWD/third_party/llvm-build/Release+Asserts
-export CC=$LLVM_ROOT/bin/clang
-export CXX=$CC++
+#LLVM_ROOT=$PWD/third_party/llvm-build/Release+Asserts
+#export CC="$LLVM_ROOT/bin/clang"
+#export CXX="$LLVM_ROOT/bin/clang++"
+export CC="$THIS_DIR/v8-compiler/clang-wrap.sh clang-10"
+export CXX="$THIS_DIR/v8-compiler/clang-wrap.sh clang++-10"
 export AR=ar
 export NM=nm
 echo "CC=$CC"
@@ -113,7 +115,8 @@ if [ "$TARGET" == "sgx" ]; then
   # -nostdinc causes the compiler include dir to be excluded,
   # but V8 needs it for intrinsics and those headers are not part
   # of Open Enclave. Therefore, add it back manually.
-  compiler_include_dir=("$LLVM_ROOT"/lib/clang/*/include)
+  #compiler_include_dir=("$LLVM_ROOT"/lib/clang/*/include)
+  compiler_include_dir=/usr/lib/llvm-$CCF_CLANG_VERSION/lib/clang/$CCF_CLANG_VERSION.0.0/include
   if [ "${#compiler_include_dir[@]}" -ne 1 ]; then
     echo "ERROR: Found multiple compiler include dirs"
     exit 1
@@ -135,9 +138,8 @@ if [ "$TARGET" == "sgx" ]; then
   other_ignore_warn="-Wno-unused-const-variable"
 
   oe_include_dir="/opt/openenclave/include"
-  # FIXME V8 crashes weirdly at MemCopy at initialization
-  #       probably some compiler flag?
-  export CFLAGS="$oe_ignore_warn $other_ignore_warn -frtti -fexceptions -nostdinc -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
+  #-frtti -fexceptions
+  export CFLAGS="$oe_ignore_warn $other_ignore_warn -fPIE -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
   export CXXFLAGS="-isystem $oe_include_dir/openenclave/3rdparty/libcxx $CFLAGS"
 elif [  "$TARGET" == "virtual" ]; then
   # Use the same libc++ version that CCF uses.
