@@ -10,6 +10,10 @@ def split_address(addr, default_port=0):
     return host, (int(port[0]) if port else default_port)
 
 
+def make_address(host, port=0):
+    return f"{host}:{port}"
+
+
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 

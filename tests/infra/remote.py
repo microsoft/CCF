@@ -530,10 +530,6 @@ CCF_TO_OE_LOG_LEVEL = {
 }
 
 
-def make_address(host, port=None):
-    return f"{host}:{port or 0}"
-
-
 class CCFRemote(object):
     BIN = "cchost"
     TEMPLATE_CONFIGURATION_FILE = "config.jinja"
@@ -671,9 +667,6 @@ class CCFRemote(object):
         else:
             consensus = kwargs.get("consensus")
             election_timeout_ms = kwargs.get("election_timeout_ms")
-            rpc_host = kwargs.get("rpc_address_hostname")
-            rpc_port = kwargs.get("rpc_address_port")
-            pub_host = kwargs.get("public_rpc_address_hostname")
             node_host = kwargs.get("node_address_hostname")
             node_port = kwargs.get("node_address_port")
             host_log_level = kwargs.get("host_log_level")
@@ -701,12 +694,13 @@ class CCFRemote(object):
             sig_tx_interval = kwargs.get("sig_tx_interval")
             sig_ms_interval = kwargs.get("sig_ms_interval")
 
+            primary_rpc_interface = host.rpc_interfaces[0]
             cmd = [
                 bin_path,
                 f"--enclave-file={self.enclave_file}",
                 f"--enclave-type={enclave_type}",
                 f"--node-address-file={self.node_address_file}",
-                f"--rpc-address={make_address(rpc_host, rpc_port)}",
+                f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.rpc_host, primary_rpc_interface.rpc_port)}",
                 f"--rpc-address-file={self.rpc_addresses_file}",
                 f"--ledger-dir={self.ledger_dir_name}",
                 f"--snapshot-dir={self.snapshot_dir_name}",
@@ -719,8 +713,8 @@ class CCFRemote(object):
 
             if include_addresses:
                 cmd += [
-                    f"--node-address={make_address(node_host, node_port)}",
-                    f"--public-rpc-address={make_address(pub_host, rpc_port)}",
+                    f"--node-address={infra.interfaces.make_address(node_host, node_port)}",
+                    f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_rpc_host, primary_rpc_interface.public_rpc_port)}",
                 ]
 
             if log_format_json:
@@ -808,7 +802,7 @@ class CCFRemote(object):
                 cmd += [
                     "join",
                     "--network-cert-file=networkcert.pem",
-                    f"--target-rpc-address={make_address(target_rpc_address_hostname, target_rpc_address_port)}",
+                    f"--target-rpc-address={infra.interfaces.make_address(target_rpc_address_hostname, target_rpc_address_port)}",
                     f"--join-timer={join_timer}",
                 ]
                 data_files += [os.path.join(self.common_dir, "networkcert.pem")]
