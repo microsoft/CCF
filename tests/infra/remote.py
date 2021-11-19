@@ -744,9 +744,6 @@ class CCFRemote(object):
             if max_open_sessions:
                 cmd += [f"--max-open-sessions={max_open_sessions}"]
 
-            if max_open_sessions_hard:
-                cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
-
             if jwt_key_refresh_interval_s:
                 cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
@@ -771,6 +768,9 @@ class CCFRemote(object):
 
                 if reconfiguration_type and reconfiguration_type != "1tx":
                     cmd += [f"--reconfiguration-type={reconfiguration_type}"]
+
+                if max_open_sessions_hard:
+                    cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
 
             if start_type == StartType.new:
                 cmd += ["start", "--network-cert-file=networkcert.pem"]
