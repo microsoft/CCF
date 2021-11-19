@@ -14,6 +14,7 @@ import stat
 import shutil
 from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+import json
 
 from loguru import logger as LOG
 
@@ -535,6 +536,7 @@ def make_address(host, port=None):
 
 class CCFRemote(object):
     BIN = "cchost"
+    TEMPLATE_CONFIGURATION_FILE = "config.jinja"
     DEPS = []
 
     def __init__(
@@ -607,15 +609,20 @@ class CCFRemote(object):
             LOG.info(
                 f"Node {self.local_node_id}: Using configuration file {config_file}"
             )
+            with open(config_file, encoding="utf-8") as f:
+                config = json.load(f)
+            self.pem = config.get("node_certificate_file", "nodecert.pem")
+            self.node_address_file = config.get("node_address_file")
+            self.rpc_addresses_file = config.get("rpc_addresses_file")
 
         elif major_version is None or major_version > 1:
             loader = FileSystemLoader("../tests/infra")
             env = Environment(loader=loader, autoescape=select_autoescape())
-            t = env.get_template("config.jinja")
+            t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type,
-                rpc_interfaces=host.json(),
+                rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
                 rpc_addresses_file=self.rpc_addresses_file,
@@ -841,8 +848,10 @@ class CCFRemote(object):
 
     def get_startup_files(self, dst_path):
         self.remote.get(self.pem, dst_path)
-        self.remote.get(self.node_address_file, dst_path)
-        self.remote.get(self.rpc_addresses_file, dst_path)
+        if self.node_address_file is not None:
+            self.remote.get(self.node_address_file, dst_path)
+        if self.rpc_addresses_file is not None:
+            self.remote.get(self.rpc_addresses_file, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
 

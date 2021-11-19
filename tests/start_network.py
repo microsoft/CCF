@@ -6,6 +6,7 @@ import infra.network
 import http
 import time
 import sys
+import json
 from loguru import logger as LOG
 
 
@@ -13,8 +14,18 @@ DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 
 def run(args):
-    hosts = args.node or DEFAULT_NODES
-    hosts = [infra.interfaces.HostSpec.from_str(node) for node in hosts]
+    # Read RPC interfaces from configuration file if specified, otherwise
+    # read from command line arguments or default
+    if args.config_file is not None:
+        with open(args.config_file, encoding="utf-8") as f:
+            hosts = [
+                infra.interfaces.HostSpec.from_json(
+                    json.load(f)["network"]["rpc_interfaces"]
+                )
+            ]
+    else:
+        hosts = args.node or DEFAULT_NODES
+        hosts = [infra.interfaces.HostSpec.from_str(node) for node in hosts]
 
     if not args.verbose:
         LOG.remove()

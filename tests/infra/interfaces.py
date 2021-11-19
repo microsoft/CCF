@@ -10,6 +10,10 @@ def split_address(addr, default_port=0):
     return host, (int(port[0]) if port else default_port)
 
 
+DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
+DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
+
+
 @dataclass
 class RPCInterface:
     protocol: str = "local"
@@ -17,27 +21,62 @@ class RPCInterface:
     rpc_port: int = 0
     public_rpc_host: Optional[str] = None
     public_rpc_port: Optional[int] = None
-    max_open_sessions_soft: Optional[int] = 1000
-    max_open_sessions_hard: Optional[int] = 1010
+    max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
+    max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
 
-    def json(self):
+    @staticmethod
+    def to_json(interface):
         return {
-            "bind_address": {"hostname": self.rpc_host, "port": str(self.rpc_port)},
-            "published_address": {
-                "hostname": self.public_rpc_host,
-                "port": str(self.public_rpc_port),
+            "bind_address": {
+                "hostname": interface.rpc_host,
+                "port": str(interface.rpc_port),
             },
-            "max_open_sessions_soft": self.max_open_sessions_soft,
-            "max_open_sessions_hard": self.max_open_sessions_hard,
+            "published_address": {
+                "hostname": interface.public_rpc_host,
+                "port": str(interface.public_rpc_port),
+            },
+            "max_open_sessions_soft": interface.max_open_sessions_soft,
+            "max_open_sessions_hard": interface.max_open_sessions_hard,
         }
+
+    @staticmethod
+    def from_json(json):
+        interface = RPCInterface()
+        bind_address = json.get("bind_address")
+        interface.rpc_host = bind_address["hostname"]
+        interface.rpc_port = bind_address["port"]
+        published_address = json.get("published_address")
+        if published_address is not None:
+            interface.public_rpc_host = published_address["hostname"]
+            interface.public_rpc_port = published_address["port"]
+        interface.max_open_sessions_soft = json.get(
+            "max_open_sessions_soft", DEFAULT_MAX_OPEN_SESSIONS_SOFT
+        )
+        interface.max_open_sessions_hard = json.get(
+            "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
+        )
+        return interface
 
 
 @dataclass
 class HostSpec:
     rpc_interfaces: List[RPCInterface] = RPCInterface()
 
-    def json(self):
-        return [rpc_interface.json() for rpc_interface in self.rpc_interfaces]
+    @staticmethod
+    def to_json(host_spec):
+        return [
+            RPCInterface.to_json(rpc_interface)
+            for rpc_interface in host_spec.rpc_interfaces
+        ]
+
+    @staticmethod
+    def from_json(rpc_interfaces_json):
+        return HostSpec(
+            rpc_interfaces=[
+                RPCInterface.from_json(rpc_interface)
+                for rpc_interface in rpc_interfaces_json
+            ]
+        )
 
     @staticmethod
     def from_str(s):

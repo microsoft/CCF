@@ -294,7 +294,7 @@ class Node:
         self.consensus = kwargs.get("consensus")
 
         with open(
-            os.path.join(self.common_dir, f"{self.local_node_id}.pem"), encoding="utf-8"
+            os.path.join(self.common_dir, self.remote.pem), encoding="utf-8"
         ) as f:
             self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
                 f.read()
@@ -305,37 +305,44 @@ class Node:
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
 
     def _read_ports(self):
-        node_address_file = os.path.join(self.common_dir, self.remote.node_address_file)
-        with open(node_address_file, "r", encoding="utf-8") as f:
-            node_host, node_port = f.read().splitlines()
-            node_port = int(node_port)
-            if self.remote_shim != infra.remote_shim.DockerShim:
-                assert (
-                    node_host == self.node_host
-                ), f"Unexpected change in node address from {self.node_host} to {node_host}"
-            if self.node_port != 0:
-                assert (
-                    int(node_port) == self.node_port
-                ), f"Unexpected change in node port from {self.node_port} to {node_port}"
+        if self.remote.node_address_file is not None:
+            node_address_file = os.path.join(
+                self.common_dir, self.remote.node_address_file
+            )
+            with open(node_address_file, "r", encoding="utf-8") as f:
+                node_host, node_port = f.read().splitlines()
+                node_port = int(node_port)
+                if self.remote_shim != infra.remote_shim.DockerShim:
+                    assert (
+                        node_host == self.node_host
+                    ), f"Unexpected change in node address from {self.node_host} to {node_host}"
+                if self.node_port != 0:
+                    assert (
+                        node_port == self.node_port
+                    ), f"Unexpected change in node port from {self.node_port} to {node_port}"
+                    self.node_port = node_port
                 self.node_port = node_port
-            self.node_port = node_port
 
-        rpc_address_file = os.path.join(self.common_dir, self.remote.rpc_addresses_file)
-        with open(rpc_address_file, "r", encoding="utf-8") as f:
-            lines = f.read().splitlines()
-            it = [iter(lines)] * 2
-        for (rpc_host, rpc_port), rpc_interface in zip(
-            zip(*it), self.host.rpc_interfaces
-        ):
-            if self.remote_shim != infra.remote_shim.DockerShim:
-                assert (
-                    rpc_host == rpc_interface.rpc_host
-                ), f"Unexpected change in RPC address from {rpc_interface.rpc_host} to {rpc_host}"
-            if rpc_interface.rpc_port != 0:
-                assert (
-                    int(rpc_port) == rpc_interface.rpc_port
-                ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
-            rpc_interface.rpc_port = int(rpc_port)
+        if self.remote.rpc_addresses_file is not None:
+            rpc_address_file = os.path.join(
+                self.common_dir, self.remote.rpc_addresses_file
+            )
+            with open(rpc_address_file, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+                it = [iter(lines)] * 2
+            for (rpc_host, rpc_port), rpc_interface in zip(
+                zip(*it), self.host.rpc_interfaces
+            ):
+                rpc_port = int(rpc_port)
+                if self.remote_shim != infra.remote_shim.DockerShim:
+                    assert (
+                        rpc_host == rpc_interface.rpc_host
+                    ), f"Unexpected change in RPC address from {rpc_interface.rpc_host} to {rpc_host}"
+                if rpc_interface.rpc_port != 0:
+                    assert (
+                        rpc_port == rpc_interface.rpc_port
+                    ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
+                rpc_interface.rpc_port = int(rpc_port)
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
