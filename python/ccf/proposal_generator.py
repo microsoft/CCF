@@ -10,7 +10,7 @@ import sys
 import shutil
 import tempfile
 import jinja2
-from typing import Optional, Any, List, Dict
+from typing import Optional, Any, List
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
