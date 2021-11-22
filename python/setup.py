@@ -50,10 +50,10 @@ setup(
     ],
     package_data={
         "jinja_templates": [
-            path.join(TEMPLATES_PATH, "ballot_script.json"),
-            path.join(TEMPLATES_PATH, "ballots.json"),
+            path.join(TEMPLATES_PATH, "ballot_script.json.jinja"),
+            path.join(TEMPLATES_PATH, "ballots.json.jinja"),
             path.join(TEMPLATES_PATH, "macros.jinja"),
-            path.join(TEMPLATES_PATH, "proposals.json"),
+            path.join(TEMPLATES_PATH, "proposals.json.jinja"),
         ]
     },
     include_package_data=True,

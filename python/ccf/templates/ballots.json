@@ -1,3 +1,0 @@
-{
-  "ballot": {% filter tojson %}{% include "ballot_script.js" %}{% endfilter %}
-}

@@ -68,10 +68,10 @@ def build_proposal(
     action = {"name": proposed_call, "args": args}
     actions = [action]
 
-    proposals_template = template_env.get_template("proposals.json")
+    proposals_template = template_env.get_template("proposals.json.jinja")
     proposal = proposals_template.render(actions=actions)
 
-    vote_template = template_env.get_template("ballots.json")
+    vote_template = template_env.get_template("ballots.json.jinja")
     vote = vote_template.render(actions=actions)
 
     LOG.trace(f"Made {proposed_call} proposal:\n{proposal}")
