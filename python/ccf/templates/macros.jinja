@@ -27,6 +27,8 @@
         {%- if v is true -%}true{%- else -%}false{%- endif -%}
     {%- elif v is number -%}
         {{ v }}
+    {%- elif v is none -%}
+        null
     {%- else -%}
         {{ abort("Don't know how to convert type to JSON - " ~ v) }}
     {%- endif -%}
