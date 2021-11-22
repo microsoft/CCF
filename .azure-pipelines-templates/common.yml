@@ -28,7 +28,7 @@ jobs:
           BuildDropPath: $(Build.ArtifactStagingDirectory)
 
       - script: |
-          ls $(Build.ArtifactStagingDirectory)
+          ls $(Build.ArtifactStagingDirectory)/_manifest
         displayName: Discover Things
 
       - template: test.yml
