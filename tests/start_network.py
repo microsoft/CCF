@@ -143,8 +143,8 @@ if __name__ == "__main__":
             help="Ledger directory to recover from",
         )
         parser.add_argument(
-            "--snapshot-dir",
-            help="Snapshot directory to recover from (optional)",
+            "--snapshots-dir",
+            help="Snapshots directory to recover from (optional)",
         )
         parser.add_argument(
             "--common-dir",
