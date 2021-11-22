@@ -597,7 +597,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_module_import(network, args)
-        network = test_dynamic_module_import(network, args)
+        #network = test_dynamic_module_import(network, args)
         #network = test_bytecode_cache(network, args)
         #network = test_app_bundle(network, args)
         #network = test_dynamic_endpoints(network, args)
