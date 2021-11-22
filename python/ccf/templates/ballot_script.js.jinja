@@ -12,9 +12,10 @@ export function vote (rawProposal, proposerId) {
     return false;
   }
 {% for action in actions %}
+  // Check that the "{{ action.name }}" action is exactly what was expected
   {
     let action = actions[{{ loop.index - 1}}];
-    if (!("name" in action) || !("args" in action))
+    if (!("name" in action))
     {
       return false;
     }
@@ -24,19 +25,34 @@ export function vote (rawProposal, proposerId) {
       return false;
     }
 
+{% if action.args is defined and action.args is mapping %}
+    if (!("args" in action))
+    {
+      return false;
+    }
+
     let args = action.args;
-{% if actions.args is defined and actions.args is mapping %}{% for arg_name, arg_value in action.args.items() %}    { 
+{% for arg_name, arg_value in action.args.items() %}
+    // Check each argument
+    {
       if (!("{{ arg_name }}" in args))
       {
         return false;
       }
 
-      const expected = {{ json_encode(arg_value) }};
-      if (args["{{ arg_name }}"]) !== expected)
+      // Compare stringified JSON representation, to cover object equality
+      const expected = JSON.stringify({{ json_encode(arg_value) }});
+      if (JSON.stringify(args["{{ arg_name }}"]) !== expected)
       {
+        // TODO: Remove
+        console.log("Mismatch in {{ arg_name }} argument of {{ action.name }} action");
         return false;
       }
-    } {% endfor %}{% endif %}
+    } {% endfor %}{% else %}
+    if ("args" in action)
+    {
+      return false;
+    }{% endif %}
   }
 {% endfor %}
   return true;

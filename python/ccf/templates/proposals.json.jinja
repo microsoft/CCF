@@ -2,11 +2,11 @@
 {
   "actions": [
 {% for action in actions %}    {
-      "name": "{{ action.name }}",
+      "name": "{{ action.name }}"{% if action.args is defined and action.args is mapping %},
       "args": {
-{% if action.args is defined and action.args is mapping %}{% for arg_name, arg_value in action.args.items() %}        {{ arg_name|tojson }}: {{ json_encode(arg_value) }}{% if not loop.last %},
-{% endif %}{% endfor %}{% endif %}
-      }
+{% for arg_name, arg_value in action.args.items() %}        {{ arg_name|tojson }}: {{ json_encode(arg_value) }}{% if not loop.last %},
+{% endif %}{% endfor %}
+      }{% endif %}
     }{% if not loop.last %},
 {% endif %}{% endfor %}
   ]
