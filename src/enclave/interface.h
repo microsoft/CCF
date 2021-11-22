@@ -322,6 +322,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   rpc_addresses_file,
   tick_period_ms,
   io_logging_threshold_ns,
+  node_client_interface,
   client_connection_timeout_ms,
   network_certificate_file,
   ledger,

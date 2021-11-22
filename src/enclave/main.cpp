@@ -143,7 +143,7 @@ extern "C"
     // enclaves
     if (
       cc.start.service_configuration.reconfiguration_type.has_value() &&
-      cc.start.service_configuration.reconfiguration_type.value() ==
+      cc.start.service_configuration.reconfiguration_type.value() !=
         ReconfigurationType::ONE_TRANSACTION)
     {
       return CreateNodeStatus::ReconfigurationMethodNotSupported;

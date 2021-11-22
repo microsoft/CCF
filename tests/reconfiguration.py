@@ -533,7 +533,7 @@ def run(args):
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
 
-        if args.reconfiguration_type == "2tx":
+        if args.reconfiguration_type == "TwoTransaction":
             test_learner_catches_up(network, args)
 
         test_node_certificates_validity_period(network, args)
