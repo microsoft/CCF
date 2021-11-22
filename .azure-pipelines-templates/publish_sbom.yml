@@ -1,0 +1,15 @@
+steps:
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: "SBOM Generation Task"
+    inputs:
+      BuildDropPath: build/
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      artifactName: "SBOM upload"
+      targetPath: build/manifest.json
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      artifactName: "SBOM upload"
+      targetPath: build/spdx_2.2
