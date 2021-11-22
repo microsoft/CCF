@@ -24,10 +24,10 @@ namespace consensus
     {}
 
     /**
-     * Put a single entry to be written the ledger, when primary.
+     * Put a single entry to be written to the ledger, when primary.
      *
      * @param entry Serialised entry
-     * @param globally_committable True is entry is signature transaction
+     * @param globally_committable True if entry is signature transaction
      * @param force_chunk Force new ledger chunk to be created after this entry
      * (only if globally_committable)
      */
@@ -52,12 +52,13 @@ namespace consensus
      *
      * @param data Serialised entry start
      * @param size Serialised entry size
-     * @param globally_committable True is entry is signature transaction
+     * @param globally_committable True if entry is signature transaction
      * @param force_chunk Force new ledger chunk to be created after this entry
      * (only if globally_committable)
      *
      * Note: The entry should already contain its own header.
      */
+    // TODO: If we want to intercept entries in-order, for the sake of building an index, this might be a sensible place to do so?
     void put_entry(
       const uint8_t* data,
       size_t size,
