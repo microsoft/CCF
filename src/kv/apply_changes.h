@@ -34,7 +34,7 @@ namespace kv
   using VersionResolver = std::function<std::tuple<Version, VersionLastNewMap>(
     bool tx_contains_new_map)>;
 
-  static inline std::optional<std::tuple<Version, Version>> apply_changes(
+  static inline std::optional<Version> apply_changes(
     OrderedChanges& changes,
     VersionResolver version_resolver_fn,
     kv::ConsensusHookPtrs& hooks,
@@ -48,7 +48,6 @@ namespace kv
     // interleaved fashion.
     Version version = NoVersion;
     bool has_writes = false;
-    kv::Version max_conflict_version = 0;
 
     std::map<std::string, std::unique_ptr<AbstractCommitter>> views;
     for (const auto& [map_name, mc] : changes)
@@ -70,17 +69,12 @@ namespace kv
     }
 
     bool ok = true;
-    bool set_max_conflict_version_to_version = false;
     for (auto it = views.begin(); it != views.end(); ++it)
     {
-      if (!it->second->prepare(track_read_versions, max_conflict_version))
+      if (!it->second->prepare(track_read_versions))
       {
         ok = false;
         break;
-      }
-      if (max_conflict_version == kv::NoVersion)
-      {
-        set_max_conflict_version_to_version = true;
       }
     }
 
@@ -119,27 +113,9 @@ namespace kv
       kv::Version version_last_new_map;
       std::tie(version, version_last_new_map) =
         version_resolver_fn(!new_maps.empty());
-      max_conflict_version =
-        std::max(max_conflict_version, version_last_new_map);
 
-      if (version > max_conflict_version || !track_read_versions)
+      if (!track_read_versions)
       {
-        // Since the tracking of a read version is done in the key-value pair it
-        // is not possible to track the dependencies of two transactions that
-        // depend on a key-value pair on a map that does not exist yet.
-        // Thus, execution is gated on map creation.
-        //
-        // Additionally, if the prepare set max_conflict_version to NoVersion
-        // then the max_conflict_version is set to version - 1 once the
-        // transaction's version has been obtained.
-        if (
-          track_read_versions &&
-          ((!new_maps.empty() && version > 0) ||
-           set_max_conflict_version_to_version))
-        {
-          max_conflict_version = version - 1;
-        }
-
         // Transfer ownership of these new maps to their target stores, iff we
         // have writes to them
         for (const auto& [map_name, map_ptr] : new_maps)
@@ -186,6 +162,6 @@ namespace kv
       return std::nullopt;
     }
 
-    return std::make_tuple(version, max_conflict_version);
+    return version;
   }
 }

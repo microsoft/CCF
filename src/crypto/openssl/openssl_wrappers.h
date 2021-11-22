@@ -19,6 +19,11 @@ namespace crypto
 {
   namespace OpenSSL
   {
+    /*
+     * Generic OpenSSL error handling
+     */
+
+    /// Throws if rc is 1 and has error
     inline void CHECK1(int rc)
     {
       unsigned long ec = ERR_get_error();
@@ -29,6 +34,7 @@ namespace crypto
       }
     }
 
+    /// Throws if rc is 0 and has error
     inline void CHECK0(int rc)
     {
       unsigned long ec = ERR_get_error();
@@ -39,6 +45,7 @@ namespace crypto
       }
     }
 
+    /// Throws if ptr is null
     inline void CHECKNULL(void* ptr)
     {
       if (ptr == NULL)
@@ -47,245 +54,184 @@ namespace crypto
       }
     }
 
-    class Unique_BIO
-    {
-      std::unique_ptr<BIO, void (*)(BIO*)> p;
-
-    public:
-      Unique_BIO() : p(BIO_new(BIO_s_mem()), [](auto x) { BIO_free(x); })
-      {
-        CHECKNULL(p.get());
-      }
-      Unique_BIO(const void* buf, int len) :
-        p(BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
-      {
-        CHECKNULL(p.get());
-      }
-      Unique_BIO(const std::vector<uint8_t>& d) :
-        p(BIO_new_mem_buf(d.data(), d.size()), [](auto x) { BIO_free(x); })
-      {
-        CHECKNULL(p.get());
-      }
-      Unique_BIO(const Pem& pem) :
-        p(BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
-      {
-        CHECKNULL(p.get());
-      }
-      operator BIO*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_EVP_PKEY_CTX
-    {
-      std::unique_ptr<EVP_PKEY_CTX, void (*)(EVP_PKEY_CTX*)> p;
-
-    public:
-      Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
-        p(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
-      {
-        CHECKNULL(p.get());
-      }
-      Unique_EVP_PKEY_CTX() :
-        p(EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL), EVP_PKEY_CTX_free)
-      {
-        CHECKNULL(p.get());
-      }
-      operator EVP_PKEY_CTX*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_X509_REQ
-    {
-      std::unique_ptr<X509_REQ, void (*)(X509_REQ*)> p;
-
-    public:
-      Unique_X509_REQ() : p(X509_REQ_new(), X509_REQ_free)
-      {
-        CHECKNULL(p.get());
-      }
-      Unique_X509_REQ(BIO* mem) :
-        p(PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL), X509_REQ_free)
-      {
-        CHECKNULL(p.get());
-      }
-      operator X509_REQ*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_X509
-    {
-      std::unique_ptr<X509, void (*)(X509*)> p;
-
-    public:
-      Unique_X509() : p(X509_new(), X509_free)
-      {
-        CHECKNULL(p.get());
-      }
-      Unique_X509(BIO* mem, bool pem) :
-        p(pem ? PEM_read_bio_X509(mem, NULL, NULL, NULL) :
-                d2i_X509_bio(mem, NULL),
-          X509_free)
-      {
-        // p == nullptr is OK (e.g. wrong format)
-      }
-      operator X509*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_X509_STORE
-    {
-      std::unique_ptr<X509_STORE, void (*)(X509_STORE*)> p;
-
-    public:
-      Unique_X509_STORE() : p(X509_STORE_new(), X509_STORE_free)
-      {
-        CHECKNULL(p.get());
-      }
-      operator X509_STORE*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_X509_STORE_CTX
-    {
-      std::unique_ptr<X509_STORE_CTX, void (*)(X509_STORE_CTX*)> p;
-
-    public:
-      Unique_X509_STORE_CTX() : p(X509_STORE_CTX_new(), X509_STORE_CTX_free)
-      {
-        CHECKNULL(p.get());
-      }
-      operator X509_STORE_CTX*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_EVP_CIPHER_CTX
-    {
-      std::unique_ptr<EVP_CIPHER_CTX, void (*)(EVP_CIPHER_CTX*)> p;
-
-    public:
-      Unique_EVP_CIPHER_CTX() : p(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free)
-      {
-        CHECKNULL(p.get());
-      }
-      operator EVP_CIPHER_CTX*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_STACK_OF_X509
-    {
-      std::unique_ptr<STACK_OF(X509), void (*)(STACK_OF(X509)*)> p;
-
-    public:
-      Unique_STACK_OF_X509() :
-        p(sk_X509_new_null(), [](auto x) { sk_X509_pop_free(x, X509_free); })
-      {
-        CHECKNULL(p.get());
-      }
-      operator STACK_OF(X509) * ()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_STACK_OF_X509_EXTENSIONS
-    {
-      std::unique_ptr<
-        STACK_OF(X509_EXTENSION),
-        void (*)(STACK_OF(X509_EXTENSION)*)>
-        p;
-
-    public:
-      Unique_STACK_OF_X509_EXTENSIONS() :
-        p(sk_X509_EXTENSION_new_null(),
-          [](auto x) { sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free); })
-      {
-        CHECKNULL(p.get());
-      }
-
-      Unique_STACK_OF_X509_EXTENSIONS(STACK_OF(X509_EXTENSION) * exts) :
-        p(exts,
-          [](auto x) { sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free); })
-      {}
-
-      operator STACK_OF(X509_EXTENSION) * ()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_ECDSA_SIG
-    {
-      std::unique_ptr<ECDSA_SIG, void (*)(ECDSA_SIG*)> p;
-
-    public:
-      Unique_ECDSA_SIG() : p(ECDSA_SIG_new(), ECDSA_SIG_free)
-      {
-        CHECKNULL(p.get());
-      }
-      operator ECDSA_SIG*()
-      {
-        return p.get();
-      }
-    };
-
-    class Unique_BIGNUM
-    {
-      std::unique_ptr<BIGNUM, void (*)(BIGNUM*)> p;
-
-    public:
-      Unique_BIGNUM() : p(BN_new(), BN_free)
-      {
-        CHECKNULL(p.get());
-      }
-      operator BIGNUM*()
-      {
-        return p.get();
-      }
-      void release()
-      {
-        p.release();
-      }
-    };
-
-    class Unique_X509_TIME
-    {
-      std::unique_ptr<ASN1_TIME, void (*)(ASN1_TIME*)> p;
-
-    public:
-      Unique_X509_TIME() : p(ASN1_TIME_new(), ASN1_TIME_free)
-      {
-        CHECKNULL(p.get());
-      }
-      Unique_X509_TIME(const std::string& s) :
-        p(ASN1_TIME_new(), ASN1_TIME_free)
-      {
-        CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
-        CHECK1(ASN1_TIME_normalize(*this));
-      }
-      Unique_X509_TIME(ASN1_TIME* t) : p(t, ASN1_TIME_free) {}
-      operator ASN1_TIME*() const
-      {
-        return p.get();
-      }
-    };
-
+    /// Returns the error string from an error code
     inline std::string error_string(int ec)
     {
       return ERR_error_string((unsigned long)ec, NULL);
     }
+
+    /*
+     * Unique pointer wrappers for SSL objects, with SSL' specific constructors
+     * and destructors. Some objects need special functionality, others are just
+     * wrappers around the same template interface Unique_SSL_OBJECT.
+     */
+
+    /// Generic template interface for different types of objects below
+    /// If there are no c-tors in the derived class that matches this one,
+    /// pass `nullptr` to the CTOR/DTOR parameters and make sure to implement
+    /// and delete the appropriate c-tors in the derived class.
+    template <class T, T* (*CTOR)(), void (*DTOR)(T*)>
+    class Unique_SSL_OBJECT
+    {
+    protected:
+      /// Pointer owning storage
+      std::unique_ptr<T, void (*)(T*)> p;
+
+    public:
+      /// C-tor with new pointer via T's c-tor
+      Unique_SSL_OBJECT() : p(CTOR(), DTOR)
+      {
+        CHECKNULL(p.get());
+      }
+      /// C-tor with pointer created in base class
+      Unique_SSL_OBJECT(T* ptr, void (*dtor)(T*), bool check_null = true) :
+        p(ptr, dtor)
+      {
+        if (check_null)
+          CHECKNULL(p.get());
+      }
+      /// Type cast to underlying pointer
+      operator T*()
+      {
+        return p.get();
+      }
+      /// Type cast to underlying pointer
+      operator T*() const
+      {
+        return p.get();
+      }
+      /// Release pointer, so it's freed elsewhere (CAUTION!)
+      T* release()
+      {
+        return p.release();
+      }
+    };
+
+    struct Unique_BIO : public Unique_SSL_OBJECT<BIO, nullptr, nullptr>
+    {
+      Unique_BIO() :
+        Unique_SSL_OBJECT(BIO_new(BIO_s_mem()), [](auto x) { BIO_free(x); })
+      {}
+      Unique_BIO(const void* buf, int len) :
+        Unique_SSL_OBJECT(
+          BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
+      {}
+      Unique_BIO(const std::vector<uint8_t>& d) :
+        Unique_SSL_OBJECT(
+          BIO_new_mem_buf(d.data(), d.size()), [](auto x) { BIO_free(x); })
+      {}
+      Unique_BIO(const Pem& pem) :
+        Unique_SSL_OBJECT(
+          BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
+      {}
+    };
+
+    struct Unique_EVP_PKEY_CTX
+      : public Unique_SSL_OBJECT<EVP_PKEY_CTX, nullptr, nullptr>
+    {
+      Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
+        Unique_SSL_OBJECT(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
+      {}
+      Unique_EVP_PKEY_CTX() :
+        Unique_SSL_OBJECT(
+          EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL), EVP_PKEY_CTX_free)
+      {}
+    };
+
+    struct Unique_X509_REQ
+      : public Unique_SSL_OBJECT<X509_REQ, X509_REQ_new, X509_REQ_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_X509_REQ(BIO* mem) :
+        Unique_SSL_OBJECT(
+          PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL), X509_REQ_free)
+      {}
+    };
+
+    struct Unique_X509 : public Unique_SSL_OBJECT<X509, X509_new, X509_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      // p == nullptr is OK (e.g. wrong format)
+      Unique_X509(BIO* mem, bool pem) :
+        Unique_SSL_OBJECT(
+          pem ? PEM_read_bio_X509(mem, NULL, NULL, NULL) :
+                d2i_X509_bio(mem, NULL),
+          X509_free,
+          /*check_null=*/false)
+      {}
+    };
+
+    struct Unique_X509_STORE
+      : public Unique_SSL_OBJECT<X509_STORE, X509_STORE_new, X509_STORE_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_X509_STORE_CTX : public Unique_SSL_OBJECT<
+                                     X509_STORE_CTX,
+                                     X509_STORE_CTX_new,
+                                     X509_STORE_CTX_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_EVP_CIPHER_CTX : public Unique_SSL_OBJECT<
+                                     EVP_CIPHER_CTX,
+                                     EVP_CIPHER_CTX_new,
+                                     EVP_CIPHER_CTX_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_STACK_OF_X509
+      : public Unique_SSL_OBJECT<STACK_OF(X509), nullptr, nullptr>
+    {
+      Unique_STACK_OF_X509() :
+        Unique_SSL_OBJECT(
+          sk_X509_new_null(), [](auto x) { sk_X509_pop_free(x, X509_free); })
+      {}
+    };
+
+    struct Unique_STACK_OF_X509_EXTENSIONS
+      : public Unique_SSL_OBJECT<STACK_OF(X509_EXTENSION), nullptr, nullptr>
+    {
+      Unique_STACK_OF_X509_EXTENSIONS() :
+        Unique_SSL_OBJECT(sk_X509_EXTENSION_new_null(), [](auto x) {
+          sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free);
+        })
+      {}
+      Unique_STACK_OF_X509_EXTENSIONS(STACK_OF(X509_EXTENSION) * exts) :
+        Unique_SSL_OBJECT(
+          exts,
+          [](auto x) { sk_X509_EXTENSION_pop_free(x, X509_EXTENSION_free); },
+          /*check_null=*/false)
+      {}
+    };
+
+    struct Unique_ECDSA_SIG
+      : public Unique_SSL_OBJECT<ECDSA_SIG, ECDSA_SIG_new, ECDSA_SIG_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_BIGNUM : public Unique_SSL_OBJECT<BIGNUM, BN_new, BN_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_X509_TIME
+      : public Unique_SSL_OBJECT<ASN1_TIME, ASN1_TIME_new, ASN1_TIME_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_X509_TIME(const std::string& s) :
+        Unique_SSL_OBJECT(ASN1_TIME_new(), ASN1_TIME_free, /*check_null=*/false)
+      {
+        CHECK1(ASN1_TIME_set_string(*this, s.c_str()));
+        CHECK1(ASN1_TIME_normalize(*this));
+      }
+      Unique_X509_TIME(ASN1_TIME* t) :
+        Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
+      {}
+    };
   }
 }
