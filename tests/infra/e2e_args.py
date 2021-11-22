@@ -293,7 +293,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--curve-id",
         help="Elliptic curve to use as for node and network identities",
-        default=None,
+        default=infra.network.EllipticCurve.secp384r1,
         type=lambda curve: infra.network.EllipticCurve[curve],
         choices=list(infra.network.EllipticCurve),
     )

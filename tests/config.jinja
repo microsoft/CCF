@@ -11,7 +11,7 @@
   {
     "subject_name": "CN=CCF Node",
     "subject_alt_names": {{ subject_alt_names|tojson }},
-    "curve_id": "secp384r1",
+    "curve_id": "{{ curve_id }}",
     "initial_validity_days": {{ initial_node_cert_validity_days }}
   },
   "start":

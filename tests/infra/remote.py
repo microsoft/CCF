@@ -552,6 +552,7 @@ class CCFRemote(object):
         snapshots_dir=None,
         common_read_only_ledger_dir=None,
         constitution=None,
+        curve_id=None,
         version=None,
         major_version=None,
         include_addresses=True,
@@ -632,6 +633,7 @@ class CCFRemote(object):
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
                 snapshots_dir=self.snapshot_dir_name,
                 constitution=constitution,
+                curve_id=curve_id.name,
                 **kwargs,
             )
 
