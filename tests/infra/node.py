@@ -343,6 +343,8 @@ class Node:
                         rpc_port == rpc_interface.rpc_port
                     ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
                 rpc_interface.rpc_port = int(rpc_port)
+                # In the infra, public RPC port is always the same as local RPC port
+                rpc_interface.public_rpc_port = rpc_interface.rpc_port
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -449,7 +451,7 @@ class Node:
 
     def session_ca(self, self_signed_ok):
         if self_signed_ok:
-            return {"ca": ""}
+            return {"ca": ""}  # TODO: Looks wrong
         else:
             return {"ca": os.path.join(self.common_dir, "networkcert.pem")}
 
@@ -486,7 +488,7 @@ class Node:
             raise
 
         return ccf.clients.client(
-            rpc_interface.rpc_host, rpc_interface.rpc_port, **akwargs
+            rpc_interface.public_rpc_host, rpc_interface.public_rpc_port, **akwargs
         )
 
     def get_tls_certificate_pem(self):

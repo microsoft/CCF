@@ -77,7 +77,7 @@ int main(int argc, char** argv)
 
   std::string config_str = files::slurp_string(config_file_path);
   CCHostConfig config = nlohmann::json::parse(config_str);
-  LOG_INFO_FMT("Configuration: {}", config_str);
+  LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
 
   if (config.logging.format == LogFormat::JSON)
   {
