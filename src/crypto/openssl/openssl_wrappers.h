@@ -255,9 +255,9 @@ namespace crypto
       {
         return p.get();
       }
-      void release()
+      BIGNUM* release()
       {
-        p.release();
+        return p.release();
       }
     };
 

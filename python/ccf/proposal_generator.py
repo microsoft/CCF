@@ -272,7 +272,9 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **kwargs):
+def set_ca_cert_bundle(
+    cert_bundle_name, cert_bundle_path, skip_checks: bool = False, **kwargs
+):
     with open(cert_bundle_path, encoding="utf-8") as f:
         cert_bundle_pem = f.read()
 
