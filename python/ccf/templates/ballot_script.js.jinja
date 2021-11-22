@@ -44,8 +44,6 @@ export function vote (rawProposal, proposerId) {
       const expected = JSON.stringify({{ json_encode(arg_value) }});
       if (JSON.stringify(args["{{ arg_name }}"]) !== expected)
       {
-        // TODO: Remove
-        console.log("Mismatch in {{ arg_name }} argument of {{ action.name }} action");
         return false;
       }
     } {% endfor %}{% else %}
