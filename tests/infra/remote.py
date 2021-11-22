@@ -888,9 +888,6 @@ class CCFRemote(object):
         return (os.path.join(self.common_dir, ledger_dir_name), read_only_ledger_dirs)
 
     def get_snapshots(self):
-        LOG.error(
-            f"Getting snapshot at: {self.snapshot_dir_name} on node {self.local_node_id}"
-        )
         self.remote.get(self.snapshot_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 

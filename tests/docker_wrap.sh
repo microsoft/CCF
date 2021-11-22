@@ -9,7 +9,7 @@
 # based on the IP address of the container (it assumes that the container
 # is connected to service-specific network)
 
-set -ex
+set -e
 
 cmd=$*
 container_ip=$(hostname -i | cut -d " " -f 2) # Network container IP address
