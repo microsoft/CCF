@@ -639,7 +639,7 @@ class CCFRemote(object):
             config_file = os.path.join(common_dir, config_file_name)
             exe_files += [config_file]
 
-            with open(config_file, "w") as f:
+            with open(config_file, "w", encoding="utf-8") as f:
                 f.write(output)
 
         exe_files += [self.BIN, enclave_file] + self.DEPS

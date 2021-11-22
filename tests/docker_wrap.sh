@@ -14,11 +14,11 @@ set -ex
 cmd=$*
 container_ip=$(hostname -i | cut -d " " -f 2) # Network container IP address
 
-if [ "$(echo "${cmd}" | grep -- '--config')" ]; then
+if echo "${cmd}" | grep -- '--config'; then
     # Node makes use of configuration file (2.x nodes)
     container_ip_replace_str="CONTAINER_IP"
     config_file_path="$(echo "${cmd}" | grep -o -P "(?<=--config).*" | cut -d " " -f 2)"
-    sed --follow-symlinks -i -e "s/${container_ip_replace_str}/${container_ip}/g" ${config_file_path}
+    sed --follow-symlinks -i -e "s/${container_ip_replace_str}/${container_ip}/g" "${config_file_path}"
 else
     # Legacy node that uses CLI paramters (1.x)
     addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"

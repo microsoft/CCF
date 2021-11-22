@@ -1,6 +1,10 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 import configparser
 import sys
 import json
+from typing import Dict, Any
 
 from loguru import logger as LOG
 
@@ -61,14 +65,14 @@ if __name__ == "__main__":
 
     # configparser requires section for all entries to make one up
     # before parsing config file
-    with open(input_path) as f:
+    with open(input_path, encoding="utf-8") as f:
         input_file = f"[{DEFAULT_INI_SECTION}]" + f.read()
     config = configparser.RawConfigParser(strict=False)
     config.read_string(input_file)
     LOG.debug(f"Found sections: {config.sections()}")
 
     # Init output
-    output = {}
+    output: Dict[str, Any] = {}
     for s in SECTIONS_2_X:
         output[s] = {}
     output["network"]["rpc_interfaces"] = [{}]

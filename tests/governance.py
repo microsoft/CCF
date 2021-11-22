@@ -89,7 +89,7 @@ def test_quote(network, args):
             assert (
                 infra.proc.ccall(
                     "verify_quote.sh",
-                    f"https://{primary.get_public_rpchost()}:{primary.get_public_rpc_port()}",
+                    f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
                     "--cacert",
                     f"{cafile}",
                     log_output=True,

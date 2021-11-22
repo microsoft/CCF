@@ -121,8 +121,14 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh test_python_cli.sh docker_wrap.sh config.jinja
+set(CCF_TEST_UTILITIES
+    tests.sh
+    cimetrics_env.sh
+    upload_pico_metrics.py
+    test_install.sh
+    test_python_cli.sh
+    docker_wrap.sh
+    config.jinja
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(

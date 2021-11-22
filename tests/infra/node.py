@@ -226,7 +226,7 @@ class Node:
         workspace,
         label,
         common_dir,
-        members_info=[],
+        members_info=None,
         **kwargs,
     ):
         """

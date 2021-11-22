@@ -545,8 +545,7 @@ if(BUILD_TESTS)
     CONSENSUS cft
     ADDITIONAL_ARGS
       --election-timeout-ms 10000 # Larger election timeout as recording
-                                       # large JS applications may trigger
-                                       # leadership changes
+      # large JS applications may trigger leadership changes
   )
 
   add_e2e_test(
