@@ -60,8 +60,7 @@ def build_proposal(
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
-    # TODO: Set this path sensibly
-    template_loader = jinja2.FileSystemLoader("/data/src/3.CCF/python/templates")
+    template_loader = jinja2.PackageLoader("ccf", "templates")
     template_env = jinja2.Environment(
         loader=template_loader, undefined=jinja2.StrictUndefined
     )
