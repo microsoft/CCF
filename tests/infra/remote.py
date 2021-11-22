@@ -760,7 +760,7 @@ class CCFRemote(object):
                 if node_client_host:
                     cmd += [f"--node-client-interface={node_client_host}"]
 
-                if reconfiguration_type and reconfiguration_type != "1tx":
+                if reconfiguration_type and reconfiguration_type != "OneTransaction":
                     cmd += [f"--reconfiguration-type={reconfiguration_type}"]
 
                 if max_open_sessions_hard:
