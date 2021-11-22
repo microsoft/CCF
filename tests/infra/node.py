@@ -240,6 +240,7 @@ class Node:
             lib_name, enclave_type, library_dir=self.library_dir
         )
         self.common_dir = common_dir
+        members_info = members_info or []
 
         self.remote = self.remote_shim(
             start_type,
@@ -451,7 +452,7 @@ class Node:
 
     def session_ca(self, self_signed_ok):
         if self_signed_ok:
-            return {"ca": ""}  # TODO: Looks wrong
+            return {"ca": ""}
         else:
             return {"ca": os.path.join(self.common_dir, "networkcert.pem")}
 
