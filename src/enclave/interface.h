@@ -305,8 +305,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Start, members, constitution_files);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCHostConfig::Start, members, constitution_files, service_configuration);
+DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Start, service_configuration);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Join, target_rpc_address);
