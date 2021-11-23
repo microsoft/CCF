@@ -1,0 +1,13 @@
+{%- from "macros.jinja" import json_encode as json_encode -%}
+{
+  "actions": [
+{% for action in actions %}    {
+      "name": "{{ action.name }}"{% if action.args is defined and action.args is mapping %},
+      "args": {
+{% for arg_name, arg_value in action.args.items() %}        {{ arg_name|tojson }}: {{ json_encode(arg_value) }}{% if not loop.last %},
+{% endif %}{% endfor %}
+      }{% endif %}
+    }{% if not loop.last %},
+{% endif %}{% endfor %}
+  ]
+}
