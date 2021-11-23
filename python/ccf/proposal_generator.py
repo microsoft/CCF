@@ -11,6 +11,7 @@ import shutil
 import tempfile
 import jinja2
 from typing import Optional, Any, List
+from ccf import ballot_builder
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
@@ -71,8 +72,7 @@ def build_proposal(
     proposals_template = template_env.get_template("proposals.json.jinja")
     proposal = proposals_template.render(actions=actions)
 
-    vote_template = template_env.get_template("ballots.json.jinja")
-    vote = vote_template.render(actions=actions)
+    vote = ballot_builder.build_ballot_raw(json.loads(proposal))
 
     LOG.trace(f"Made {proposed_call} proposal:\n{proposal}")
     LOG.trace(f"Accompanying vote:\n{vote}")

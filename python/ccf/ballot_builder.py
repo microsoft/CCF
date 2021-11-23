@@ -28,7 +28,7 @@ def complete_ballot_output_path(
     return ballot_output_path
 
 
-def build_ballot(proposal_path: str):
+def build_ballot_raw(proposal: dict):
     LOG.trace(f"Generating ballot")
 
     template_loader = jinja2.PackageLoader("ccf", "templates")
@@ -36,15 +36,20 @@ def build_ballot(proposal_path: str):
         loader=template_loader, undefined=jinja2.StrictUndefined
     )
 
-    with open(proposal_path, "r") as f:
-        actions = json.load(f)
-
     ballot_template = template_env.get_template("ballots.json.jinja")
-    ballot = ballot_template.render(actions)
+    ballot = ballot_template.render(proposal)
 
     LOG.trace(f"Generated ballot:\n{ballot}")
 
     return ballot
+
+
+def build_ballot(proposal_path: str):
+    LOG.trace(f"Reading proposal from: {proposal_path}")
+    with open(proposal_path, "r") as f:
+        proposal = json.load(f)
+
+    return build_ballot_raw(proposal)
 
 
 if __name__ == "__main__":
