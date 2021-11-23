@@ -14,7 +14,7 @@
 // to be isolated while we change tls_endpoint. Once that's done, we can
 // come back here and refactor this too.
 
-namespace tls
+namespace client::tls
 {
   enum TlsAuth
   {

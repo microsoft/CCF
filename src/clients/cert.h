@@ -17,7 +17,7 @@
 
 using namespace crypto;
 
-namespace tls
+namespace client::tls
 {
   // This class represents the authentication/authorization context for a TLS
   // session. At least, it contains the peer's CA. At most, it also contains our

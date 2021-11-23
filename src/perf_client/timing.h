@@ -153,7 +153,7 @@ namespace timing
   };
 
   static std::optional<ccf::TxID> extract_transaction_id(
-    const RpcTlsClient::Response& response)
+    const client::RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
     const auto it = h.find(http::headers::CCF_TX_ID);
@@ -167,7 +167,7 @@ namespace timing
 
   class ResponseTimes
   {
-    const shared_ptr<RpcTlsClient> net_client;
+    const shared_ptr<client::RpcTlsClient> net_client;
     time_point<Clock> start_time;
 
     vector<SentRequest> sends;
@@ -176,7 +176,7 @@ namespace timing
     bool active = false;
 
   public:
-    ResponseTimes(const shared_ptr<RpcTlsClient>& client) :
+    ResponseTimes(const shared_ptr<client::RpcTlsClient>& client) :
       net_client(client),
       start_time(Clock::now())
     {}
