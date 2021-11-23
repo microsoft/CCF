@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../champ_map.h"
+#include "ds/champ_map.h"
+#include "ds/rb_map.h"
 
 #include <doctest/doctest.h>
 #include <random>
@@ -208,6 +209,11 @@ static const champ::Map<K, V, H> gen_map(size_t size)
   return map;
 }
 
+// TODO:
+// 1. Track mumber of elements in map
+// 2. Track total serialised size
+// 3.
+
 TEST_CASE("serialize map")
 {
   struct pair
@@ -305,3 +311,18 @@ TEST_CASE("serialize map")
     snapshot.serialize(s.data());
   }
 }
+
+TEST_CASE("Map experiment")
+{
+  RBMap<K, V> map;
+  REQUIRE(map.size() == 0);
+
+  map = map.put(0, 0);
+  REQUIRE(map.size() == 1);
+
+  map = map.put(0, 1);
+  REQUIRE(map.size() == 1);
+
+  map = map.put(1, 0);
+  REQUIRE(map.size() == 2);
+};

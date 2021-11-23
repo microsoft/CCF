@@ -42,7 +42,8 @@ private:
 
   RBMap(
     Color c, const RBMap& lft, const K& key, const V& val, const RBMap& rgt) :
-    _root(std::make_shared<const Node>(c, lft._root, key, val, rgt._root))
+    _root(std::make_shared<const Node>(c, lft._root, key, val, rgt._root)),
+    map_size(lft.size() + rgt.size() + 1)
   {
     assert(lft.empty() || lft.rootKey() < key);
     assert(rgt.empty() || key < rgt.rootKey());
@@ -54,6 +55,11 @@ public:
   bool empty() const
   {
     return !_root;
+  }
+
+  size_t size() const
+  {
+    return map_size;
   }
 
   std::optional<V> get(const K& key) const
@@ -100,6 +106,7 @@ public:
 
 private:
   std::shared_ptr<const Node> _root;
+  size_t map_size = 0;
 
   Color rootColor() const
   {
