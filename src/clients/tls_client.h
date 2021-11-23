@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/buffer.h"
-#include "../tls/ca.h"
-#include "../tls/cert.h"
+#include "ca.h"
+#include "cert.h"
 #include "crypto/mbedtls/error_string.h"
+#include "ds/buffer.h"
 
 #include <cstdint>
 #include <cstring>
@@ -28,8 +28,8 @@ class TlsClient
 protected:
   std::string host;
   std::string port;
-  std::shared_ptr<tls::CA> node_ca;
-  std::shared_ptr<tls::Cert> cert;
+  std::shared_ptr<tls::TlsCA> node_ca;
+  std::shared_ptr<tls::TlsCert> cert;
   bool connected = false;
 
   mbedtls::NetContext server_fd;
@@ -110,8 +110,8 @@ public:
   TlsClient(
     const std::string& host,
     const std::string& port,
-    std::shared_ptr<tls::CA> node_ca = nullptr,
-    std::shared_ptr<tls::Cert> cert = nullptr) :
+    std::shared_ptr<tls::TlsCA> node_ca = nullptr,
+    std::shared_ptr<tls::TlsCert> cert = nullptr) :
     host(host),
     port(port),
     node_ca(node_ca),

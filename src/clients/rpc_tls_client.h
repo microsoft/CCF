@@ -103,18 +103,18 @@ public:
   HttpRpcTlsClient(
     const std::string& host,
     const std::string& port,
-    std::shared_ptr<tls::CA> node_ca = nullptr,
-    std::shared_ptr<tls::Cert> cert = nullptr,
+    std::shared_ptr<tls::TlsCA> node_ca = nullptr,
+    std::shared_ptr<tls::TlsCert> cert = nullptr,
     const std::string& key_id_ = "Invalid") :
     TlsClient(host, port, node_ca, cert),
-    key_id(key_id_),
-    parser(*this)
+    parser(*this),
+    key_id(key_id_)
   {}
 
   HttpRpcTlsClient(const HttpRpcTlsClient& c) :
     TlsClient(c),
-    key_id(c.key_id),
-    parser(*this)
+    parser(*this),
+    key_id(c.key_id)
   {}
 
   void create_key_pair(const crypto::Pem priv_key)
