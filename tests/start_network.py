@@ -7,6 +7,7 @@ import http
 import time
 import sys
 import json
+import os
 from loguru import logger as LOG
 
 
@@ -155,5 +156,8 @@ if __name__ == "__main__":
     if args.recover and not all([args.ledger_dir, args.common_dir]):
         print("Error: --recover requires --ledger-dir and --common-dir arguments.")
         sys.exit(1)
+
+    if args.common_dir is not None:
+        args.common_dir = os.path.abspath(args.common_dir)
 
     run(args)
