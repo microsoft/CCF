@@ -15,6 +15,7 @@ STATE_ARG_NAME="parsing arg name"
 STATE_ARG_VALUE="parsing arg value"
 
 ARG_TYPE_STRING="string"
+ARG_TYPE_BOOL="bool"
 ARG_TYPE_NUMBER="number"
 ARG_TYPE_JSON="json"
 ARG_TYPE_DEFAULT="$ARG_TYPE_STRING"
@@ -33,8 +34,12 @@ function print_help()
 {
   echo ""
   echo "This tool is a wrapper around jq, to simplify creation of CCF governance proposals."
-  echo "Specify a list of actions and associated args. Each arg is assumed to be a string, but"
-  echo "you may indicate that any arg should be read as a number (-n) or JSON (-j)."
+  echo "Specify a list of actions and associated args. A single flag per-argument can be used"
+  echo "to indicate how the value should be parsed:"
+  echo "  -s String (default)"
+  echo "  -b Boolean"
+  echo "  -n Number"
+  echo "  -j JSON"
   echo "Additionally, any @-prefixed string is assumed to be a file path, and will be replaced"
   echo "with the contents of the file."
   args_a=("--action" "set_greeting" "message" "HelloWorld" "-n" "max_repetitions" "42")
@@ -97,7 +102,11 @@ function consume_arg_value()
     fi
     arg_value="$(cat "${arg_value:1}")"
   fi
-  if [ $current_arg_type == "$ARG_TYPE_NUMBER" ] || [ $current_arg_type == "$ARG_TYPE_JSON" ]; then
+  if [ $current_arg_type == "$ARG_TYPE_BOOL" ]; then
+    # Allow varied capitalisation, by pre-transforming value to lower case
+    arg_value="${arg_value,,}"
+  fi
+  if [ $current_arg_type == "$ARG_TYPE_NUMBER" ] || [ $current_arg_type == "$ARG_TYPE_JSON" ] || [ $current_arg_type == "$ARG_TYPE_BOOL" ]; then
     arg_kind="--argjson"
   else
     arg_kind="--arg"
@@ -108,7 +117,15 @@ function consume_arg_value()
 
 function consume_flags()
 {
-  case "$1" in 
+  case "$1" in
+    -s)
+      current_arg_type="$ARG_TYPE_STRING"
+      return 1
+      ;;
+    -b)
+      current_arg_type="$ARG_TYPE_BOOL"
+      return 1
+      ;;
     -n)
       current_arg_type="$ARG_TYPE_NUMBER"
       return 1
