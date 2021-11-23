@@ -897,7 +897,7 @@ class Network:
         logs = []
 
         backup = self.find_any_backup(old_primary)
-        if backup.get_consensus() == "bft":
+        if backup.get_consensus() == "BFT":
             try:
                 with backup.client("user0") as c:
                     _ = c.post(

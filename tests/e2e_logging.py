@@ -913,7 +913,7 @@ def test_user_data_ACL(network, args):
 
 @reqs.description("Check for commit of every prior transaction")
 def test_view_history(network, args):
-    if args.consensus == "bft":
+    if args.consensus == "BFT":
         # This appears to work in BFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
         # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,

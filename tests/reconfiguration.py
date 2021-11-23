@@ -514,7 +514,7 @@ def run(args):
 
         test_version(network, args)
 
-        if args.consensus != "bft":
+        if args.consensus != "BFT":
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
@@ -602,7 +602,7 @@ def run_join_old_snapshot(args):
 
 def run_all(args):
     run(args)
-    if cr.args.consensus != "bft":
+    if cr.args.consensus != "BFT":
         run_join_old_snapshot(all)
 
 

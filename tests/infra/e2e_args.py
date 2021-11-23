@@ -37,7 +37,7 @@ def min_nodes(args, f):
     Minimum number of nodes allowing 'f' faults for the
     consensus variant.
     """
-    if args.consensus == "bft":
+    if args.consensus == "BFT":
         n = 3 * f + 1
     else:
         n = 2 * f + 1
@@ -53,7 +53,7 @@ def max_nodes(args, f):
 
 
 def max_f(args, number_nodes):
-    if args.consensus == "bft":
+    if args.consensus == "BFT":
         return (number_nodes - 1) // 3
     else:
         return (number_nodes - 1) // 2

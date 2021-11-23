@@ -50,7 +50,7 @@ def run(args):
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(args.nodes) / 2)
-        if args.consensus == "bft":
+        if args.consensus == "BFT":
             nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
         primary_is_known = True

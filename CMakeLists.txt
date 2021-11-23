@@ -52,7 +52,7 @@ configure_file(
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))
-  set(CONSENSUSES CFT bft)
+  set(CONSENSUSES CFT BFT)
   set(CONSENSUS_FILTER all)
 else()
   set(CONSENSUSES CFT)

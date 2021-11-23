@@ -26,7 +26,7 @@ sign_app_library(
 
 if(BUILD_TESTS)
   foreach(CONSENSUS ${CONSENSUSES})
-    if("bft" STREQUAL CONSENSUS)
+    if("BFT" STREQUAL CONSENSUS)
       set(TPCC_ITERATIONS 50000)
     else()
       set(TPCC_ITERATIONS 200000)
