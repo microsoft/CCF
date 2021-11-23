@@ -9,8 +9,11 @@
 
 namespace ccf::v8_util
 {
-  const char* ToCString(const v8::String::Utf8Value& value);
-  std::string ToSTLString(v8::Isolate* isolate, v8::Local<v8::String> v8_str);
+  // 2^53 - 1
+  constexpr const uint64_t MAX_SAFE_INTEGER = 9007199254740991;
+
+  const char* to_cstr(const v8::String::Utf8Value& value);
+  std::string to_str(v8::Isolate* isolate, v8::Local<v8::String> v8_str);
   v8::Local<v8::String> to_v8_str(v8::Isolate* isolate, const std::string& x);
   v8::Local<v8::String> to_v8_str(v8::Isolate* isolate, const char* x);
   v8::Local<v8::Value> to_v8_obj(v8::Isolate* isolate, const nlohmann::json& json);
@@ -20,7 +23,12 @@ namespace ccf::v8_util
    * Use this for any constants.
    */
   v8::Local<v8::String> to_v8_istr(v8::Isolate* isolate, const char* x);
+  v8::Local<v8::String> to_v8_istr(v8::Isolate* isolate, const std::string& x);
+
+  v8::Local<v8::ArrayBuffer> to_v8_array_buffer_copy(v8::Isolate* isolate, const uint8_t* data, size_t size);
   
-  void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch);
+  void throw_error(v8::Isolate* isolate, const std::string& msg);
+  void throw_type_error(v8::Isolate* isolate, const std::string& msg);
+  void report_exception(v8::Isolate* isolate, v8::TryCatch* try_catch);
   std::string get_exception_message(v8::Isolate* isolate, v8::TryCatch* try_catch);
 }

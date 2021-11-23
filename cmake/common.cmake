@@ -463,10 +463,14 @@ if (ENABLE_V8)
     ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
     ${CCF_DIR}/src/apps/js_v8/v8_util.cpp
     ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/console_global.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/ccf_global.cpp
     ${CCF_DIR}/src/apps/js_v8/tmpl/request.cpp
     ${CCF_DIR}/src/apps/js_v8/tmpl/request_authn_identity.cpp
     ${CCF_DIR}/src/apps/js_v8/tmpl/request_body.cpp
     ${CCF_DIR}/src/apps/js_v8/tmpl/string_map.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/kv_store.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/kv_map.cpp
   )
 
   if("virtual" IN_LIST COMPILE_TARGETS)

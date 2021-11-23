@@ -16,7 +16,7 @@ namespace ccf::v8_tmpl
       return;
 
     StringMap::MapType* obj = unwrap_string_map(info.Holder());
-    std::string key = v8_util::ToSTLString(info.GetIsolate(), name.As<v8::String>());
+    std::string key = v8_util::to_str(info.GetIsolate(), name.As<v8::String>());
     StringMap::MapType::iterator iter = obj->find(key);
 
     if (iter == obj->end())

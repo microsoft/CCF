@@ -130,6 +130,8 @@ namespace ccf
      */
     void set_module_load_callback(ModuleLoadCallback callback, void* data);
 
+    void install_global(const std::string& name, v8::Local<v8::Value> value);
+
     // TODO allow to compile-only for validation purposes
     v8::Local<v8::Value> run(
       const std::string& module_name,

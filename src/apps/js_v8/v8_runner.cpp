@@ -224,9 +224,10 @@ namespace ccf
 
   V8Isolate::~V8Isolate()
   {
-    delete isolate_->GetArrayBufferAllocator();
-    data_.release();
+    v8::ArrayBuffer::Allocator* allocator = isolate_->GetArrayBufferAllocator();
+    data_ = nullptr;
     isolate_->Dispose();
+    delete allocator;
   }
 
   void V8Isolate::on_fatal_error(const char* location, const char* message)
@@ -275,6 +276,15 @@ namespace ccf
   {
     module_load_cb_ = callback;
     module_load_cb_data_ = data;
+  }
+
+  void V8Context::install_global(const std::string& name, v8::Local<v8::Value> value)
+  {
+    v8::HandleScope handle_scope(isolate_);
+    v8::Local<v8::Context> context = get_context();
+    context->Global()
+      ->Set(context, v8_util::to_v8_istr(isolate_, name), value)
+        .FromJust();
   }
 
   v8::Local<v8::Value> V8Context::run(
@@ -397,7 +407,7 @@ namespace ccf
     CHECK(specifier_it != d->module_to_specifier_map.end());
 
     std::string absolute_path = NormalizePath(
-      v8_util::ToSTLString(isolate, specifier),
+      v8_util::to_str(isolate, specifier),
       DirName(specifier_it->second));
 
     auto module_it = d->module_map.find(absolute_path);
@@ -421,14 +431,14 @@ namespace ccf
 
     // Lookup already-resolved referrer module
     v8::Local<v8::String> referrer_module_name = script_or_module->GetResourceName().As<v8::String>();
-    std::string referrer_module_name_str = v8_util::ToSTLString(isolate, referrer_module_name);
+    std::string referrer_module_name_str = v8_util::to_str(isolate, referrer_module_name);
     auto module_it = d->module_map.find(referrer_module_name_str);
     CHECK(module_it != d->module_map.end());
     v8::Local<v8::Module> referrer = module_it->second.Get(isolate);
 
     // Compute absolute path of module to be resolved
     std::string absolute_path = NormalizePath(
-        v8_util::ToSTLString(isolate, specifier),
+        v8_util::to_str(isolate, specifier),
         DirName(referrer_module_name_str));
 
     // Check if module has already been resolved, otherwise resolve it
@@ -524,7 +534,7 @@ namespace ccf
       v8::Local<v8::String> name = module_request->GetSpecifier();
       v8::Local<v8::FixedArray> import_assertions = module_request->GetImportAssertions();
       std::string absolute_path =
-        NormalizePath(v8_util::ToSTLString(isolate, name), dir_name);
+        NormalizePath(v8_util::to_str(isolate, name), dir_name);
       if (d->module_map.count(absolute_path)) {
         continue;
       }

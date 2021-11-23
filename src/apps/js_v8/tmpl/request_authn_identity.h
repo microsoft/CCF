@@ -24,6 +24,15 @@ namespace ccf::v8_tmpl
     static v8::Local<v8::Value> wrap(v8::Local<v8::Context> context, EndpointContext& endpoint_ctx, BaseEndpointRegistry& endpoint_registry);
   };
 
+  class RequestEmptyAuthnIdentity
+  {
+  public:
+    static constexpr const char* NAME = "CCFRequestEmptyAuthnIdentity";
+    static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
+
+    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity& identity);
+  };
+
   class RequestJwtAuthnIdentity
   {
   public:

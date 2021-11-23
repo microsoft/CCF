@@ -20,15 +20,7 @@ namespace ccf::v8_tmpl
 
     if (auto empty_ident =
           endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
-    {
-      // Ideally, this should be a template as well.
-      v8::Local<v8::Object> caller = v8::Object::New(isolate);
-      caller->Set(context,
-        v8_util::to_v8_istr(isolate, "policy"),
-        v8_util::to_v8_istr(isolate, ccfapp::get_policy_name_from_ident<ccf::EmptyAuthnIdentity>()));
-      return caller;
-    }
-
+      return RequestEmptyAuthnIdentity::wrap(context, *empty_ident);
     if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
       return RequestJwtAuthnIdentity::wrap(context, *jwt_ident);
     
@@ -58,6 +50,31 @@ namespace ccf::v8_tmpl
           isolate,
           ccfapp::get_policy_name_from_ident<T>())
         );
+  }
+
+  v8::Local<v8::ObjectTemplate> RequestEmptyAuthnIdentity::create_template(v8::Isolate* isolate)
+  {
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
+    
+    tmpl->SetInternalFieldCount(0);
+
+    set_policy_name<ccf::EmptyAuthnIdentity>(isolate, tmpl);
+
+    return handle_scope.Escape(tmpl);
+  }
+
+  v8::Local<v8::Object> RequestEmptyAuthnIdentity::wrap(v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity&)
+  {
+    v8::Isolate* isolate = context->GetIsolate();
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<RequestEmptyAuthnIdentity>(isolate);
+
+    v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
+
+    return handle_scope.Escape(result);
   }
 
   static ccf::JwtAuthnIdentity* unwrap_jwt_authn_identity(v8::Local<v8::Object> obj)
@@ -182,10 +199,14 @@ namespace ccf::v8_tmpl
     else
       static_assert(dependent_false_v<T>, "Unknown type");
 
-    // FIXME this cannot be a C++ exception as this code runs from JS
     if (result == ccf::ApiResult::InternalError)
-      throw std::logic_error(
-        fmt::format("Failed to get data for caller {}", id));
+    {
+      isolate->ThrowError(
+          v8_util::to_v8_str(isolate,
+            fmt::format("Failed to get data for caller {}", id))
+      );
+      return;
+    }
 
     info.GetReturnValue().Set(v8_util::to_v8_obj(isolate, data));
   }
@@ -209,10 +230,14 @@ namespace ccf::v8_tmpl
     else
       static_assert(dependent_false_v<T>, "Unknown type");
 
-    // FIXME this cannot be a C++ exception as this code runs from JS
     if (result == ccf::ApiResult::InternalError)
-      throw std::logic_error(
-        fmt::format("Failed to get certificate for caller {}", id));
+    {
+      isolate->ThrowError(
+          v8_util::to_v8_str(isolate,
+            fmt::format("Failed to get certificate for caller {}", id))
+      );
+      return;
+    }
 
     info.GetReturnValue().Set(v8_util::to_v8_str(isolate, cert.str()));
   }

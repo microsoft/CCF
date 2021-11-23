@@ -74,7 +74,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
     
     // Field 0: EndpointContext
-    // Field 0: BaseEndpointRegistry
+    // Field 1: BaseEndpointRegistry
     tmpl->SetInternalFieldCount(2);
 
     tmpl->SetLazyDataProperty(

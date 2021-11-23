@@ -80,9 +80,11 @@ namespace ccf::v8_tmpl
     tmpl->Set( 
       v8_util::to_v8_istr(isolate, "text"),
       v8::FunctionTemplate::New(isolate, get_text));
-    tmpl->Set(isolate, "json",
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "json"),
       v8::FunctionTemplate::New(isolate, get_json));
-    tmpl->Set(isolate, "arrayBuffer",
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "arrayBuffer"),
       v8::FunctionTemplate::New(isolate, get_array_buffer));
 
     return handle_scope.Escape(tmpl);
