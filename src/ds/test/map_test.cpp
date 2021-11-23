@@ -236,19 +236,19 @@ TEST_CASE("Serialize map")
     REQUIRE_EQ(map.size(), num_elements);
   }
 
-  // INFO("make sure we can deserialize a map");
-  // {
-  //   std::set<K> keys;
-  //   MapImpl new_map;
-  //   for (const auto& p : results)
-  //   {
-  //     REQUIRE_LT(p.k, num_elements);
-  //     keys.insert(p.k);
-  //     new_map = new_map.put(p.k, p.v);
-  //   }
-  //   REQUIRE_EQ(num_elements, new_map.size());
-  //   REQUIRE_EQ(num_elements, keys.size());
-  // }
+  INFO("Populate second map and compare");
+  {
+    std::set<K> keys;
+    MapImpl new_map;
+    for (const auto& p : results)
+    {
+      REQUIRE_LT(p.k, num_elements);
+      keys.insert(p.k);
+      new_map = new_map.put(p.k, p.v);
+    }
+    REQUIRE_EQ(num_elements, new_map.size());
+    REQUIRE_EQ(num_elements, keys.size());
+  }
 
   // INFO("Serialize map to array");
   // {
@@ -318,15 +318,10 @@ TEST_CASE("Map experiment")
   RBMap<K, V> map;
   REQUIRE(map.size() == 0);
 
-  map = map.put(0, 0);
-  map = map.put(1, 0);
-  map = map.put(2, 0);
-  map = map.put(3, 0);
-  REQUIRE(map.size() == 4);
-  // map = map.put(4, 0);
-  // map = map.put(5, 0);
-  // map = map.put(6, 0);
-  // map = map.put(7, 0);
-  // map = map.put(8, 0);
-  // map = map.put(9, 0);
+  for (int i = 1; i <= 10000; i++)
+  {
+    map = map.put(i, 0);
+    REQUIRE(map.size() == i);
+  }
+  REQUIRE(map.size() == 10000);
 };

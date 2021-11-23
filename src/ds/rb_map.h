@@ -29,13 +29,29 @@ private:
       _key(key),
       _val(val),
       _rgt(rgt)
-    {}
+    {
+      total_size = 1;
+      if (lft)
+      {
+        total_size += lft->size();
+      }
+      if (rgt)
+      {
+        total_size += rgt->size();
+      }
+    }
 
     Color _c;
     std::shared_ptr<const Node> _lft;
     K _key;
     V _val;
     std::shared_ptr<const Node> _rgt;
+    size_t total_size = 1;
+
+    size_t size() const
+    {
+      return total_size;
+    }
   };
 
   explicit RBMap(std::shared_ptr<const Node> const& node) : _root(node) {}
@@ -47,8 +63,7 @@ private:
     const V& val,
     const RBMap& rgt,
     std::optional<size_t> size = std::nullopt) :
-    _root(std::make_shared<const Node>(c, lft._root, key, val, rgt._root)),
-    map_size(size.value_or(lft.size() + rgt.size() + 1))
+    _root(std::make_shared<const Node>(c, lft._root, key, val, rgt._root))
   {
     assert(lft.empty() || lft.rootKey() < key);
     assert(rgt.empty() || key < rgt.rootKey());
@@ -64,7 +79,7 @@ public:
 
   size_t size() const
   {
-    return map_size;
+    return empty() ? 0 : _root->size();
   }
 
   std::optional<V> get(const K& key) const
@@ -111,7 +126,6 @@ public:
 
 private:
   std::shared_ptr<const Node> _root;
-  size_t map_size = 0;
 
   Color rootColor() const
   {
