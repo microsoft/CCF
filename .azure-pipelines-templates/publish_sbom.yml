@@ -6,10 +6,10 @@ steps:
 
   - task: PublishPipelineArtifact@1
     inputs:
-      artifactName: "SBOM upload"
+      artifactName: "Manifest"
       targetPath: build/_manifest/manifest.json
 
   - task: PublishPipelineArtifact@1
     inputs:
-      artifactName: "SBOM upload"
+      artifactName: "SBOM"
       targetPath: build/_manifest/spdx_2.2
