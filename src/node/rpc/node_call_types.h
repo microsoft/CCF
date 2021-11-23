@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
-#include "enclave/reconfiguration_type.h"
+#include "enclave/interface.h"
 #include "node/config.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
@@ -74,20 +74,7 @@ namespace ccf
       std::optional<crypto::Pem> node_cert = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
-      struct GenesisInfo
-      {
-        std::vector<NewMember> members_info;
-        std::string constitution;
-        ServiceConfiguration configuration;
-
-        bool operator==(const GenesisInfo& other) const
-        {
-          return members_info == other.members_info &&
-            constitution == other.constitution &&
-            configuration == other.configuration;
-        }
-      };
-      std::optional<GenesisInfo> genesis_info = std::nullopt;
+      std::optional<StartupConfig::Start> genesis_info = std::nullopt;
     };
   };
 

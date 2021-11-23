@@ -429,7 +429,7 @@ namespace ccf
               if (info)
               {
                 const auto& pub_address =
-                  info->rpc_interfaces[0].public_rpc_address;
+                  info->rpc_interfaces[0].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
                   fmt::format(
@@ -518,7 +518,7 @@ namespace ccf
               if (info)
               {
                 const auto& pub_address =
-                  info->rpc_interfaces[0].public_rpc_address;
+                  info->rpc_interfaces[0].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
                   fmt::format(
@@ -778,7 +778,7 @@ namespace ccf
         nodes->foreach([this, host, port, status, &out](
                          const NodeId& nid, const NodeInfo& ni) {
           const auto& primary_interface = ni.rpc_interfaces[0];
-          const auto& pub_address = primary_interface.public_rpc_address;
+          const auto& pub_address = primary_interface.published_address;
           if (host.has_value() && host.value() != pub_address.hostname)
             return true;
           if (port.has_value() && port.value() != pub_address.port)
@@ -796,8 +796,8 @@ namespace ccf
              ni.status,
              pub_address.hostname,
              pub_address.port,
-             primary_interface.rpc_address.hostname,
-             primary_interface.rpc_address.port,
+             primary_interface.bind_address.hostname,
+             primary_interface.bind_address.port,
              is_primary});
           return true;
         });
@@ -858,10 +858,10 @@ namespace ccf
         return make_success(GetNode::Out{
           node_id,
           ni.status,
-          primary_interface.public_rpc_address.hostname,
-          primary_interface.public_rpc_address.port,
-          primary_interface.rpc_address.hostname,
-          primary_interface.rpc_address.port,
+          primary_interface.published_address.hostname,
+          primary_interface.published_address.port,
+          primary_interface.bind_address.hostname,
+          primary_interface.bind_address.port,
           is_primary});
       };
       make_read_only_endpoint(
@@ -880,7 +880,7 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
-          const auto& address = info->rpc_interfaces[0].public_rpc_address;
+          const auto& address = info->rpc_interfaces[0].published_address;
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
@@ -924,7 +924,7 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
-            const auto& address = info->rpc_interfaces[0].public_rpc_address;
+            const auto& address = info->rpc_interfaces[0].published_address;
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
             args.rpc_ctx->set_response_header(
               http::headers::LOCATION,
@@ -974,7 +974,7 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
-              const auto& address = info->rpc_interfaces[0].public_rpc_address;
+              const auto& address = info->rpc_interfaces[0].published_address;
               args.rpc_ctx->set_response_header(
                 http::headers::LOCATION,
                 fmt::format(
@@ -1188,16 +1188,18 @@ namespace ccf
           // Note that it is acceptable to start a network without any member
           // having a recovery share. The service will check that at least one
           // recovery member is added before the service is opened.
-          for (const auto& info : in.genesis_info->members_info)
+          for (const auto& info : in.genesis_info->members)
           {
             g.add_member(info);
           }
 
           if (
-            in.genesis_info->configuration.consensus == ConsensusType::BFT &&
-            (!in.genesis_info->configuration.reconfiguration_type.has_value() ||
-             in.genesis_info->configuration.reconfiguration_type.value() !=
-               ReconfigurationType::TWO_TRANSACTION))
+            in.genesis_info->service_configuration.consensus ==
+              ConsensusType::BFT &&
+            (!in.genesis_info->service_configuration.reconfiguration_type
+                .has_value() ||
+             in.genesis_info->service_configuration.reconfiguration_type
+                 .value() != ReconfigurationType::TWO_TRANSACTION))
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1205,7 +1207,7 @@ namespace ccf
               "BFT consensus requires two-transaction reconfiguration.");
           }
 
-          g.init_configuration(in.genesis_info->configuration);
+          g.init_configuration(in.genesis_info->service_configuration);
           g.set_constitution(in.genesis_info->constitution);
         }
 

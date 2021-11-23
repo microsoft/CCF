@@ -97,7 +97,7 @@ fi
 # In release, running a BFT service should not be possible
 network_live_time=30
 timeout --signal=SIGINT --kill-after=${network_live_time}s --preserve-status ${network_live_time}s \
-"$INSTALL_PREFIX"/bin/sandbox.sh -e release --consensus=bft --verbose &
+"$INSTALL_PREFIX"/bin/sandbox.sh -e release --consensus=BFT --verbose &
 
 if ! poll_for_service_open ${network_live_time}; then
     echo "Error: Experimental BFT consensus should not be allowed in release install"

@@ -160,7 +160,7 @@ def recovery_shares_scenario(args):
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with CFT
-        if args.consensus != "cft":
+        if args.consensus != "CFT":
             LOG.warning("Skipping test recovery threshold as consensus is not CFT")
             return
 

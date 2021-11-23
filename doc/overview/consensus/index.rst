@@ -8,17 +8,18 @@ The default consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`) an
 Below, we give an overview over the nodes state machine in both settings and the retirement mechanics that apply across the two protocols.
 
 CFT Consensus Protocol
------------------------
+----------------------
 
 The crash fault tolerant implementation in CCF is based on Raft. You can find more information on the Raft implementation of reconfiguration in CCF :doc:`here <1tx-reconfig>`.
 
-CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CLI are:
+CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
-- ``raft-timeout-ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``--raft-election-timeout-ms``.
-- ``raft-election-timeout-ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
+- ``consensus.timeout_ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.election_timeout_ms``.
+- ``consensus.election_timeout_ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
 BFT Consensus Protocol
 ----------------------
+
 .. warning:: CCF with BFT is currently in development and should not be used in a production environment.
 
 More details on this mode is given :doc:`here <2tx-reconfig>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.

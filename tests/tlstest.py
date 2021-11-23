@@ -12,7 +12,7 @@ import subprocess
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     node = network.nodes[0]
-    endpoint = f"https://{node.pubhost}:{node.pubport}"
+    endpoint = f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}"
     r = subprocess.run(
         ["testssl/testssl.sh", "--outfile", "tls_report", endpoint], check=False
     )

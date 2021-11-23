@@ -1,0 +1,83 @@
+{
+  "enclave": {
+    "file": "lib_jsgeneric.enclave.so.signed",
+    "type": "release"
+  },
+  "network": {
+    "node_address": { "hostname": "127.0.0.1", "port": "8081" },
+    "rpc_interfaces": [
+      {
+        "bind_address": { "hostname": "127.0.0.1", "port": "8080" },
+        "max_open_sessions_soft": 1000,
+        "max_open_sessions_hard": 1010
+      }
+    ]
+  },
+  "node_certificate": {
+    "subject_name": "CN=CCF Node",
+    "subject_alt_names": ["iPAddress:127.0.0.1", "dNSName:ccf.dummy.com"],
+    "curve_id": "secp384r1",
+    "initial_validity_days": 1
+  },
+  "start": {
+    "constitution_files": [
+      "validate.js",
+      "apply.js",
+      "resolve.js",
+      "actions.js"
+    ],
+    "members": [
+      {
+        "certificate_file": "member0_cert.pem",
+        "encryption_public_key_file": "member0_enc_pubk.pem"
+      }
+    ],
+    "service_configuration": {
+      "recovery_threshold": 1,
+      "maximum_node_certificate_validity_days": 365
+    }
+  },
+  "join": {
+    "timer_ms": 1000,
+    "target_rpc_address": { "hostname": "127.0.0.1", "port": "5678" }
+  },
+  "ledger": {
+    "directory": "ledger",
+    "read_only_directories": [],
+    "chunk_size": 20000
+  },
+  "snapshots": {
+    "directory": "snapshots",
+    "interval_size": 10000
+  },
+  "logging": {
+    "host_level": "info",
+    "format": "text"
+  },
+  "consensus": {
+    "type": "CFT",
+    "timeout_ms": 100,
+    "election_timeout_ms": 4000
+  },
+  "intervals": {
+    "signature_interval_size": 5000,
+    "signature_interval_duration_ms": 1000
+  },
+  "jwt": {
+    "key_refresh_interval_s": 1800
+  },
+  "network_certificate_file": "networkcert.pem",
+  "node_certificate_file": "node.pem",
+  "node_pid_file": "node.pid",
+  "node_address_file": "node.node_address",
+  "rpc_addresses_file": "node.rpc_addresses",
+  "tick_period_ms": 1,
+  "io_logging_threshold_ns": 10000000,
+  "client_connection_timeout_ms": 2000,
+  "worker_threads": 0,
+  "memory": {
+    "circuit_size_shift": 22,
+    "max_msg_size_shift": 24,
+    "max_fragment_size_shift": 16
+  }
+}
