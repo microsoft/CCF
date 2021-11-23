@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/map_serializers.h"
+
 #include <cassert>
 #include <memory>
 #include <optional>
@@ -31,13 +33,16 @@ private:
       _rgt(rgt)
     {
       total_size = 1;
+      total_serialized_size = champ::get_size_with_padding(key, val);
       if (lft)
       {
         total_size += lft->size();
+        total_serialized_size += lft->serialized_size();
       }
       if (rgt)
       {
         total_size += rgt->size();
+        total_serialized_size += rgt->serialized_size();
       }
     }
 
@@ -46,11 +51,17 @@ private:
     K _key;
     V _val;
     std::shared_ptr<const Node> _rgt;
-    size_t total_size = 1;
+    size_t total_size = 0;
+    size_t total_serialized_size = 0;
 
     size_t size() const
     {
       return total_size;
+    }
+
+    size_t serialized_size() const
+    {
+      return total_serialized_size;
     }
   };
 
@@ -70,6 +81,9 @@ private:
   }
 
 public:
+  using KeyType = K;
+  using ValueType = V;
+
   RBMap() {}
 
   bool empty() const
@@ -80,6 +94,11 @@ public:
   size_t size() const
   {
     return empty() ? 0 : _root->size();
+  }
+
+  size_t get_serialized_size() const
+  {
+    return empty() ? 0 : _root->serialized_size();
   }
 
   std::optional<V> get(const K& key) const
@@ -116,6 +135,7 @@ public:
   template <class F>
   void foreach(F&& f) const
   {
+    // TODO: Early return
     if (!empty())
     {
       left().foreach(std::forward<F>(f));
@@ -234,5 +254,44 @@ private:
   RBMap paint(Color c) const
   {
     return RBMap(c, left(), rootKey(), rootValue(), right());
+  }
+};
+
+template <class K, class V>
+class Snapshot
+{
+private:
+  const RBMap<K, V> map;
+  CBuffer serialized_buffer;
+
+public:
+  Snapshot(const RBMap<K, V>& map_) : map(map_) {}
+
+  size_t get_serialized_size()
+  {
+    return map.get_serialized_size();
+  }
+
+  CBuffer& get_serialized_buffer()
+  {
+    return serialized_buffer;
+  }
+
+  void serialize(uint8_t* data)
+  {
+    size_t size = map.get_serialized_size();
+    serialized_buffer = CBuffer(data, size);
+
+    map.foreach([&data, &size](const K& k, const V& v) {
+      // Serialize the key
+      uint32_t key_size = champ::serialize(k, data, size);
+      champ::add_padding(key_size, data, size);
+
+      // Serialize the value
+      uint32_t value_size = champ::serialize(v, data, size);
+      champ::add_padding(value_size, data, size);
+    });
+
+    CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
   }
 };

@@ -25,7 +25,11 @@ using V = uint64_t;
 // using H = std::hash<K>;
 using H = CollisionHash<K>;
 
-using MapImpl = RBMap<K, V>;
+template <typename Key, typename Value>
+using UntypedMapImpl = champ::Map<Key, Value>; //, CollisionHash<Key>>;
+// using MapImpl = champ::Map<K, V, H>;
+
+using MapImpl = UntypedMapImpl<K, V>;
 
 class Model
 {
@@ -84,32 +88,41 @@ struct Put : public Op
   }
 };
 
-// struct Remove : public Op
-// {
-//   K k;
+template <typename M>
+struct Remove : public Op
+{
+  K k;
 
-//   Remove(K k_) : k(k_) {}
+  Remove(K k_) : k(k_) {}
 
-//   pair<const Model, const MapImpl> apply(const Model& a, const MapImpl& b)
-//   {
-//     return make_pair(a.remove(k), b.remove(k));
-//   }
+  pair<const Model, const M> apply(const Model& a, const M& b)
+  {
+    if constexpr (std::is_same_v<M, champ::Map<K, V>>)
+    {
+      return make_pair(a.remove(k), b.remove(k));
+    }
+    else
+    {
+      throw std::logic_error("Remove operation is only implemented for CHAMP");
+    }
+  }
 
-//   string str()
-//   {
-//     auto ss = stringstream();
-//     ss << "Remove(" << H()(k) << ")";
-//     return ss.str();
-//   }
-// };
+  string str()
+  {
+    auto ss = stringstream();
+    ss << "Remove(" << H()(k) << ")";
+    return ss.str();
+  }
+};
 
+template <typename M>
 vector<unique_ptr<Op>> gen_ops(size_t n)
 {
   random_device rand_dev;
   auto seed = rand_dev();
   std::cout << "seed: " << seed << std::endl;
   mt19937 gen(seed);
-  uniform_int_distribution<> gen_op(0, 2); // TODO: Add remove to RBMap
+  uniform_int_distribution<> gen_op(0, 3);
 
   vector<unique_ptr<Op>> ops;
   vector<K> keys;
@@ -136,16 +149,18 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
 
         break;
       }
-      // case 3: // remove
-      // {
-      //   uniform_int_distribution<> gen_idx(0, keys.size() - 1);
-      //   auto i = gen_idx(gen);
-      //   auto k = keys[i];
-      //   keys.erase(keys.begin() + i);
-      //   op = make_unique<Remove>(k);
-
-      //   break;
-      // }
+      case 3: // remove
+      {
+        if constexpr (std::is_same_v<M, champ::Map<K, V>>)
+        {
+          uniform_int_distribution<> gen_idx(0, keys.size() - 1);
+          auto i = gen_idx(gen);
+          auto k = keys[i];
+          keys.erase(keys.begin() + i);
+          op = make_unique<Remove<MapImpl>>(k);
+        }
+        break;
+      }
       default:
         throw logic_error("bad op number");
     }
@@ -160,7 +175,7 @@ TEST_CASE("persistent map operations")
   Model model;
   MapImpl map;
 
-  auto ops = gen_ops(500);
+  auto ops = gen_ops<MapImpl>(500);
   for (auto& op : ops)
   {
     std::cout << op->str() << std::endl;
@@ -191,7 +206,7 @@ TEST_CASE("persistent map operations")
         REQUIRE(model_value.value() == v);
         return true;
       });
-      REQUIRE(n == map_new.size());
+      REQUIRE(n == map.size());
     }
 
     model = model_new;
@@ -208,11 +223,6 @@ static const MapImpl gen_map(size_t size)
   }
   return map;
 }
-
-// TODO:
-// 1. Track mumber of elements in map
-// 2. Track total serialised size
-// 3.
 
 TEST_CASE("Serialize map")
 {
@@ -250,78 +260,70 @@ TEST_CASE("Serialize map")
     REQUIRE_EQ(num_elements, keys.size());
   }
 
-  // INFO("Serialize map to array");
-  // {
-  //   champ::Snapshot<K, V, H> snapshot(map);
-  //   std::vector<uint8_t> s(map.get_serialized_size());
-  //   snapshot.serialize(s.data());
+  // champ::Snapshot<K, V, H> snapshot(map);
+  using TestSnapshot = champ::Snapshot<K, V>; //, H>; // Snapshot<K, V>;
 
-  //   champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(s);
-
-  //   std::set<K> keys;
-  //   new_map.foreach([&keys](const auto& key, const auto& value) {
-  //     keys.insert(key);
-  //     REQUIRE_EQ(key, value);
-  //     return true;
-  //   });
-  //   REQUIRE_EQ(map.size(), new_map.size());
-  //   REQUIRE_EQ(map.size(), keys.size());
-
-  //   uint32_t offset = 1000;
-  //   for (uint32_t i = offset; i < offset + num_elements; ++i)
-  //   {
-  //     new_map = new_map.put(i, i);
-  //   }
-  //   REQUIRE_EQ(new_map.size(), map.size() + num_elements);
-  //   for (uint32_t i = offset; i < offset + num_elements; ++i)
-  //   {
-  //     auto p = new_map.get(i);
-  //     REQUIRE(p.has_value());
-  //     REQUIRE(p.value() == i);
-  //   }
-  // }
-
-  // INFO("Ensure serialized state is byte identical");
-  // {
-  //   champ::Snapshot<K, V, H> snapshot_1(map);
-  //   std::vector<uint8_t> s_1(map.get_serialized_size());
-  //   snapshot_1.serialize(s_1.data());
-
-  //   champ::Snapshot<K, V, H> snapshot_2(map);
-  //   std::vector<uint8_t> s_2(map.get_serialized_size());
-  //   snapshot_2.serialize(s_2.data());
-
-  //   REQUIRE_EQ(s_1, s_2);
-  // }
-
-  // INFO("Serialize map with different key sizes");
-  // {
-  //   using SerialisedKey = champ::serialisers::SerialisedEntry;
-  //   using SerialisedValue = champ::serialisers::SerialisedEntry;
-
-  //   champ::Map<SerialisedKey, SerialisedValue> map;
-  //   SerialisedKey key(16);
-  //   SerialisedValue value(8);
-  //   SerialisedValue long_value(256);
-
-  //   map = map.put(key, value);
-  //   map = map.put(key, long_value);
-
-  //   champ::Snapshot<SerialisedKey, SerialisedValue> snapshot(map);
-  //   std::vector<uint8_t> s(map.get_serialized_size());
-  //   snapshot.serialize(s.data());
-  // }
-}
-
-TEST_CASE("Map experiment")
-{
-  RBMap<K, V> map;
-  REQUIRE(map.size() == 0);
-
-  for (int i = 1; i <= 10000; i++)
+  INFO("Serialize map to array");
   {
-    map = map.put(i, 0);
-    REQUIRE(map.size() == i);
+    TestSnapshot snapshot(map);
+    std::vector<uint8_t> s(map.get_serialized_size());
+    snapshot.serialize(s.data());
+
+    auto new_map = champ::deserialize_map<MapImpl>(s);
+
+    std::set<K> keys;
+    new_map.foreach([&keys](const auto& key, const auto& value) {
+      keys.insert(key);
+      REQUIRE_EQ(key, value);
+      return true;
+    });
+    REQUIRE_EQ(map.size(), new_map.size());
+    REQUIRE_EQ(map.size(), keys.size());
+
+    uint32_t offset = 1000;
+    for (uint32_t i = offset; i < offset + num_elements; ++i)
+    {
+      new_map = new_map.put(i, i);
+    }
+    REQUIRE_EQ(new_map.size(), map.size() + num_elements);
+    for (uint32_t i = offset; i < offset + num_elements; ++i)
+    {
+      auto p = new_map.get(i);
+      REQUIRE(p.has_value());
+      REQUIRE(p.value() == i);
+    }
   }
-  REQUIRE(map.size() == 10000);
-};
+
+  INFO("Ensure serialized state is byte identical");
+  {
+    TestSnapshot snapshot_1(map);
+    std::vector<uint8_t> s_1(map.get_serialized_size());
+    snapshot_1.serialize(s_1.data());
+
+    TestSnapshot snapshot_2(map);
+    std::vector<uint8_t> s_2(map.get_serialized_size());
+    snapshot_2.serialize(s_2.data());
+
+    REQUIRE_EQ(s_1, s_2);
+  }
+
+  INFO("Serialize map with different key sizes");
+  {
+    using SerialisedKey = champ::serialisers::SerialisedEntry;
+    using SerialisedValue = champ::serialisers::SerialisedEntry;
+
+    UntypedMapImpl<SerialisedKey, SerialisedValue> map;
+    SerialisedKey key(16);
+    SerialisedValue value(8);
+    SerialisedValue long_value(256);
+
+    map = map.put(key, value);
+    map = map.put(key, long_value);
+
+    champ::Snapshot<SerialisedKey, SerialisedValue> snapshot(map);
+    std::vector<uint8_t> s(map.get_serialized_size());
+    snapshot.serialize(s.data());
+  }
+
+  // TODO: Test snapshot from one map type to the other
+}

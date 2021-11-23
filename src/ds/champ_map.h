@@ -4,7 +4,7 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
-#include "ds/champ_map_serializers.h"
+#include "ds/map_serializers.h"
 
 #include <algorithm>
 #include <array>
@@ -93,24 +93,6 @@ namespace champ
         return nullptr;
     }
   };
-
-  uint32_t static get_padding(uint32_t size)
-  {
-    uint32_t padding = size % sizeof(uintptr_t);
-    if (padding != 0)
-    {
-      padding = sizeof(uintptr_t) - padding;
-    }
-    return padding;
-  }
-
-  template <class K, class V>
-  size_t static get_size_with_padding(const K& k, const V& v)
-  {
-    uint32_t size_k = champ::get_size(k);
-    uint32_t size_v = champ::get_size(v);
-    return size_k + get_padding(size_k) + size_v + get_padding(size_v);
-  }
 
   template <class K, class V, class H>
   using Node = std::shared_ptr<void>;
@@ -408,31 +390,10 @@ namespace champ
     {}
 
   public:
+    using KeyType = K;
+    using ValueType = V;
+
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
-
-    static Map<K, V, H> deserialize_map(CBuffer serialized_state)
-    {
-      Map<K, V, H> map;
-      const uint8_t* data = serialized_state.p;
-      size_t size = serialized_state.rawSize();
-
-      while (size != 0)
-      {
-        // Deserialize the key
-        size_t key_size = size;
-        K key = champ::deserialize<K>(data, size);
-        key_size -= size;
-        serialized::skip(data, size, get_padding(key_size));
-
-        // Deserialize the value
-        size_t value_size = size;
-        V value = champ::deserialize<V>(data, size);
-        value_size -= size;
-        serialized::skip(data, size, get_padding(value_size));
-        map = map.put(key, value);
-      }
-      return map;
-    }
 
     size_t size() const
     {
@@ -496,7 +457,7 @@ namespace champ
   class Snapshot
   {
   private:
-    Map<K, V, H> map;
+    const Map<K, V, H> map;
     CBuffer serialized_buffer;
 
     struct KVTuple
@@ -507,24 +468,9 @@ namespace champ
 
       KVTuple(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
     };
-    const uintptr_t padding = 0;
-
-    uint32_t add_padding(uint32_t data_size, uint8_t*& data, size_t& size) const
-    {
-      uint32_t padding_size = get_padding(data_size);
-      if (padding_size != 0)
-      {
-        serialized::write(
-          data, size, reinterpret_cast<const uint8_t*>(&padding), padding_size);
-      }
-      return padding_size;
-    }
 
   public:
-    Snapshot(Map<K, V, H>& map_)
-    {
-      map = map_;
-    }
+    Snapshot(const Map<K, V, H>& map_) : map(map_) {}
 
     size_t get_serialized_size()
     {
@@ -588,4 +534,33 @@ namespace champ
       CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
     }
   };
+
+  // TODO: Move elsewhere
+  template <class M>
+  static M deserialize_map(CBuffer serialized_state)
+  {
+    using KeyType = typename M::KeyType;
+    using ValueType = typename M::ValueType;
+    M map;
+    const uint8_t* data = serialized_state.p;
+    size_t size = serialized_state.rawSize();
+
+    while (size != 0)
+    {
+      // Deserialize the key
+      size_t key_size = size;
+      KeyType key = champ::deserialize<KeyType>(data, size);
+      key_size -= size;
+      serialized::skip(data, size, get_padding(key_size));
+
+      // Deserialize the value
+      size_t value_size = size;
+      ValueType value = champ::deserialize<ValueType>(data, size);
+      value_size -= size;
+      serialized::skip(data, size, get_padding(value_size));
+      map = map.put(key, value);
+    }
+    return map;
+  }
+
 }
