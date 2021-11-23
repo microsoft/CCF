@@ -7,9 +7,4 @@ steps:
   - task: PublishPipelineArtifact@1
     inputs:
       artifactName: "Manifest"
-      targetPath: build/_manifest/manifest.json
-
-  - task: PublishPipelineArtifact@1
-    inputs:
-      artifactName: "SBOM"
-      targetPath: build/_manifest/spdx_2.2
+      targetPath: build/_manifest
