@@ -41,9 +41,14 @@ private:
   explicit RBMap(std::shared_ptr<const Node> const& node) : _root(node) {}
 
   RBMap(
-    Color c, const RBMap& lft, const K& key, const V& val, const RBMap& rgt) :
+    Color c,
+    const RBMap& lft,
+    const K& key,
+    const V& val,
+    const RBMap& rgt,
+    std::optional<size_t> size = std::nullopt) :
     _root(std::make_shared<const Node>(c, lft._root, key, val, rgt._root)),
-    map_size(lft.size() + rgt.size() + 1)
+    map_size(size.value_or(lft.size() + rgt.size() + 1))
   {
     assert(lft.empty() || lft.rootKey() < key);
     assert(rgt.empty() || key < rgt.rootKey());
@@ -90,7 +95,7 @@ public:
   RBMap put(const K& key, const V& value) const
   {
     RBMap t = insert(key, value);
-    return RBMap(B, t.left(), t.rootKey(), t.rootValue(), t.right());
+    return RBMap(B, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
   }
 
   template <class F>
