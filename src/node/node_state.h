@@ -1962,11 +1962,11 @@ namespace ccf
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
-      kv::ReplicaState initial_state =
+      kv::MembershipState membership_state =
         (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
          service_status == ServiceStatus::OPEN) ?
-        kv::ReplicaState::Learner :
-        kv::ReplicaState::Follower;
+        kv::MembershipState::Learner :
+        kv::MembershipState::Active;
 
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
@@ -1984,7 +1984,7 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         sig_tx_interval,
         public_only,
-        initial_state,
+        membership_state,
         reconfiguration_type);
 
       consensus = std::make_shared<RaftConsensusType>(
