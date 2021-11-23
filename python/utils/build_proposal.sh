@@ -4,7 +4,7 @@
 
 set -e
 
-if ! command -v jq ; then
+if ! command -v jq &> /dev/null ; then
   echo "This script relies on jq. Please install it first."
   exit 1
 fi
