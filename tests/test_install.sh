@@ -63,7 +63,7 @@ fi
 python3.8 -m venv env
 # shellcheck source=/dev/null
 source env/bin/activate
-python -m pip install ../../../python
+python -m pip install -e ../../../python
 python ../../../python/tutorial.py ./workspace/sandbox_common/
 
 # Test Python package CLI

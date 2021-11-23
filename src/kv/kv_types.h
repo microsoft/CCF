@@ -139,24 +139,48 @@ namespace kv
     schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
   }
 
-  enum class ReplicaState
+  enum class LeadershipState
   {
     Leader,
     Follower,
     Candidate,
-    Retired,
-    Learner,
-    Retiring
   };
 
   DECLARE_JSON_ENUM(
-    ReplicaState,
-    {{ReplicaState::Leader, "Leader"},
-     {ReplicaState::Follower, "Follower"},
-     {ReplicaState::Candidate, "Candidate"},
-     {ReplicaState::Retired, "Retired"},
-     {ReplicaState::Learner, "Learner"},
-     {ReplicaState::Retiring, "Retiring"}});
+    LeadershipState,
+    {{LeadershipState::Leader, "Leader"},
+     {LeadershipState::Follower, "Follower"},
+     {LeadershipState::Candidate, "Candidate"}});
+
+  enum class MembershipState
+  {
+    Learner,
+    Active,
+    RetirementInitiated,
+    Retired
+  };
+
+  DECLARE_JSON_ENUM(
+    MembershipState,
+    {{MembershipState::Learner, "Learner"},
+     {MembershipState::Active, "Active"},
+     {MembershipState::RetirementInitiated, "RetirementInitiated"},
+     {MembershipState::Retired, "Retired"}});
+
+  enum class RetirementPhase
+  {
+    Committed = 0,
+    Ordered = 1,
+    Signed = 2,
+    Completed = 3
+  };
+
+  DECLARE_JSON_ENUM(
+    RetirementPhase,
+    {{RetirementPhase::Committed, "Committed"},
+     {RetirementPhase::Ordered, "Ordered"},
+     {RetirementPhase::Signed, "Signed"},
+     {RetirementPhase::Completed, "Completed"}});
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
@@ -166,13 +190,17 @@ namespace kv
   {
     std::vector<Configuration> configs = {};
     std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
-    ReplicaState state;
+    MembershipState membership_state;
+    std::optional<LeadershipState> leadership_state;
+    std::optional<RetirementPhase> retirement_phase;
     std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
-  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
-  DECLARE_JSON_OPTIONAL_FIELDS(ConsensusDetails, learners);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ConsensusDetails, configs, acks, membership_state);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    ConsensusDetails, learners, leadership_state, retirement_phase);
 
   struct NetworkConfiguration
   {
