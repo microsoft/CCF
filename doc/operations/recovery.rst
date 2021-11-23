@@ -20,21 +20,11 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
 
 .. code-block:: bash
 
-    $ cchost
-    --enclave-file /path/to/enclave_library
-    --node-address node_ip:node_port
-    --rpc-address <ccf-node-address>
-    --public-rpc-address <ccf-node-public-address>
-    --ledger-dir /path/to/ledger/dir/to/recover
-    [--snapshot-dir /path/to/ledger/dir]
-    [--read-only-ledger-dir /path/to/read/only/ledger/dir]
-    --node-cert-file /path/to/node_certificate
-    recover
-    --network-cert-file /path/to/network_certificate
+    $ cchost --config /path/to/config/file recover
 
-Each node will then immediately restore the public entries of its ledger (``--ledger-dir`` and ``--read-only-ledger-dir``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``GET /node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+Each node will then immediately restore the public entries of its ledger ("ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``GET /node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
-The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``--snapshot-dir`` parameter. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
+The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
 
 The state machine for the ``recover`` node is as follows:
 
@@ -76,11 +66,11 @@ Summary Diagram
         participant Node 1
         participant Node 2
 
-        Operators->>+Node 0: cchost --ledger-dir=./ledger recover
+        Operators->>+Node 0: cchost recover
         Node 0-->>Operators: Network Certificate 0
         Note over Node 0: Reading Public Ledger...
 
-        Operators->>+Node 1: cchost --ledger-dir=./ledger recover
+        Operators->>+Node 1: cchost recover
         Node 1-->>Operators: Network Certificate 1
         Note over Node 1: Reading Public Ledger...
 
@@ -100,7 +90,7 @@ Summary Diagram
 
         Operators->>+Node 1: cchost shutdown
 
-        Operators->>+Node 2: cchost join --network-cert-file=Network Certificate 0 --target-rpc-address=<Node 0 RPC>
+        Operators->>+Node 2: cchost join
         Node 2->>+Node 0: Join network (over TLS)
         Node 0-->>Node 2: Join network response
         Note over Node 2: Part of Public Network
