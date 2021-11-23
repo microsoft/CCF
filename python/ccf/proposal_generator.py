@@ -9,7 +9,8 @@ import os
 import sys
 import shutil
 import tempfile
-import jinja2
+import subprocess
+import numbers
 from typing import Optional, Any, List
 from ccf import ballot_builder
 
@@ -57,20 +58,33 @@ def complete_vote_output_path(
 def build_proposal(
     proposed_call: str,
     args: Optional[Any] = None,
-    inline_args: bool = False,
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
-    template_loader = jinja2.PackageLoader("ccf", "templates")
-    template_env = jinja2.Environment(
-        loader=template_loader, undefined=jinja2.StrictUndefined
-    )
+    cmd = ["build_proposal.sh"]
+    cmd += ["--action", proposed_call]
 
-    action = {"name": proposed_call, "args": args}
-    actions = [action]
+    if args is not None:
+        for k, v in args.items():
+            if isinstance(v, bool):
+                cmd += ["-b"]
+            elif isinstance(v, numbers.Number):
+                cmd += ["-n"]
+            elif isinstance(v, dict):
+                cmd += ["-j"]
+            cmd += [str(k), json.dumps(v)]
 
-    proposals_template = template_env.get_template("proposals.json.jinja")
-    proposal = proposals_template.render(actions=actions)
+    rc = subprocess.run(cmd, capture_output=True, check=False)
+    if rc.returncode != 0:
+        LOG.error("Error while building proposal")
+        LOG.error("out:")
+        LOG.error(rc.stdout.decode())
+        LOG.error("err:")
+        LOG.error(rc.stderr.decode())
+        LOG.error(f"Full call was: {cmd}")
+        sys.exit(rc.returncode)
+
+    proposal = rc.stdout.decode()
 
     vote = ballot_builder.build_ballot_raw(json.loads(proposal))
 
@@ -342,14 +356,6 @@ if __name__ == "__main__":
         type=str,
         help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/ballots) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
     )
-    parser.add_argument(
-        "-i",
-        "--inline-args",
-        action="store_true",
-        help="Create a fixed proposal script with the call arguments as literals inside "
-        "the script. When not inlined, the parameters are passed separately and could "
-        "be replaced in the resulting object",
-    )
     parser.add_argument("-v", "--verbose", action="store_true")
 
     # Auto-generate CLI args based on the inspected signatures of generator functions
@@ -409,7 +415,6 @@ if __name__ == "__main__":
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
-        inline_args=args.inline_args,
     )
 
     proposal_path = complete_proposal_output_path(
