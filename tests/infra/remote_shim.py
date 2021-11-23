@@ -37,6 +37,7 @@ DOCKER_NETWORK_NAME_LOCAL = "ccf_test_docker_network"
 CCF_TEST_CONTAINERS_LABEL = "ccf_test"
 
 NODE_STARTUP_WRAPPER_SCRIPT = "docker_wrap.sh"
+CONTAINER_IP_REPLACE_STR = "CONTAINER_IP"
 
 
 def kernel_has_sgx_builtin():
@@ -65,9 +66,10 @@ class DockerShim(infra.remote.CCFRemote):
         except docker.errors.NotFound:
             pass
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, host=None, **kwargs):
         self.docker_client = docker.DockerClient()
         self.container_ip = None  # Assigned when container is started
+        self.host = host
 
         label = kwargs.get("label")
         local_node_id = kwargs.get("local_node_id")
@@ -142,9 +144,14 @@ class DockerShim(infra.remote.CCFRemote):
             self.docker_client.images.pull(image_name)
 
         # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
-        kwargs["rpc_host"] = "0.0.0.0"
+        self.host.rpc_interfaces[0].rpc_host = "0.0.0.0"
+
+        # Mark public RPC host and node address so that they are replaced by the NODE_STARTUP_WRAPPER_SCRIPT
+        # at node startup
         kwargs["include_addresses"] = False
-        super().__init__(*args, **kwargs)
+        self.host.rpc_interfaces[0].public_rpc_host = CONTAINER_IP_REPLACE_STR
+        kwargs["node_address_hostname"] = CONTAINER_IP_REPLACE_STR
+        super().__init__(*args, host=host, **kwargs)
 
         self.command = f'./{NODE_STARTUP_WRAPPER_SCRIPT} "{self.remote.get_cmd(include_dir=False)}"'
 
@@ -177,6 +184,8 @@ class DockerShim(infra.remote.CCFRemote):
         self.container_ip = self.container.attrs["NetworkSettings"]["Networks"][
             self.network.name
         ]["IPAddress"]
+        self.host.rpc_interfaces[0].public_rpc_host = self.container_ip
+        self.remote.hostname = self.container_ip
         LOG.debug(f"Started container {self.container_name} [{self.container_ip}]")
 
     def get_host(self):

@@ -1,7 +1,7 @@
 Constitution
 ============
 
-The constitution for a CCF service is implemented as a set of JS scripts. These scripts can be submitted at network startup as ``--constitution`` args to ``cchost``, or updated by a governance proposal. They will be concatenated into a single entry in the ``public:ccf.gov.constitution`` table, and should export 3 named functions:
+The constitution for a CCF service is implemented as a set of JS scripts. These scripts can be submitted at network startup in the ``start.constitution_files`` configuration entry, or updated by a governance proposal. They will be concatenated into a single entry in the ``public:ccf.gov.constitution`` table, and should export 3 named functions:
 
     - ``validate``: This takes the raw body of a proposal and checks that this proposal is correctly formed. For instance it may parse the body as JSON, extract the list of proposed actions, and confirm that each action is known and has parameters matching the expected schema. This should not interact with the KV, and should operate purely on the given proposal.
     - ``resolve``: This takes a proposal and the votes (the results of ballot scripts) which have been submitted against it, and determines whether the proposal should be accepted or rejected. In the simple case this might simply accept proposals after a majority of members have voted in favour. It could also examine member data to give each member a different role or weight, or have different thresholds for each action. This has read-only access to the KV.

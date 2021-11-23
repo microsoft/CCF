@@ -21,12 +21,14 @@ namespace crypto
 
   static Pem create_self_signed_cert(
     const KeyPairPtr& key_pair,
-    const CertificateSubjectIdentity& csi,
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
     const std::string& valid_from,
     size_t validity_period_days)
   {
     return key_pair->self_sign(
-      csi,
+      subject_name,
+      subject_alt_names,
       true /* CA */,
       valid_from,
       compute_cert_valid_to_string(valid_from, validity_period_days));
@@ -60,14 +62,15 @@ namespace crypto
 
   static Pem create_endorsed_cert(
     const KeyPairPtr& subject_key_pair,
-    const CertificateSubjectIdentity& csi,
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
     const std::string& valid_from,
     size_t validity_period_days,
     const Pem& issuer_key_pair,
     const Pem& issuer_cert)
   {
     return create_endorsed_cert(
-      subject_key_pair->create_csr(csi),
+      subject_key_pair->create_csr(subject_name, subject_alt_names),
       valid_from,
       validity_period_days,
       issuer_key_pair,

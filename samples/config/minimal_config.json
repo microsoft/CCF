@@ -1,0 +1,32 @@
+{
+  "enclave": {
+    "file": "libjs_generic.enclave.so.signed",
+    "type": "release"
+  },
+  "network": {
+    "node_address": { "hostname": "127.0.0.1", "port": "8081" },
+    "rpc_interfaces": [
+      {
+        "bind_address": { "hostname": "127.0.0.1", "port": "8080" }
+      }
+    ]
+  },
+  "start": {
+    "constitution_files": [
+      "validate.js",
+      "apply.js",
+      "resolve.js",
+      "actions.js"
+    ],
+    "members": [
+      {
+        "certificate_file": "member0_cert.pem",
+        "encryption_public_key_file": "member0_enc_pubk.pem"
+      }
+    ]
+  },
+  "join": {
+    "timer_ms": 1000,
+    "target_rpc_address": { "hostname": "127.0.0.1", "port": "5678" }
+  }
+}

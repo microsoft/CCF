@@ -93,6 +93,8 @@ namespace ccf
     std::mutex lock;
 
     CurveID curve_id;
+    std::vector<crypto::SubjectAltName> subject_alt_names = {};
+
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
@@ -100,7 +102,7 @@ namespace ccf
     std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
-    CCFConfig config;
+    StartupConfig config;
 #ifdef GET_QUOTE
     EnclaveAttestationProvider enclave_attestation_provider;
 #endif
@@ -131,7 +133,6 @@ namespace ccf
     //
     // recovery
     //
-    NodeInfoNetwork node_info_network;
     std::shared_ptr<kv::Store> recovery_store;
 
     kv::Version recovery_v;
@@ -261,7 +262,7 @@ namespace ccf
         std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
-        rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
+        rpc_sessions_, n2n_channels, rpc_map, consensus_config.type);
 
       sm.advance(State::initialized);
 
@@ -275,21 +276,21 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    NodeCreateInfo create(StartType start_type, CCFConfig&& config_)
+    NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
     {
       std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::initialized);
 
       config = std::move(config_);
-      config.node_certificate_subject_identity.sans =
-        get_subject_alternative_names();
+      subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
       self_signed_node_cert = create_self_signed_cert(
         node_sign_kp,
-        config.node_certificate_subject_identity,
+        config.node_certificate.subject_name,
+        subject_alt_names,
         config.startup_host_time,
-        config.initial_node_certificate_validity_period_days);
+        config.node_certificate.initial_validity_days);
 
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -324,7 +325,7 @@ namespace ccf
           if (network.consensus_type == ConsensusType::BFT)
           {
             endorsed_node_cert = create_endorsed_node_cert(
-              config.initial_node_certificate_validity_period_days);
+              config.node_certificate.initial_validity_days);
             history->set_endorsed_certificate(endorsed_node_cert.value());
             accept_network_tls_connections();
             open_frontend(ActorsType::members);
@@ -332,7 +333,8 @@ namespace ccf
 
           setup_consensus(
             ServiceStatus::OPENING,
-            config.genesis.reconfiguration_type,
+            config.start.service_configuration.reconfiguration_type.value_or(
+              ReconfigurationType::ONE_TRANSACTION),
             false,
             endorsed_node_cert);
 
@@ -374,8 +376,6 @@ namespace ccf
         }
         case StartType::Recover:
         {
-          node_info_network = config.node_info_network;
-
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             "CN=CCF Network", curve_id);
 
@@ -406,7 +406,7 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.joining.network_cert);
+      auto network_ca = std::make_shared<tls::CA>(config.join.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
 
@@ -415,8 +415,8 @@ namespace ccf
         rpcsessions->create_client(std::move(join_client_cert));
 
       join_client->connect(
-        config.joining.target_host,
-        config.joining.target_port,
+        config.join.target_rpc_address.hostname,
+        config.join.target_rpc_address.port,
         [this](
           http_status status,
           http::HeaderMap&& headers,
@@ -435,8 +435,8 @@ namespace ccf
               location != headers.end())
             {
               const auto& url = http::parse_url_full(location->second);
-              config.joining.target_host = url.host;
-              config.joining.target_port = url.port;
+              config.join.target_rpc_address.hostname = url.host;
+              config.join.target_rpc_address.port = url.port;
               LOG_INFO_FMT("Target node redirected to {}", location->second);
             }
             else
@@ -602,19 +602,19 @@ namespace ccf
       // Send RPC request to remote node to join the network.
       JoinNetworkNodeToNode::In join_params;
 
-      join_params.node_info_network = config.node_info_network;
+      join_params.node_info_network = config.network;
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
-      join_params.certificate_signing_request =
-        node_sign_kp->create_csr(config.node_certificate_subject_identity);
+      join_params.certificate_signing_request = node_sign_kp->create_csr(
+        config.node_certificate.subject_name, subject_alt_names);
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
-        config.joining.target_host,
-        config.joining.target_port);
+        config.join.target_rpc_address.hostname,
+        config.join.target_rpc_address.port);
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
 
@@ -637,13 +637,13 @@ namespace ccf
         NodeState& self;
       };
 
-      auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
+      auto timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
           if (msg->data.self.sm.check(State::pending))
           {
             msg->data.self.initiate_join();
-            auto delay = std::chrono::milliseconds(
-              msg->data.self.config.joining.join_timer);
+            auto delay =
+              std::chrono::milliseconds(msg->data.self.config.join.timer_ms);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
@@ -652,8 +652,7 @@ namespace ccf
         *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(join_timer_msg),
-        std::chrono::milliseconds(config.joining.join_timer));
+        std::move(timer_msg), std::chrono::milliseconds(config.join.timer_ms));
     }
 
     void join()
@@ -673,7 +672,7 @@ namespace ccf
         return;
       }
       jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
-        config.jwt_key_refresh_interval_s,
+        config.jwt.key_refresh_interval_s,
         network,
         consensus,
         rpcsessions,
@@ -912,7 +911,7 @@ namespace ccf
       if (network.consensus_type == ConsensusType::BFT)
       {
         endorsed_node_cert = create_endorsed_node_cert(
-          config.initial_node_certificate_validity_period_days);
+          config.node_certificate.initial_validity_days);
         history->set_endorsed_certificate(endorsed_node_cert.value());
         accept_network_tls_connections();
         open_frontend(ActorsType::members);
@@ -1501,20 +1500,21 @@ namespace ccf
       // If no Subject Alternative Name (SAN) is passed in at node creation,
       // default to using node's RPC address as single SAN. Otherwise, use
       // specified SANs.
-      if (!config.node_certificate_subject_identity.sans.empty())
+      if (!config.node_certificate.subject_alt_names.empty())
       {
-        return config.node_certificate_subject_identity.sans;
+        return crypto::sans_from_string_list(
+          config.node_certificate.subject_alt_names);
       }
       else
       {
         // Construct SANs from RPC interfaces, manually detecting whether each
         // is a domain name or IP
         std::vector<crypto::SubjectAltName> sans;
-        for (const auto& interface : config.node_info_network.rpc_interfaces)
+        for (const auto& interface : config.network.rpc_interfaces)
         {
           sans.push_back(
-            {interface.public_rpc_address.hostname,
-             is_ip(interface.public_rpc_address.hostname)});
+            {interface.published_address.hostname,
+             is_ip(interface.published_address.hostname)});
         }
         return sans;
       }
@@ -1526,7 +1526,8 @@ namespace ccf
       // endorsed the identity of the new joiner.
       return create_endorsed_cert(
         node_sign_kp,
-        config.node_certificate_subject_identity,
+        config.node_certificate.subject_name,
+        subject_alt_names,
         config.startup_host_time,
         validity_period_days,
         network.identity->priv_key,
@@ -1581,33 +1582,21 @@ namespace ccf
       // ledger
       if (create_consortium)
       {
-        CreateNetworkNodeToNode::In::GenesisInfo genesis_info;
-        for (auto const& m_info : config.genesis.members_info)
-        {
-          genesis_info.members_info.push_back(m_info);
-        }
-        genesis_info.constitution = config.genesis.constitution;
-
-        genesis_info.configuration = {
-          config.genesis.recovery_threshold,
-          network.consensus_type,
-          config.genesis.reconfiguration_type,
-          config.genesis.max_allowed_node_cert_validity_days};
-        create_params.genesis_info = genesis_info;
+        create_params.genesis_info = config.start;
       }
 
       create_params.node_id = self;
-      create_params.certificate_signing_request =
-        node_sign_kp->create_csr(config.node_certificate_subject_identity);
+      create_params.certificate_signing_request = node_sign_kp->create_csr(
+        config.node_certificate.subject_name, subject_alt_names);
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
-      create_params.node_info_network = config.node_info_network;
+      create_params.node_info_network = config.network;
       create_params.node_cert_valid_from = config.startup_host_time;
       create_params.initial_node_cert_validity_period_days =
-        config.initial_node_certificate_validity_period_days;
+        config.node_certificate.initial_validity_days;
 
       // Record self-signed certificate in create request if the node does not
       // require endorsement by the service (i.e. BFT)
@@ -1949,7 +1938,7 @@ namespace ccf
       auto shared_state = std::make_shared<aft::State>(self);
 
       auto resharing_tracker = nullptr;
-      if (consensus_config.consensus_type == ConsensusType::BFT)
+      if (consensus_config.type == ConsensusType::BFT)
       {
         std::make_shared<ccf::SplitIdentityResharingTracker>(
           shared_state,
@@ -1979,9 +1968,9 @@ namespace ccf
         shared_state,
         std::move(resharing_tracker),
         node_client,
-        std::chrono::milliseconds(consensus_config.raft_request_timeout),
-        std::chrono::milliseconds(consensus_config.raft_election_timeout),
-        std::chrono::milliseconds(consensus_config.raft_election_timeout),
+        std::chrono::milliseconds(consensus_config.timeout_ms),
+        std::chrono::milliseconds(consensus_config.election_timeout_ms),
+        std::chrono::milliseconds(consensus_config.election_timeout_ms),
         sig_tx_interval,
         public_only,
         membership_state,
