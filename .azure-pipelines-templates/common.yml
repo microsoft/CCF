@@ -21,8 +21,6 @@ jobs:
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
 
-      - template: publish_sbom.yml
-
       - template: test.yml
         parameters:
           suffix: ${{ parameters.suffix }}
@@ -38,6 +36,7 @@ jobs:
           - template: metrics.yml
 
       - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
+          - template: publish_sbom.yml
           - template: publish_tls_report.yml
           - template: publish_compatibility_report.yml
           - template: install.yml
