@@ -1,0 +1,35 @@
+{#- A hacky way to get Jinja to abort in a conditional branch,
+    without adding any extensions/globals etc
+-#}
+{%- macro abort(message) -%}
+  {{ None['[Error]: ' ~ message][[0]] }}
+{%- endmacro -%}
+{#- tojson converts everything to a JSON string.
+    We want to keep numbers as raw numbers, recursively
+    convert objects, and additionally read files whenever
+    a string begins with @
+-#}
+{%- macro json_encode(v) -%}
+    {%- if v is string -%}
+        {%- filter tojson -%}
+        {%- if v.startswith("@") -%}
+            {%- include v[1:] -%}
+        {%- else -%}
+            {{ v }}
+        {%- endif -%}
+        {%- endfilter -%}
+    {%- elif v is mapping -%}
+        { {% for key, value in v.items() %}{{ key|tojson }}: {{ json_encode(value) }}{% if not loop.last %}, {% endif %}{% endfor %} }
+    {%- elif v is iterable -%}
+        [{% for value in v %}{{ json_encode(value) }}{% if not loop.last %}, {% endif %}{% endfor %}]
+    {%- elif v is boolean -%}
+        {#- Convert Python bool to JSON bool -#}
+        {%- if v is true -%}true{%- else -%}false{%- endif -%}
+    {%- elif v is number -%}
+        {{ v }}
+    {%- elif v is none -%}
+        null
+    {%- else -%}
+        {{ abort("Don't know how to convert type to JSON - " ~ v) }}
+    {%- endif -%}
+{%- endmacro -%}
