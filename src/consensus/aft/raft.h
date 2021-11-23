@@ -77,9 +77,9 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    std::optional<kv::LeadershipState> leadership_state;
+    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
     kv::MembershipState membership_state;
-    std::optional<kv::RetirementPhase> retirement_phase;
+    std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
     // used to decide when to start issuing signatures. While commit_idx
@@ -173,8 +173,6 @@ namespace aft
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
-      std::optional<kv::LeadershipState> initial_leadership_state_ =
-        std::nullopt,
       kv::MembershipState initial_membership_state_ =
         kv::MembershipState::Active,
       ReconfigurationType reconfiguration_type_ =
@@ -182,7 +180,6 @@ namespace aft
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
-      leadership_state(initial_leadership_state_),
       membership_state(initial_membership_state_),
       timeout_elapsed(0),
 
