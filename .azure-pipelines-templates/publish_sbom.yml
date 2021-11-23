@@ -2,9 +2,9 @@ steps:
   - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
     displayName: "SBOM Generation Task"
     inputs:
-      BuildDropPath: build/
+      BuildDropPath: $(Build.ArtifactStagingDirectory)
 
   - task: PublishPipelineArtifact@1
     inputs:
       artifactName: "Manifest"
-      targetPath: build/_manifest
+      targetPath: $(Build.ArtifactStagingDirectory)/_manifest
