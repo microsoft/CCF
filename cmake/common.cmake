@@ -646,9 +646,9 @@ function(add_perf_test)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
   endif()
 
-  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  if("CFT" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
-  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  elseif("BFT" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
   endif()
 

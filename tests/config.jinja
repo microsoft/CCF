@@ -48,7 +48,7 @@
   },
   "consensus":
   {
-    "type": "CFT",
+    "type": "{{ consensus }}",
     "timeout_ms": {{ timeout_ms or 100 }},
     "election_timeout_ms": {{ election_timeout_ms }}
   },

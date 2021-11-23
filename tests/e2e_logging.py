@@ -128,7 +128,7 @@ def test_large_messages(network, args):
 
         with primary.client("user0") as c:
             log_id = 44
-            for p in range(14, 20) if args.consensus == "cft" else range(10, 13):
+            for p in range(14, 20) if args.consensus == "CFT" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
@@ -1329,7 +1329,7 @@ def run(args):
         network = test_metrics(network, args)
         network = test_memory(network, args)
         # BFT does not handle re-keying yet
-        if args.consensus == "cft":
+        if args.consensus == "CFT":
             network = test_liveness(network, args)
             network = test_rekey(network, args)
             network = test_liveness(network, args)

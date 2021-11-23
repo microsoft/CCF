@@ -484,7 +484,7 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "transition_service_to_open",
-            args=None if self.consensus == "cft" else {"nonce": str(uuid.uuid4())},
+            args=None if self.consensus == "CFT" else {"nonce": str(uuid.uuid4())},
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(

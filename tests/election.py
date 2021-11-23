@@ -94,25 +94,25 @@ if __name__ == "__main__":
 
     args = copy.deepcopy(cr.args)
 
-    if cr.args.consensus in ("cft", "all"):
-        args.consensus = "cft"
+    if cr.args.consensus in ("CFT", "ALL"):
+        args.consensus = "CFT"
         cr.add(
             "cft",
             run,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(args, f=1),
             election_timeout_ms=1000,
-            consensus="cft",
+            consensus="CFT",
         )
 
-    if cr.args.consensus in ("bft", "all"):
-        args.consensus = "bft"
+    if cr.args.consensus in ("BFT", "ALL"):
+        args.consensus = "BFT"
         cr.add(
             "bft",
             run,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(args, f=1),
-            consensus="bft",
+            consensus="BFT",
         )
 
     cr.run(1)
