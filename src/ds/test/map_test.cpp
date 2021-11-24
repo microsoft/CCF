@@ -390,7 +390,7 @@ TEST_CASE("Snapshot compatibility")
 {
   size_t size = 100;
 
-  INFO("Champ -> RB");
+  INFO("CHAMP -> RB");
   {
     auto champ_map = gen_map<ChampMap>(size);
     RBMap rb_map;
@@ -398,11 +398,44 @@ TEST_CASE("Snapshot compatibility")
       champ_map, rb_map);
   }
 
-  INFO("RB -> Champ");
+  INFO("RB -> CHAMP");
   {
     auto rb_map = gen_map<RBMap>(size);
     ChampMap champ_map;
     verify_snapshot_compatibility<RBMap, ChampMap, RBSnapshot>(
       rb_map, champ_map);
+  }
+}
+
+template <typename M>
+void forall_threshold(const M& map, size_t threshold)
+{
+  size_t iterations_count = 0;
+  map.foreach([&iterations_count, threshold](const K& k, const V& v) {
+    iterations_count++;
+    if (iterations_count >= threshold)
+    {
+      return false;
+    }
+    return true;
+  });
+  REQUIRE(iterations_count == threshold);
+}
+
+TEST_CASE("Foreach")
+{
+  size_t size = 100;
+  size_t threshold = size / 2;
+
+  INFO("CHAMP");
+  {
+    auto champ_map = gen_map<ChampMap>(size);
+    forall_threshold(champ_map, threshold);
+  }
+
+  INFO("RB");
+  {
+    auto rb_map = gen_map<RBMap>(size);
+    forall_threshold(rb_map, threshold);
   }
 }

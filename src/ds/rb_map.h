@@ -140,15 +140,24 @@ namespace rb
     }
 
     template <class F>
-    void foreach(F&& f) const
+    bool foreach(F&& f) const
     {
-      // TODO: Early return
       if (!empty())
       {
-        left().foreach(std::forward<F>(f));
-        f(rootKey(), rootValue());
-        right().foreach(std::forward<F>(f));
+        if (!left().foreach(std::forward<F>(f)))
+        {
+          return false;
+        }
+        if (!f(rootKey(), rootValue()))
+        {
+          return false;
+        }
+        if (!right().foreach(std::forward<F>(f)))
+        {
+          return false;
+        }
       }
+      return true;
     }
 
   private:
@@ -300,6 +309,7 @@ namespace rb
         // Serialize the value
         uint32_t value_size = champ::serialize(v, data, size);
         champ::add_padding(value_size, data, size);
+        return true;
       });
 
       CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
