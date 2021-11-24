@@ -42,11 +42,6 @@ template <typename Key, typename Value>
 using UntypedRBMap = rb::Map<Key, Value>;
 using RBMap = UntypedRBMap<K, V>;
 
-// TODO: Remove this!
-template <typename Key, typename Value>
-using UntypedMapImpl = champ::Map<Key, Value, H<Key>>;
-using MapImpl = UntypedMapImpl<K, V>;
-
 class Model
 {
   std::unordered_map<K, V> internal;
@@ -76,22 +71,23 @@ public:
   }
 };
 
+template <class M>
 struct Op
 {
   virtual ~Op() = default;
-  virtual std::pair<const Model, const MapImpl> apply(
-    const Model& a, const MapImpl& b) = 0;
+  virtual std::pair<const Model, const M> apply(const Model& a, const M& b) = 0;
   virtual std::string str() = 0;
 };
 
-struct Put : public Op
+template <class M>
+struct Put : public Op<M>
 {
   K k;
   V v;
 
   Put(K k_, V v_) : k(k_), v(v_) {}
 
-  std::pair<const Model, const MapImpl> apply(const Model& a, const MapImpl& b)
+  std::pair<const Model, const M> apply(const Model& a, const M& b)
   {
     return std::make_pair(a.put(k, v), b.put(k, v));
   }
@@ -104,13 +100,14 @@ struct Put : public Op
   }
 };
 
-struct Remove : public Op
+template <class M>
+struct Remove : public Op<M>
 {
   K k;
 
   Remove(K k_) : k(k_) {}
 
-  std::pair<const Model, const MapImpl> apply(const Model& a, const MapImpl& b)
+  std::pair<const Model, const M> apply(const Model& a, const M& b)
   {
     return std::make_pair(a.remove(k), b.remove(k));
   }
@@ -123,8 +120,26 @@ struct Remove : public Op
   }
 };
 
+template <class M>
+struct NoOp : public Op<M>
+{
+  NoOp() = default;
+
+  std::pair<const Model, const M> apply(const Model& a, const M& b)
+  {
+    return std::make_pair(a, b);
+  }
+
+  std::string str()
+  {
+    auto ss = std::stringstream();
+    ss << "NoOp (Remove not implemented!)";
+    return ss.str();
+  }
+};
+
 template <typename M>
-std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
+std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
 {
   std::random_device rand_dev;
   auto seed = rand_dev();
@@ -132,11 +147,11 @@ std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
   std::mt19937 gen(seed);
   std::uniform_int_distribution<> gen_op(0, 3);
 
-  std::vector<std::unique_ptr<Op>> ops;
+  std::vector<std::unique_ptr<Op<M>>> ops;
   std::vector<K> keys;
   for (V v = 0; v < n; ++v)
   {
-    std::unique_ptr<Op> op;
+    std::unique_ptr<Op<M>> op;
     auto op_i = keys.empty() ? 0 : gen_op(gen);
     switch (op_i)
     {
@@ -145,7 +160,7 @@ std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
       {
         auto k = gen();
         keys.push_back(k);
-        op = std::make_unique<Put>(k, v);
+        op = std::make_unique<Put<M>>(k, v);
 
         break;
       }
@@ -153,7 +168,7 @@ std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
       {
         std::uniform_int_distribution<> gen_idx(0, keys.size() - 1);
         auto k = keys[gen_idx(gen)];
-        op = std::make_unique<Put>(k, v);
+        op = std::make_unique<Put<M>>(k, v);
 
         break;
       }
@@ -166,7 +181,11 @@ std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
           auto i = gen_idx(gen);
           auto k = keys[i];
           keys.erase(keys.begin() + i);
-          op = std::make_unique<Remove>(k);
+          op = std::make_unique<Remove<M>>(k);
+        }
+        else
+        {
+          op = std::make_unique<NoOp<M>>();
         }
         break;
       }
@@ -179,17 +198,15 @@ std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
   return ops;
 }
 
-// TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap)
-TEST_CASE("Persistent map operations")
+TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap, ChampMap)
 {
-  using M = MapImpl;
   Model model;
   M map;
 
   auto ops = gen_ops<M>(500);
   for (auto& op : ops)
   {
-    LOG_INFO_FMT("{}", op->str());
+    LOG_DEBUG_FMT("{}", op->str());
     auto r = op->apply(model, map);
     auto model_new = r.first;
     auto map_new = r.second;
@@ -417,20 +434,11 @@ void forall_threshold(const M& map, size_t threshold)
   REQUIRE(iterations_count == threshold);
 }
 
-TEST_CASE("Foreach")
+TEST_CASE_TEMPLATE("Foreach", M, RBMap, ChampMap)
 {
   size_t size = 100;
   size_t threshold = size / 2;
 
-  INFO("CHAMP");
-  {
-    auto champ_map = gen_map<ChampMap>(size);
-    forall_threshold(champ_map, threshold);
-  }
-
-  INFO("RB");
-  {
-    auto rb_map = gen_map<RBMap>(size);
-    forall_threshold(rb_map, threshold);
-  }
+  auto map = gen_map<M>(size);
+  forall_threshold(map, threshold);
 }
