@@ -4,6 +4,7 @@
 enclave {
     from "openenclave/edl/sgx/platform.edl" import *;
     from "openenclave/edl/time.edl" import *;
+    from "openenclave/edl/fcntl.edl" import *;
 
     include "common/enclave_interface_types.h"
 
