@@ -150,11 +150,16 @@ namespace ccf
     // See https://github.com/v8/v8/blob/master/src/flags/flag-definitions.h
     // for all available flags.
 
+#ifdef VIRTUAL_ENCLAVE
+    v8::V8::SetFlagsFromString("");
+    platform = v8::platform::NewDefaultPlatform();
+#else
     // Disables runtime allocation of executable memory.
     // Uses only the Ignition interpreter.
-    v8::V8::SetFlagsFromString("--jitless");
-    
+    v8::V8::SetFlagsFromString("--single-threaded --jitless");
     platform = v8::platform::NewSingleThreadedDefaultPlatform();
+#endif
+    
     v8::V8::InitializePlatform(platform.get());
     v8::V8::Initialize();
   }
