@@ -29,15 +29,22 @@ struct KVPair
   bool operator==(const KVPair&) const = default;
 };
 
-// using H = std::hash<K>;
+template <typename K>
 using H = CollisionHash<K>;
+// using H = std::hash<K>;
 
-using ChampMap = champ::Map<K, V, H>;
-using RBMap = rb::Map<K, V>;
+// Useful types
+template <typename Key, typename Value>
+using UntypedChampMap = champ::Map<Key, Value, H<Key>>;
+using ChampMap = UntypedChampMap<K, V>;
 
 template <typename Key, typename Value>
-using UntypedMapImpl = champ::Map<Key, Value, CollisionHash<Key>>;
+using UntypedRBMap = rb::Map<Key, Value>;
+using RBMap = UntypedRBMap<K, V>;
 
+// TODO: Remove this!
+template <typename Key, typename Value>
+using UntypedMapImpl = champ::Map<Key, Value, H<Key>>;
 using MapImpl = UntypedMapImpl<K, V>;
 
 class Model
@@ -92,34 +99,26 @@ struct Put : public Op
   std::string str()
   {
     auto ss = std::stringstream();
-    ss << "Put(" << H()(k) << ", " << v << ")";
+    ss << "Put(" << H<K>()(k) << ", " << v << ")";
     return ss.str();
   }
 };
 
-template <typename M>
 struct Remove : public Op
 {
   K k;
 
   Remove(K k_) : k(k_) {}
 
-  std::pair<const Model, const M> apply(const Model& a, const M& b)
+  std::pair<const Model, const MapImpl> apply(const Model& a, const MapImpl& b)
   {
-    if constexpr (std::is_same_v<M, ChampMap>)
-    {
-      return std::make_pair(a.remove(k), b.remove(k));
-    }
-    else
-    {
-      throw std::logic_error("Remove operation is only implemented for CHAMP");
-    }
+    return std::make_pair(a.remove(k), b.remove(k));
   }
 
   std::string str()
   {
     auto ss = std::stringstream();
-    ss << "Remove(" << H()(k) << ")";
+    ss << "Remove(" << H<K>()(k) << ")";
     return ss.str();
   }
 };
@@ -160,13 +159,14 @@ std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
       }
       case 3: // remove
       {
+        // Remove operation is not yet implemented for RBMap
         if constexpr (std::is_same_v<M, ChampMap>)
         {
           std::uniform_int_distribution<> gen_idx(0, keys.size() - 1);
           auto i = gen_idx(gen);
           auto k = keys[i];
           keys.erase(keys.begin() + i);
-          op = std::make_unique<Remove<MapImpl>>(k);
+          op = std::make_unique<Remove>(k);
         }
         break;
       }
@@ -328,25 +328,29 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap, ChampMap)
     snapshot->serialize(s_2.data());
     REQUIRE_EQ(s_1, s_2);
   }
+}
 
-  INFO("Serialize map with different key sizes");
-  {
-    using SerialisedKey = map::serialisers::SerialisedEntry;
-    using SerialisedValue = map::serialisers::SerialisedEntry;
+using SerialisedKey = map::serialisers::SerialisedEntry;
+using SerialisedValue = map::serialisers::SerialisedEntry;
 
-    UntypedMapImpl<SerialisedKey, SerialisedValue> map;
-    SerialisedKey key(16);
-    SerialisedValue long_key(128);
-    SerialisedValue value(8);
-    SerialisedValue long_value(256);
+TEST_CASE_TEMPLATE(
+  "Serialize map with different key sizes",
+  M,
+  UntypedChampMap<SerialisedKey, SerialisedValue>,
+  UntypedRBMap<SerialisedKey, SerialisedValue>)
+{
+  M map;
+  SerialisedKey key(16);
+  SerialisedValue long_key(128);
+  SerialisedValue value(8);
+  SerialisedValue long_value(256);
 
-    map = map.put(key, value);
-    map = map.put(long_key, long_value);
+  map = map.put(key, value);
+  map = map.put(long_key, long_value);
 
-    auto snapshot = map.make_snapshot();
-    std::vector<uint8_t> s(map.get_serialized_size());
-    snapshot->serialize(s.data());
-  }
+  auto snapshot = map.make_snapshot();
+  std::vector<uint8_t> s(map.get_serialized_size());
+  snapshot->serialize(s.data());
 }
 
 template <typename M>
