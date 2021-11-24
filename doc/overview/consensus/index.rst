@@ -60,9 +60,7 @@ consensus states as the network evolves:
         Candidate-->Follower;
         Candidate-->Leader;
         Leader-->Candidate;
-        Follower-->Candidate;
-        Leader-->Follower;
-        Follower-->Leader;
+        Follower-->Candidate;        
 
 Further information about the reconfiguration schemes:
 
