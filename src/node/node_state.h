@@ -2023,7 +2023,7 @@ namespace ccf
             return std::make_unique<SerialisedMerkleTreeHook>(version, w);
           }));
 
-      network.tables->set_map_hook(
+      network.tables->set_global_hook(
         network.config.get_name(),
         network.config.wrap_map_hook(
           [](kv::Version version, const Configuration::Write& w)
