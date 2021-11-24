@@ -11,7 +11,7 @@ oe_playbook: scripts/ansible/oe-contributors-acc-setup-no-driver.yml
 oe_build_opts: ""
 
 # Binary install
-oe_deb: "/setup_vm/open-enclave_0.17.0_gd7f5fe145_amd64.deb"
+oe_deb: "/setup_vm/open-enclave_0.17.0_g49bf41c65_amd64.deb"
 
 # LVI mitigations
 oe_lvi_scripts_dir: "{{ oe_prefix }}/bin/scripts/lvi-mitigation"

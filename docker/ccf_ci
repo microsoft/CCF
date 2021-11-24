@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y wget gnupg
 RUN ["/bin/bash", "-c", "wget -r -l1 --no-parent -nd -A *sgx_$(echo ${PSW_VERSION//./_})_${UBUNTU}_custom_version.cfg https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files/"]
 RUN ["/bin/bash", "-c", "mv *sgx_$(echo ${PSW_VERSION//./_})_${UBUNTU}_custom_version.cfg /etc/apt/preferences.d/intel-sgx.pref"]
 
-COPY open-enclave_0.17.0_gd7f5fe145_amd64.deb /setup_vm/open-enclave_0.17.0_gd7f5fe145_amd64.deb
+COPY open-enclave_0.17.0_g49bf41c65_amd64.deb /setup_vm/open-enclave_0.17.0_g49bf41c65_amd64.deb
 
 COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update \
