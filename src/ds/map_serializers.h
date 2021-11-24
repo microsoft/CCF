@@ -69,7 +69,7 @@ namespace champ // TODO: Rename namespace
     return padding;
   }
 
-  uint32_t add_padding(uint32_t data_size, uint8_t*& data, size_t& size)
+  static uint32_t add_padding(uint32_t data_size, uint8_t*& data, size_t& size)
   {
     constexpr uintptr_t padding = 0;
     uint32_t padding_size = get_padding(data_size);

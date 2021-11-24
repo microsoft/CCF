@@ -11,6 +11,9 @@
 namespace rb
 {
   template <class K, class V>
+  class Snapshot;
+
+  template <class K, class V>
   class Map
   {
   private:
@@ -158,6 +161,11 @@ namespace rb
         }
       }
       return true;
+    }
+
+    std::unique_ptr<Snapshot<K, V>> make_snapshot() const
+    {
+      return std::make_unique<Snapshot<K, V>>(*this);
     }
 
   private:

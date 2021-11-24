@@ -260,14 +260,14 @@ namespace kv::untyped
       const SecurityDomain security_domain;
       const kv::Version version;
 
-      StateSnapshot map_snapshot;
+      std::unique_ptr<StateSnapshot> map_snapshot;
 
     public:
       Snapshot(
         const std::string& name_,
         SecurityDomain security_domain_,
         kv::Version version_,
-        StateSnapshot&& map_snapshot_) :
+        std::unique_ptr<StateSnapshot>&& map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
         version(version_),
@@ -279,8 +279,8 @@ namespace kv::untyped
         s.start_map(name, security_domain);
         s.serialise_entry_version(version);
 
-        std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
-        map_snapshot.serialize(ret.data());
+        std::vector<uint8_t> ret(map_snapshot->get_serialized_size());
+        map_snapshot->serialize(ret.data());
         s.serialise_raw(ret);
       }
 
@@ -460,7 +460,7 @@ namespace kv::untyped
       auto map_snapshot = d.deserialise_raw();
 
       return std::make_unique<SnapshotChangeSet>(
-        State::deserialize_map(map_snapshot), v);
+        champ::deserialize_map<State>(map_snapshot), v);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)
@@ -662,7 +662,7 @@ namespace kv::untyped
       }
 
       return std::make_unique<Snapshot>(
-        name, security_domain, r->version, StateSnapshot(r->state));
+        name, security_domain, r->version, r->state.make_snapshot());
     }
 
     void compact(Version v) override

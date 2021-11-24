@@ -39,6 +39,9 @@ namespace champ
     return (hash >> ((Hash)depth * index_mask_bits)) & index_mask;
   }
 
+  template <class K, class V, class H = std::hash<K>>
+  class Snapshot;
+
   class Bitmap
   {
     uint32_t _bits;
@@ -451,9 +454,14 @@ namespace champ
     {
       return root->foreach(0, std::forward<F>(f));
     }
+
+    std::unique_ptr<Snapshot<K, V, H>> make_snapshot() const
+    {
+      return std::make_unique<Snapshot<K, V, H>>(*this);
+    }
   };
 
-  template <class K, class V, class H = std::hash<K>>
+  template <class K, class V, class H>
   class Snapshot
   {
   private:
@@ -535,12 +543,12 @@ namespace champ
     }
   };
 
-  // TODO: Move elsewhere
   template <class M>
   static M deserialize_map(CBuffer serialized_state)
   {
     using KeyType = typename M::KeyType;
     using ValueType = typename M::ValueType;
+
     M map;
     const uint8_t* data = serialized_state.p;
     size_t size = serialized_state.rawSize();
@@ -562,5 +570,4 @@ namespace champ
     }
     return map;
   }
-
 }

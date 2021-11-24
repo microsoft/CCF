@@ -239,8 +239,7 @@ static const M gen_map(size_t size)
   return map;
 }
 
-using TestSnapshot = RBSnapshot;
-TEST_CASE_TEMPLATE("Snapshot map", M, RBMap) // TODO: Enable !
+TEST_CASE_TEMPLATE("Snapshot map", M, RBMap, ChampMap)
 {
   std::vector<KVPair> results;
   uint32_t num_elements = 100;
@@ -272,9 +271,9 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap) // TODO: Enable !
 
   INFO("Serialize map to array");
   {
-    TestSnapshot snapshot(map);
+    auto snapshot = map.make_snapshot();
     std::vector<uint8_t> s(map.get_serialized_size());
-    snapshot.serialize(s.data());
+    snapshot->serialize(s.data());
 
     auto new_map = champ::deserialize_map<M>(s);
 
@@ -304,13 +303,13 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap) // TODO: Enable !
 
   INFO("Ensure serialized state is byte identical");
   {
-    TestSnapshot snapshot_1(map);
+    auto snapshot_1 = map.make_snapshot();
     std::vector<uint8_t> s_1(map.get_serialized_size());
-    snapshot_1.serialize(s_1.data());
+    snapshot_1->serialize(s_1.data());
 
-    TestSnapshot snapshot_2(map);
+    auto snapshot_2 = map.make_snapshot();
     std::vector<uint8_t> s_2(map.get_serialized_size());
-    snapshot_2.serialize(s_2.data());
+    snapshot_2->serialize(s_2.data());
 
     REQUIRE_EQ(s_1, s_2);
   }
@@ -318,9 +317,9 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap) // TODO: Enable !
   INFO("Snapshot is immutable");
   {
     size_t current_size = map.size();
-    TestSnapshot snapshot(map);
+    auto snapshot = map.make_snapshot();
     std::vector<uint8_t> s_1(map.get_serialized_size());
-    snapshot.serialize(s_1.data());
+    snapshot->serialize(s_1.data());
 
     // Add entry in map
     auto key = current_size + 1;
@@ -329,7 +328,7 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap) // TODO: Enable !
 
     // Even though map has been updated, snapshot is not modified
     std::vector<uint8_t> s_2(s_1.size());
-    snapshot.serialize(s_2.data());
+    snapshot->serialize(s_2.data());
     REQUIRE_EQ(s_1, s_2);
   }
 
@@ -347,12 +346,9 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap) // TODO: Enable !
     map = map.put(key, value);
     map = map.put(long_key, long_value);
 
-    // TODO: Fix
-    // champ::
-    //   Snapshot<SerialisedKey, SerialisedValue, CollisionHash<SerialisedKey>>
-    //     snapshot(map);
-    // std::vector<uint8_t> s(map.get_serialized_size());
-    // snapshot.serialize(s.data());
+    auto snapshot = map.make_snapshot();
+    std::vector<uint8_t> s(map.get_serialized_size());
+    snapshot->serialize(s.data());
   }
 }
 
@@ -368,15 +364,15 @@ std::map<K, V> get_all_entries(const M& map)
   return entries;
 }
 
-template <class S, class T, class SN>
+template <class S, class T>
 void verify_snapshot_compatibility(const S& source_map, T& target_map)
 {
   auto source_entries = get_all_entries(source_map);
   REQUIRE(source_entries.size() == source_map.size());
 
-  SN snapshot(source_map);
+  auto snapshot = source_map.make_snapshot();
   std::vector<uint8_t> s(source_map.get_serialized_size());
-  snapshot.serialize(s.data());
+  snapshot->serialize(s.data());
 
   target_map = champ::deserialize_map<T>(s);
   REQUIRE(target_map.size() == source_map.size());
@@ -394,16 +390,14 @@ TEST_CASE("Snapshot compatibility")
   {
     auto champ_map = gen_map<ChampMap>(size);
     RBMap rb_map;
-    verify_snapshot_compatibility<ChampMap, RBMap, ChampSnapshot>(
-      champ_map, rb_map);
+    verify_snapshot_compatibility<ChampMap, RBMap>(champ_map, rb_map);
   }
 
   INFO("RB -> CHAMP");
   {
     auto rb_map = gen_map<RBMap>(size);
     ChampMap champ_map;
-    verify_snapshot_compatibility<RBMap, ChampMap, RBSnapshot>(
-      rb_map, champ_map);
+    verify_snapshot_compatibility<RBMap, ChampMap>(rb_map, champ_map);
   }
 }
 
