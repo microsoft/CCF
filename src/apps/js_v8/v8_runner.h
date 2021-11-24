@@ -107,6 +107,8 @@ namespace ccf
   public:
     using ModuleLoadCallback =
       std::function<std::optional<std::string>(const std::string&, void*)>;
+    using FinalizerCallback = 
+      std::function<void(void*)>;
 
     V8Context(V8Isolate& isolate);
     ~V8Context();
@@ -124,6 +126,10 @@ namespace ccf
     {
       return v8::Local<v8::Context>::New(isolate_, context_);
     }
+
+    static V8Context& from_context(v8::Local<v8::Context> context);
+
+    void register_finalizer(FinalizerCallback callback, void* data);
 
     /** 
      * Must be called before run().
@@ -143,6 +149,7 @@ namespace ccf
     v8::Global<v8::Context> context_;
     ModuleLoadCallback module_load_cb_;
     void* module_load_cb_data_;
+    std::vector<std::pair<FinalizerCallback, void*>> finalizers_;
 
     static v8::MaybeLocal<v8::Module> compile_module(
       v8::Local<v8::Context> context,

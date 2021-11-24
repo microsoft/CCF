@@ -1,15 +1,21 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ds/logger.h"
 #include "template.h"
 #include "ccf_global.h"
 #include "kv_store.h"
-#include "ds/logger.h"
+#include "historical_state.h"
 
 namespace ccf::v8_tmpl
 {
   static TxContext* unwrap_tx_ctx(v8::Local<v8::Object> obj)
   {
     return static_cast<TxContext*>(obj->GetAlignedPointerFromInternalField(0));
+  }
+
+  static ccf::historical::State* unwrap_historical_state(v8::Local<v8::Object> obj)
+  {
+    return static_cast<ccf::historical::State*>(obj->GetAlignedPointerFromInternalField(1));
   }
 
   static v8::Local<v8::ArrayBuffer> js_str_to_buf_direct(v8::Isolate* isolate, v8::Local<v8::String> str)
@@ -136,8 +142,17 @@ namespace ccf::v8_tmpl
     TxContext* tx_ctx = unwrap_tx_ctx(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
     
-    v8::Local<v8::Value> body = KVStore::wrap(context, *tx_ctx);
-    info.GetReturnValue().Set(body);
+    v8::Local<v8::Value> value = KVStore::wrap(context, *tx_ctx);
+    info.GetReturnValue().Set(value);
+  }
+
+  static void get_historical_state(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    ccf::historical::State* historical_state = unwrap_historical_state(info.Holder());
+    v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
+    
+    v8::Local<v8::Value> value = HistoricalState::wrap(context, historical_state);
+    info.GetReturnValue().Set(value);
   }
 
   v8::Local<v8::ObjectTemplate> CCFGlobal::create_template(v8::Isolate* isolate)
@@ -147,7 +162,8 @@ namespace ccf::v8_tmpl
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
     
     // Field 0: TxContext
-    tmpl->SetInternalFieldCount(1);
+    // Field 1: historical::State
+    tmpl->SetInternalFieldCount(2);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "strToBuf"),
@@ -164,17 +180,19 @@ namespace ccf::v8_tmpl
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "kv"),
       get_kv_store);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "historicalState"),
+      get_historical_state);
 
-    // TODO .rpc
-    // TODO .host
     // TODO .consensus
     // TODO .historical
-    // TODO .historicalState
+    // TODO .rpc
+    // TODO .host
 
     return handle_scope.Escape(tmpl);
   }
 
-  v8::Local<v8::Object> CCFGlobal::wrap(v8::Local<v8::Context> context, TxContext& tx_ctx)
+  v8::Local<v8::Object> CCFGlobal::wrap(v8::Local<v8::Context> context, TxContext& tx_ctx, ccf::historical::State* historical_state)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -183,6 +201,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
     result->SetAlignedPointerInInternalField(0, &tx_ctx);
+    result->SetAlignedPointerInInternalField(1, historical_state);
 
     return handle_scope.Escape(result);
   }

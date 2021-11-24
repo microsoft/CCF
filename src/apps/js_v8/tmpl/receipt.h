@@ -3,18 +3,17 @@
 #pragma once
 
 #include "v8.h"
-#include "kv_store.h"
-#include "ccf/historical_queries_interface.h"
+#include "node/tx_receipt.h"
 
 namespace ccf::v8_tmpl
 {
-  class CCFGlobal
+  class Receipt
   {
   public:
-    static constexpr const char* NAME = "CCF";
+    static constexpr const char* NAME = "CCFReceipt";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, TxContext& tx_ctx, ccf::historical::State* historical_state);
+    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, ccf::TxReceipt* receipt);
   };
 
 } // namespace ccf::v8_tmpl

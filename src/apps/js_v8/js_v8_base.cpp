@@ -36,13 +36,6 @@ namespace ccfapp
    */
   class V8Handlers : public UserEndpointRegistry
   {
-
-    /**
-     * V8 Endpoint definition
-     */
-    struct V8DynamicEndpoint : public ccf::endpoints::EndpointDefinition
-    {};
-
     NetworkTables& network;
     ccfapp::AbstractNodeContext& context;
     ::metrics::Tracker metrics_tracker;
@@ -64,11 +57,7 @@ namespace ccfapp
           [this, &props](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            auto tx = state->store->create_tx();
-            auto tx_id = state->transaction_id;
-            auto receipt = state->receipt;
-            assert(receipt);
-            do_execute_request(props, endpoint_ctx, tx, tx_id, receipt);
+            do_execute_request(props, endpoint_ctx, state);
           },
           context.get_historical_state(),
           is_tx_committed)(endpoint_ctx);
@@ -77,7 +66,7 @@ namespace ccfapp
       {
         // Read/Write mode just execute directly
         do_execute_request(
-          props, endpoint_ctx, endpoint_ctx.tx, std::nullopt, nullptr);
+          props, endpoint_ctx, nullptr);
       }
     }
 
@@ -85,10 +74,7 @@ namespace ccfapp
     void do_execute_request(
       const ccf::endpoints::EndpointProperties& props,
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      kv::Tx& target_tx,
-      // For historical requests
-      const std::optional<ccf::TxID>& transaction_id,
-      ccf::TxReceiptPtr receipt)
+      ccf::historical::StatePtr historical_state)
     {
       // For now, create a new isolate for each request.
       // TODO reuse isolate per-thread
@@ -108,8 +94,8 @@ namespace ccfapp
       v8::Local<v8::Value> console_global = v8_tmpl::ConsoleGlobal::wrap(context);
       ctx.install_global("console", console_global);
 
-      v8_tmpl::TxContext txctx{&target_tx, v8_tmpl::TxAccess::APP};
-      v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(context, txctx);
+      v8_tmpl::TxContext txctx{&endpoint_ctx.tx, v8_tmpl::TxAccess::APP};
+      v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(context, txctx, historical_state.get());
       ctx.install_global("ccf", ccf_global);
 
       // Call exported function

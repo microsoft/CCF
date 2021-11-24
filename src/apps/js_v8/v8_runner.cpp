@@ -75,6 +75,11 @@ namespace ccf
     return os.str();
   }
 
+  enum {
+    kContextEmbedderDataField,
+    kModuleEmbedderDataField
+  };
+
   // Adapted from v8/src/d8/d8.cc::ModuleEmbedderData.
   // Per-context Module data, allowing sharing of module maps
   // across top-level module loads.
@@ -92,7 +97,6 @@ namespace ccf
     };
 
   public:
-    enum { kModuleEmbedderDataIndex };
 
     class Scope {
     public:
@@ -102,7 +106,7 @@ namespace ccf
         : context_(context)
       {
         context->SetAlignedPointerInEmbedderData(
-            kModuleEmbedderDataIndex, new ModuleEmbedderData(
+            kModuleEmbedderDataField, new ModuleEmbedderData(
               context->GetIsolate(),
               module_load_cb,
               module_load_cb_data));
@@ -111,7 +115,7 @@ namespace ccf
       ~Scope()
       {
         delete ModuleEmbedderData::GetFromContext(context_);
-        context_->SetAlignedPointerInEmbedderData(kModuleEmbedderDataIndex, nullptr);
+        context_->SetAlignedPointerInEmbedderData(kModuleEmbedderDataField, nullptr);
       }
     private:
       v8::Local<v8::Context> context_;
@@ -127,7 +131,7 @@ namespace ccf
     
     static ModuleEmbedderData* GetFromContext(v8::Local<v8::Context> context) {
       return static_cast<ModuleEmbedderData*>(
-          context->GetAlignedPointerFromEmbedderData(kModuleEmbedderDataIndex));
+          context->GetAlignedPointerFromEmbedderData(kModuleEmbedderDataField));
     }
 
     V8Context::ModuleLoadCallback module_load_callback;
@@ -258,12 +262,16 @@ namespace ccf
     isolate_->Enter();
     v8::HandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = v8::Context::New(isolate_);
+    context->SetAlignedPointerInEmbedderData(kContextEmbedderDataField, this);
     context->Enter();
     context_.Reset(isolate_, context);
   }
 
   V8Context::~V8Context()
   {
+    for (auto& [fn, data] : finalizers_)
+      fn(data);
+
     {
       v8::HandleScope handle_scope(isolate_);
       v8::Local<v8::Context> context = get_context();
@@ -275,6 +283,16 @@ namespace ccf
     context_.Reset();
 
     isolate_->Exit();
+  }
+
+  V8Context& V8Context::from_context(v8::Local<v8::Context> context)
+  {
+    return *static_cast<V8Context*>(context->GetAlignedPointerFromEmbedderData(kContextEmbedderDataField));
+  }
+
+  void V8Context::register_finalizer(FinalizerCallback callback, void* data)
+  {
+    finalizers_.push_back({ callback, data });
   }
 
   void V8Context::set_module_load_callback(ModuleLoadCallback callback, void* data)

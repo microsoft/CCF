@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/receipt.h"
 #include "node/history.h"
 #include "tls/base64.h"
 
