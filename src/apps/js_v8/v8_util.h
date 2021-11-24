@@ -29,6 +29,7 @@ namespace ccf::v8_util
   
   void throw_error(v8::Isolate* isolate, const std::string& msg);
   void throw_type_error(v8::Isolate* isolate, const std::string& msg);
+  void throw_range_error(v8::Isolate* isolate, const std::string& msg);
   void report_exception(v8::Isolate* isolate, v8::TryCatch* try_catch);
   std::string get_exception_message(v8::Isolate* isolate, v8::TryCatch* try_catch);
 }

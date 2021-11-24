@@ -473,6 +473,7 @@ if (ENABLE_V8)
     ${CCF_DIR}/src/apps/js_v8/tmpl/kv_map.cpp
     ${CCF_DIR}/src/apps/js_v8/tmpl/historical_state.cpp
     ${CCF_DIR}/src/apps/js_v8/tmpl/receipt.cpp
+    ${CCF_DIR}/src/apps/js_v8/tmpl/consensus.cpp
   )
 
   if("virtual" IN_LIST COMPILE_TARGETS)

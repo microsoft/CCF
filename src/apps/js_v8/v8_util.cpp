@@ -69,6 +69,15 @@ namespace ccf::v8_util
     );
   }
 
+  void throw_range_error(v8::Isolate* isolate, const std::string& msg)
+  {
+    isolate->ThrowException(
+      v8::Exception::RangeError(
+        v8_util::to_v8_str(isolate, msg)
+      )
+    );
+  }
+
   // Adapted from v8/samples/shell.cc::ReportException.
   void report_exception(v8::Isolate* isolate, v8::TryCatch* try_catch) {
     v8::HandleScope handle_scope(isolate);

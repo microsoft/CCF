@@ -5,6 +5,7 @@
 #include "ccf_global.h"
 #include "kv_store.h"
 #include "historical_state.h"
+#include "consensus.h"
 
 namespace ccf::v8_tmpl
 {
@@ -16,6 +17,11 @@ namespace ccf::v8_tmpl
   static ccf::historical::State* unwrap_historical_state(v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::historical::State*>(obj->GetAlignedPointerFromInternalField(1));
+  }
+
+  static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(v8::Local<v8::Object> obj)
+  {
+    return static_cast<ccf::BaseEndpointRegistry*>(obj->GetAlignedPointerFromInternalField(2));
   }
 
   static v8::Local<v8::ArrayBuffer> js_str_to_buf_direct(v8::Isolate* isolate, v8::Local<v8::String> str)
@@ -155,6 +161,15 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(value);
   }
 
+  static void get_consensus(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    ccf::BaseEndpointRegistry* endpoint_registry = unwrap_endpoint_registry(info.Holder());
+    v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
+    
+    v8::Local<v8::Value> value = Consensus::wrap(context, endpoint_registry);
+    info.GetReturnValue().Set(value);
+  }
+
   v8::Local<v8::ObjectTemplate> CCFGlobal::create_template(v8::Isolate* isolate)
   {
     v8::EscapableHandleScope handle_scope(isolate);
@@ -163,7 +178,8 @@ namespace ccf::v8_tmpl
     
     // Field 0: TxContext
     // Field 1: historical::State
-    tmpl->SetInternalFieldCount(2);
+    // Field 2: BaseEndpointRegistry
+    tmpl->SetInternalFieldCount(3);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "strToBuf"),
@@ -183,8 +199,10 @@ namespace ccf::v8_tmpl
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historicalState"),
       get_historical_state);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "consensus"),
+      get_consensus);
 
-    // TODO .consensus
     // TODO .historical
     // TODO .rpc
     // TODO .host
@@ -192,7 +210,7 @@ namespace ccf::v8_tmpl
     return handle_scope.Escape(tmpl);
   }
 
-  v8::Local<v8::Object> CCFGlobal::wrap(v8::Local<v8::Context> context, TxContext& tx_ctx, ccf::historical::State* historical_state)
+  v8::Local<v8::Object> CCFGlobal::wrap(v8::Local<v8::Context> context, TxContext& tx_ctx, ccf::historical::State* historical_state, ccf::BaseEndpointRegistry* endpoint_registry)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -202,6 +220,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
     result->SetAlignedPointerInInternalField(0, &tx_ctx);
     result->SetAlignedPointerInInternalField(1, historical_state);
+    result->SetAlignedPointerInInternalField(2, endpoint_registry);
 
     return handle_scope.Escape(result);
   }
