@@ -5,7 +5,7 @@ This describes the default reconfiguration scheme as currently implemented. When
 
 Below, we only discuss changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `Raft paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 
-From a ledger and KV store perspective, reconfiguration is a single **reconfiguration transaction**. Any transaction that contains at least one write to ``public:ccf.gov.nodes.info`` setting a node's status to ``TRUSTED`` or ``RETIRED`` is such a reconfiguration transaction.
+From a ledger and KV store perspective, reconfiguration is a single **reconfiguration transaction**. Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's status to ``TRUSTED`` or ``RETIRED`` is such a reconfiguration transaction.
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines. From a consensus perspective (ie. replication and primary election), the transaction takes effect immediately.
 
@@ -119,7 +119,7 @@ A node permanently transitions to the ``Completed`` phase once it has observed c
             Signed-.->Ordered
         end
 
-Until the very last phase (``Completed``) is reached, a retiring leader will not actively attempt to change leadership, but elections may still happen as usual.
+Until the very last phase (``Completed``) is reached, a retiring leader will continue to act as leader, although it will not execute new transactions once it observes RCI. 
 
 Note that because the rollback triggered when a node becomes aware of a new term never preserves unsigned transactions,
 and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.

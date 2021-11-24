@@ -32,7 +32,7 @@ Replica State Machine
 Membership
 ~~~~~~~~~~
 
-Any node of the network is always in one of four membership states. When using One-transaction reconfiguration, the ``Learner`` and 
+Any node of the network is always in one of four membership states. When using one-transaction reconfiguration, the ``Learner`` and 
 ``RetirementInitiated`` states are not used and each node is either in the ``Active`` or ``Retired`` states. The dotted arrows in the 
 state diagram indicate a transition on rollback:
 
@@ -46,6 +46,8 @@ state diagram indicate a transition on rollback:
         RetirementInitiated-->Retired
         Retired-.->RetirementInitiated
         Retired-.->Active
+
+The membership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint. 
 
 Simplified Leadership
 ~~~~~~~~~~~~~~~~~~~~~
@@ -62,8 +64,17 @@ consensus states as the network evolves:
         Leader-->Candidate;
         Follower-->Candidate;        
 
+The leadership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint. 
+
+Key-Value Store
+~~~~~~~~~~~~~~~
+
+Reconfiguration of the network is controlled via updates to the :ref:`audit/builtin_maps:``nodes.info``` built-in map, which assigns a :cpp:enum:`ccf::NodeStatus` to each node. Nodes with status :cpp:enumerator:`ccf::NodeStatus::PENDING` in this map do not have membership or leadership states yet. Nodes with status :cpp:enumerator:`ccf::NodeStatus::TRUSTED` are in the ``Active`` membership state and may be in any leadership state.
+
+
 Further information about the reconfiguration schemes:
 
 .. toctree::
     1tx-reconfig
     2tx-reconfig
+    
