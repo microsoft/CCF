@@ -4,18 +4,20 @@
 
 #include "ds/champ_map.h"
 #include "ds/hash.h"
+#include "ds/rb_map.h" // TODO: Remove include
 #include "kv/kv_types.h"
 
 #include <map>
 
 namespace kv
 {
+  // TODO: Revert to CHAMP for now
   template <typename V>
   using VersionV = map::VersionV<V>;
   template <typename K, typename V, typename H>
-  using State = champ::Map<K, VersionV<V>, H>;
+  using State = rb::Map<K, VersionV<V>>; //, H>;
   template <typename K, typename V, typename H>
-  using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
+  using Snapshot = rb::Snapshot<K, VersionV<V>>; //, H>;
 
   // This is a map of keys and with a tuple of the key's write version and the
   // version of last transaction which read the key and committed successfully
