@@ -38,7 +38,7 @@ namespace rb
         _rgt(rgt)
       {
         total_size = 1;
-        total_serialized_size = champ::get_size_with_padding(key, val);
+        total_serialized_size = map::get_size_with_padding(key, val);
         if (lft)
         {
           total_size += lft->size();
@@ -311,12 +311,12 @@ namespace rb
 
       map.foreach([&data, &size](const K& k, const V& v) {
         // Serialize the key
-        uint32_t key_size = champ::serialize(k, data, size);
-        champ::add_padding(key_size, data, size);
+        uint32_t key_size = map::serialize(k, data, size);
+        map::add_padding(key_size, data, size);
 
         // Serialize the value
-        uint32_t value_size = champ::serialize(v, data, size);
-        champ::add_padding(value_size, data, size);
+        uint32_t value_size = map::serialize(v, data, size);
+        map::add_padding(value_size, data, size);
         return true;
       });
 

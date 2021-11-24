@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ds/champ_map.h"
+#include "ds/map_serializers.h"
 #include "ds/rb_map.h"
 
 #include <doctest/doctest.h>
@@ -33,10 +34,6 @@ using H = CollisionHash<K>;
 
 using ChampMap = champ::Map<K, V, H>;
 using RBMap = rb::Map<K, V>;
-
-// TODO: Snapshot types should be derived from class name
-using ChampSnapshot = champ::Snapshot<K, V, H>;
-using RBSnapshot = rb::Snapshot<K, V>;
 
 template <typename Key, typename Value>
 using UntypedMapImpl = champ::Map<Key, Value, CollisionHash<Key>>;
@@ -275,7 +272,7 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap, ChampMap)
     std::vector<uint8_t> s(map.get_serialized_size());
     snapshot->serialize(s.data());
 
-    auto new_map = champ::deserialize_map<M>(s);
+    auto new_map = map::deserialize_map<M>(s);
 
     std::set<K> keys;
     new_map.foreach([&keys](const auto& key, const auto& value) {
@@ -334,8 +331,8 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap, ChampMap)
 
   INFO("Serialize map with different key sizes");
   {
-    using SerialisedKey = champ::serialisers::SerialisedEntry;
-    using SerialisedValue = champ::serialisers::SerialisedEntry;
+    using SerialisedKey = map::serialisers::SerialisedEntry;
+    using SerialisedValue = map::serialisers::SerialisedEntry;
 
     UntypedMapImpl<SerialisedKey, SerialisedValue> map;
     SerialisedKey key(16);
@@ -374,7 +371,7 @@ void verify_snapshot_compatibility(const S& source_map, T& target_map)
   std::vector<uint8_t> s(source_map.get_serialized_size());
   snapshot->serialize(s.data());
 
-  target_map = champ::deserialize_map<T>(s);
+  target_map = map::deserialize_map<T>(s);
   REQUIRE(target_map.size() == source_map.size());
 
   auto target_entries = get_all_entries(target_map);

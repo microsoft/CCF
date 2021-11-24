@@ -460,7 +460,7 @@ namespace kv::untyped
       auto map_snapshot = d.deserialise_raw();
 
       return std::make_unique<SnapshotChangeSet>(
-        champ::deserialize_map<State>(map_snapshot), v);
+        map::deserialize_map<State>(map_snapshot), v);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)
