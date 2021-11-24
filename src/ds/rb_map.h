@@ -8,290 +8,301 @@
 #include <memory>
 #include <optional>
 
-template <class K, class V>
-class RBMap
+namespace rb
 {
-private:
-  enum Color
+  template <class K, class V>
+  class Map
   {
-    R,
-    B
-  };
+  private:
+    enum Color
+    {
+      R,
+      B
+    };
 
-  struct Node
-  {
-    Node(
+    struct Node
+    {
+      Node(
+        Color c,
+        const std::shared_ptr<const Node>& lft,
+        const K& key,
+        const V& val,
+        const std::shared_ptr<const Node>& rgt) :
+        _c(c),
+        _lft(lft),
+        _key(key),
+        _val(val),
+        _rgt(rgt)
+      {
+        total_size = 1;
+        total_serialized_size = champ::get_size_with_padding(key, val);
+        if (lft)
+        {
+          total_size += lft->size();
+          total_serialized_size += lft->serialized_size();
+        }
+        if (rgt)
+        {
+          total_size += rgt->size();
+          total_serialized_size += rgt->serialized_size();
+        }
+      }
+
+      Color _c;
+      std::shared_ptr<const Node> _lft;
+      K _key;
+      V _val;
+      std::shared_ptr<const Node> _rgt;
+      size_t total_size = 0;
+      size_t total_serialized_size = 0;
+
+      size_t size() const
+      {
+        return total_size;
+      }
+
+      size_t serialized_size() const
+      {
+        return total_serialized_size;
+      }
+    };
+
+    explicit Map(std::shared_ptr<const Node> const& node) : _root(node) {}
+
+    Map(
       Color c,
-      const std::shared_ptr<const Node>& lft,
+      const Map& lft,
       const K& key,
       const V& val,
-      const std::shared_ptr<const Node>& rgt) :
-      _c(c),
-      _lft(lft),
-      _key(key),
-      _val(val),
-      _rgt(rgt)
+      const Map& rgt,
+      std::optional<size_t> size = std::nullopt) :
+      _root(std::make_shared<const Node>(c, lft._root, key, val, rgt._root))
     {
-      total_size = 1;
-      total_serialized_size = champ::get_size_with_padding(key, val);
-      if (lft)
-      {
-        total_size += lft->size();
-        total_serialized_size += lft->serialized_size();
-      }
-      if (rgt)
-      {
-        total_size += rgt->size();
-        total_serialized_size += rgt->serialized_size();
-      }
+      assert(lft.empty() || lft.rootKey() < key);
+      assert(rgt.empty() || key < rgt.rootKey());
     }
 
-    Color _c;
-    std::shared_ptr<const Node> _lft;
-    K _key;
-    V _val;
-    std::shared_ptr<const Node> _rgt;
-    size_t total_size = 0;
-    size_t total_serialized_size = 0;
+  public:
+    using KeyType = K;
+    using ValueType = V;
+
+    Map() {}
+
+    bool empty() const
+    {
+      return !_root;
+    }
 
     size_t size() const
     {
-      return total_size;
+      return empty() ? 0 : _root->size();
     }
 
-    size_t serialized_size() const
+    size_t get_serialized_size() const
     {
-      return total_serialized_size;
+      return empty() ? 0 : _root->serialized_size();
+    }
+
+    std::optional<V> get(const K& key) const
+    {
+      auto v = getp(key);
+
+      if (v)
+        return *v;
+      else
+        return {};
+    }
+
+    const V* getp(const K& key) const
+    {
+      if (empty())
+        return nullptr;
+
+      auto& y = rootKey();
+
+      if (key < y)
+        return left().getp(key);
+      else if (y < key)
+        return right().getp(key);
+      else
+        return &rootValue();
+    }
+
+    Map put(const K& key, const V& value) const
+    {
+      Map t = insert(key, value);
+      return Map(B, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
+    }
+
+    Map remove(const K& key) const
+    {
+      throw std::logic_error("rb::Map::remove(k): Not implemented!");
+    }
+
+    template <class F>
+    void foreach(F&& f) const
+    {
+      // TODO: Early return
+      if (!empty())
+      {
+        left().foreach(std::forward<F>(f));
+        f(rootKey(), rootValue());
+        right().foreach(std::forward<F>(f));
+      }
+    }
+
+  private:
+    std::shared_ptr<const Node> _root;
+
+    Color rootColor() const
+    {
+      return _root->_c;
+    }
+
+    const K& rootKey() const
+    {
+      return _root->_key;
+    }
+
+    const V& rootValue() const
+    {
+      return _root->_val;
+    }
+
+    Map left() const
+    {
+      return Map(_root->_lft);
+    }
+
+    Map right() const
+    {
+      return Map(_root->_rgt);
+    }
+
+    Map insert(const K& x, const V& v) const
+    {
+      if (empty())
+        return Map(R, Map(), x, v, Map());
+
+      const K& y = rootKey();
+      const V& yv = rootValue();
+      Color c = rootColor();
+
+      if (rootColor() == B)
+      {
+        if (x < y)
+          return balance(left().insert(x, v), y, yv, right());
+        else if (y < x)
+          return balance(left(), y, yv, right().insert(x, v));
+        else
+          return Map(c, left(), y, v, right());
+      }
+      else
+      {
+        if (x < y)
+          return Map(c, left().insert(x, v), y, yv, right());
+        else if (y < x)
+          return Map(c, left(), y, yv, right().insert(x, v));
+        else
+          return Map(c, left(), y, v, right());
+      }
+    }
+
+    // Called only when parent is black
+    static Map balance(const Map& lft, const K& x, const V& v, const Map& rgt)
+    {
+      if (lft.doubledLeft())
+        return Map(
+          R,
+          lft.left().paint(B),
+          lft.rootKey(),
+          lft.rootValue(),
+          Map(B, lft.right(), x, v, rgt));
+      else if (lft.doubledRight())
+        return Map(
+          R,
+          Map(
+            B, lft.left(), lft.rootKey(), lft.rootValue(), lft.right().left()),
+          lft.right().rootKey(),
+          lft.right().rootValue(),
+          Map(B, lft.right().right(), x, v, rgt));
+      else if (rgt.doubledLeft())
+        return Map(
+          R,
+          Map(B, lft, x, v, rgt.left().left()),
+          rgt.left().rootKey(),
+          rgt.left().rootValue(),
+          Map(
+            B,
+            rgt.left().right(),
+            rgt.rootKey(),
+            rgt.rootValue(),
+            rgt.right()));
+      else if (rgt.doubledRight())
+        return Map(
+          R,
+          Map(B, lft, x, v, rgt.left()),
+          rgt.rootKey(),
+          rgt.rootValue(),
+          rgt.right().paint(B));
+      else
+        return Map(B, lft, x, v, rgt);
+    }
+
+    bool doubledLeft() const
+    {
+      return !empty() && rootColor() == R && !left().empty() &&
+        left().rootColor() == R;
+    }
+
+    bool doubledRight() const
+    {
+      return !empty() && rootColor() == R && !right().empty() &&
+        right().rootColor() == R;
+    }
+
+    Map paint(Color c) const
+    {
+      return Map(c, left(), rootKey(), rootValue(), right());
     }
   };
 
-  explicit RBMap(std::shared_ptr<const Node> const& node) : _root(node) {}
-
-  RBMap(
-    Color c,
-    const RBMap& lft,
-    const K& key,
-    const V& val,
-    const RBMap& rgt,
-    std::optional<size_t> size = std::nullopt) :
-    _root(std::make_shared<const Node>(c, lft._root, key, val, rgt._root))
+  template <class K, class V>
+  class Snapshot
   {
-    assert(lft.empty() || lft.rootKey() < key);
-    assert(rgt.empty() || key < rgt.rootKey());
-  }
+  private:
+    const Map<K, V> map;
+    CBuffer serialized_buffer;
 
-public:
-  using KeyType = K;
-  using ValueType = V;
+  public:
+    Snapshot(const Map<K, V>& map_) : map(map_) {}
 
-  RBMap() {}
-
-  bool empty() const
-  {
-    return !_root;
-  }
-
-  size_t size() const
-  {
-    return empty() ? 0 : _root->size();
-  }
-
-  size_t get_serialized_size() const
-  {
-    return empty() ? 0 : _root->serialized_size();
-  }
-
-  std::optional<V> get(const K& key) const
-  {
-    auto v = getp(key);
-
-    if (v)
-      return *v;
-    else
-      return {};
-  }
-
-  const V* getp(const K& key) const
-  {
-    if (empty())
-      return nullptr;
-
-    auto& y = rootKey();
-
-    if (key < y)
-      return left().getp(key);
-    else if (y < key)
-      return right().getp(key);
-    else
-      return &rootValue();
-  }
-
-  RBMap put(const K& key, const V& value) const
-  {
-    RBMap t = insert(key, value);
-    return RBMap(B, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
-  }
-
-  template <class F>
-  void foreach(F&& f) const
-  {
-    // TODO: Early return
-    if (!empty())
+    size_t get_serialized_size()
     {
-      left().foreach(std::forward<F>(f));
-      f(rootKey(), rootValue());
-      right().foreach(std::forward<F>(f));
+      return map.get_serialized_size();
     }
-  }
 
-private:
-  std::shared_ptr<const Node> _root;
-
-  Color rootColor() const
-  {
-    return _root->_c;
-  }
-
-  const K& rootKey() const
-  {
-    return _root->_key;
-  }
-
-  const V& rootValue() const
-  {
-    return _root->_val;
-  }
-
-  RBMap left() const
-  {
-    return RBMap(_root->_lft);
-  }
-
-  RBMap right() const
-  {
-    return RBMap(_root->_rgt);
-  }
-
-  RBMap insert(const K& x, const V& v) const
-  {
-    if (empty())
-      return RBMap(R, RBMap(), x, v, RBMap());
-
-    const K& y = rootKey();
-    const V& yv = rootValue();
-    Color c = rootColor();
-
-    if (rootColor() == B)
+    CBuffer& get_serialized_buffer()
     {
-      if (x < y)
-        return balance(left().insert(x, v), y, yv, right());
-      else if (y < x)
-        return balance(left(), y, yv, right().insert(x, v));
-      else
-        return RBMap(c, left(), y, v, right());
+      return serialized_buffer;
     }
-    else
+
+    void serialize(uint8_t* data)
     {
-      if (x < y)
-        return RBMap(c, left().insert(x, v), y, yv, right());
-      else if (y < x)
-        return RBMap(c, left(), y, yv, right().insert(x, v));
-      else
-        return RBMap(c, left(), y, v, right());
+      size_t size = map.get_serialized_size();
+      serialized_buffer = CBuffer(data, size);
+
+      map.foreach([&data, &size](const K& k, const V& v) {
+        // Serialize the key
+        uint32_t key_size = champ::serialize(k, data, size);
+        champ::add_padding(key_size, data, size);
+
+        // Serialize the value
+        uint32_t value_size = champ::serialize(v, data, size);
+        champ::add_padding(value_size, data, size);
+      });
+
+      CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
     }
-  }
-
-  // Called only when parent is black
-  static RBMap balance(
-    const RBMap& lft, const K& x, const V& v, const RBMap& rgt)
-  {
-    if (lft.doubledLeft())
-      return RBMap(
-        R,
-        lft.left().paint(B),
-        lft.rootKey(),
-        lft.rootValue(),
-        RBMap(B, lft.right(), x, v, rgt));
-    else if (lft.doubledRight())
-      return RBMap(
-        R,
-        RBMap(
-          B, lft.left(), lft.rootKey(), lft.rootValue(), lft.right().left()),
-        lft.right().rootKey(),
-        lft.right().rootValue(),
-        RBMap(B, lft.right().right(), x, v, rgt));
-    else if (rgt.doubledLeft())
-      return RBMap(
-        R,
-        RBMap(B, lft, x, v, rgt.left().left()),
-        rgt.left().rootKey(),
-        rgt.left().rootValue(),
-        RBMap(
-          B, rgt.left().right(), rgt.rootKey(), rgt.rootValue(), rgt.right()));
-    else if (rgt.doubledRight())
-      return RBMap(
-        R,
-        RBMap(B, lft, x, v, rgt.left()),
-        rgt.rootKey(),
-        rgt.rootValue(),
-        rgt.right().paint(B));
-    else
-      return RBMap(B, lft, x, v, rgt);
-  }
-
-  bool doubledLeft() const
-  {
-    return !empty() && rootColor() == R && !left().empty() &&
-      left().rootColor() == R;
-  }
-
-  bool doubledRight() const
-  {
-    return !empty() && rootColor() == R && !right().empty() &&
-      right().rootColor() == R;
-  }
-
-  RBMap paint(Color c) const
-  {
-    return RBMap(c, left(), rootKey(), rootValue(), right());
-  }
-};
-
-template <class K, class V>
-class Snapshot
-{
-private:
-  const RBMap<K, V> map;
-  CBuffer serialized_buffer;
-
-public:
-  Snapshot(const RBMap<K, V>& map_) : map(map_) {}
-
-  size_t get_serialized_size()
-  {
-    return map.get_serialized_size();
-  }
-
-  CBuffer& get_serialized_buffer()
-  {
-    return serialized_buffer;
-  }
-
-  void serialize(uint8_t* data)
-  {
-    size_t size = map.get_serialized_size();
-    serialized_buffer = CBuffer(data, size);
-
-    map.foreach([&data, &size](const K& k, const V& v) {
-      // Serialize the key
-      uint32_t key_size = champ::serialize(k, data, size);
-      champ::add_padding(key_size, data, size);
-
-      // Serialize the value
-      uint32_t value_size = champ::serialize(v, data, size);
-      champ::add_padding(value_size, data, size);
-    });
-
-    CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
-  }
-};
+  };
+}

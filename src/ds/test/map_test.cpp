@@ -8,8 +8,6 @@
 #include <random>
 #include <unordered_map>
 
-using namespace std;
-
 template <class K>
 struct CollisionHash
 {
@@ -22,21 +20,35 @@ struct CollisionHash
 using K = uint64_t;
 using V = uint64_t;
 
+struct KVPair
+{
+  K k;
+  V v;
+
+  bool operator==(const KVPair&) const = default;
+};
+
 // using H = std::hash<K>;
 using H = CollisionHash<K>;
 
+using ChampMap = champ::Map<K, V, H>;
+using RBMap = rb::Map<K, V>;
+
+// TODO: Snapshot types should be derived from class name
+using ChampSnapshot = champ::Snapshot<K, V, H>;
+using RBSnapshot = rb::Snapshot<K, V>;
+
 template <typename Key, typename Value>
-using UntypedMapImpl = champ::Map<Key, Value>; //, CollisionHash<Key>>;
-// using MapImpl = champ::Map<K, V, H>;
+using UntypedMapImpl = champ::Map<Key, Value, CollisionHash<Key>>;
 
 using MapImpl = UntypedMapImpl<K, V>;
 
 class Model
 {
-  unordered_map<K, V> internal;
+  std::unordered_map<K, V> internal;
 
 public:
-  optional<V> get(const K& key) const
+  std::optional<V> get(const K& key) const
   {
     auto it = internal.find(key);
     if (it == internal.end())
@@ -63,9 +75,9 @@ public:
 struct Op
 {
   virtual ~Op() = default;
-  virtual pair<const Model, const MapImpl> apply(
+  virtual std::pair<const Model, const MapImpl> apply(
     const Model& a, const MapImpl& b) = 0;
-  virtual string str() = 0;
+  virtual std::string str() = 0;
 };
 
 struct Put : public Op
@@ -75,14 +87,14 @@ struct Put : public Op
 
   Put(K k_, V v_) : k(k_), v(v_) {}
 
-  pair<const Model, const MapImpl> apply(const Model& a, const MapImpl& b)
+  std::pair<const Model, const MapImpl> apply(const Model& a, const MapImpl& b)
   {
-    return make_pair(a.put(k, v), b.put(k, v));
+    return std::make_pair(a.put(k, v), b.put(k, v));
   }
 
-  string str()
+  std::string str()
   {
-    auto ss = stringstream();
+    auto ss = std::stringstream();
     ss << "Put(" << H()(k) << ", " << v << ")";
     return ss.str();
   }
@@ -95,11 +107,11 @@ struct Remove : public Op
 
   Remove(K k_) : k(k_) {}
 
-  pair<const Model, const M> apply(const Model& a, const M& b)
+  std::pair<const Model, const M> apply(const Model& a, const M& b)
   {
-    if constexpr (std::is_same_v<M, champ::Map<K, V>>)
+    if constexpr (std::is_same_v<M, ChampMap>)
     {
-      return make_pair(a.remove(k), b.remove(k));
+      return std::make_pair(a.remove(k), b.remove(k));
     }
     else
     {
@@ -107,28 +119,28 @@ struct Remove : public Op
     }
   }
 
-  string str()
+  std::string str()
   {
-    auto ss = stringstream();
+    auto ss = std::stringstream();
     ss << "Remove(" << H()(k) << ")";
     return ss.str();
   }
 };
 
 template <typename M>
-vector<unique_ptr<Op>> gen_ops(size_t n)
+std::vector<std::unique_ptr<Op>> gen_ops(size_t n)
 {
-  random_device rand_dev;
+  std::random_device rand_dev;
   auto seed = rand_dev();
-  std::cout << "seed: " << seed << std::endl;
-  mt19937 gen(seed);
-  uniform_int_distribution<> gen_op(0, 3);
+  LOG_INFO_FMT("Seed: {}", seed);
+  std::mt19937 gen(seed);
+  std::uniform_int_distribution<> gen_op(0, 3);
 
-  vector<unique_ptr<Op>> ops;
-  vector<K> keys;
+  std::vector<std::unique_ptr<Op>> ops;
+  std::vector<K> keys;
   for (V v = 0; v < n; ++v)
   {
-    unique_ptr<Op> op;
+    std::unique_ptr<Op> op;
     auto op_i = keys.empty() ? 0 : gen_op(gen);
     switch (op_i)
     {
@@ -137,32 +149,32 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
       {
         auto k = gen();
         keys.push_back(k);
-        op = make_unique<Put>(k, v);
+        op = std::make_unique<Put>(k, v);
 
         break;
       }
       case 2: // update
       {
-        uniform_int_distribution<> gen_idx(0, keys.size() - 1);
+        std::uniform_int_distribution<> gen_idx(0, keys.size() - 1);
         auto k = keys[gen_idx(gen)];
-        op = make_unique<Put>(k, v);
+        op = std::make_unique<Put>(k, v);
 
         break;
       }
       case 3: // remove
       {
-        if constexpr (std::is_same_v<M, champ::Map<K, V>>)
+        if constexpr (std::is_same_v<M, ChampMap>)
         {
-          uniform_int_distribution<> gen_idx(0, keys.size() - 1);
+          std::uniform_int_distribution<> gen_idx(0, keys.size() - 1);
           auto i = gen_idx(gen);
           auto k = keys[i];
           keys.erase(keys.begin() + i);
-          op = make_unique<Remove<MapImpl>>(k);
+          op = std::make_unique<Remove<MapImpl>>(k);
         }
         break;
       }
       default:
-        throw logic_error("bad op number");
+        throw std::logic_error("bad op number");
     }
     ops.push_back(move(op));
   }
@@ -170,15 +182,17 @@ vector<unique_ptr<Op>> gen_ops(size_t n)
   return ops;
 }
 
-TEST_CASE("persistent map operations")
+// TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap)
+TEST_CASE("Persistent map operations")
 {
+  using M = MapImpl;
   Model model;
-  MapImpl map;
+  M map;
 
-  auto ops = gen_ops<MapImpl>(500);
+  auto ops = gen_ops<M>(500);
   for (auto& op : ops)
   {
-    std::cout << op->str() << std::endl;
+    LOG_INFO_FMT("{}", op->str());
     auto r = op->apply(model, map);
     auto model_new = r.first;
     auto map_new = r.second;
@@ -214,9 +228,10 @@ TEST_CASE("persistent map operations")
   }
 }
 
-static const MapImpl gen_map(size_t size)
+template <class M>
+static const M gen_map(size_t size)
 {
-  MapImpl map;
+  M map;
   for (size_t i = 0; i < size; ++i)
   {
     map = map.put(i, i);
@@ -224,17 +239,12 @@ static const MapImpl gen_map(size_t size)
   return map;
 }
 
-TEST_CASE("Serialize map")
+using TestSnapshot = RBSnapshot;
+TEST_CASE_TEMPLATE("Snapshot map", M, RBMap) // TODO: Enable !
 {
-  struct pair
-  {
-    K k;
-    V v;
-  };
-
-  std::vector<pair> results;
+  std::vector<KVPair> results;
   uint32_t num_elements = 100;
-  auto map = gen_map(num_elements);
+  auto map = gen_map<M>(num_elements);
 
   INFO("Check initial content of map");
   {
@@ -249,7 +259,7 @@ TEST_CASE("Serialize map")
   INFO("Populate second map and compare");
   {
     std::set<K> keys;
-    MapImpl new_map;
+    M new_map;
     for (const auto& p : results)
     {
       REQUIRE_LT(p.k, num_elements);
@@ -260,16 +270,13 @@ TEST_CASE("Serialize map")
     REQUIRE_EQ(num_elements, keys.size());
   }
 
-  // champ::Snapshot<K, V, H> snapshot(map);
-  using TestSnapshot = champ::Snapshot<K, V>; //, H>; // Snapshot<K, V>;
-
   INFO("Serialize map to array");
   {
     TestSnapshot snapshot(map);
     std::vector<uint8_t> s(map.get_serialized_size());
     snapshot.serialize(s.data());
 
-    auto new_map = champ::deserialize_map<MapImpl>(s);
+    auto new_map = champ::deserialize_map<M>(s);
 
     std::set<K> keys;
     new_map.foreach([&keys](const auto& key, const auto& value) {
@@ -280,6 +287,7 @@ TEST_CASE("Serialize map")
     REQUIRE_EQ(map.size(), new_map.size());
     REQUIRE_EQ(map.size(), keys.size());
 
+    // Check that new entries can be added to deserialised map
     uint32_t offset = 1000;
     for (uint32_t i = offset; i < offset + num_elements; ++i)
     {
@@ -307,6 +315,24 @@ TEST_CASE("Serialize map")
     REQUIRE_EQ(s_1, s_2);
   }
 
+  INFO("Snapshot is immutable");
+  {
+    size_t current_size = map.size();
+    TestSnapshot snapshot(map);
+    std::vector<uint8_t> s_1(map.get_serialized_size());
+    snapshot.serialize(s_1.data());
+
+    // Add entry in map
+    auto key = current_size + 1;
+    REQUIRE(map.get(key) == std::nullopt);
+    map = map.put(key, key);
+
+    // Even though map has been updated, snapshot is not modified
+    std::vector<uint8_t> s_2(s_1.size());
+    snapshot.serialize(s_2.data());
+    REQUIRE_EQ(s_1, s_2);
+  }
+
   INFO("Serialize map with different key sizes");
   {
     using SerialisedKey = champ::serialisers::SerialisedEntry;
@@ -314,16 +340,69 @@ TEST_CASE("Serialize map")
 
     UntypedMapImpl<SerialisedKey, SerialisedValue> map;
     SerialisedKey key(16);
+    SerialisedValue long_key(128);
     SerialisedValue value(8);
     SerialisedValue long_value(256);
 
     map = map.put(key, value);
-    map = map.put(key, long_value);
+    map = map.put(long_key, long_value);
 
-    champ::Snapshot<SerialisedKey, SerialisedValue> snapshot(map);
-    std::vector<uint8_t> s(map.get_serialized_size());
-    snapshot.serialize(s.data());
+    // TODO: Fix
+    // champ::
+    //   Snapshot<SerialisedKey, SerialisedValue, CollisionHash<SerialisedKey>>
+    //     snapshot(map);
+    // std::vector<uint8_t> s(map.get_serialized_size());
+    // snapshot.serialize(s.data());
+  }
+}
+
+template <typename M>
+std::map<K, V> get_all_entries(const M& map)
+{
+  std::map<K, V> entries;
+  map.foreach([&entries](const K& k, const V& v) {
+    REQUIRE(entries.find(k) == entries.end()); // assert for no duplicates
+    entries.insert({k, v});
+    return true;
+  });
+  return entries;
+}
+
+template <class S, class T, class SN>
+void verify_snapshot_compatibility(const S& source_map, T& target_map)
+{
+  auto source_entries = get_all_entries(source_map);
+  REQUIRE(source_entries.size() == source_map.size());
+
+  SN snapshot(source_map);
+  std::vector<uint8_t> s(source_map.get_serialized_size());
+  snapshot.serialize(s.data());
+
+  target_map = champ::deserialize_map<T>(s);
+  REQUIRE(target_map.size() == source_map.size());
+
+  auto target_entries = get_all_entries(target_map);
+  REQUIRE(target_entries.size() == target_map.size());
+  REQUIRE(source_entries == target_entries);
+}
+
+TEST_CASE("Snapshot compatibility")
+{
+  size_t size = 100;
+
+  INFO("Champ -> RB");
+  {
+    auto champ_map = gen_map<ChampMap>(size);
+    RBMap rb_map;
+    verify_snapshot_compatibility<ChampMap, RBMap, ChampSnapshot>(
+      champ_map, rb_map);
   }
 
-  // TODO: Test snapshot from one map type to the other
+  INFO("RB -> Champ");
+  {
+    auto rb_map = gen_map<RBMap>(size);
+    ChampMap champ_map;
+    verify_snapshot_compatibility<RBMap, ChampMap, RBSnapshot>(
+      rb_map, champ_map);
+  }
 }
