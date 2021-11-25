@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 
 # This script is used to wrap Clang to enable the use of
 # Clang 10 in the V8 build which assumes Clang 14.
