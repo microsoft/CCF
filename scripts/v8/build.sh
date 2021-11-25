@@ -31,7 +31,7 @@ PUBLISH=false
 if [ "$4" != "" ]; then
   # uppercase to support Azure Pipelines booleans
   if [ "$4" == "true" ] || [ "$4" == "True" ]; then
-    PUBLISH="$4"
+    PUBLISH="true"
   elif [ "$4" != "false" ] || [ "$4" == "False" ]; then
     echo "ERROR: Publish can only be 'true' or 'false', got: $4"
     echo "$SYNTAX"
@@ -49,6 +49,7 @@ fi
 echo " + Version: $VERSION"
 echo " + Mode: $MODE"
 echo " + Target: $TARGET"
+echo " + Publish: $PUBLISH"
 
 echo " + Cleaning up environment..."
 if [ "$SKIP_CLEAN" != "1" ]; then
