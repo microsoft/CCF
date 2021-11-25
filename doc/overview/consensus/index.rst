@@ -58,11 +58,12 @@ consensus states as the network evolves:
 
 .. mermaid::
 
-    graph LR;        
+    graph LR;                        
+        Follower-->Candidate;
         Candidate-->Follower;
         Candidate-->Leader;
-        Leader-->Candidate;
-        Follower-->Candidate;        
+        Candidate-->Candidate;
+        Leader-->Follower;
 
 The leadership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint. 
 
