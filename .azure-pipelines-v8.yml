@@ -2,21 +2,21 @@ trigger:
   batch: false
 
 parameters:
-- name: VERSION
-  displayName: V8 version
-  type: string
-  default: "9.4.146.17"
-- name: TARGET
-  displayName: Target
-  type: string
-  default: "virtual"
-  values:
-  - virtual
-  - sgx
-- name: PUSH_ARTIFACT
-  displayName: Publish to package feed
-  type: boolean
-  default: true
+  - name: VERSION
+    displayName: V8 version
+    type: string
+    default: "9.4.146.17"
+  - name: TARGET
+    displayName: Target
+    type: string
+    default: "virtual"
+    values:
+      - virtual
+      - sgx
+  - name: PUSH_ARTIFACT
+    displayName: Publish to package feed
+    type: boolean
+    default: true
 
 jobs:
   - job: build_v8
@@ -44,25 +44,25 @@ jobs:
         displayName: "Build V8"
 
       - ${{ if eq(parameters.PUSH_ARTIFACT, true) }}:
-        - script: |
-            # Universal Packages versions only take three sections X.Y.Z.
-            # V8 versions have four sections, with the first two as the chromium version.
-            #   Ex: 9.4.146.17 (Chromium version 94)
-            export MAJOR=$(echo ${{ parameters.VERSION }} | cut -d "." -f 1,2 | sed 's/\.//')
-            # We also want our build version to increment, so we also join the last two.
-            #   Ex: 9.4.146.17 -> 94.14617.$(Build.BuildId)
-            export MINOR=$(echo ${{ parameters.VERSION }} | cut -d "." -f 3,4 | sed 's/\.//')
-            echo '##vso[task.setvariable variable=pkg-ver]'$MAJOR.$MINOR.$(Build.BuildId)
-            mv build-v8/v8-${{ parameters.VERSION }}-$(MODE)-${{ parameters.TARGET }}.tar.xz $(Build.ArtifactStagingDirectory)
-          displayName: "Prepare Artifact Staging Directory"
+          - script: |
+              # Universal Packages versions only take three sections X.Y.Z.
+              # V8 versions have four sections, with the first two as the chromium version.
+              #   Ex: 9.4.146.17 (Chromium version 94)
+              export MAJOR=$(echo ${{ parameters.VERSION }} | cut -d "." -f 1,2 | sed 's/\.//')
+              # We also want our build version to increment, so we also join the last two.
+              #   Ex: 9.4.146.17 -> 94.14617.$(Build.BuildId)
+              export MINOR=$(echo ${{ parameters.VERSION }} | cut -d "." -f 3,4 | sed 's/\.//')
+              echo '##vso[task.setvariable variable=pkg-ver]'$MAJOR.$MINOR.$(Build.BuildId)
+              mv build-v8/v8-${{ parameters.VERSION }}-$(MODE)-${{ parameters.TARGET }}.tar.xz $(Build.ArtifactStagingDirectory)
+            displayName: "Prepare Artifact Staging Directory"
 
-        - task: UniversalPackages@0
-          displayName: "Publish V8 Artifact"
-          inputs:
-            command: publish
-            publishDirectory: "$(Build.ArtifactStagingDirectory)"
-            vstsFeedPublish: "CCF/V8"
-            vstsFeedPackagePublish: "v8-monolith-$(MODE)-${{ parameters.TARGET }}"
-            versionOption: custom
-            versionPublish: "$(pkg-ver)"
-            packagePublishDescription: "CCF build of monolith V8"
+          - task: UniversalPackages@0
+            displayName: "Publish V8 Artifact"
+            inputs:
+              command: publish
+              publishDirectory: "$(Build.ArtifactStagingDirectory)"
+              vstsFeedPublish: "CCF/V8"
+              vstsFeedPackagePublish: "v8-monolith-$(MODE)-${{ parameters.TARGET }}"
+              versionOption: custom
+              versionPublish: "$(pkg-ver)"
+              packagePublishDescription: "CCF build of monolith V8"
