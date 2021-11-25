@@ -1072,9 +1072,9 @@ namespace loggingapp
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      static constexpr auto get_historical_multi_path =
-        "/log/private/historical/multi";
-      auto get_historical_multi = [&,
+      static constexpr auto get_historical_sparse_path =
+        "/log/private/historical/sparse";
+      auto get_historical_sparse = [&,
                                    this](ccf::endpoints::EndpointContext& ctx) {
         // Parse arguments from query
         const auto parsed_query =
@@ -1239,9 +1239,9 @@ namespace loggingapp
         historical_cache.drop_cached_states(handle);
       };
       make_endpoint(
-        get_historical_multi_path,
+        get_historical_sparse_path,
         HTTP_GET,
-        get_historical_multi,
+        get_historical_sparse,
         auth_policies)
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
         .add_query_parameter<std::string>("seqnos")

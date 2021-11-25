@@ -795,8 +795,8 @@ def test_historical_query_range(network, args):
 
 
 @reqs.description("Read state at multiple distinct historical points")
-@reqs.supports_methods("log/private", "log/private/historical/multi")
-def test_historical_query_multi(network, args):
+@reqs.supports_methods("log/private", "log/private/historical/sparse")
+def test_historical_query_sparse(network, args):
     idx = 142
 
     seqnos = []
@@ -828,7 +828,7 @@ def test_historical_query_multi(network, args):
 
         ccf.commit.wait_for_commit(c, seqno=seqnos[-1], view=view, timeout=3)
 
-        def get_multi(client, target_id, seqnos, timeout=3):
+        def get_sparse(client, target_id, seqnos, timeout=3):
             seqnos_s = ",".join(str(n) for n in seqnos)
             LOG.info(f"Getting historical entries: {seqnos_s}")
             logs = []
@@ -836,7 +836,9 @@ def test_historical_query_multi(network, args):
             start_time = time.time()
             end_time = start_time + timeout
             entries = {}
-            path = f"/app/log/private/historical/multi?id={target_id}&seqnos={seqnos_s}"
+            path = (
+                f"/app/log/private/historical/sparse?id={target_id}&seqnos={seqnos_s}"
+            )
             while time.time() < end_time:
                 r = client.get(path, log_capture=logs)
                 if r.status_code == http.HTTPStatus.OK:
@@ -854,25 +856,27 @@ def test_historical_query_multi(network, args):
                     time.sleep(0.1)
                     continue
                 else:
-                    LOG.error("Printing historical/multi logs on unexpected status")
+                    LOG.error("Printing historical/sparse logs on unexpected status")
                     flush_info(logs, None)
                     raise ValueError(
-                        f"Unexpected status code from historical multi query: {r.status_code}"
+                        f"Unexpected status code from historical sparse query: {r.status_code}"
                     )
 
-            LOG.error("Printing historical/multi logs on timeout")
+            LOG.error("Printing historical/sparse logs on timeout")
             flush_info(logs, None)
-            raise TimeoutError(f"Historical multi not available after {timeout}s")
+            raise TimeoutError(
+                f"Historical sparse query not available after {timeout}s"
+            )
 
-        entries_all, _ = get_multi(c, idx, seqnos)
+        entries_all, _ = get_sparse(c, idx, seqnos)
 
         seqnos_a = [s for s in seqnos if random.random() < 0.7]
-        entries_a, _ = get_multi(c, idx, seqnos_a)
+        entries_a, _ = get_sparse(c, idx, seqnos_a)
         seqnos_b = [s for s in seqnos if random.random() < 0.5]
-        entries_b, _ = get_multi(c, idx, seqnos_b)
+        entries_b, _ = get_sparse(c, idx, seqnos_b)
         small_range = len(seqnos) // 20
         seqnos_c = seqnos[:small_range] + seqnos[-small_range:]
-        entries_c, _ = get_multi(c, idx, seqnos_c)
+        entries_c, _ = get_sparse(c, idx, seqnos_c)
 
         def check_presence(expected, entries, seqno):
             if seqno in expected:
@@ -1432,7 +1436,7 @@ def run(args):
             network = test_random_receipts(network, args, False)
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
-            network = test_historical_query_multi(network, args)
+            network = test_historical_query_sparse(network, args)
         network = test_historical_receipts(network, args)
 
 
