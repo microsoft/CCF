@@ -4,6 +4,7 @@
 
 #include "v8.h"
 #include "nlohmann/json.hpp"
+#include "ds/buffer.h"
 
 #include <string>
 
@@ -26,6 +27,7 @@ namespace ccf::v8_util
   v8::Local<v8::String> to_v8_istr(v8::Isolate* isolate, const std::string& x);
 
   v8::Local<v8::ArrayBuffer> to_v8_array_buffer_copy(v8::Isolate* isolate, const uint8_t* data, size_t size);
+  Buffer get_array_buffer_data(v8::Local<v8::ArrayBuffer> value);
   
   void throw_error(v8::Isolate* isolate, const std::string& msg);
   void throw_type_error(v8::Isolate* isolate, const std::string& msg);

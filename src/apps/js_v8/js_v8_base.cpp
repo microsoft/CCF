@@ -37,7 +37,7 @@ namespace ccfapp
   class V8Handlers : public UserEndpointRegistry
   {
     NetworkTables& network;
-    ccfapp::AbstractNodeContext& context;
+    ccfapp::AbstractNodeContext& node_context;
     ::metrics::Tracker metrics_tracker;
 
     void execute_request(
@@ -96,7 +96,8 @@ namespace ccfapp
 
       v8_tmpl::TxContext txctx{&endpoint_ctx.tx, v8_tmpl::TxAccess::APP};
       v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(
-        context, txctx, historical_state.get(), this);
+        context, txctx, historical_state, this,
+        &node_context.get_historical_state());
       ctx.install_global("ccf", ccf_global);
 
       // Call exported function
@@ -279,7 +280,7 @@ namespace ccfapp
     V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
       network(network),
-      context(context)
+      node_context(context)
     {
       metrics_tracker.install_endpoint(*this);
     }

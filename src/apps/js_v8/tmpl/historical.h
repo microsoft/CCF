@@ -4,18 +4,16 @@
 
 #include "v8.h"
 #include "ccf/historical_queries_interface.h"
-#include <string>
-#include <map>
 
 namespace ccf::v8_tmpl
 {
-  class HistoricalState
+  class Historical
   {
   public:
-    static constexpr const char* NAME = "CCFHistoricalState";
+    static constexpr const char* NAME = "CCFHistorical";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, ccf::historical::StatePtr historical_state);
+    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, ccf::historical::AbstractStateCache* state_cache);
   };
 
 } // namespace ccf::v8_tmpl

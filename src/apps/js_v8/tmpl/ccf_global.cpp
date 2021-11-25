@@ -6,6 +6,7 @@
 #include "kv_store.h"
 #include "historical_state.h"
 #include "consensus.h"
+#include "historical.h"
 
 namespace ccf::v8_tmpl
 {
@@ -14,14 +15,19 @@ namespace ccf::v8_tmpl
     return static_cast<TxContext*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static ccf::historical::State* unwrap_historical_state(v8::Local<v8::Object> obj)
+  static ccf::historical::StatePtr* unwrap_historical_state(v8::Local<v8::Object> obj)
   {
-    return static_cast<ccf::historical::State*>(obj->GetAlignedPointerFromInternalField(1));
+    return static_cast<ccf::historical::StatePtr*>(obj->GetAlignedPointerFromInternalField(1));
   }
 
   static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::BaseEndpointRegistry*>(obj->GetAlignedPointerFromInternalField(2));
+  }
+
+  static ccf::historical::AbstractStateCache* unwrap_state_cache(v8::Local<v8::Object> obj)
+  {
+    return static_cast<ccf::historical::AbstractStateCache*>(obj->GetAlignedPointerFromInternalField(3));
   }
 
   static v8::Local<v8::ArrayBuffer> js_str_to_buf_direct(v8::Isolate* isolate, v8::Local<v8::String> str)
@@ -143,6 +149,48 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(parsed);
   }
 
+static void js_digest(const v8::FunctionCallbackInfo<v8::Value>& info)
+  {
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    if (info.Length() != 2)
+    {
+      v8_util::throw_type_error(isolate,
+        fmt::format("Passed {} arguments, but expected 2", info.Length())
+      );
+      return;
+    }
+    v8::Local<v8::Value> arg1 = info[0];
+    if (!arg1->IsString())
+    {
+      v8_util::throw_type_error(isolate, "Argument 1 must be a string");
+      return;
+    }
+    v8::Local<v8::String> digest_algo_name_v8 = arg1.As<v8::String>();
+    std::string digest_algo_name = v8_util::to_str(isolate, digest_algo_name_v8);
+
+    v8::Local<v8::Value> arg2 = info[1];
+    if (!arg2->IsArrayBuffer())
+    {
+      v8_util::throw_type_error(isolate, "Argument 2 must be an ArrayBuffer");
+      return;
+    }
+    v8::Local<v8::ArrayBuffer> buffer = arg2.As<v8::ArrayBuffer>();
+
+    if (digest_algo_name != "SHA-256")
+    {
+      v8_util::throw_range_error(isolate,
+        "unsupported digest algorithm, supported: SHA-256");
+      return;
+    }
+
+    auto data = v8_util::get_array_buffer_data(buffer);
+    auto h = crypto::SHA256(data.p, data.n);
+    v8::Local<v8::Value> value = v8_util::to_v8_array_buffer_copy(isolate, h.data(), h.size());
+
+    info.GetReturnValue().Set(value);
+  }
+
   static void get_kv_store(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
     TxContext* tx_ctx = unwrap_tx_ctx(info.Holder());
@@ -154,10 +202,10 @@ namespace ccf::v8_tmpl
 
   static void get_historical_state(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
-    ccf::historical::State* historical_state = unwrap_historical_state(info.Holder());
+    ccf::historical::StatePtr* historical_state = unwrap_historical_state(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
     
-    v8::Local<v8::Value> value = HistoricalState::wrap(context, historical_state);
+    v8::Local<v8::Value> value = HistoricalState::wrap(context, *historical_state);
     info.GetReturnValue().Set(value);
   }
 
@@ -170,6 +218,15 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(value);
   }
 
+  static void get_historical(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    ccf::historical::AbstractStateCache* state_cache = unwrap_state_cache(info.Holder());
+    v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
+    
+    v8::Local<v8::Value> value = Historical::wrap(context, state_cache);
+    info.GetReturnValue().Set(value);
+  }
+
   v8::Local<v8::ObjectTemplate> CCFGlobal::create_template(v8::Isolate* isolate)
   {
     v8::EscapableHandleScope handle_scope(isolate);
@@ -177,9 +234,10 @@ namespace ccf::v8_tmpl
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
     
     // Field 0: TxContext
-    // Field 1: historical::State
+    // Field 1: historical::StatePtr
     // Field 2: BaseEndpointRegistry
-    tmpl->SetInternalFieldCount(3);
+    // Field 3: historical::AbstractStateCache
+    tmpl->SetInternalFieldCount(4);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "strToBuf"),
@@ -193,6 +251,9 @@ namespace ccf::v8_tmpl
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "bufToJsonCompatible"),
       v8::FunctionTemplate::New(isolate, js_buf_to_json_compatible));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "digest"),
+      v8::FunctionTemplate::New(isolate, js_digest));
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "kv"),
       get_kv_store);
@@ -202,15 +263,17 @@ namespace ccf::v8_tmpl
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "consensus"),
       get_consensus);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "historical"),
+      get_historical);
 
-    // TODO .historical
     // TODO .rpc
     // TODO .host
 
     return handle_scope.Escape(tmpl);
   }
 
-  v8::Local<v8::Object> CCFGlobal::wrap(v8::Local<v8::Context> context, TxContext& tx_ctx, ccf::historical::State* historical_state, ccf::BaseEndpointRegistry* endpoint_registry)
+  v8::Local<v8::Object> CCFGlobal::wrap(v8::Local<v8::Context> context, TxContext& tx_ctx, ccf::historical::StatePtr& historical_state, ccf::BaseEndpointRegistry* endpoint_registry, ccf::historical::AbstractStateCache* state_cache)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -219,8 +282,9 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
     result->SetAlignedPointerInInternalField(0, &tx_ctx);
-    result->SetAlignedPointerInInternalField(1, historical_state);
+    result->SetAlignedPointerInInternalField(1, &historical_state);
     result->SetAlignedPointerInInternalField(2, endpoint_registry);
+    result->SetAlignedPointerInInternalField(3, state_cache);
 
     return handle_scope.Escape(result);
   }

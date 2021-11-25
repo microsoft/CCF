@@ -51,10 +51,9 @@ namespace ccf::v8_tmpl
     }
     v8::Local<v8::ArrayBuffer> buffer = arg.As<v8::ArrayBuffer>();
 
-    uint8_t* key = static_cast<uint8_t*>(buffer->GetBackingStore()->Data());
-    size_t key_size = buffer->GetBackingStore()->ByteLength();
+    auto key = v8_util::get_array_buffer_data(buffer);
 
-    auto has = handle->has({key, key + key_size});
+    auto has = handle->has({key.p, key.p + key.n});
     v8::Local<v8::Boolean> value = v8::Boolean::New(isolate, has);
     info.GetReturnValue().Set(value);
   }
@@ -79,10 +78,9 @@ namespace ccf::v8_tmpl
     }
     v8::Local<v8::ArrayBuffer> buffer = arg.As<v8::ArrayBuffer>();
 
-    uint8_t* key = static_cast<uint8_t*>(buffer->GetBackingStore()->Data());
-    size_t key_size = buffer->GetBackingStore()->ByteLength();
+    auto key = v8_util::get_array_buffer_data(buffer);
 
-    auto val = handle->get({key, key + key_size});
+    auto val = handle->get({key.p, key.p + key.n});
     v8::Local<v8::Value> value;
     if (!val.has_value())
       value = v8::Undefined(isolate);
@@ -160,10 +158,9 @@ namespace ccf::v8_tmpl
     }
     v8::Local<v8::ArrayBuffer> buffer = arg.As<v8::ArrayBuffer>();
 
-    uint8_t* key = static_cast<uint8_t*>(buffer->GetBackingStore()->Data());
-    size_t key_size = buffer->GetBackingStore()->ByteLength();
+    auto key = v8_util::get_array_buffer_data(buffer);
 
-    auto val = handle->get_version_of_previous_write({key, key + key_size});
+    auto val = handle->get_version_of_previous_write({key.p, key.p + key.n});
 
     v8::Local<v8::Value> value;
     if (!val.has_value())
@@ -211,12 +208,10 @@ namespace ccf::v8_tmpl
     v8::Local<v8::ArrayBuffer> key_buffer = arg1.As<v8::ArrayBuffer>();
     v8::Local<v8::ArrayBuffer> val_buffer = arg2.As<v8::ArrayBuffer>();
 
-    uint8_t* key = static_cast<uint8_t*>(key_buffer->GetBackingStore()->Data());
-    size_t key_size = key_buffer->GetBackingStore()->ByteLength();
-    uint8_t* val = static_cast<uint8_t*>(val_buffer->GetBackingStore()->Data());
-    size_t val_size = val_buffer->GetBackingStore()->ByteLength();
+    auto key = v8_util::get_array_buffer_data(key_buffer);
+    auto val = v8_util::get_array_buffer_data(val_buffer);
 
-    handle->put({key, key + key_size}, {val, val + val_size});
+    handle->put({key.p, key.p + key.n}, {val.p, val.p + val.n});
 
     info.GetReturnValue().Set(info.This());
   }
@@ -241,10 +236,9 @@ namespace ccf::v8_tmpl
     }
     v8::Local<v8::ArrayBuffer> buffer = arg.As<v8::ArrayBuffer>();
 
-    uint8_t* key = static_cast<uint8_t*>(buffer->GetBackingStore()->Data());
-    size_t key_size = buffer->GetBackingStore()->ByteLength();
+    auto key = v8_util::get_array_buffer_data(buffer);
 
-    bool val = handle->remove({key, key + key_size});
+    bool val = handle->remove({key.p, key.p + key.n});
     v8::Local<v8::Boolean> value = v8::Boolean::New(isolate, val);
     info.GetReturnValue().Set(value);
   }

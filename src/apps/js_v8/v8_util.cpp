@@ -53,6 +53,14 @@ namespace ccf::v8_util
     return v8::ArrayBuffer::New(isolate, std::move(store));
   }
 
+  Buffer get_array_buffer_data(v8::Local<v8::ArrayBuffer> buffer)
+  {
+    Buffer result(
+      static_cast<uint8_t*>(buffer->GetBackingStore()->Data()),
+      buffer->GetBackingStore()->ByteLength());
+    return result;
+  }
+
   void throw_error(v8::Isolate* isolate, const std::string& msg)
   {
     isolate->ThrowError(

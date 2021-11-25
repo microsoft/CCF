@@ -51,7 +51,8 @@ namespace ccf::v8_tmpl
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
     
     size_t size = receipt->proof.size();
-    std::vector<v8::Local<v8::Value>> elements(size);
+    std::vector<v8::Local<v8::Value>> elements;
+    elements.reserve(size);
     uint32_t i = 0;
     for (auto& element : receipt->proof)
     {
@@ -62,7 +63,7 @@ namespace ccf::v8_tmpl
         v8_util::to_v8_istr(isolate, is_left ? "left": "right"),
         v8_util::to_v8_str(isolate, (is_left ? element.left : element.right).value())
       );
-      elements[i++] = obj;
+      elements.push_back(obj);
     }
 
     v8::Local<v8::Array> array = v8::Array::New(

@@ -10,7 +10,7 @@ namespace ccf::v8_tmpl
 {
   struct HistoricalStateContext
   {
-    ccf::historical::State* state;
+    ccf::historical::StatePtr state;
     kv::CommittableTx tx;
     TxContext tx_ctx;
   };
@@ -71,7 +71,7 @@ namespace ccf::v8_tmpl
     return handle_scope.Escape(tmpl);
   }
 
-  v8::Local<v8::Object> HistoricalState::wrap(v8::Local<v8::Context> context, ccf::historical::State* historical_state)
+  v8::Local<v8::Object> HistoricalState::wrap(v8::Local<v8::Context> context, ccf::historical::StatePtr historical_state)
   {
     auto state_ctx = new HistoricalStateContext{
       historical_state, historical_state->store->create_tx(), TxContext{nullptr, TxAccess::APP}};

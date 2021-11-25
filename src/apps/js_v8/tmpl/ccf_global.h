@@ -15,7 +15,12 @@ namespace ccf::v8_tmpl
     static constexpr const char* NAME = "CCF";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, TxContext& tx_ctx, ccf::historical::State* historical_state, ccf::BaseEndpointRegistry* endpoint_registry);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context,
+      TxContext& tx_ctx,
+      ccf::historical::StatePtr& historical_state,
+      ccf::BaseEndpointRegistry* endpoint_registry,
+      ccf::historical::AbstractStateCache* state_cache);
   };
 
 } // namespace ccf::v8_tmpl
