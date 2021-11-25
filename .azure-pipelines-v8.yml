@@ -2,10 +2,6 @@ trigger:
   batch: false
 
 parameters:
-- name: PUSH_ARTIFACT
-  displayName: Publish to package feed
-  type: boolean
-  default: true
 - name: VERSION
   displayName: V8 version
   type: string
@@ -17,6 +13,10 @@ parameters:
   values:
   - virtual
   - sgx
+- name: PUSH_ARTIFACT
+  displayName: Publish to package feed
+  type: boolean
+  default: true
 
 jobs:
   - job: build_v8
