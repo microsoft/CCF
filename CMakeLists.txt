@@ -465,7 +465,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME recovery_test_CFT
+    NAME recovery_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS CFT
   )
@@ -601,7 +601,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME e2e_logging_CFT
+    NAME e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS CFT
     CONTAINER_NODES TRUE
@@ -623,7 +623,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME partitions_CFT
+    NAME partitions_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS CFT
     LABEL partitions
@@ -633,7 +633,7 @@ if(BUILD_TESTS)
 
   if(NOT SAN)
     add_e2e_test(
-      NAME connections_CFT
+      NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
       CONSENSUS CFT
     )
@@ -641,7 +641,7 @@ if(BUILD_TESTS)
 
   if(TLS_TEST)
     add_e2e_test(
-      NAME tlstest_CFT
+      NAME tlstest_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
       CONSENSUS CFT
       LABEL tlstest
@@ -649,7 +649,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME schema_test_CFT
+    NAME schema_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS CFT
     ADDITIONAL_ARGS
@@ -687,7 +687,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME rotation_test_CFT
+    NAME rotation_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
     CONSENSUS CFT
     LABEL rotation
@@ -699,7 +699,7 @@ if(BUILD_TESTS)
     list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
   endif()
   add_e2e_test(
-    NAME reconfiguration_test_CFT
+    NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
     CONSENSUS CFT
     ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
