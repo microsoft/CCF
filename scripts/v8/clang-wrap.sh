@@ -20,22 +20,6 @@ while (( "$#" )); do
       -Wno-unused-but-set-parameter) ;;
       -Wno-unused-but-set-variable) ;;
       -Wmax-tokens) ;;
-      # Flags we don't want
-      # -fno-ident) ;;
-      # -fno-strict-alias) ;;
-      # -march=x86-64) ;;
-      # -msse3) ;;
-      # -mllvm) ;;
-      # -instcombine-lower-dbg-declare=0) ;;
-      # -x86-speculative-load-hardening) ;;
-      # -fno-delete-null-pointer-checks) ;;
-      # --param=ssp-buffer-size=4) ;;
-      # -fstack-protector) ;;
-      # -funwind-tables) ;;
-      # -fmerge-all-constants) ;;
-      # -ffp-contract=off) ;;
-      # -fno-exceptions) ;;
-      # -fno-rtti) ;;
       *) out+=("$arg") ;;
     esac
 done

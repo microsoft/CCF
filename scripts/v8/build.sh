@@ -8,7 +8,7 @@ SKIP_CLEAN=${SKIP_CLEAN:-0}
 VERBOSE=${VERBOSE:-0}
 ASAN=${ASAN:-0}
 
-SYNTAX="build-v8.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [publish (true|false)]"
+SYNTAX="build.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [publish (true|false)]"
 if [ "$1" == "" ]; then
   echo "ERROR: Missing expected argument 'version'"
   echo "$SYNTAX"
@@ -39,7 +39,7 @@ if [ "$4" != "" ]; then
 fi
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PATCH_PATH="$THIS_DIR/v8-patches/v8-$VERSION.patch"
+PATCH_PATH="$THIS_DIR/v8-$VERSION.patch"
 if [ ! -f "$PATCH_PATH" ]; then
   echo "ERROR: Missing patch file '$PATCH_PATH'"
   exit 1
@@ -101,11 +101,9 @@ OUT_DIR="out.gn/x64.$MODE.$TARGET"
 CCF_CLANG_VERSION=10
 
 # target toolchain
-#LLVM_ROOT=$PWD/third_party/llvm-build/Release+Asserts
-#export CC="$LLVM_ROOT/bin/clang"
-#export CXX="$LLVM_ROOT/bin/clang++"
-export CC="$THIS_DIR/v8-compiler/clang-wrap.sh clang-10"
-export CXX="$THIS_DIR/v8-compiler/clang-wrap.sh clang++-10"
+clang_wrapper="$THIS_DIR/clang-wrap.sh"
+export CC="$clang_wrapper clang-10"
+export CXX="$clang_wrapper clang++-10"
 export AR=ar
 export NM=nm
 echo "CC=$CC"
@@ -116,7 +114,6 @@ if [ "$TARGET" == "sgx" ]; then
   # -nostdinc causes the compiler include dir to be excluded,
   # but V8 needs it for intrinsics and those headers are not part
   # of Open Enclave. Therefore, add it back manually.
-  #compiler_include_dir=("$LLVM_ROOT"/lib/clang/*/include)
   compiler_include_dir=/usr/lib/llvm-$CCF_CLANG_VERSION/lib/clang/$CCF_CLANG_VERSION.0.0/include
   if [ "${#compiler_include_dir[@]}" -ne 1 ]; then
     echo "ERROR: Found multiple compiler include dirs"
@@ -142,9 +139,9 @@ if [ "$TARGET" == "sgx" ]; then
   export CFLAGS="$oe_ignore_warn $other_ignore_warn -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
   export CXXFLAGS="-isystem $oe_include_dir/openenclave/3rdparty/libcxx $CFLAGS"
 elif [  "$TARGET" == "virtual" ]; then
-  # Use the same libc++ version that CCF uses.
+  # Use libc++ to match CCF.
   export CFLAGS=""
-  export CXXFLAGS="-nostdinc++ -isystem /usr/lib/llvm-$CCF_CLANG_VERSION/include/c++/v1/"
+  export CXXFLAGS="-stdlib=libc++"
 else
   echo "ERROR: Invalid target '$TARGET'"
   exit 1
@@ -277,7 +274,7 @@ if [ "$TARGET" == "virtual" ]; then
   else
     echo " + Test install..."
     # shellcheck disable=SC2086
-    $CXX -stdlib=libc++ $CXXFLAGS "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/process.cc -o process -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14
+    $CXX $CXXFLAGS "-I$INSTALL_DIR" "-I$INSTALL_DIR/include" samples/process.cc -o process -ldl -lv8_monolith "-L$INSTALL_DIR/lib" -pthread -std=c++14
     OUTPUT="$(./process samples/count-hosts.js | grep "yahoo.com: 3")"
     if [ "$OUTPUT" == "" ]; then
       echo "ERROR: Process test failed"

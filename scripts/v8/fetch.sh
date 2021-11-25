@@ -3,9 +3,9 @@
 # Licensed under the Apache 2.0 License.
 
 # Fetches the Universal Artifact from Azire that was built and published with
-# build-v8.sh. Doesn't fetch if the tarball already exists.
+# build.sh. Doesn't fetch if the tarball already exists.
 
-SYNTAX="fetch-v8.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [-f(orce)]"
+SYNTAX="fetch.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [-f(orce)]"
 if [ "$1" == "" ]; then
   echo "ERROR: Missing expected argument 'version'"
   echo "$SYNTAX"

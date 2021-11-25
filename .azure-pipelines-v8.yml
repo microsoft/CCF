@@ -19,11 +19,11 @@ jobs:
       # This step can be removed once new Docker images are available
       - script: |
           sudo apt update
-          sudo apt install -y pkg-config lld-10 libglib2.0-dev
+          sudo apt install -y pkg-config
         displayName: "Install dependencies"
         continueOnError: false
 
-      - script: scripts/build-v8.sh $(VERSION) $(MODE) $(TARGET) $(PUSH_ARTIFACT)
+      - script: scripts/v8/build.sh $(VERSION) $(MODE) $(TARGET) $(PUSH_ARTIFACT)
         displayName: "Build V8"
         continueOnError: false
 
