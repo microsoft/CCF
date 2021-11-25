@@ -297,16 +297,16 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        # init_partitioner=True,
+        init_partitioner=True,
     ) as network:
         network.start_and_join(args)
 
-        # test_invalid_partitions(network, args)
+        test_invalid_partitions(network, args)
         test_partition_majority(network, args)
-        # test_isolate_primary_from_one_backup(network, args)
-        # test_new_joiner_helps_liveness(network, args)
-        # for n in range(5):
-        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        test_isolate_primary_from_one_backup(network, args)
+        test_new_joiner_helps_liveness(network, args)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":
@@ -323,5 +323,5 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/liblogging"
 
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    # run(args)
+    run(args)
     run_2tx_reconfig_tests(args)
