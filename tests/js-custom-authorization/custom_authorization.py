@@ -377,23 +377,25 @@ if __name__ == "__main__":
     cr.add(
         "authz",
         run,
-        package="libjs_generic",
+        #package="libjs_generic",
+        package="libjs_v8",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
     )
 
-    cr.add(
-        "limits",
-        run_limits,
-        package="libjs_generic",
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
-    )
+    # cr.add(
+    #     "limits",
+    #     run_limits,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
+    # )
 
     cr.add(
         "authn",
         run_authn,
-        package="libjs_generic",
+        #package="libjs_generic",
+        package="libjs_v8",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
         initial_user_count=4,
@@ -403,7 +405,8 @@ if __name__ == "__main__":
     cr.add(
         "content_types",
         run_content_types,
-        package="libjs_generic",
+        #package="libjs_generic",
+        package="libjs_v8",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
     )
