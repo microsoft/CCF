@@ -35,12 +35,13 @@ class ScenarioPerfClient : public Base
 private:
   nlohmann::json scenario_json;
 
-  std::optional<RpcTlsClient::Response> send_verbose_transactions(
-    const std::shared_ptr<RpcTlsClient>& connection, char const* element_name)
+  std::optional<client::RpcTlsClient::Response> send_verbose_transactions(
+    const std::shared_ptr<client::RpcTlsClient>& connection,
+    char const* element_name)
   {
     const auto it = scenario_json.find(element_name);
 
-    RpcTlsClient::Response response;
+    client::RpcTlsClient::Response response;
     bool sent = false;
 
     if (it != scenario_json.end())
@@ -80,7 +81,8 @@ private:
     scenario_json = files::slurp_json(options.scenario_file);
   }
 
-  std::optional<RpcTlsClient::Response> send_creation_transactions() override
+  std::optional<client::RpcTlsClient::Response> send_creation_transactions()
+    override
   {
     return send_verbose_transactions(get_connection(), "setup");
   }

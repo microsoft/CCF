@@ -32,7 +32,8 @@ private:
   const char* OPERATION_C_STR[5]{
     "stock_level", "order_status", "delivery", "payment", "new_order"};
 
-  std::optional<RpcTlsClient::Response> send_creation_transactions() override
+  std::optional<client::RpcTlsClient::Response> send_creation_transactions()
+    override
   {
     auto connection = get_connection();
     tpcc::DbCreation db;
@@ -105,7 +106,7 @@ private:
     }
   }
 
-  bool check_response(const RpcTlsClient::Response& r) override
+  bool check_response(const client::RpcTlsClient::Response& r) override
   {
     if (!http::status_success(r.status))
     {

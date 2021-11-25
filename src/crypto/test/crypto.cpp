@@ -392,7 +392,7 @@ void create_csr_and_extract_pubk()
 {
   T kp(CurveID::SECP384R1);
   auto pk = kp.public_key_pem();
-  auto csr = kp.create_csr({"CN=name"});
+  auto csr = kp.create_csr("CN=name", {});
   auto pubk = public_key_pem_from_csr(csr);
   REQUIRE(pk == pubk);
 }
@@ -420,7 +420,7 @@ void run_csr(bool corrupt_csr = false)
     subject_alternative_names.push_back({"192.168.0.1", true});
   }
 
-  auto csr = kpm.create_csr({subject_name, subject_alternative_names});
+  auto csr = kpm.create_csr(subject_name, subject_alternative_names);
 
   if (corrupt_csr)
   {

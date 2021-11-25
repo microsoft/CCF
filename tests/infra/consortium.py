@@ -127,15 +127,13 @@ class Consortium:
             self.common_dir, f"{proposal_name}_vote_for.json"
         )
 
-        dump_args = {"indent": 2}
-
         LOG.debug(f"Writing proposal to {proposal_output_path}")
         with open(proposal_output_path, "w", encoding="utf-8") as f:
-            json.dump(proposal, f, **dump_args)
+            f.write(proposal)
 
         LOG.debug(f"Writing vote to {vote_output_path}")
         with open(vote_output_path, "w", encoding="utf-8") as f:
-            json.dump(vote, f, **dump_args)
+            f.write(vote)
 
         return f"@{proposal_output_path}", f"@{vote_output_path}"
 
@@ -484,7 +482,7 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "transition_service_to_open",
-            args=None if self.consensus == "cft" else {"nonce": str(uuid.uuid4())},
+            args=None if self.consensus == "CFT" else {"nonce": str(uuid.uuid4())},
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(

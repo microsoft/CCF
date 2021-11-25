@@ -145,4 +145,4 @@ Once users are added to the opening network, members should create a proposal to
 
 Other members are then able to vote for the proposal using the returned proposal id.
 
-Once the proposal has received enough votes under the rules of the :term:`Constitution` (ie. ballots which evaluate to ``true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once the proposal has received enough votes under the rules of the :term:`Constitution` (ie. ballots which evaluate to ``true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``enclave.file`` configuration entry).

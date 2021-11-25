@@ -11,7 +11,6 @@
 namespace ccf
 {
   static constexpr auto default_node_cert_validity_period_days = 365;
-  static constexpr auto default_node_cert_initial_validity_period_days = 1;
 
   struct ServiceConfiguration
   {
@@ -20,30 +19,30 @@ namespace ccf
 
     ConsensusType consensus = ConsensusType::CFT;
 
-    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
-
     /**
      *  Fields below are added in 2.x
      */
 
-    std::optional<size_t> node_cert_allowed_validity_period_days = std::nullopt;
+    std::optional<size_t> maximum_node_certificate_validity_days = std::nullopt;
+
+    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
     bool operator==(const ServiceConfiguration& other) const
     {
       return recovery_threshold == other.recovery_threshold &&
         consensus == other.consensus &&
         reconfiguration_type == other.reconfiguration_type &&
-        node_cert_allowed_validity_period_days ==
-        other.node_cert_allowed_validity_period_days;
+        maximum_node_certificate_validity_days ==
+        other.maximum_node_certificate_validity_days;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    ServiceConfiguration, recovery_threshold, consensus)
+  DECLARE_JSON_REQUIRED_FIELDS(ServiceConfiguration, recovery_threshold)
   DECLARE_JSON_OPTIONAL_FIELDS(
     ServiceConfiguration,
+    consensus,
     reconfiguration_type,
-    node_cert_allowed_validity_period_days)
+    maximum_node_certificate_validity_days)
 
   // The there is always only one active configuration, so this is a single
   // Value
