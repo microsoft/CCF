@@ -952,6 +952,16 @@ namespace loggingapp
           return;
         }
 
+        // TODO: Do we need to paginate the index too? Probably! And it probably needs handles as well!
+        // TODO: Implement these
+        // const auto interesting_seqnos = indexer.get_write_txs(table_name, key);
+        // if (!interesting_seqnos.has_value())
+        // {
+        //   set_error();
+        //   return;
+        // }
+        
+
         // Set a maximum range, paginate larger requests
         static constexpr size_t max_seqno_per_page = 2000;
         const auto range_begin = from_seqno;
