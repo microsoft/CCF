@@ -186,7 +186,7 @@ class JwtIssuer:
                 logs = []
                 r = c.get("/gov/jwt_keys/all", log_capture=logs)
                 assert r.status_code == 200, r
-                stored_cert = r.body.json()[kid]
+                stored_cert = r.body.json()[kid]["cert"]
                 if self.cert_pem == stored_cert:
                     flush_info(logs)
                     return
