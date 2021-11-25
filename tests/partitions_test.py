@@ -245,6 +245,10 @@ def test_learner_does_not_take_part(network, args):
 
         check_does_not_progress(primary, timeout=5)
 
+        LOG.info("Majority partition can make progress")
+        parition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
+        check_can_progress(parition_primary)
+
         LOG.info("New joiner is not promoted to Trusted without f other backups")
         with new_node.client(self_signed_ok=True) as c:
             r = c.get("/node/network/nodes/self")
@@ -252,7 +256,7 @@ def test_learner_does_not_take_part(network, args):
             r = c.get("/node/consensus")
             assert new_node.node_id in r.body.json()["details"]["learners"]
 
-    LOG.info("Partition is lifted, wait for primary unaminity on original nodes")
+    LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
     # Note: Because trusting the new node failed, the new node is not considered
     # in the primary unanimity. Indeed, its transition to Trusted may have been rolled back.
     primary = network.wait_for_primary_unanimity()
