@@ -29,9 +29,10 @@ if [ "$TARGET" != "virtual" ] && [ "$TARGET" != "sgx" ]; then
 fi
 PUBLISH=false
 if [ "$4" != "" ]; then
-  if [ "$4" == "true" ] || [ "$4" == "1" ]; then
+  # uppercase to support Azure Pipelines booleans
+  if [ "$4" == "true" ] || [ "$4" == "True" ]; then
     PUBLISH="$4"
-  elif [ "$4" != "false" ] || [ "$4" == "0" ]; then
+  elif [ "$4" != "false" ] || [ "$4" == "False" ]; then
     echo "ERROR: Publish can only be 'true' or 'false', got: $4"
     echo "$SYNTAX"
     exit 1
