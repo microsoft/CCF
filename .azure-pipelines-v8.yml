@@ -3,15 +3,15 @@ trigger:
 
 parameters:
 - name: PUSH_ARTIFACT
-  displayName: Whether to publish the built artifact
+  displayName: Publish to package feed
   type: boolean
   default: true
 - name: VERSION
-  displayName: V8 version to build
+  displayName: V8 version
   type: string
   default: "9.4.146.17"
 - name: TARGET
-  displayName: Build target
+  displayName: Target
   type: string
   default: "virtual"
   values:
