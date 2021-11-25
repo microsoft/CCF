@@ -1,10 +1,10 @@
 trigger:
   batch: false
 
-variables:
-  VERSION: "9.4.146.17"
-  TARGET: "virtual"
-  PUSH_ARTIFACT: "false"
+# queue-time variables:
+# PUSH_ARTIFACT: "false"|"true"
+# VERSION: "9.4.146.17"
+# TARGET: "virtual"|"sgx"
 
 jobs:
   - job: build_v8
