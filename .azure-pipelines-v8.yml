@@ -7,14 +7,6 @@ variables:
   PUSH_ARTIFACT: 'false'
 
 jobs:
-  - job: diag
-    pool: 1es-dv4-focal
-    steps:
-      - script: df -h
-        displayName: Available disk space
-      - script: pwd
-        displayName: Directory
-
   - job: build_v8
     container: ccfciteam/ccf-ci:oe0.17.2-psw-2.15
     pool: 1es-dv4-focal
@@ -29,9 +21,6 @@ jobs:
     steps:
       - checkout: self
         clean: true
-
-      - script: df -h
-        displayName: Available disk space
 
       # This step can be removed once new Docker images are available
       - script: |
