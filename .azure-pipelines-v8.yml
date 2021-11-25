@@ -9,8 +9,7 @@ variables:
 jobs:
   - job: build_v8
     container: ccfciteam/ccf-ci:oe0.17.2-psw-2.15
-    pool:
-      vmImage: ubuntu-20.04
+    pool: 1es-dv4-focal
 
     strategy:
       matrix:
