@@ -76,9 +76,7 @@ namespace ccfapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::historical::StatePtr historical_state)
     {
-      // For now, create a new isolate for each request.
-      // TODO reuse isolate per-thread
-      V8Isolate isolate;
+      thread_local V8Isolate isolate;
       
       // Each request is executed in a new context
       V8Context ctx(isolate);
