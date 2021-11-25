@@ -1461,6 +1461,22 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
         .install();
+
+      auto service_config_handler =
+        [this](auto& args, const nlohmann::json& params) {
+          return make_success(args.tx.ro(network.config)->get());
+        };
+
+      make_endpoint(
+        "/service-configuration",
+        HTTP_GET,
+        json_adapter(service_config_handler),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, ServiceConfiguration>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
     }
   };
 
