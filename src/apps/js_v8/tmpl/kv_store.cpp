@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "template.h"
 #include "kv_store.h"
+
+#include "template.h"
 
 namespace ccf::v8_tmpl
 {
@@ -10,7 +11,8 @@ namespace ccf::v8_tmpl
     return static_cast<TxContext*>(obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static void js_kv_lookup(v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info) 
+  static void js_kv_lookup(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
     if (name->IsSymbol())
       return;
@@ -34,11 +36,11 @@ namespace ccf::v8_tmpl
         }
         else
         {
-          v8_util::throw_error(isolate,
+          v8_util::throw_error(
+            isolate,
             fmt::format(
               "JS application cannot access private internal CCF table '{}'",
-              property_name)
-          );
+              property_name));
           return;
         }
         break;
@@ -55,10 +57,10 @@ namespace ccf::v8_tmpl
       }
       default:
       {
-        v8_util::throw_error(isolate,
+        v8_util::throw_error(
+          isolate,
           fmt::format(
-            "Unhandled AccessCategory for table '{}'", property_name)
-        );
+            "Unhandled AccessCategory for table '{}'", property_name));
         return;
       }
     }
@@ -78,7 +80,7 @@ namespace ccf::v8_tmpl
     v8::EscapableHandleScope handle_scope(isolate);
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
-    
+
     // Field 0: TxContext
     tmpl->SetInternalFieldCount(1);
 
@@ -87,12 +89,14 @@ namespace ccf::v8_tmpl
     return handle_scope.Escape(tmpl);
   }
 
-  v8::Local<v8::Object> KVStore::wrap(v8::Local<v8::Context> context, TxContext& tx_ctx)
+  v8::Local<v8::Object> KVStore::wrap(
+    v8::Local<v8::Context> context, TxContext& tx_ctx)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
 
-    v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<KVStore>(isolate);
+    v8::Local<v8::ObjectTemplate> tmpl =
+      get_cached_object_template<KVStore>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
     result->SetAlignedPointerInInternalField(0, (void*)&tx_ctx);

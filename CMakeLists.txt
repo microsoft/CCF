@@ -786,7 +786,7 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
-  if (ENABLE_V8)
+  if(ENABLE_V8)
     add_perf_test(
       NAME ls_v8
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
@@ -825,7 +825,7 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
-  if (ENABLE_V8)
+  if(ENABLE_V8)
     add_perf_test(
       NAME ls_full_v8
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py

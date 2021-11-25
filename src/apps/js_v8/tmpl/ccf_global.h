@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "v8.h"
-#include "kv_store.h"
-#include "ccf/historical_queries_interface.h"
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/historical_queries_interface.h"
+#include "kv_store.h"
+#include "v8.h"
 
 namespace ccf::v8_tmpl
 {

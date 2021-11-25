@@ -3,8 +3,9 @@
 #pragma once
 
 #include "v8.h"
-#include <string>
+
 #include <map>
+#include <string>
 
 namespace ccf::v8_tmpl
 {
@@ -12,11 +13,12 @@ namespace ccf::v8_tmpl
   {
   public:
     using MapType = std::map<std::string, std::string, std::less<>>;
-    
+
     static constexpr const char* NAME = "CCFStringMap";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const MapType& map);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context, const MapType& map);
   };
 
 } // namespace ccf::v8_tmpl

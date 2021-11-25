@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "template.h"
 #include "console_global.h"
+
 #include "ds/logger.h"
+#include "template.h"
+
 #include <sstream>
 
 namespace ccf::v8_tmpl
@@ -33,12 +35,13 @@ namespace ccf::v8_tmpl
     LOG_INFO << ss.str() << std::endl;
   }
 
-  v8::Local<v8::ObjectTemplate> ConsoleGlobal::create_template(v8::Isolate* isolate)
+  v8::Local<v8::ObjectTemplate> ConsoleGlobal::create_template(
+    v8::Isolate* isolate)
   {
     v8::EscapableHandleScope handle_scope(isolate);
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
-    
+
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "log"),
       v8::FunctionTemplate::New(isolate, log));
@@ -51,7 +54,8 @@ namespace ccf::v8_tmpl
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
 
-    v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<ConsoleGlobal>(isolate);
+    v8::Local<v8::ObjectTemplate> tmpl =
+      get_cached_object_template<ConsoleGlobal>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
 

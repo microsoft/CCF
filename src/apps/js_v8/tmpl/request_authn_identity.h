@@ -2,17 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "v8.h"
-#include "ccf/endpoint_context.h"
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/endpoint_context.h"
 #include "ccf/tx.h"
 #include "http/authentication/authentication_types.h"
-#include "http/authentication/jwt_auth.h"
 #include "http/authentication/cert_auth.h"
+#include "http/authentication/jwt_auth.h"
 #include "http/authentication/sig_auth.h"
+#include "v8.h"
 
-using ccf::endpoints::EndpointContext;
 using ccf::BaseEndpointRegistry;
+using ccf::endpoints::EndpointContext;
 using kv::ReadOnlyTx;
 
 namespace ccf::v8_tmpl
@@ -21,7 +21,10 @@ namespace ccf::v8_tmpl
   class RequestAuthnIdentity
   {
   public:
-    static v8::Local<v8::Value> wrap(v8::Local<v8::Context> context, EndpointContext& endpoint_ctx, BaseEndpointRegistry& endpoint_registry);
+    static v8::Local<v8::Value> wrap(
+      v8::Local<v8::Context> context,
+      EndpointContext& endpoint_ctx,
+      BaseEndpointRegistry& endpoint_registry);
   };
 
   class RequestEmptyAuthnIdentity
@@ -30,7 +33,8 @@ namespace ccf::v8_tmpl
     static constexpr const char* NAME = "CCFRequestEmptyAuthnIdentity";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity& identity);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity& identity);
   };
 
   class RequestJwtAuthnIdentity
@@ -39,7 +43,8 @@ namespace ccf::v8_tmpl
     static constexpr const char* NAME = "CCFRequestJwtAuthnIdentity";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity);
   };
 
   class RequestUserCertAuthnIdentity
@@ -48,7 +53,11 @@ namespace ccf::v8_tmpl
     static constexpr const char* NAME = "CCFRequestUserCertAuthnIdentity";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const ccf::UserCertAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context,
+      const ccf::UserCertAuthnIdentity& identity,
+      BaseEndpointRegistry& endpoint_registry,
+      ReadOnlyTx& tx);
   };
 
   class RequestMemberCertAuthnIdentity
@@ -57,25 +66,38 @@ namespace ccf::v8_tmpl
     static constexpr const char* NAME = "CCFRequestMemberCertAuthnIdentity";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const ccf::MemberCertAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context,
+      const ccf::MemberCertAuthnIdentity& identity,
+      BaseEndpointRegistry& endpoint_registry,
+      ReadOnlyTx& tx);
   };
-  
+
   class RequestUserSignatureAuthnIdentity
   {
   public:
     static constexpr const char* NAME = "CCFRequestUserSignatureAuthnIdentity";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const ccf::UserSignatureAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context,
+      const ccf::UserSignatureAuthnIdentity& identity,
+      BaseEndpointRegistry& endpoint_registry,
+      ReadOnlyTx& tx);
   };
-  
+
   class RequestMemberSignatureAuthnIdentity
   {
   public:
-    static constexpr const char* NAME = "CCFRequestMemberSignatureAuthnIdentity";
+    static constexpr const char* NAME =
+      "CCFRequestMemberSignatureAuthnIdentity";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, const ccf::MemberSignatureAuthnIdentity& identity, BaseEndpointRegistry& endpoint_registry, ReadOnlyTx& tx);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context,
+      const ccf::MemberSignatureAuthnIdentity& identity,
+      BaseEndpointRegistry& endpoint_registry,
+      ReadOnlyTx& tx);
   };
 
 } // namespace ccf::v8_tmpl

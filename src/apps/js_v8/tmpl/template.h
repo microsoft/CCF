@@ -8,12 +8,13 @@
 #include "../v8_runner.h"
 #include "../v8_util.h"
 
-namespace 
+namespace
 {
-  template<class T>
+  template <class T>
   static v8::Local<v8::Template> get_cached_template(v8::Isolate* isolate)
   {
-    ccf::V8Isolate::TemplateCache& cache = ccf::V8Isolate::Data::Get(isolate)->get_template_cache();
+    ccf::V8Isolate::TemplateCache& cache =
+      ccf::V8Isolate::Data::Get(isolate)->get_template_cache();
     if (!cache.has(T::NAME))
     {
       v8::Local<v8::Template> raw_template = T::create_template(isolate);

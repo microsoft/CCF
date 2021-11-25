@@ -3,24 +3,27 @@
 This is an experiment to replace `quickjs` with V8.
 
 The main gains from V8 are:
-* It's a production JS engine used in Chrome, Electron, Node.js and other large-scale projects.
-* It can JIT-compile to machine code, substantially increasing performance of common workloads.
-* It supports WebAsm in additional to ECMAScript, opening CCF to accept more than just JS-like user code.
-* It's security-focused to work in a hostile environment (browsers).
+
+- It's a production JS engine used in Chrome, Electron, Node.js and other large-scale projects.
+- It can JIT-compile to machine code, substantially increasing performance of common workloads.
+- It supports WebAsm in additional to ECMAScript, opening CCF to accept more than just JS-like user code.
+- It's security-focused to work in a hostile environment (browsers).
 
 The main problems are:
-* SGX doesn't allow execution on writable pages, which means JIT is out of the question.
-* V8 development is fast paced and focused on browser-like workloads, which may provide friction to upgrading versions (in order to keep up with security features).
-* Engine bring-up and configuration is way more complex than `quickjs`.
-* There may be calls from within V8 that violate enclave requirements.
+
+- SGX doesn't allow execution on writable pages, which means JIT is out of the question.
+- V8 development is fast paced and focused on browser-like workloads, which may provide friction to upgrading versions (in order to keep up with security features).
+- Engine bring-up and configuration is way more complex than `quickjs`.
+- There may be calls from within V8 that violate enclave requirements.
 
 The answers to those problems are:
-* SGX is an old extension that is getting replaced with better alternatives from AMD, Arm and probably Intel, soon.
-* V8 has a `jitless` mode, that does not compile anything. We're hoping its interpreter is faster than `quickjs`, including the initial bring-up.
-* Using the Virtual environment for current testing, and then AMD hardware for a hardware-backed enclave JIT execution is the plan.
-* V8 versions tend to stick around much longer than other fast-paced projects (like LLVM), and the oldest stable release (9.4.146.*) is still receiving updates.
-* This complexity is actually a great benefit. We can slice the bring-up into CCF bootstrap, endpoint bootstrap and execution, to only parse the script at the last part, hopefully also caching previously-parsed scripts (with same global context) to speed things up even further.
-* We may be able to reduce the scope of the V8 execution to avoid enclave violations, or at least restrict in which kind of environment they execute on (ex. only AMD).
+
+- SGX is an old extension that is getting replaced with better alternatives from AMD, Arm and probably Intel, soon.
+- V8 has a `jitless` mode, that does not compile anything. We're hoping its interpreter is faster than `quickjs`, including the initial bring-up.
+- Using the Virtual environment for current testing, and then AMD hardware for a hardware-backed enclave JIT execution is the plan.
+- V8 versions tend to stick around much longer than other fast-paced projects (like LLVM), and the oldest stable release (9.4.146.\*) is still receiving updates.
+- This complexity is actually a great benefit. We can slice the bring-up into CCF bootstrap, endpoint bootstrap and execution, to only parse the script at the last part, hopefully also caching previously-parsed scripts (with same global context) to speed things up even further.
+- We may be able to reduce the scope of the V8 execution to avoid enclave violations, or at least restrict in which kind of environment they execute on (ex. only AMD).
 
 ## Code layout
 
@@ -46,9 +49,9 @@ Right now, the code does not compile. We still need to finish the V8 logic insid
 
 But how to build is already encoded in the CMake file, as a copy from the `js_generic` part, with some V8 additions, mainly:
 
-* Adding a `script/build-v8.sh` script that clones and builds V8, providing an `install` directory to use in CCF, and uploading it to an artifact storage.
-* Another `script/fetch-v8.sh` script that downloads the artifact storage, so that people can avoid building V8 entirely and fetch the right version for CCF.
-* Adding include and library paths to CMake so that those are visible from the compiler command line.
+- Adding a `script/build-v8.sh` script that clones and builds V8, providing an `install` directory to use in CCF, and uploading it to an artifact storage.
+- Another `script/fetch-v8.sh` script that downloads the artifact storage, so that people can avoid building V8 entirely and fetch the right version for CCF.
+- Adding include and library paths to CMake so that those are visible from the compiler command line.
 
 For testing, initially I propose we have a `main.cpp` that calls the endpoint library as CCF would, and links `libjsv8.so` for a manual testing.
 
@@ -64,10 +67,11 @@ There are two main success stories:
 ## Future Work
 
 After introducing V8 to CCF, there are a number of things that can be done to improve performance:
-* Cache script+context, to recall instead of recompiling.
-* Cache the machine code directly, too.
-* Allow programmers to choose between JIT and JITless depending on the turn-over of new scripts.
-* Detect repetition and trigger re-compilation with new global context.
+
+- Cache script+context, to recall instead of recompiling.
+- Cache the machine code directly, too.
+- Allow programmers to choose between JIT and JITless depending on the turn-over of new scripts.
+- Detect repetition and trigger re-compilation with new global context.
 
 One issue with caches is that they could grow indefinitely, if not careful. But since each application has a finite set of scripts in the KV storage, and those are replaced by new versions, we can potentially know when a new script is replacing an old and replace the cached version (instead of adding a new one).
 

@@ -1,27 +1,32 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "consensus.h"
+
 #include "ds/logger.h"
 #include "template.h"
-#include "consensus.h"
 
 namespace ccf::v8_tmpl
 {
-  static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(v8::Local<v8::Object> obj)
+  static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(
+    v8::Local<v8::Object> obj)
   {
-    return static_cast<ccf::BaseEndpointRegistry*>(obj->GetAlignedPointerFromInternalField(0));
+    return static_cast<ccf::BaseEndpointRegistry*>(
+      obj->GetAlignedPointerFromInternalField(0));
   }
 
-  static void get_last_committed_txid(const v8::FunctionCallbackInfo<v8::Value>& info)
+  static void get_last_committed_txid(
+    const v8::FunctionCallbackInfo<v8::Value>& info)
   {
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
-    ccf::BaseEndpointRegistry* endpoint_registry = unwrap_endpoint_registry(info.Holder());
+    ccf::BaseEndpointRegistry* endpoint_registry =
+      unwrap_endpoint_registry(info.Holder());
 
     if (info.Length() != 0)
     {
-      v8_util::throw_type_error(isolate,
-        fmt::format("Passed {} arguments, but expected 0", info.Length())
-      );
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 0", info.Length()));
       return;
     }
 
@@ -30,34 +35,40 @@ namespace ccf::v8_tmpl
     auto result = endpoint_registry->get_last_committed_txid_v1(view, seqno);
     if (result != ccf::ApiResult::OK)
     {
-      v8_util::throw_error(isolate,
-        fmt::format("Failed to get last committed txid: {}",
+      v8_util::throw_error(
+        isolate,
+        fmt::format(
+          "Failed to get last committed txid: {}",
           ccf::api_result_to_str(result)));
       return;
     }
 
     auto obj = v8::Object::New(isolate);
-    obj->Set(context,
+    obj->Set(
+      context,
       v8_util::to_v8_istr(isolate, "view"),
       v8::Number::New(isolate, view));
-    obj->Set(context,
+    obj->Set(
+      context,
       v8_util::to_v8_istr(isolate, "seqno"),
       v8::Number::New(isolate, seqno));
 
     info.GetReturnValue().Set(obj);
   }
 
-  static void get_status_for_txid(const v8::FunctionCallbackInfo<v8::Value>& info)
+  static void get_status_for_txid(
+    const v8::FunctionCallbackInfo<v8::Value>& info)
   {
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
-    ccf::BaseEndpointRegistry* endpoint_registry = unwrap_endpoint_registry(info.Holder());
+    ccf::BaseEndpointRegistry* endpoint_registry =
+      unwrap_endpoint_registry(info.Holder());
 
     if (info.Length() != 2)
     {
-      v8_util::throw_type_error(isolate,
-        fmt::format("Passed {} arguments, but expected 2", info.Length())
-      );
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 2", info.Length()));
       return;
     }
     v8::Local<v8::Value> arg1 = info[0];
@@ -69,7 +80,7 @@ namespace ccf::v8_tmpl
     }
     v8::Local<v8::Number> view_v8 = arg1.As<v8::Number>();
     v8::Local<v8::Number> seqno_v8 = arg2.As<v8::Number>();
-    
+
     int64_t view = -1;
     int64_t seqno = -1;
     if (!seqno_v8->IntegerValue(context).To(&seqno))
@@ -78,7 +89,8 @@ namespace ccf::v8_tmpl
       return;
     if (view < 0 || seqno < 0)
     {
-      v8_util::throw_range_error(isolate, "Invalid view or seqno: cannot be negative");
+      v8_util::throw_range_error(
+        isolate, "Invalid view or seqno: cannot be negative");
       return;
     }
 
@@ -87,9 +99,10 @@ namespace ccf::v8_tmpl
       endpoint_registry->get_status_for_txid_v1(view, seqno, status);
     if (result != ccf::ApiResult::OK)
     {
-      v8_util::throw_error(isolate,
-        fmt::format("Failed to get status for txid: {}",
-          ccf::api_result_to_str(result)));
+      v8_util::throw_error(
+        isolate,
+        fmt::format(
+          "Failed to get status for txid: {}", ccf::api_result_to_str(result)));
       return;
     }
     auto status_str = ccf::tx_status_to_str(status);
@@ -97,17 +110,19 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(value);
   }
 
-  static void get_view_for_seqno(const v8::FunctionCallbackInfo<v8::Value>& info)
+  static void get_view_for_seqno(
+    const v8::FunctionCallbackInfo<v8::Value>& info)
   {
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
-    ccf::BaseEndpointRegistry* endpoint_registry = unwrap_endpoint_registry(info.Holder());
+    ccf::BaseEndpointRegistry* endpoint_registry =
+      unwrap_endpoint_registry(info.Holder());
 
     if (info.Length() != 1)
     {
-      v8_util::throw_type_error(isolate,
-        fmt::format("Passed {} arguments, but expected 1", info.Length())
-      );
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 1", info.Length()));
       return;
     }
     v8::Local<v8::Value> arg = info[0];
@@ -117,7 +132,7 @@ namespace ccf::v8_tmpl
       return;
     }
     v8::Local<v8::Number> number = arg.As<v8::Number>();
-    
+
     int64_t seqno = -1;
     if (!number->IntegerValue(context).To(&seqno))
       return;
@@ -131,16 +146,17 @@ namespace ccf::v8_tmpl
     auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
     if (result != ccf::ApiResult::OK)
     {
-      v8_util::throw_error(isolate,
-        fmt::format("Failed to get view for seqno: {}",
-          ccf::api_result_to_str(result)));
+      v8_util::throw_error(
+        isolate,
+        fmt::format(
+          "Failed to get view for seqno: {}", ccf::api_result_to_str(result)));
       return;
     }
 
     v8::Local<v8::Value> value;
     if (result == ccf::ApiResult::NotFound)
       value = v8::Null(isolate);
-    else 
+    else
       value = v8::Number::New(isolate, view);
     info.GetReturnValue().Set(value);
   }
@@ -150,7 +166,7 @@ namespace ccf::v8_tmpl
     v8::EscapableHandleScope handle_scope(isolate);
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
-    
+
     // Field 0: ccf::BaseEndpointRegistry
     tmpl->SetInternalFieldCount(1);
 
@@ -167,12 +183,15 @@ namespace ccf::v8_tmpl
     return handle_scope.Escape(tmpl);
   }
 
-  v8::Local<v8::Object> Consensus::wrap(v8::Local<v8::Context> context, ccf::BaseEndpointRegistry* endpoint_registry)
+  v8::Local<v8::Object> Consensus::wrap(
+    v8::Local<v8::Context> context,
+    ccf::BaseEndpointRegistry* endpoint_registry)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
 
-    v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<Consensus>(isolate);
+    v8::Local<v8::ObjectTemplate> tmpl =
+      get_cached_object_template<Consensus>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
     result->SetAlignedPointerInInternalField(0, endpoint_registry);

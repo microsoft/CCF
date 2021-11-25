@@ -19,7 +19,7 @@
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
-      "sourceFileMap":{
+      "sourceFileMap": {
         "./../../src": "${workspaceFolder}/build-v8/tmp/v8/src"
       },
       "environment": [],
@@ -54,14 +54,12 @@
       "program": "/bin/bash",
       "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
       "cwd": "${workspaceFolder}",
-      "sourceMap":{
+      "sourceMap": {
         "../../src": "${workspaceFolder}/build-v8/tmp/v8/src"
       },
       "terminal": "console",
       "stopOnEntry": false,
-      "initCommands": [
-        "settings set target.process.stop-on-exec false"
-      ],
+      "initCommands": ["settings set target.process.stop-on-exec false"],
       "postRunCommands": [
         "process handle --pass true --stop false --notify true SIGILL"
       ]
@@ -76,13 +74,11 @@
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
-      "sourceFileMap":{
+      "sourceFileMap": {
         "./../../src": "${workspaceFolder}/build-v8/tmp/v8/src",
         "/source/openenclave": "${workspaceFolder}/../openenclave"
       },
-      "environment": [
-        {"name": "OE_LOG_LEVEL", "value": "WARNING"}
-      ],
+      "environment": [{ "name": "OE_LOG_LEVEL", "value": "WARNING" }],
       "logging": {
         "engineLogging": true
       },
@@ -123,15 +119,13 @@
       "env": {
         "OE_LOG_LEVEL": "WARNING"
       },
-      "sourceMap":{
+      "sourceMap": {
         "../../src": "${workspaceFolder}/build-v8/tmp/v8/src",
         "/source/openenclave": "${workspaceFolder}/../openenclave"
       },
       "terminal": "console",
       "stopOnEntry": false,
-      "initCommands": [
-        "settings set target.process.stop-on-exec false"
-      ],
+      "initCommands": ["settings set target.process.stop-on-exec false"],
       "preRunCommands": [
         "command script import /opt/openenclave/lib/openenclave/debugger/lldb-sgx-plugin/lldb_sgx_plugin.py"
       ],

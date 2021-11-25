@@ -6,11 +6,11 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
-#include <vector>
 #include <unordered_map>
-#include <optional>
+#include <vector>
 
 namespace ccf
 {
@@ -31,7 +31,7 @@ namespace ccf
    * An instance cannot be used from multiple threads.
    */
   class V8Isolate
-  {   
+  {
   public:
     class TemplateCache
     {
@@ -50,10 +50,10 @@ namespace ccf
        * Return the template with the given name from the cache.
        */
       v8::Local<v8::Template> get(const std::string& name);
-      
+
       /**
        * Add a template to the cache.
-       * 
+       *
        * Once set, a template cannot be changed. This prevents
        * overriding core templates by plugins.
        */
@@ -71,9 +71,13 @@ namespace ccf
       explicit Data(v8::Isolate* isolate);
       ~Data();
 
-      TemplateCache& get_template_cache() { return template_cache_; }
+      TemplateCache& get_template_cache()
+      {
+        return template_cache_;
+      }
 
       static Data* Get(v8::Isolate* isolate);
+
     private:
       v8::Isolate* isolate_;
       TemplateCache template_cache_;
@@ -87,13 +91,19 @@ namespace ccf
     V8Isolate(V8Isolate&&) = delete;
     V8Isolate& operator=(V8Isolate&&) = delete;
 
-    v8::Isolate* get_isolate() { return isolate_; }
-    operator v8::Isolate*() { return isolate_; }
+    v8::Isolate* get_isolate()
+    {
+      return isolate_;
+    }
+    operator v8::Isolate *()
+    {
+      return isolate_;
+    }
 
   private:
     static void on_fatal_error(const char* location, const char* message);
-    static size_t on_near_heap_limit(void* data, size_t current_heap_limit,
-                                         size_t initial_heap_limit);
+    static size_t on_near_heap_limit(
+      void* data, size_t current_heap_limit, size_t initial_heap_limit);
 
     v8::Isolate* isolate_;
     std::unique_ptr<Data> data_;
@@ -107,8 +117,7 @@ namespace ccf
   public:
     using ModuleLoadCallback =
       std::function<std::optional<std::string>(const std::string&, void*)>;
-    using FinalizerCallback = 
-      std::function<void(void*)>;
+    using FinalizerCallback = std::function<void(void*)>;
 
     V8Context(V8Isolate& isolate);
     ~V8Context();
@@ -131,7 +140,7 @@ namespace ccf
 
     void register_finalizer(FinalizerCallback callback, void* data);
 
-    /** 
+    /**
      * Must be called before run().
      */
     void set_module_load_callback(ModuleLoadCallback callback, void* data);
@@ -143,7 +152,7 @@ namespace ccf
       const std::string& module_name,
       const std::string& exported_function_name,
       const std::vector<v8::Local<v8::Value>>& args = {});
-  
+
   private:
     v8::Isolate* isolate_;
     v8::Global<v8::Context> context_;
@@ -157,8 +166,7 @@ namespace ccf
       const std::string& module_name);
 
     static bool exec_module(
-      v8::Local<v8::Context> context,
-      v8::Local<v8::Module> module);
+      v8::Local<v8::Context> context, v8::Local<v8::Module> module);
 
     static v8::MaybeLocal<v8::Module> ResolveModuleCallback(
       v8::Local<v8::Context> context,
@@ -167,9 +175,11 @@ namespace ccf
       v8::Local<v8::Module> referrer);
 
     static v8::MaybeLocal<v8::Promise> HostImportModuleDynamically(
-      v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> script_or_module,
-      v8::Local<v8::String> specifier, v8::Local<v8::FixedArray> import_assertions);
-        
+      v8::Local<v8::Context> context,
+      v8::Local<v8::ScriptOrModule> script_or_module,
+      v8::Local<v8::String> specifier,
+      v8::Local<v8::FixedArray> import_assertions);
+
     static v8::MaybeLocal<v8::Module> FetchModuleTree(
       v8::Local<v8::Module> referrer,
       v8::Local<v8::Context> context,

@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "v8.h"
 #include "ccf/tx.h"
 #include "kv_map.h"
-#include <string>
+#include "v8.h"
+
 #include <map>
+#include <string>
 
 namespace ccf::v8_tmpl
 {
@@ -29,7 +30,8 @@ namespace ccf::v8_tmpl
     static constexpr const char* NAME = "CCFKVStore";
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
-    static v8::Local<v8::Object> wrap(v8::Local<v8::Context> context, TxContext& tx_ctx);
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context, TxContext& tx_ctx);
   };
 
 } // namespace ccf::v8_tmpl

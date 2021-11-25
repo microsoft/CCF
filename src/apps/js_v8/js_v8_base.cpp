@@ -9,13 +9,13 @@
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
 #include "kv/untyped_map.h"
-#include "v8_runner.h"
-#include "v8_util.h"
 #include "kv_module_loader.h"
-#include "tmpl/request.h"
+#include "named_auth_policies.h"
 #include "tmpl/ccf_global.h"
 #include "tmpl/console_global.h"
-#include "named_auth_policies.h"
+#include "tmpl/request.h"
+#include "v8_runner.h"
+#include "v8_util.h"
 
 #include <memory>
 #include <stdexcept>
@@ -65,8 +65,7 @@ namespace ccfapp
       else
       {
         // Read/Write mode just execute directly
-        do_execute_request(
-          props, endpoint_ctx, nullptr);
+        do_execute_request(props, endpoint_ctx, nullptr);
       }
     }
 
@@ -77,36 +76,44 @@ namespace ccfapp
       ccf::historical::StatePtr historical_state)
     {
       thread_local V8Isolate isolate;
-      
+
       // Each request is executed in a new context
       V8Context ctx(isolate);
 
       // set a callback that loads modules from the KV
-      ctx.set_module_load_callback(ccf::v8_kv_module_load_callback, &endpoint_ctx.tx);
+      ctx.set_module_load_callback(
+        ccf::v8_kv_module_load_callback, &endpoint_ctx.tx);
 
       v8::HandleScope handle_scope(isolate);
       v8::Local<v8::Context> context = ctx.get_context();
       v8::TryCatch try_catch(isolate);
 
       // Populate globals
-      v8::Local<v8::Value> console_global = v8_tmpl::ConsoleGlobal::wrap(context);
+      v8::Local<v8::Value> console_global =
+        v8_tmpl::ConsoleGlobal::wrap(context);
       ctx.install_global("console", console_global);
 
       v8_tmpl::TxContext txctx{&endpoint_ctx.tx, v8_tmpl::TxAccess::APP};
       v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(
-        context, txctx, historical_state, this,
+        context,
+        txctx,
+        historical_state,
+        this,
         &node_context.get_historical_state());
       ctx.install_global("ccf", ccf_global);
 
       // Call exported function
-      v8::Local<v8::Value> request = ccf::v8_tmpl::Request::wrap(context, endpoint_ctx, *this);
-      std::vector<v8::Local<v8::Value>> args {request};
-      v8::Local<v8::Value> val = ctx.run(props.js_module, props.js_function, args);
-      
+      v8::Local<v8::Value> request =
+        ccf::v8_tmpl::Request::wrap(context, endpoint_ctx, *this);
+      std::vector<v8::Local<v8::Value>> args{request};
+      v8::Local<v8::Value> val =
+        ctx.run(props.js_module, props.js_function, args);
+
       if (val.IsEmpty())
       {
         v8_util::report_exception(isolate, &try_catch);
-        auto exception_str = v8_util::get_exception_message(isolate, &try_catch);
+        auto exception_str =
+          v8_util::get_exception_message(isolate, &try_catch);
 
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -114,7 +121,7 @@ namespace ccfapp
           std::move(exception_str));
         return;
       }
-      
+
       // Handle return value: {body, headers, statusCode}
       if (!val->IsObject())
       {
@@ -128,7 +135,8 @@ namespace ccfapp
       // Response body (also sets a default response content-type header)
       v8::Local<v8::Object> obj = val.As<v8::Object>();
       v8::Local<v8::Value> response_body_js;
-      if (!obj->Get(context, v8_util::to_v8_str(isolate, "body")).ToLocal(&response_body_js))
+      if (!obj->Get(context, v8_util::to_v8_str(isolate, "body"))
+             .ToLocal(&response_body_js))
       {
         v8_util::report_exception(isolate, &try_catch);
         endpoint_ctx.rpc_ctx->set_error(
@@ -163,8 +171,7 @@ namespace ccfapp
           endpoint_ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE,
             http::headervalues::contenttype::OCTET_STREAM);
-          response_body =
-            std::vector<uint8_t>(buf, buf + buf_size);
+          response_body = std::vector<uint8_t>(buf, buf + buf_size);
         }
         else
         {
@@ -180,8 +187,8 @@ namespace ccfapp
           else
           {
             endpoint_ctx.rpc_ctx->set_response_header(
-                http::headers::CONTENT_TYPE,
-                http::headervalues::contenttype::JSON);
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::JSON);
             v8::Local<v8::String> json;
             if (!v8::JSON::Stringify(context, response_body_js).ToLocal(&json))
             {
@@ -199,10 +206,11 @@ namespace ccfapp
         }
         endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
       }
-     
+
       // Response headers
       v8::Local<v8::Value> response_headers_js;
-      if (!obj->Get(context, v8_util::to_v8_str(isolate, "headers")).ToLocal(&response_headers_js))
+      if (!obj->Get(context, v8_util::to_v8_str(isolate, "headers"))
+             .ToLocal(&response_headers_js))
       {
         v8_util::report_exception(isolate, &try_catch);
         endpoint_ctx.rpc_ctx->set_error(
@@ -218,21 +226,27 @@ namespace ccfapp
           endpoint_ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Invalid endpoint function return value (headers is not an object).");
+            "Invalid endpoint function return value (headers is not an "
+            "object).");
           return;
         }
-        v8::Local<v8::Object> headers_obj = response_headers_js.As<v8::Object>();
-        v8::Local<v8::Array> headers_arr = headers_obj->GetOwnPropertyNames(context).ToLocalChecked();
+        v8::Local<v8::Object> headers_obj =
+          response_headers_js.As<v8::Object>();
+        v8::Local<v8::Array> headers_arr =
+          headers_obj->GetOwnPropertyNames(context).ToLocalChecked();
         for (uint32_t i = 0; i < headers_arr->Length(); i++)
         {
-          v8::Local<v8::Value> key = headers_arr->Get(context, i).ToLocalChecked();
-          v8::Local<v8::Value> val = headers_obj->Get(context, key).ToLocalChecked();
+          v8::Local<v8::Value> key =
+            headers_arr->Get(context, i).ToLocalChecked();
+          v8::Local<v8::Value> val =
+            headers_obj->Get(context, key).ToLocalChecked();
           if (!key->IsString() || !val->IsString())
           {
             endpoint_ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              "Invalid endpoint function return value (header key/value type).");
+              "Invalid endpoint function return value (header key/value "
+              "type).");
             return;
           }
           std::string key_str = v8_util::to_str(isolate, key.As<v8::String>());
@@ -244,7 +258,8 @@ namespace ccfapp
       // Response status code
       int response_status_code = HTTP_STATUS_OK;
       v8::Local<v8::Value> status_code_js;
-      if (!obj->Get(context, v8_util::to_v8_str(isolate, "statusCode")).ToLocal(&status_code_js))
+      if (!obj->Get(context, v8_util::to_v8_str(isolate, "statusCode"))
+             .ToLocal(&status_code_js))
       {
         v8_util::report_exception(isolate, &try_catch);
         endpoint_ctx.rpc_ctx->set_error(
@@ -256,7 +271,9 @@ namespace ccfapp
       if (!status_code_js->IsNullOrUndefined())
       {
         v8::Local<v8::Uint32> status_code;
-        if (!status_code_js->IsNumber() || !status_code_js->ToUint32(context).ToLocal(&status_code))
+        if (
+          !status_code_js->IsNumber() ||
+          !status_code_js->ToUint32(context).ToLocal(&status_code))
         {
           if (try_catch.HasCaught())
             v8_util::report_exception(isolate, &try_catch);

@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 
 #include "v8_runner.h"
-#include "v8_util.h"
+
 #include "ds/logger.h"
-
 #include "libplatform/libplatform.h"
+#include "v8_util.h"
 
-#include <stdexcept>
-#include <sstream>
 #include <map>
+#include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 
 // Reading material:
@@ -23,16 +23,20 @@ namespace ccf
 {
   static std::unique_ptr<v8::Platform> platform = nullptr;
 
-  #define CHECK(expr) if (!(expr)) LOG_FATAL_FMT("CHECK failed")
+#define CHECK(expr) \
+  if (!(expr)) \
+  LOG_FATAL_FMT("CHECK failed")
 
   // Adapted from v8/src/d8/d8.cc.
-  static bool IsAbsolutePath(const std::string& path) {
+  static bool IsAbsolutePath(const std::string& path)
+  {
     return path[0] == '/';
   }
 
   // Adapted from v8/d8/d8.cc.
   // Returns the directory part of path, without the trailing '/'.
-  static std::string DirName(const std::string& path) {
+  static std::string DirName(const std::string& path)
+  {
     CHECK(IsAbsolutePath(path));
     size_t last_slash = path.find_last_of('/');
     CHECK(last_slash != std::string::npos);
@@ -43,39 +47,55 @@ namespace ccf
   // Resolves path to an absolute path if necessary, and does some
   // normalization (eliding references to the current directory
   // and replacing backslashes with slashes).
-  static std::string NormalizePath(const std::string& path,
-                            const std::string& dir_name) {
+  static std::string NormalizePath(
+    const std::string& path, const std::string& dir_name)
+  {
     std::string absolute_path;
-    if (IsAbsolutePath(path)) {
+    if (IsAbsolutePath(path))
+    {
       absolute_path = path;
-    } else {
+    }
+    else
+    {
       absolute_path = dir_name + '/' + path;
     }
     std::replace(absolute_path.begin(), absolute_path.end(), '\\', '/');
     std::vector<std::string> segments;
     std::istringstream segment_stream(absolute_path);
     std::string segment;
-    while (std::getline(segment_stream, segment, '/')) {
-      if (segment == "..") {
-        if (!segments.empty()) segments.pop_back();
-      } else if (segment != ".") {
+    while (std::getline(segment_stream, segment, '/'))
+    {
+      if (segment == "..")
+      {
+        if (!segments.empty())
+          segments.pop_back();
+      }
+      else if (segment != ".")
+      {
         segments.push_back(segment);
       }
     }
     // Join path segments.
     std::ostringstream os;
-    if (segments.size() > 1) {
-      std::copy(segments.begin(), segments.end() - 1,
-                std::ostream_iterator<std::string>(os, "/"));
+    if (segments.size() > 1)
+    {
+      std::copy(
+        segments.begin(),
+        segments.end() - 1,
+        std::ostream_iterator<std::string>(os, "/"));
       os << *segments.rbegin();
-    } else {
+    }
+    else
+    {
       os << "/";
-      if (!segments.empty()) os << segments[0];
+      if (!segments.empty())
+        os << segments[0];
     }
     return os.str();
   }
 
-  enum {
+  enum
+  {
     kContextEmbedderDataField,
     kModuleEmbedderDataField
   };
@@ -83,12 +103,15 @@ namespace ccf
   // Adapted from v8/src/d8/d8.cc::ModuleEmbedderData.
   // Per-context Module data, allowing sharing of module maps
   // across top-level module loads.
-  class ModuleEmbedderData {
+  class ModuleEmbedderData
+  {
   private:
-    class ModuleGlobalHash {
+    class ModuleGlobalHash
+    {
     public:
       explicit ModuleGlobalHash(v8::Isolate* isolate) : isolate_(isolate) {}
-      size_t operator()(const v8::Global<v8::Module>& module) const {
+      size_t operator()(const v8::Global<v8::Module>& module) const
+      {
         return module.Get(isolate_)->GetIdentityHash();
       }
 
@@ -97,26 +120,28 @@ namespace ccf
     };
 
   public:
-
-    class Scope {
+    class Scope
+    {
     public:
-      explicit Scope(v8::Local<v8::Context> context,
+      explicit Scope(
+        v8::Local<v8::Context> context,
         V8Context::ModuleLoadCallback module_load_cb,
-        void* module_load_cb_data)
-        : context_(context)
+        void* module_load_cb_data) :
+        context_(context)
       {
         context->SetAlignedPointerInEmbedderData(
-            kModuleEmbedderDataField, new ModuleEmbedderData(
-              context->GetIsolate(),
-              module_load_cb,
-              module_load_cb_data));
+          kModuleEmbedderDataField,
+          new ModuleEmbedderData(
+            context->GetIsolate(), module_load_cb, module_load_cb_data));
       }
 
       ~Scope()
       {
         delete ModuleEmbedderData::GetFromContext(context_);
-        context_->SetAlignedPointerInEmbedderData(kModuleEmbedderDataField, nullptr);
+        context_->SetAlignedPointerInEmbedderData(
+          kModuleEmbedderDataField, nullptr);
       }
+
     private:
       v8::Local<v8::Context> context_;
     };
@@ -125,13 +150,15 @@ namespace ccf
       v8::Isolate* isolate,
       V8Context::ModuleLoadCallback load_callback,
       void* load_callback_data) :
-        module_load_callback(load_callback),
-        module_load_callback_data(load_callback_data),
-        module_to_specifier_map(10, ModuleGlobalHash(isolate)) {}
-    
-    static ModuleEmbedderData* GetFromContext(v8::Local<v8::Context> context) {
+      module_load_callback(load_callback),
+      module_load_callback_data(load_callback_data),
+      module_to_specifier_map(10, ModuleGlobalHash(isolate))
+    {}
+
+    static ModuleEmbedderData* GetFromContext(v8::Local<v8::Context> context)
+    {
       return static_cast<ModuleEmbedderData*>(
-          context->GetAlignedPointerFromEmbedderData(kModuleEmbedderDataField));
+        context->GetAlignedPointerFromEmbedderData(kModuleEmbedderDataField));
     }
 
     V8Context::ModuleLoadCallback module_load_callback;
@@ -141,7 +168,7 @@ namespace ccf
     std::map<std::string, v8::Global<v8::Module>> module_map;
     // Map from Module to its URL as defined in the ScriptOrigin
     std::unordered_map<v8::Global<v8::Module>, std::string, ModuleGlobalHash>
-        module_to_specifier_map;
+      module_to_specifier_map;
   };
 
   void v8_initialize()
@@ -163,7 +190,7 @@ namespace ccf
     v8::V8::SetFlagsFromString("--single-threaded --jitless");
     platform = v8::platform::NewSingleThreadedDefaultPlatform();
 #endif
-    
+
     v8::V8::InitializePlatform(platform.get());
     v8::V8::Initialize();
   }
@@ -181,7 +208,9 @@ namespace ccf
     platform = nullptr;
   }
 
-  V8Isolate::Data::Data(v8::Isolate* isolate) : isolate_(isolate), template_cache_(isolate)
+  V8Isolate::Data::Data(v8::Isolate* isolate) :
+    isolate_(isolate),
+    template_cache_(isolate)
   {
     isolate->SetData(0, this);
   }
@@ -191,7 +220,8 @@ namespace ccf
     isolate_->SetData(0, nullptr);
   }
 
-  V8Isolate::TemplateCache::TemplateCache(v8::Isolate* isolate) : isolate_(isolate)
+  V8Isolate::TemplateCache::TemplateCache(v8::Isolate* isolate) :
+    isolate_(isolate)
   {}
 
   bool V8Isolate::TemplateCache::has(const std::string& name)
@@ -207,7 +237,8 @@ namespace ccf
     return it->second.Get(isolate_);
   }
 
-  void V8Isolate::TemplateCache::set(const std::string& name, v8::Local<v8::Template> value)
+  void V8Isolate::TemplateCache::set(
+    const std::string& name, v8::Local<v8::Template> value)
   {
     auto it = templates_.find(name);
     CHECK(it == templates_.end());
@@ -241,13 +272,14 @@ namespace ccf
 
   void V8Isolate::on_fatal_error(const char* location, const char* message)
   {
-    LOG_FATAL_FMT("Fatal error in V8: {}: {}", location, message);    
+    LOG_FATAL_FMT("Fatal error in V8: {}: {}", location, message);
   }
 
-  size_t V8Isolate::on_near_heap_limit(void* data, size_t current_heap_limit,
-    size_t initial_heap_limit)
+  size_t V8Isolate::on_near_heap_limit(
+    void* data, size_t current_heap_limit, size_t initial_heap_limit)
   {
-    LOG_INFO_FMT("WARNING: Approaching heap limit in V8 (limit: {})", current_heap_limit);
+    LOG_INFO_FMT(
+      "WARNING: Approaching heap limit in V8 (limit: {})", current_heap_limit);
     return current_heap_limit;
   }
 
@@ -287,27 +319,30 @@ namespace ccf
 
   V8Context& V8Context::from_context(v8::Local<v8::Context> context)
   {
-    return *static_cast<V8Context*>(context->GetAlignedPointerFromEmbedderData(kContextEmbedderDataField));
+    return *static_cast<V8Context*>(
+      context->GetAlignedPointerFromEmbedderData(kContextEmbedderDataField));
   }
 
   void V8Context::register_finalizer(FinalizerCallback callback, void* data)
   {
-    finalizers_.push_back({ callback, data });
+    finalizers_.push_back({callback, data});
   }
 
-  void V8Context::set_module_load_callback(ModuleLoadCallback callback, void* data)
+  void V8Context::set_module_load_callback(
+    ModuleLoadCallback callback, void* data)
   {
     module_load_cb_ = callback;
     module_load_cb_data_ = data;
   }
 
-  void V8Context::install_global(const std::string& name, v8::Local<v8::Value> value)
+  void V8Context::install_global(
+    const std::string& name, v8::Local<v8::Value> value)
   {
     v8::HandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = get_context();
     context->Global()
       ->Set(context, v8_util::to_v8_istr(isolate_, name), value)
-        .FromJust();
+      .FromJust();
   }
 
   v8::Local<v8::Value> V8Context::run(
@@ -317,10 +352,13 @@ namespace ccf
   {
     v8::EscapableHandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = get_context();
-    ModuleEmbedderData::Scope embedder_data_scope(context, module_load_cb_, module_load_cb_data_);
-    isolate_->SetHostImportModuleDynamicallyCallback(V8Context::HostImportModuleDynamically);
+    ModuleEmbedderData::Scope embedder_data_scope(
+      context, module_load_cb_, module_load_cb_data_);
+    isolate_->SetHostImportModuleDynamicallyCallback(
+      V8Context::HostImportModuleDynamically);
     v8::Local<v8::Module> module;
-    if (!FetchModuleTree(v8::Local<v8::Module>(), context, module_name).ToLocal(&module))
+    if (!FetchModuleTree(v8::Local<v8::Module>(), context, module_name)
+           .ToLocal(&module))
       return v8::Local<v8::Value>();
 
     if (!exec_module(context, module))
@@ -330,7 +368,10 @@ namespace ccf
     CHECK(ns_val->IsModuleNamespaceObject());
     v8::Local<v8::Object> ns = ns_val.As<v8::Object>();
     v8::Local<v8::Value> exported_val;
-    if (!ns->Get(context, v8_util::to_v8_str(isolate_, exported_function_name.c_str())).ToLocal(&exported_val))
+    if (!ns->Get(
+             context,
+             v8_util::to_v8_str(isolate_, exported_function_name.c_str()))
+           .ToLocal(&exported_val))
     {
       isolate_->ThrowError("Could not find exported function");
       return v8::Local<v8::Value>();
@@ -340,13 +381,15 @@ namespace ccf
       isolate_->ThrowError("Exported value is not a function");
       return v8::Local<v8::Value>();
     }
-    v8::Local<v8::Function> exported_function = v8::Local<v8::Function>::Cast(exported_val);
+    v8::Local<v8::Function> exported_function =
+      v8::Local<v8::Function>::Cast(exported_val);
     int argc = args.size();
     v8::Local<v8::Value>* argv = const_cast<v8::Local<v8::Value>*>(args.data());
     v8::Local<v8::Value> result;
-    if (!exported_function->Call(context, v8::Undefined(isolate_), argc, argv).ToLocal(&result))
+    if (!exported_function->Call(context, v8::Undefined(isolate_), argc, argv)
+           .ToLocal(&result))
       return v8::Local<v8::Value>();
-    
+
     while (v8::platform::PumpMessageLoop(platform.get(), isolate_))
       continue;
 
@@ -368,15 +411,15 @@ namespace ccf
         CHECK(false);
       }
     }
-    
+
     return handle_scope.Escape(result);
   }
 
   // Adapted from v8/src/d8/d8.cc::CompileString.
   v8::MaybeLocal<v8::Module> V8Context::compile_module(
-      v8::Local<v8::Context> context,
-      v8::Local<v8::String> source_text,
-      const std::string& module_name)
+    v8::Local<v8::Context> context,
+    v8::Local<v8::String> source_text,
+    const std::string& module_name)
   {
     v8::Isolate* isolate = context->GetIsolate();
 
@@ -396,13 +439,12 @@ namespace ccf
     // See https://v8.dev/blog/code-caching-for-devs.
     v8::ScriptCompiler::Source script_source(source_text, origin);
     v8::MaybeLocal<v8::Module> result =
-        v8::ScriptCompiler::CompileModule(isolate, &script_source);
+      v8::ScriptCompiler::CompileModule(isolate, &script_source);
     return result;
   }
 
   bool V8Context::exec_module(
-    v8::Local<v8::Context> context,
-    v8::Local<v8::Module> module)
+    v8::Local<v8::Context> context, v8::Local<v8::Module> module)
   {
     if (module->InstantiateModule(context, ResolveModuleCallback).IsNothing())
     {
@@ -418,20 +460,19 @@ namespace ccf
 
   // Adapted from v8/src/d8/d8.cc::ResolveModuleCallback.
   v8::MaybeLocal<v8::Module> V8Context::ResolveModuleCallback(
-      v8::Local<v8::Context> context,
-      v8::Local<v8::String> specifier,
-      v8::Local<v8::FixedArray> import_assertions,
-      v8::Local<v8::Module> referrer)
+    v8::Local<v8::Context> context,
+    v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions,
+    v8::Local<v8::Module> referrer)
   {
     v8::Isolate* isolate = context->GetIsolate();
     ModuleEmbedderData* d = ModuleEmbedderData::GetFromContext(context);
-    auto specifier_it =
-      d->module_to_specifier_map.find(v8::Global<v8::Module>(isolate, referrer));
+    auto specifier_it = d->module_to_specifier_map.find(
+      v8::Global<v8::Module>(isolate, referrer));
     CHECK(specifier_it != d->module_to_specifier_map.end());
 
     std::string absolute_path = NormalizePath(
-      v8_util::to_str(isolate, specifier),
-      DirName(specifier_it->second));
+      v8_util::to_str(isolate, specifier), DirName(specifier_it->second));
 
     auto module_it = d->module_map.find(absolute_path);
     CHECK(module_it != d->module_map.end());
@@ -440,8 +481,10 @@ namespace ccf
 
   // Adapted from v8/src/d8/d8.cc::HostImportModuleDynamically.
   v8::MaybeLocal<v8::Promise> V8Context::HostImportModuleDynamically(
-      v8::Local<v8::Context> context, v8::Local<v8::ScriptOrModule> script_or_module,
-      v8::Local<v8::String> specifier, v8::Local<v8::FixedArray> import_assertions)
+    v8::Local<v8::Context> context,
+    v8::Local<v8::ScriptOrModule> script_or_module,
+    v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions)
   {
     v8::Isolate* isolate = context->GetIsolate();
     ModuleEmbedderData* d = ModuleEmbedderData::GetFromContext(context);
@@ -453,26 +496,28 @@ namespace ccf
     v8::Local<v8::Promise> promise = resolver->GetPromise();
 
     // Lookup already-resolved referrer module
-    v8::Local<v8::String> referrer_module_name = script_or_module->GetResourceName().As<v8::String>();
-    std::string referrer_module_name_str = v8_util::to_str(isolate, referrer_module_name);
+    v8::Local<v8::String> referrer_module_name =
+      script_or_module->GetResourceName().As<v8::String>();
+    std::string referrer_module_name_str =
+      v8_util::to_str(isolate, referrer_module_name);
     auto module_it = d->module_map.find(referrer_module_name_str);
     CHECK(module_it != d->module_map.end());
     v8::Local<v8::Module> referrer = module_it->second.Get(isolate);
 
     // Compute absolute path of module to be resolved
     std::string absolute_path = NormalizePath(
-        v8_util::to_str(isolate, specifier),
-        DirName(referrer_module_name_str));
+      v8_util::to_str(isolate, specifier), DirName(referrer_module_name_str));
 
     // Check if module has already been resolved, otherwise resolve it
     v8::TryCatch try_catch(isolate);
     module_it = d->module_map.find(absolute_path);
-    v8::Local<v8::Module> module;      
+    v8::Local<v8::Module> module;
     if (module_it != d->module_map.end())
     {
       module = module_it->second.Get(isolate);
     }
-    else if (!FetchModuleTree(referrer, context, absolute_path).ToLocal(&module))
+    else if (!FetchModuleTree(referrer, context, absolute_path)
+                .ToLocal(&module))
     {
       CHECK(try_catch.HasCaught());
       resolver->Reject(context, try_catch.Exception()).ToChecked();
@@ -494,18 +539,20 @@ namespace ccf
   }
 
   // Adapted from v8/d8/d8.cc::ReadFile
-  static v8::MaybeLocal<v8::String> ReadFile(v8::Local<v8::Context> context, const std::string& name)
+  static v8::MaybeLocal<v8::String> ReadFile(
+    v8::Local<v8::Context> context, const std::string& name)
   {
     v8::Isolate* isolate = context->GetIsolate();
     ModuleEmbedderData* d = ModuleEmbedderData::GetFromContext(context);
     CHECK(d->module_load_callback != nullptr);
-    auto source_text = d->module_load_callback(name, d->module_load_callback_data);
+    auto source_text =
+      d->module_load_callback(name, d->module_load_callback_data);
     if (!source_text)
     {
       return v8::MaybeLocal<v8::String>();
     }
-    v8::MaybeLocal<v8::String> result = v8::String::NewFromUtf8(
-      isolate, source_text->c_str());
+    v8::MaybeLocal<v8::String> result =
+      v8::String::NewFromUtf8(isolate, source_text->c_str());
     return result;
   }
 
@@ -522,14 +569,15 @@ namespace ccf
     if (!ReadFile(context, file_name).ToLocal(&source_text))
     {
       std::string msg = "Error reading module from " + file_name;
-      if (!referrer.IsEmpty()) {
-        auto specifier_it =
-            d->module_to_specifier_map.find(v8::Global<v8::Module>(isolate, referrer));
+      if (!referrer.IsEmpty())
+      {
+        auto specifier_it = d->module_to_specifier_map.find(
+          v8::Global<v8::Module>(isolate, referrer));
         CHECK(specifier_it != d->module_to_specifier_map.end());
         msg += "\n    imported by " + specifier_it->second;
       }
       isolate->ThrowError(
-          v8::String::NewFromUtf8(isolate, msg.c_str()).ToLocalChecked());
+        v8::String::NewFromUtf8(isolate, msg.c_str()).ToLocalChecked());
       return v8::MaybeLocal<v8::Module>();
     }
 
@@ -540,29 +588,32 @@ namespace ccf
     }
 
     CHECK(d->module_map
-              .insert(std::make_pair(file_name,
-                                    v8::Global<v8::Module>(isolate, module)))
-              .second);
+            .insert(std::make_pair(
+              file_name, v8::Global<v8::Module>(isolate, module)))
+            .second);
     CHECK(d->module_to_specifier_map
-              .insert(std::make_pair(v8::Global<v8::Module>(isolate, module), file_name))
-              .second);
+            .insert(std::make_pair(
+              v8::Global<v8::Module>(isolate, module), file_name))
+            .second);
 
     std::string dir_name = DirName(file_name);
-    
+
     v8::Local<v8::FixedArray> module_requests = module->GetModuleRequests();
     for (int i = 0, length = module_requests->Length(); i < length; ++i)
     {
       v8::Local<v8::ModuleRequest> module_request =
-          module_requests->Get(context, i).As<v8::ModuleRequest>();
+        module_requests->Get(context, i).As<v8::ModuleRequest>();
       v8::Local<v8::String> name = module_request->GetSpecifier();
-      v8::Local<v8::FixedArray> import_assertions = module_request->GetImportAssertions();
+      v8::Local<v8::FixedArray> import_assertions =
+        module_request->GetImportAssertions();
       std::string absolute_path =
         NormalizePath(v8_util::to_str(isolate, name), dir_name);
-      if (d->module_map.count(absolute_path)) {
+      if (d->module_map.count(absolute_path))
+      {
         continue;
       }
-      if (FetchModuleTree(module, context, absolute_path)
-            .IsEmpty()) {
+      if (FetchModuleTree(module, context, absolute_path).IsEmpty())
+      {
         return v8::MaybeLocal<v8::Module>();
       }
     }

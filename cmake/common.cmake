@@ -433,11 +433,11 @@ sign_app_library(
 )
 # SNIPPET_END: JS generic application
 
-if (ENABLE_V8)
+if(ENABLE_V8)
   message(STATUS "WARNING: V8 utilisation is experimental")
 
   option(V8_DEBUG "Use V8 debug build" OFF)
-  if (V8_DEBUG)
+  if(V8_DEBUG)
     set(V8_BUILD_TYPE "debug")
   else()
     set(V8_BUILD_TYPE "release")
@@ -454,40 +454,41 @@ if (ENABLE_V8)
   set(v8_sgx_include_dir ${v8_sgx_dir}/${v8_include_dir_relative})
   set(v8_sgx_lib ${v8_sgx_dir}/${v8_lib_relative})
 
-  set(v8_defs
-    V8_CC_MSVC=0
-  )
+  set(v8_defs V8_CC_MSVC=0)
 
-  set(js_v8_src 
-    ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
-    ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
-    ${CCF_DIR}/src/apps/js_v8/v8_util.cpp
-    ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/console_global.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/ccf_global.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/request.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/request_authn_identity.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/request_body.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/string_map.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/kv_store.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/kv_map.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/historical_state.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/receipt.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/consensus.cpp
-    ${CCF_DIR}/src/apps/js_v8/tmpl/historical.cpp
+  set(js_v8_src
+      ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
+      ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
+      ${CCF_DIR}/src/apps/js_v8/v8_util.cpp
+      ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/console_global.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/ccf_global.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/request.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/request_authn_identity.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/request_body.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/string_map.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/kv_store.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/kv_map.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/historical_state.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/receipt.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/consensus.cpp
+      ${CCF_DIR}/src/apps/js_v8/tmpl/historical.cpp
   )
 
   if("virtual" IN_LIST COMPILE_TARGETS)
     add_library(js_v8_base.virtual STATIC ${js_v8_src})
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)
-    target_include_directories(js_v8_base.virtual PRIVATE ${v8_virtual_include_dir})
-    target_link_libraries(js_v8_base.virtual PUBLIC ccf.virtual ${v8_virtual_lib})
+    target_include_directories(
+      js_v8_base.virtual PRIVATE ${v8_virtual_include_dir}
+    )
+    target_link_libraries(
+      js_v8_base.virtual PUBLIC ccf.virtual ${v8_virtual_lib}
+    )
     target_compile_options(js_v8_base.virtual PRIVATE ${COMPILE_LIBCXX})
     target_compile_definitions(
       js_v8_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                     _LIBCPP_HAS_THREAD_API_PTHREAD
-                                     ${v8_defs}
+                                _LIBCPP_HAS_THREAD_API_PTHREAD ${v8_defs}
     )
     set_property(
       TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -505,12 +506,12 @@ if (ENABLE_V8)
     )
     add_lvi_mitigations(v8_oe_stubs.enclave)
 
-    add_enclave_library(
-      js_v8_base.enclave ${js_v8_src}
-    )
+    add_enclave_library(js_v8_base.enclave ${js_v8_src})
     use_oe_mbedtls(js_v8_base.enclave)
     target_include_directories(js_v8_base.enclave PRIVATE ${v8_sgx_include_dir})
-    target_link_libraries(js_v8_base.enclave PUBLIC ccf.enclave ${v8_sgx_lib} v8_oe_stubs.enclave)
+    target_link_libraries(
+      js_v8_base.enclave PUBLIC ccf.enclave ${v8_sgx_lib} v8_oe_stubs.enclave
+    )
     target_compile_definitions(js_v8_base.enclave PUBLIC ${v8_defs})
     add_lvi_mitigations(js_v8_base.enclave)
     install(
@@ -524,8 +525,7 @@ if (ENABLE_V8)
     js_v8
     SRCS ${CCF_DIR}/src/apps/js_v8/js_v8.cpp
     LINK_LIBS_ENCLAVE js_v8_base.enclave js_openenclave.enclave
-    LINK_LIBS_VIRTUAL js_v8_base.virtual js_openenclave.virtual INSTALL_LIBS
-                      ON
+    LINK_LIBS_VIRTUAL js_v8_base.virtual js_openenclave.virtual INSTALL_LIBS ON
   )
   sign_app_library(
     js_v8.enclave ${CCF_DIR}/src/apps/js_v8/oe_sign.conf
