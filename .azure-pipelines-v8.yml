@@ -11,11 +11,12 @@ jobs:
     container: ccfciteam/ccf-ci:oe0.17.2-psw-2.15
     pool: 1es-dv4-focal
 
-    matrix:
-      debug:
-        MODE: 'debug'
-      release:
-        MODE: 'release'
+    strategy:
+      matrix:
+        debug:
+          MODE: 'debug'
+        release:
+          MODE: 'release'
 
     steps:
       - checkout: self
