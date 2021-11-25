@@ -65,7 +65,8 @@ namespace enclave
   public:
     Enclave(
       const EnclaveConfig& ec,
-      const CCFConfig::SignatureIntervals& signature_intervals,
+      size_t sig_tx_interval,
+      size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
       const CurveID& curve_id) :
       circuit(
@@ -79,7 +80,7 @@ namespace enclave
           ec.from_enclave_buffer_offsets}),
       basic_writer_factory(circuit),
       writer_factory(basic_writer_factory, ec.writer_config),
-      network(consensus_config.consensus_type),
+      network(consensus_config.type),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map))
@@ -133,8 +134,8 @@ namespace enclave
         consensus_config,
         rpc_map,
         rpcsessions,
-        signature_intervals.sig_tx_interval,
-        signature_intervals.sig_ms_interval);
+        sig_tx_interval,
+        sig_ms_interval);
     }
 
     ~Enclave()
@@ -149,7 +150,7 @@ namespace enclave
 
     bool create_new_node(
       StartType start_type_,
-      CCFConfig&& ccf_config_,
+      StartupConfig&& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -163,8 +164,7 @@ namespace enclave
 
       start_type = start_type_;
 
-      rpcsessions->update_listening_interface_caps(
-        ccf_config_.node_info_network);
+      rpcsessions->update_listening_interface_caps(ccf_config_.network);
 
       ccf::NodeCreateInfo r;
       try

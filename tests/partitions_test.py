@@ -263,8 +263,8 @@ def run_2tx_reconfig_tests(args):
 
     local_args = args
 
-    if args.reconfiguration_type != "2tx":
-        local_args.reconfiguration_type = "2tx"
+    if args.reconfiguration_type != "TwoTransaction":
+        local_args.reconfiguration_type = "TwoTransaction"
 
     with infra.network.network(
         local_args.nodes,
@@ -307,6 +307,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--include-2tx-reconfig",
             help="Include tests for the 2-transaction reconfiguration scheme",
+            default=False,
             action="store_true",
         )
 

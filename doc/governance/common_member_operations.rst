@@ -15,7 +15,7 @@ Once the proposal successfully completes, the new node automatically becomes par
 Updating Code Version
 ---------------------
 
-For new nodes to be able to join the network, the version of the code they run (as specified by the ``--enclave-file``) should be first trusted by the consortium of members.
+For new nodes to be able to join the network, the version of the code they run (as specified by ``enclave.file``) should be first trusted by the consortium of members.
 
 If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create an ``add_node_code`` proposal, specifying the new code version.
 
@@ -93,7 +93,7 @@ Updating Recovery Threshold
 
 To protect the ledger secrets required to recover an existing service, CCF requires :ref:`members to submit their recovery shares <governance/accept_recovery:Submitting Recovery Shares>`.
 
-.. note:: The initial value of the recovery threshold is set via the ``--recovery-threshold`` option to the starting CCF node. If this value is unspecified, it is set to the initial number of consortium members.
+.. note:: The initial value of the recovery threshold is set via the ``start.service_configuration.recovery_threshold`` configuration entry when starting the first node in a new service. If this value is unspecified, it is set to the initial number of consortium members.
 
 The number of member shares required to restore the private ledger (``recovery_threshold``) is part of the service configuration and can be updated by members via the usual propose and vote process.
 

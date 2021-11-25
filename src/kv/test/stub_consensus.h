@@ -198,7 +198,7 @@ namespace kv::test
 
     ConsensusDetails get_details() override
     {
-      return ConsensusDetails{{}, {}, ReplicaState::Candidate};
+      return ConsensusDetails{{}, {}, MembershipState::Active};
     }
 
     void add_resharing_result(

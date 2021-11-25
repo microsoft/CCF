@@ -50,9 +50,9 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
 def test(network, args, from_snapshot=False, split_ledger=False):
     old_primary, _ = network.find_primary()
 
-    snapshot_dir = None
+    snapshots_dir = None
     if from_snapshot:
-        snapshot_dir = network.get_committed_snapshots(old_primary)
+        snapshots_dir = network.get_committed_snapshots(old_primary)
 
     network.stop_all_nodes()
 
@@ -76,7 +76,7 @@ def test(network, args, from_snapshot=False, split_ledger=False):
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
-        snapshot_dir=snapshot_dir,
+        snapshots_dir=snapshots_dir,
     )
     recovered_network.recover(args)
 
@@ -88,9 +88,9 @@ def test(network, args, from_snapshot=False, split_ledger=False):
 def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    snapshot_dir = None
+    snapshots_dir = None
     if from_snapshot:
-        snapshot_dir = network.get_committed_snapshots(old_primary)
+        snapshots_dir = network.get_committed_snapshots(old_primary)
 
     network.stop_all_nodes()
 
@@ -103,7 +103,7 @@ def test_share_resilience(network, args, from_snapshot=False):
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
-        snapshot_dir=snapshot_dir,
+        snapshots_dir=snapshots_dir,
     )
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.transition_service_to_open(primary)
@@ -167,7 +167,7 @@ def run(args):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % 2 == 0:
-                if args.consensus != "bft":
+                if args.consensus != "BFT":
                     recovered_network = test_share_resilience(
                         network, args, from_snapshot=True
                     )
@@ -211,7 +211,7 @@ checked. Note that the key for each logging message is unique (per table).
 
     # Test-specific values so that it is likely that ledger files contain
     # at least two signatures, so that they can be split at the first one
-    args.ledger_chunk_bytes = "50KB"
+    args.ledger_chunk_bytes = 50000
     args.snapshot_tx_interval = 30
 
     run(args)

@@ -11,6 +11,7 @@ import ccf.ledger
 import suite.test_requirements as reqs
 import infra.crypto
 import ipaddress
+import infra.interfaces
 
 
 from loguru import logger as LOG
@@ -83,7 +84,7 @@ def run_tls_san_checks(args):
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"
         new_node = network.create_node("local://localhost")
-        args.san = [f"dNSName:{dummy_san}"]
+        args.subject_alt_names = [f"dNSName:{dummy_san}"]
         network.join_node(new_node, args.package, args)
         sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
         assert len(sans) == 1, "Expected exactly one SAN"
@@ -91,12 +92,22 @@ def run_tls_san_checks(args):
 
         LOG.info("A node started with no specified SAN defaults to public RPC host")
         dummy_public_rpc_host = "123.123.123.123"
-        args.san = None
-        new_node = network.create_node(f"local://localhost:0,{dummy_public_rpc_host}")
-        network.join_node(new_node, args.package, args)
-        sans = infra.crypto.get_san_from_pem_cert(
-            new_node.get_tls_certificate_pem(use_public_rpc_host=False)
+        args.subject_alt_names = []
+
+        new_node = network.create_node(
+            infra.interfaces.HostSpec(
+                rpc_interfaces=[
+                    infra.interfaces.RPCInterface(public_rpc_host=dummy_public_rpc_host)
+                ]
+            )
         )
+        network.join_node(new_node, args.package, args)
+        # Cannot trust the node here as client cannot authenticate dummy public IP in cert
+        with open(
+            os.path.join(network.common_dir, f"{new_node.local_node_id}.pem"),
+            encoding="utf-8",
+        ) as self_signed_cert:
+            sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
