@@ -2,7 +2,7 @@ trigger:
   batch: false
 
 variables:
-  VERSION: '9.4.146.19'
+  VERSION: '9.4.146.17'
   MODE: 'debug'
   TARGET: 'virtual'
   PUSH_ARTIFACT: 'false'
