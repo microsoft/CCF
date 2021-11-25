@@ -502,7 +502,7 @@ def test_add_node_with_read_only_ledger(network, args):
 
 @reqs.description("Test reconfiguration type in service config")
 def test_service_config_endpoint(network, args):
-    for n in network.nodes:
+    for n in network.get_joined_nodes():
         with n.client() as c:
             r = c.get("/node/service-configuration")
             rj = r.body.json()
