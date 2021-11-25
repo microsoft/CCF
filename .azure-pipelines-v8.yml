@@ -2,9 +2,9 @@ trigger:
   batch: false
 
 variables:
-  VERSION: '9.4.146.17'
-  TARGET: 'virtual'
-  PUSH_ARTIFACT: 'false'
+  VERSION: "9.4.146.17"
+  TARGET: "virtual"
+  PUSH_ARTIFACT: "false"
 
 jobs:
   - job: build_v8
@@ -14,9 +14,9 @@ jobs:
     strategy:
       matrix:
         debug:
-          MODE: 'debug'
+          MODE: "debug"
         release:
-          MODE: 'release'
+          MODE: "release"
 
     steps:
       - checkout: self
