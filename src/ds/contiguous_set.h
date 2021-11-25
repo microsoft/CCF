@@ -27,11 +27,17 @@ namespace ds
       RangeIt it;
       size_t offset = 0;
 
-      // clang-format off
-      TIterator(RangeIt i, size_t o = 0): it(i), offset(o) {}
+      TIterator(RangeIt i, size_t o = 0) : it(i), offset(o) {}
 
-      bool operator==(const TIterator& other) const { return (it == other.it && offset == other.offset); }
-      bool operator!=(const TIterator& other) const { return !(*this == other); }
+      bool operator==(const TIterator& other) const
+      {
+        return (it == other.it && offset == other.offset);
+      }
+
+      bool operator!=(const TIterator& other) const
+      {
+        return !(*this == other);
+      }
 
       TIterator& operator++()
       {
@@ -43,14 +49,18 @@ namespace ds
         }
         return (*this);
       }
+
       TIterator operator++(int)
       {
         auto temp(*this);
         ++(*this);
         return temp;
       }
-      T operator*() const { return it->first + offset; }
-      // clang-format on
+
+      T operator*() const
+      {
+        return it->first + offset;
+      }
     };
 
     using ConstIterator = TIterator<typename Ranges::const_iterator>;
