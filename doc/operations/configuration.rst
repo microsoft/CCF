@@ -12,7 +12,7 @@ Configuration Options
 ---------------------
 
 ``enclave``
-~~~~~~~~~~
+~~~~~~~~~~~
 
 - ``file``: Path to enclave application.
 - ``type``: Type of enclave application (either ``release``, ``debug`` or ``virtual``). Default value: ``release``.
@@ -25,10 +25,11 @@ The ``network`` section includes configuration for the interfaces a node listens
 - ``node_address``: Address (hostname and port) to listen on for incoming node-to-node connections.
 
 - ``rpc_interfaces``: Addresses (hostname and port) to listen on for incoming client TLS connections.
+
 Each RPC address must contain:
 
 - The local RPC address (``bind_address``) the node binds to and listens on.
-- The published RPC address (``published_address``) advertised to clients. Default value: value of ``rpc_address`.
+- The published RPC address (``published_address``) advertised to clients. Default value: value of ``rpc_address``.
 - The maximum number of active client sessions (``max_open_sessions_soft``) on that interface after which clients will receive a HTTP 503 error. Default value: ``1000``.
 - The maximum number of active client sessions (``max_open_sessions_hard``) on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``. Default value: ``1010``.
 
