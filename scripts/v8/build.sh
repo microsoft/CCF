@@ -45,6 +45,10 @@ if [ ! -f "$PATCH_PATH" ]; then
   exit 1
 fi
 
+echo " + Version: $VERSION"
+echo " + Mode: $MODE"
+echo " + Target: $TARGET"
+
 echo " + Cleaning up environment..."
 if [ "$SKIP_CLEAN" != "1" ]; then
   rm -rf build-v8/tmp
@@ -242,6 +246,7 @@ GN_ARGS="\
   v8_enable_pointer_compression=false \
   use_goma=false \
   "
+echo " + gn args: $GN_ARGS"
 gn gen "$OUT_DIR" --args="$GN_ARGS"
 
 if [ "$VERBOSE" == 1 ]; then
