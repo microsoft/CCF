@@ -9,29 +9,37 @@
 # based on the IP address of the container (it assumes that the container
 # is connected to service-specific network)
 
-# Note: This should become less hacky once https://github.com/microsoft/CCF/issues/2612 is implemented
-
 set -e
 
 cmd=$*
 container_ip=$(hostname -i | cut -d " " -f 2) # Network container IP address
-addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"
 
-# Required for 1.x releases
-addresses="${addresses} --san=iPAddress:${container_ip}"
+if echo "${cmd}" | grep -- '--config'; then
+    # Node makes use of configuration file (2.x nodes)
+    container_ip_replace_str="CONTAINER_IP"
+    config_file_path="$(echo "${cmd}" | grep -o -P "(?<=--config).*" | cut -d " " -f 2)"
+    sed --follow-symlinks -i -e "s/${container_ip_replace_str}/${container_ip}/g" "${config_file_path}"
+else
+    # Legacy node that uses CLI paramters (1.x)
+    addresses="--node-address=${container_ip}:0 --public-rpc-address=${container_ip}:0"
 
-startup_cmd=""
-for c in " start " " join" " recover "; do
-    if [[ $cmd == *"${c}"* ]]; then
-        startup_cmd=${c}
+    # Required for 1.x releases
+    addresses="${addresses} --san=iPAddress:${container_ip}"
+
+    startup_cmd=""
+    for c in " start " " join" " recover "; do
+        if [[ $cmd == *"${c}"* ]]; then
+            startup_cmd=${c}
+        fi
+    done
+
+    if [ -z "${startup_cmd}" ]; then
+        echo "Command does not contain valid cchost startup command"
+        exit 1
     fi
-done
 
-if [ -z "${startup_cmd}" ]; then
-    echo "Command does not container valid cchost startup command"
-    exit 1
+    # Insert node and public RPC address in command line (yikes!)
+    cmd="${cmd%%${startup_cmd}*} ${addresses} ${startup_cmd} ${cmd##*${startup_cmd}}"
 fi
 
-# Insert node and public RPC address in command line (yikes!)
-cmd="${cmd%%${startup_cmd}*} ${addresses} ${startup_cmd} ${cmd##*${startup_cmd}}"
 eval "${cmd}"

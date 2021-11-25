@@ -121,8 +121,14 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh test_python_cli.sh docker_wrap.sh
+set(CCF_TEST_UTILITIES
+    tests.sh
+    cimetrics_env.sh
+    upload_pico_metrics.py
+    test_install.sh
+    test_python_cli.sh
+    docker_wrap.sh
+    config.jinja
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -132,6 +138,7 @@ endforeach()
 
 # Install additional utilities
 install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
+install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(
@@ -639,9 +646,9 @@ function(add_perf_test)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
   endif()
 
-  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  if("CFT" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
-  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+  elseif("BFT" STREQUAL ${PARSED_ARGS_CONSENSUS})
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
   endif()
 

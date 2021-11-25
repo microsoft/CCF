@@ -22,6 +22,9 @@ namespace enclave
   using ServerEndpointImpl = http::HTTPServerEndpoint;
   using ClientEndpointImpl = http::HTTPClientEndpoint;
 
+  static constexpr size_t max_open_sessions_soft_default = 1000;
+  static constexpr size_t max_open_sessions_hard_default = 1010;
+
   class RPCSessions : public AbstractRPCResponder
   {
   private:
@@ -147,15 +150,22 @@ namespace enclave
       for (const auto& interface : node_info.rpc_interfaces)
       {
         const auto interface_name = fmt::format(
-          "{}:{}", interface.rpc_address.hostname, interface.rpc_address.port);
+          "{}:{}",
+          interface.bind_address.hostname,
+          interface.bind_address.port);
+        auto& li = listening_interfaces[interface_name];
+
+        li.max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
+          max_open_sessions_soft_default);
+
+        li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
+          max_open_sessions_hard_default);
+
         LOG_INFO_FMT(
           "Setting max open sessions on interface {} to [{}, {}]",
           interface_name,
-          interface.max_open_sessions_soft,
-          interface.max_open_sessions_hard);
-        auto& li = listening_interfaces[interface_name];
-        li.max_open_sessions_soft = interface.max_open_sessions_soft;
-        li.max_open_sessions_hard = interface.max_open_sessions_hard;
+          li.max_open_sessions_soft,
+          li.max_open_sessions_hard);
       }
     }
 

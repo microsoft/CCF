@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
+#include "ds/nonstd.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -10,6 +11,9 @@
 
 namespace crypto
 {
+  static const std::string IP_ADDRESS_PREFIX = "iPAddress:";
+  static const std::string DNS_NAME_PREFIX = "dNSName:";
+
   struct SubjectAltName
   {
     std::string san;
@@ -21,23 +25,33 @@ namespace crypto
   DECLARE_JSON_TYPE(SubjectAltName);
   DECLARE_JSON_REQUIRED_FIELDS(SubjectAltName, san, is_ip);
 
-  struct CertificateSubjectIdentity
+  static SubjectAltName san_from_string(const std::string& str)
   {
-    std::string name;
+    if (nonstd::starts_with(str, IP_ADDRESS_PREFIX))
+    {
+      return {str.substr(IP_ADDRESS_PREFIX.size()), true};
+    }
+    else if (nonstd::starts_with(str, DNS_NAME_PREFIX))
+    {
+      return {str.substr(DNS_NAME_PREFIX.size()), false};
+    }
+    else
+    {
+      throw std::logic_error(fmt::format(
+        "SAN could not be parsed: {}, must be (iPAddress|dNSName):VALUE", str));
+    }
+  }
+
+  static std::vector<SubjectAltName> sans_from_string_list(
+    const std::vector<std::string>& list)
+  {
     std::vector<SubjectAltName> sans = {};
-
-    CertificateSubjectIdentity() = default;
-    CertificateSubjectIdentity(
-      const std::string& name, const std::vector<SubjectAltName>& sans = {}) :
-      name(name),
-      sans(sans)
-    {}
-
-    bool operator==(const CertificateSubjectIdentity& other) const = default;
-    bool operator!=(const CertificateSubjectIdentity& other) const = default;
-  };
-  DECLARE_JSON_TYPE(CertificateSubjectIdentity);
-  DECLARE_JSON_REQUIRED_FIELDS(CertificateSubjectIdentity, sans, name);
+    for (const auto& l : list)
+    {
+      sans.push_back(san_from_string(l));
+    }
+    return sans;
+  }
 }
 
 FMT_BEGIN_NAMESPACE

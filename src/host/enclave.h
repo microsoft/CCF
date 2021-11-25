@@ -88,7 +88,7 @@ namespace host
 
     void create_node(
       const EnclaveConfig& enclave_config,
-      const CCFConfig& ccf_config,
+      const StartupConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& network_cert,
       StartType start_type,

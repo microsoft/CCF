@@ -84,7 +84,7 @@ exec python "${START_NETWORK_SCRIPT}" \
     --constitution "${PATH_HERE}"/validate.js \
     --constitution "${PATH_HERE}"/resolve.js \
     --constitution "${PATH_HERE}"/apply.js \
-    --ledger-chunk-bytes 5MB \
+    --ledger-chunk-bytes 5000000 \
     --snapshot-tx-interval 10000 \
     --label sandbox \
     "${extra_args[@]}"

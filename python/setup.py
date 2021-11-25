@@ -11,6 +11,7 @@ import versionifier
 
 PACKAGE_NAME = "ccf"
 UTILITIES_PATH = "utils"
+TEMPLATES_PATH = path.join(PACKAGE_NAME, "templates")
 
 path_here = path.abspath(path.dirname(__file__))
 
@@ -42,10 +43,19 @@ setup(
         path.join(PACKAGE_NAME, "read_ledger.py"),
         path.join(PACKAGE_NAME, "ledger_viz.py"),
         path.join(PACKAGE_NAME, "split_ledger.py"),
+        path.join(PACKAGE_NAME, "migrate_1_x_config.py"),
         path.join(UTILITIES_PATH, "keygenerator.sh"),
         path.join(UTILITIES_PATH, "scurl.sh"),
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),
         path.join(UTILITIES_PATH, "verify_quote.sh"),
     ],
+    package_data={
+        "jinja_templates": [
+            path.join(TEMPLATES_PATH, "ballot_script.json.jinja"),
+            path.join(TEMPLATES_PATH, "ballots.json.jinja"),
+            path.join(TEMPLATES_PATH, "macros.jinja"),
+            path.join(TEMPLATES_PATH, "proposals.json.jinja"),
+        ]
+    },
     include_package_data=True,
 )
