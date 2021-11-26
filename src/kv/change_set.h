@@ -11,7 +11,7 @@
 namespace kv
 {
   template <typename V>
-  using VersionV = champ::VersionV<V>;
+  using VersionV = map::VersionV<V>;
   template <typename K, typename V, typename H>
   using State = champ::Map<K, VersionV<V>, H>;
   template <typename K, typename V, typename H>
