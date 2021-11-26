@@ -133,47 +133,46 @@ TEST_CASE("basic indexing")
   std::vector<ccf::SeqNo> seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
 
   {
-    auto tx = kv_store.create_tx();
-    tx.wo(map_a)->put("hello", "world");
-    tx.wo(map_b)->put(1, 2);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    INFO("Create and commit transactions");
+    static constexpr auto num_transactions =
+      indexing::Indexer::MAX_REQUESTABLE * 3;
+    for (size_t i = 0; i < num_transactions; ++i)
+    {
+      const auto write_saluton = i % 3 == 0;
+      const auto write_1 = i % 5 == 0;
+      const auto write_2 = rand() % 4 != 0;
 
-    const auto seqno = tx.get_txid()->version;
-    seqnos_hello.push_back(seqno);
-    seqnos_1.push_back(seqno);
-  }
+      auto tx = kv_store.create_tx();
+      tx.wo(map_a)->put("hello", "value doesn't matter");
+      if (write_saluton)
+      {
+        tx.wo(map_a)->put("saluton", "value doesn't matter");
+      }
+      if (write_1)
+      {
+        tx.wo(map_b)->put(1, 42);
+      }
+      if (write_2)
+      {
+        tx.wo(map_b)->put(2, 42);
+      }
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-  {
-    auto tx = kv_store.create_tx();
-    tx.rw(map_a)->put("hello", "goodbye");
-    tx.rw(map_a)->put("saluton", "mondo");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-
-    const auto seqno = tx.get_txid()->version;
-    seqnos_hello.push_back(seqno);
-    seqnos_saluton.push_back(seqno);
-  }
-
-  {
-    auto tx = kv_store.create_tx();
-    tx.rw(map_b)->put(1, 42);
-    tx.rw(map_b)->put(2, 100);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-
-    const auto seqno = tx.get_txid()->version;
-    seqnos_1.push_back(seqno);
-    seqnos_2.push_back(seqno);
-  }
-
-  {
-    auto tx = kv_store.create_tx();
-    tx.rw(map_a)->put("hello", "darkness");
-    tx.rw(map_b)->put(1, 43);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-
-    const auto seqno = tx.get_txid()->version;
-    seqnos_hello.push_back(seqno);
-    seqnos_1.push_back(seqno);
+      const auto seqno = tx.get_txid()->version;
+      seqnos_hello.push_back(seqno);
+      if (write_saluton)
+      {
+        seqnos_saluton.push_back(seqno);
+      }
+      if (write_1)
+      {
+        seqnos_1.push_back(seqno);
+      }
+      if (write_2)
+      {
+        seqnos_2.push_back(seqno);
+      }
+    }
   }
 
   auto check_seqnos = [](
@@ -211,8 +210,7 @@ TEST_CASE("basic indexing")
     REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
   }
 
-  indexer.tick();
-  while (!fetcher.requested.empty())
+  while (indexer.tick() || !fetcher.requested.empty())
   {
     // Do the fetch, simulating an asynchronous fetch by the historical query
     // system
@@ -224,9 +222,6 @@ TEST_CASE("basic indexing")
         fetcher.deserialise_transaction(seqno, entry->data(), entry->size());
     }
     fetcher.requested.clear();
-
-    // Tick the indexer again
-    indexer.tick();
   }
 
   {

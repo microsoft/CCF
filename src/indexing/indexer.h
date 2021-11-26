@@ -19,6 +19,9 @@ namespace indexing
   // node was initialised via snapshot rather than consensus).
   class Indexer
   {
+  public:
+    static constexpr size_t MAX_REQUESTABLE = 1000;
+
   private:
     TransactionFetcher& transaction_fetcher;
 
@@ -31,8 +34,6 @@ namespace indexing
     std::vector<PendingTx> uncommitted_entries;
 
     ccf::TxID committed = {};
-
-    static constexpr size_t MAX_REQUESTABLE = 1000;
 
     static bool tx_id_less(const ccf::TxID& a, const ccf::TxID& b)
     {
@@ -86,7 +87,9 @@ namespace indexing
       return nullptr;
     }
 
-    void tick()
+    // Returns true if it looks like there's still a gap to fill. Useful for
+    // testing
+    bool tick()
     {
       // TODO: If we're iterating through all of these to tick, we should find
       // min at the same time
@@ -132,8 +135,12 @@ namespace indexing
               }
             }
           }
+
+          return true;
         }
       }
+
+      return false;
     }
 
     // TODO: So _maybe_ we can be given these before they leave the enclave, and
