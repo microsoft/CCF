@@ -46,8 +46,8 @@ namespace indexing
     }
 
   public:
-    Indexer(std::unique_ptr<TransactionFetcher>&& transaction_fetcher) :
-      transaction_fetcher(std::move(transaction_fetcher))
+    Indexer(std::unique_ptr<TransactionFetcher>&& tf) :
+      transaction_fetcher(std::move(tf))
     {
       if (transaction_fetcher == nullptr)
       {
@@ -91,6 +91,13 @@ namespace indexing
 
     void tick()
     {
+      // TODO: If we're iterating through all of these to tick, we should find
+      // min at the same time
+      for (auto& [_, ctx] : strategies)
+      {
+        ctx.second->tick();
+      }
+
       // Find the earliest entry which needs to be fetched
       auto earliest_it = std::min_element(
         strategies.begin(), strategies.end(), [](const auto& a, const auto& b) {

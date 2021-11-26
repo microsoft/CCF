@@ -18,3 +18,5 @@ namespace indexing
       const SeqNoCollection& seqnos) = 0;
   };
 }
+
+// TODO: Add implementation of this backed by historical::StateCache
