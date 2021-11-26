@@ -1074,8 +1074,8 @@ namespace loggingapp
 
       static constexpr auto get_historical_sparse_path =
         "/log/private/historical/sparse";
-      auto get_historical_sparse = [&,
-                                   this](ccf::endpoints::EndpointContext& ctx) {
+      auto get_historical_sparse = [&, this](
+                                     ccf::endpoints::EndpointContext& ctx) {
         // Parse arguments from query
         const auto parsed_query =
           http::parse_query(ctx.rpc_ctx->get_request_query());
