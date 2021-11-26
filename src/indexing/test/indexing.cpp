@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "indexing/indexer.h"
 #include "indexing/seqnos_by_key.h"
+#include "kv/test/stub_consensus.h"
 
 // Needed by TestTransactionFetcher
 #include "kv/test/null_encryptor.h"
