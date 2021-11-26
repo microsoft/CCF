@@ -17,7 +17,7 @@ jobs:
           - template: fetch_v8.yml
             parameters:
               target: ${{ parameters.target }}
-              v8_mode: ${{ if parameters.fetch_v8 }}
+              v8_mode: ${{ parameters.fetch_v8 }}
 
       - template: cmake.yml
         parameters:
