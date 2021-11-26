@@ -256,6 +256,7 @@ int main(int argc, char** argv)
       node_port,
       config.node_client_interface,
       config.client_connection_timeout_ms);
+    config.network.node_address = ccf::make_net_address(node_host, node_port);
     if (!config.node_address_file.empty())
     {
       files::dump(
@@ -274,10 +275,20 @@ int main(int argc, char** argv)
       rpc.listen(0, rpc_host, rpc_port);
       rpc_addresses += fmt::format("{}\n{}\n", rpc_host, rpc_port);
 
+      interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
+
       // If public RPC address is not set, default to local RPC address
       if (interface.published_address.empty())
       {
         interface.published_address = interface.bind_address;
+      }
+
+      auto [pub_host, pub_port] =
+        ccf::split_net_address(interface.published_address);
+      if (pub_port == "0")
+      {
+        pub_port = rpc_port;
+        interface.published_address = ccf::make_net_address(pub_host, pub_port);
       }
     }
     if (!config.rpc_addresses_file.empty())

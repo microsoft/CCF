@@ -309,12 +309,9 @@ namespace client
           std::make_shared<tls::TlsCA>(ca), raw_cert, key);
       }
 
-      auto conn = std::make_shared<RpcTlsClient>(
-        options.server_address.hostname,
-        options.server_address.port,
-        nullptr,
-        tls_cert,
-        key_id);
+      const auto [host, port] = ccf::split_net_address(options.server_address);
+      auto conn =
+        std::make_shared<RpcTlsClient>(host, port, nullptr, tls_cert, key_id);
 
       if (options.sign && !force_unsigned)
       {
@@ -819,12 +816,14 @@ namespace client
         const auto total_bytes =
           options.session_count * total_byte_size(prepared_txs);
 
+        const auto [host, _] = ccf::split_net_address(options.server_address);
+
         perf_summary_csv << duration_cast<milliseconds>(
                               timing_results.start_time.time_since_epoch())
                               .count(); // timeStamp
         perf_summary_csv << "," << dur_ms; // elapsed
         perf_summary_csv << ","
-                         << (options.server_address.hostname.find("127.") == 0 ?
+                         << (host.find("127.") == 0 ?
                                options.label :
                                options.label + string("_distributed")); // label
         perf_summary_csv << "," << total_bytes; // bytes

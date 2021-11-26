@@ -35,12 +35,6 @@ def make_key_json_compatible(key):
     return key.replace("-", "_")
 
 
-# TODO: Remove?
-def split_address(addr, default_port="0"):
-    host, *port = addr.split(":")
-    return {"hostname": host, "port": (port[0] if port else default_port)}
-
-
 def split_member_info(member_info_str):
     cert_file, *other = member_info_str.split(",")
     member = {"certificate_file": cert_file}
@@ -103,7 +97,7 @@ if __name__ == "__main__":
                 output["start"]["service_configuration"][k] = int(v)
             # join
             elif k == "target_rpc_address":
-                output[s][k] = split_address(v)
+                output[s][k] = v
             elif k == "join_timer":
                 output[s]["timer_ms"] = int(v)
 
@@ -115,13 +109,9 @@ if __name__ == "__main__":
 
             # network
             elif k == "rpc_address":
-                output["network"]["rpc_interfaces"][0]["bind_address"] = split_address(
-                    v
-                )
+                output["network"]["rpc_interfaces"][0]["bind_address"] = v
             elif k == "public_rpc_address":
-                output["network"]["rpc_interfaces"][0][
-                    "published_address"
-                ] = split_address(v)
+                output["network"]["rpc_interfaces"][0]["published_address"] = v
             elif k == "max_open_sessions":
                 output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = int(
                     v
@@ -130,7 +120,7 @@ if __name__ == "__main__":
                     int(v) + 10
                 )
             elif k == "node_address":
-                output["network"]["node_address"] = split_address(v)
+                output["network"]["node_address"] = v
             elif k == "network_cert_file":
                 output["network_certificate_file"] = v
 

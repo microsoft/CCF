@@ -876,6 +876,7 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
+          // TODO: We should know which interface to redirect to here?
           const auto& address = info->rpc_interfaces[0].published_address;
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(

@@ -50,8 +50,7 @@ namespace cli
         option_name, fmt::format("Error parsing port '{}'", port));
     }
 
-    parsed.hostname = hostname;
-    parsed.port = port;
+    parsed = hostname;
 
     return true;
   }
