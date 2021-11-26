@@ -1351,6 +1351,7 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
+    # Is there a better way to do this?
     if os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")):
         cr.add(
             "js_v8",

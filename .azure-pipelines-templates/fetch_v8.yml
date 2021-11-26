@@ -13,7 +13,7 @@ steps:
       # We also want our build version to increment, so we also join the last two.
       #   Ex: 9.4.146.17 -> 94.14617.*
       MINOR=$(echo ${{ parameters.v8_version }} | cut -d "." -f 3,4 | sed 's/\.//')
-      echo '##vso[task.setvariable variable=pkg-ver]'$MAJOR.$MINOR.*
+      echo "##vso[task.setvariable variable=pkg-ver]$MAJOR.$MINOR.*"
       # Map the target parameter to the target.
       if [ "${{ parameters.target }}" == "NoSGX" ]; then
         TARGET="virtual"
@@ -22,7 +22,7 @@ steps:
       else
         echo "Unknown target: ${{ parameters.target }}"
       fi
-      echo '##vso[task.setvariable variable=v8_target]'$TARGET
+      echo "##vso[task.setvariable variable=v8_target]$TARGET"
       # Create the download folder.
       mkdir -p build-v8
     displayName: "Compute V8 artifact location"
