@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
 #include "indexing/strategy.h"
 #include "indexing/transaction_fetcher_interface.h"
 
@@ -19,7 +20,7 @@ namespace indexing
   class Indexer
   {
   private:
-    std::unique_ptr<TransactionFetcher> transaction_fetcher;
+    TransactionFetcher& transaction_fetcher;
 
     // Store the highest TxID that each strategy has been given, and assume it
     // doesn't need to be given again later.
@@ -30,6 +31,8 @@ namespace indexing
     std::vector<PendingTx> uncommitted_entries;
 
     ccf::TxID committed = {};
+
+    static constexpr size_t MAX_REQUESTABLE = 1000;
 
     static bool tx_id_less(const ccf::TxID& a, const ccf::TxID& b)
     {
@@ -46,15 +49,7 @@ namespace indexing
     }
 
   public:
-    Indexer(std::unique_ptr<TransactionFetcher>&& tf) :
-      transaction_fetcher(std::move(tf))
-    {
-      if (transaction_fetcher == nullptr)
-      {
-        throw std::logic_error(
-          "Constructed Indexer with null TransactionFetcher");
-      }
-    }
+    Indexer(TransactionFetcher& tf) : transaction_fetcher(tf) {}
 
     std::string install_strategy(StrategyPtr&& strategy)
     {
@@ -95,23 +90,50 @@ namespace indexing
     {
       // TODO: If we're iterating through all of these to tick, we should find
       // min at the same time
-      for (auto& [_, ctx] : strategies)
+      std::optional<ccf::TxID> min_provided = std::nullopt;
+      for (auto& [name, ctx] : strategies)
       {
-        ctx.second->tick();
+        auto& [last_provided, strategy] = ctx;
+
+        strategy->tick();
+
+        if (
+          !min_provided.has_value() || tx_id_less(last_provided, *min_provided))
+        {
+          min_provided = last_provided;
+        }
       }
 
-      // Find the earliest entry which needs to be fetched
-      auto earliest_it = std::min_element(
-        strategies.begin(), strategies.end(), [](const auto& a, const auto& b) {
-          return tx_id_less(a.second.first, b.second.first);
-        });
+      if (min_provided.has_value())
+      {
+        if (tx_id_less(*min_provided, committed))
+        {
+          // Request a prefix of the missing entries. Cap the requested range,
+          // so we don't overload the node with a huge historical request
+          const auto first_requested = min_provided->seqno + 1;
+          auto additional =
+            std::min(MAX_REQUESTABLE, committed.seqno - first_requested);
 
-      // TODO: Request some prefix of the missing entries (not all of them at
-      // once, cap the amount of work done by the number of entries fetched)
+          SeqNoCollection seqnos(first_requested, additional);
 
-      // TODO: When we receive the responses, do we process them inline
-      // (blocking the ringbuffer reading thread) or store them until this tick
-      // (needing an in-enclave copy)?
+          auto stores = transaction_fetcher.fetch_transactions(seqnos);
+          for (auto& store : stores)
+          {
+            const auto tx_id_ = store->current_txid();
+            const ccf::TxID tx_id{tx_id_.term, tx_id_.version};
+
+            for (auto& [name, ctx] : strategies)
+            {
+              auto& [last_provided, strategy] = ctx;
+              if (tx_id.seqno == last_provided.seqno + 1)
+              {
+                strategy->handle_committed_transaction(tx_id, store);
+                last_provided = tx_id;
+              }
+            }
+          }
+        }
+      }
     }
 
     // TODO: So _maybe_ we can be given these before they leave the enclave, and
@@ -182,7 +204,7 @@ namespace indexing
       {
         const auto& [id, entry] = *it;
 
-        auto store_ptr = transaction_fetcher->deserialise_transaction(
+        auto store_ptr = transaction_fetcher.deserialise_transaction(
           id.seqno, entry.data(), entry.size());
 
         if (store_ptr != nullptr)

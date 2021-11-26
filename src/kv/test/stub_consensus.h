@@ -20,7 +20,7 @@ namespace kv::test
 
   class StubConsensus : public Consensus
   {
-  protected:
+  public:
     std::vector<BatchVector::value_type> replica;
     ConsensusType consensus_type;
     ccf::TxID committed_txid = {};
@@ -28,7 +28,6 @@ namespace kv::test
 
     ccf::SeqNo last_signature = 0;
 
-  public:
     aft::ViewHistory view_history;
 
     StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :

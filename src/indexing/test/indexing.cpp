@@ -17,6 +17,9 @@ public:
   std::shared_ptr<kv::NullTxEncryptor> encryptor =
     std::make_shared<kv::NullTxEncryptor>();
 
+  indexing::SeqNoCollection requested;
+  std::unordered_map<ccf::SeqNo, indexing::StorePtr> fetched_stores;
+
   indexing::StorePtr deserialise_transaction(
     ccf::SeqNo seqno, const uint8_t* data, size_t size)
   {
@@ -46,7 +49,25 @@ public:
   std::vector<indexing::StorePtr> fetch_transactions(
     const indexing::SeqNoCollection& seqnos)
   {
-    return {};
+    std::vector<indexing::StorePtr> stores;
+
+    for (auto seqno : seqnos)
+    {
+      auto it = fetched_stores.find(seqno);
+      if (it != fetched_stores.end())
+      {
+        stores.push_back(it->second);
+
+        // For simplicity, we instantly erase fetched stores here
+        it = fetched_stores.erase(it);
+      }
+      else
+      {
+        requested.insert(seqno);
+      }
+    }
+
+    return stores;
   }
 };
 
@@ -82,8 +103,8 @@ public:
 TEST_CASE("basic indexing")
 {
   kv::Store kv_store;
-
-  indexing::Indexer indexer(std::make_unique<TestTransactionFetcher>());
+  TestTransactionFetcher fetcher;
+  indexing::Indexer indexer(fetcher);
 
   auto consensus = std::make_shared<IndexingConsensus>(indexer);
   kv_store.set_consensus(consensus);
@@ -188,6 +209,24 @@ TEST_CASE("basic indexing")
 
     REQUIRE(indexer.get_strategy<IndexA>(name_b) == nullptr);
     REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
+  }
+
+  indexer.tick();
+  while (!fetcher.requested.empty())
+  {
+    // Do the fetch, simulating an asynchronous fetch by the historical query
+    // system
+    for (auto seqno : fetcher.requested)
+    {
+      REQUIRE(consensus->replica.size() >= seqno);
+      const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+      fetcher.fetched_stores[seqno] =
+        fetcher.deserialise_transaction(seqno, entry->data(), entry->size());
+    }
+    fetcher.requested.clear();
+
+    // Tick the indexer again
+    indexer.tick();
   }
 
   {
