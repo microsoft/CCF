@@ -42,7 +42,8 @@ public:
     return store;
   }
 
-  std::vector<indexing::StorePtr> fetch_transactions(const indexing::SeqNoCollection& seqnos)
+  std::vector<indexing::StorePtr> fetch_transactions(
+    const indexing::SeqNoCollection& seqnos)
   {
     return {};
   }
@@ -50,6 +51,14 @@ public:
 
 TEST_CASE("foo")
 {
+  kv::Store kv_store;
+
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  kv_store.set_consensus(consensus);
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
+
   indexing::Indexer indexer(std::make_unique<TestTransactionFetcher>());
 
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
