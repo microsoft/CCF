@@ -973,8 +973,8 @@ class Network:
         primaries = []
         while time.time() < end_time:
             primaries = []
+            logs = []
             for node in self.get_joined_nodes():
-                logs = []
                 try:
                     primary, view = self.find_primary(nodes=[node], log_capture=logs)
                     if min_view is None or view > min_view:
@@ -988,11 +988,11 @@ class Network:
             ):
                 break
             time.sleep(0.1)
+        flush_info(logs)
         all_good = (
             len(self.get_joined_nodes()) == len(primaries) and len(set(primaries)) <= 1
         )
         if not all_good:
-            flush_info(logs)
             for node in self.get_joined_nodes():
                 with node.client() as c:
                     r = c.get("/node/consensus")
