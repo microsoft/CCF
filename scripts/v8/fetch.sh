@@ -30,10 +30,13 @@ if [ "$TARGET" != "virtual" ] && [ "$TARGET" != "sgx" ]; then
   exit 1
 fi
 
-TARBALL="v8-$VERSION-$MODE-$TARGET.tar.xz"
+BASE_DIR="build-v8"
+mkdir -p "$BASE_DIR"
+INSTALL_DIR="$BASE_DIR/$MODE-$TARGET"
+TARBALL="$BASE_DIR/v8-$VERSION-$MODE-$TARGET.tar.xz"
 
 ## Check that the package exists, override with -f
-FORCE="$3"
+FORCE="$4"
 if [ -f "$TARBALL" ] && [ "$FORCE" != "-f" ]; then
   echo " + Tarball built/fetched already"
   echo "   Use '-f' to force downloading the package again"
@@ -65,7 +68,7 @@ az artifacts universal download \
   --feed V8 \
   --name "v8-monolith-$MODE-$TARGET" \
   --version "$PKG_VERSION.*" \
-  --path .
+  --path "$BASE_DIR"
 
 if [ ! -f "$TARBALL" ]; then
   echo "ERROR: Artifact download failed"
@@ -74,6 +77,6 @@ fi
 
 ## Unpack on the same directory as it was built
 echo " + Unpack the tarball..."
-INSTALL_DIR="build-v8/$MODE-$TARGET"
+rm -rf "$INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
-tar Jxf "$TARBALL" -C "$INSTALL_DIR"
+tar Jxf "$TARBALL" --strip 1 -C "$INSTALL_DIR"
