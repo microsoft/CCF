@@ -39,6 +39,7 @@ steps:
   - script: |
       set -ex
       BASE_DIR="build-v8"
+      TARBALL="$BASE_DIR/v8-${{ parameters.v8_version }}-${{ parameters.v8_mode }}-$(v8_target).tar.xz"
       INSTALL_DIR="$BASE_DIR/${{ parameters.v8_mode }}-$(v8_target)"
-      tar Jxf "$BASE_DIR/*.tar.xz" --strip 1 -C "$INSTALL_DIR"
+      tar Jxf "$TARBALL" --strip 1 -C "$INSTALL_DIR"
     displayName: "Extract V8 artifact"
