@@ -808,7 +808,7 @@ namespace ccf
         JWTKeyMap kmap;
         keys->foreach([&kmap](const auto& kid, const auto& kpem) {
           kmap[kid] = crypto::cert_der_to_pem(kpem);
-          return false;
+          return true;
         });
 
         return make_success(kmap);

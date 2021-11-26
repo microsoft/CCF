@@ -4,7 +4,7 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
-#include "ds/champ_map_serializers.h"
+#include "ds/map_serializers.h"
 
 #include <algorithm>
 #include <array>
@@ -38,6 +38,9 @@ namespace champ
   {
     return (hash >> ((Hash)depth * index_mask_bits)) & index_mask;
   }
+
+  template <class K, class V, class H = std::hash<K>>
+  class Snapshot;
 
   class Bitmap
   {
@@ -94,24 +97,6 @@ namespace champ
     }
   };
 
-  uint32_t static get_padding(uint32_t size)
-  {
-    uint32_t padding = size % sizeof(uintptr_t);
-    if (padding != 0)
-    {
-      padding = sizeof(uintptr_t) - padding;
-    }
-    return padding;
-  }
-
-  template <class K, class V>
-  size_t static get_size_with_padding(const K& k, const V& v)
-  {
-    uint32_t size_k = champ::get_size(k);
-    uint32_t size_v = champ::get_size(v);
-    return size_k + get_padding(size_k) + size_v + get_padding(size_v);
-  }
-
   template <class K, class V, class H>
   using Node = std::shared_ptr<void>;
 
@@ -142,7 +127,7 @@ namespace champ
         if (k == entry->key)
         {
           bin[i] = std::make_shared<Entry<K, V>>(k, v);
-          return champ::get_size<K>(k) + champ::get_size<V>(v);
+          return map::get_size<K>(k) + map::get_size<V>(v);
         }
       }
       bin.push_back(std::make_shared<Entry<K, V>>(k, v));
@@ -159,7 +144,7 @@ namespace champ
         if (k == entry->key)
         {
           const auto diff =
-            champ::get_size<K>(entry->key) + champ::get_size<V>(entry->value);
+            map::get_size<K>(entry->key) + map::get_size<V>(entry->value);
           bin.erase(bin.begin() + i);
           return diff;
         }
@@ -262,7 +247,7 @@ namespace champ
       if (k == entry0->key)
       {
         auto current_size =
-          get_size_with_padding<K, V>(entry0->key, entry0->value);
+          map::get_size_with_padding<K, V>(entry0->key, entry0->value);
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
         return current_size;
       }
@@ -326,7 +311,8 @@ namespace champ
         if (entry->key != k)
           return 0;
 
-        const auto diff = get_size_with_padding<K, V>(entry->key, entry->value);
+        const auto diff =
+          map::get_size_with_padding<K, V>(entry->key, entry->value);
         nodes.erase(nodes.begin() + c_idx);
         data_map = data_map.clear(idx);
         return diff;
@@ -408,31 +394,10 @@ namespace champ
     {}
 
   public:
+    using KeyType = K;
+    using ValueType = V;
+
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
-
-    static Map<K, V, H> deserialize_map(CBuffer serialized_state)
-    {
-      Map<K, V, H> map;
-      const uint8_t* data = serialized_state.p;
-      size_t size = serialized_state.rawSize();
-
-      while (size != 0)
-      {
-        // Deserialize the key
-        size_t key_size = size;
-        K key = champ::deserialize<K>(data, size);
-        key_size -= size;
-        serialized::skip(data, size, get_padding(key_size));
-
-        // Deserialize the value
-        size_t value_size = size;
-        V value = champ::deserialize<V>(data, size);
-        value_size -= size;
-        serialized::skip(data, size, get_padding(value_size));
-        map = map.put(key, value);
-      }
-      return map;
-    }
 
     size_t size() const
     {
@@ -471,7 +436,8 @@ namespace champ
       if (r.second == 0)
         size_++;
 
-      int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second;
+      int64_t size_change =
+        map::get_size_with_padding<K, V>(key, value) - r.second;
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
@@ -490,13 +456,18 @@ namespace champ
     {
       return root->foreach(0, std::forward<F>(f));
     }
+
+    std::unique_ptr<Snapshot<K, V, H>> make_snapshot() const
+    {
+      return std::make_unique<Snapshot<K, V, H>>(*this);
+    }
   };
 
-  template <class K, class V, class H = std::hash<K>>
+  template <class K, class V, class H>
   class Snapshot
   {
   private:
-    Map<K, V, H> map;
+    const Map<K, V, H> map;
     CBuffer serialized_buffer;
 
     struct KVTuple
@@ -507,24 +478,9 @@ namespace champ
 
       KVTuple(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
     };
-    const uintptr_t padding = 0;
-
-    uint32_t add_padding(uint32_t data_size, uint8_t*& data, size_t& size) const
-    {
-      uint32_t padding_size = get_padding(data_size);
-      if (padding_size != 0)
-      {
-        serialized::write(
-          data, size, reinterpret_cast<const uint8_t*>(&padding), padding_size);
-      }
-      return padding_size;
-    }
 
   public:
-    Snapshot(Map<K, V, H>& map_)
-    {
-      map = map_;
-    }
+    Snapshot(const Map<K, V, H>& map_) : map(map_) {}
 
     size_t get_serialized_size()
     {
@@ -545,10 +501,10 @@ namespace champ
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
-        uint32_t ks = champ::get_size(key);
-        uint32_t vs = champ::get_size(value);
-        uint32_t key_size = ks + get_padding(ks);
-        uint32_t value_size = vs + get_padding(vs);
+        uint32_t ks = map::get_size(key);
+        uint32_t vs = map::get_size(value);
+        uint32_t key_size = ks + map::get_padding(ks);
+        uint32_t value_size = vs + map::get_padding(vs);
 
         size += (key_size + value_size);
 
@@ -577,15 +533,16 @@ namespace champ
       for (const auto& p : ordered_state)
       {
         // Serialize the key
-        uint32_t key_size = champ::serialize(*p.k, data, size);
-        add_padding(key_size, data, size);
+        uint32_t key_size = map::serialize(*p.k, data, size);
+        map::add_padding(key_size, data, size);
 
         // Serialize the value
-        uint32_t value_size = champ::serialize(*p.v, data, size);
-        add_padding(value_size, data, size);
+        uint32_t value_size = map::serialize(*p.v, data, size);
+        map::add_padding(value_size, data, size);
       }
 
       CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
     }
   };
+
 }
