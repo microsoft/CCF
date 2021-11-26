@@ -33,12 +33,12 @@ steps:
       command: download
       downloadDirectory: "build-v8"
       vstsFeed: "CCF/V8"
-      vstsFeedPackage: "v8-monolith-$(v8_mode)-$(v8_target)"
+      vstsFeedPackage: "v8-monolith-${{ parameters.v8_mode }}-$(v8_target)"
       vstsPackageVersion: "$(pkg-ver)"
 
   - script: |
       set -ex
       BASE_DIR="build-v8"
-      INSTALL_DIR="$BASE_DIR/$(v8-mode)-$(v8_target)"
+      INSTALL_DIR="$BASE_DIR/${{ parameters.v8_mode }}-$(v8_target)"
       tar Jxf "$BASE_DIR/*.tar.xz" --strip 1 -C "$INSTALL_DIR"
     displayName: "Extract V8 artifact"
