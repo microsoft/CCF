@@ -102,14 +102,10 @@ TEST_CASE("basic indexing")
   const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
   REQUIRE_THROWS(indexer.install_strategy(std::make_unique<IndexA>(map_a)));
 
-  const auto name_b = indexer.install_strategy(std::make_unique<IndexB>(map_b));
-  REQUIRE_THROWS(indexer.install_strategy(std::make_unique<IndexB>(map_b)));
-
   {
     REQUIRE(indexer.get_strategy<IndexA>(name_a) != nullptr);
-    REQUIRE(indexer.get_strategy<IndexB>(name_b) != nullptr);
 
-    REQUIRE(indexer.get_strategy<IndexA>(name_b) == nullptr);
+    REQUIRE(indexer.get_strategy<IndexA>("some other junk name") == nullptr);
     REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
   }
 
@@ -171,14 +167,30 @@ TEST_CASE("basic indexing")
   };
 
   {
-    INFO("Confirm that index was populated");
+    INFO("Confirm that pre-existing strategy was populated already");
 
     auto index_a = indexer.get_strategy<IndexA>(name_a);
     REQUIRE(index_a != nullptr);
 
     check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
     check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
+  }
 
+  INFO(
+    "Indexes can be installed later, and will be populated after enough ticks");
+
+  const auto name_b = indexer.install_strategy(std::make_unique<IndexB>(map_b));
+  REQUIRE_THROWS(indexer.install_strategy(std::make_unique<IndexB>(map_b)));
+
+  {
+    REQUIRE(indexer.get_strategy<IndexA>(name_a) != nullptr);
+    REQUIRE(indexer.get_strategy<IndexB>(name_b) != nullptr);
+
+    REQUIRE(indexer.get_strategy<IndexA>(name_b) == nullptr);
+    REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
+  }
+
+  {
     auto index_b = indexer.get_strategy<IndexB>(name_b);
     REQUIRE(index_b != nullptr);
 
