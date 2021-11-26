@@ -32,7 +32,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> headers =
-      StringMap::wrap(context, &endpoint_ctx->rpc_ctx->get_request_headers());
+      StringMap::wrap(context, endpoint_ctx->rpc_ctx->get_request_headers());
     info.GetReturnValue().Set(headers);
   }
 
@@ -54,7 +54,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> headers = StringMap::wrap(
-      context, &endpoint_ctx->rpc_ctx->get_request_path_params());
+      context, endpoint_ctx->rpc_ctx->get_request_path_params());
     info.GetReturnValue().Set(headers);
   }
 
@@ -65,7 +65,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> body =
-      RequestBody::wrap(context, &endpoint_ctx->rpc_ctx->get_request_body());
+      RequestBody::wrap(context, endpoint_ctx->rpc_ctx->get_request_body());
     info.GetReturnValue().Set(body);
   }
 
@@ -78,7 +78,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> body =
-      RequestAuthnIdentity::wrap(context, endpoint_ctx, endpoint_registry);
+      RequestAuthnIdentity::wrap(context, *endpoint_ctx, *endpoint_registry);
     info.GetReturnValue().Set(body);
   }
 
@@ -106,8 +106,8 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> Request::wrap(
     v8::Local<v8::Context> context,
-    EndpointContext* endpoint_ctx,
-    BaseEndpointRegistry* endpoint_registry)
+    EndpointContext& endpoint_ctx,
+    BaseEndpointRegistry& endpoint_registry)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -116,8 +116,8 @@ namespace ccf::v8_tmpl
       get_cached_object_template<Request>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, endpoint_ctx);
-    result->SetAlignedPointerInInternalField(1, endpoint_registry);
+    result->SetAlignedPointerInInternalField(0, &endpoint_ctx);
+    result->SetAlignedPointerInInternalField(1, &endpoint_registry);
 
     return handle_scope.Escape(result);
   }

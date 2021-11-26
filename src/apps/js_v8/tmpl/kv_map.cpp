@@ -350,7 +350,7 @@ namespace ccf::v8_tmpl
 
   template <typename T>
   static v8::Local<v8::Object> wrap_kv_map(
-    v8::Local<v8::Context> context, KVMapHandle* map_handle)
+    v8::Local<v8::Context> context, KVMapHandle& map_handle)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -358,19 +358,19 @@ namespace ccf::v8_tmpl
     v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<T>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, map_handle);
+    result->SetAlignedPointerInInternalField(0, (void*)&map_handle);
 
     return handle_scope.Escape(result);
   }
 
   v8::Local<v8::Object> KVMapReadOnly::wrap(
-    v8::Local<v8::Context> context, KVMapHandle* map_handle)
+    v8::Local<v8::Context> context, KVMapHandle& map_handle)
   {
     return wrap_kv_map<KVMapReadOnly>(context, map_handle);
   }
 
   v8::Local<v8::Object> KVMapReadWrite::wrap(
-    v8::Local<v8::Context> context, KVMapHandle* map_handle)
+    v8::Local<v8::Context> context, KVMapHandle& map_handle)
   {
     return wrap_kv_map<KVMapReadWrite>(context, map_handle);
   }

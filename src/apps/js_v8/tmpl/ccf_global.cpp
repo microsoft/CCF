@@ -211,7 +211,7 @@ namespace ccf::v8_tmpl
     TxContext* tx_ctx = unwrap_tx_ctx(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
-    v8::Local<v8::Value> value = KVStore::wrap(context, tx_ctx);
+    v8::Local<v8::Value> value = KVStore::wrap(context, *tx_ctx);
     info.GetReturnValue().Set(value);
   }
 
@@ -293,8 +293,8 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> CCFGlobal::wrap(
     v8::Local<v8::Context> context,
-    TxContext* tx_ctx,
-    ccf::historical::StatePtr* historical_state,
+    TxContext& tx_ctx,
+    ccf::historical::StatePtr& historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
     ccf::historical::AbstractStateCache* state_cache)
   {

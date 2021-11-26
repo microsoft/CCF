@@ -68,9 +68,9 @@ namespace ccf::v8_tmpl
     auto handle = tx_ctx_ptr->tx->rw<KVMapType>(property_name);
     v8::Local<v8::Value> value;
     if (read_only)
-      value = KVMapReadOnly::wrap(context, handle);
+      value = KVMapReadOnly::wrap(context, *handle);
     else
-      value = KVMapReadWrite::wrap(context, handle);
+      value = KVMapReadWrite::wrap(context, *handle);
 
     info.GetReturnValue().Set(value);
   }
@@ -90,7 +90,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> KVStore::wrap(
-    v8::Local<v8::Context> context, TxContext* tx_ctx)
+    v8::Local<v8::Context> context, TxContext& tx_ctx)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -99,7 +99,7 @@ namespace ccf::v8_tmpl
       get_cached_object_template<KVStore>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, tx_ctx);
+    result->SetAlignedPointerInInternalField(0, (void*)&tx_ctx);
 
     return handle_scope.Escape(result);
   }

@@ -96,15 +96,15 @@ namespace ccfapp
       v8_tmpl::TxContext txctx{&endpoint_ctx.tx, v8_tmpl::TxAccess::APP};
       v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(
         context,
-        &txctx,
-        &historical_state,
+        txctx,
+        historical_state,
         this,
         &node_context.get_historical_state());
       ctx.install_global("ccf", ccf_global);
 
       // Call exported function
       v8::Local<v8::Value> request =
-        ccf::v8_tmpl::Request::wrap(context, &endpoint_ctx, this);
+        ccf::v8_tmpl::Request::wrap(context, endpoint_ctx, *this);
       std::vector<v8::Local<v8::Value>> args{request};
       v8::Local<v8::Value> val =
         ctx.run(props.js_module, props.js_function, args);
