@@ -351,7 +351,6 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
 {
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
   kv::Store kv_store;
 
   kv_store.set_encryptor(encryptor);
