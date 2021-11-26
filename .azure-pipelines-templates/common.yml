@@ -13,6 +13,12 @@ jobs:
       - checkout: self
         clean: true
 
+      - ${{ if parameters.fetch_v8 }}:
+          - template: fetch_v8.yml
+            parameters:
+              target: ${{ parameters.target }}
+              v8_mode: ${{ if parameters.fetch_v8 }}
+
       - template: cmake.yml
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
@@ -31,6 +37,7 @@ jobs:
       - ${{ if eq(parameters.suffix, 'Instrumented') }}:
           - template: scan_build.yml
 
+      # TODO ignore for NoSGX
       - ${{ if eq(parameters.suffix, 'Perf') }}:
           - template: push_perf_data.yml
           - template: metrics.yml

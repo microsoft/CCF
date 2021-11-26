@@ -52,6 +52,7 @@ def test_module_import(network, args):
 
     return network
 
+
 @reqs.description("Test dynamic module import")
 def test_dynamic_module_import(network, args):
     # TODO disable test if not V8
@@ -597,17 +598,17 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_module_import(network, args)
-        network = test_dynamic_module_import(network, args)
-        #network = test_bytecode_cache(network, args)
+        if args.package == "libjs_v8":
+            network = test_dynamic_module_import(network, args)
+        network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
-        #network = test_npm_app(network, args)
+        network = test_npm_app(network, args)
 
 
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    #args.package = "libjs_generic"
-    args.package = "libjs_v8"
+    args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
