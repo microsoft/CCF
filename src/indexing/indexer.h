@@ -3,6 +3,7 @@
 #pragma once
 
 #include "indexing/strategy.h"
+#include "indexing/transaction_fetcher_interface.h"
 
 #include <memory>
 #include <string>
@@ -10,15 +11,20 @@
 namespace indexing
 {
   // This is responsible for managing a collection of strategies, and ensuring
-  // each has been given every transaction up to the commit point, in-order. On
-  // the hot path, it receives uncommitted entries and commit progress from
-  // consensus. However, it also must fetch historical entries (to populate
-  // entries for strategies installed after construction, or to populate entries
-  // when this node was initialised via snapshot rather than consensus)
+  // each has been given every transaction up to the commit point, in-order. It
+  // is informed of commit progress by the consensus, and then fetches
+  // transactions through the historical query system (to populate entries for
+  // strategies installed after construction, or to populate entries when this
+  // node was initialised via snapshot rather than consensus).
   class Indexer
   {
   private:
-    std::map<std::string, StrategyPtr> strategies;
+    std::unique_ptr<TransactionFetcher> transaction_fetcher;
+
+    // Store the highest TxID that each strategy has been given, and assume it
+    // doesn't need to be given again later.
+    using StrategyContext = std::pair<ccf::TxID, StrategyPtr>;
+    std::map<std::string, StrategyContext> strategies;
 
     using PendingTx = std::pair<ccf::TxID, std::vector<uint8_t>>;
     std::vector<PendingTx> uncommitted_entries;
@@ -40,6 +46,16 @@ namespace indexing
     }
 
   public:
+    Indexer(std::unique_ptr<TransactionFetcher>&& transaction_fetcher) :
+      transaction_fetcher(std::move(transaction_fetcher))
+    {
+      if (transaction_fetcher == nullptr)
+      {
+        throw std::logic_error(
+          "Constructed Indexer with null TransactionFetcher");
+      }
+    }
+
     void install_strategy(StrategyPtr&& strategy)
     {
       if (strategy == nullptr)
@@ -54,7 +70,10 @@ namespace indexing
           "Strategy named {} already exists", strategy->get_name()));
       }
 
-      strategies.emplace_hint(it, strategy->get_name(), std::move(strategy));
+      strategies.emplace_hint(
+        it,
+        strategy->get_name(),
+        std::make_pair(ccf::TxID{}, std::move(strategy)));
     }
 
     template <typename T>
@@ -63,7 +82,7 @@ namespace indexing
       auto it = strategies.find(name);
       if (it != strategies.end())
       {
-        auto t = dynamic_cast<T*>(it->second.get());
+        auto t = dynamic_cast<T*>(it->second.second.get());
         return t;
       }
 
@@ -72,7 +91,12 @@ namespace indexing
 
     void tick()
     {
-      // TODO: Work out which strategies haven't been given the commit point
+      // Find the earliest entry which needs to be fetched
+      auto earliest_it = std::min_element(
+        strategies.begin(), strategies.end(), [](const auto& a, const auto& b) {
+          return tx_id_less(a.second.first, b.second.first);
+        });
+
       // TODO: Request some prefix of the missing entries (not all of them at
       // once, cap the amount of work done by the number of entries fetched)
 
@@ -85,6 +109,9 @@ namespace indexing
     // just process them on tick() once commit has passed them. But that's risky
     // memory pressure! Should we instead begin fetching a range we think we can
     // hold, after commit, async?
+    // TODO: I think this approach is a dead-end. Even if we receive them inline
+    // like this, we want to pass them through historical queries to parse them
+    // for us, which seems like a horrid API.
     void append_entry(const ccf::TxID& tx_id, const uint8_t* data, size_t size)
     {
       if (tx_id_less(tx_id, committed))
@@ -145,12 +172,25 @@ namespace indexing
       for (auto it = uncommitted_entries.begin(); it != end_it; ++it)
       {
         const auto& [id, entry] = *it;
-        for (auto& [_, strategy] : strategies)
+
+        auto store_ptr = transaction_fetcher->deserialise_transaction(
+          id.seqno, entry.data(), entry.size());
+
+        if (store_ptr != nullptr)
         {
-          strategy->append_committed_transaction(
-            id, entry.data(), entry.size());
+          for (auto& [_, ctxt] : strategies)
+          {
+            auto& [seen_so_far, strategy] = ctxt;
+            // Only pass if this is the next seqno this index is seeking
+            if (seen_so_far.seqno + 1 == id.seqno)
+            {
+              strategy->handle_committed_transaction(id, store_ptr);
+              ctxt.first = id;
+            }
+          }
         }
       }
+
       uncommitted_entries.erase(uncommitted_entries.begin(), end_it);
 
       committed = tx_id;

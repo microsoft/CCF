@@ -8,7 +8,7 @@
 
 TEST_CASE("foo")
 {
-  indexing::Indexer indexer;
+  indexing::Indexer indexer(nullptr);
 
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
 

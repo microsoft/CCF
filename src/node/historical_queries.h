@@ -924,59 +924,9 @@ namespace ccf::historical
 
       pending_fetches.erase(it);
 
-      // Create a new store and try to deserialise this entry into it
-      StorePtr store = std::make_shared<kv::Store>(
-        false /* Do not start from very first seqno */,
-        true /* Make use of historical secrets */);
-
-      // If this is older than the node's currently known ledger secrets, use
-      // the historical encryptor (which should have older secrets)
-      if (seqno < source_ledger_secrets->get_first().first)
-      {
-        store->set_encryptor(historical_encryptor);
-      }
-      else
-      {
-        store->set_encryptor(source_store.get_encryptor());
-      }
-
       kv::ApplyResult deserialise_result;
-
-      try
-      {
-        // Encrypted ledger secrets are deserialised in public-only mode. Their
-        // Merkle tree integrity is not verified: even if the recovered ledger
-        // secret was bogus, the deserialisation of subsequent ledger entries
-        // would fail.
-        bool public_only = false;
-        for (const auto& [_, request] : requests)
-        {
-          if (
-            request.ledger_secret_recovery_info != nullptr &&
-            request.ledger_secret_recovery_info->target_seqno == seqno)
-          {
-            public_only = true;
-            break;
-          }
-        }
-
-        auto exec = store->deserialize(
-          {data, data + size}, ConsensusType::CFT, public_only);
-        if (exec == nullptr)
-        {
-          return false;
-        }
-
-        deserialise_result = exec->apply();
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT(
-          "Exception while attempting to deserialise entry {}: {}",
-          seqno,
-          e.what());
-        deserialise_result = kv::ApplyResult::FAIL;
-      }
+      auto store =
+        deserialise_ledger_entry(seqno, data, size, deserialise_result);
 
       if (deserialise_result == kv::ApplyResult::FAIL)
       {
@@ -1087,6 +1037,68 @@ namespace ccf::historical
           pending_fetches.erase(fetches_it);
         }
       }
+    }
+
+    StorePtr deserialise_ledger_entry(
+      ccf::SeqNo seqno,
+      const uint8_t* data,
+      size_t size,
+      kv::ApplyResult& result)
+    {
+      // Create a new store and try to deserialise this entry into it
+      StorePtr store = std::make_shared<kv::Store>(
+        false /* Do not start from very first seqno */,
+        true /* Make use of historical secrets */);
+
+      // If this is older than the node's currently known ledger secrets, use
+      // the historical encryptor (which should have older secrets)
+      if (seqno < source_ledger_secrets->get_first().first)
+      {
+        store->set_encryptor(historical_encryptor);
+      }
+      else
+      {
+        store->set_encryptor(source_store.get_encryptor());
+      }
+
+      try
+      {
+        // Encrypted ledger secrets are deserialised in public-only mode. Their
+        // Merkle tree integrity is not verified: even if the recovered ledger
+        // secret was bogus, the deserialisation of subsequent ledger entries
+        // would fail.
+        bool public_only = false;
+        for (const auto& [_, request] : requests)
+        {
+          if (
+            request.ledger_secret_recovery_info != nullptr &&
+            request.ledger_secret_recovery_info->target_seqno == seqno)
+          {
+            public_only = true;
+            break;
+          }
+        }
+
+        auto exec = store->deserialize(
+          {data, data + size}, ConsensusType::CFT, public_only);
+        if (exec == nullptr)
+        {
+          result = kv::ApplyResult::FAIL;
+          return nullptr;
+        }
+
+        result = exec->apply();
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Exception while attempting to deserialise entry {}: {}",
+          seqno,
+          e.what());
+        result = kv::ApplyResult::FAIL;
+      }
+
+      return store;
     }
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
