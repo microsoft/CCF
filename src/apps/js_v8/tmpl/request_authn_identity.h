@@ -23,8 +23,8 @@ namespace ccf::v8_tmpl
   public:
     static v8::Local<v8::Value> wrap(
       v8::Local<v8::Context> context,
-      EndpointContext& endpoint_ctx,
-      BaseEndpointRegistry& endpoint_registry);
+      EndpointContext* endpoint_ctx,
+      BaseEndpointRegistry* endpoint_registry);
   };
 
   class RequestEmptyAuthnIdentity
@@ -34,7 +34,7 @@ namespace ccf::v8_tmpl
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
     static v8::Local<v8::Object> wrap(
-      v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity& identity);
+      v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity* identity);
   };
 
   class RequestJwtAuthnIdentity
@@ -44,7 +44,7 @@ namespace ccf::v8_tmpl
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
     static v8::Local<v8::Object> wrap(
-      v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity);
+      v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity* identity);
   };
 
   class RequestUserCertAuthnIdentity
@@ -55,9 +55,9 @@ namespace ccf::v8_tmpl
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context,
-      const ccf::UserCertAuthnIdentity& identity,
-      BaseEndpointRegistry& endpoint_registry,
-      ReadOnlyTx& tx);
+      const ccf::UserCertAuthnIdentity* identity,
+      BaseEndpointRegistry* endpoint_registry,
+      ReadOnlyTx* tx);
   };
 
   class RequestMemberCertAuthnIdentity
@@ -68,9 +68,9 @@ namespace ccf::v8_tmpl
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context,
-      const ccf::MemberCertAuthnIdentity& identity,
-      BaseEndpointRegistry& endpoint_registry,
-      ReadOnlyTx& tx);
+      const ccf::MemberCertAuthnIdentity* identity,
+      BaseEndpointRegistry* endpoint_registry,
+      ReadOnlyTx* tx);
   };
 
   class RequestUserSignatureAuthnIdentity
@@ -81,9 +81,9 @@ namespace ccf::v8_tmpl
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context,
-      const ccf::UserSignatureAuthnIdentity& identity,
-      BaseEndpointRegistry& endpoint_registry,
-      ReadOnlyTx& tx);
+      const ccf::UserSignatureAuthnIdentity* identity,
+      BaseEndpointRegistry* endpoint_registry,
+      ReadOnlyTx* tx);
   };
 
   class RequestMemberSignatureAuthnIdentity
@@ -95,9 +95,9 @@ namespace ccf::v8_tmpl
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context,
-      const ccf::MemberSignatureAuthnIdentity& identity,
-      BaseEndpointRegistry& endpoint_registry,
-      ReadOnlyTx& tx);
+      const ccf::MemberSignatureAuthnIdentity* identity,
+      BaseEndpointRegistry* endpoint_registry,
+      ReadOnlyTx* tx);
   };
 
 } // namespace ccf::v8_tmpl

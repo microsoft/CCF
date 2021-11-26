@@ -55,6 +55,10 @@ def test_module_import(network, args):
 
 @reqs.description("Test dynamic module import")
 def test_dynamic_module_import(network, args):
+    if args.package != "libjs_v8":
+        LOG.warning("Skipping test_dynamic_endpoints, requires V8")
+        return network
+
     primary, _ = network.find_nodes()
 
     # Update JS app, deploying modules _and_ app script that imports module
@@ -190,10 +194,6 @@ def test_app_bundle(network, args):
 
 @reqs.description("Test dynamically installed endpoint properties")
 def test_dynamic_endpoints(network, args):
-    if args.package != "libjs_v8":
-        LOG.warning("Skipping test_dynamic_endpoints, requires V8")
-        return network
-    
     primary, _ = network.find_nodes()
 
     bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")

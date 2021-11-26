@@ -31,7 +31,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
-    v8::Local<v8::Value> value = KVStore::wrap(context, state_ctx->tx_ctx);
+    v8::Local<v8::Value> value = KVStore::wrap(context, &state_ctx->tx_ctx);
     info.GetReturnValue().Set(value);
   }
 

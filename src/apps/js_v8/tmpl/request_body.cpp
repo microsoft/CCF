@@ -95,7 +95,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> RequestBody::wrap(
-    v8::Local<v8::Context> context, const std::vector<uint8_t>& body)
+    v8::Local<v8::Context> context, const std::vector<uint8_t>* body)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -104,7 +104,8 @@ namespace ccf::v8_tmpl
       get_cached_object_template<RequestBody>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, (void*)&body);
+    result->SetAlignedPointerInInternalField(
+      0, const_cast<std::vector<uint8_t>*>(body));
 
     return handle_scope.Escape(result);
   }

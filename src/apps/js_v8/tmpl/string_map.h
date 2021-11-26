@@ -18,7 +18,7 @@ namespace ccf::v8_tmpl
     static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
 
     static v8::Local<v8::Object> wrap(
-      v8::Local<v8::Context> context, const MapType& map);
+      v8::Local<v8::Context> context, const MapType* map);
   };
 
 } // namespace ccf::v8_tmpl

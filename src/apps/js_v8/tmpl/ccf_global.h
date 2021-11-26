@@ -17,8 +17,8 @@ namespace ccf::v8_tmpl
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context,
-      TxContext& tx_ctx,
-      ccf::historical::StatePtr& historical_state,
+      TxContext* tx_ctx,
+      ccf::historical::StatePtr* historical_state,
       ccf::BaseEndpointRegistry* endpoint_registry,
       ccf::historical::AbstractStateCache* state_cache);
   };
