@@ -5,7 +5,7 @@ parameters:
 
 steps:
   - script: |
-      set -ex
+      set -e
       # Universal Packages versions only take three sections X.Y.Z.
       # V8 versions have four sections, with the first two as the chromium version.
       #   Ex: 9.4.146.17 (Chromium version 94)
