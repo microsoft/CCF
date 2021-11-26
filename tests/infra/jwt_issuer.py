@@ -130,13 +130,23 @@ class JwtIssuer:
         if self.server:
             self.server.set_jwks(self.create_jwks(kid))
 
-    def create_jwks(self, kid=TEST_JWT_KID, test_invalid_is_key=False):
+    def _create_jwks(self, kid, test_invalid_is_key=False):
         der_b64 = base64.b64encode(
             infra.crypto.cert_pem_to_der(self.cert_pem)
             if not test_invalid_is_key
             else infra.crypto.pub_key_pem_to_der(self.key_pub_pem)
         ).decode("ascii")
-        return {"keys": [{"kty": "RSA", "kid": kid, "x5c": [der_b64]}]}
+        return {"kty": "RSA", "kid": kid, "x5c": [der_b64]}
+
+    def create_jwks(self, kid=TEST_JWT_KID, test_invalid_is_key=False):
+        return {"keys": [self._create_jwks(kid, test_invalid_is_key)]}
+
+    def create_jwks_for_kids(self, kids):
+        jwks = {}
+        jwks["keys"] = []
+        for kid in kids:
+            jwks["keys"].append(self._create_jwks(kid))
+        return jwks
 
     def register(self, network, kid=TEST_JWT_KID, ca_bundle_name=TEST_CA_BUNDLE_NAME):
         primary, _ = network.find_primary()

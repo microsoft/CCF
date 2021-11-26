@@ -32,35 +32,35 @@ def test_refresh_jwt_issuer(network, args):
 def test_jwt_endpoint(network, args):
     primary, _ = network.find_nodes()
 
-    issuers = [
-        infra.jwt_issuer.JwtIssuer("issuer1"),
-        infra.jwt_issuer.JwtIssuer("issuer2"),
-    ]
-    for issuer in issuers:
-        LOG.info(f"Add JWT issuer {issuer.name}")
-        kid = f"kid_{issuer.name}"
+    keys = {
+        infra.jwt_issuer.JwtIssuer("issuer1"): ["issuer1_kid1", "issuer1_kid2"],
+        infra.jwt_issuer.JwtIssuer("issuer2"): ["issuer2_kid1", "issuer2_kid2"],
+    }
+
+    LOG.info("Register JWT issuer with multiple kids")
+    for issuer, kids in keys.items():
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump({"issuer": issuer.name}, metadata_fp)
             metadata_fp.flush()
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-            json.dump(issuer.create_jwks(kid), jwks_fp)
+            json.dump(issuer.create_jwks_for_kids(kids), jwks_fp)
             jwks_fp.flush()
             network.consortium.set_jwt_public_signing_keys(
                 primary, issuer.name, jwks_fp.name
             )
 
+    LOG.info("Check that JWT endpoint returns all keys and issuers")
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.get("/gov/jwt_keys/all")
         assert r.status_code == 200, r
         info = r.body.json()
-        LOG.error(info)
-        for issuer in issuers:
-            kid = f"kid_{issuer.name}"
-            assert kid in info, r
-            assert info[kid]["issuer"] == issuer.name
-            assert info[kid]["cert"] == issuer.cert_pem
+        for issuer, kids in keys.items():
+            for kid in kids:
+                assert kid in info, r
+                assert info[kid]["issuer"] == issuer.name
+                assert info[kid]["cert"] == issuer.cert_pem
 
 
 @reqs.description("JWT without key policy")
