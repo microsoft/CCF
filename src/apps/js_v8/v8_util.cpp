@@ -119,16 +119,6 @@ namespace ccf::v8_util
         isolate, message->GetSourceLine(context).ToLocalChecked());
       const char* sourceline_string = to_cstr(sourceline);
       LOG_INFO_FMT("{}", sourceline_string);
-      // Print wavy underline (GetUnderline is deprecated).
-      // int start = message->GetStartColumn(context).FromJust();
-      // for (int i = 0; i < start; i++) {
-      //   LOG_INFO_FMT((stderr, " ");
-      // }
-      // int end = message->GetEndColumn(context).FromJust();
-      // for (int i = start; i < end; i++) {
-      //   fprintf(stderr, "^");
-      // }
-      // fprintf(stderr, "\n");
       v8::Local<v8::Value> stack_trace_string;
       if (
         try_catch->StackTrace(context).ToLocal(&stack_trace_string) &&

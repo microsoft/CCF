@@ -250,6 +250,19 @@ namespace ccf
     return static_cast<V8Isolate::Data*>(isolate->GetData(0));
   }
 
+  static void on_fatal_error(const char* location, const char* message)
+  {
+    LOG_FATAL_FMT("Fatal error in V8: {}: {}", location, message);
+  }
+
+  static size_t on_near_heap_limit(
+    void* data, size_t current_heap_limit, size_t initial_heap_limit)
+  {
+    LOG_INFO_FMT(
+      "WARNING: Approaching heap limit in V8 (limit: {})", current_heap_limit);
+    return current_heap_limit;
+  }
+
   V8Isolate::V8Isolate()
   {
     v8::Isolate::CreateParams create_params;
@@ -257,8 +270,8 @@ namespace ccf
       v8::ArrayBuffer::Allocator::NewDefaultAllocator();
     isolate_ = v8::Isolate::New(create_params);
     // Note: Out-of-memory also calls the fatal error handler.
-    isolate_->SetFatalErrorHandler(V8Isolate::on_fatal_error);
-    isolate_->AddNearHeapLimitCallback(V8Isolate::on_near_heap_limit, nullptr);
+    isolate_->SetFatalErrorHandler(on_fatal_error);
+    isolate_->AddNearHeapLimitCallback(on_near_heap_limit, nullptr);
     data_ = std::make_unique<V8Isolate::Data>(isolate_);
   }
 
@@ -268,19 +281,6 @@ namespace ccf
     data_ = nullptr;
     isolate_->Dispose();
     delete allocator;
-  }
-
-  void V8Isolate::on_fatal_error(const char* location, const char* message)
-  {
-    LOG_FATAL_FMT("Fatal error in V8: {}: {}", location, message);
-  }
-
-  size_t V8Isolate::on_near_heap_limit(
-    void* data, size_t current_heap_limit, size_t initial_heap_limit)
-  {
-    LOG_INFO_FMT(
-      "WARNING: Approaching heap limit in V8 (limit: {})", current_heap_limit);
-    return current_heap_limit;
   }
 
   // Instantiating a V8Context also establishes

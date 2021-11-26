@@ -463,23 +463,24 @@ if(ENABLE_V8)
 
   set(v8_defs V8_CC_MSVC=0)
 
+  set(js_v8_dir ${CCF_DIR}/src/apps/js_v8)
   set(js_v8_src
-      ${CCF_DIR}/src/apps/js_v8/js_v8_base.cpp
-      ${CCF_DIR}/src/apps/js_v8/v8_runner.cpp
-      ${CCF_DIR}/src/apps/js_v8/v8_util.cpp
-      ${CCF_DIR}/src/apps/js_v8/kv_module_loader.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/console_global.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/ccf_global.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/request.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/request_authn_identity.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/request_body.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/string_map.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/kv_store.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/kv_map.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/historical_state.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/receipt.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/consensus.cpp
-      ${CCF_DIR}/src/apps/js_v8/tmpl/historical.cpp
+      ${js_v8_dir}/js_v8_base.cpp
+      ${js_v8_dir}/v8_runner.cpp
+      ${js_v8_dir}/v8_util.cpp
+      ${js_v8_dir}/kv_module_loader.cpp
+      ${js_v8_dir}/tmpl/console_global.cpp
+      ${js_v8_dir}/tmpl/ccf_global.cpp
+      ${js_v8_dir}/tmpl/request.cpp
+      ${js_v8_dir}/tmpl/request_authn_identity.cpp
+      ${js_v8_dir}/tmpl/request_body.cpp
+      ${js_v8_dir}/tmpl/string_map.cpp
+      ${js_v8_dir}/tmpl/kv_store.cpp
+      ${js_v8_dir}/tmpl/kv_map.cpp
+      ${js_v8_dir}/tmpl/historical_state.cpp
+      ${js_v8_dir}/tmpl/receipt.cpp
+      ${js_v8_dir}/tmpl/consensus.cpp
+      ${js_v8_dir}/tmpl/historical.cpp
   )
 
   if("virtual" IN_LIST COMPILE_TARGETS)
@@ -487,7 +488,7 @@ if(ENABLE_V8)
     add_san(js_v8_base.virtual)
     add_warning_checks(js_v8_base.virtual)
     target_include_directories(
-      js_v8_base.virtual PRIVATE ${v8_virtual_include_dir}
+      js_v8_base.virtual PRIVATE ${js_v8_dir} ${v8_virtual_include_dir}
     )
     target_link_libraries(
       js_v8_base.virtual PUBLIC ccf.virtual ${v8_virtual_lib}
@@ -515,7 +516,9 @@ if(ENABLE_V8)
 
     add_enclave_library(js_v8_base.enclave ${js_v8_src})
     use_oe_mbedtls(js_v8_base.enclave)
-    target_include_directories(js_v8_base.enclave PRIVATE ${v8_sgx_include_dir})
+    target_include_directories(
+      js_v8_base.enclave PRIVATE ${js_v8_dir} ${v8_sgx_include_dir}
+    )
     target_link_libraries(
       js_v8_base.enclave PUBLIC ccf.enclave ${v8_sgx_lib} v8_oe_stubs.enclave
     )

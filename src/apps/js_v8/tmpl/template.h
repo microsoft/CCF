@@ -3,10 +3,8 @@
 #pragma once
 
 #include "v8.h"
-
-// TODO adjust paths
-#include "../v8_runner.h"
-#include "../v8_util.h"
+#include "v8_runner.h"
+#include "v8_util.h"
 
 namespace
 {
@@ -33,13 +31,5 @@ namespace ccf::v8_tmpl
   {
     v8::Local<v8::Template> tmpl = get_cached_template<T>(isolate);
     return tmpl.As<v8::ObjectTemplate>();
-  }
-
-  template <class T>
-  static v8::Local<v8::FunctionTemplate> get_cached_function_template(
-    v8::Isolate* isolate)
-  {
-    v8::Local<v8::Template> tmpl = get_cached_template<T>(isolate);
-    return tmpl.As<v8::FunctionTemplate>();
   }
 } // namespace ccf::v8_tmpl

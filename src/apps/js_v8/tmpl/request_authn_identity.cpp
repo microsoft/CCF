@@ -3,10 +3,9 @@
 
 #include "request_authn_identity.h"
 
-#include "template.h"
-// TODO adjust
-#include "../named_auth_policies.h"
 #include "ccf/base_endpoint_registry.h"
+#include "named_auth_policies.h"
+#include "template.h"
 
 using ccf::BaseEndpointRegistry;
 using ccf::endpoints::EndpointContext;

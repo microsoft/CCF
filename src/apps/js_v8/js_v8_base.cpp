@@ -512,7 +512,8 @@ namespace ccfapp
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
     NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
-    // TODO move this elsewhere and also call shutdown()
+    // V8 initialization needs to move to a more central place
+    // once/if V8 is integrated into core CCF.
     v8_initialize();
 
     return make_shared<V8Frontend>(network, context);

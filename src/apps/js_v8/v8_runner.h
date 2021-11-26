@@ -101,10 +101,6 @@ namespace ccf
     }
 
   private:
-    static void on_fatal_error(const char* location, const char* message);
-    static size_t on_near_heap_limit(
-      void* data, size_t current_heap_limit, size_t initial_heap_limit);
-
     v8::Isolate* isolate_;
     std::unique_ptr<Data> data_;
   };
@@ -147,7 +143,6 @@ namespace ccf
 
     void install_global(const std::string& name, v8::Local<v8::Value> value);
 
-    // TODO allow to compile-only for validation purposes
     v8::Local<v8::Value> run(
       const std::string& module_name,
       const std::string& exported_function_name,

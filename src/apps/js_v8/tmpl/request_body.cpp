@@ -53,10 +53,12 @@ namespace ccf::v8_tmpl
   {
     const std::vector<uint8_t>* body = unwrap_body(info.Holder());
 
-    // TODO ok to pass the underlying buffer as writable ArrayBuffer?
-    // In the QuickJS bindings, a copy is made.
+    // Ideally, we'd pass the underlying buffer as read-only ArrayBuffer.
     // ArrayBuffers cannot be marked read-only, though there is an
     // early proposal: https://github.com/tc39/proposal-limited-arraybuffer
+    // For performance reasons, a copy is not made here and the buffer
+    // is writable from JS.
+    // Note that in the QuickJS bindings, a copy is made.
     uint8_t* data = const_cast<uint8_t*>(body->data());
     size_t size = body->size();
 

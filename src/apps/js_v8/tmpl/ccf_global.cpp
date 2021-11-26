@@ -284,8 +284,9 @@ namespace ccf::v8_tmpl
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historical"), get_historical);
 
-    // TODO .rpc
-    // TODO .host
+    // To be wrapped:
+    // .rpc
+    // .host
 
     return handle_scope.Escape(tmpl);
   }
