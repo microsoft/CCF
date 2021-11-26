@@ -96,6 +96,13 @@
         ],
         "type": "object"
       },
+      "ConsensusType": {
+        "enum": [
+          "CFT",
+          "BFT"
+        ],
+        "type": "string"
+      },
       "EndpointMetrics": {
         "properties": {
           "metrics": {
@@ -508,6 +515,13 @@
         },
         "type": "array"
       },
+      "ReconfigurationType": {
+        "enum": [
+          "OneTransaction",
+          "TwoTransaction"
+        ],
+        "type": "string"
+      },
       "RetirementPhase": {
         "enum": [
           "Committed",
@@ -516,6 +530,26 @@
           "Completed"
         ],
         "type": "string"
+      },
+      "ServiceConfiguration": {
+        "properties": {
+          "consensus": {
+            "$ref": "#/components/schemas/ConsensusType"
+          },
+          "maximum_node_certificate_validity_days": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "reconfiguration_type": {
+            "$ref": "#/components/schemas/ReconfigurationType"
+          },
+          "recovery_threshold": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "recovery_threshold"
+        ],
+        "type": "object"
       },
       "ServiceStatus": {
         "enum": [
@@ -632,7 +666,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.6.0"
+    "version": "2.7.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -967,6 +1001,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/service-configuration": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceConfiguration"
                 }
               }
             },
