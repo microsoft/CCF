@@ -29,10 +29,11 @@ if [ "$TARGET" != "virtual" ] && [ "$TARGET" != "sgx" ]; then
 fi
 PUBLISH=false
 if [ "$4" != "" ]; then
-  if [ "$4" == "true" ]; then
-    PUBLISH="$4"
-  elif [ "$4" != "false" ]; then
-    echo "ERROR: Publish can only be 'true' or 'false'"
+  # uppercase to support Azure Pipelines booleans
+  if [ "$4" == "true" ] || [ "$4" == "True" ]; then
+    PUBLISH="true"
+  elif [ "$4" != "false" ] || [ "$4" == "False" ]; then
+    echo "ERROR: Publish can only be 'true' or 'false', got: $4"
     echo "$SYNTAX"
     exit 1
   fi
@@ -44,6 +45,11 @@ if [ ! -f "$PATCH_PATH" ]; then
   echo "ERROR: Missing patch file '$PATCH_PATH'"
   exit 1
 fi
+
+echo " + Version: $VERSION"
+echo " + Mode: $MODE"
+echo " + Target: $TARGET"
+echo " + Publish: $PUBLISH"
 
 echo " + Cleaning up environment..."
 if [ "$SKIP_CLEAN" != "1" ]; then
@@ -242,6 +248,7 @@ GN_ARGS="\
   v8_enable_pointer_compression=false \
   use_goma=false \
   "
+echo " + gn args: $GN_ARGS"
 gn gen "$OUT_DIR" --args="$GN_ARGS"
 
 if [ "$VERBOSE" == 1 ]; then
