@@ -32,6 +32,7 @@ LEDGER_HEADER_SIZE = 8
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
+SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
 
@@ -405,7 +406,11 @@ class LedgerValidator:
         # Note: A retired primary will still issue signature transactions until
         # its retirement is committed
         node_status = NodeStatus(tx_info.node_activity[tx_info.signing_node][0])
-        if node_status not in (NodeStatus.TRUSTED, NodeStatus.RETIRED):
+        if node_status not in (
+            NodeStatus.TRUSTED,
+            NodeStatus.RETIRING,
+            NodeStatus.RETIRED,
+        ):
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )

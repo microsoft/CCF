@@ -9,16 +9,12 @@ import os
 import sys
 import shutil
 import tempfile
-from typing import Optional, Any, List, Dict
+import jinja2
+from typing import Optional, Any, List
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
-
-
-def dump_to_file(output_path: str, obj: dict, dump_args: dict):
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, **dump_args)
 
 
 DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
@@ -64,43 +60,22 @@ def build_proposal(
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
-    proposal: Dict[str, Any] = {}
-    vote: Dict[str, Any] = {}
+    template_loader = jinja2.PackageLoader("ccf", "templates")
+    template_env = jinja2.Environment(
+        loader=template_loader, undefined=jinja2.StrictUndefined
+    )
 
     action = {"name": proposed_call, "args": args}
     actions = [action]
-    proposal = {"actions": actions}
 
-    vote_lines = []
-    vote_lines.append("export function vote (rawProposal, proposerId) {")
-    vote_lines.append("  let proposal = JSON.parse(rawProposal);")
-    vote_lines.append("  if (!('actions' in proposal)) { return false; };")
-    vote_lines.append("  let actions = proposal['actions'];")
-    vote_lines.append("  if (actions.length !== 1) { return false; };")
-    vote_lines.append("  let action = actions[0];")
-    vote_lines.append("  if (!('name' in action)) { return false; };")
-    vote_lines.append(f"  if (action.name !== '{proposed_call}') {{ return false; }};")
+    proposals_template = template_env.get_template("proposals.json.jinja")
+    proposal = proposals_template.render(actions=actions)
 
-    if args is not None:
-        vote_lines.append("  if (!('args' in action)) { return false; };")
-        vote_lines.append("  let args = action.args;")
+    vote_template = template_env.get_template("ballots.json.jinja")
+    vote = vote_template.render(actions=actions)
 
-        for name, body in args.items():
-            vote_lines.append("  {")
-            vote_lines.append(f"    if (!('{name}' in args)) {{ return false; }};")
-            vote_lines.append(f"    let expected = {json.dumps(body)};")
-            vote_lines.append(
-                f"    if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
-            )
-            vote_lines.append("  }")
-
-    vote_lines.append("  return true;")
-    vote_lines.append("}")
-    vote_text = "\n".join(vote_lines)
-    vote = {"ballot": vote_text}
-
-    LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
-    LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
+    LOG.trace(f"Made {proposed_call} proposal:\n{proposal}")
+    LOG.trace(f"Accompanying vote:\n{vote}")
 
     return proposal, vote
 
@@ -226,8 +201,13 @@ def refresh_js_app_bytecode_cache(**kwargs):
 
 
 @cli_proposal
-def transition_node_to_trusted(node_id: str, **kwargs):
-    return build_proposal("transition_node_to_trusted", {"node_id": node_id}, **kwargs)
+def transition_node_to_trusted(
+    node_id: str, valid_from: str, validity_period_days: Optional[int] = None, **kwargs
+):
+    args = {"node_id": node_id, "valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days  # type: ignore
+    return build_proposal("transition_node_to_trusted", args, **kwargs)
 
 
 @cli_proposal
@@ -267,7 +247,9 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **kwargs):
+def set_ca_cert_bundle(
+    cert_bundle_name, cert_bundle_path, skip_checks: bool = False, **kwargs
+):
     with open(cert_bundle_path, encoding="utf-8") as f:
         cert_bundle_pem = f.read()
 
@@ -325,6 +307,26 @@ def set_jwt_public_signing_keys(issuer: str, jwks_path: str, **kwargs):
     return build_proposal("set_jwt_public_signing_keys", args, **kwargs)
 
 
+@cli_proposal
+def set_node_certificate_validity(
+    node_id: str, valid_from: str, validity_period_days: Optional[int] = None, **kwargs
+):
+    args = {"node_id": node_id, "valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days  # type: ignore
+    return build_proposal("set_node_certificate_validity", args, **kwargs)
+
+
+@cli_proposal
+def set_all_nodes_certificate_validity(
+    valid_from: str, validity_period_days: Optional[int] = None, **kwargs
+):
+    args = {"valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days  # type: ignore
+    return build_proposal("set_all_nodes_certificate_validity", args, **kwargs)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -339,12 +341,6 @@ if __name__ == "__main__":
         "--vote-output-file",
         type=str,
         help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/ballots) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
-    )
-    parser.add_argument(
-        "-pp",
-        "--pretty-print",
-        action="store_true",
-        help="Pretty-print the JSON output",
     )
     parser.add_argument(
         "-i",
@@ -416,18 +412,16 @@ if __name__ == "__main__":
         inline_args=args.inline_args,
     )
 
-    dump_args = {}
-    if args.pretty_print:
-        dump_args["indent"] = 2
-
     proposal_path = complete_proposal_output_path(
         args.proposal_type, proposal_output_path=args.proposal_output_file
     )
     LOG.success(f"Writing proposal to {proposal_path}")
-    dump_to_file(proposal_path, proposal, dump_args)
+    with open(proposal_path, "w", encoding="utf-8") as f:
+        f.write(proposal)
 
     vote_path = complete_vote_output_path(
         args.proposal_type, vote_output_path=args.vote_output_file
     )
-    LOG.success(f"Wrote vote to {vote_path}")
-    dump_to_file(vote_path, vote, dump_args)
+    LOG.success(f"Writing vote to {vote_path}")
+    with open(vote_path, "w", encoding="utf-8") as f:
+        f.write(vote)

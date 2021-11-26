@@ -1,0 +1,57 @@
+{%- from "macros.jinja" import json_encode as json_encode -%}
+export function vote (rawProposal, proposerId) {
+  let proposal = JSON.parse(rawProposal);
+  if (!("actions" in proposal))
+  {
+    return false;
+  }
+
+  let actions = proposal["actions"];
+  if (actions.length !== {{ actions|length }} )
+  {
+    return false;
+  }
+{% for action in actions %}
+  // Check that the "{{ action.name }}" action is exactly what was expected
+  {
+    let action = actions[{{ loop.index - 1}}];
+    if (!("name" in action))
+    {
+      return false;
+    }
+
+    if (action.name !== "{{ action.name }}")
+    {
+      return false;
+    }
+
+{% if action.args is defined and action.args is mapping %}
+    if (!("args" in action))
+    {
+      return false;
+    }
+
+    let args = action.args;
+{% for arg_name, arg_value in action.args.items() %}
+    // Check each argument
+    {
+      if (!("{{ arg_name }}" in args))
+      {
+        return false;
+      }
+
+      // Compare stringified JSON representation, to cover object equality
+      const expected = JSON.stringify({{ json_encode(arg_value) }});
+      if (JSON.stringify(args["{{ arg_name }}"]) !== expected)
+      {
+        return false;
+      }
+    } {% endfor %}{% else %}
+    if ("args" in action)
+    {
+      return false;
+    }{% endif %}
+  }
+{% endfor %}
+  return true;
+}

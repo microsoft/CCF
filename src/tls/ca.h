@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../crypto/mbedtls/mbedtls_wrappers.h"
-#include "../crypto/pem.h"
-#include "../ds/buffer.h"
+#include "crypto/mbedtls/error_string.h"
+#include "crypto/mbedtls/mbedtls_wrappers.h"
+#include "crypto/pem.h"
+#include "ds/buffer.h"
 
 #include <exception>
 
@@ -29,7 +30,7 @@ namespace tls
           mbedtls_x509_crt_parse(tmp_ca.get(), pem_ca.data(), pem_ca.size());
         if (ret != 0)
           throw std::logic_error(
-            "Could not parse CA: " + tls::error_string(ret));
+            "Could not parse CA: " + crypto::error_string(ret));
       }
 
       if (crl_.n > 0)
@@ -39,7 +40,7 @@ namespace tls
           mbedtls_x509_crl_parse(tmp_crl.get(), pem_crl.data(), pem_crl.size());
         if (ret != 0)
           throw std::logic_error(
-            "Could not parse CRL: " + tls::error_string(ret));
+            "Could not parse CRL: " + crypto::error_string(ret));
       }
 
       ca = std::move(tmp_ca);

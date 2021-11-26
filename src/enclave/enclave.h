@@ -65,7 +65,8 @@ namespace enclave
   public:
     Enclave(
       const EnclaveConfig& ec,
-      const CCFConfig::SignatureIntervals& signature_intervals,
+      size_t sig_tx_interval,
+      size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
       const CurveID& curve_id) :
       circuit(
@@ -79,7 +80,7 @@ namespace enclave
           ec.from_enclave_buffer_offsets}),
       basic_writer_factory(circuit),
       writer_factory(basic_writer_factory, ec.writer_config),
-      network(consensus_config.consensus_type),
+      network(consensus_config.type),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map))
@@ -133,8 +134,8 @@ namespace enclave
         consensus_config,
         rpc_map,
         rpcsessions,
-        signature_intervals.sig_tx_interval,
-        signature_intervals.sig_ms_interval);
+        sig_tx_interval,
+        sig_ms_interval);
     }
 
     ~Enclave()
@@ -149,7 +150,7 @@ namespace enclave
 
     bool create_new_node(
       StartType start_type_,
-      CCFConfig&& ccf_config_,
+      StartupConfig&& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -163,8 +164,7 @@ namespace enclave
 
       start_type = start_type_;
 
-      rpcsessions->update_listening_interface_caps(
-        ccf_config_.node_info_network);
+      rpcsessions->update_listening_interface_caps(ccf_config_.network);
 
       ccf::NodeCreateInfo r;
       try
@@ -273,14 +273,24 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
-          consensus::ledger_entry,
+          consensus::ledger_entry_range,
           [this](const uint8_t* data, size_t size) {
-            const auto [index, purpose, body] =
-              ringbuffer::read_message<consensus::ledger_entry>(data, size);
+            const auto [from_seqno, to_seqno, purpose, body] =
+              ringbuffer::read_message<consensus::ledger_entry_range>(
+                data, size);
             switch (purpose)
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
+                if (from_seqno != to_seqno)
+                {
+                  LOG_FAIL_FMT(
+                    "Unexpected range for Recovery response "
+                    "ledger_entry_range: {}->{} "
+                    "(expected single ledger entry)",
+                    from_seqno,
+                    to_seqno);
+                }
                 if (
                   node->is_reading_public_ledger() ||
                   node->is_verifying_snapshot())
@@ -301,8 +311,8 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache->handle_ledger_entry(
-                  index, body);
+                context->historical_state_cache->handle_ledger_entries(
+                  from_seqno, to_seqno, body);
                 break;
               }
               default:
@@ -314,14 +324,24 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
-          consensus::ledger_no_entry,
+          consensus::ledger_no_entry_range,
           [this](const uint8_t* data, size_t size) {
-            const auto [index, purpose] =
-              ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
+            const auto [from_seqno, to_seqno, purpose] =
+              ringbuffer::read_message<consensus::ledger_no_entry_range>(
+                data, size);
             switch (purpose)
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
+                if (from_seqno != to_seqno)
+                {
+                  LOG_FAIL_FMT(
+                    "Unexpected range for Recovery response "
+                    "ledger_no_entry_range: {}->{} "
+                    "(expected single ledger entry)",
+                    from_seqno,
+                    to_seqno);
+                }
                 if (node->is_verifying_snapshot())
                 {
                   node->verify_snapshot_end();
@@ -334,7 +354,8 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache->handle_no_entry(index);
+                context->historical_state_cache->handle_no_entry_range(
+                  from_seqno, to_seqno);
                 break;
               }
               default:

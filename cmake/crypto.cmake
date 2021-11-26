@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 set(CCFCRYPTO_SRC
+    ${CCF_DIR}/src/crypto/base64.cpp
     ${CCF_DIR}/src/crypto/entropy.cpp
     ${CCF_DIR}/src/crypto/hash.cpp
     ${CCF_DIR}/src/crypto/symmetric_key.cpp

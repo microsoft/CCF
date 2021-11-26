@@ -4,6 +4,7 @@
 
 #include "ccf/entity_id.h"
 #include "crypto/hash_provider.h"
+#include "crypto/key_exchange.h"
 #include "crypto/key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
@@ -14,11 +15,11 @@
 #include "enclave/enclave_time.h"
 #include "entities.h"
 #include "node_types.h"
-#include "tls/key_exchange.h"
 
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
+#include <openssl/crypto.h>
 
 // -Wpedantic flags token pasting of __VA_ARGS__
 #pragma clang diagnostic push
@@ -723,6 +724,8 @@ namespace ccf
           {label_to.begin(), label_to.end()});
         send_key = crypto::make_key_aes_gcm(key_bytes);
       }
+
+      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
 
       send_nonce = 1;
       for (size_t i = 0; i < local_recv_nonce.size(); i++)

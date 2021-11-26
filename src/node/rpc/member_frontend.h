@@ -4,6 +4,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/json_handler.h"
+#include "crypto/base64.h"
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
@@ -17,13 +18,13 @@
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
-#include "tls/base64.h"
 
 #include <charconv>
 #include <exception>
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <openssl/crypto.h>
 #include <set>
 #include <sstream>
 
@@ -683,7 +684,7 @@ namespace ccf
         }
 
         return make_success(
-          GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
+          GetRecoveryShare::Out{crypto::b64_from_raw(encrypted_share.value())});
       };
       make_endpoint(
         "/recovery_share",
@@ -730,7 +731,8 @@ namespace ccf
         }
 
         const auto in = params.get<SubmitRecoveryShare::In>();
-        auto raw_recovery_share = tls::raw_from_b64(in.share);
+        auto raw_recovery_share = crypto::raw_from_b64(in.share);
+        OPENSSL_cleanse(const_cast<char*>(in.share.data()), in.share.size());
 
         size_t submitted_shares_count = 0;
         try
@@ -748,6 +750,7 @@ namespace ccf
             errors::InternalError,
             error_msg);
         }
+        OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
         if (submitted_shares_count < g.get_recovery_threshold())
         {
@@ -982,19 +985,33 @@ namespace ccf
           proposal_id,
           ctx.rpc_ctx->get_request_body(),
           constitution.value());
-        pi->put(
-          proposal_id,
-          {caller_identity.member_id,
-           rv.state,
-           {},
-           {},
-           std::nullopt,
-           rv.failure});
 
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
+        if (rv.state == ProposalState::FAILED)
+        {
+          // If the proposal failed to apply, we want to discard the tx and not
+          // apply its side-effects to the KV state.
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("{}", rv.failure));
+          return;
+        }
+        else
+        {
+          pi->put(
+            proposal_id,
+            {caller_identity.member_id,
+             rv.state,
+             {},
+             {},
+             std::nullopt,
+             rv.failure});
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          return;
+        }
       };
 
       make_endpoint("/proposals", HTTP_POST, post_proposals_js, member_sig_only)
@@ -1194,17 +1211,16 @@ namespace ccf
         .set_auto_schema<void, jsgov::Proposal>()
         .install();
 
-      auto vote_js = [this](
-                       endpoints::EndpointContext& ctx,
-                       nlohmann::json&& params) {
+      auto vote_js = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Member is not active.");
+          return;
         }
 
         ProposalId proposal_id;
@@ -1212,17 +1228,21 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
+          return;
         }
 
         auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "No constitution is set - proposals cannot be evaluated");
+          return;
         }
 
         auto pi =
@@ -1230,15 +1250,16 @@ namespace ccf
         auto pi_ = pi->get(proposal_id);
         if (!pi_)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ProposalNotFound,
             fmt::format("Could not find proposal {}.", proposal_id));
+          return;
         }
 
         if (pi_.value().state != ProposalState::OPEN)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ProposalNotOpen,
             fmt::format(
@@ -1247,6 +1268,7 @@ namespace ccf
               proposal_id,
               pi_.value().state,
               ProposalState::OPEN));
+          return;
         }
 
         auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
@@ -1254,20 +1276,24 @@ namespace ccf
 
         if (!p)
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ProposalNotFound,
             fmt::format("Proposal {} does not exist.", proposal_id));
+          return;
         }
 
         if (pi_->ballots.find(caller_identity.member_id) != pi_->ballots.end())
         {
-          return make_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::VoteAlreadyExists,
             "Vote already submitted.");
+          return;
         }
         // Validate vote
+
+        auto params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
         {
           js::Runtime rt;
@@ -1286,18 +1312,32 @@ namespace ccf
 
         auto rv = resolve_proposal(
           ctx.tx, proposal_id, p.value(), constitution.value());
-        pi_.value().state = rv.state;
-        pi_.value().final_votes = rv.votes;
-        pi_.value().vote_failures = rv.vote_failures;
-        pi_.value().failure = rv.failure;
-        pi->put(proposal_id, pi_.value());
-        return make_success(rv);
+        if (rv.state == ProposalState::FAILED)
+        {
+          // If the proposal failed to apply, we want to discard the tx and not
+          // apply its side-effects to the KV state.
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("{}", rv.failure));
+          return;
+        }
+        else
+        {
+          pi_.value().state = rv.state;
+          pi_.value().final_votes = rv.votes;
+          pi_.value().vote_failures = rv.vote_failures;
+          pi_.value().failure = rv.failure;
+          pi->put(proposal_id, pi_.value());
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          return;
+        }
       };
       make_endpoint(
-        "/proposals/{proposal_id}/ballots",
-        HTTP_POST,
-        json_adapter(vote_js),
-        member_sig_only)
+        "/proposals/{proposal_id}/ballots", HTTP_POST, vote_js, member_sig_only)
         .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
         .install();
 

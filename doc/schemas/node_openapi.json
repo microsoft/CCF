@@ -7,6 +7,95 @@
         ],
         "type": "string"
       },
+      "Configuration": {
+        "properties": {
+          "bft_offset": {
+            "$ref": "#/components/schemas/uint32"
+          },
+          "idx": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "nodes": {
+            "$ref": "#/components/schemas/EntityId_to_Configuration__NodeInfo"
+          },
+          "rid": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "idx",
+          "nodes",
+          "rid"
+        ],
+        "type": "object"
+      },
+      "Configuration__NodeInfo": {
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
+      "Configuration_array": {
+        "items": {
+          "$ref": "#/components/schemas/Configuration"
+        },
+        "type": "array"
+      },
+      "ConsensusConfigDetails": {
+        "properties": {
+          "details": {
+            "$ref": "#/components/schemas/ConsensusDetails"
+          }
+        },
+        "required": [
+          "details"
+        ],
+        "type": "object"
+      },
+      "ConsensusDetails": {
+        "properties": {
+          "acks": {
+            "$ref": "#/components/schemas/EntityId_to_uint64"
+          },
+          "configs": {
+            "$ref": "#/components/schemas/Configuration_array"
+          },
+          "leadership_state": {
+            "$ref": "#/components/schemas/LeadershipState"
+          },
+          "learners": {
+            "$ref": "#/components/schemas/EntityId_to_uint64"
+          },
+          "membership_state": {
+            "$ref": "#/components/schemas/MembershipState"
+          },
+          "retirement_phase": {
+            "$ref": "#/components/schemas/RetirementPhase"
+          }
+        },
+        "required": [
+          "configs",
+          "acks",
+          "membership_state"
+        ],
+        "type": "object"
+      },
+      "ConsensusNodeConfig": {
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
       "EndpointMetrics": {
         "properties": {
           "metrics": {
@@ -59,6 +148,18 @@
         "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
+      },
+      "EntityId_to_Configuration__NodeInfo": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Configuration__NodeInfo"
+        },
+        "type": "object"
+      },
+      "EntityId_to_uint64": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/uint64"
+        },
+        "type": "object"
       },
       "GetCode__Out": {
         "properties": {
@@ -263,6 +364,23 @@
         ],
         "type": "object"
       },
+      "LeadershipState": {
+        "enum": [
+          "Leader",
+          "Follower",
+          "Candidate"
+        ],
+        "type": "string"
+      },
+      "MembershipState": {
+        "enum": [
+          "Learner",
+          "Active",
+          "RetirementInitiated",
+          "Retired"
+        ],
+        "type": "string"
+      },
       "MemoryUsage__Out": {
         "properties": {
           "current_allocated_heap_size": {
@@ -390,6 +508,15 @@
         },
         "type": "array"
       },
+      "RetirementPhase": {
+        "enum": [
+          "Committed",
+          "Ordered",
+          "Signed",
+          "Completed"
+        ],
+        "type": "string"
+      },
       "ServiceStatus": {
         "enum": [
           "Opening",
@@ -478,11 +605,22 @@
       "string": {
         "type": "string"
       },
+      "string_to_ConsensusNodeConfig": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ConsensusNodeConfig"
+        },
+        "type": "object"
+      },
       "string_to_SessionMetrics__PerInterface": {
         "additionalProperties": {
           "$ref": "#/components/schemas/SessionMetrics__PerInterface"
         },
         "type": "object"
+      },
+      "uint32": {
+        "maximum": 4294967295,
+        "minimum": 0,
+        "type": "integer"
       },
       "uint64": {
         "maximum": 18446744073709551615,
@@ -494,7 +632,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.2.0"
+    "version": "2.6.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -566,6 +704,13 @@
       "get": {
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_ConsensusNodeConfig"
+                }
+              }
+            },
             "description": "Default response description"
           }
         }
@@ -575,6 +720,13 @@
       "get": {
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsensusConfigDetails"
+                }
+              }
+            },
             "description": "Default response description"
           }
         }

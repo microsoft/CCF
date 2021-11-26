@@ -56,11 +56,11 @@ if(ENABLE_BFT)
   add_compile_definitions(ENABLE_BFT)
 endif()
 
-option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
+option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
        OFF
 )
-if(DEBUG_CONFIG)
-  add_compile_definitions(DEBUG_CONFIG)
+if(ENABLE_2TX_RECONFIG)
+  add_compile_definitions(ENABLE_2TX_RECONFIG)
 endif()
 
 option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
@@ -121,8 +121,14 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh test_python_cli.sh docker_wrap.sh
+set(CCF_TEST_UTILITIES
+    tests.sh
+    cimetrics_env.sh
+    upload_pico_metrics.py
+    test_install.sh
+    test_python_cli.sh
+    docker_wrap.sh
+    config.jinja
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -132,6 +138,7 @@ endforeach()
 
 # Install additional utilities
 install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
+install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(
@@ -585,12 +592,13 @@ function(add_e2e_test)
       set(PYTHON_WRAPPER ${PYTHON})
     endif()
 
+    string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        --consensus ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -659,59 +667,6 @@ function(add_e2e_test)
   endif()
 endfunction()
 
-# Helper for building end-to-end function tests using the sandbox
-function(add_e2e_sandbox_test)
-  cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS "" "NAME;SCRIPT;LABEL;CONSENSUS;"
-    "ADDITIONAL_ARGS;CONFIGURATIONS"
-  )
-
-  if(BUILD_END_TO_END_TESTS)
-    add_test(NAME ${PARSED_ARGS_NAME} COMMAND ${PARSED_ARGS_SCRIPT})
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS e2e
-    )
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS e2e
-    )
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS ${PARSED_ARGS_LABEL}
-    )
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "CONSENSUS=${PARSED_ARGS_CONSENSUS}"
-    )
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
-    )
-
-    if(DEFINED DEFAULT_ENCLAVE_TYPE)
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-      )
-    else()
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=release"
-      )
-    endif()
-  endif()
-endfunction()
-
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
 
@@ -753,11 +708,12 @@ function(add_perf_test)
     set(LABEL_ARG "${TEST_NAME}^")
   endif()
 
+  string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
       ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
       ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
       ${NODES}

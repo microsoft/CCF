@@ -5,82 +5,77 @@ CCF supports multiple consensus protocols.
 
 The default consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`) and there is an experimental option of enabling Byzantine Fault Tolerance (:term:`BFT`).
 
-Below, we give an overview over the nodes state machine in both settings and the retirement mechanics that apply across the two protocols. 
+Below, we give an overview over the nodes state machine in both settings and the retirement mechanics that apply across the two protocols.
 
 CFT Consensus Protocol
------------------------
+----------------------
 
-The crash fault tolerant implementation in CCF is based on Raft. You can find more information on the Raft implementation in CCF :doc:`here <cft>`.
+The crash fault tolerant implementation in CCF is based on Raft. You can find more information on the Raft implementation of reconfiguration in CCF :doc:`here <1tx-reconfig>`.
 
-CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CLI are:
+CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
-- ``raft-timeout-ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``--raft-election-timeout-ms``.
-- ``raft-election-timeout-ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
+- ``consensus.timeout_ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.election_timeout_ms``.
+- ``consensus.election_timeout_ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
 BFT Consensus Protocol
 ----------------------
+
 .. warning:: CCF with BFT is currently in development and should not be used in a production environment.
 
-More details on this mode is given :doc:`here <bft>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
+More details on this mode is given :doc:`here <2tx-reconfig>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
 By default CCF runs with CFT **and BFT is disabled on release versions**. To run CCF with BFT, CCF first needs to be :doc:`built from source </contribute/build_ccf>`. Then, the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
-
-BFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CLI are:
-
-- ``bft-view-change-timeout-ms`` is the BFT view change timeout in milliseconds. If a backup does not receive the pre-prepare message for a request forwarded to the primary after this timeout, the backup triggers a view change.
-- ``bft-status-interval-ms`` is the BFT status timer interval in milliseconds. All BFT nodes send messages containing their status to all other known nodes at regular intervals defined by this timer interval.
-
 
 Replica State Machine
 ---------------------
 
-Simplified
+Membership
 ~~~~~~~~~~
 
-Main states and transitions in CCF consensus. Note that while the implementation of the transitions differs between CFT and BFT, the states themselves do not.
+Any node of the network is always in one of four membership states. When using one-transaction reconfiguration, the ``Learner`` and 
+``RetirementInitiated`` states are not used and each node is either in the ``Active`` or ``Retired`` states. The dotted arrows in the 
+state diagram indicate a transition on rollback:
 
 .. mermaid::
 
-    graph LR;
-        Init-->Leader;
-        Init-->Follower;
+    graph LR;  
+        Learner-->Active
+        Active-->RetirementInitiated
+        Active-->Retired
+        RetirementInitiated-.->Active
+        RetirementInitiated-->Retired
+        Retired-.->RetirementInitiated
+        Retired-.->Active
+
+The membership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint. 
+
+Simplified Leadership
+~~~~~~~~~~~~~~~~~~~~~
+
+Main consensus states and transitions. Note that while the implementation of the transitions differs between CFT and BFT, the states themselves do not.
+Nodes are not in any consensus state if they are not in the ``Active`` membership state yet, but once they are, they transition between all the 
+consensus states as the network evolves:
+
+.. mermaid::
+
+    graph LR;                        
         Follower-->Candidate;
         Candidate-->Follower;
         Candidate-->Leader;
-        Leader-->Retired;
-        Follower-->Retired;
+        Candidate-->Candidate;
+        Leader-->Follower;
 
-Retirement details
-~~~~~~~~~~~~~~~~~~
+The leadership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint. 
 
-The transition towards retirement involves two additional elements of state:
+Key-Value Store
+~~~~~~~~~~~~~~~
 
-- Retirement index (RI): Index at which node is set to ``Retired`` in ``public:ccf.gov.nodes.info``
-- Retirement Committable Index (RCI): Index at which the retirement transaction first becomes committable, ie. the first signature following the transaction.
+Reconfiguration of the network is controlled via updates to the :ref:`audit/builtin_maps:``nodes.info``` built-in map, which assigns a :cpp:enum:`ccf::NodeStatus` to each node. Nodes with status :cpp:enumerator:`ccf::NodeStatus::PENDING` in this map do not have membership or leadership states yet. Nodes with status :cpp:enumerator:`ccf::NodeStatus::TRUSTED` are in the ``Active`` membership state and may be in any leadership state.
 
-A node permanently transitions to ``Retired`` once it has observed commit reaching its Retirement Committable Index.
 
-.. mermaid::
-
-    graph LR;
-        Follower-->FRI[Follower w/ RI];
-        FRI-->Follower;
-        FRI-->FRCI[Follower w/ RCI];
-        FRCI-->Follower;
-        FRCI-->Retired;
-
-.. mermaid::
-
-    graph LR;
-        Leader-->LRI[Leader w/ RI];
-        LRI-->Follower;
-        LRI-->LRCI[Leader w/ RCI: reject new entries];
-        LRCI-->Follower;
-        LRCI-->Retired;
-
-Note that because the rollback triggered when a node becomes aware of a new term never preserves unsigned transactions,
-and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
+Further information about the reconfiguration schemes:
 
 .. toctree::
-    cft
-    bft
+    1tx-reconfig
+    2tx-reconfig
+    

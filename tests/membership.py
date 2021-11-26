@@ -160,7 +160,7 @@ def recovery_shares_scenario(args):
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with CFT
-        if args.consensus != "cft":
+        if args.consensus != "CFT":
             LOG.warning("Skipping test recovery threshold as consensus is not CFT")
             return
 
@@ -184,7 +184,9 @@ def recovery_shares_scenario(args):
             test_remove_member(network, args, recovery_member=True)
             assert False, "Removing a recovery member should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.FAILED
+            # This is an apply() time failure, so the proposal remains Open
+            # since the last vote is effectively discarded
+            assert e.proposal.state == infra.proposal.ProposalState.OPEN
 
         # However, removing a non-recovery member is allowed
         LOG.info("Removing a non-recovery member is still possible")
@@ -254,7 +256,9 @@ def recovery_shares_scenario(args):
                 False
             ), "Setting recovery threshold to more than number of active recovery members should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.FAILED
+            # This is an apply() time failure, so the proposal remains Open
+            # since the last vote is effectively discarded
+            assert e.proposal.state == infra.proposal.ProposalState.OPEN
 
         try:
             test_set_recovery_threshold(network, args, recovery_threshold=256)

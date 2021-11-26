@@ -1,14 +1,11 @@
-Crash Fault Tolerance
-=====================
+One-transaction Reconfiguration
+===============================
+
+This describes the default reconfiguration scheme as currently implemented. When using CFT, CCF also supports :doc:`two-transaction reconfiguration <2tx-reconfig>`.
 
 Below, we only discuss changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `Raft paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 
-One-transaction Reconfiguration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This describes the reconfiguration as currently implemented. Note, that the one-transaction reconfiguration is only valid for CFT.
-
-From a ledger and KV store perspective, reconfiguration is a single **reconfiguration transaction**. Any transaction that contains at least one write to ``public:ccf.gov.nodes.info`` setting a node's status to ``TRUSTED`` or ``RETIRED`` is such a reconfiguration transaction.
+From a ledger and KV store perspective, reconfiguration is a single **reconfiguration transaction**. Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's status to ``TRUSTED`` or ``RETIRED`` is such a reconfiguration transaction.
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines. From a consensus perspective (ie. replication and primary election), the transaction takes effect immediately.
 
@@ -95,3 +92,34 @@ Instead, upon retiring from a network, retired leaders still respond to requests
 For crash fault tolerance, this means the following: Before the reconfiguration the network could suffer f_C0 failures. After the reconfiguration, the network can suffer f_C1 failures. During the reconfiguration, the network can only suffer a maximum of f_C0 failures in the old **and** f_C1 failures in the new configuration as a failure in either configuration is unacceptable. This transitive period where the system relies on both configurations ends once the new configuration's leader's global commit index surpasses the commit that included the reconfiguration as described above.
 
 In our example above, the election timeout on Node 1 simply expires and causes Node 1 to call for an election, which it wins immediately.
+
+Retirement details
+~~~~~~~~~~~~~~~~~~
+
+Retirement of a node runs through four phases, as indicated by the following diagram. It starts with a reconfiguration transaction (RTX) and it involves 
+two additional elements of state:
+
+- Retirement index (RI): Index at which node is set to ``Retired`` in ``public:ccf.gov.nodes.info``
+- Retirement Committable Index (RCI): Index at which the retirement transaction first becomes committable, ie. the first signature following the transaction.
+
+A node permanently transitions to the ``Completed`` phase once it has observed commit reaching its Retirement Committable Index.
+
+.. mermaid::
+
+    graph TB;
+        Active-- RTX executes -->Started
+
+        subgraph Retired
+            Started-- RTX commits -->Ordered;
+            Ordered[Ordered: RI set]
+            Ordered-- Signature -->Signed;
+            Signed[Signed: RCI set]
+            Signed-- RCI commits -->Completed;            
+            Ordered-.->Started
+            Signed-.->Ordered
+        end
+
+Until the very last phase (``Completed``) is reached, a retiring leader will continue to act as leader, although it will not execute new transactions once it observes RCI. 
+
+Note that because the rollback triggered when a node becomes aware of a new term never preserves unsigned transactions,
+and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.

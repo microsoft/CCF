@@ -10,20 +10,17 @@ namespace consensus
 {
   struct Configuration
   {
-    ConsensusType consensus_type;
-    size_t raft_request_timeout;
-    size_t raft_election_timeout;
-    size_t bft_view_change_timeout;
-    size_t bft_status_interval;
+    ConsensusType type = ConsensusType::CFT;
+    size_t timeout_ms;
+    size_t election_timeout_ms;
+
+    bool operator==(const Configuration&) const = default;
+    bool operator!=(const Configuration&) const = default;
   };
-  DECLARE_JSON_TYPE(Configuration);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Configuration,
-    consensus_type,
-    raft_request_timeout,
-    raft_election_timeout,
-    bft_view_change_timeout,
-    bft_status_interval);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
+  DECLARE_JSON_REQUIRED_FIELDS(Configuration);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    Configuration, type, timeout_ms, election_timeout_ms);
 
 #pragma pack(push, 1)
   template <typename T>

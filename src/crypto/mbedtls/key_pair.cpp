@@ -6,6 +6,7 @@
 #include "curve.h"
 #include "ds/net.h"
 #include "entropy.h"
+#include "error_string.h"
 #include "hash.h"
 
 #define FMT_HEADER_ONLY
@@ -230,12 +231,14 @@ namespace crypto
 #endif
   }
 
-  Pem KeyPair_mbedTLS::create_csr(const CertificateSubjectIdentity& csi) const
+  Pem KeyPair_mbedTLS::create_csr(
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names) const
   {
     // mbedtls does not support parsing x509v3 extensions from a CSR
     // (https://github.com/ARMmbed/mbedtls/issues/2912) so disallow CSR creation
     // if any SAN is specified (use OpenSSL implementation instead)
-    if (!csi.sans.empty())
+    if (!subject_alt_names.empty())
     {
       throw std::logic_error("mbedtls cannot create CSR with SAN");
     }
@@ -244,7 +247,8 @@ namespace crypto
     mbedtls_x509write_csr_set_md_alg(csr.get(), MBEDTLS_MD_SHA512);
 
     if (
-      mbedtls_x509write_csr_set_subject_name(csr.get(), csi.name.c_str()) != 0)
+      mbedtls_x509write_csr_set_subject_name(csr.get(), subject_name.c_str()) !=
+      0)
       return {};
 
     mbedtls_x509write_csr_set_key(csr.get(), ctx.get());
@@ -273,7 +277,11 @@ namespace crypto
   }
 
   Pem KeyPair_mbedTLS::sign_csr(
-    const Pem& issuer_cert, const Pem& signing_request, bool ca) const
+    const Pem& issuer_cert,
+    const Pem& signing_request,
+    bool ca,
+    const std::optional<std::string>& valid_from,
+    const std::optional<std::string>& valid_to) const
   {
     auto entropy = create_entropy();
     auto csr = mbedtls::make_unique<mbedtls::X509Csr>();
@@ -321,8 +329,13 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
+    // Note: For the mbedtls implementation, we do not check that valid_from and
+    // valid_to are valid or chronological. See OpenSSL equivalent call for a
+    // safer implementation.
     MCHK(mbedtls_x509write_crt_set_validity(
-      crt.get(), "20210311000000", "20230611235959"));
+      crt.get(),
+      valid_from.value_or("20210311000000").c_str(),
+      valid_to.value_or("20230611235959").c_str()));
 
     MCHK(mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0, 0));
     MCHK(mbedtls_x509write_crt_set_subject_key_identifier(crt.get()));

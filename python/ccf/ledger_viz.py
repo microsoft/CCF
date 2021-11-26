@@ -5,6 +5,7 @@ import ccf.ledger
 import argparse
 import os
 from stringcolor import cs  # type: ignore
+import json
 
 
 class Liner:
@@ -26,8 +27,10 @@ class Liner:
 
 class DefaultLiner(Liner):
     _bg_colour_mapping = {
-        "Signature": "Green",
+        "New Service": "White",
+        "Service Open": "Magenta",
         "Governance": "Red",
+        "Signature": "Green",
         "Internal": "Orange",
         "User Public": "Blue",
         "User Private": "DarkBlue",
@@ -61,9 +64,9 @@ class DefaultLiner(Liner):
 
     def help(self):
         print(
-            " ".join(
+            " | ".join(
                 [
-                    f"{category}: {cs(' ', 'White', bg_colour)}"
+                    f"{category} {cs(' ', 'White', bg_colour)}"
                     for category, bg_colour in self._bg_colour_mapping.items()
                 ]
             )
@@ -77,6 +80,18 @@ class DefaultLiner(Liner):
                 )
             )
         print()
+
+
+def try_get_service_info(public_tables):
+    return (
+        json.loads(
+            public_tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+            ]
+        )
+        if ccf.ledger.SERVICE_INFO_TABLE_NAME in public_tables
+        else None
+    )
 
 
 def main():
@@ -105,6 +120,7 @@ def main():
 
     l = DefaultLiner(args.write_views, args.split_views)
     l.help()
+    current_service_identity = None
     for chunk in ledger:
         for tx in chunk:
             public = tx.get_public_domain().get_tables()
@@ -115,10 +131,22 @@ def main():
                 if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public:
                     l.entry("Signature", view)
                 else:
-                    if all(table.startswith("public:ccf.gov.") for table in public):
-                        l.entry("Governance", view)
-                    elif all(table.startswith("public:ccf.") for table in public):
+                    if all(
+                        table.startswith("public:ccf.internal.") for table in public
+                    ):
                         l.entry("Internal", view)
+                    elif any(table.startswith("public:ccf.gov.") for table in public):
+                        service_info = try_get_service_info(public)
+                        if service_info is None:
+                            l.entry("Governance", view)
+                        elif service_info["status"] == "Opening":
+                            l.entry("New Service", view)
+                            current_service_identity = service_info["cert"]
+                        elif (
+                            service_info["cert"] == current_service_identity
+                            and service_info["status"] == "Open"
+                        ):
+                            l.entry("Service Open", view)
                     else:
                         l.entry("User Public", view)
             else:

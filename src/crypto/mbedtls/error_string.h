@@ -5,7 +5,7 @@
 #include <mbedtls/error.h>
 #include <string>
 
-namespace tls
+namespace crypto
 {
   inline std::string error_string(int err)
   {

@@ -7,6 +7,7 @@
 #include "crypto/openssl/public_key.h"
 #include "hash.h"
 #include "openssl_wrappers.h"
+#include "x509_time.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -162,7 +163,9 @@ namespace crypto
     return 0;
   }
 
-  Pem KeyPair_OpenSSL::create_csr(const CertificateSubjectIdentity& csi) const
+  Pem KeyPair_OpenSSL::create_csr(
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names) const
   {
     Unique_X509_REQ req;
 
@@ -171,7 +174,7 @@ namespace crypto
     X509_NAME* subj_name = NULL;
     OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
 
-    for (const auto& [k, v] : parse_name(csi.name))
+    for (const auto& [k, v] : parse_name(subject_name))
     {
       OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
         subj_name,
@@ -186,7 +189,7 @@ namespace crypto
     OpenSSL::CHECK1(X509_REQ_set_subject_name(req, subj_name));
     X509_NAME_free(subj_name);
 
-    if (!csi.sans.empty())
+    if (!subject_alt_names.empty())
     {
       Unique_STACK_OF_X509_EXTENSIONS exts;
 
@@ -196,7 +199,7 @@ namespace crypto
           NULL,
           NULL,
           NID_subject_alt_name,
-          fmt::format("{}", fmt::join(csi.sans, ", ")).c_str()));
+          fmt::format("{}", fmt::join(subject_alt_names, ", ")).c_str()));
       sk_X509_EXTENSION_push(exts, ext);
       X509_REQ_add_extensions(req, exts);
     }
@@ -215,7 +218,11 @@ namespace crypto
   }
 
   Pem KeyPair_OpenSSL::sign_csr(
-    const Pem& issuer_cert, const Pem& signing_request, bool ca) const
+    const Pem& issuer_cert,
+    const Pem& signing_request,
+    bool ca,
+    const std::optional<std::string>& valid_from,
+    const std::optional<std::string>& valid_to) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -256,17 +263,19 @@ namespace crypto
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
-    ASN1_TIME *before = NULL, *after = NULL;
-    OpenSSL::CHECKNULL(before = ASN1_TIME_new());
-    OpenSSL::CHECKNULL(after = ASN1_TIME_new());
-    OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20210311000000Z"));
-    OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20230611235959Z"));
-    OpenSSL::CHECK1(ASN1_TIME_normalize(before));
-    OpenSSL::CHECK1(ASN1_TIME_normalize(after));
-    OpenSSL::CHECK1(X509_set1_notBefore(crt, before));
-    OpenSSL::CHECK1(X509_set1_notAfter(crt, after));
-    ASN1_TIME_free(before);
-    ASN1_TIME_free(after);
+    Unique_X509_TIME not_before(valid_from.value_or("20210311000000Z"));
+    Unique_X509_TIME not_after(valid_to.value_or("20230611235959Z"));
+    if (!validate_chronological_times(not_before, not_after))
+    {
+      throw std::logic_error(fmt::format(
+        "Certificate cannot be created with not_before date {} > not_after "
+        "date {}",
+        to_x509_time_string(not_before),
+        to_x509_time_string(not_after)));
+    }
+
+    OpenSSL::CHECK1(X509_set1_notBefore(crt, not_before));
+    OpenSSL::CHECK1(X509_set1_notAfter(crt, not_after));
 
     X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
     X509_set_pubkey(crt, req_pubkey);

@@ -10,30 +10,30 @@ Ledger
 
 The ledger is the persistent replicated append-only record of the transactions that have been executed by the CCF service. It is written by the primary node when a transaction is executed and replicated to all backups which maintain their own duplicated copy. Each node in a network creates and maintains its own local copy of the ledger. Committed entries are always identical between :ref:`a majority <overview/consensus/index:CFT Consensus Protocol>` of nodes, but a node may be more or less up to date, and uncommitted entries may differ.
 
-On each node, the ledger is written to disk in a directory specified by the ``--ledger-dir`` command line argument to ``cchost``.
+On each node, the ledger is written to disk in a directory specified by the ``ledger.directory`` configuration entry.
 
-It is also possible to specify an optional `read-only` ledger directory ``--read-only-ledger-dir`` to ``cchost``. This enables CCF to have access to historical transactions, for example after joining from a snapshot (see :ref:`operations/ledger_snapshot:Historical Transactions`). Note that only committed ledger files (those whose name ends with ``.committed``) can be read from this directory.
+It is also possible to specify optional `read-only` ledger directories ``ledger.read_only_directories``. This enables CCF to have access to historical transactions, for example after joining from a snapshot (see :ref:`operations/ledger_snapshot:Historical Transactions`). Note that only committed ledger files (those whose name ends with ``.committed``) can be read from this directory.
 
 File Layout
 ~~~~~~~~~~~
 
-The ledger growths as transactions mutate CCF's key-value store. The ledger is split into multiple files (or chunks) written by a node in the directory specified by the ``--ledger-dir`` command line argument to ``cchost``. Even though there are multiple ledger files on disk, there is only one unique `logical` ledger file for the lifetime of a CCF service (and across recoveries). The `logical` ledger can be reconstituted by parsing the ledger files in sequence, based on the sequence number included in their file names.
+The ledger growths as transactions mutate CCF's key-value store. The ledger is split into multiple files (or chunks) written by a node in the directory specified by the ``ledger.directory`` configuration entry. Even though there are multiple ledger files on disk, there is only one unique `logical` ledger file for the lifetime of a CCF service (and across recoveries). The `logical` ledger can be reconstituted by parsing the ledger files in sequence, based on the sequence number included in their file names.
 
-.. note:: The size of each ledger file is controlled by the ``--ledger-chunk-bytes`` command line argument to ``cchost``.
+.. note:: The size of each ledger file is controlled by the ``ledger.chunk_size`` configuration entry.
 
-Ledger files containing only committed entries are named ``ledger_<start_seqno>-<end_seqno>.committed``, with ``<start_seqno>`` and ``<end_seqno>`` the sequence number of the first and last transaction in the ledger, respectively. These files are closed and immutable and it is safe to replicate them to backup storage. They are identical across nodes, provided ``--ledger-chunk-bytes`` has been set to the same value.
+Ledger files containing only committed entries are named ``ledger_<start_seqno>-<end_seqno>.committed``, with ``<start_seqno>`` and ``<end_seqno>`` the sequence number of the first and last transaction in the ledger, respectively. These files are closed and immutable and it is safe to replicate them to backup storage. They are identical across nodes, provided ``ledger.chunk_size`` has been set to the same value.
 
 Ledger files that still contain some uncommitted entries are named ``ledger_<start_seqno>-<end_seqno>`` or ``ledger_<start_seqno>`` for the most recent one. These files are typically held open by the ``cchost`` process, which may modify their content, or even erase them completely. Uncommitted ledger files may differ arbitrarily across nodes.
 
-.. warning:: Removing `uncommitted` ledger files from the ``--ledger-dir`` ledger directory may cause a node to crash. It is however safe to move `committed` ledger files to another directory, accessible to a CCF node via the ``--read-only-ledger-dir`` command line argument.
+.. warning:: Removing `uncommitted` ledger files from the ``ledger.directory`` directory may cause a node to crash. It is however safe to move `committed` ledger files to another directory, accessible to a CCF node via the ``ledger._read_only_ledger_dirs`` configuration entry.
 
-It is important to note that while all entries stored in ledger files ending in ``.committed`` are committed, not all committed entries are stored in such a file at any given time. A number of them are typically in the in-progress files, waiting to be flushed to a ``.committed`` file once the size threshold (``--ledger-chunk-bytes``) is met.
+It is important to note that while all entries stored in ledger files ending in ``.committed`` are committed, not all committed entries are stored in such a file at any given time. A number of them are typically in the in-progress files, waiting to be flushed to a ``.committed`` file once the size threshold (``ledger.chunk_size``) is met.
 
 The listing below is an example of what a ledger directory may look like:
 
 .. code-block:: bash
 
-    $ cchost --ledger-dir $LEDGER_DIR ...
+    $ cchost start # with ledger.ledger-dir = $LEDGER_DIR
     $ ls -la $LEDGER_DIR
     -rw-rw-r-- 1 user user 1.6M Jan 31 14:00 ledger_1-7501.committed
     ...
@@ -52,11 +52,11 @@ To avoid this, it is possible for a new node to be added (or a service to be rec
 Snapshot Generation
 ~~~~~~~~~~~~~~~~~~~
 
-Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``--snapshot-dir`` CLI option (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``--snapshot-tx-interval`` CLI option (defaults to a new snapshot generated every ``10,000`` committed transactions).
+Snapshots are generated at regular intervals by the current primary node and stored under the directory specified via the ``snapshots.directory`` configuration entry (defaults to ``snapshots/``). The transaction interval at which snapshots are generated is specified via the ``snapshots.interval_size`` configuration entry (defaults to a new snapshot generated every ``10,000`` committed transactions).
 
-.. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``--snapshot-tx-interval`` value.
+.. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``snapshots.interval_size``` value.
 
-To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.internal.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/start_network:Signature Interval`).
+To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.internal.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/configuration:``intervals```).
 
 Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.committed``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated and ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded.
 
@@ -65,7 +65,7 @@ Uncommitted snapshot files, i.e. those whose evidence has not yet been committed
 Join/Recover From Snapshot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once a snapshot has been generated by the primary, operators can copy or mount the snapshot directory to the new node directory before it is started. On start-up, the new node will automatically resume from the latest committed snapshot file in the ``--snapshot-dir`` directory. If no snapshot file is found, all historical transactions will be replicated to that node.
+Once a snapshot has been generated by the primary, operators can copy or mount the snapshot directory to the new node directory before it is started. On start-up, the new node will automatically resume from the latest committed snapshot file in the ``snapshots.directory`` directory. If no snapshot file is found, all historical transactions will be replicated to that node.
 
 From 2.x releases (specifically, from `-dev5`), committed snapshot files embed the receipt of the evidence transaction. As such, nodes can join or recover a service from a standalone snapshot file. For 1.x releases, it is expected that operators also copy the ledger suffix containing the proof of commit of the evidence transaction to the node's ledger directory.
 
@@ -74,15 +74,15 @@ From 2.x releases (specifically, from `-dev5`), committed snapshot files embed t
 Historical Transactions
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Nodes that started from a snapshot can still process historical queries if the historical ledger files (i.e. the ledger files preceding the snapshot) are made accessible to the node via the ``--read-only-ledger-dir`` option to ``cchost``. Although the read-only ledger directory must be specified to the node on start-up, the historical ledger files can be copied to this directory `after` the node is started.
+Nodes that started from a snapshot can still process historical queries if the historical ledger files (i.e. the ledger files preceding the snapshot) are made accessible to the node via the ``ledger.read_only_directories`` option to ``cchost``. Although the read-only ledger directory must be specified to the node on start-up, the historical ledger files can be copied to this directory `after` the node is started.
 
 Best Practices
 --------------
 
-It is recommended for operators to backup the ledger and snapshot files as soon as they become committed (i.e. ``.committed`` included in file name). While a majority of nodes will eventually have an identical copy of the ledger, the ledger file should be the most up-to-date on the current primary node. Snapshot files are only generated by the current primary node. As such, monitoring the directories specified by ``--ledger-dir`` and ``--snapshot-dir`` for the `current` primary node allows operators to retrieve the latest ledger and snapshot files.
+It is recommended for operators to backup the ledger and snapshot files as soon as they become committed (i.e. ``.committed`` included in file name). While a majority of nodes will eventually have an identical copy of the ledger, the ledger file should be the most up-to-date on the current primary node. Snapshot files are only generated by the current primary node. As such, monitoring the directories specified by ``ledger.directory`` and ``snapshots.directory`` for the `current` primary node allows operators to retrieve the latest ledger and snapshot files.
 
-A low value for ``--ledger-chunk-bytes`` means that smaller ledger files are generated and can thus be backed up by operators more regularly, at the cost of having to manage a large number of ledger files.
+A low value for ``ledger.chunk_size`` means that smaller ledger files are generated and can thus be backed up by operators more regularly, at the cost of having to manage a large number of ledger files.
 
-Similarly, a low value for ``--snapshot-tx-interval`` means that snapshots are generated often and that join/recovery time will be short, at the cost of additional workload on the primary node for snapshot generation.
+Similarly, a low value for ``snapshots.interval_size`` means that snapshots are generated often and that join/recovery time will be short, at the cost of additional workload on the primary node for snapshot generation.
 
-.. tip:: Uncommitted ledger files (which are likely to contain committed transactions) can also be used on join/recovery, as long as they are copied to the node's ``--ledger-dir`` directory.
+.. tip:: Uncommitted ledger files (which are likely to contain committed transactions) can also be used on join/recovery, as long as they are copied to the node's ``ledger.directory`` directory.

@@ -16,9 +16,6 @@
 static std::mutex create_lock;
 static std::atomic<enclave::Enclave*> e;
 
-#ifdef DEBUG_CONFIG
-static uint8_t* reserved_memory;
-#endif
 std::atomic<std::chrono::microseconds> logger::config::us =
   std::chrono::microseconds::zero();
 std::atomic<uint16_t> num_pending_threads = 0;
@@ -129,27 +126,40 @@ extern "C"
 
     oe_lfence();
 
-    CCFConfig cc =
+    StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
 #ifndef ENABLE_BFT
     // As BFT consensus is currently experimental, disable it in release
     // enclaves
-    if (cc.consensus_config.consensus_type != ConsensusType::CFT)
+    if (cc.consensus.type != ConsensusType::CFT)
     {
       return CreateNodeStatus::ConsensusNotAllowed;
     }
 #endif
 
-#ifdef DEBUG_CONFIG
-    reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
+#ifndef ENABLE_2TX_RECONFIG
+    // 2-tx reconfiguration is currently experimental, disable it in release
+    // enclaves
+    if (
+      cc.start.service_configuration.reconfiguration_type.has_value() &&
+      cc.start.service_configuration.reconfiguration_type.value() !=
+        ReconfigurationType::ONE_TRANSACTION)
+    {
+      return CreateNodeStatus::ReconfigurationMethodNotSupported;
+    }
 #endif
+
     enclave::Enclave* enclave;
 
     try
     {
       enclave = new enclave::Enclave(
-        ec, cc.signature_intervals, cc.consensus_config, cc.curve_id);
+        ec,
+        cc.intervals.signature_interval_size,
+        cc.intervals.signature_interval_duration_ms,
+        cc.consensus,
+        cc.node_certificate.curve_id);
     }
     catch (const ccf::ccf_oe_attester_init_error&)
     {

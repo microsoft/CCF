@@ -9,8 +9,14 @@ import suite.test_requirements as reqs
 from infra.checker import check_can_progress, check_does_not_progress
 import pprint
 from ccf.tx_status import TxStatus
+import time
+import http
+import contextlib
 
 from loguru import logger as LOG
+
+from math import ceil
+from datetime import datetime
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -145,6 +151,146 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         assert status == TxStatus.Invalid, r
 
 
+@reqs.description("New joiner helps liveness")
+@reqs.exactly_n_nodes(3)
+def test_new_joiner_helps_liveness(network, args):
+    primary, backups = network.find_nodes()
+
+    # Issue some transactions, so there is a ledger history that a new node must receive
+    network.txs.issue(network, number_txs=10)
+
+    # Remove a node, leaving the network frail
+    network.retire_node(primary, backups[-1])
+    backups[-1].stop()
+
+    primary, backups = network.find_nodes()
+
+    with contextlib.ExitStack() as stack:
+        # Add a new node, but partition them before trusting them
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_joiner_partition = [new_node]
+        new_joiner_rules = stack.enter_context(
+            network.partitioner.partition([primary, *backups], new_joiner_partition)
+        )
+
+        # Trust the new node, and wait for commit of this (but don't ask the new node itself, which doesn't know this yet)
+        network.trust_node(new_node, args, no_wait=True)
+        check_can_progress(primary)
+
+        # Partition the primary, temporarily creating a minority service that cannot make progress
+        minority_partition = backups[len(backups) // 2 :] + new_joiner_partition
+        minority_rules = stack.enter_context(
+            network.partitioner.partition(minority_partition)
+        )
+        # This is an unusual situation, where we've actually produced a dead partitioned node.
+        # Initially any write requests will timeout (failed attempt at forwarding), and then
+        # the node transitions to a candidate with nobody to talk to. Rather than trying to
+        # catch the errors of these states quickly, we just sleep until the latter state is
+        # reached, and then confirm it was reached.
+        time.sleep(network.observed_election_duration)
+        with backups[0].client("user0") as c:
+            r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+
+        # Restore the new node to the service
+        new_joiner_rules.drop()
+
+        # Confirm that the new node catches up, and progress can be made in this majority partition
+        network.wait_for_new_primary(primary, minority_partition)
+        check_can_progress(new_node)
+
+        # Explicitly drop rules before continuing
+        minority_rules.drop()
+
+        network.wait_for_primary_unanimity()
+        primary, _ = network.find_nodes()
+        network.wait_for_all_nodes_to_commit(primary=primary)
+
+
+@reqs.description("Add a learner, partition nodes, check that there is no progress")
+def test_learner_does_not_take_part(network, args):
+    primary, backups = network.find_nodes()
+    f_backups = backups[: network.get_f() + 1]
+
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+
+    LOG.info("Wait for all nodes to have committed join of new pending node")
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    # Here, we partition a majority of backups. This is very intentional so that
+    # the new learner node is not promoted to trusted while the partition is up.
+    # However, this means that the isolated majority of backups can (and will)
+    # elect one of them as new primary while the partition is up. When the partition
+    # is lifted, all the transactions executed of the primary node (including
+    # trusting the new node) will be rolled back. Because of this, we issue a new
+    # trust_node proposal to make sure the new node ends up being trusted and joins
+    # successfully.
+    with network.partitioner.partition(f_backups):
+
+        check_does_not_progress(primary, timeout=5)
+
+        try:
+            network.consortium.trust_node(
+                primary,
+                new_node.node_id,
+                timeout=ceil(args.join_timer * 2 / 1000),
+                valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
+            )
+        except TimeoutError:
+            LOG.info("Trust node proposal did not commit as expected")
+        else:
+            raise Exception("Trust node proposal committed unexpectedly")
+
+        check_does_not_progress(primary, timeout=5)
+
+        LOG.info("Majority partition can make progress")
+        parition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
+        check_can_progress(parition_primary)
+
+        LOG.info("New joiner is not promoted to Trusted without f other backups")
+        with new_node.client(self_signed_ok=True) as c:
+            r = c.get("/node/network/nodes/self")
+            assert r.body.json()["status"] == "Learner"
+            r = c.get("/node/consensus")
+            assert new_node.node_id in r.body.json()["details"]["learners"]
+
+    LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
+    # Note: Because trusting the new node failed, the new node is not considered
+    # in the primary unanimity. Indeed, its transition to Trusted may have been rolled back.
+    primary = network.wait_for_primary_unanimity()
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    LOG.info("Trust new joiner again")
+    network.trust_node(new_node, args)
+
+    check_can_progress(primary)
+    check_can_progress(new_node)
+
+
+def run_2tx_reconfig_tests(args):
+    if not args.include_2tx_reconfig:
+        return
+
+    local_args = args
+
+    if args.reconfiguration_type != "TwoTransaction":
+        local_args.reconfiguration_type = "TwoTransaction"
+
+    with infra.network.network(
+        local_args.nodes,
+        local_args.binary_dir,
+        local_args.debug_nodes,
+        local_args.perf_nodes,
+        pdb=local_args.pdb,
+        init_partitioner=True,
+    ) as network:
+        network.start_and_join(local_args)
+
+        test_learner_does_not_take_part(network, local_args)
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
 
@@ -162,14 +308,24 @@ def run(args):
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
+        test_new_joiner_helps_liveness(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 if __name__ == "__main__":
 
-    args = infra.e2e_args.cli_args()
+    def add(parser):
+        parser.add_argument(
+            "--include-2tx-reconfig",
+            help="Include tests for the 2-transaction reconfiguration scheme",
+            default=False,
+            action="store_true",
+        )
+
+    args = infra.e2e_args.cli_args(add)
     args.package = "samples/apps/logging/liblogging"
 
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)
+    run_2tx_reconfig_tests(args)

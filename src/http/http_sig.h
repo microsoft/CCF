@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/base64.h"
 #include "crypto/hash.h"
 #include "crypto/key_pair.h"
 #include "http_consts.h"
 #include "http_parser.h"
 #include "node/client_signatures.h"
-#include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -70,7 +70,7 @@ namespace http
       fmt::format(
         "{}={}",
         "SHA-256",
-        tls::b64_from_raw(body_digest.h.data(), body_digest.SIZE)));
+        crypto::b64_from_raw(body_digest.h.data(), body_digest.SIZE)));
   }
 
   inline void sign_request(
@@ -96,7 +96,7 @@ namespace http
       key_id,
       auth::SIGN_ALGORITHM_HS_2019,
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
-      tls::b64_from_raw(signature.data(), signature.size()));
+      crypto::b64_from_raw(signature.data(), signature.size()));
 
     request.set_header(headers::AUTHORIZATION, auth_value);
   }
@@ -184,7 +184,8 @@ namespace http
         return false;
       }
 
-      auto raw_digest = tls::raw_from_b64(digest->second.substr(equal_pos + 1));
+      auto raw_digest =
+        crypto::raw_from_b64(digest->second.substr(equal_pos + 1));
 
       // Then, hash the request body
       crypto::Sha256Hash body_digest({body.data(), body.size()});
@@ -383,7 +384,7 @@ namespace http
         auto signed_raw =
           construct_raw_signed_string(verb, url, headers, signed_headers);
 
-        auto sig_raw = tls::raw_from_b64(parsed_sign_params.signature);
+        auto sig_raw = crypto::raw_from_b64(parsed_sign_params.signature);
 
         crypto::MDType md_type = crypto::MDType::NONE;
         if (

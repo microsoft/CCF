@@ -13,23 +13,21 @@
     "build": "tsc",
     "test": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/**/*.test.ts",
     "docs": "typedoc",
-    "docs:serve": "rm -rf html && concurrently \"typedoc --watch --preserveWatchOutput\" \"serve html\""
+    "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput"
   },
   "author": "Microsoft",
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/chai": "^4.2.15",
-    "@types/mocha": "^8.2.2",
-    "@types/node": "14.17.27",
-    "@types/node-forge": "^0.9.7",
+    "@types/mocha": "^9.0.0",
+    "@types/node": "16.11.9",
+    "@types/node-forge": "^0.10.9",
     "chai": "^4.3.4",
-    "concurrently": "^6.0.0",
     "cross-env": "^7.0.3",
-    "mocha": "^8.3.2",
+    "mocha": "^9.1.3",
     "node-forge": "^0.10.0",
-    "serve": "^11.3.2",
-    "ts-node": "^9.1.1",
-    "typedoc": "^0.20.34",
-    "typescript": "4.2.4"
+    "ts-node": "^10.4.0",
+    "typedoc": "^0.22.7",
+    "typescript": "^4.2.4"
   }
 }

@@ -1,20 +1,19 @@
-Byzantine Fault Tolerance
-=========================
+Two-transaction Reconfiguration
+===============================
 
-Below we discuss the reconfiguration as implemented for the BFT setting. Technically the two-transaction scheme is not specific to BFT. In fact, Ongaro and Ousterhout also described a two-transaction reconfiguration mechanism for Raft. As such, the two-transaction scheme as described below could also be used in CFT. However in BFT, the following properties are desirable: 
+Next to one-transaction reconfiguration, CCF also supports two-transaction reconfiguration, which has properties that are particularly desirable when used with the (experimental) Byzantine Fault Tolerance consensus algorithm. It is however also available to :doc:`CFT <1tx-reconfig>` networks and in fact, Ongaro and Ousterhout also describe a two-transaction reconfiguration mechanism for Raft. 
+
+In BFT, the following properties are desirable: 
 
 1. A reconfiguration only starts when the reconfiguration transaction is committed, so a reconfiguration attempt can never roll back.
-2. Reconfigurations are atomic. This creates room for additional conditions, such as checking that the byzantine reconfiguration (a multiple transaction protocol) is complete before proceeding to the new configuration.
+2. Reconfigurations are atomic. This creates room for additional conditions, such as checking that the Byzantine reconfiguration (a multiple transaction protocol) is complete before proceeding to the new configuration.
 
 BFT is under development and should not be enabled in a production environment. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
-Two-transaction Reconfiguration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-A two-transaction reconfiguration is triggered by the same mechanism as in one-transaction reconfiguration, i.e. a change to ``public:ccf.gov.nodes.info``. It does however not become active immediately. Joining nodes are held in a ``LEARNER`` state in which they receive copies of the ledger, but they are not taken into account in commit-level decisions or leader selection until a quorum of them has caught up. Nodes recognize that they are added to the network by observing the commit of the transaction that includes their own addition to ``public:ccf.gov.nodes.info``. This means that they have seen all preceding transactions up until their addition to the network. Similary, nodes that are to be retired recognize that their state is changed to ``RETIRING`` in ``public:ccf.gov.nodes.info``.
+A two-transaction reconfiguration is triggered by the same mechanism as in one-transaction reconfiguration, i.e. a change to :ref:`audit/builtin_maps:``nodes.info```. It does however not become active immediately. Joining nodes are held in a ``Learner`` membership state in which they receive copies of the ledger, but they are not taken into account in commit-level decisions or leader selection until a quorum of them has caught up. Nodes recognize that they are added to the network by observing the commit of the transaction that includes their own addition to ``public:ccf.gov.nodes.info``. This means that they have seen all preceding transactions up until their addition to the network. Similary, nodes that are to be retired recognize that their state is changed to ``RetirementInitiated`` in ``public:ccf.gov.nodes.info``.
 
 All nodes in the new configuration (including learners) submit an Observed Reconfiguration Commit (ORC) RPC call to the current leader once they observe a reconfiguration that changes their state. This allows the leader to track how many of the nodes in the new configuration are aware of that configuration. Once the number of nodes in the next scheduled configuration reaches the required quorum of acknowledgements, the leader changes the state of all
-nodes of the new configuration that are in the ``LEARNER`` and ``RETIRING`` states to ``TRUSTED`` and ``RETIRED`` respectively, in ``public:ccf.gov.nodes.info``.
+nodes of the new configuration that are in the ``Learner`` and ``RetirementInitiated`` membership states to ``Active`` and ``Retired`` respectively, in ``public:ccf.gov.nodes.info``.
 
 This sample illustrates the addition of a single node to a one-node network with two-transaction reconfiguration:
 
@@ -168,3 +167,24 @@ The following diagram illustrates retirement of the leader:
       Node 0->>Node 1: Notify commit 3.43
       Note right of Node 1: Active configs := [Cfg 1]
       Note over Node 1: Leader
+
+
+Retirement details
+~~~~~~~~~~~~~~~~~~
+
+Retirement of a node runs through the same four phases as in one-transaction reconfiguration upon the second reconfiguration transaction. Before that, upon the first reconfiguration transaction, the replica enters the additional ``RetirementInitiated`` mebership state as indicated in the following diagram:
+        
+.. mermaid::
+
+    graph TB;
+        RetirementInitiated-- RTX commits -->Started        
+
+        subgraph Retired
+            Started-- 2f+1 ORCs commit -->Ordered;
+            Ordered[Ordered: RI set]
+            Ordered-- Signature -->Signed;
+            Signed[Signed: RCI set]
+            Signed-- RCI commits -->Completed;            
+            Ordered-.->Started
+            Signed-.->Ordered
+        end

@@ -50,15 +50,13 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
 def test(network, args, from_snapshot=False, split_ledger=False):
     old_primary, _ = network.find_primary()
 
-    snapshot_dir = None
+    snapshots_dir = None
     if from_snapshot:
-        snapshot_dir = network.get_committed_snapshots(old_primary)
+        snapshots_dir = network.get_committed_snapshots(old_primary)
 
     network.stop_all_nodes()
 
-    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
-        include_read_only_dirs=True
-    )
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     if split_ledger:
         # Test that ledger files can be arbitrarily split and that recovery
@@ -66,7 +64,10 @@ def test(network, args, from_snapshot=False, split_ledger=False):
         # Note: For real operations, it would be best practice to use a separate
         # output directory
         split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
-        split_all_ledger_files_in_dir(committed_ledger_dir, committed_ledger_dir)
+        if committed_ledger_dirs:
+            split_all_ledger_files_in_dir(
+                committed_ledger_dirs[0], committed_ledger_dirs[0]
+            )
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -74,8 +75,8 @@ def test(network, args, from_snapshot=False, split_ledger=False):
     recovered_network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
-        committed_ledger_dir=committed_ledger_dir,
-        snapshot_dir=snapshot_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
     )
     recovered_network.recover(args)
 
@@ -87,14 +88,13 @@ def test(network, args, from_snapshot=False, split_ledger=False):
 def test_share_resilience(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    snapshot_dir = None
+    snapshots_dir = None
     if from_snapshot:
-        snapshot_dir = network.get_committed_snapshots(old_primary)
-    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
-        include_read_only_dirs=True
-    )
+        snapshots_dir = network.get_committed_snapshots(old_primary)
 
     network.stop_all_nodes()
+
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -102,8 +102,8 @@ def test_share_resilience(network, args, from_snapshot=False):
     recovered_network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
-        committed_ledger_dir=committed_ledger_dir,
-        snapshot_dir=snapshot_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
     )
     primary, _ = recovered_network.find_primary()
     recovered_network.consortium.transition_service_to_open(primary)
@@ -167,7 +167,7 @@ def run(args):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % 2 == 0:
-                if args.consensus != "bft":
+                if args.consensus != "BFT":
                     recovered_network = test_share_resilience(
                         network, args, from_snapshot=True
                     )
@@ -178,6 +178,10 @@ def run(args):
                     network, args, from_snapshot=False, split_ledger=True
                 )
             network = recovered_network
+
+            for node in network.get_joined_nodes():
+                node.verify_certificate_validity_period()
+
             LOG.success("Recovery complete on all nodes")
 
 
@@ -207,7 +211,7 @@ checked. Note that the key for each logging message is unique (per table).
 
     # Test-specific values so that it is likely that ledger files contain
     # at least two signatures, so that they can be split at the first one
-    args.ledger_chunk_bytes = "50KB"
+    args.ledger_chunk_bytes = 50000
     args.snapshot_tx_interval = 30
 
     run(args)

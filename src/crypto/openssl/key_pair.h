@@ -51,11 +51,14 @@ namespace crypto
       uint8_t* sig) const override;
 
     virtual Pem create_csr(
-      const CertificateSubjectIdentity& csi) const override;
+      const std::string& subject_name,
+      const std::vector<SubjectAltName>& subject_alt_names) const override;
 
     virtual Pem sign_csr(
       const Pem& issuer_cert,
       const Pem& signing_request,
-      bool ca = false) const override;
+      bool ca = false,
+      const std::optional<std::string>& valid_from = std::nullopt,
+      const std::optional<std::string>& valid_to = std::nullopt) const override;
   };
 }

@@ -3,6 +3,7 @@
 
 #include "verifier.h"
 
+#include "error_string.h"
 #include "public_key.h"
 #include "rsa_key_pair.h"
 
@@ -20,6 +21,19 @@ namespace crypto
   static constexpr auto PEM_CERTIFICATE_HEADER =
     "-----BEGIN CERTIFICATE-----\n";
   static constexpr auto PEM_CERTIFICATE_FOOTER = "-----END CERTIFICATE-----\n";
+
+  static inline std::string to_x509_time_string(const mbedtls_x509_time& time)
+  {
+    // Returns ASN1 time string (YYYYMMDDHHMMSSZ)
+    return fmt::format(
+      "{:02}{:02}{:02}{:02}{:02}{:02}Z",
+      time.year,
+      time.mon,
+      time.day,
+      time.hour,
+      time.min,
+      time.sec);
+  }
 
   MDType Verifier_mbedTLS::get_md_type(mbedtls_md_type_t mdt) const
   {
@@ -195,5 +209,12 @@ namespace crypto
         "mbedtls_x509_serial_gets failed: " + error_string(rc));
     }
     return buf;
+  }
+
+  std::pair<std::string, std::string> Verifier_mbedTLS::validity_period() const
+  {
+    return std::make_pair(
+      to_x509_time_string(cert->valid_from),
+      to_x509_time_string(cert->valid_to));
   }
 }

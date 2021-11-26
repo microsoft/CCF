@@ -149,7 +149,8 @@ namespace kv::test
     void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::unordered_set<NodeId>& learners = {}) override
+      const std::unordered_set<NodeId>& learners = {},
+      const std::unordered_set<NodeId>& retired_nodes = {}) override
     {}
 
     void reconfigure(
@@ -184,7 +185,7 @@ namespace kv::test
 
     ConsensusDetails get_details() override
     {
-      return ConsensusDetails{{}, {}, ReplicaState::Candidate};
+      return ConsensusDetails{{}, {}, MembershipState::Active};
     }
 
     void add_resharing_result(
