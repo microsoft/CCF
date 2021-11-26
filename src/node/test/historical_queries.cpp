@@ -73,7 +73,6 @@ public:
 
 struct TestState
 {
-  std::shared_ptr<kv::test::StubConsensus> consensus = nullptr;
   std::shared_ptr<kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
   crypto::KeyPairPtr node_kp = nullptr;
@@ -83,9 +82,8 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
 {
   TestState ts;
 
-  ts.consensus = std::make_shared<kv::test::StubConsensus>();
-
-  ts.kv_store = std::make_shared<kv::Store>(ts.consensus);
+  ts.kv_store = std::make_shared<kv::Store>();
+  ts.kv_store->set_consensus(std::make_shared<kv::test::StubConsensus>());
 
   ts.node_kp = crypto::make_key_pair();
 
