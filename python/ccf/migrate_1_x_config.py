@@ -35,6 +35,7 @@ def make_key_json_compatible(key):
     return key.replace("-", "_")
 
 
+# TODO: Remove?
 def split_address(addr, default_port="0"):
     host, *port = addr.split(":")
     return {"hostname": host, "port": (port[0] if port else default_port)}

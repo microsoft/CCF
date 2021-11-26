@@ -772,9 +772,11 @@ namespace ccf
                          const NodeId& nid, const NodeInfo& ni) {
           const auto& primary_interface = ni.rpc_interfaces[0];
           const auto& pub_address = primary_interface.published_address;
-          if (host.has_value() && host.value() != pub_address.hostname)
+          const auto& [pub_host, pub_port] = split_net_address(pub_address);
+
+          if (host.has_value() && host.value() != pub_host)
             return true;
-          if (port.has_value() && port.value() != pub_address.port)
+          if (port.has_value() && port.value() != pub_port)
             return true;
           if (status.has_value() && status.value() != ni.status)
             return true;
@@ -785,17 +787,16 @@ namespace ccf
             is_primary = consensus->primary() == nid;
           }
 
-          const auto& [pub_host, pub_port] = split_net_address(pub_address);
           const auto& [rpc_host, rpc_port] =
-            split_net_address(primary_interface.bind_address)
-              out.nodes.push_back(
-                {nid,
-                 ni.status,
-                 pub_host,
-                 pub_port,
-                 rpc_host,
-                 rpc_port,
-                 is_primary});
+            split_net_address(primary_interface.bind_address);
+          out.nodes.push_back(
+            {nid,
+             ni.status,
+             pub_host,
+             pub_port,
+             rpc_host,
+             rpc_port,
+             is_primary});
           return true;
         });
 
@@ -853,9 +854,9 @@ namespace ccf
         auto ni = info.value();
         const auto& primary_interface = ni.rpc_interfaces[0];
         const auto& [pubhost, pubport] =
-          split_net_address(primary_interface.public_rpc_address);
+          split_net_address(primary_interface.published_address);
         const auto& [rpchost, rpcport] =
-          split_net_address(primary_interface.rpc_address);
+          split_net_address(primary_interface.bind_address);
         return make_success(GetNode::Out{
           node_id, ni.status, pubhost, pubport, rpchost, rpcport, is_primary});
       };

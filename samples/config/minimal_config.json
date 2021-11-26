@@ -4,7 +4,7 @@
     "type": "release"
   },
   "network": {
-    "node_address": "127.0.0.1:0",
+    "node_address": "127.0.0.1:0", // TODO: Check what happens if port is not specified!
     "rpc_interfaces": [{ "bind_address": "127.0.0.1:8080" }]
   },
   "start": {

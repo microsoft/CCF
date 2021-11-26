@@ -246,22 +246,20 @@ int main(int argc, char** argv)
     // This includes DNS resolution and potentially dynamic port assignment (if
     // requesting port 0). The hostname and port may be modified - after calling
     // it holds the final assigned values.
+    auto [node_host, node_port] =
+      ccf::split_net_address(config.network.node_address);
     asynchost::NodeConnections node(
       bp.get_dispatcher(),
       ledger,
       writer_factory,
-      config.network.node_address.hostname,
-      config.network.node_address.port,
+      node_host,
+      node_port,
       config.node_client_interface,
       config.client_connection_timeout_ms);
     if (!config.node_address_file.empty())
     {
       files::dump(
-        fmt::format(
-          "{}\n{}",
-          config.network.node_address.hostname,
-          config.network.node_address.port),
-        config.node_address_file);
+        fmt::format("{}\n{}", node_host, node_port), config.node_address_file);
     }
 
     asynchost::RPCConnections rpc(
@@ -271,23 +269,15 @@ int main(int argc, char** argv)
     std::string rpc_addresses;
     for (auto& interface : config.network.rpc_interfaces)
     {
-      rpc.listen(
-        0, interface.bind_address.hostname, interface.bind_address.port);
-      rpc_addresses += fmt::format(
-        "{}\n{}\n",
-        interface.bind_address.hostname,
-        interface.bind_address.port);
+      auto [rpc_host, rpc_port] =
+        ccf::split_net_address(interface.bind_address);
+      rpc.listen(0, rpc_host, rpc_port);
+      rpc_addresses += fmt::format("{}\n{}\n", rpc_host, rpc_port);
 
       // If public RPC address is not set, default to local RPC address
-      if (interface.published_address.hostname.empty())
+      if (interface.published_address.empty())
       {
-        interface.published_address.hostname = interface.bind_address.hostname;
-      }
-      if (
-        interface.published_address.port.empty() ||
-        interface.published_address.port == "0")
-      {
-        interface.published_address.port = interface.bind_address.port;
+        interface.published_address = interface.bind_address;
       }
     }
     if (!config.rpc_addresses_file.empty())
@@ -378,9 +368,8 @@ int main(int argc, char** argv)
     else if (*join)
     {
       LOG_INFO_FMT(
-        "Creating new node - join existing network at {}:{}",
-        config.join.target_rpc_address.hostname,
-        config.join.target_rpc_address.port);
+        "Creating new node - join existing network at {}",
+        config.join.target_rpc_address);
       start_type = StartType::Join;
       startup_config.join.target_rpc_address = config.join.target_rpc_address;
       startup_config.join.timer_ms = config.join.timer_ms;

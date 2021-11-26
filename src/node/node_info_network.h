@@ -4,23 +4,11 @@
 #pragma once
 
 #include "ds/json.h"
-#include "ds/nonstd.h"
 
 #include <string>
 
 namespace ccf
 {
-  inline static auto split_net_address(const std::string& addr)
-  {
-    return nonstd::split_1(addr, ":");
-  }
-
-  inline static auto make_net_address(
-    const std::string& host, const std::string& port)
-  {
-    return fmt::format("{}:{}", host, port);
-  }
-
   struct NodeInfoNetwork_v1
   {
     std::string rpchost;
@@ -81,6 +69,19 @@ namespace ccf
         rpc_interfaces == other.rpc_interfaces;
     }
   };
+
+  inline static std::pair<std::string, std::string> split_net_address(
+    const NodeInfoNetwork::NetAddress& addr)
+  {
+    auto [host, port] = nonstd::split_1(addr, ":");
+    return std::make_pair(std::string(host), std::string(port));
+  }
+
+  inline static NodeInfoNetwork::NetAddress make_net_address(
+    const std::string& host, const std::string& port)
+  {
+    return fmt::format("{}:{}", host, port);
+  }
 
   // The JSON representation of a NodeInfoNetwork is the union of a
   // NodeInfoNetwork_v1 and a NodeInfoNetwork_v2. It contains the fields of

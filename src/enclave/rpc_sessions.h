@@ -159,7 +159,7 @@ namespace enclave
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface {} to [{}, {}]",
-          interface.rpc_address,
+          interface.bind_address,
           li.max_open_sessions_soft,
           li.max_open_sessions_hard);
       }
