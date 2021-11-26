@@ -193,6 +193,21 @@
         ],
         "type": "object"
       },
+      "KeyIdInfo": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "issuer",
+          "cert"
+        ],
+        "type": "object"
+      },
       "Pem": {
         "type": "string"
       },
@@ -377,9 +392,9 @@
       "string": {
         "type": "string"
       },
-      "string_to_Pem": {
+      "string_to_KeyIdInfo": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/Pem"
+          "$ref": "#/components/schemas/KeyIdInfo"
         },
         "type": "object"
       },
@@ -400,7 +415,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.2.0"
+    "version": "2.3.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -520,7 +535,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_Pem"
+                  "$ref": "#/components/schemas/string_to_KeyIdInfo"
                 }
               }
             },
