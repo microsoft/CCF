@@ -4,6 +4,7 @@
 
 #include "ds/logger.h"
 #include "node/signatures.h"
+#include "node_info_network.h"
 
 namespace ccf
 {
@@ -37,9 +38,8 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(
-              node_id,
-              NodeAddr{ni.node_address.hostname, ni.node_address.port});
+            // cfg_delta.try_emplace(
+            //   node_id, {split_net_address(ni.node_address)});
             break;
           }
           case NodeStatus::RETIRED:
@@ -50,9 +50,8 @@ namespace ccf
           }
           case NodeStatus::LEARNER:
           {
-            cfg_delta.try_emplace(
-              node_id,
-              NodeAddr{ni.node_address.hostname, ni.node_address.port});
+            // cfg_delta.try_emplace(
+            //   node_id, {split_net_address(ni.node_address)});
             learners.insert(node_id);
             break;
           }

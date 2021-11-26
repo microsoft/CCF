@@ -110,6 +110,7 @@ namespace kv
     ReconfigurationId rid;
   };
 
+  // TODO: Remove all of this??
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
   {
     j["address"] = fmt::format("{}:{}", ni.hostname, ni.port);

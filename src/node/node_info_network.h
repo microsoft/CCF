@@ -4,11 +4,23 @@
 #pragma once
 
 #include "ds/json.h"
+#include "ds/nonstd.h"
 
 #include <string>
 
 namespace ccf
 {
+  inline static auto split_net_address(const std::string& addr)
+  {
+    return nonstd::split_1(addr, ":");
+  }
+
+  inline static auto make_net_address(
+    const std::string& host, const std::string& port)
+  {
+    return fmt::format("{}:{}", host, port);
+  }
+
   struct NodeInfoNetwork_v1
   {
     std::string rpchost;
@@ -24,16 +36,7 @@ namespace ccf
 
   struct NodeInfoNetwork_v2
   {
-    struct NetAddress
-    {
-      std::string hostname;
-      std::string port;
-
-      bool operator==(const NetAddress& other) const
-      {
-        return hostname == other.hostname && port == other.port;
-      }
-    };
+    using NetAddress = std::string;
 
     struct RpcAddresses
     {
@@ -55,8 +58,6 @@ namespace ccf
     NetAddress node_address;
     std::vector<RpcAddresses> rpc_interfaces;
   };
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2::NetAddress);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetAddress, hostname, port);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::RpcAddresses);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::RpcAddresses, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -88,16 +89,15 @@ namespace ccf
   {
     {
       NodeInfoNetwork_v1 v1;
-      v1.nodehost = nin.node_address.hostname;
-      v1.nodeport = nin.node_address.port;
+      std::tie(v1.nodehost, v1.nodeport) = split_net_address(nin.node_address);
 
       if (nin.rpc_interfaces.size() > 0)
       {
         const auto& primary_interface = nin.rpc_interfaces[0];
-        v1.rpchost = primary_interface.bind_address.hostname;
-        v1.rpcport = primary_interface.bind_address.port;
-        v1.pubhost = primary_interface.published_address.hostname;
-        v1.pubport = primary_interface.published_address.port;
+        std::tie(v1.rpchost, v1.rpcport) =
+          split_net_address(primary_interface.bind_address);
+        std::tie(v1.pubhost, v1.pubport) =
+          split_net_address(primary_interface.published_address);
       }
       to_json(j, v1);
     }
@@ -118,14 +118,12 @@ namespace ccf
       NodeInfoNetwork_v1 v1;
       from_json(j, v1);
 
-      nin.node_address.hostname = v1.nodehost;
-      nin.node_address.port = v1.nodeport;
+      nin.node_address = make_net_address(v1.nodehost, v1.nodeport);
 
       NodeInfoNetwork::RpcAddresses primary_interface;
-      primary_interface.bind_address.hostname = v1.rpchost;
-      primary_interface.bind_address.port = v1.rpcport;
-      primary_interface.published_address.hostname = v1.pubhost;
-      primary_interface.published_address.port = v1.pubport;
+      primary_interface.bind_address = make_net_address(v1.rpchost, v1.rpcport);
+      primary_interface.published_address =
+        make_net_address(v1.pubhost, v1.pubport);
 
       nin.rpc_interfaces.emplace_back(std::move(primary_interface));
     }

@@ -31,15 +31,8 @@ class RPCInterface:
     @staticmethod
     def to_json(interface):
         return {
-            "bind_address": {
-                "hostname": interface.rpc_host,
-                "port": str(interface.rpc_port),
-            },
-            "published_address": {
-                "hostname": interface.public_rpc_host,
-                "port": str(interface.public_rpc_port),
-            },
-            "max_open_sessions_soft": interface.max_open_sessions_soft,
+            "rpc_address": f"{interface.rpc_host}:{interface.rpc_port}",
+            "public_rpc_address": f"{interface.public_rpc_host}:{interface.public_rpc_port}",
             "max_open_sessions_hard": interface.max_open_sessions_hard,
         }
 

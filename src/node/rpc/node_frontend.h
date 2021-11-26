@@ -188,10 +188,9 @@ namespace ccf
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::NodeAlreadyExists,
           fmt::format(
-            "A node with the same node host {} and port {} already exists "
+            "A node with the same node address {} already exists "
             "(node id: {}).",
-            in.node_info_network.node_address.hostname,
-            in.node_info_network.node_address.port,
+            in.node_info_network.node_address,
             conflicting_node_id.value()));
       }
 
@@ -432,10 +431,7 @@ namespace ccf
                   info->rpc_interfaces[0].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format(
-                    "https://{}:{}/node/join",
-                    pub_address.hostname,
-                    pub_address.port));
+                  fmt::format("https://{}/node/join", pub_address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -521,10 +517,7 @@ namespace ccf
                   info->rpc_interfaces[0].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format(
-                    "https://{}:{}/node/join",
-                    pub_address.hostname,
-                    pub_address.port));
+                  fmt::format("https://{}/node/join", pub_address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -791,14 +784,18 @@ namespace ccf
           {
             is_primary = consensus->primary() == nid;
           }
-          out.nodes.push_back(
-            {nid,
-             ni.status,
-             pub_address.hostname,
-             pub_address.port,
-             primary_interface.bind_address.hostname,
-             primary_interface.bind_address.port,
-             is_primary});
+
+          const auto& [pub_host, pub_port] = split_net_address(pub_address);
+          const auto& [rpc_host, rpc_port] =
+            split_net_address(primary_interface.bind_address)
+              out.nodes.push_back(
+                {nid,
+                 ni.status,
+                 pub_host,
+                 pub_port,
+                 rpc_host,
+                 rpc_port,
+                 is_primary});
           return true;
         });
 
@@ -855,14 +852,12 @@ namespace ccf
         }
         auto ni = info.value();
         const auto& primary_interface = ni.rpc_interfaces[0];
+        const auto& [pubhost, pubport] =
+          split_net_address(primary_interface.public_rpc_address);
+        const auto& [rpchost, rpcport] =
+          split_net_address(primary_interface.rpc_address);
         return make_success(GetNode::Out{
-          node_id,
-          ni.status,
-          primary_interface.published_address.hostname,
-          primary_interface.published_address.port,
-          primary_interface.bind_address.hostname,
-          primary_interface.bind_address.port,
-          is_primary});
+          node_id, ni.status, pubhost, pubport, rpchost, rpcport, is_primary});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",
@@ -885,10 +880,7 @@ namespace ccf
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
             fmt::format(
-              "https://{}:{}/node/network/nodes/{}",
-              address.hostname,
-              address.port,
-              node_id.value()));
+              "https://{}/node/network/nodes/{}", address, node_id.value()));
           return;
         }
 
@@ -929,9 +921,8 @@ namespace ccf
             args.rpc_ctx->set_response_header(
               http::headers::LOCATION,
               fmt::format(
-                "https://{}:{}/node/network/nodes/{}",
-                address.hostname,
-                address.port,
+                "https://{}/node/network/nodes/{}",
+                address,
                 primary_id->value()));
             return;
           }
@@ -977,10 +968,7 @@ namespace ccf
               const auto& address = info->rpc_interfaces[0].published_address;
               args.rpc_ctx->set_response_header(
                 http::headers::LOCATION,
-                fmt::format(
-                  "https://{}:{}/node/primary",
-                  address.hostname,
-                  address.port));
+                fmt::format("https://{}/node/primary", address));
             }
           }
         }

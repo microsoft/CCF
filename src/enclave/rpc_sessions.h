@@ -149,11 +149,7 @@ namespace enclave
 
       for (const auto& interface : node_info.rpc_interfaces)
       {
-        const auto interface_name = fmt::format(
-          "{}:{}",
-          interface.bind_address.hostname,
-          interface.bind_address.port);
-        auto& li = listening_interfaces[interface_name];
+        auto& li = listening_interfaces[interface.bind_address];
 
         li.max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
           max_open_sessions_soft_default);
@@ -163,7 +159,7 @@ namespace enclave
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface {} to [{}, {}]",
-          interface_name,
+          interface.rpc_address,
           li.max_open_sessions_soft,
           li.max_open_sessions_hard);
       }
