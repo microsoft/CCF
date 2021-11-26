@@ -667,15 +667,23 @@
         ]
       }
     },
-    "/log/private/historical/multi": {
+    "/log/private/historical/range": {
       "get": {
         "parameters": [
           {
             "in": "query",
-            "name": "seqnos",
-            "required": true,
+            "name": "from_seqno",
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/string"
+              "$ref": "#/components/schemas/uint64"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_seqno",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
             }
           },
           {
@@ -706,23 +714,15 @@
         ]
       }
     },
-    "/log/private/historical/range": {
+    "/log/private/historical/sparse": {
       "get": {
         "parameters": [
           {
             "in": "query",
-            "name": "from_seqno",
-            "required": false,
+            "name": "seqnos",
+            "required": true,
             "schema": {
-              "$ref": "#/components/schemas/uint64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "to_seqno",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/uint64"
+              "$ref": "#/components/schemas/string"
             }
           },
           {
