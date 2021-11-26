@@ -517,14 +517,17 @@ namespace kv
   {
     CommitResult success;
     std::vector<uint8_t> data;
+    crypto::Sha256Hash claims_digest;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
       std::vector<uint8_t>&& data_,
+      crypto::Sha256Hash&& claims_digest_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       data(std::move(data_)),
+      claims_digest(claims_digest_),
       hooks(std::move(hooks_))
     {}
   };
@@ -540,18 +543,26 @@ namespace kv
   {
   private:
     std::vector<uint8_t> data;
+    crypto::Sha256Hash claims_digest;
     ConsensusHookPtrs hooks;
 
   public:
-    MovePendingTx(std::vector<uint8_t>&& data_, ConsensusHookPtrs&& hooks_) :
+    MovePendingTx(
+      std::vector<uint8_t>&& data_,
+      crypto::Sha256Hash&& claims_digest_,
+      ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
+      claims_digest(claims_digest_),
       hooks(std::move(hooks_))
     {}
 
     PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitResult::SUCCESS, std::move(data), std::move(hooks));
+        CommitResult::SUCCESS,
+        std::move(data),
+        std::move(claims_digest),
+        std::move(hooks));
     }
   };
 

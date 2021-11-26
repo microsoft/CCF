@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/tx_id.h"
+#include "claims.h"
 #include "http/http_builder.h"
 #include "http/http_consts.h"
 #include "node/client_signatures.h"
@@ -133,6 +134,8 @@ namespace enclave
 
     bool is_create_request = false;
     bool execute_on_node = false;
+
+    ccf::ClaimsDigest claims;
 
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 

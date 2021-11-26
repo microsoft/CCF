@@ -4,6 +4,7 @@
 
 #include "apply_changes.h"
 #include "ccf/tx.h"
+#include "enclave/claims.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 
@@ -80,6 +81,7 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
+      const ccf::ClaimsDigest& claims = ccf::no_claims(),
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr)
@@ -148,9 +150,12 @@ namespace kv
             return CommitResult::SUCCESS;
           }
 
+          auto claims_digest = claims.value();
+
           return store->commit(
             {commit_view, version},
-            std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
+            std::make_unique<MovePendingTx>(
+              std::move(data), std::move(claims_digest), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -319,7 +324,12 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitResult::SUCCESS, serialise(), std::move(hooks)};
+      auto no_claims_digest = ccf::no_claims().value();
+      return {
+        CommitResult::SUCCESS,
+        serialise(),
+        std::move(no_claims_digest),
+        std::move(hooks)};
     }
   };
 }
