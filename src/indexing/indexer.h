@@ -56,24 +56,26 @@ namespace indexing
       }
     }
 
-    void install_strategy(StrategyPtr&& strategy)
+    std::string install_strategy(StrategyPtr&& strategy)
     {
       if (strategy == nullptr)
       {
         throw std::logic_error("Tried to install null strategy");
       }
 
-      auto it = strategies.find(strategy->get_name());
+      const auto name = strategy->get_name();
+
+      auto it = strategies.find(name);
       if (it != strategies.end())
       {
-        throw std::logic_error(fmt::format(
-          "Strategy named {} already exists", strategy->get_name()));
+        throw std::logic_error(
+          fmt::format("Strategy named {} already exists", name));
       }
 
       strategies.emplace_hint(
-        it,
-        strategy->get_name(),
-        std::make_pair(ccf::TxID{}, std::move(strategy)));
+        it, name, std::make_pair(ccf::TxID{}, std::move(strategy)));
+
+      return name;
     }
 
     template <typename T>
@@ -200,7 +202,8 @@ namespace indexing
 
       if (end_it != uncommitted_entries.begin())
       {
-        uncommitted_entries.erase(uncommitted_entries.begin(), std::prev(end_it));
+        uncommitted_entries.erase(
+          uncommitted_entries.begin(), std::prev(end_it));
       }
 
       committed = tx_id;

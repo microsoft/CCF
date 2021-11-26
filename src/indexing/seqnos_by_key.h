@@ -24,7 +24,10 @@ namespace indexing::strategies
     M map;
 
   public:
-    SeqnosByKey(const M& m, const std::string& name) : Strategy(name), map(m) {}
+    SeqnosByKey(const M& m) :
+      Strategy(fmt::format("SeqnosByKey for {}", m.get_name())),
+      map(m)
+    {}
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const StorePtr& store) override

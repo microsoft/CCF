@@ -97,23 +97,13 @@ TEST_CASE("basic indexing")
   kv::Map<size_t, size_t> map_b("private_map_b");
   using IndexB = indexing::strategies::SeqnosByKey<decltype(map_b)>;
 
-  const std::string name_a = "Index A";
-  const std::string name_b = "Index B";
-
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
 
-  indexer.install_strategy(std::make_unique<IndexA>(map_a, name_a));
-  REQUIRE_THROWS(
-    indexer.install_strategy(std::make_unique<IndexA>(map_a, name_a)));
+  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
+  REQUIRE_THROWS(indexer.install_strategy(std::make_unique<IndexA>(map_a)));
 
-  indexer.install_strategy(std::make_unique<IndexB>(map_b, name_b));
-  REQUIRE_THROWS(
-    indexer.install_strategy(std::make_unique<IndexB>(map_b, name_b)));
-
-  REQUIRE_THROWS(
-    indexer.install_strategy(std::make_unique<IndexA>(map_a, name_b)));
-  REQUIRE_THROWS(
-    indexer.install_strategy(std::make_unique<IndexB>(map_b, name_a)));
+  const auto name_b = indexer.install_strategy(std::make_unique<IndexB>(map_b));
+  REQUIRE_THROWS(indexer.install_strategy(std::make_unique<IndexB>(map_b)));
 
   {
     REQUIRE(indexer.get_strategy<IndexA>(name_a) != nullptr);
@@ -169,15 +159,17 @@ TEST_CASE("basic indexing")
     seqnos_1.push_back(seqno);
   }
 
-  auto check_seqnos = [](const std::vector<ccf::SeqNo>& expected, const indexing::SeqNoCollection& actual)
-  {
+  auto check_seqnos = [](
+                        const std::vector<ccf::SeqNo>& expected,
+                        const indexing::SeqNoCollection& actual) {
     REQUIRE(expected.size() == actual.size());
 
-    for (auto n: expected)
+    for (auto n : expected)
     {
       REQUIRE(actual.contains(n));
     }
   };
+
   {
     INFO("Confirm that index was populated");
 
