@@ -56,6 +56,14 @@ namespace ccf
   DECLARE_JSON_TYPE(JsBundle)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundle, metadata, modules)
 
+  struct KeyIdInfo
+  {
+    JwtIssuer issuer;
+    crypto::Pem cert;
+  };
+  DECLARE_JSON_TYPE(KeyIdInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -492,7 +500,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.2.0";
+      openapi_info.document_version = "2.3.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -800,16 +808,24 @@ namespace ccf
         .set_auto_schema<SubmitRecoveryShare>()
         .install();
 
-      using JWTKeyMap = std::map<JwtKeyId, crypto::Pem>;
+      using JWTKeyMap = std::map<JwtKeyId, KeyIdInfo>;
 
       auto get_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
-        auto keys = ctx.tx.template ro<JwtPublicSigningKeys>(
-          ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+        auto keys = ctx.tx.ro(network.jwt_public_signing_keys);
+        auto keys_to_issuer = ctx.tx.ro(network.jwt_public_signing_key_issuer);
+
         JWTKeyMap kmap;
-        keys->foreach([&kmap](const auto& kid, const auto& kpem) {
-          kmap[kid] = crypto::cert_der_to_pem(kpem);
-          return true;
-        });
+        keys->foreach(
+          [&kmap, &keys_to_issuer](const auto& kid, const auto& kpem) {
+            auto issuer = keys_to_issuer->get(kid);
+            if (!issuer.has_value())
+            {
+              throw std::logic_error(fmt::format("kid {} has no issuer", kid));
+            }
+            kmap.emplace(
+              kid, KeyIdInfo{issuer.value(), crypto::cert_der_to_pem(kpem)});
+            return true;
+          });
 
         return make_success(kmap);
       };
