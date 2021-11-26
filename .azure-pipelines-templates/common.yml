@@ -45,3 +45,4 @@ jobs:
           - template: publish_tls_report.yml
           - template: publish_compatibility_report.yml
           - template: install.yml
+          - template: publish_sbom.yml

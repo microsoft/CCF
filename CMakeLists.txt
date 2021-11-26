@@ -341,11 +341,15 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )
 
-    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+    add_unit_test(
+      base64_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
+    )
+    target_link_libraries(base64_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
-    add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
-    target_link_libraries(cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+    add_test_bin(
+      kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
+    )
+    target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
@@ -417,7 +421,7 @@ if(BUILD_TESTS)
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
     add_test(NAME csr_test COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py
-                                   ./cert_test
+                                   ./kp_cert_test
     )
     set_property(
       TEST csr_test
