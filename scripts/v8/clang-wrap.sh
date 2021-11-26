@@ -22,6 +22,8 @@ while (( "$#" )); do
       -Wno-unused-but-set-parameter) ;;
       -Wno-unused-but-set-variable) ;;
       -Wmax-tokens) ;;
+      # Prevents -stdlib=libc++ from working
+      -no-canonical-prefixes) ;;
       *) out+=("$arg") ;;
     esac
 done
