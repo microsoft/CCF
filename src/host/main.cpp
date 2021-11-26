@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
 #include "crypto/openssl/x509_time.h"
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "ds/net.h"
@@ -247,7 +248,7 @@ int main(int argc, char** argv)
     // requesting port 0). The hostname and port may be modified - after calling
     // it holds the final assigned values.
     auto [node_host, node_port] =
-      ccf::split_net_address(config.network.node_address);
+      cli::validate_address(config.network.node_address);
     asynchost::NodeConnections node(
       bp.get_dispatcher(),
       ledger,
@@ -270,8 +271,7 @@ int main(int argc, char** argv)
     std::string rpc_addresses;
     for (auto& interface : config.network.rpc_interfaces)
     {
-      auto [rpc_host, rpc_port] =
-        ccf::split_net_address(interface.bind_address);
+      auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
       rpc.listen(0, rpc_host, rpc_port);
       rpc_addresses += fmt::format("{}\n{}\n", rpc_host, rpc_port);
 
@@ -284,7 +284,7 @@ int main(int argc, char** argv)
       }
 
       auto [pub_host, pub_port] =
-        ccf::split_net_address(interface.published_address);
+        cli::validate_address(interface.published_address);
       if (pub_port == "0")
       {
         pub_port = rpc_port;

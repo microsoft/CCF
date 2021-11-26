@@ -17,11 +17,8 @@ namespace cli
 {
   using ParsedAddress = ccf::NodeInfoNetwork_v2::NetAddress;
 
-  bool parse_address(
-    const std::string_view& addr,
-    ParsedAddress& parsed,
-    const std::string& option_name,
-    const std::string& default_port = "0")
+  static std::pair<std::string, std::string> validate_address(
+    const ParsedAddress& addr, const std::string& default_port = "0")
   {
     auto found = addr.find_last_of(":");
     auto hostname = addr.substr(0, found);
@@ -30,27 +27,42 @@ namespace cli
       found == std::string::npos ? default_port : addr.substr(found + 1);
 
     // Check if port is in valid range
-    uint16_t port_n;
+    uint16_t port_n = 0;
     const auto [_, ec] =
       std::from_chars(port.data(), port.data() + port.size(), port_n);
     if (ec == std::errc::invalid_argument)
     {
-      throw CLI::ValidationError(
-        option_name, fmt::format("Port '{}' is not a number", port));
+      throw std::logic_error(fmt::format("Port '{}' is not a number", port));
     }
     else if (ec == std::errc::result_out_of_range)
     {
-      throw CLI::ValidationError(
-        option_name,
-        fmt::format("Port '{}'  number is not in range 0-65535", port));
+      throw std::logic_error(
+        fmt::format("Port '{}' is not in range 0-65535", port));
     }
     else if (ec != std::errc())
     {
-      throw CLI::ValidationError(
-        option_name, fmt::format("Error parsing port '{}'", port));
+      throw std::logic_error(fmt::format("Error parsing port '{}'", port));
     }
 
-    parsed = hostname;
+    return std::make_pair(hostname, port);
+  }
+
+  bool parse_address(
+    const std::string& addr,
+    ParsedAddress& parsed,
+    const std::string& option_name,
+    const std::string& default_port = "0")
+  {
+    try
+    {
+      validate_address(addr, default_port);
+    }
+    catch (const std::exception& e)
+    {
+      throw CLI::ValidationError(option_name, e.what());
+    }
+
+    parsed = addr;
 
     return true;
   }
