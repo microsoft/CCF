@@ -20,7 +20,7 @@ namespace kv::test
 
   class StubConsensus : public Consensus
   {
-  private:
+  protected:
     std::vector<BatchVector::value_type> replica;
     ConsensusType consensus_type;
     ccf::TxID committed_txid = {};

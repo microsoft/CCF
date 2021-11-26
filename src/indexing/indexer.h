@@ -29,7 +29,7 @@ namespace indexing
     using PendingTx = std::pair<ccf::TxID, std::vector<uint8_t>>;
     std::vector<PendingTx> uncommitted_entries;
 
-    ccf::TxID committed;
+    ccf::TxID committed = {};
 
     static bool tx_id_less(const ccf::TxID& a, const ccf::TxID& b)
     {
@@ -168,12 +168,12 @@ namespace indexing
           tx_id.to_str()));
       }
 
-      auto end_it = std::lower_bound(
+      auto end_it = std::upper_bound(
         uncommitted_entries.begin(),
         uncommitted_entries.end(),
         tx_id,
-        [](const PendingTx& a, const ccf::TxID& b) {
-          return tx_id_less(a.first, b);
+        [](const ccf::TxID& a, const PendingTx& b) {
+          return tx_id_less(a, b.first);
         });
 
       for (auto it = uncommitted_entries.begin(); it != end_it; ++it)
@@ -198,7 +198,10 @@ namespace indexing
         }
       }
 
-      uncommitted_entries.erase(uncommitted_entries.begin(), end_it);
+      if (end_it != uncommitted_entries.begin())
+      {
+        uncommitted_entries.erase(uncommitted_entries.begin(), std::prev(end_it));
+      }
 
       committed = tx_id;
     }

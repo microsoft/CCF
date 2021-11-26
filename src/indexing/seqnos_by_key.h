@@ -10,26 +10,46 @@
 
 namespace indexing::strategies
 {
+  template <typename M>
   class SeqnosByKey : public Strategy
   {
   private:
     // Key is the raw value of a KV key.
     // Value is every SeqNo which talks about that key.
-    // This entire structure should be shardable, so we can dump it to disk!
-    std::unordered_map<std::vector<uint8_t>, SeqNoCollection> seqnos_by_key;
+    // This entire structure should be shardable, so we can dump parts of it to
+    // disk!
+    std::unordered_map<kv::untyped::SerialisedEntry, SeqNoCollection>
+      seqnos_by_key;
+
+    M map;
 
   public:
-    SeqnosByKey(const std::string& table_name) :
-      Strategy(fmt::format("SeqnosByKey for table {}", table_name))
-    {}
+    SeqnosByKey(const M& m, const std::string& name) : Strategy(name), map(m) {}
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const StorePtr& store) override
     {
-      // TODO: Find target table in this store, catalog every key it writes
+      // NB: Don't use M, instead get an untyped view over the map with the same
+      // name. This saves deserialisation here, where we work with the raw key.
+      auto tx = store->create_tx();
+      auto handle = tx.ro<kv::untyped::Map>(map.get_name());
+      handle->foreach(
+        [this, seqno = tx_id.seqno](const auto& k, const auto& v) {
+          seqnos_by_key[k].insert(seqno);
+          return true;
+        });
     }
 
-    // // TODO: Serialisation of key, ideally happened already?
-    // SeqNoCollection get_write_txs(key) {}
+    SeqNoCollection get_write_txs(const typename M::Key& key)
+    {
+      const auto serialised_key = M::KeySerialiser::to_serialised(key);
+      const auto it = seqnos_by_key.find(serialised_key);
+      if (it != seqnos_by_key.end())
+      {
+        return it->second;
+      }
+
+      return {};
+    }
   };
 }

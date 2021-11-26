@@ -50,26 +50,147 @@ public:
   }
 };
 
-TEST_CASE("foo")
+class IndexingConsensus : public kv::test::StubConsensus
+{
+public:
+  indexing::Indexer& indexer;
+
+  IndexingConsensus(indexing::Indexer& i) : indexer(i) {}
+
+  bool replicate(const kv::BatchVector& entries_, ccf::View view) override
+  {
+    // Rather than building a history that produces real signatures, we just
+    // overwrite the entries here to say that everything is committable
+    kv::BatchVector entries(entries_);
+    for (auto& [seqno, data, committable, hooks] : entries)
+    {
+      committable = true;
+    }
+
+    auto replicated = kv::test::StubConsensus::replicate(entries, view);
+
+    for (const auto& [seqno, data, committable, hooks] : entries)
+    {
+      indexer.append_entry({view, seqno}, data->data(), data->size());
+    }
+    indexer.commit(committed_txid);
+
+    return replicated;
+  }
+};
+
+TEST_CASE("basic indexing")
 {
   kv::Store kv_store;
 
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  indexing::Indexer indexer(std::make_unique<TestTransactionFetcher>());
+
+  auto consensus = std::make_shared<IndexingConsensus>(indexer);
   kv_store.set_consensus(consensus);
 
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  indexing::Indexer indexer(std::make_unique<TestTransactionFetcher>());
+  kv::Map<std::string, std::string> map_a("private_map_a");
+  using IndexA = indexing::strategies::SeqnosByKey<decltype(map_a)>;
+
+  kv::Map<size_t, size_t> map_b("private_map_b");
+  using IndexB = indexing::strategies::SeqnosByKey<decltype(map_b)>;
+
+  const std::string name_a = "Index A";
+  const std::string name_b = "Index B";
 
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
 
-  indexer.install_strategy(
-    std::make_unique<indexing::strategies::SeqnosByKey>("hello"));
+  indexer.install_strategy(std::make_unique<IndexA>(map_a, name_a));
+  REQUIRE_THROWS(
+    indexer.install_strategy(std::make_unique<IndexA>(map_a, name_a)));
 
-  std::vector<uint8_t> entry;
-  entry.push_back(1);
-  entry.push_back(2);
-  entry.push_back(3);
-  indexer.append_entry({0, 0}, entry.data(), entry.size());
+  indexer.install_strategy(std::make_unique<IndexB>(map_b, name_b));
+  REQUIRE_THROWS(
+    indexer.install_strategy(std::make_unique<IndexB>(map_b, name_b)));
+
+  REQUIRE_THROWS(
+    indexer.install_strategy(std::make_unique<IndexA>(map_a, name_b)));
+  REQUIRE_THROWS(
+    indexer.install_strategy(std::make_unique<IndexB>(map_b, name_a)));
+
+  {
+    REQUIRE(indexer.get_strategy<IndexA>(name_a) != nullptr);
+    REQUIRE(indexer.get_strategy<IndexB>(name_b) != nullptr);
+
+    REQUIRE(indexer.get_strategy<IndexA>(name_b) == nullptr);
+    REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
+  }
+
+  std::vector<ccf::SeqNo> seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
+
+  {
+    auto tx = kv_store.create_tx();
+    tx.wo(map_a)->put("hello", "world");
+    tx.wo(map_b)->put(1, 2);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    const auto seqno = tx.get_txid()->version;
+    seqnos_hello.push_back(seqno);
+    seqnos_1.push_back(seqno);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw(map_a)->put("hello", "goodbye");
+    tx.rw(map_a)->put("saluton", "mondo");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    const auto seqno = tx.get_txid()->version;
+    seqnos_hello.push_back(seqno);
+    seqnos_saluton.push_back(seqno);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw(map_b)->put(1, 42);
+    tx.rw(map_b)->put(2, 100);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    const auto seqno = tx.get_txid()->version;
+    seqnos_1.push_back(seqno);
+    seqnos_2.push_back(seqno);
+  }
+
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw(map_a)->put("hello", "darkness");
+    tx.rw(map_b)->put(1, 43);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    const auto seqno = tx.get_txid()->version;
+    seqnos_hello.push_back(seqno);
+    seqnos_1.push_back(seqno);
+  }
+
+  auto check_seqnos = [](const std::vector<ccf::SeqNo>& expected, const indexing::SeqNoCollection& actual)
+  {
+    REQUIRE(expected.size() == actual.size());
+
+    for (auto n: expected)
+    {
+      REQUIRE(actual.contains(n));
+    }
+  };
+  {
+    INFO("Confirm that index was populated");
+
+    auto index_a = indexer.get_strategy<IndexA>(name_a);
+    REQUIRE(index_a != nullptr);
+
+    check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
+    check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
+
+    auto index_b = indexer.get_strategy<IndexB>(name_b);
+    REQUIRE(index_b != nullptr);
+
+    check_seqnos(seqnos_1, index_b->get_write_txs(1));
+    check_seqnos(seqnos_2, index_b->get_write_txs(2));
+  }
 }
