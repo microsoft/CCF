@@ -137,7 +137,7 @@ namespace ccf::v8_tmpl
       return;
     }
 
-    auto found = state_cache->drop_request(handle);
+    auto found = state_cache->drop_cached_states(handle);
     v8::Local<v8::Value> value = v8::Boolean::New(isolate, found);
 
     info.GetReturnValue().Set(value);
