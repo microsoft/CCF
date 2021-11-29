@@ -229,11 +229,7 @@ namespace ccf::indexing
         }
       }
 
-      if (end_it != uncommitted_entries.begin())
-      {
-        uncommitted_entries.erase(
-          uncommitted_entries.begin(), std::prev(end_it));
-      }
+      uncommitted_entries.erase(uncommitted_entries.begin(), end_it);
 
       committed = tx_id;
     }
