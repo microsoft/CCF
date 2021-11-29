@@ -3,10 +3,18 @@ Configuration
 
 The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config </path/to/configuration/file>`` argument.
 
-.. tip:: JSON configuration samples:
+.. tip::
+
+    JSON configuration samples:
 
     - Minimal configuration: https://github.com/microsoft/CCF/blob/main/samples/config/minimal_config.json
     - Full configuration: https://github.com/microsoft/CCF/blob/main/samples/config/config.json
+
+    A single configuration file can be verified using the ``cchost`` executable, but without launching the enclave application, using the ``--check`` option:
+
+    .. code-block:: bash
+
+        $ cchost --config </path/to/configuration/file> --check start
 
 Configuration Options
 ---------------------
