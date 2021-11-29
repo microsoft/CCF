@@ -629,7 +629,8 @@ TEST_CASE("serialisation of Unit type")
     std::vector<uint8_t> entry_a;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store(consensus);
+      kv::Store kv_store;
+      kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueA>(value_name);
       val_handle->put(v1);
@@ -646,7 +647,8 @@ TEST_CASE("serialisation of Unit type")
     std::vector<uint8_t> entry_b;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store(consensus);
+      kv::Store kv_store;
+      kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueB>(value_name);
       val_handle->put(v1);
@@ -663,7 +665,8 @@ TEST_CASE("serialisation of Unit type")
     std::vector<uint8_t> entry_c;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store(consensus);
+      kv::Store kv_store;
+      kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueC>(value_name);
       val_handle->put(v1);

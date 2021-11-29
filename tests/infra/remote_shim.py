@@ -150,7 +150,7 @@ class DockerShim(infra.remote.CCFRemote):
         # at node startup
         kwargs["include_addresses"] = False
         self.host.rpc_interfaces[0].public_rpc_host = CONTAINER_IP_REPLACE_STR
-        kwargs["node_address_hostname"] = CONTAINER_IP_REPLACE_STR
+        kwargs["node_address"] = CONTAINER_IP_REPLACE_STR
         super().__init__(*args, host=host, **kwargs)
 
         self.command = f'./{NODE_STARTUP_WRAPPER_SCRIPT} "{self.remote.get_cmd(include_dir=False)}"'
