@@ -657,11 +657,16 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --client-tutorial
-      ${CMAKE_SOURCE_DIR}/python/tutorial.py --ledger-tutorial
+      --schema-dir
+      ${CMAKE_SOURCE_DIR}/doc/schemas
+      --client-tutorial
+      ${CMAKE_SOURCE_DIR}/python/tutorial.py
+      --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
-      --config-samples-dir ${CMAKE_SOURCE_DIR}/samples/config
-      --config-file-1x ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
+      --config-samples-dir
+      ${CMAKE_SOURCE_DIR}/samples/config
+      --config-file-1x
+      ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
