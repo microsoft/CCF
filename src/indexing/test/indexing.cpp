@@ -6,6 +6,7 @@
 #include "indexing/indexer.h"
 #include "indexing/seqnos_by_key.h"
 #include "kv/test/stub_consensus.h"
+#include "node/share_manager.h"
 
 // Needed by TestTransactionFetcher
 #include "kv/test/null_encryptor.h"
@@ -121,12 +122,14 @@ void check_seqnos(
   }
 }
 
-std::tuple<SeqNoVec, SeqNoVec, SeqNoVec, SeqNoVec> create_transactions(
+void create_transactions(
   kv::Store& kv_store,
+  SeqNoVec& seqnos_hello,
+  SeqNoVec& seqnos_saluton,
+  SeqNoVec& seqnos_1,
+  SeqNoVec& seqnos_2,
   size_t count = ccf::indexing::Indexer::MAX_REQUESTABLE * 3)
 {
-  SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
-
   INFO("Create and commit transactions");
   for (size_t i = 0; i < count; ++i)
   {
@@ -165,8 +168,6 @@ std::tuple<SeqNoVec, SeqNoVec, SeqNoVec, SeqNoVec> create_transactions(
       seqnos_2.push_back(seqno);
     }
   }
-
-  return std::make_tuple(seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
 }
 
 // Uses stub classes to test just indexing logic in isolation
@@ -196,8 +197,9 @@ TEST_CASE("basic indexing")
 
   static constexpr auto num_transactions =
     ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
-  auto [seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2] =
-    create_transactions(kv_store);
+  SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
+  create_transactions(
+    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
 
   {
     INFO("Confirm that pre-existing strategy was populated already");
@@ -248,18 +250,8 @@ TEST_CASE("basic indexing")
 
   {
     INFO("Both indexes continue to be updated with new entries");
-    auto
-      [more_seqnos_hello, more_seqnos_saluton, more_seqnos_1, more_seqnos_2] =
-        create_transactions(kv_store, 100);
-
-    seqnos_hello.insert(
-      seqnos_hello.end(), more_seqnos_hello.begin(), more_seqnos_hello.end());
-    seqnos_saluton.insert(
-      seqnos_saluton.end(),
-      more_seqnos_saluton.begin(),
-      more_seqnos_saluton.end());
-    seqnos_1.insert(seqnos_1.end(), more_seqnos_1.begin(), more_seqnos_1.end());
-    seqnos_2.insert(seqnos_2.end(), more_seqnos_2.begin(), more_seqnos_2.end());
+    create_transactions(
+      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100);
 
     auto index_a = indexer.get_strategy<IndexA>(name_a);
     REQUIRE(index_a != nullptr);
@@ -275,6 +267,31 @@ TEST_CASE("basic indexing")
   }
 }
 
+kv::Version rekey(
+  kv::Store& kv_store,
+  const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets)
+{
+  // This isn't really used, but is needed for ShareManager, so can be recreated
+  // each time here
+  ccf::NetworkState network;
+  network.ledger_secrets = ledger_secrets;
+  ccf::ShareManager share_manager(network);
+
+  auto tx = kv_store.create_tx();
+  auto new_ledger_secret = ccf::make_ledger_secret();
+  share_manager.issue_recovery_shares(tx, new_ledger_secret);
+  REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+  auto tx_version = tx.commit_version();
+
+  ledger_secrets->set_secret(
+    tx_version + 1,
+    std::make_shared<ccf::LedgerSecret>(
+      std::move(new_ledger_secret->raw_key), tx_version));
+
+  return tx_version;
+}
+
 // Uses the real classes, to test their interaction with indexing
 TEST_CASE("integrated indexing")
 {
@@ -282,6 +299,28 @@ TEST_CASE("integrated indexing")
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
+  {
+    INFO("Store one recovery member");
+    // This is necessary to rekey the ledger and issue recovery shares for the
+    // new ledger secret
+    auto tx = kv_store.create_tx();
+    auto config = tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION);
+    constexpr size_t recovery_threshold = 1;
+    config->put({recovery_threshold});
+    auto member_info = tx.rw<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
+    auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
+      ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+    auto kp = crypto::make_key_pair();
+    auto cert = kp->self_sign("CN=member");
+    auto member_id =
+      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+
+    member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
+    member_public_encryption_keys->put(
+      member_id, crypto::make_rsa_key_pair()->public_key_pem());
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
 
   auto stub_writer = std::make_shared<StubWriter>();
@@ -296,8 +335,14 @@ TEST_CASE("integrated indexing")
 
   const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
 
-  auto [seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2] =
-    create_transactions(kv_store);
+  SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
+
+  for (size_t i = 0; i < 3; ++i)
+  {
+    create_transactions(
+      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 10);
+    rekey(kv_store, ledger_secrets);
+  }
 
   {
     INFO("Confirm that pre-existing strategy was populated already");
