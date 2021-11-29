@@ -32,7 +32,7 @@ class RPCInterface:
     def to_json(interface):
         return {
             "bind_address": f"{interface.rpc_host}:{interface.rpc_port}",
-            "published_address": f"{interface.public_rpc_host}:{interface.public_rpc_port}",
+            "published_address": f"{interface.public_rpc_host}:{interface.public_rpc_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
         }
@@ -40,13 +40,12 @@ class RPCInterface:
     @staticmethod
     def from_json(json):
         interface = RPCInterface()
-        bind_address = json.get("bind_address")
-        interface.rpc_host = bind_address["hostname"]
-        interface.rpc_port = bind_address["port"]
+        interface.rpc_host, interface.rpc_port = split_address(json.get("bind_address"))
         published_address = json.get("published_address")
         if published_address is not None:
-            interface.public_rpc_host = published_address["hostname"]
-            interface.public_rpc_port = published_address["port"]
+            interface.public_rpc_host, interface.public_rpc_port = split_address(
+                published_address
+            )
         interface.max_open_sessions_soft = json.get(
             "max_open_sessions_soft", DEFAULT_MAX_OPEN_SESSIONS_SOFT
         )
