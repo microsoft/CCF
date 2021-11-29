@@ -660,7 +660,7 @@ def get_joining_node_dates(network, tx_id_before, tx_id_after, node_id):
 
 
 def run_migration_tests(args):
-    if args.reconfiguration_type != "1tx":
+    if args.reconfiguration_type != "OneTransaction":
         return
 
     txs = app.LoggingTxs("user0")
@@ -687,7 +687,7 @@ def run_migration_tests(args):
             assert n.node_id in nodes_before
             assert nodes_before[n.node_id]["status"] == "Trusted"
 
-        # Check that the service config says this is a 1tx network
+        # Check that the service config agrees that this is a 1tx network
         tables, _ = network.get_latest_ledger_public_state()
         service_config = json.loads(
             tables["public:ccf.gov.service.config"][
@@ -700,7 +700,8 @@ def run_migration_tests(args):
         proposal_body = {
             "actions": [
                 {
-                    "name": "migrate_service_to_2tx_reconfig",
+                    "name": "set_service_configuration",
+                    "args": {"reconfiguration_type": "TwoTransaction"},
                 }
             ]
         }
@@ -716,7 +717,7 @@ def run_migration_tests(args):
 
         primary, _ = network.find_primary()
 
-        # Check that the service config has been updated
+        # Check that the service config has been updated in the KV store/on the ledger
         tables, _ = network.get_latest_ledger_public_state()
         service_config = json.loads(
             tables["public:ccf.gov.service.config"][
@@ -729,10 +730,8 @@ def run_migration_tests(args):
         for node in network.nodes:
             with node.client() as c:
                 rj = c.get("/node/consensus").body.json()
-                assert (
-                    "reconfiguration_type" in rj["details"]
-                    and "learners" in rj["details"]
-                )
+                LOG.info(rj)
+                assert "reconfiguration_type" in rj["details"]
                 assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
                 assert len(rj["details"]["learners"]) == 0
 
@@ -816,7 +815,7 @@ if __name__ == "__main__":
             run_migration_tests,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="1tx",
+            reconfiguration_type="OneTransaction",
         )
 
     cr.run()

@@ -2025,10 +2025,10 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.config.get_name(),
-        network.config.wrap_map_hook(
-          [](kv::Version version, const Configuration::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<ServiceConfigurationUpdateHook>(version, w);
+        network.config.wrap_commit_hook(
+          [c = this->consensus](
+            kv::Version version, const Configuration::Write& w) {
+            service_configuration_commit_hook(version, w, c);
           }));
 
       setup_basic_hooks();

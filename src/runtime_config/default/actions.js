@@ -1061,9 +1061,11 @@ const actions = new Map([
     ),
   ],
   [
-    "migrate_service_to_2tx_reconfig",
+    "set_service_configuration",
     new Action(
-      function (args) {},
+      function (args) {
+        checkType(args.reconfiguration_type, "string?", "reconfiguration type");
+      },
       function (args) {
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
           getSingletonKvKey()
@@ -1072,12 +1074,22 @@ const actions = new Map([
           throw new Error("Service configuration could not be found");
         }
         const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
-        if (serviceConfig.reconfiguration_type != "OneTransaction") {
-          throw new Error(
-            "Service does not use one-transaction reconfiguration."
-          );
+        if (
+          args.reconfiguration_type !== undefined &&
+          serviceConfig.reconfiguration_type !== args.reconfiguration_type
+        ) {
+          if (
+            !(
+              serviceConfig.reconfiguration_type === "OneTransaction" &&
+              args.reconfiguration_type === "TwoTransaction"
+            )
+          ) {
+            throw new Error(
+              `Cannot change reconfiguration type from ${serviceConfig.reconfiguration_type} to ${args.reconfiguration_type}.`
+            );
+          }
+          serviceConfig.reconfiguration_type = args.reconfiguration_type;
         }
-        serviceConfig.reconfiguration_type = "TwoTransaction";
         ccf.kv["public:ccf.gov.service.config"].set(
           getSingletonKvKey(),
           ccf.jsonCompatibleToBuf(serviceConfig)

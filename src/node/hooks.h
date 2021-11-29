@@ -169,28 +169,17 @@ namespace ccf
     }
   };
 
-  class ServiceConfigurationUpdateHook : public kv::ConsensusHook
+  inline void service_configuration_commit_hook(
+    kv::Version version,
+    const ccf::Configuration::Write& w,
+    std::shared_ptr<kv::Consensus> consensus)
   {
-    kv::Version version;
-    ServiceConfiguration new_service_config;
-
-  public:
-    ServiceConfigurationUpdateHook(
-      kv::Version version_, const Configuration::Write& w)
-    {
-      assert(w.has_value());
-      version = version_;
-      new_service_config = w.value();
-    }
-
-    void call(kv::ConfigurableConsensus* consensus) override
-    {
-      LOG_DEBUG_FMT("Service configuration update hook");
-      kv::ConsensusParameters cp;
-      cp.reconfiguration_type =
-        new_service_config.reconfiguration_type.value_or(
-          ReconfigurationType::ONE_TRANSACTION);
-      consensus->update_parameters(cp);
-    }
-  };
+    LOG_DEBUG_FMT("Service configuration update hook");
+    assert(w.has_value());
+    auto new_service_config = w.value();
+    kv::ConsensusParameters cp;
+    cp.reconfiguration_type = new_service_config.reconfiguration_type.value_or(
+      ReconfigurationType::ONE_TRANSACTION);
+    consensus->update_parameters(cp);
+  }
 }

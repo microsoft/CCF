@@ -2536,11 +2536,15 @@ namespace aft
   public:
     void update_parameters(kv::ConsensusParameters& params)
     {
-      reconfiguration_type = params.reconfiguration_type;
-      if (reconfiguration_type == TWO_TRANSACTION && !node_client)
+      if (reconfiguration_type == params.reconfiguration_type)
+      {
+        return;
+      }
+      if (params.reconfiguration_type == TWO_TRANSACTION && !node_client)
       {
         throw std::logic_error("missing node client");
       }
+      reconfiguration_type = params.reconfiguration_type;
     }
   };
 }
