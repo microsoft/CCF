@@ -39,7 +39,9 @@ namespace ccf::indexing
     std::vector<StorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) override
     {
-      return {};
+      // TODO: Dedicated handle?
+      LOG_INFO_FMT("Fetching {} seqnos?", seqnos.size());
+      return state_cache.get_stores_for(0, seqnos);
     }
   };
 }

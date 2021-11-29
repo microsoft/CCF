@@ -364,6 +364,7 @@ TEST_CASE("integrated indexing")
 
   size_t handled_writes = 0;
   const auto& writes = stub_writer->writes;
+  size_t loops = 0;
   while (indexer.tick() || handled_writes < writes.size())
   {
     // Do the fetch, simulating an asynchronous fetch by the historical query
@@ -387,6 +388,11 @@ TEST_CASE("integrated indexing")
         combined.insert(combined.end(), entry->begin(), entry->end());
       }
       cache.handle_ledger_entries(from_seqno, to_seqno, combined);
+    }
+
+    if (loops++ > 100)
+    {
+      throw std::logic_error("Looks like a permanent loop");
     }
   }
 
