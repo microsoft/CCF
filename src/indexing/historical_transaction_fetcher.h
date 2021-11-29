@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 #include "node/historical_queries.h"
 
@@ -26,6 +27,10 @@ namespace ccf::indexing
       if (store && result != kv::ApplyResult::FAIL)
       {
         return store;
+      }
+      else
+      {
+        LOG_FAIL_FMT("Unable to deserialise transaction at {}", seqno);
       }
 
       return nullptr;

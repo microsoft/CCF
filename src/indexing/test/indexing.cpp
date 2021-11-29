@@ -298,6 +298,19 @@ TEST_CASE("integrated indexing")
   kv::Store kv_store;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(kv_store, ledger_secrets, stub_writer);
+
+  ccf::indexing::HistoricalTransactionFetcher fetcher(cache);
+  ccf::indexing::Indexer indexer(fetcher);
+
+  // TODO: Move this after the setup transactions, once historical fetching works
+  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
+
+  // TODO: Real Raft?
+  auto consensus = std::make_shared<IndexingConsensus>(indexer);
+  kv_store.set_consensus(consensus);
+
   ledger_secrets->init();
   {
     INFO("Store one recovery member");
@@ -322,18 +335,6 @@ TEST_CASE("integrated indexing")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
-
-  auto stub_writer = std::make_shared<StubWriter>();
-  ccf::historical::StateCache cache(kv_store, ledger_secrets, stub_writer);
-
-  ccf::indexing::HistoricalTransactionFetcher fetcher(cache);
-  ccf::indexing::Indexer indexer(fetcher);
-
-  // TODO: Real Raft?
-  auto consensus = std::make_shared<IndexingConsensus>(indexer);
-  kv_store.set_consensus(consensus);
-
-  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
 
   SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
 
