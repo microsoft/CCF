@@ -114,7 +114,7 @@ def test_historical_query_range(network, args):
     average_fetch_rate = (id_a_fetch_rate + id_b_fetch_rate + id_c_fetch_rate) / 3
 
     with cimetrics.upload.metrics(complete=False) as metrics:
-        upload_name = "Historical query (/s)^"
+        upload_name = "hist_sgx_cft^"
         LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
         metrics.put(upload_name, average_fetch_rate)
 
