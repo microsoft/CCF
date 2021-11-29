@@ -304,7 +304,8 @@ TEST_CASE("integrated indexing")
   ccf::indexing::HistoricalTransactionFetcher fetcher(cache);
   ccf::indexing::Indexer indexer(fetcher);
 
-  // TODO: Move this after the setup transactions, once historical fetching works
+  // TODO: Move this after the setup transactions, once historical fetching
+  // works
   const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
 
   // TODO: Real Raft?
@@ -353,5 +354,47 @@ TEST_CASE("integrated indexing")
 
     check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
     check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
+  }
+
+  INFO(
+    "Indexes can be installed later, and will be populated after enough "
+    "ticks");
+
+  const auto name_b = indexer.install_strategy(std::make_unique<IndexB>(map_b));
+
+  size_t handled_writes = 0;
+  const auto& writes = stub_writer->writes;
+  while (indexer.tick() || handled_writes < writes.size())
+  {
+    // Do the fetch, simulating an asynchronous fetch by the historical query
+    // system
+    for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
+    {
+      const auto& write = *it;
+
+      const uint8_t* data = write.contents.data();
+      size_t size = write.contents.size();
+      REQUIRE(write.m == consensus::ledger_get_range);
+      auto [from_seqno, to_seqno, purpose] =
+        ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+      REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+
+      std::vector<uint8_t> combined;
+      for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+      {
+        REQUIRE(consensus->replica.size() >= seqno);
+        const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+        combined.insert(combined.end(), entry->begin(), entry->end());
+      }
+      cache.handle_ledger_entries(from_seqno, to_seqno, combined);
+    }
+  }
+
+  {
+    auto index_b = indexer.get_strategy<IndexB>(name_b);
+    REQUIRE(index_b != nullptr);
+
+    check_seqnos(seqnos_1, index_b->get_write_txs(1));
+    check_seqnos(seqnos_2, index_b->get_write_txs(2));
   }
 }
