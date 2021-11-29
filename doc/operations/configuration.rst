@@ -73,16 +73,16 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 ``command``
 ~~~~~~~~~~~
 
-The ``command`` section
+The ``command`` section includes configuration for the type of node (start, join or recover) and associated information.
 
 - ``type``: Type of CCF node (either ``start``, ``join`` or ``recover``). Default value: ``start``.
 
 .. _start configuration:
 
 ``start``
-~~~~~~~~~
++++++++++
 
-.. note:: This only needs to be set when the node started in ``start`` mode.
+Only set when ``type`` is ``start``.
 
 - ``constitution_files``: List of constitution files. These typically include ``actions.js``, ``validate.js``, ``resolve.js`` and ``apply.js``.
 
@@ -123,9 +123,9 @@ Example:
 .. _join configuration:
 
 ``join``
-~~~~~~~~
+++++++++
 
-.. note:: This only needs to be set when the node is started in ``join`` mode.
+Only set when ``type`` is ``join``.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
 - ``timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1000`` ms.
