@@ -56,6 +56,10 @@ int main(int argc, char** argv)
       "-c,--config", config_file_path, "Path to JSON configuration file")
     ->check(CLI::ExistingFile);
 
+  bool check_config_only = false;
+  app.add_flag(
+    "--check", check_config_only, "Verify configuration file and exit");
+
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
@@ -77,9 +81,25 @@ int main(int argc, char** argv)
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
   std::string config_str = files::slurp_string(config_file_path);
-  CCHostConfig config = nlohmann::json::parse(config_str);
-  LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
 
+  CCHostConfig config = {};
+  try
+  {
+    config = nlohmann::json::parse(config_str);
+  }
+  catch (const std::exception& e)
+  {
+    throw std::logic_error(fmt::format(
+      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+  }
+
+  if (check_config_only)
+  {
+    LOG_INFO_FMT("Configuration file successfully verified");
+    return 0;
+  }
+
+  LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
   if (config.logging.format == LogFormat::JSON)
   {
     logger::config::initialize_with_json_console();
