@@ -9,7 +9,7 @@
 #include <memory>
 #include <string>
 
-namespace indexing
+namespace ccf::indexing
 {
   // This is responsible for managing a collection of strategies, and ensuring
   // each has been given every transaction up to the commit point, in-order. It

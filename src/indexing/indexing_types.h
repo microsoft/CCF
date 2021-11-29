@@ -14,7 +14,7 @@ namespace kv
   class Store;
 }
 
-namespace indexing
+namespace ccf::indexing
 {
   using StorePtr = std::shared_ptr<kv::Store>;
   using SeqNoCollection = ds::ContiguousSet<ccf::SeqNo>;

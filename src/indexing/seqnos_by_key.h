@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-namespace indexing::strategies
+namespace ccf::indexing::strategies
 {
   template <typename M>
   class SeqnosByKey : public Strategy

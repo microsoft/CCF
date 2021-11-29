@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-namespace indexing
+namespace ccf::indexing
 {
   class Strategy
   {

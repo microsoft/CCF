@@ -4,7 +4,7 @@
 
 #include "indexing/indexing_types.h"
 
-namespace indexing
+namespace ccf::indexing
 {
   class TransactionFetcher
   {
@@ -18,5 +18,3 @@ namespace indexing
       const SeqNoCollection& seqnos) = 0;
   };
 }
-
-// TODO: Add implementation of this backed by historical::StateCache
