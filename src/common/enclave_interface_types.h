@@ -95,7 +95,7 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
 
 enum StartType
 {
-  New = 1,
+  Start = 1,
   Join = 2,
   Recover = 3,
 };

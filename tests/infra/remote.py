@@ -623,6 +623,7 @@ class CCFRemote(object):
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
+                start_type=start_type.name,
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type,
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
@@ -659,13 +660,9 @@ class CCFRemote(object):
 
         if major_version is None or major_version > 1:
             cmd = [bin_path, "--config", config_file]
-            if start_type == StartType.new:
-                cmd += ["start"]
-            elif start_type == StartType.join:
-                cmd += ["join"]
+            if start_type == StartType.join:
                 data_files += [os.path.join(self.common_dir, "networkcert.pem")]
-            else:
-                cmd += ["recover"]
+
         else:
             consensus = kwargs.get("consensus")
             election_timeout_ms = kwargs.get("election_timeout_ms")
@@ -766,7 +763,7 @@ class CCFRemote(object):
                 if max_open_sessions_hard:
                     cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
 
-            if start_type == StartType.new:
+            if start_type == StartType.start:
                 cmd += ["start", "--network-cert-file=networkcert.pem"]
                 for fragment in constitution:
                     cmd.append(f"--constitution={os.path.basename(fragment)}")
@@ -852,7 +849,7 @@ class CCFRemote(object):
             self.remote.get(self.node_address_file, dst_path)
         if self.rpc_addresses_file is not None:
             self.remote.get(self.rpc_addresses_file, dst_path)
-        if self.start_type in {StartType.new, StartType.recover}:
+        if self.start_type in {StartType.start, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
 
     def debug_node_cmd(self):
@@ -916,6 +913,6 @@ class CCFRemote(object):
 
 
 class StartType(Enum):
-    new = auto()
+    start = auto()
     join = auto()
     recover = auto()

@@ -62,6 +62,13 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 - ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``secp384r1``.
 - ``initial_validity_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
 
+``command``
+~~~~~~~~~~~
+
+The ``command`` section
+
+- ``type``: Type of CCF node (either ``start``, ``join`` or ``recover``). Default value: ``start``.
+
 .. _start configuration:
 
 ``start``
