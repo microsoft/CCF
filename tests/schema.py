@@ -168,6 +168,12 @@ if __name__ == "__main__":
             help="Path to ledger tutorial file",
             type=str,
         )
+        parser.add_argument(
+            "--config-samples-dir",
+            help="Configuration samples directory",
+            type=str,
+            default=None,
+        )
 
     cr = ConcurrentRunner(add)
 

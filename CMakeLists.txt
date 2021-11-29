@@ -660,6 +660,7 @@ if(BUILD_TESTS)
       --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --client-tutorial
       ${CMAKE_SOURCE_DIR}/python/tutorial.py --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
+      --config-samples-dir ${CMAKE_SOURCE_DIR}/samples/config
   )
 
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
