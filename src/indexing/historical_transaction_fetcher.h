@@ -9,10 +9,25 @@ namespace ccf::indexing
 {
   class HistoricalTransactionFetcher : public TransactionFetcher
   {
+  private:
+    ccf::historical::StateCache& state_cache;
+
   public:
+    HistoricalTransactionFetcher(ccf::historical::StateCache& sc) :
+      state_cache(sc)
+    {}
+
     StorePtr deserialise_transaction(
       ccf::SeqNo seqno, const uint8_t* data, size_t size) override
     {
+      kv::ApplyResult result;
+      auto store =
+        state_cache.deserialise_ledger_entry(seqno, data, size, result);
+      if (store && result != kv::ApplyResult::FAIL)
+      {
+        return store;
+      }
+
       return nullptr;
     }
 

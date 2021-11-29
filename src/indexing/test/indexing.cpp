@@ -122,7 +122,8 @@ void check_seqnos(
 }
 
 std::tuple<SeqNoVec, SeqNoVec, SeqNoVec, SeqNoVec> create_transactions(
-  kv::Store& kv_store, size_t count)
+  kv::Store& kv_store,
+  size_t count = ccf::indexing::Indexer::MAX_REQUESTABLE * 3)
 {
   SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
 
@@ -196,7 +197,7 @@ TEST_CASE("basic indexing")
   static constexpr auto num_transactions =
     ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
   auto [seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2] =
-    create_transactions(kv_store, num_transactions);
+    create_transactions(kv_store);
 
   {
     INFO("Confirm that pre-existing strategy was populated already");
@@ -244,16 +245,67 @@ TEST_CASE("basic indexing")
     check_seqnos(seqnos_1, index_b->get_write_txs(1));
     check_seqnos(seqnos_2, index_b->get_write_txs(2));
   }
+
+  {
+    INFO("Both indexes continue to be updated with new entries");
+    auto
+      [more_seqnos_hello, more_seqnos_saluton, more_seqnos_1, more_seqnos_2] =
+        create_transactions(kv_store, 100);
+
+    seqnos_hello.insert(
+      seqnos_hello.end(), more_seqnos_hello.begin(), more_seqnos_hello.end());
+    seqnos_saluton.insert(
+      seqnos_saluton.end(),
+      more_seqnos_saluton.begin(),
+      more_seqnos_saluton.end());
+    seqnos_1.insert(seqnos_1.end(), more_seqnos_1.begin(), more_seqnos_1.end());
+    seqnos_2.insert(seqnos_2.end(), more_seqnos_2.begin(), more_seqnos_2.end());
+
+    auto index_a = indexer.get_strategy<IndexA>(name_a);
+    REQUIRE(index_a != nullptr);
+
+    check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
+    check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
+
+    auto index_b = indexer.get_strategy<IndexB>(name_b);
+    REQUIRE(index_b != nullptr);
+
+    check_seqnos(seqnos_1, index_b->get_write_txs(1));
+    check_seqnos(seqnos_2, index_b->get_write_txs(2));
+  }
 }
 
 // Uses the real classes, to test their interaction with indexing
 TEST_CASE("integrated indexing")
 {
   kv::Store kv_store;
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto stub_writer = std::make_shared<StubWriter>();
 
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ledger_secrets->init();
+  kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
+
+  auto stub_writer = std::make_shared<StubWriter>();
   ccf::historical::StateCache cache(kv_store, ledger_secrets, stub_writer);
-  ccf::indexing::HistoricalTransactionFetcher fetcher;
+
+  ccf::indexing::HistoricalTransactionFetcher fetcher(cache);
   ccf::indexing::Indexer indexer(fetcher);
+
+  // TODO: Real Raft?
+  auto consensus = std::make_shared<IndexingConsensus>(indexer);
+  kv_store.set_consensus(consensus);
+
+  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
+
+  auto [seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2] =
+    create_transactions(kv_store);
+
+  {
+    INFO("Confirm that pre-existing strategy was populated already");
+
+    auto index_a = indexer.get_strategy<IndexA>(name_a);
+    REQUIRE(index_a != nullptr);
+
+    check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
+    check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
+  }
 }
