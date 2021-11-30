@@ -63,11 +63,6 @@ if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
 endif()
 
-option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
-if(USE_NLJSON_KV_SERIALISER)
-  add_compile_definitions(USE_NLJSON_KV_SERIALISER)
-endif()
-
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
