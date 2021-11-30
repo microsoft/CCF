@@ -1129,11 +1129,9 @@ namespace ccf::historical
     }
   };
 
-  class StateCache : public AbstractStateCache
+  class StateCache : public StateCacheImpl, public AbstractStateCache
   {
   protected:
-    StateCacheImpl impl;
-
     CompoundHandle make_compound_handle(RequestHandle rh)
     {
       return {RequestNamespace::Application, rh};
@@ -1141,7 +1139,7 @@ namespace ccf::historical
 
   public:
     template <typename... Ts>
-    StateCache(Ts&&... ts) : impl(std::forward<Ts>(ts)...)
+    StateCache(Ts&&... ts) : StateCacheImpl(std::forward<Ts>(ts)...)
     {}
 
     StorePtr get_store_at(
@@ -1149,13 +1147,13 @@ namespace ccf::historical
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      return impl.get_store_at(
+      return StateCacheImpl::get_store_at(
         make_compound_handle(handle), seqno, seconds_until_expiry);
     }
 
     StorePtr get_store_at(RequestHandle handle, ccf::SeqNo seqno) override
     {
-      return impl.get_store_at(make_compound_handle(handle), seqno);
+      return StateCacheImpl::get_store_at(make_compound_handle(handle), seqno);
     }
 
     StatePtr get_state_at(
@@ -1163,13 +1161,13 @@ namespace ccf::historical
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      return impl.get_state_at(
+      return StateCacheImpl::get_state_at(
         make_compound_handle(handle), seqno, seconds_until_expiry);
     }
 
     StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
     {
-      return impl.get_state_at(make_compound_handle(handle), seqno);
+      return StateCacheImpl::get_state_at(make_compound_handle(handle), seqno);
     }
 
     std::vector<StorePtr> get_store_range(
@@ -1178,7 +1176,7 @@ namespace ccf::historical
       ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      return impl.get_store_range(
+      return StateCacheImpl::get_store_range(
         make_compound_handle(handle),
         start_seqno,
         end_seqno,
@@ -1190,7 +1188,7 @@ namespace ccf::historical
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno) override
     {
-      return impl.get_store_range(
+      return StateCacheImpl::get_store_range(
         make_compound_handle(handle), start_seqno, end_seqno);
     }
 
@@ -1200,7 +1198,7 @@ namespace ccf::historical
       ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
-      return impl.get_state_range(
+      return StateCacheImpl::get_state_range(
         make_compound_handle(handle),
         start_seqno,
         end_seqno,
@@ -1212,7 +1210,7 @@ namespace ccf::historical
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno) override
     {
-      return impl.get_state_range(
+      return StateCacheImpl::get_state_range(
         make_compound_handle(handle), start_seqno, end_seqno);
     }
 
@@ -1221,14 +1219,14 @@ namespace ccf::historical
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) override
     {
-      return impl.get_stores_for(
+      return StateCacheImpl::get_stores_for(
         make_compound_handle(handle), seqnos, seconds_until_expiry);
     }
 
     std::vector<StorePtr> get_stores_for(
       RequestHandle handle, const SeqNoCollection& seqnos) override
     {
-      return impl.get_stores_for(make_compound_handle(handle), seqnos);
+      return StateCacheImpl::get_stores_for(make_compound_handle(handle), seqnos);
     }
 
     std::vector<StatePtr> get_states_for(
@@ -1236,64 +1234,24 @@ namespace ccf::historical
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) override
     {
-      return impl.get_states_for(
+      return StateCacheImpl::get_states_for(
         make_compound_handle(handle), seqnos, seconds_until_expiry);
     }
 
     std::vector<StatePtr> get_states_for(
       RequestHandle handle, const SeqNoCollection& seqnos) override
     {
-      return impl.get_states_for(make_compound_handle(handle), seqnos);
+      return StateCacheImpl::get_states_for(make_compound_handle(handle), seqnos);
     }
 
     void set_default_expiry_duration(ExpiryDuration duration) override
     {
-      impl.set_default_expiry_duration(duration);
+      StateCacheImpl::set_default_expiry_duration(duration);
     }
 
     bool drop_cached_states(RequestHandle handle) override
     {
-      return impl.drop_cached_states(make_compound_handle(handle));
-    }
-
-    bool handle_ledger_entry(ccf::SeqNo seqno, const std::vector<uint8_t>& data)
-    {
-      return impl.handle_ledger_entry(seqno, data);
-    }
-
-    bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
-    {
-      return impl.handle_ledger_entry(seqno, data, size);
-    }
-
-    bool handle_ledger_entries(
-      ccf::SeqNo from_seqno, ccf::SeqNo to_seqno, const LedgerEntry& data)
-    {
-      return impl.handle_ledger_entries(from_seqno, to_seqno, data);
-    }
-
-    bool handle_ledger_entries(
-      ccf::SeqNo from_seqno,
-      ccf::SeqNo to_seqno,
-      const uint8_t* data,
-      size_t size)
-    {
-      return impl.handle_ledger_entries(from_seqno, to_seqno, data, size);
-    }
-
-    void handle_no_entry(ccf::SeqNo seqno)
-    {
-      impl.handle_no_entry(seqno);
-    }
-
-    void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
-    {
-      impl.handle_no_entry_range(from_seqno, to_seqno);
-    }
-
-    void tick(const std::chrono::milliseconds& elapsed_ms)
-    {
-      return impl.tick(elapsed_ms);
+      return StateCacheImpl::drop_cached_states(make_compound_handle(handle));
     }
   };
 }
