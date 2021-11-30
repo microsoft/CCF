@@ -255,8 +255,13 @@ function updateServiceConfig(new_config) {
     config.reconfiguration_type = new_config.reconfiguration_type;
   }
 
-  if (new_config.recovery_threshold !== undefined) {
+  let need_recovery_threshold_refresh = false;
+  if (
+    new_config.recovery_threshold !== undefined &&
+    new_config.recovery_threshold !== config.recovery_threshold
+  ) {
     config.recovery_threshold = new_config.recovery_threshold;
+    need_recovery_threshold_refresh = true;
   }
 
   ccf.kv[service_config_table].set(
@@ -265,7 +270,7 @@ function updateServiceConfig(new_config) {
   );
 
   // All ok, run triggers
-  if (new_config.recovery_threshold !== undefined) {
+  if (need_recovery_threshold_refresh) {
     ccf.node.triggerRecoverySharesRefresh();
   }
 }
