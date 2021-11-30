@@ -84,7 +84,7 @@ int recv(void* ctx, uint8_t* buf, size_t len)
 static void dbg_callback(
   void*, int, const char* file, int line, const char* str)
 {
-  test_log.write(string(file) + ":" + to_string(line) + " " + str);
+  test_log.write(fmt::format("{}:{} {}\n", file, line, str));
 }
 
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
@@ -107,13 +107,15 @@ int handshake(Context* ctx)
       case MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE:
       case MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED:
       {
-        test_log.write("Handshake error: " + crypto::error_string(rc) + "\n");
+        test_log.write(
+          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
         return 1;
       }
 
       case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
       {
-        test_log.write("Handshake error: " + crypto::error_string(rc) + "\n");
+        test_log.write(
+          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
         return 1;
       }
 
@@ -132,13 +134,15 @@ int handshake(Context* ctx)
           test_log.write(std::string(buf.data(), buf.size()) + "\n");
         }
 
-        test_log.write("Handshake error: " + crypto::error_string(rc) + "\n");
+        test_log.write(
+          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
         return 1;
       }
 
       default:
       {
-        test_log.write("Handshake error: " + crypto::error_string(rc) + "\n");
+        test_log.write(
+          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
         return 1;
       }
     }
@@ -157,7 +161,7 @@ NetworkCA get_ca()
   // Create a CA with a self-signed certificate
   auto kp = crypto::make_key_pair();
   auto crt = kp->self_sign("CN=issuer");
-  test_log.write("New self-signed CA certificate:\n" + crt.str() + "\n");
+  test_log.write(fmt::format("New self-signed CA certificate:\n{}", crt.str()));
   return {kp, crt};
 }
 
@@ -170,10 +174,10 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name)
   // Create a signing request and sign with the CA
   auto kp = crypto::make_key_pair();
   auto csr = kp->create_csr("CN=" + name);
-  test_log.write("CSR for " + name + " is:\n" + csr.str() + "\n");
+  test_log.write(fmt::format("CSR for {} is:\n{}", name, csr.str()));
 
   auto crt = net_ca.kp->sign_csr(net_ca.cert, csr);
-  test_log.write("New CA-signed certificate:\n" + crt.str() + "\n");
+  test_log.write(fmt::format("New CA-signed certificate:\n{}", crt.str()));
 
   // Verify node certificate with the CA's certificate
   auto v = crypto::make_verifier(crt);
@@ -247,32 +251,30 @@ void run_test_case(
 
   // Send the first message
   test_log.write(
-    "Client sending message [" + string((const char*)message) + "]\n");
+    fmt::format("Client sending message [{}]\n", string((const char*)message)));
   int written = client.write(message, message_length);
   REQUIRE(written == message_length);
 
   // Receive the first message
-  test_log.write("Server receiving message...\n");
   int read = server.read(buf, message_length);
   REQUIRE(read == message_length);
   buf[message_length] = '\0';
   test_log.write(
-    "Server message received [" + string((const char*)buf) + "]\n");
+    fmt::format("Server message received [{}]\n", string((const char*)buf)));
   REQUIRE(strncmp((const char*)buf, (const char*)message, message_length) == 0);
 
   // Send the response
-  test_log.write(
-    "Server sending message [" + string((const char*)response) + "]\n");
+  test_log.write(fmt::format(
+    "Server sending message [{}]\n", string((const char*)response)));
   written = server.write(response, response_length);
   REQUIRE(written == response_length);
 
   // Receive the response
-  test_log.write("Client receiving response...\n");
   read = client.read(buf, response_length);
   REQUIRE(read == response_length);
   buf[response_length] = '\0';
   test_log.write(
-    "Client message received [" + string((const char*)buf) + "]\n");
+    fmt::format("Client message received [{}]\n", string((const char*)buf)));
   REQUIRE(
     strncmp((const char*)buf, (const char*)response, response_length) == 0);
 
