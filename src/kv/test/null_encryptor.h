@@ -32,6 +32,7 @@ namespace kv
       bool historical_hint = false) override
     {
       plain = cipher;
+      term = 0;
       return true;
     }
 
