@@ -63,7 +63,63 @@ Committed receipts
 
 - How can a user trust a receipt is for a committed state?
 
+Either:
+
+1. The receipt or its constituent parts are only ever produced, or released out of the enclave after commit happens.
+    a. The contents of the signature Tx stay in enclave until commit
+        - Memory usage
+        - Complexity for the host, breaks send append entries as it exists
+    b. The contents of the signature tx are temporarily encrypted when written out, and decrypted and re-written in place on commit.
+        - deserialise complexity
+        - only encrypt committable tx
+2. The receipt contains an additional piece of evidence, produced or released after commit happens.
+    a. A later signature
+        TxID <- Sig1 = Sig([..TxID..]) <- Sig2([commit >= Sig1])
+        Latency for producing receipt
+        Can never get a receipt over the last transaction?
+        Must be careful not to lose uncommitted proof during recovery -> seems fine
+        TxID <- Sig(commit >= TxID) ? Doesn't bound commit latency. Lose provenance.
+    b. Another signature
+        - On demand Sig(commit >= TxID), not in the ledger: expensive, cache (efficient via view history for old values)? stable across catastrophic recoveries
+        - Batch
+            - Off ledger - different tradeoff, extra latency, less execution cost
+            - On ledger - done by primary, least execution cost, even more latency
+        Note: on ledger not necessary for recovery, because the members decide where they resume.
+    c. A nonce
+    Cheaper to produce, include digest in receipt (committment), release in the fullness of time on commit.
+    TxDigest := Digest(Write Set) + Digest(User claims) + Digest(Commit Nonce/Secret [+ TxID])
+    Commit Nonce/Secret := Digest(Ledger Secret[TxID], TxID)
+    The ledger alone doesn't tell you what's committed
+    If Digest(Nonce) in ledger, then:
+        - anything committable can be recovered.
+        - possible to emit quasi receipt (with only digest and not nonce) -> not really a problem
+    Else:
+        - can't give quasi receipt
+        - can't do public recovery!!!
+    => Digest(Nonce) _must_ be in the ledger, or persisted somewhere
+
+Terminology: execution receipt vs commit receipt
+
 TxID in receipt
 ---------------
 
-- How can  user trust a receipt is for a TxID?
+- How can a user trust a receipt is for a TxID?
+
+a. bind at the leaf
+    Include the TxID in a user separable way inside the TxDigest
+b. bind at the signature
+    Execution receipt could sign over (root + TxID), path offset to get TxID, ONLY for canonical receipt, otherwise need view history
+
+
+Current preferred proposal
+--------------------------
+
+TxDigest := Digest(Digest(Write Set), Digest(User claims), Digest(Commit Nonce + TxID))
+Commit Nonce/Secret := Digest(Ledger Secret[TxID], TxID)
+
+TxDigest := Service Claims Digest + Digest(User claims)
+
+Service Claims Digest A := Digest(Digest(Write Set), Digest(Commit Nonce), Digest(TxID))
+Service Claims Digest A' := Digest(Digest(Write Set), Digest(Commit Nonce + TxID))
+Service Claims Digest A'' := Digest(Digest(Write Set), Digest(Commit Nonce), TxID))
+Service Claims Digest B := Digest(Write Set + Commit Nonce + TxID) -> NO
