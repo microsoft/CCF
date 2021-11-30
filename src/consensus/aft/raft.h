@@ -2536,14 +2536,9 @@ namespace aft
   public:
     void update_parameters(kv::ConsensusParameters& params)
     {
-      if (reconfiguration_type == params.reconfiguration_type)
-      {
-        return;
-      }
-      if (params.reconfiguration_type == TWO_TRANSACTION && !node_client)
-      {
-        throw std::logic_error("missing node client");
-      }
+      CCF_ASSERT_FMT(
+        params.reconfiguration_type != TWO_TRANSACTION || node_client,
+        "Bug; all enclaves that support 2tx reconfig must have node_clients");
       reconfiguration_type = params.reconfiguration_type;
     }
   };
