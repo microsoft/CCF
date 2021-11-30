@@ -11,10 +11,10 @@ namespace ccf::indexing
   class HistoricalTransactionFetcher : public TransactionFetcher
   {
   private:
-    ccf::historical::StateCache& state_cache;
+    ccf::historical::StateCacheImpl& state_cache;
 
   public:
-    HistoricalTransactionFetcher(ccf::historical::StateCache& sc) :
+    HistoricalTransactionFetcher(ccf::historical::StateCacheImpl& sc) :
       state_cache(sc)
     {}
 
@@ -39,8 +39,8 @@ namespace ccf::indexing
     std::vector<StorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) override
     {
-      // TODO: Dedicated handle?
-      return state_cache.get_stores_for(0, seqnos);
+      return state_cache.get_stores_for(
+        {historical::RequestNamespace::System, 0}, seqnos);
     }
   };
 }

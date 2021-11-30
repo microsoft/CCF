@@ -301,7 +301,7 @@ TEST_CASE("integrated indexing")
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
 
   auto stub_writer = std::make_shared<StubWriter>();
-  ccf::historical::StateCache cache(kv_store, ledger_secrets, stub_writer);
+  ccf::historical::StateCacheImpl cache(kv_store, ledger_secrets, stub_writer);
 
   ccf::indexing::HistoricalTransactionFetcher fetcher(cache);
   ccf::indexing::Indexer indexer(fetcher);
