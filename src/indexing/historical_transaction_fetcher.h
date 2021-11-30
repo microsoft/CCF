@@ -40,7 +40,6 @@ namespace ccf::indexing
       const SeqNoCollection& seqnos) override
     {
       // TODO: Dedicated handle?
-      LOG_INFO_FMT("Fetching {} seqnos?", seqnos.size());
       return state_cache.get_stores_for(0, seqnos);
     }
   };

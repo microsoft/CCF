@@ -298,6 +298,8 @@ TEST_CASE("integrated indexing")
   kv::Store kv_store;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
+
   auto stub_writer = std::make_shared<StubWriter>();
   ccf::historical::StateCache cache(kv_store, ledger_secrets, stub_writer);
 
@@ -335,7 +337,6 @@ TEST_CASE("integrated indexing")
       member_id, crypto::make_rsa_key_pair()->public_key_pem());
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
-  kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
 
   SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
 
@@ -384,11 +385,14 @@ TEST_CASE("integrated indexing")
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
         REQUIRE(consensus->replica.size() >= seqno);
+        REQUIRE(seqno > 0);
         const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
         combined.insert(combined.end(), entry->begin(), entry->end());
       }
       cache.handle_ledger_entries(from_seqno, to_seqno, combined);
     }
+
+    handled_writes = writes.end() - writes.begin();
 
     if (loops++ > 100)
     {
