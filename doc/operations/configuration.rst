@@ -1,7 +1,7 @@
 Configuration
 =============
 
-The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config </path/to/configuration/file>`` argument.
+The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config /path/to/config/file`` argument.
 
 .. tip::
 
@@ -14,7 +14,7 @@ The configuration for each CCF node must be contained in a single JSON configura
 
     .. code-block:: bash
 
-        $ cchost --config </path/to/configuration/file> --check start
+        $ cchost --config /path/to/config/file --check
 
 Configuration Options
 ---------------------
