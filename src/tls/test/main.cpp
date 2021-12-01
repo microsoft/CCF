@@ -22,8 +22,6 @@ using namespace std;
 using namespace crypto;
 using namespace tls;
 
-logger::ConsoleLogger test_log;
-
 /// Server uses one descriptor while client uses the other.
 /// Use the send/recv template wrappers below as callbacks.
 class TestPipe
@@ -80,13 +78,6 @@ int recv(void* ctx, uint8_t* buf, size_t len)
   return pipe->recv(end, buf, len);
 }
 
-/// mbedtls debug call back.
-static void dbg_callback(
-  void*, int, const char* file, int line, const char* str)
-{
-  test_log.write(fmt::format("{}:{} {}\n", file, line, str));
-}
-
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.
 int handshake(Context* ctx)
@@ -107,15 +98,13 @@ int handshake(Context* ctx)
       case MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE:
       case MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED:
       {
-        test_log.write(
-          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
+        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
         return 1;
       }
 
       case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
       {
-        test_log.write(
-          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
+        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
         return 1;
       }
 
@@ -131,18 +120,16 @@ int handshake(Context* ctx)
         if (r > 0)
         {
           buf.resize(r);
-          test_log.write(std::string(buf.data(), buf.size()) + "\n");
+          LOG_FAIL_FMT("{}", std::string(buf.data(), buf.size()));
         }
 
-        test_log.write(
-          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
+        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
         return 1;
       }
 
       default:
       {
-        test_log.write(
-          fmt::format("Handshake error: {}\n", crypto::error_string(rc)));
+        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
         return 1;
       }
     }
@@ -161,7 +148,7 @@ NetworkCA get_ca()
   // Create a CA with a self-signed certificate
   auto kp = crypto::make_key_pair();
   auto crt = kp->self_sign("CN=issuer");
-  test_log.write(fmt::format("New self-signed CA certificate:\n{}", crt.str()));
+  LOG_DEBUG_FMT("New self-signed CA certificate:{}", crt.str());
   return {kp, crt};
 }
 
@@ -174,10 +161,10 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name)
   // Create a signing request and sign with the CA
   auto kp = crypto::make_key_pair();
   auto csr = kp->create_csr("CN=" + name);
-  test_log.write(fmt::format("CSR for {} is:\n{}", name, csr.str()));
+  LOG_DEBUG_FMT("CSR for {} is:{}", name, csr.str());
 
   auto crt = net_ca.kp->sign_csr(net_ca.cert, csr);
-  test_log.write(fmt::format("New CA-signed certificate:\n{}", crt.str()));
+  LOG_DEBUG_FMT("New CA-signed certificate:{}", crt.str());
 
   // Verify node certificate with the CA's certificate
   auto v = crypto::make_verifier(crt);
@@ -210,9 +197,9 @@ void run_test_case(
   // Connect BIOs together
   TestPipe pipe(dgram);
   server.set_bio(
-    &pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>, dbg_callback);
+    &pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>, nullptr);
   client.set_bio(
-    &pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>, dbg_callback);
+    &pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>, nullptr);
 
   // There could be multiple communications between client/server while
   // doing the handshake, and they won't return an error until there's
@@ -220,38 +207,37 @@ void run_test_case(
 
   // Create a thread for the client handshake
   thread client_thread([&client]() {
-    test_log.write("Client handshake\n");
+    LOG_INFO_FMT("Client handshake");
     if (handshake(&client))
-      throw runtime_error("Client handshake error\n");
+      throw runtime_error("Client handshake error");
   });
 
   // Create a thread for the server handshake
   thread server_thread([&server]() {
-    test_log.write("Server handshake\n");
+    LOG_INFO_FMT("Server handshake");
     if (handshake(&server))
-      throw runtime_error("Client handshake error\n");
+      throw runtime_error("Server handshake error");
   });
 
   // Join threads
   client_thread.join();
   server_thread.join();
-  test_log.write("Handshake completed\n");
+  LOG_INFO_FMT("Handshake completed");
 
   // The rest of the communication is deterministic and easy to simulate
   // so we take them out of the thread, to guarantee there will be bytes
   // to read at the right time.
   if (message_length == 0)
   {
-    test_log.write("Empty message. Ignoring communication test\n");
-    test_log.write("Closing connection\n");
+    LOG_INFO_FMT("Empty message. Ignoring communication test");
+    LOG_INFO_FMT("Closing connection");
     client.close();
     server.close();
     return;
   }
 
   // Send the first message
-  test_log.write(
-    fmt::format("Client sending message [{}]\n", string((const char*)message)));
+  LOG_INFO_FMT("Client sending message [{}]", string((const char*)message));
   int written = client.write(message, message_length);
   REQUIRE(written == message_length);
 
@@ -259,13 +245,11 @@ void run_test_case(
   int read = server.read(buf, message_length);
   REQUIRE(read == message_length);
   buf[message_length] = '\0';
-  test_log.write(
-    fmt::format("Server message received [{}]\n", string((const char*)buf)));
+  LOG_INFO_FMT("Server message received [{}]", string((const char*)buf));
   REQUIRE(strncmp((const char*)buf, (const char*)message, message_length) == 0);
 
   // Send the response
-  test_log.write(fmt::format(
-    "Server sending message [{}]\n", string((const char*)response)));
+  LOG_INFO_FMT("Server sending message [{}]", string((const char*)response));
   written = server.write(response, response_length);
   REQUIRE(written == response_length);
 
@@ -273,12 +257,11 @@ void run_test_case(
   read = client.read(buf, response_length);
   REQUIRE(read == response_length);
   buf[response_length] = '\0';
-  test_log.write(
-    fmt::format("Client message received [{}]\n", string((const char*)buf)));
+  LOG_INFO_FMT("Client message received [{}]", string((const char*)buf));
   REQUIRE(
     strncmp((const char*)buf, (const char*)response, response_length) == 0);
 
-  test_log.write("Closing connection\n");
+  LOG_INFO_FMT("Closing connection");
   client.close();
   server.close();
 }
@@ -365,13 +348,39 @@ TEST_CASE("verified communication")
   auto server_cert = get_dummy_cert(ca, "server");
   auto client_cert = get_dummy_cert(ca, "client");
 
-  // Just testing communication channel, does not verify certificates.
+  // Testing communication channel, verifying certificates.
   run_test_case(
     0,
     message,
     message_length,
     response,
     response_length,
+    move(server_cert),
+    move(client_cert),
+    true);
+}
+
+TEST_CASE("large message")
+{
+  // Uninitialised on purpose, we don't care what's in here
+  size_t len = 8192;
+  uint8_t buf[len];
+  auto message = crypto::b64_from_raw(buf, len);
+
+  // Create a CA
+  auto ca = get_ca();
+
+  // Create bogus certificate
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
+
+  // Testing communication channel, verifying certificates.
+  run_test_case(
+    0,
+    (const uint8_t*)message.data(),
+    message.size(),
+    (const uint8_t*)message.data(),
+    message.size(),
     move(server_cert),
     move(client_cert),
     true);
