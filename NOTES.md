@@ -4,8 +4,8 @@
 
 - CCF is agnostic about claims format, in line with KV and request/response content type support.
 - Receipt verification must not require parsing the Write Set
-    - Would break format flexibility (CCF ledger frame encoding is fixed)
-    - Would require re-design of private table to bake in confidential claims support
+  - Would break format flexibility (CCF ledger frame encoding is fixed)
+  - Would require re-design of private table to bake in confidential claims support
 - Full support for ledgers containing a mix of transactions with and without user claims
 
 ```
@@ -49,9 +49,9 @@ Receipt := {
 Useful to check integrity of Write Set and Claims separately?
 
 - when producing receipts: not useful
-    - check integrity of the Write Set: it goes in the receipt
-    - check integrity of the Claims Digest: yes, when claims stored externally
-    - negligible savings of GCM scope when claims are internal, AEAD * 2 fixed cost overhead
+  - check integrity of the Write Set: it goes in the receipt
+  - check integrity of the Claims Digest: yes, when claims stored externally
+  - negligible savings of GCM scope when claims are internal, AEAD \* 2 fixed cost overhead
 - when ledger auditing/recovery: not useful
 
 **No**
@@ -75,12 +75,14 @@ Terminology: **Execution Receipt** vs **Commit Receipt**
 ## 1. The receipt or its constituent parts are only ever produced, or released out of the enclave after commit happens
 
 ### The contents of the signature Tx stay in enclave until commit?
+
 - Memory usage
 - Complexity for the host, breaks send append entries as range
 
 **No**
 
 ### The contents of the signature tx are temporarily encrypted when written out, and decrypted and re-written in place on commit.
+
 - Require new SendAppendEntriesSigned, with a key tagging along
 - Size/serialisation complexity
 
@@ -103,10 +105,8 @@ Terminology: **Execution Receipt** vs **Commit Receipt**
 ### - Another signature
 
 - On demand `Sig(commit >= TxID)`, not in the ledger: expensive, cache (efficient via view history for old values)? Stable across catastrophic recoveries.
-- Batch
-    - Off ledger - different tradeoff, extra latency, less execution cost
-    - On ledger - done by primary, least execution cost, even more latency
-Note: on ledger not necessary for recovery, because the members decide where they resume.
+- Batch - Off ledger - different tradeoff, extra latency, less execution cost - On ledger - done by primary, least execution cost, even more latency
+  Note: on ledger not necessary for recovery, because the members decide where they resume.
 
 **Can work, but expensive**
 
@@ -123,13 +123,15 @@ Note: ledger alone doesn't tell you what's committed. Need a receipt (or a snaps
 Doesn't seem like a big problem, if service is live, can ask for receipt. If not, members decide, persistence is meaningless and provenance can still be checked.
 
 If `Digest(Nonce)` in ledger, then:
+
 - anything committable can be recovered.
 - possible to emit quasi receipt (with only digest and not nonce) -> not really a problem, verifiers have to stick to algorithm
 
 Else:
+
 - can't give quasi receipt
 - but can't do public recovery or verify offline
-=> Digest(Nonce) _must_ be in the ledger, or persisted somewhere
+  => Digest(Nonce) _must_ be in the ledger, or persisted somewhere
 
 **Seems best, simple and low overhead**
 
@@ -139,7 +141,6 @@ Else:
 
 1. Bind at the leaf: include the TxID in a user separable way inside the TxDigest (ie. not in the WriteSet) **Yes**
 2. Bind at the signature: execution receipt could sign over (root + TxID), path offset to get TxID, ONLY for canonical receipt, otherwise need view history. **No**
-
 
 # Preferred direction summary
 

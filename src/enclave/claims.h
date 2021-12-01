@@ -6,32 +6,33 @@
 
 namespace ccf
 {
-    class ClaimsDigest
+  class ClaimsDigest
+  {
+    bool is_set = false;
+    crypto::Sha256Hash digest;
+
+  public:
+    ClaimsDigest() = default;
+
+    inline void set(crypto::Sha256Hash digest_)
     {
-        bool is_set = false;
-        crypto::Sha256Hash digest;
-
-        public:
-            ClaimsDigest() = default;
-
-            inline void set(crypto::Sha256Hash digest_)
-            {
-                is_set = true;
-                digest = digest_;
-            }
-
-            inline bool empty()
-            {
-                return is_set;
-            }
-
-            const crypto::Sha256Hash& value() const
-            {
-                return digest;
-            }
-    };
-
-    static ClaimsDigest no_claims() {
-        return ClaimsDigest();
+      is_set = true;
+      digest = digest_;
     }
+
+    inline bool empty()
+    {
+      return is_set;
+    }
+
+    const crypto::Sha256Hash& value() const
+    {
+      return digest;
+    }
+  };
+
+  static ClaimsDigest no_claims()
+  {
+    return ClaimsDigest();
+  }
 }
