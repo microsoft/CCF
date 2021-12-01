@@ -315,7 +315,7 @@ namespace ccf
 
       switch (start_type)
       {
-        case StartType::New:
+        case StartType::Start:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             "CN=CCF Network", curve_id);

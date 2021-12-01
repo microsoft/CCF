@@ -20,27 +20,30 @@
     "curve_id": "secp384r1",
     "initial_validity_days": 1
   },
-  "start": {
-    "constitution_files": [
-      "validate.js",
-      "apply.js",
-      "resolve.js",
-      "actions.js"
-    ],
-    "members": [
-      {
-        "certificate_file": "member0_cert.pem",
-        "encryption_public_key_file": "member0_enc_pubk.pem"
+  "command": {
+    "type": "start",
+    "start": {
+      "constitution_files": [
+        "validate.js",
+        "apply.js",
+        "resolve.js",
+        "actions.js"
+      ],
+      "members": [
+        {
+          "certificate_file": "member0_cert.pem",
+          "encryption_public_key_file": "member0_enc_pubk.pem"
+        }
+      ],
+      "service_configuration": {
+        "recovery_threshold": 1,
+        "maximum_node_certificate_validity_days": 365
       }
-    ],
-    "service_configuration": {
-      "recovery_threshold": 1,
-      "maximum_node_certificate_validity_days": 365
+    },
+    "join": {
+      "timer_ms": 1000,
+      "target_rpc_address": "127.0.0.1:5678"
     }
-  },
-  "join": {
-    "timer_ms": 1000,
-    "target_rpc_address": "127.0.0.1:5678"
   },
   "ledger": {
     "directory": "ledger",

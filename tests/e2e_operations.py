@@ -142,12 +142,7 @@ def run_configuration_file_checks(args):
     )
 
     for config in config_files_to_check:
-        cmd = [
-            bin_path,
-            f"--config={config}",
-            "--check",
-            "start",
-        ]
+        cmd = [bin_path, f"--config={config}", "--check"]
         rc = infra.proc.ccall(*cmd).returncode
         assert rc == 0, f"Failed to run tutorial script: {rc}"
 
