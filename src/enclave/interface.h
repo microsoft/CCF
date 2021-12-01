@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
 #include "consensus_type.h"
 #include "crypto/curve.h"
@@ -166,19 +167,23 @@ enum class EnclaveType
   DEBUG,
   VIRTUAL
 };
-
 DECLARE_JSON_ENUM(
   EnclaveType,
   {{EnclaveType::RELEASE, "release"},
    {EnclaveType::DEBUG, "debug"},
    {EnclaveType::VIRTUAL, "virtual"}});
 
+DECLARE_JSON_ENUM(
+  StartType,
+  {{StartType::Start, "start"},
+   {StartType::Join, "join"},
+   {StartType::Recover, "recover"}});
+
 enum class LogFormat
 {
   TEXT,
   JSON
 };
-
 DECLARE_JSON_ENUM(
   LogFormat, {{LogFormat::TEXT, "text"}, {LogFormat::JSON, "json"}});
 
@@ -259,24 +264,30 @@ struct CCHostConfig : CCFConfig
   };
   Memory memory = {};
 
-  struct Start
+  struct Command
   {
-    std::vector<ParsedMemberInfo> members = {};
-    std::vector<std::string> constitution_files = {};
-    ccf::ServiceConfiguration service_configuration;
+    StartType type = StartType::Start;
 
-    bool operator==(const Start&) const = default;
+    struct Start
+    {
+      std::vector<ParsedMemberInfo> members = {};
+      std::vector<std::string> constitution_files = {};
+      ccf::ServiceConfiguration service_configuration;
+
+      bool operator==(const Start&) const = default;
+    };
+    Start start = {};
+
+    struct Join
+    {
+      ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
+      size_t timer_ms = 1000;
+
+      bool operator==(const Join&) const = default;
+    };
+    Join join = {};
   };
-  Start start = {};
-
-  struct Join
-  {
-    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    size_t timer_ms = 1000;
-
-    bool operator==(const Join&) const = default;
-  };
-  Join join = {};
+  Command command = {};
 };
 
 DECLARE_JSON_TYPE(CCHostConfig::Enclave);
@@ -303,16 +314,22 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   max_msg_size_shift,
   max_fragment_size_shift);
 
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Start);
-DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Start, members, constitution_files);
-DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Start, service_configuration);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Start);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCHostConfig::Command::Start, members, constitution_files);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCHostConfig::Command::Start, service_configuration);
 
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Join);
-DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Join, target_rpc_address);
-DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Join, timer_ms);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
+DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, timer_ms);
+
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
+DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command, start, join);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
-DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave);
+DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCHostConfig,
   node_certificate_file,
@@ -327,9 +344,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   ledger,
   snapshots,
   logging,
-  memory,
-  start,
-  join);
+  memory);
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message

@@ -63,12 +63,6 @@ int main(int argc, char** argv)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
-  app.require_subcommand(1, 1);
-
-  auto start = app.add_subcommand("start", "Start new network");
-  auto join = app.add_subcommand("join", "Join existing network");
-  auto recover = app.add_subcommand("recover", "Recover crashed network");
-
   try
   {
     app.parse(argc, argv);
@@ -109,22 +103,21 @@ int main(int argc, char** argv)
   size_t recovery_threshold = 0;
   try
   {
-    if (*start && files::exists(config.ledger.directory))
+    if (config.command.type == StartType::Start)
     {
-      throw std::logic_error(fmt::format(
-        "On start, ledger directory should not exist ({})",
-        config.ledger.directory));
-    }
-
-    if (*start)
-    {
+      if (files::exists(config.ledger.directory))
+      {
+        throw std::logic_error(fmt::format(
+          "On start, ledger directory should not exist ({})",
+          config.ledger.directory));
+      }
       // Count members with public encryption key as only these members will be
       // handed a recovery share.
       // Note that it is acceptable to start a network without any member having
       // a recovery share. The service will check that at least one recovery
       // member is added before the service can be opened.
       size_t members_with_pubk_count = 0;
-      for (auto const& m : config.start.members)
+      for (auto const& m : config.command.start.members)
       {
         if (m.encryption_public_key_file.has_value())
         {
@@ -133,7 +126,7 @@ int main(int argc, char** argv)
       }
 
       recovery_threshold =
-        config.start.service_configuration.recovery_threshold;
+        config.command.start.service_configuration.recovery_threshold;
       if (recovery_threshold == 0)
       {
         LOG_INFO_FMT(
@@ -321,8 +314,6 @@ int main(int argc, char** argv)
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> network_cert(certificate_size);
 
-    StartType start_type = StartType::New;
-
     EnclaveConfig enclave_config;
     enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
     enclave_config.to_enclave_buffer_size = to_enclave_buffer.size();
@@ -349,11 +340,9 @@ int main(int argc, char** argv)
     startup_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
       std::chrono::system_clock::to_time_t(startup_host_time));
 
-    if (*start)
+    if (config.command.type == StartType::Start)
     {
-      start_type = StartType::New;
-
-      for (auto const& m : config.start.members)
+      for (auto const& m : config.command.start.members)
       {
         std::optional<std::vector<uint8_t>> public_encryption_key =
           std::nullopt;
@@ -375,7 +364,8 @@ int main(int argc, char** argv)
           files::slurp(m.certificate_file), public_encryption_key, md);
       }
       startup_config.start.constitution = "";
-      for (const auto& constitution_path : config.start.constitution_files)
+      for (const auto& constitution_path :
+           config.command.start.constitution_files)
       {
         // Separate with single newlines
         if (!startup_config.start.constitution.empty())
@@ -387,37 +377,38 @@ int main(int argc, char** argv)
           files::slurp_string(constitution_path);
       }
       startup_config.start.service_configuration =
-        config.start.service_configuration;
+        config.command.start.service_configuration;
       startup_config.start.service_configuration.recovery_threshold =
         recovery_threshold;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
-        config.start.members.size(),
+        config.command.start.members.size(),
         recovery_threshold);
     }
-    else if (*join)
+    else if (config.command.type == StartType::Join)
     {
       LOG_INFO_FMT(
         "Creating new node - join existing network at {}",
-        config.join.target_rpc_address);
-      start_type = StartType::Join;
-      startup_config.join.target_rpc_address = config.join.target_rpc_address;
-      startup_config.join.timer_ms = config.join.timer_ms;
+        config.command.join.target_rpc_address);
+      startup_config.join.target_rpc_address =
+        config.command.join.target_rpc_address;
+      startup_config.join.timer_ms = config.command.join.timer_ms;
       startup_config.join.network_cert =
         files::slurp(config.network_certificate_file);
     }
-    else if (*recover)
+    else if (config.command.type == StartType::Recover)
     {
       LOG_INFO_FMT("Creating new node - recover");
-      start_type = StartType::Recover;
     }
     else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
 
-    if (*join || *recover)
+    if (
+      config.command.type == StartType::Join ||
+      config.command.type == StartType::Recover)
     {
       auto snapshot_file = snapshots.find_latest_committed_snapshot();
       if (snapshot_file.has_value())
@@ -461,7 +452,7 @@ int main(int argc, char** argv)
       startup_config,
       node_cert,
       network_cert,
-      start_type,
+      config.command.type,
       config.worker_threads,
       time_updater->behaviour.get_value());
 
@@ -473,7 +464,9 @@ int main(int argc, char** argv)
       "Output self-signed node certificate to {}",
       config.node_certificate_file);
 
-    if (*start || *recover)
+    if (
+      config.command.type == StartType::Start ||
+      config.command.type == StartType::Recover)
     {
       files::dump(network_cert, config.network_certificate_file);
       LOG_INFO_FMT(
