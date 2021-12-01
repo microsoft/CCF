@@ -2645,3 +2645,8 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 }
+
+#ifdef KV_STATE_RB
+TEST_CASE("Range");
+{}
+#endif

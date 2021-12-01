@@ -260,5 +260,23 @@ namespace kv::untyped
 
       return size_;
     }
+
+#ifdef KV_STATE_RB
+    std::map<KeyType, ValueType> range(const KeyType& from, const ValueType& to)
+    {
+      std::map<KeyType, ValueType> r = {};
+      foreach([&r](const KeyType& key, const ValueType& val) {
+        if (key < from || to < key || key == to)
+        {
+          // `to` is excluded
+          return;
+        }
+
+        r[key] = val;
+      });
+
+      return r;
+    }
+#endif
   };
 }

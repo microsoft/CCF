@@ -202,6 +202,20 @@ namespace kv
     {
       return read_handle.size();
     }
+
+#ifdef KV_STATE_RB
+    std::map<K, V> range(const KeyType& from, const ValueType& to)
+    {
+      auto f = [&](
+                 const kv::serialisers::SerialisedEntry& k_rep,
+                 const kv::serialisers::SerialisedEntry& v_rep) {
+        return f(
+          KSerialiser::from_serialised(k_rep),
+          VSerialiser::from_serialised(v_rep));
+      };
+      return read_handle.range(from, key);
+    }
+#endif
   };
 
   /** Grants write access to a @c kv::Map, as part of a @c kv::Tx.
