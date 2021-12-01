@@ -145,7 +145,7 @@ Granular, unique per-Tx.
 
 Same nonce for all transactions between `Sig` and `next(Sig)` => fewer nonces if we decide to store them.
 
-But more difficult for a node to derive the nonce, must find signature that immediately precedes transaction. Unless we tag each Tx with the TxID of the previous signature.
+But more difficult for a node to derive the nonce, must find signature that immediately precedes transaction. Unless we tag each Tx with the TxID of the previous signature. Or tag the TxID in the next signature, but then there's no provenance.
 
 Intuition of difficulties around rekey, but no obvious counter-example.
 
@@ -156,6 +156,8 @@ To make sure the ledger alone is enough to produce commit receipts (assuming tra
 It must not be a signature, signatures can only contain a signature!
 
 If we store the nonces, having them per signature rather than per transaction may be attractive.
+
+But storing the nonces in a separate Tx generates a constant stream of transactions, the "Treadmill problem".
 
 # TxID in receipt
 
