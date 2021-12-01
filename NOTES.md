@@ -159,6 +159,11 @@ If we store the nonces, having them per signature rather than per transaction ma
 
 But storing the nonces in a separate Tx generates a constant stream of transactions, the "Treadmill problem".
 
+If we batch, we must batch per signature because:
+
+- we can't commit between signatures! anything more precise is wasteful of space.
+- not batching every signature potentially delays commit reveal/receipt.
+
 # TxID in receipt
 
 ## How can a user trust a receipt is for a specific TxID?
