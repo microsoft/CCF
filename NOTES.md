@@ -135,6 +135,28 @@ Else:
 
 **Seems best, simple and low overhead**
 
+#### What goes in the nonce?
+
+- `Commit Nonce/Secret := Digest(Ledger Secret[TxID], TxID)`
+
+Granular, unique per-Tx.
+
+- `Commit Nonce/Secret := Digest(Ledger Secret[TxID@Previous signature], TxID@Previous signature)`
+
+Same nonce for all transactions between `Sig` and `next(Sig)` => fewer nonces if we decide to store them.
+
+But more difficult for a node to derive the nonce, must find signature that immediately precedes transaction. Unless we tag each Tx with the TxID of the previous signature.
+
+Intuition of difficulties around rekey, but no obvious counter-example.
+
+#### Can the nonce go in the ledger?
+
+To make sure the ledger alone is enough to produce commit receipts (assuming transparent user claims!), we could store the nonces in either their own transaction, or a signature, from time to time.
+
+It must not be a signature, signatures can only contain a signature!
+
+If we store the nonces, having them per signature rather than per transaction may be attractive.
+
 # TxID in receipt
 
 ## How can a user trust a receipt is for a specific TxID?
