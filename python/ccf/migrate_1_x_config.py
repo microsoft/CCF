@@ -143,7 +143,7 @@ if __name__ == "__main__":
             elif k == "read_only_ledger_dir":
                 output["ledger"]["read_only_directories"] = [v]
             elif k == "ledger_chunk_bytes":
-                output["ledger"]["chunk_size"] = int(v)  # TODO: Convert unit
+                output["ledger"]["chunk_size"] = v
 
             # snapshots
             elif k == "snapshot_dir":  # plural
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
             # memory
             elif "size" in k:
-                output["memory"][k] = int(v)
+                output["memory"][k] = f"{1 << int(v)}"
 
             elif k in ("worker_threads", "tick_period_ms"):
                 output[k] = int(v)
