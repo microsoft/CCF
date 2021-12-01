@@ -9,6 +9,7 @@
 #include "crypto/curve.h"
 #include "crypto/san.h"
 #include "ds/buffer.h"
+#include "ds/cli_helper.h" // TODO: Don't pull from enclave!
 #include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
@@ -225,7 +226,7 @@ struct CCHostConfig : CCFConfig
   {
     std::string directory = "ledger";
     std::vector<std::string> read_only_directories = {};
-    size_t chunk_size = 5'000'000;
+    cli::SizeString chunk_size = 5'000'000;
 
     bool operator==(const Ledger&) const = default;
   };
@@ -234,7 +235,7 @@ struct CCHostConfig : CCFConfig
   struct Snapshots
   {
     std::string directory = "snapshots";
-    size_t interval_size = 10'000;
+    size_t interval_size; // = 10'000;
 
     bool operator==(const Snapshots&) const = default;
   };

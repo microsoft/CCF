@@ -45,7 +45,7 @@
   "ledger": {
     "directory": "ledger",
     "read_only_directories": [],
-    "chunk_size": 20000
+    "chunk_size": "20000GB"
   },
   "snapshots": {
     "directory": "snapshots",

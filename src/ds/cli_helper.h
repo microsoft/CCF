@@ -11,7 +11,10 @@
 #include <optional>
 
 #define FMT_HEADER_ONLY
+#include "ds/logger.h"
+
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 
 namespace cli
 {
@@ -129,4 +132,36 @@ namespace cli
 
     return option;
   }
+
+  struct SizeString
+  {
+    size_t value;
+
+    SizeString() = default;
+    SizeString(size_t val) : value(val) {}
+
+    bool operator==(const SizeString&) const = default;
+
+    inline operator size_t() const
+    {
+      return value;
+    }
+  };
+
+  inline void to_json(nlohmann::json& j, const SizeString& str)
+  {
+    // CLI11 does not provide convenient way to convert back to size string
+    throw std::logic_error(
+      "to_json() method for SizeString type is not implemented");
+  }
+
+  // TODO: This should only be pulled by host
+  inline void from_json(const nlohmann::json& j, SizeString& str)
+  {
+    auto val = j.get<std::string>();
+    CLI::AsSizeValue(true)(val); // Parse both kb and kib
+    assert(CLI::detail::integral_conversion(val, str.value));
+    LOG_FAIL_FMT("from_json size str: {}", str.value);
+  }
+
 }

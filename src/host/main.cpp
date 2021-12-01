@@ -93,6 +93,14 @@ int main(int argc, char** argv)
       "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
 
+  // TODO:
+  // 1. Test raw CLI [DONE]
+  // 2. Make conversion
+  cli::SizeString size_str = {};
+  nlohmann::json object = "150Tib";
+  from_json(object, size_str);
+  LOG_FAIL_FMT("{}", size_str.value);
+
   if (check_config_only)
   {
     LOG_INFO_FMT("Configuration file successfully verified");
