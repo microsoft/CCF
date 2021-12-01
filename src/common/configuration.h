@@ -56,13 +56,6 @@ inline void to_json(nlohmann::json& j, const SizeString& str)
   j = str.value;
 }
 
-enum StartType
-{
-  Start = 1,
-  Join = 2,
-  Recover = 3,
-};
-
 DECLARE_JSON_ENUM(
   StartType,
   {{StartType::Start, "start"},
