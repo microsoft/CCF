@@ -173,7 +173,7 @@ class Node:
         **kwargs,
     ):
         self._start(
-            infra.remote.StartType.new,
+            infra.remote.StartType.start,
             lib_name,
             enclave_type,
             workspace,
