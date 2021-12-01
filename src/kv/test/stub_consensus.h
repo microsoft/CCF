@@ -207,11 +207,6 @@ namespace kv::test
       const ccf::ResharingResult& result) override
     {}
 
-    void emit_signature() override
-    {
-      return;
-    }
-
     ConsensusType type() override
     {
       return consensus_type;
