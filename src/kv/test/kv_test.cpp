@@ -15,6 +15,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #undef FAIL
+#include <random>
 #include <set>
 #include <string>
 #include <vector>
@@ -2647,6 +2648,98 @@ TEST_CASE("Reported TxID after commit")
 }
 
 #ifdef KV_STATE_RB
-TEST_CASE("Range");
-{}
+
+std::map<size_t, size_t> std_map_range(
+  const std::map<size_t, size_t>& map, size_t from, size_t to)
+{
+  std::map<size_t, size_t> ret;
+  for (auto const& e : map)
+  {
+    if (e.first < from)
+    {
+      continue;
+    }
+    else if (e.first == to)
+    {
+      break;
+    }
+
+    ret.emplace(e);
+  }
+
+  return ret;
+}
+
+void dump_map(const std::map<size_t, size_t>& map)
+{
+  std::cout << "Map: ";
+  for (auto const& e : map)
+  {
+    std::cout << e.first << "-";
+  }
+  std::cout << std::endl;
+}
+
+template <typename H>
+void dump_kv_map(const H& h)
+{
+  std::cout << "Map: ";
+  h->foreach([](const size_t& k, const size_t& v) {
+    std::cout << k << "-";
+    return true;
+  });
+  std::cout << std::endl;
+}
+
+// TODO: Test untyped map too!
+TEST_CASE("Range")
+{
+  // TODO: When creating a map, pass < operator!
+  size_t size = 4;
+  const auto map_name = "public:map";
+
+  kv::Store kv_store;
+  MapTypes::NumNum map(map_name);
+  std::map<size_t, size_t> ref;
+
+  INFO("Populate map randomly");
+  {
+    std::random_device rand_dev;
+    auto seed = rand_dev();
+    LOG_INFO_FMT("Seed: {}", seed);
+    std::mt19937 gen(seed);
+    std::uniform_int_distribution<> distrib(0, size * 10);
+
+    auto tx = kv_store.create_tx();
+    auto h = tx.rw(map);
+
+    for (int i = 0; i < size; i++)
+    {
+      auto key = distrib(gen);
+      h->put(key, 0);
+      ref[key] = 0;
+    }
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  INFO("Compare ranges between KV map and reference");
+  {
+    auto tx = kv_store.create_tx();
+    auto h = tx.ro(map);
+
+    dump_map(ref);
+    dump_kv_map(h);
+
+    auto ref_range = std_map_range(ref, 0, size);
+    dump_map(ref_range);
+    auto kv_range = h->range(0, size);
+    dump_map(kv_range);
+    // REQUIRE(std_map_range(ref, 0, size) == h->range(0, size));
+  }
+
+  INFO("Own writes too");
+  {
+    // TODO:
+  }
+}
 #endif

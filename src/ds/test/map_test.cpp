@@ -442,3 +442,20 @@ TEST_CASE_TEMPLATE("Foreach", M, RBMap, ChampMap)
   auto map = gen_map<M>(size);
   forall_threshold(map, threshold);
 }
+
+// TODO: delete
+TEST_CASE("Map experiment")
+{
+  RBMap map;
+  map = map.put(5, 0);
+  map = map.put(20, 0);
+  map = map.put(10, 0);
+  map = map.put(26, 0);
+
+  std::cout << "RBMap:";
+  map.foreach([](const size_t& k, const size_t& v) {
+    std::cout << k << "-";
+    return true;
+  });
+  std::cout << std::endl;
+}

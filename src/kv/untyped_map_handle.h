@@ -265,14 +265,20 @@ namespace kv::untyped
     std::map<KeyType, ValueType> range(const KeyType& from, const ValueType& to)
     {
       std::map<KeyType, ValueType> r = {};
-      foreach([&r](const KeyType& key, const ValueType& val) {
-        if (key < from || to < key || key == to)
+      foreach([&r, &from, &to](const KeyType& key, const ValueType& val) {
+        if (key < from)
         {
-          // `to` is excluded
-          return;
+          // Start of range is not yet found.
+          return true;
+        }
+        else if (key == to || to < key)
+        {
+          // End of range. Note: `to` is excluded.
+          return false;
         }
 
         r[key] = val;
+        return true;
       });
 
       return r;

@@ -204,16 +204,26 @@ namespace kv
     }
 
 #ifdef KV_STATE_RB
-    std::map<K, V> range(const KeyType& from, const ValueType& to)
+    std::map<K, V> range(const K& from, const K& to)
     {
-      auto f = [&](
-                 const kv::serialisers::SerialisedEntry& k_rep,
-                 const kv::serialisers::SerialisedEntry& v_rep) {
-        return f(
-          KSerialiser::from_serialised(k_rep),
-          VSerialiser::from_serialised(v_rep));
-      };
-      return read_handle.range(from, key);
+      std::map<K, V> r = {};
+      foreach([&r, &from, &to](const K& key, const V& val) {
+        if (key < from)
+        {
+          // Start of range is not yet found.
+          return true;
+        }
+        else if (key == to || to < key)
+        {
+          // End of range. Note: `to` is excluded.
+          return false;
+        }
+
+        r[key] = val;
+        return true;
+      });
+
+      return r;
     }
 #endif
   };

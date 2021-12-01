@@ -217,6 +217,7 @@ namespace kv::untyped
           {
             // Write the new value with the global version.
             changes = true;
+            LOG_FAIL_FMT("State put: {}", it->first);
             state = state.put(it->first, VersionV{v, v_, it->second.value()});
           }
           else
@@ -227,6 +228,7 @@ namespace kv::untyped
             if (search.has_value())
             {
               changes = true;
+              LOG_FAIL_FMT("State put: {}", it->first);
               state = state.put(it->first, VersionV{-v, v_, {}});
             }
           }

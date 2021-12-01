@@ -133,7 +133,6 @@ namespace rb
 
     Map put(const K& key, const V& value) const
     {
-      LOG_FAIL_FMT("RB put!");
       Map t = insert(key, value);
       return Map(B, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
     }
