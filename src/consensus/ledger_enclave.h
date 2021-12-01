@@ -58,7 +58,6 @@ namespace consensus
      *
      * Note: The entry should already contain its own header.
      */
-    // TODO: If we want to intercept entries in-order, for the sake of building an index, this might be a sensible place to do so?
     void put_entry(
       const uint8_t* data,
       size_t size,

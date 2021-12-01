@@ -7,6 +7,7 @@
 #include "ds/serialized.h"
 #include "enclave/reconfiguration_type.h"
 #include "impl/state.h"
+#include "indexing/indexer.h"
 #include "kv/kv_types.h"
 #include "node/node_client.h"
 #include "node/node_to_node.h"
@@ -122,6 +123,9 @@ namespace aft
 
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
+
+    // Indexer, kept up-to-date with commits and rollbacks
+    std::shared_ptr<ccf::indexing::Indexer> indexer;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -796,6 +800,12 @@ namespace aft
         entry_size_not_limited += data->size();
         entry_count++;
 
+        if (indexer != nullptr)
+        {
+          indexer->append_entry(
+            {state->current_view, index}, data->data(), data->size());
+        }
+
         state->view_history.update(index, state->current_view);
         if (entry_size_not_limited >= append_entries_size_limit)
         {
@@ -891,6 +901,11 @@ namespace aft
 
     void do_periodic()
     {
+      if (indexer != nullptr)
+      {
+        indexer->tick();
+      }
+
       std::unique_lock<std::mutex> guard(state->lock);
 
       if (replica_state == kv::ReplicaState::Leader)
@@ -1331,12 +1346,20 @@ namespace aft
           start_ticking_if_necessary();
         }
 
+        const auto& entry = ds->get_entry();
+
         ledger->put_entry(
-          ds->get_entry(),
+          entry,
           globally_committable,
           force_ledger_chunk,
           ds->get_term(),
           ds->get_index());
+
+        if (indexer != nullptr)
+        {
+          indexer->append_entry(
+            {ds->get_term(), ds->get_index()}, entry.data(), entry.size());
+        }
 
         switch (apply_success)
         {
@@ -2136,6 +2159,11 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
+      if (indexer)
+      {
+        indexer->commit({get_term_internal(idx), idx});
+      }
+
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
       // Examine all configurations that are followed by a globally committed
@@ -2327,6 +2355,12 @@ namespace aft
 
       snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
+
+      if (indexer)
+      {
+        indexer->rollback({get_term_internal(idx), idx});
+      }
+
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;

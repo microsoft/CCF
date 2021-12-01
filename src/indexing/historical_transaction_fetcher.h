@@ -24,7 +24,7 @@ namespace ccf::indexing
       kv::ApplyResult result;
       auto store =
         state_cache.deserialise_ledger_entry(seqno, data, size, result);
-      if (store && result != kv::ApplyResult::FAIL)
+      if (store != nullptr && result != kv::ApplyResult::FAIL)
       {
         return store;
       }
