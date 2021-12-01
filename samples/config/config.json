@@ -41,7 +41,7 @@
       }
     },
     "join": {
-      "timer_ms": 1000,
+      "timer": "1s",
       "target_rpc_address": "127.0.0.1:5678"
     }
   },
@@ -60,24 +60,24 @@
   },
   "consensus": {
     "type": "CFT",
-    "timeout_ms": 100,
-    "election_timeout_ms": 4000
+    "timeout": "100ms",
+    "election_timeout": "4000ms"
   },
   "intervals": {
     "signature_interval_size": 5000,
-    "signature_interval_duration_ms": 1000
+    "signature_interval_duration": "1000s"
   },
   "jwt": {
-    "key_refresh_interval_s": 1800
+    "key_refresh_interval": "1800s"
   },
   "network_certificate_file": "networkcert.pem",
   "node_certificate_file": "node.pem",
   "node_pid_file": "node.pid",
   "node_address_file": "node.node_address",
   "rpc_addresses_file": "node.rpc_addresses",
-  "tick_period_ms": 1,
-  "io_logging_threshold_ns": 10000000,
-  "client_connection_timeout_ms": 2000,
+  "tick_period": "1ms",
+  "io_logging_threshold": "10000us",
+  "client_connection_timeout": "2000ms",
   "worker_threads": 0,
   "memory": {
     "circuit_size": "4MB",

@@ -15,6 +15,7 @@ namespace asynchost
     using TClock = std::chrono::steady_clock;
     static std::string human_time(const TClock::duration& d)
     {
+      // TODO: Fix!
       const auto ns =
         std::chrono::duration_cast<std::chrono::nanoseconds>(d).count();
       if (ns < 1000)

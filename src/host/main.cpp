@@ -176,16 +176,16 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
-  asynchost::TimeBoundLogger::default_max_time =
-    std::chrono::duration_cast<decltype(
-      asynchost::TimeBoundLogger::default_max_time)>(
-      std::chrono::nanoseconds(config.io_logging_threshold_ns));
-
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), config.node_pid_file);
 
   // set the host log level
   logger::config::level() = config.logging.host_level;
+
+  asynchost::TimeBoundLogger::default_max_time =
+    std::chrono::duration_cast<decltype(
+      asynchost::TimeBoundLogger::default_max_time)>(
+      std::chrono::nanoseconds(config.io_logging_threshold));
 
   // create the enclave
   host::Enclave enclave(config.enclave.file, oe_flags);
@@ -226,8 +226,7 @@ int main(int argc, char** argv)
 
   {
     // provide regular ticks to the enclave
-    const std::chrono::milliseconds tick_period(config.tick_period_ms);
-    asynchost::Ticker ticker(tick_period, writer_factory);
+    asynchost::Ticker ticker(config.tick_period, writer_factory);
 
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
@@ -269,7 +268,7 @@ int main(int argc, char** argv)
       node_host,
       node_port,
       config.node_client_interface,
-      config.client_connection_timeout_ms);
+      config.client_connection_timeout);
     config.network.node_address = ccf::make_net_address(node_host, node_port);
     if (!config.node_address_file.empty())
     {
@@ -278,7 +277,7 @@ int main(int argc, char** argv)
     }
 
     asynchost::RPCConnections rpc(
-      writer_factory, config.client_connection_timeout_ms);
+      writer_factory, config.client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
 
     std::string rpc_addresses;
@@ -393,7 +392,8 @@ int main(int argc, char** argv)
         config.command.join.target_rpc_address);
       startup_config.join.target_rpc_address =
         config.command.join.target_rpc_address;
-      startup_config.join.timer_ms = config.command.join.timer_ms;
+      startup_config.join.timer_ms =
+        config.command.join.timer; // TODO: Convert!
       startup_config.join.network_cert =
         files::slurp(config.network_certificate_file);
     }

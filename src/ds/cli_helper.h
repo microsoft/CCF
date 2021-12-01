@@ -134,12 +134,60 @@ namespace cli
     return option;
   }
 
+  /// Converts a human-readable time string (with unit literal) to uin64_t size.
+  /// Example:
+  ///   "100" => 100
+  ///   "1 b" => 100
+  ///   "10Kb" => 10240 // you can configure this to be interpreted as kilobyte
+  ///   (*1000) or kibibyte (*1024) "10 KB" => 10240 "10 kb" => 10240 "10 kib"
+  ///   => 10240 // *i, *ib are always interpreted as *bibyte (*1024) "10kb" =>
+  ///   10240 "2 MB" => 2097152 "2 EiB" => 2^61 // Units up to exibyte are
+  ///   supported
+  class AsTimeValue : public CLI::AsNumberWithUnit
+  {
+  public:
+    using result_t = std::uint64_t;
+
+    explicit AsTimeValue() : CLI::AsNumberWithUnit(get_mapping())
+    {
+      description("TIME [ns, us, ms, s, min(=60s), h]");
+    }
+
+  private:
+    static std::map<std::string, result_t> init_mapping()
+    {
+      // TODO: Unit test for this!
+      std::map<std::string, result_t> m;
+      m["us"] = 1;
+      m["ms"] = m["us"] * 1000;
+      m["s"] = m["ms"] * 1000;
+      m["min"] = m["s"] * 60;
+      m["h"] = m["min"] * 60;
+      return m;
+    }
+
+    /// Cache calculated mapping
+    static std::map<std::string, result_t> get_mapping()
+    {
+      static auto m = init_mapping();
+      return m;
+    }
+  };
+
   inline static size_t convert_size_string(std::string input)
   {
     size_t ret = 0;
     CLI::AsSizeValue(false)(input); // Parse both all values as multiple of 1024
     auto rc = CLI::detail::integral_conversion(input, ret);
     CCF_ASSERT_FMT(rc, "Could not convert {} to size_t: {}", input, rc);
+    return ret;
+  }
+
+  inline static size_t convert_time_string(std::string input)
+  {
+    size_t ret = 0;
+    AsTimeValue()(input);
+    assert(CLI::detail::integral_conversion(input, ret));
     return ret;
   }
 }

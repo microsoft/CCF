@@ -4,6 +4,7 @@
 #pragma once
 
 #include "common/enclave_interface_types.h"
+#include "common/unit_strings.h"
 #include "consensus/consensus_types.h"
 #include "crypto/curve.h"
 #include "ds/logger.h"
@@ -33,27 +34,6 @@ namespace logger
     Level,
     {{Level::INFO, "info"}, {Level::FAIL, "fail"}, {Level::FATAL, "fatal"}});
 #endif
-}
-
-struct SizeString
-{
-  size_t value;
-
-  SizeString() = default;
-  SizeString(size_t val) : value(val) {}
-
-  bool operator==(const SizeString&) const = default;
-
-  inline operator size_t() const
-  {
-    return value;
-  }
-};
-
-// Note: from_json() is defined differently whether for host or in enclave
-inline void to_json(nlohmann::json& j, const SizeString& str)
-{
-  j = str.value;
 }
 
 DECLARE_JSON_ENUM(
@@ -95,7 +75,7 @@ struct CCFConfig
   struct Intervals
   {
     size_t signature_interval_size = 5000;
-    size_t signature_interval_duration_ms = 1000;
+    TimeString signature_interval_duration = 1000; // TODO: ms
 
     bool operator==(const Intervals&) const = default;
   };
@@ -103,7 +83,7 @@ struct CCFConfig
 
   struct JWT
   {
-    size_t key_refresh_interval_s = 1800;
+    TimeString key_refresh_interval = 1800;
 
     bool operator==(const JWT&) const = default;
   };
@@ -122,13 +102,11 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Intervals);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Intervals);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Intervals,
-  signature_interval_size,
-  signature_interval_duration_ms);
+  CCFConfig::Intervals, signature_interval_size, signature_interval_duration);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
-DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval_s);
+DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);

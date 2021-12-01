@@ -14,6 +14,12 @@ inline void from_json(const nlohmann::json& j, SizeString& str)
   str = cli::convert_size_string(j.get<std::string>());
 }
 
+inline void from_json(const nlohmann::json& j, TimeString& str)
+{
+  str = cli::convert_time_string(j.get<std::string>());
+  LOG_FAIL_FMT("from_json time str: {}", str.value_us);
+}
+
 namespace host
 {
   enum class EnclaveType
@@ -69,10 +75,10 @@ namespace host
     std::string rpc_addresses_file = "";
 
     // Other
-    size_t tick_period_ms = 10;
-    size_t io_logging_threshold_ns = 10'000'000;
+    TimeString tick_period = 10; // TODO: ms
+    TimeString io_logging_threshold = 10'000'000; // TODO: ns
     std::optional<std::string> node_client_interface = std::nullopt;
-    size_t client_connection_timeout_ms = 2000;
+    TimeString client_connection_timeout = 2000; // TODO: ms
 
     struct Ledger
     {
@@ -129,7 +135,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-        size_t timer_ms = 1000;
+        TimeString timer = 1000; // TODO: ms
 
         bool operator==(const Join&) const = default;
       };
@@ -168,7 +174,7 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, timer_ms);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, timer);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
@@ -182,10 +188,10 @@ namespace host
     node_pid_file,
     node_address_file,
     rpc_addresses_file,
-    tick_period_ms,
-    io_logging_threshold_ns,
+    tick_period,
+    io_logging_threshold,
     node_client_interface,
-    client_connection_timeout_ms,
+    client_connection_timeout,
     network_certificate_file,
     ledger,
     snapshots,
