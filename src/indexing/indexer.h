@@ -91,8 +91,6 @@ namespace ccf::indexing
     // testing
     bool tick()
     {
-      // TODO: If we're iterating through all of these to tick, we should find
-      // min at the same time
       std::optional<ccf::TxID> min_provided = std::nullopt;
       for (auto& [name, ctx] : strategies)
       {
@@ -145,11 +143,7 @@ namespace ccf::indexing
 
     // TODO: So _maybe_ we can be given these before they leave the enclave, and
     // just process them on tick() once commit has passed them. But that's risky
-    // memory pressure! Should we instead begin fetching a range we think we can
-    // hold, after commit, async?
-    // TODO: I think this approach is a dead-end. Even if we receive them inline
-    // like this, we want to pass them through historical queries to parse them
-    // for us, which seems like a horrid API.
+    // memory pressure!
     void append_entry(const ccf::TxID& tx_id, const uint8_t* data, size_t size)
     {
       if (tx_id_less(tx_id, committed))
