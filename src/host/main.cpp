@@ -198,7 +198,7 @@ int main(int argc, char** argv)
   host::Enclave enclave(config.enclave.file, oe_flags);
 
   // messaging ring buffers
-  const auto buffer_size = 1 << config.memory.circuit_size_shift;
+  const auto buffer_size = config.memory.circuit_size;
 
   std::vector<uint8_t> to_enclave_buffer(buffer_size);
   ringbuffer::Offsets to_enclave_offsets;
@@ -222,8 +222,7 @@ int main(int argc, char** argv)
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{
-    (size_t)(1 << config.memory.max_fragment_size_shift),
-    (size_t)(1 << config.memory.max_msg_size_shift)};
+    config.memory.max_fragment_size, config.memory.max_msg_size};
   oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
 
   // reconstruct oversized messages sent to the host

@@ -240,7 +240,7 @@ struct CCHostConfig : CCFConfig
   struct Snapshots
   {
     std::string directory = "snapshots";
-    size_t interval_size; // = 10'000;
+    size_t interval_size = 10'000;
 
     bool operator==(const Snapshots&) const = default;
   };
@@ -257,9 +257,9 @@ struct CCHostConfig : CCFConfig
 
   struct Memory
   {
-    size_t circuit_size_shift = 22;
-    size_t max_msg_size_shift = 24;
-    size_t max_fragment_size_shift = 16;
+    cli::SizeString circuit_size = 1 << 22; // 4MB
+    cli::SizeString max_msg_size = 1 << 24; // 16MB
+    cli::SizeString max_fragment_size = 1 << 16; // 64KB
 
     bool operator==(const Memory&) const = default;
   };
@@ -310,10 +310,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, host_level, format);
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Memory);
 DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Memory);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCHostConfig::Memory,
-  circuit_size_shift,
-  max_msg_size_shift,
-  max_fragment_size_shift);
+  CCHostConfig::Memory, circuit_size, max_msg_size, max_fragment_size);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Start);
 DECLARE_JSON_REQUIRED_FIELDS(

@@ -48,7 +48,7 @@
   "ledger": {
     "directory": "ledger",
     "read_only_directories": [],
-    "chunk_size": "20000GB"
+    "chunk_size": "5MB"
   },
   "snapshots": {
     "directory": "snapshots",
@@ -80,8 +80,8 @@
   "client_connection_timeout_ms": 2000,
   "worker_threads": 0,
   "memory": {
-    "circuit_size_shift": 22,
-    "max_msg_size_shift": 24,
-    "max_fragment_size_shift": 16
+    "circuit_size": "4MB",
+    "max_msg_size": "16MB",
+    "max_fragment_size": "64KB"
   }
 }

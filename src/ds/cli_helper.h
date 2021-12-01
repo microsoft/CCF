@@ -159,7 +159,7 @@ namespace cli
   inline void from_json(const nlohmann::json& j, SizeString& str)
   {
     auto val = j.get<std::string>();
-    CLI::AsSizeValue(true)(val); // Parse both kb and kib
+    CLI::AsSizeValue(false)(val); // Parse both all values as multiple of 1024
     assert(CLI::detail::integral_conversion(val, str.value));
     LOG_FAIL_FMT("from_json size str: {}", str.value);
   }
