@@ -143,7 +143,7 @@ if __name__ == "__main__":
             elif k == "read_only_ledger_dir":
                 output["ledger"]["read_only_directories"] = [v]
             elif k == "ledger_chunk_bytes":
-                output["ledger"]["chunk_size"] = int(v)
+                output["ledger"]["chunk_size"] = int(v)  # TODO: Convert unit
 
             # snapshots
             elif k == "snapshot_dir":  # plural

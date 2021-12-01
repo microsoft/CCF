@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
@@ -76,7 +77,7 @@ int main(int argc, char** argv)
 
   std::string config_str = files::slurp_string(config_file_path);
 
-  CCHostConfig config = {};
+  host::CCHostConfig config = {};
   try
   {
     config = nlohmann::json::parse(config_str);
@@ -87,14 +88,6 @@ int main(int argc, char** argv)
       "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
 
-  // TODO:
-  // 1. Test raw CLI [DONE]
-  // 2. Make conversion
-  cli::SizeString size_str = {};
-  nlohmann::json object = "150Tib";
-  from_json(object, size_str);
-  LOG_FAIL_FMT("{}", size_str.value);
-
   if (check_config_only)
   {
     LOG_INFO_FMT("Configuration file successfully verified");
@@ -102,7 +95,7 @@ int main(int argc, char** argv)
   }
 
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
-  if (config.logging.format == LogFormat::JSON)
+  if (config.logging.format == host::LogFormat::JSON)
   {
     logger::config::initialize_with_json_console();
   }
@@ -156,16 +149,16 @@ int main(int argc, char** argv)
 
     switch (config.enclave.type)
     {
-      case EnclaveType::RELEASE:
+      case host::EnclaveType::RELEASE:
       {
         break;
       }
-      case EnclaveType::DEBUG:
+      case host::EnclaveType::DEBUG:
       {
         oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
         break;
       }
-      case EnclaveType::VIRTUAL:
+      case host::EnclaveType::VIRTUAL:
       {
         oe_flags = ENCLAVE_FLAG_VIRTUAL;
         break;
