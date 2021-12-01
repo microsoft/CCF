@@ -17,8 +17,7 @@ SECTIONS_2_X = [
     "enclave",
     "network",
     "node_certificate",
-    "start",
-    "join",
+    "command",
     "ledger",
     "snapshots",
     "logging",
@@ -71,15 +70,21 @@ if __name__ == "__main__":
     for s in SECTIONS_2_X:
         output[s] = {}
     output["network"]["rpc_interfaces"] = [{}]
-    output["start"]["constitution_files"] = []
     output["network"]["rpc_interfaces"][0] = {
         "max_open_sessions_soft": DEFAULT_MAX_RPC_SESSIONS_SOFT,
         "max_open_sessions_hard": DEFAULT_MAX_RPC_SESSIONS_SOFT + 10,
     }
-    output["start"]["members"] = []
-    output["start"]["service_configuration"] = {
+    output["command"]["start"] = {}
+    output["command"]["start"]["constitution_files"] = []
+    output["command"]["start"]["members"] = []
+    output["command"]["start"]["service_configuration"] = {
         "maximum_node_certificate_validity_days": 365
     }
+    output["command"]["join"] = {}
+
+    output["command"]["type"] = "start" if "start" in config.sections() else "join"
+
+    LOG.info(f'Command type: {output["command"]["type"]}')
 
     for s in config.sections():
         for k_, v_ in config.items(s):
@@ -89,17 +94,17 @@ if __name__ == "__main__":
             # sub-commands
             # start
             if k == "constitution":
-                output["start"]["constitution_files"] = json.loads(v)
+                output["command"]["start"]["constitution_files"] = json.loads(v)
             elif k == "member_info":
                 for m in json.loads(v):
-                    output["start"]["members"].append(split_member_info(m))
+                    output["command"]["start"]["members"].append(split_member_info(m))
             elif k == "recovery_threshold":
-                output["start"]["service_configuration"][k] = int(v)
+                output["command"]["start"]["service_configuration"][k] = int(v)
             # join
             elif k == "target_rpc_address":
-                output[s][k] = v
+                output["command"][s][k] = v
             elif k == "join_timer":
-                output[s]["timer_ms"] = int(v)
+                output["command"][s]["timer_ms"] = int(v)
 
             # enclave
             elif k == "enclave_file":

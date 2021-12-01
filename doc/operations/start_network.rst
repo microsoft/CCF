@@ -13,7 +13,7 @@ To create a new CCF network, the first node of the network should be started wit
 
 .. code-block:: bash
 
-    $ cchost --config /path/to/config/file start
+    $ cchost --config /path/to/config/file
 
 .. mermaid::
 
@@ -40,7 +40,7 @@ To add a new node to an existing opening network, other nodes should be started 
 
 .. code-block:: bash
 
-    $ cchost --config /path/to/config/file join
+    $ cchost --config /path/to/config/file
 
 .. mermaid::
 
@@ -132,7 +132,7 @@ To start a CCF node in ``virtual`` mode, operators should use the ``virtual`` va
 
 .. code-block:: bash
 
-    $ cchost.virtual --config /path/to/config/file [start|join|recover]
+    $ cchost.virtual --config /path/to/config/file
 
 In the JSON configuration file, ``enclave.file`` should specify the path of a ``.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
 
