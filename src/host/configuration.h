@@ -12,7 +12,6 @@
 inline void from_json(const nlohmann::json& j, SizeString& str)
 {
   str = cli::convert_size_string(j.get<std::string>());
-  LOG_FAIL_FMT("from_json size str: {}", str.value);
 }
 
 namespace host
