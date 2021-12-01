@@ -1,125 +1,167 @@
-User-defined claims
--------------------
+# User-defined claims
 
-Claims Digest := Digest(Claims)
+## Requirements
+
+- CCF is agnostic about claims format, in line with KV and request/response content type support.
+- Receipt verification must not require parsing the Write Set
+    - Would break format flexibility (CCF ledger frame encoding is fixed)
+    - Would require re-design of private table to bake in confidential claims support
+- Full support for ledgers containing a mix of transactions with and without user claims
+
+```
+Claims Digest := Digest(User Claims)
 
 Receipt := {
-    Signature,
+    Signature over root of Proof,
     Proof,
     Write Set Digest,
     Claims | Partial Claims
 }
+```
 
-- Do the Claims Digests need to be stored in ledger?
+## Do Claims Digests need to be stored in ledger?
 
-Yes, to enable (in the case of offline claims) or faciliate (claims in KV) ledger integrity checks (audit, recovery).
+**Yes**, to enable (in the case of offline claims) or facilitate (claims in KV) ledger integrity checks (audit, recovery). IOW, to preserve the ability of the ledger to be used standalone.
 
-- Do the Claims Digests need to be integrity protected?
+## Do Claims Digests need to be integrity protected?
 
-Yes, to support external claim storage and stapling. In that case, we must return the Claims Digest to the user.
+**Yes**, to support external claim storage and stapling. In that case, the node must return the Claims Digest to the user, so it must have them stored.
 
-- Is it also nice for them to be?
+## Is it also nice for them to be?
 
-Yes, because it yields early errors when replicating to other nodes. Otherwise delayed to next signature.
+**Yes**, because it yields early errors when replicating to other nodes. Otherwise delayed to next signature. Not in principle a big problems, since receipts should not be issued during that time, but still.
 
-- Where do they go?
+## Where exactly are Claims Digests stored?
 
-a. side by side with write set in ledger, outside GCM frame
+### Side by side with write set in ledger, outside GCM frame?
 
-No, because they must be integrity protected.
+**No**, because they must be integrity protected.
 
-b. inside the GCM frame, in a separate section or domain
+### Inside the GCM frame, in a separate section or domain?
 
-- Bump the version, and start encoding the version in the IV
+- Bump the ledger version, and start encoding the version in the IV. **Check this is sound with to Antoine.**
+- is_snapshot bool -> enum/flags? Then version isn't used, still probably want IV coupling to protect old versions.
 
-We get to use the version, but perhaps risky? -> Talk to Antoine.
+**Yes**
 
-- is_snapshot bool -> enum/flags?
+### In a separate GCM frame
 
-Version isn't used.
-
-c. in a separate GCM frame
-
-Useful to integrity check Write Set and Claims separately.
+Useful to check integrity of Write Set and Claims separately?
 
 - when producing receipts: not useful
-
-> check integrity of the Write Set: it goes in the receipt
-> check integrity of the Claims Digest: yes, when claims stored externally
-> very minor savings of GCM scope when claims are internal
-
+    - check integrity of the Write Set: it goes in the receipt
+    - check integrity of the Claims Digest: yes, when claims stored externally
+    - negligible savings of GCM scope when claims are internal, AEAD * 2 fixed cost overhead
 - when ledger auditing/recovery: not useful
 
-d. in the KV in a public table
+**No**
 
-No, because Leaf := Digest(Write Set, Claims), so the Write Set can stay opaque.
+### In the KV in a public table
 
-- What's the API?
+**No**, because `Leaf := Digest(Write Set, Claims)`, so the Write Set can stay opaque.
 
-Single Claims Digest + Helpers to derive one from blobs, collections of digests etc.
+### What's the API?
 
-Committed receipts
-------------------
+Single Claims Digest + Helpers to derive digest from blobs, collections of digests etc.
 
-- How can a user trust a receipt is for a committed state?
+# Commit receipts
 
-Either:
+Terminology: **Execution Receipt** vs **Commit Receipt**
 
-1. The receipt or its constituent parts are only ever produced, or released out of the enclave after commit happens.
-    a. The contents of the signature Tx stay in enclave until commit
-        - Memory usage
-        - Complexity for the host, breaks send append entries as it exists
-    b. The contents of the signature tx are temporarily encrypted when written out, and decrypted and re-written in place on commit.
-        - deserialise complexity
-        - only encrypt committable tx
-2. The receipt contains an additional piece of evidence, produced or released after commit happens.
-    a. A later signature
-        TxID <- Sig1 = Sig([..TxID..]) <- Sig2([commit >= Sig1])
-        Latency for producing receipt
-        Can never get a receipt over the last transaction?
-        Must be careful not to lose uncommitted proof during recovery -> seems fine
-        TxID <- Sig(commit >= TxID) ? Doesn't bound commit latency. Lose provenance.
-    b. Another signature
-        - On demand Sig(commit >= TxID), not in the ledger: expensive, cache (efficient via view history for old values)? stable across catastrophic recoveries
-        - Batch
-            - Off ledger - different tradeoff, extra latency, less execution cost
-            - On ledger - done by primary, least execution cost, even more latency
-        Note: on ledger not necessary for recovery, because the members decide where they resume.
-    c. A nonce
-    Cheaper to produce, include digest in receipt (committment), release in the fullness of time on commit.
-    TxDigest := Digest(Write Set) + Digest(User claims) + Digest(Commit Nonce/Secret [+ TxID])
-    Commit Nonce/Secret := Digest(Ledger Secret[TxID], TxID)
-    The ledger alone doesn't tell you what's committed
-    If Digest(Nonce) in ledger, then:
-        - anything committable can be recovered.
-        - possible to emit quasi receipt (with only digest and not nonce) -> not really a problem
-    Else:
-        - can't give quasi receipt
-        - can't do public recovery!!!
-    => Digest(Nonce) _must_ be in the ledger, or persisted somewhere
+`Commit Receipt := Execution Receipt + Evidence of Commit`
 
-Terminology: execution receipt vs commit receipt
+# How can a user trust a receipt is for a committed state?
 
-TxID in receipt
----------------
+## 1. The receipt or its constituent parts are only ever produced, or released out of the enclave after commit happens
 
-- How can a user trust a receipt is for a TxID?
+### The contents of the signature Tx stay in enclave until commit?
+- Memory usage
+- Complexity for the host, breaks send append entries as range
 
-a. bind at the leaf
-    Include the TxID in a user separable way inside the TxDigest
-b. bind at the signature
-    Execution receipt could sign over (root + TxID), path offset to get TxID, ONLY for canonical receipt, otherwise need view history
+**No**
 
+### The contents of the signature tx are temporarily encrypted when written out, and decrypted and re-written in place on commit.
+- Require new SendAppendEntriesSigned, with a key tagging along
+- Size/serialisation complexity
 
-Current preferred proposal
---------------------------
+**No**
 
-TxDigest := Digest(Digest(Write Set), Digest(User claims), Digest(Commit Nonce + TxID))
+## 2. The receipt contains an additional piece of evidence, produced or released after commit happens.
+
+### - A later signature
+
+`TxID <- Sig1 = Sig([..TxID..]) <- Sig2([commit >= Sig1])`
+
+- Latency for producing receipt
+- Can never get a receipt over the last transaction.
+- Must be careful not to lose uncommitted proof during recovery, seems fine.
+
+**No**
+
+`TxID <- Sig(commit >= TxID)`? Doesn't bound commit latency. Lose provenance. **Also No**
+
+### - Another signature
+
+- On demand `Sig(commit >= TxID)`, not in the ledger: expensive, cache (efficient via view history for old values)? Stable across catastrophic recoveries.
+- Batch
+    - Off ledger - different tradeoff, extra latency, less execution cost
+    - On ledger - done by primary, least execution cost, even more latency
+Note: on ledger not necessary for recovery, because the members decide where they resume.
+
+**Can work, but expensive**
+
+### - A Nonce/Secret
+
+Cheap to produce, include digest in receipt (committment), release in the fullness of time on commit.
+
+```
+TxDigest := Digest(Write Set) + Digest(User claims) + Digest(Commit Nonce/Secret [+ TxID])
 Commit Nonce/Secret := Digest(Ledger Secret[TxID], TxID)
+```
 
-TxDigest := Service Claims Digest + Digest(User claims)
+Note: ledger alone doesn't tell you what's committed. Need a receipt (or a snapshot).
+Doesn't seem like a big problem, if service is live, can ask for receipt. If not, members decide, persistence is meaningless and provenance can still be checked.
+
+If `Digest(Nonce)` in ledger, then:
+- anything committable can be recovered.
+- possible to emit quasi receipt (with only digest and not nonce) -> not really a problem, verifiers have to stick to algorithm
+
+Else:
+- can't give quasi receipt
+- but can't do public recovery or verify offline
+=> Digest(Nonce) _must_ be in the ledger, or persisted somewhere
+
+**Seems best, simple and low overhead**
+
+# TxID in receipt
+
+## How can a user trust a receipt is for a specific TxID?
+
+1. Bind at the leaf: include the TxID in a user separable way inside the TxDigest (ie. not in the WriteSet) **Yes**
+2. Bind at the signature: execution receipt could sign over (root + TxID), path offset to get TxID, ONLY for canonical receipt, otherwise need view history. **No**
+
+
+# Preferred direction summary
+
+## Top-level
+
+```
+User Claims Digest := Digest(User Claims)
+TxDigest := Digest(Service Claims Digest + User Claims Digest)
 
 Service Claims Digest A := Digest(Digest(Write Set), Digest(Commit Nonce), Digest(TxID))
-Service Claims Digest A' := Digest(Digest(Write Set), Digest(Commit Nonce + TxID))
-Service Claims Digest A'' := Digest(Digest(Write Set), Digest(Commit Nonce), TxID))
-Service Claims Digest B := Digest(Write Set + Commit Nonce + TxID) -> NO
+Service Claims Digest B := Digest(Digest(Write Set), Digest(Commit Nonce + TxID))
+Service Claims Digest C := Digest(Digest(Write Set), Digest(Commit Nonce), TxID))
+
+or
+
+TxDigest := Digest(Digest(Write Set), Digest(User claims), Digest(Commit Nonce/Secret + TxID))
+```
+
+## Commit evidence
+
+```
+Commit Nonce/Secret := Digest(Ledger Secret[TxID], TxID)
+```
+
+Easy to derive, requires no storage.
