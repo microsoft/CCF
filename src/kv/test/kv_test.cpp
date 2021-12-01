@@ -26,6 +26,7 @@ struct MapTypes
   using NumNum = kv::Map<size_t, size_t>;
   using NumString = kv::Map<size_t, std::string>;
   using StringNum = kv::Map<std::string, size_t>;
+  using UntypedMap = kv::untyped::Map;
 };
 
 TEST_CASE("Map name parsing")
@@ -2649,17 +2650,18 @@ TEST_CASE("Reported TxID after commit")
 
 #ifdef KV_STATE_RB
 
-std::map<size_t, size_t> std_map_range(
-  const std::map<size_t, size_t>& map, size_t from, size_t to)
+template <typename M>
+M std_map_range(const M& map, size_t from, size_t to)
 {
-  std::map<size_t, size_t> ret;
+  M ret;
   for (auto const& e : map)
   {
-    if (e.first < from)
+    if (e.first < kv::serialisers::JsonSerialiser<size_t>::to_serialised(from))
     {
       continue;
     }
-    else if (e.first == to)
+    else if (!(e.first <
+               kv::serialisers::JsonSerialiser<size_t>::to_serialised(to)))
     {
       break;
     }
@@ -2670,12 +2672,15 @@ std::map<size_t, size_t> std_map_range(
   return ret;
 }
 
-void dump_map(const std::map<size_t, size_t>& map)
+template <typename M>
+void dump_map(const M& map)
 {
   std::cout << "Map: ";
   for (auto const& e : map)
   {
-    std::cout << e.first << "-";
+    std::cout << kv::serialisers::JsonSerialiser<size_t>::from_serialised(
+                   e.first)
+              << "-";
   }
   std::cout << std::endl;
 }
@@ -2683,24 +2688,26 @@ void dump_map(const std::map<size_t, size_t>& map)
 template <typename H>
 void dump_kv_map(const H& h)
 {
-  std::cout << "Map: ";
-  h->foreach([](const size_t& k, const size_t& v) {
-    std::cout << k << "-";
+  std::cout << "KV Map: ";
+  h->foreach([](const auto& k, const auto& v) {
+    std::cout << kv::serialisers::JsonSerialiser<size_t>::from_serialised(k)
+              << "-";
     return true;
   });
   std::cout << std::endl;
 }
 
-// TODO: Test untyped map too!
 TEST_CASE("Range")
 {
   // TODO: When creating a map, pass < operator!
-  size_t size = 4;
+  size_t size = 1000;
   const auto map_name = "public:map";
 
   kv::Store kv_store;
-  MapTypes::NumNum map(map_name);
-  std::map<size_t, size_t> ref;
+  std::map<kv::serialisers::SerialisedEntry, kv::serialisers::SerialisedEntry>
+    ref;
+
+  using Serialiser = kv::serialisers::JsonSerialiser<size_t>;
 
   INFO("Populate map randomly");
   {
@@ -2711,13 +2718,14 @@ TEST_CASE("Range")
     std::uniform_int_distribution<> distrib(0, size * 10);
 
     auto tx = kv_store.create_tx();
-    auto h = tx.rw(map);
+    auto h = tx.rw<kv::untyped::Map>(map_name);
 
     for (int i = 0; i < size; i++)
     {
       auto key = distrib(gen);
-      h->put(key, 0);
-      ref[key] = 0;
+      auto serialised_key = Serialiser::to_serialised(key);
+      h->put(serialised_key, {});
+      ref[serialised_key] = {};
     }
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
@@ -2725,16 +2733,24 @@ TEST_CASE("Range")
   INFO("Compare ranges between KV map and reference");
   {
     auto tx = kv_store.create_tx();
-    auto h = tx.ro(map);
+    auto h = tx.rw<kv::untyped::Map>(map_name);
 
     dump_map(ref);
     dump_kv_map(h);
 
-    auto ref_range = std_map_range(ref, 0, size);
+    size_t range_to = size * 5;
+
+    std::cout << "Range from 0 to " << range_to << std::endl;
+
+    auto ref_range = std_map_range(ref, 0, range_to);
     dump_map(ref_range);
-    auto kv_range = h->range(0, size);
+    auto kv_range = h->range(
+      Serialiser::to_serialised(0), Serialiser::to_serialised(range_to));
     dump_map(kv_range);
-    // REQUIRE(std_map_range(ref, 0, size) == h->range(0, size));
+    REQUIRE(
+      std_map_range(ref, 0, range_to) ==
+      h->range(
+        Serialiser::to_serialised(0), Serialiser::to_serialised(range_to)));
   }
 
   INFO("Own writes too");
