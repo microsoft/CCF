@@ -285,7 +285,7 @@ namespace kv
     WriteSet = 0,
     Snapshot = 1
   };
-  
+
   // EntryType must be backwards compatible with the older
   // bool is_snapshot field
   static_assert(sizeof(EntryType) == sizeof(bool));
