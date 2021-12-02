@@ -51,7 +51,7 @@ option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
-if (KV_STATE_RB)
+if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
 
