@@ -131,7 +131,7 @@ class PublicDomain:
 
     def _read_entry_type(self):
         val = unpack(self._buffer, "<B")
-        if val > EntryType.SNAPSHOT:
+        if val > EntryType.SNAPSHOT.value:
             raise ValueError(f"Invalid EntryType: {val}")
         return EntryType(val)
 
