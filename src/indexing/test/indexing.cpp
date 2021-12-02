@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "consensus/aft/raft.h"
+#include "consensus/aft/raft_consensus.h"
+#include "consensus/aft/test/logging_stub.h"
 #include "ds/test/stub_writer.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/indexer.h"
@@ -13,6 +16,11 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+
+// Transitively see a header that tries to use ThreadMessaging, so need to
+// initialise here
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
 kv::Map<std::string, std::string> map_a("private_map_a");
 using IndexA = ccf::indexing::strategies::SeqnosByKey<decltype(map_a)>;
@@ -87,16 +95,8 @@ public:
 
   IndexingConsensus(ccf::indexing::Indexer& i) : indexer(i) {}
 
-  bool replicate(const kv::BatchVector& entries_, ccf::View view) override
+  bool replicate(const kv::BatchVector& entries, ccf::View view) override
   {
-    // Rather than building a history that produces real signatures, we just
-    // overwrite the entries here to say that everything is committable
-    kv::BatchVector entries(entries_);
-    for (auto& [seqno, data, committable, hooks] : entries)
-    {
-      committable = true;
-    }
-
     auto replicated = kv::test::StubConsensus::replicate(entries, view);
 
     for (const auto& [seqno, data, committable, hooks] : entries)
@@ -108,6 +108,29 @@ public:
     return replicated;
   }
 };
+
+template <typename TConsensus>
+class AllCommittableConsensus : public TConsensus
+{
+public:
+  using TConsensus::TConsensus;
+
+  bool replicate(const kv::BatchVector& entries_, ccf::View view) override
+  {
+    // Rather than building a history that produces real signatures, we just
+    // overwrite the entries here to say that everything is committable
+    kv::BatchVector entries(entries_);
+    for (auto& [seqno, data, committable, hooks] : entries)
+    {
+      committable = true;
+    }
+
+    return TConsensus::replicate(entries, view);
+  }
+};
+
+using AllCommittableIndexingConsensus =
+  AllCommittableConsensus<IndexingConsensus>;
 
 using SeqNoVec = std::vector<ccf::SeqNo>;
 
@@ -177,7 +200,7 @@ TEST_CASE("basic indexing")
   TestTransactionFetcher fetcher;
   ccf::indexing::Indexer indexer(fetcher);
 
-  auto consensus = std::make_shared<IndexingConsensus>(indexer);
+  auto consensus = std::make_shared<AllCommittableIndexingConsensus>(indexer);
   kv_store.set_consensus(consensus);
 
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
@@ -295,7 +318,8 @@ kv::Version rekey(
 // Uses the real classes, to test their interaction with indexing
 TEST_CASE("integrated indexing")
 {
-  kv::Store kv_store;
+  auto kv_store_p = std::make_shared<kv::Store>();
+  auto& kv_store = *kv_store_p;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
@@ -304,14 +328,51 @@ TEST_CASE("integrated indexing")
   ccf::historical::StateCacheImpl cache(kv_store, ledger_secrets, stub_writer);
 
   ccf::indexing::HistoricalTransactionFetcher fetcher(cache);
-  ccf::indexing::Indexer indexer(fetcher);
+  auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
+  auto& indexer = *indexer_p;
 
   // TODO: Move this after the setup transactions, once historical fetching
   // works
   const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
 
   // TODO: Real Raft?
-  auto consensus = std::make_shared<IndexingConsensus>(indexer);
+  // TODO: An absurd amount of plumbing, and for what benefit?
+  using TConsensus = aft::Consensus<
+    aft::LedgerStubProxy,
+    aft::ChannelStubProxy,
+    aft::StubSnapshotter>;
+  using TRaft =
+    aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
+  using AllCommittableRaftConsensus =
+    AllCommittableConsensus<TConsensus>;
+  using ms = std::chrono::milliseconds;
+  const std::string node_id = "Node 0";
+  auto raft = new TRaft(
+    ConsensusType::CFT,
+    std::make_unique<aft::Adaptor<kv::Store>>(kv_store_p),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::StubSnapshotter>(),
+    nullptr,
+    nullptr,
+    std::make_shared<aft::State>(node_id),
+    nullptr,
+    nullptr,
+    indexer_p,
+    ms(20),
+    ms(20),
+    ms(1000));
+  auto consensus = std::make_shared<AllCommittableRaftConsensus>(
+    std::unique_ptr<TRaft>(raft), ConsensusType::CFT);
+
+  aft::Configuration::Nodes initial_config;
+  initial_config[node_id] = {};
+  raft->add_configuration(0, initial_config);
+
+  consensus->force_become_primary();
+
+  // auto consensus =
+  // std::make_shared<AllCommittableIndexingConsensus>(indexer);
   kv_store.set_consensus(consensus);
 
   ledger_secrets->init();
@@ -346,6 +407,9 @@ TEST_CASE("integrated indexing")
       kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 10);
     rekey(kv_store, ledger_secrets);
   }
+
+  create_transactions(
+    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
 
   {
     INFO("Confirm that pre-existing strategy was populated already");
@@ -384,9 +448,8 @@ TEST_CASE("integrated indexing")
       std::vector<uint8_t> combined;
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
-        REQUIRE(consensus->replica.size() >= seqno);
-        REQUIRE(seqno > 0);
-        const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+        const auto entry = raft->ledger->get_raw_entry_by_idx(seqno);
+        REQUIRE(entry.has_value());
         combined.insert(combined.end(), entry->begin(), entry->end());
       }
       cache.handle_ledger_entries(from_seqno, to_seqno, combined);

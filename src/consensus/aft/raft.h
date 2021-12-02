@@ -170,6 +170,7 @@ namespace aft
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
+      std::shared_ptr<ccf::indexing::Indexer> indexer_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -195,6 +196,7 @@ namespace aft
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
+      indexer(indexer_),
 
       public_only(public_only_),
 

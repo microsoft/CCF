@@ -210,7 +210,7 @@ namespace ccf::indexing
 
         if (store_ptr != nullptr)
         {
-          for (auto& [_, ctxt] : strategies)
+          for (auto& [name, ctxt] : strategies)
           {
             auto& [seen_so_far, strategy] = ctxt;
             // Only pass if this is the next seqno this index is seeking

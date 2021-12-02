@@ -23,6 +23,8 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
+    void init(size_t idx) {}
+
     virtual void put_entry(
       const std::vector<uint8_t>& original,
       bool globally_committable,
@@ -79,6 +81,21 @@ namespace aft
       }
 
       return std::nullopt;
+    }
+
+    std::optional<std::vector<uint8_t>> get_raw_entry_by_idx(size_t idx)
+    {
+      auto data = get_entry_by_idx(idx);
+      if (data.has_value())
+      {
+        // Remove the View and Index that were written during put_entry
+        data->erase(
+          data->begin(),
+          data->begin() + sizeof(size_t) + sizeof(kv::Term) +
+            sizeof(kv::Version));
+      }
+
+      return data;
     }
 
     std::optional<std::vector<uint8_t>> get_append_entries_payload(
@@ -391,5 +408,7 @@ namespace aft
       const ccf::NodeId&,
       const crypto::Pem&)
     {}
+
+    void set_last_snapshot_idx(Index idx) {}
   };
 }
