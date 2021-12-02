@@ -15,7 +15,7 @@ namespace kv
   private:
     std::shared_ptr<T> ledger_secrets;
 
-    void set_iv(S& hdr, TxID tx_id, bool is_snapshot = false)
+    void set_iv(S& hdr, TxID tx_id, EntryType entry_type = EntryType::WriteSet)
     {
       // IV is function of seqno, term and snapshot so that:
       // - Same seqno across rollbacks does not reuse IV
@@ -29,7 +29,7 @@ namespace kv
 
       hdr.set_iv_seq(tx_id.version);
       hdr.set_iv_term(tx_id.term);
-      hdr.set_iv_snapshot(is_snapshot);
+      hdr.set_iv_snapshot(entry_type == EntryType::Snapshot);
     }
 
   public:
@@ -55,8 +55,8 @@ namespace kv
      * encryption key
      * @param[in]   tx_id             Transaction ID (version + term)
      * corresponding with the plaintext
-     * @param[in]   is_snapshot       Indicates that the entry is a snapshot (to
-     * avoid IV re-use)
+     * @param[in]   entry_type       Indicates the type of the entry to
+     * avoid IV re-use
      *
      * @return Boolean status indicating success of encryption.
      */
@@ -66,12 +66,12 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      bool is_snapshot = false) override
+      EntryType entry_type = EntryType::WriteSet) override
     {
       S hdr;
       cipher.resize(plain.size());
 
-      set_iv(hdr, tx_id, is_snapshot);
+      set_iv(hdr, tx_id, entry_type);
 
       auto key = ledger_secrets->get_encryption_key_for(tx_id.version);
       if (key == nullptr)

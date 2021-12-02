@@ -42,6 +42,11 @@ class NodeStatus(Enum):
     RETIRED = "Retired"
 
 
+class EntryType(Enum):
+    WRITE_SET = 0
+    SNAPSHOT = 1
+
+
 def to_uint_64(buffer):
     return struct.unpack("@Q", buffer)[0]
 
@@ -94,7 +99,7 @@ class PublicDomain:
 
     _buffer: io.BytesIO
     _buffer_size: int
-    _is_snapshot: bool
+    _entry_type: EntryType
     _version: int
     _max_conflict_version: int
     _tables: dict
@@ -102,18 +107,21 @@ class PublicDomain:
     def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
         self._buffer_size = self._buffer.getbuffer().nbytes
-        self._is_snapshot = self._read_is_snapshot()
+        self._entry_type = self._read_entry_type()
         self._version = self._read_version()
         self._max_conflict_version = self._read_version()
 
-        if self._is_snapshot:
+        if self._entry_type == EntryType.SNAPSHOT:
             self._read_snapshot_header()
 
         self._tables = {}
         self._read()
 
-    def _read_is_snapshot(self):
-        return unpack(self._buffer, "<?")
+    def _read_entry_type(self):
+        val = unpack(self._buffer, "<B")
+        if val > EntryType.SNAPSHOT.value:
+            raise ValueError(f"Invalid EntryType: {val}")
+        return EntryType(val)
 
     def _read_version(self):
         return unpack(self._buffer, "<q")
@@ -171,7 +179,7 @@ class PublicDomain:
             records = {}
             self._tables[map_name] = records
 
-            if self._is_snapshot:
+            if self._entry_type == EntryType.SNAPSHOT:
                 # map snapshot version
                 self._read_version()
 
