@@ -202,30 +202,6 @@ namespace kv
     {
       return read_handle.size();
     }
-
-#ifdef KV_STATE_RB
-    std::map<K, V> range(const K& from, const K& to)
-    {
-      std::map<K, V> r = {};
-      foreach([&r, &from, &to](const K& key, const V& val) {
-        if (key < from)
-        {
-          // Start of range is not yet found.
-          return true;
-        }
-        else if (key == to || to < key)
-        {
-          // End of range. Note: `to` is excluded.
-          return false;
-        }
-
-        r[key] = val;
-        return true;
-      });
-
-      return r;
-    }
-#endif
   };
 
   /** Grants write access to a @c kv::Map, as part of a @c kv::Tx.

@@ -82,6 +82,48 @@ namespace kv::untyped
       return &search->value;
     }
 
+    template <class F>
+    void foreach_state_and_writes(F&& f, bool always_consider_writes)
+    {
+      // Record a global read dependency.
+      tx_changes.read_version = tx_changes.start_version;
+
+      // Take a snapshot copy of the writes. This is what we will iterate over,
+      // while any additional modifications made by the functor will modify the
+      // original tx_changes.writes, and be visible outside of the functor's
+      // args
+      auto w = tx_changes.writes;
+      bool should_continue = true;
+
+      tx_changes.state.foreach(
+        [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
+          auto write = w.find(k);
+
+          if ((write == w.end()) && !is_deleted(v.version))
+          {
+            should_continue = f(k, v.value);
+          }
+
+          return should_continue;
+        });
+
+      if (always_consider_writes || should_continue)
+      {
+        for (auto write = w.begin(); write != w.end(); ++write)
+        {
+          if (write->second.has_value())
+          {
+            should_continue = f(write->first, write->second.value());
+          }
+
+          if (!should_continue)
+          {
+            break;
+          }
+        }
+      }
+    }
+
   public:
     MapHandle(ChangeSet& cs, const std::string& map_name) :
       tx_changes(cs),
@@ -210,43 +252,7 @@ namespace kv::untyped
     template <class F>
     void foreach(F&& f)
     {
-      // Record a global read dependency.
-      tx_changes.read_version = tx_changes.start_version;
-
-      // Take a snapshot copy of the writes. This is what we will iterate over,
-      // while any additional modifications made by the functor will modify the
-      // original tx_changes.writes, and be visible outside of the functor's
-      // args
-      auto w = tx_changes.writes;
-      bool should_continue = true;
-
-      tx_changes.state.foreach(
-        [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
-          auto write = w.find(k);
-
-          if ((write == w.end()) && !is_deleted(v.version))
-          {
-            should_continue = f(k, v.value);
-          }
-
-          return should_continue;
-        });
-
-      if (should_continue)
-      {
-        for (auto write = w.begin(); write != w.end(); ++write)
-        {
-          if (write->second.has_value())
-          {
-            should_continue = f(write->first, write->second.value());
-          }
-
-          if (!should_continue)
-          {
-            break;
-          }
-        }
-      }
+      foreach_state_and_writes(std::forward<F>(f), false);
     }
 
     size_t size()
@@ -263,32 +269,44 @@ namespace kv::untyped
 
 #ifdef KV_STATE_RB
     // Returns a map of keys to values between [from, to).
-    std::map<KeyType, ValueType> range(const KeyType& from, const ValueType& to)
+    template <class F>
+    void range(F&& f, const KeyType& from, const KeyType& to)
     {
+      // Current limitations/ineficiencies:
+      // - The state and writes are wastefully looped over until `from`
+      // - The range is looped over twice
+      // - All keys and values in the range are stored in an intermediate map
+      // Optimisation should include adding an iterator to underlying ordered
+      // state (i.e. rb::Map). The start of the range should then be found using
+      // std::lower_bound()
+
       if (from == to || to < from)
       {
-        return {};
+        return;
       }
 
-      // Note: Global read dependency is recorded in foreach
       std::map<KeyType, ValueType> r = {};
-      foreach([&r, &from, &to](const KeyType& key, const ValueType& val) {
-        if (key < from)
+      auto g = [&r, &from, &to](const KeyType& k, const ValueType& v) {
+        if (k < from)
         {
           // Start of range is not yet found.
           return true;
         }
-        else if (key == to || to < key)
+        else if (k == to || to < k)
         {
           // End of range. Note: `to` is excluded.
           return false;
         }
 
-        r[key] = val;
+        r[k] = v;
         return true;
-      });
+      };
+      foreach_state_and_writes(g, true);
 
-      return r;
+      for (const auto& e : r)
+      {
+        f(e.first, e.second);
+      }
     }
 #endif
   };

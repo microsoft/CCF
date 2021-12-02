@@ -2650,18 +2650,17 @@ TEST_CASE("Reported TxID after commit")
 
 #ifdef KV_STATE_RB
 
-template <typename M>
-M std_map_range(const M& map, size_t from, size_t to)
+template <typename T>
+std::map<T, T> std_map_range(const std::map<T, T>& map, T from, T to)
 {
-  M ret;
+  std::map<T, T> ret;
   for (auto const& e : map)
   {
-    if (e.first < kv::serialisers::JsonSerialiser<size_t>::to_serialised(from))
+    if (e.first < from)
     {
       continue;
     }
-    else if (!(e.first <
-               kv::serialisers::JsonSerialiser<size_t>::to_serialised(to)))
+    else if (!(e.first < to))
     {
       break;
     }
@@ -2672,43 +2671,38 @@ M std_map_range(const M& map, size_t from, size_t to)
   return ret;
 }
 
-template <typename M>
-void dump_map(const M& map)
+template <typename T>
+T get_map_get_factor(const std::map<T, T>& map, size_t factor)
 {
-  std::cout << "Map: ";
-  for (auto const& e : map)
-  {
-    std::cout << kv::serialisers::JsonSerialiser<size_t>::from_serialised(
-                   e.first)
-              << "-";
-  }
-  std::cout << std::endl;
+  auto middle_it = map.begin();
+  std::advance(middle_it, map.size() / factor);
+  return middle_it->first;
 }
 
-template <typename H>
-void dump_kv_map(const H& h)
+template <class H, class T>
+std::map<T, T> kv_map_range(H& h, const T& from, const T& to)
 {
-  std::cout << "KV Map: ";
-  h->foreach([](const auto& k, const auto& v) {
-    std::cout << kv::serialisers::JsonSerialiser<size_t>::from_serialised(k)
-              << "-";
-    return true;
-  });
-  std::cout << std::endl;
+  std::map<T, T> range;
+  auto f = [&range](const T& k, const T& v) { range.emplace(k, v); };
+  h->range(f, from, to);
+  return range;
 }
 
 TEST_CASE("Range")
 {
-  // TODO: When creating a map, pass < operator!
+  using KVMap = kv::untyped::Map;
+  using KeyType = KVMap::K;
+  using ValueType = KVMap::V;
+  using RefMap = std::map<KeyType, ValueType>;
+  using Serialiser = kv::serialisers::JsonSerialiser<size_t>;
+
   size_t size = 10;
   size_t entries_space_size = size * 10;
   const auto map_name = "public:map";
+  const ValueType empty_value = {};
 
   kv::Store kv_store;
-  std::map<kv::serialisers::SerialisedEntry, kv::serialisers::SerialisedEntry>
-    ref;
-
-  using Serialiser = kv::serialisers::JsonSerialiser<size_t>;
+  RefMap ref;
 
   INFO("Populate map randomly");
   {
@@ -2719,14 +2713,14 @@ TEST_CASE("Range")
     std::uniform_int_distribution<> distrib(0, entries_space_size);
 
     auto tx = kv_store.create_tx();
-    auto h = tx.rw<kv::untyped::Map>(map_name);
+    auto h = tx.rw<KVMap>(map_name);
 
     for (int i = 0; i < size; i++)
     {
       auto key = distrib(gen);
       auto serialised_key = Serialiser::to_serialised(key);
-      h->put(serialised_key, {});
-      ref[serialised_key] = {};
+      h->put(serialised_key, empty_value);
+      ref[serialised_key] = empty_value;
     }
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
@@ -2734,54 +2728,96 @@ TEST_CASE("Range")
   INFO("Compare ranges between KV map and reference");
   {
     auto tx = kv_store.create_tx();
-    auto h = tx.rw<kv::untyped::Map>(map_name);
+    auto h = tx.rw<KVMap>(map_name);
 
-    auto first = Serialiser::from_serialised(ref.begin()->first);
-    auto last = Serialiser::from_serialised(ref.rbegin()->first);
-    auto middle_it = ref.begin();
-    std::advance(middle_it, size / 2);
-    auto middle = Serialiser::from_serialised(middle_it->first);
-    std::vector<std::pair<size_t, size_t>> ranges = {
-      {0, 0},
+    // Test variety of ranges, with some expected to return nothing
+    auto first = ref.begin()->first;
+    auto last = ref.rbegin()->first;
+    auto middle = get_map_get_factor(ref, 2);
+    std::vector<std::pair<KeyType, KeyType>> ranges = {
       {first, first},
       {last, last},
-      {last, 0},
+      {last, first},
       {last, middle},
-      {0, first},
-      {0, last},
-      {0, middle},
+      {first, last},
+      {first, middle},
       {middle, last},
       {first, last}};
 
     for (const auto& range : ranges)
     {
       auto std_range = std_map_range(ref, range.first, range.second);
-      auto kv_range = h->range(
-        Serialiser::to_serialised(range.first),
-        Serialiser::to_serialised(range.second));
-
-      dump_map(kv_range);
+      auto kv_range = kv_map_range(h, range.first, range.second);
 
       REQUIRE(std_range == kv_range);
-      if (range.first >= range.second)
+      if (!(range.first < range.second))
       {
         REQUIRE(kv_range.empty());
       }
     }
   }
 
+  auto key_to_remove = get_map_get_factor(ref, 2);
+
   INFO("Deleted keys are not returned");
+  {
+    INFO("Remove key");
+    {
+      auto tx = kv_store.create_tx();
+      auto h = tx.rw<KVMap>(map_name);
+
+      // Check key exists before deletion
+      REQUIRE_NOTHROW(kv_map_range(h, ref.begin()->first, ref.rbegin()->first)
+                        .at(key_to_remove));
+
+      {
+        REQUIRE(h->remove(key_to_remove));
+        REQUIRE(ref.erase(key_to_remove) == 1);
+      }
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Range does not include key");
+    {
+      // Fresh tx/handle
+      auto tx = kv_store.create_tx();
+      auto h = tx.rw<KVMap>(map_name);
+
+      auto kv_range = kv_map_range(h, ref.begin()->first, ref.rbegin()->first);
+      REQUIRE_THROWS_AS(kv_range.at(key_to_remove), std::out_of_range);
+    }
+  }
+
+  INFO("Return own writes too");
   {
     auto tx = kv_store.create_tx();
-    auto h = tx.rw<kv::untyped::Map>(map_name);
-  }
+    auto h = tx.rw<KVMap>(map_name);
 
-  INFO("Own writes too");
-  {
-    // TODO:
-  }
+    INFO("Re-insert removed key");
+    {
+      REQUIRE(!h->get(key_to_remove).has_value());
+      h->put(key_to_remove, empty_value);
+      ref[key_to_remove] = empty_value;
+      REQUIRE(h->get(key_to_remove).has_value());
+    }
 
-  INFO("Deleted keys are not returned");
-  {}
+    ValueType well_known_value = {42};
+    auto existing_key = get_map_get_factor(ref, 4);
+
+    INFO("Modify existing key");
+    {
+      h->put(existing_key, well_known_value);
+      ref[existing_key] = well_known_value;
+    }
+
+    // Do not commit transaction
+
+    auto first = ref.begin()->first;
+    auto last = ref.rbegin()->first;
+    auto std_range = std_map_range(ref, first, last);
+    auto kv_range = kv_map_range(h, first, last);
+    REQUIRE(std_range == kv_range);
+    REQUIRE(kv_range.at(existing_key) == well_known_value);
+  }
 }
 #endif
