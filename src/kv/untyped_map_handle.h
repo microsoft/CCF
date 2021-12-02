@@ -273,20 +273,25 @@ namespace kv::untyped
     void range(F&& f, const KeyType& from, const KeyType& to)
     {
       // Current limitations/ineficiencies:
-      // - The state and writes are wastefully looped over until `from`
-      // - The range is looped over twice
-      // - All keys and values in the range are stored in an intermediate map
-      // Optimisation should include adding an iterator to underlying ordered
-      // state (i.e. rb::Map). The start of the range should then be found using
-      // std::lower_bound()
+      // - The state and writes are wastefully looped over until `from` is
+      // found.
+      // - All keys and values in the range are stored in the intermediate map
+      // `res`.
+      // - The constructed range is loop over at the end to call lambda on.
+      // Optimisation is possible to only loop over the state/writes once, in
+      // order, and call the user lambda on each element in the range directly.
+      // This should include adding an iterator to underlying ordered state
+      // (i.e. rb::Map) to find the start/end of the range using
+      // std::lower_bound()/std::upper_bound() and loop over it, interleaves
+      // with the local writes.
 
       if (from == to || to < from)
       {
         return;
       }
 
-      std::map<KeyType, ValueType> r = {};
-      auto g = [&r, &from, &to](const KeyType& k, const ValueType& v) {
+      std::map<KeyType, ValueType> res;
+      auto g = [&res, &from, &to](const KeyType& k, const ValueType& v) {
         if (k < from)
         {
           // Start of range is not yet found.
@@ -298,12 +303,12 @@ namespace kv::untyped
           return false;
         }
 
-        r[k] = v;
+        res[k] = v;
         return true;
       };
       foreach_state_and_writes(g, true);
 
-      for (const auto& e : r)
+      for (const auto& e : res)
       {
         f(e.first, e.second);
       }
