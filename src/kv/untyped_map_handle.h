@@ -262,8 +262,15 @@ namespace kv::untyped
     }
 
 #ifdef KV_STATE_RB
+    // Returns a map of keys to values between [from, to).
     std::map<KeyType, ValueType> range(const KeyType& from, const ValueType& to)
     {
+      if (from == to || to < from)
+      {
+        return {};
+      }
+
+      // Note: Global read dependency is recorded in foreach
       std::map<KeyType, ValueType> r = {};
       foreach([&r, &from, &to](const KeyType& key, const ValueType& val) {
         if (key < from)

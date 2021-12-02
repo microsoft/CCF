@@ -2700,7 +2700,8 @@ void dump_kv_map(const H& h)
 TEST_CASE("Range")
 {
   // TODO: When creating a map, pass < operator!
-  size_t size = 1000;
+  size_t size = 10;
+  size_t entries_space_size = size * 10;
   const auto map_name = "public:map";
 
   kv::Store kv_store;
@@ -2715,7 +2716,7 @@ TEST_CASE("Range")
     auto seed = rand_dev();
     LOG_INFO_FMT("Seed: {}", seed);
     std::mt19937 gen(seed);
-    std::uniform_int_distribution<> distrib(0, size * 10);
+    std::uniform_int_distribution<> distrib(0, entries_space_size);
 
     auto tx = kv_store.create_tx();
     auto h = tx.rw<kv::untyped::Map>(map_name);
@@ -2735,22 +2736,44 @@ TEST_CASE("Range")
     auto tx = kv_store.create_tx();
     auto h = tx.rw<kv::untyped::Map>(map_name);
 
-    dump_map(ref);
-    dump_kv_map(h);
+    auto first = Serialiser::from_serialised(ref.begin()->first);
+    auto last = Serialiser::from_serialised(ref.rbegin()->first);
+    auto middle_it = ref.begin();
+    std::advance(middle_it, size / 2);
+    auto middle = Serialiser::from_serialised(middle_it->first);
+    std::vector<std::pair<size_t, size_t>> ranges = {
+      {0, 0},
+      {first, first},
+      {last, last},
+      {last, 0},
+      {last, middle},
+      {0, first},
+      {0, last},
+      {0, middle},
+      {middle, last},
+      {first, last}};
 
-    size_t range_to = size * 5;
+    for (const auto& range : ranges)
+    {
+      auto std_range = std_map_range(ref, range.first, range.second);
+      auto kv_range = h->range(
+        Serialiser::to_serialised(range.first),
+        Serialiser::to_serialised(range.second));
 
-    std::cout << "Range from 0 to " << range_to << std::endl;
+      dump_map(kv_range);
 
-    auto ref_range = std_map_range(ref, 0, range_to);
-    dump_map(ref_range);
-    auto kv_range = h->range(
-      Serialiser::to_serialised(0), Serialiser::to_serialised(range_to));
-    dump_map(kv_range);
-    REQUIRE(
-      std_map_range(ref, 0, range_to) ==
-      h->range(
-        Serialiser::to_serialised(0), Serialiser::to_serialised(range_to)));
+      REQUIRE(std_range == kv_range);
+      if (range.first >= range.second)
+      {
+        REQUIRE(kv_range.empty());
+      }
+    }
+  }
+
+  INFO("Deleted keys are not returned");
+  {
+    auto tx = kv_store.create_tx();
+    auto h = tx.rw<kv::untyped::Map>(map_name);
   }
 
   INFO("Own writes too");
