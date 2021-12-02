@@ -505,7 +505,7 @@ def test_add_node_with_read_only_ledger(network, args):
 def test_service_config_endpoint(network, args):
     for n in network.get_joined_nodes():
         with n.client() as c:
-            r = c.get("/node/service-configuration")
+            r = c.get("/node/service/configuration")
             rj = r.body.json()
             assert args.reconfiguration_type == rj["reconfiguration_type"]
 
@@ -688,49 +688,22 @@ def run_migration_tests(args):
             assert nodes_before[n.node_id]["status"] == "Trusted"
 
         # Check that the service config agrees that this is a 1tx network
-        tables, _ = network.get_latest_ledger_public_state()
-        service_config = json.loads(
-            tables["public:ccf.gov.service.config"][
-                ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
-            ]
-        )
-        assert service_config["reconfiguration_type"] == "OneTransaction"
+        with primary.client() as c:
+            s = c.get("/node/service/configuration").body.json()
+            assert s["reconfiguration_type"] == "OneTransaction"
 
-        # Submit migration governance proposal
-        proposal_body = {
-            "actions": [
-                {
-                    "name": "set_service_configuration",
-                    "args": {"reconfiguration_type": "TwoTransaction"},
-                }
-            ]
-        }
-        proposal = network.consortium.get_any_active_member().propose(
-            primary, proposal_body
-        )
-        network.consortium.vote_using_majority(
-            primary,
-            proposal,
-            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
-            timeout=10,
-        )
+        network.consortium.submit_2tx_migration_proposal(primary)
+        network.wait_for_all_nodes_to_commit(primary)
 
-        primary, _ = network.find_primary()
-
-        # Check that the service config has been updated in the KV store/on the ledger
-        tables, _ = network.get_latest_ledger_public_state()
-        service_config = json.loads(
-            tables["public:ccf.gov.service.config"][
-                ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
-            ]
-        )
-        assert service_config["reconfiguration_type"] == "TwoTransaction"
+        # Check that the service config has been updated
+        with primary.client() as c:
+            rj = c.get("/node/service/configuration").body.json()
+            assert rj["reconfiguration_type"] == "TwoTransaction"
 
         # Check that all nodes have updated their consensus parameters
         for node in network.nodes:
             with node.client() as c:
                 rj = c.get("/node/consensus").body.json()
-                LOG.info(rj)
                 assert "reconfiguration_type" in rj["details"]
                 assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
                 assert len(rj["details"]["learners"]) == 0
@@ -757,11 +730,11 @@ def run_migration_tests(args):
         )
         assert new_node.node_id in config_after["nodes"]
 
+        # Check that the new node has the right consensus parameter
         with new_node.client() as c:
             rj = c.get("/node/consensus").body.json()
-            assert (
-                "reconfiguration_type" in rj["details"] and "learners" in rj["details"]
-            )
+            assert "reconfiguration_type" in rj["details"]
+            assert "learners" in rj["details"]
             assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
             assert len(rj["details"]["learners"]) == 0
 

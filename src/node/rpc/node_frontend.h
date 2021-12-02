@@ -1457,7 +1457,7 @@ namespace ccf
         };
 
       make_endpoint(
-        "/service-configuration",
+        "/service/configuration",
         HTTP_GET,
         json_adapter(service_config_handler),
         no_auth_required)

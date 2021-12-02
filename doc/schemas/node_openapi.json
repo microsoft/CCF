@@ -1012,7 +1012,7 @@
         }
       }
     },
-    "/service-configuration": {
+    "/service/configuration": {
       "get": {
         "responses": {
           "200": {
