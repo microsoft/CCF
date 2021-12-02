@@ -204,6 +204,7 @@ void run_test_case(
   // There could be multiple communications between client/server while
   // doing the handshake, and they won't return an error until there's
   // nothing more to read/write, so we put them in separate threads.
+  LOG_INFO_FMT("Starting test");
 
   // Create a thread for the client handshake
   thread client_thread([&client]() {
