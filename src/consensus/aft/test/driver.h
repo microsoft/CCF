@@ -143,6 +143,7 @@ public:
         std::make_shared<aft::State>(node_id),
         nullptr,
         nullptr,
+        nullptr,
         ms(10),
         ms(100),
         ms(100));

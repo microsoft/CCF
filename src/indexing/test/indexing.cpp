@@ -331,20 +331,15 @@ TEST_CASE("integrated indexing")
   auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
   auto& indexer = *indexer_p;
 
-  // TODO: Move this after the setup transactions, once historical fetching
-  // works
   const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
 
-  // TODO: Real Raft?
-  // TODO: An absurd amount of plumbing, and for what benefit?
   using TConsensus = aft::Consensus<
     aft::LedgerStubProxy,
     aft::ChannelStubProxy,
     aft::StubSnapshotter>;
   using TRaft =
     aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
-  using AllCommittableRaftConsensus =
-    AllCommittableConsensus<TConsensus>;
+  using AllCommittableRaftConsensus = AllCommittableConsensus<TConsensus>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
   auto raft = new TRaft(
@@ -370,9 +365,6 @@ TEST_CASE("integrated indexing")
   raft->add_configuration(0, initial_config);
 
   consensus->force_become_primary();
-
-  // auto consensus =
-  // std::make_shared<AllCommittableIndexingConsensus>(indexer);
   kv_store.set_consensus(consensus);
 
   ledger_secrets->init();
