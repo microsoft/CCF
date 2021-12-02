@@ -717,7 +717,6 @@ def run_migration_tests(args):
         new_node = network.create_node("local://localhost")
         network.join_node(new_node, args.package, args, from_snapshot=False)
         network.trust_node(new_node, args)
-        network.wait_for_all_nodes_to_commit(primary)
 
         config_after = get_current_config(network)
         nodes_after = get_current_nodes_table(network)
