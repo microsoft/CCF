@@ -172,7 +172,7 @@ namespace ccf
   inline void service_configuration_commit_hook(
     kv::Version version,
     const ccf::Configuration::Write& w,
-    std::shared_ptr<kv::Consensus> consensus)
+    const std::shared_ptr<kv::Consensus>& consensus)
   {
     LOG_DEBUG_FMT("Service configuration update hook");
     assert(w.has_value());
