@@ -2757,5 +2757,8 @@ TEST_CASE("Range")
   {
     // TODO:
   }
+
+  INFO("Deleted keys are not returned");
+  {}
 }
 #endif
