@@ -117,6 +117,8 @@ namespace ccf
       auto endorsed_node_certificates =
         tx.ro(network.node_endorsed_certificates);
 
+      LOG_DEBUG_FMT(
+        "Check node exists with certificate [{}]", self_signed_node_der);
       auto pk_pem = crypto::public_key_pem_from_cert(self_signed_node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;

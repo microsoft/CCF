@@ -12,6 +12,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
@@ -100,6 +101,11 @@ namespace crypto
       {
         return p.get();
       }
+      /// Reset pointer, free old if ayn
+      void reset(T* other)
+      {
+        p.reset(other);
+      }
       /// Release pointer, so it's freed elsewhere (CAUTION!)
       T* release()
       {
@@ -126,6 +132,24 @@ namespace crypto
       {}
     };
 
+    struct Unique_SSL_CTX : public Unique_SSL_OBJECT<SSL_CTX, nullptr, nullptr>
+    {
+      Unique_SSL_CTX(const SSL_METHOD* m) :
+        Unique_SSL_OBJECT(SSL_CTX_new(m), SSL_CTX_free)
+      {}
+    };
+
+    struct Unique_SSL : public Unique_SSL_OBJECT<SSL, nullptr, nullptr>
+    {
+      Unique_SSL(SSL_CTX* ctx) : Unique_SSL_OBJECT(SSL_new(ctx), SSL_free) {}
+    };
+
+    struct Unique_PKEY
+      : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
     struct Unique_EVP_PKEY_CTX
       : public Unique_SSL_OBJECT<EVP_PKEY_CTX, nullptr, nullptr>
     {
@@ -146,6 +170,12 @@ namespace crypto
         Unique_SSL_OBJECT(
           PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL), X509_REQ_free)
       {}
+    };
+
+    struct Unique_X509_CRL
+      : public Unique_SSL_OBJECT<X509_CRL, X509_CRL_new, X509_CRL_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     };
 
     struct Unique_X509 : public Unique_SSL_OBJECT<X509, X509_new, X509_free>

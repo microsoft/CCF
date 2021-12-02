@@ -3,6 +3,11 @@
 #include "crypto/certs.h"
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
+// These headers are temporary, until we have a single TLS implementation
+#include "tls/mbedtls/tls.h"
+#include "tls/openssl/tls.h"
+
+#include <openssl/err.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ds/buffer.h"
 #include "ds/logger.h"
@@ -22,7 +27,8 @@ using namespace std;
 using namespace crypto;
 using namespace tls;
 
-/// Server uses one descriptor while client uses the other.
+/// Server uses one pipe while client uses the other.
+/// Writes always to one side, reads always from the other.
 /// Use the send/recv template wrappers below as callbacks.
 class TestPipe
 {
@@ -53,12 +59,18 @@ public:
 
   size_t send(int id, const uint8_t* buf, size_t len)
   {
-    return write(pfd[id], buf, len);
+    int rc = write(pfd[id], buf, len);
+    if (rc == -1)
+      LOG_FAIL_FMT("Error while reading: {}", std::strerror(errno));
+    return rc;
   }
 
   size_t recv(int id, uint8_t* buf, size_t len)
   {
-    return read(pfd[id], buf, len);
+    int rc = read(pfd[id], buf, len);
+    if (rc == -1)
+      LOG_FAIL_FMT("Error while reading: {}", std::strerror(errno));
+    return rc;
   }
 };
 
@@ -67,7 +79,9 @@ template <int end>
 int send(void* ctx, const uint8_t* buf, size_t len)
 {
   auto pipe = reinterpret_cast<TestPipe*>(ctx);
-  return pipe->send(end, buf, len);
+  int rc = pipe->send(end, buf, len);
+  REQUIRE(rc == len);
+  return rc;
 }
 
 /// Callback wrapper around TestPipe->recv().
@@ -75,8 +89,93 @@ template <int end>
 int recv(void* ctx, uint8_t* buf, size_t len)
 {
   auto pipe = reinterpret_cast<TestPipe*>(ctx);
-  return pipe->recv(end, buf, len);
+  int rc = pipe->recv(end, buf, len);
+  REQUIRE(rc == len);
+  return rc;
 }
+
+#ifndef TLS_PROVIDER_IS_MBEDTLS
+
+// These are OpenSSL callbacks that call onto the MbedTLS ones. They have the
+// same name but different signatures, so when using OpenSSL, these are the ones
+// that set_bio() will take, and call the ones above by using the correct
+// signature.
+template <int end>
+long send(
+  BIO* b,
+  int oper,
+  const char* argp,
+  size_t len,
+  int argi,
+  long argl,
+  int ret,
+  size_t* processed)
+{
+  // Unused arguments
+  (void)argi;
+  (void)argl;
+  (void)processed;
+
+  if (ret && oper == (BIO_CB_WRITE | BIO_CB_RETURN))
+  {
+    // Flush the BIO so the "pipe doesn't clog", but we don't use the
+    // data here, because 'argp' already has it.
+    BIO_flush(b);
+    size_t pending = BIO_pending(b);
+    if (pending)
+      BIO_reset(b);
+
+    // Pipe object
+    auto pipe = reinterpret_cast<TestPipe*>(BIO_get_callback_arg(b));
+    size_t put = send<end>(pipe, (const uint8_t*)argp, len);
+    REQUIRE(put == len);
+  }
+
+  // Unless we detected an error, the return value is always the same as the
+  // original operation.
+  return ret;
+}
+
+template <int end>
+long recv(
+  BIO* b,
+  int oper,
+  const char* argp,
+  size_t len,
+  int argi,
+  long argl,
+  int ret,
+  size_t* processed)
+{
+  // Unused arguments
+  (void)argi;
+  (void)argl;
+
+  if (ret && oper == (BIO_CB_READ | BIO_CB_RETURN))
+  {
+    // Pipe object
+    auto pipe = reinterpret_cast<TestPipe*>(BIO_get_callback_arg(b));
+    size_t got = recv<end>(pipe, (uint8_t*)argp, len);
+
+    // Got nothing, return "WANTS READ"
+    if (got <= 0)
+      return ret;
+
+    // Write to the actual BIO so SSL can use it
+    BIO_write_ex(b, argp, got, processed);
+
+    // If original return was -1 because it didn't find anything to read, return
+    // 1 to say we actually read something
+    if (got > 0 && ret < 0)
+      return 1;
+  }
+
+  // Unless we detected an error, the return value is always the same as the
+  // original operation.
+  return ret;
+}
+
+#endif
 
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.
@@ -86,50 +185,44 @@ int handshake(Context* ctx)
   {
     int rc = ctx->handshake();
 
-    // FIXME: Make the cases work with other implementations
     switch (rc)
     {
       case 0:
         return 0;
-      case MBEDTLS_ERR_SSL_WANT_READ:
-      case MBEDTLS_ERR_SSL_WANT_WRITE:
+
+      case TLS_ERR_WANT_READ:
+      case TLS_ERR_WANT_WRITE:
         // Continue calling handshake until finished
+        LOG_DEBUG_FMT("Handshake wants data");
         break;
-      case MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE:
-      case MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED:
+
+      case TLS_ERR_NEED_CERT:
+      case TLS_ERR_PEER_VERIFY:
       {
-        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
+        LOG_FAIL_FMT("Handshake error: {}", tls::error_string(rc));
         return 1;
       }
 
-      case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+      case TLS_ERR_CONN_CLOSE_NOTIFY:
       {
-        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
+        LOG_FAIL_FMT("Handshake error: {}", tls::error_string(rc));
         return 1;
       }
 
-      case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED:
+      case TLS_ERR_X509_VERIFY:
       {
         std::vector<char> buf(512);
-        auto r = mbedtls_x509_crt_verify_info(
-          buf.data(),
-          buf.size(),
-          "Certificate verify failed: ",
-          ctx->verify_result());
-
-        if (r > 0)
-        {
-          buf.resize(r);
-          LOG_FAIL_FMT("{}", std::string(buf.data(), buf.size()));
-        }
-
-        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
+        ctx->get_verify_error(buf.data(), buf.size());
+        LOG_FAIL_FMT(
+          "Handshake error: {} [{}]",
+          std::string(buf.data(), buf.size()),
+          tls::error_string(rc));
         return 1;
       }
 
       default:
       {
-        LOG_FAIL_FMT("Handshake error: {}", crypto::error_string(rc));
+        LOG_FAIL_FMT("Handshake error: {}", tls::error_string(rc));
         return 1;
       }
     }
@@ -148,12 +241,12 @@ NetworkCA get_ca()
   // Create a CA with a self-signed certificate
   auto kp = crypto::make_key_pair();
   auto crt = kp->self_sign("CN=issuer");
-  LOG_DEBUG_FMT("New self-signed CA certificate:{}", crt.str());
+  LOG_DEBUG_FMT("New self-signed CA certificate:\n{}", crt.str());
   return {kp, crt};
 }
 
 /// Creates a tls::Cert with a new CA using a new self-signed Pem certificate.
-unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name)
+unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 {
   // Create a CA with a self-signed certificate
   auto ca = make_unique<tls::CA>(CBuffer(net_ca.cert.str()));
@@ -161,10 +254,10 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name)
   // Create a signing request and sign with the CA
   auto kp = crypto::make_key_pair();
   auto csr = kp->create_csr("CN=" + name);
-  LOG_DEBUG_FMT("CSR for {} is:{}", name, csr.str());
+  LOG_DEBUG_FMT("CSR for {} is:\n{}", name, csr.str());
 
   auto crt = net_ca.kp->sign_csr(net_ca.cert, csr);
-  LOG_DEBUG_FMT("New CA-signed certificate:{}", crt.str());
+  LOG_DEBUG_FMT("New CA-signed certificate:\n{}", crt.str());
 
   // Verify node certificate with the CA's certificate
   auto v = crypto::make_verifier(crt);
@@ -172,7 +265,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name)
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk);
+  return make_unique<Cert>(move(ca), crt, pk, nullb, auth);
 }
 
 /// Helper to write past the maximum buffer (16k)
@@ -181,7 +274,7 @@ int write_helper(Context& handler, const uint8_t* buf, size_t len)
   int rc = handler.write(buf, len);
   if (rc <= 0 || (size_t)rc == len)
     return rc;
-  return rc + handler.write(buf + rc, len - rc);
+  return rc + write_helper(handler, buf + rc, len - rc);
 }
 
 /// Helper to read past the maximum buffer (16k)
@@ -190,7 +283,18 @@ int read_helper(Context& handler, uint8_t* buf, size_t len)
   int rc = handler.read(buf, len);
   if (rc <= 0 || (size_t)rc == len)
     return rc;
-  return rc + handler.read(buf + rc, len - rc);
+  return rc + read_helper(handler, buf + rc, len - rc);
+}
+
+/// Helper to truncate long messages to make logs more readable
+std::string truncate_message(const uint8_t* msg, size_t len)
+{
+  const size_t MAX_LEN = 32;
+  if (len < MAX_LEN)
+    return std::string((const char*)msg, len);
+  std::string str((const char*)msg, MAX_LEN);
+  str += "... + " + std::to_string(len - MAX_LEN);
+  return str;
 }
 
 /// Test runner, with various options for different kinds of tests.
@@ -201,16 +305,13 @@ void run_test_case(
   const uint8_t* response,
   size_t response_length,
   unique_ptr<tls::Cert> server_cert,
-  unique_ptr<tls::Cert> client_cert,
-  bool requires_auth)
+  unique_ptr<tls::Cert> client_cert)
 {
   uint8_t buf[max(message_length, response_length) + 1];
 
   // Create a pair of client/server
   tls::Server server(move(server_cert), dgram);
-  server.set_require_auth(requires_auth);
   tls::Client client(move(client_cert), dgram);
-  client.set_require_auth(requires_auth);
 
   // Connect BIOs together
   TestPipe pipe(dgram);
@@ -251,7 +352,8 @@ void run_test_case(
   }
 
   // Send the first message
-  LOG_INFO_FMT("Client sending message [{}]", string((const char*)message));
+  LOG_INFO_FMT(
+    "Client sending message [{}]", truncate_message(message, message_length));
   int written = write_helper(client, message, message_length);
   REQUIRE(written == message_length);
 
@@ -259,11 +361,13 @@ void run_test_case(
   int read = read_helper(server, buf, message_length);
   REQUIRE(read == message_length);
   buf[message_length] = '\0';
-  LOG_INFO_FMT("Server message received [{}]", string((const char*)buf));
+  LOG_INFO_FMT(
+    "Server message received [{}]", truncate_message(buf, message_length));
   REQUIRE(strncmp((const char*)buf, (const char*)message, message_length) == 0);
 
   // Send the response
-  LOG_INFO_FMT("Server sending message [{}]", string((const char*)response));
+  LOG_INFO_FMT(
+    "Server sending message [{}]", truncate_message(response, message_length));
   written = write_helper(server, response, response_length);
   REQUIRE(written == response_length);
 
@@ -271,7 +375,8 @@ void run_test_case(
   read = read_helper(client, buf, response_length);
   REQUIRE(read == response_length);
   buf[response_length] = '\0';
-  LOG_INFO_FMT("Client message received [{}]", string((const char*)buf));
+  LOG_INFO_FMT(
+    "Client message received [{}]", truncate_message(buf, message_length));
   REQUIRE(
     strncmp((const char*)buf, (const char*)response, response_length) == 0);
 
@@ -286,10 +391,10 @@ TEST_CASE("unverified handshake")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server");
-  auto client_cert = get_dummy_cert(ca, "client");
+  auto server_cert = get_dummy_cert(ca, "server", auth_none);
+  auto client_cert = get_dummy_cert(ca, "client", auth_none);
 
-  LOG_INFO_FMT("unverified handshake");
+  LOG_INFO_FMT("TEST: unverified handshake");
 
   // Just testing handshake, does not verify certificates, no communication.
   run_test_case(
@@ -299,8 +404,7 @@ TEST_CASE("unverified handshake")
     (const uint8_t*)"",
     0,
     move(server_cert),
-    move(client_cert),
-    false);
+    move(client_cert));
 }
 
 TEST_CASE("unverified communication")
@@ -314,10 +418,10 @@ TEST_CASE("unverified communication")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server");
-  auto client_cert = get_dummy_cert(ca, "client");
+  auto server_cert = get_dummy_cert(ca, "server", auth_none);
+  auto client_cert = get_dummy_cert(ca, "client", auth_none);
 
-  LOG_INFO_FMT("unverified communication");
+  LOG_INFO_FMT("TEST: unverified communication");
 
   // Just testing communication channel, does not verify certificates.
   run_test_case(
@@ -327,8 +431,7 @@ TEST_CASE("unverified communication")
     response,
     response_length,
     move(server_cert),
-    move(client_cert),
-    false);
+    move(client_cert));
 }
 
 TEST_CASE("verified handshake")
@@ -337,10 +440,10 @@ TEST_CASE("verified handshake")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server");
-  auto client_cert = get_dummy_cert(ca, "client");
+  auto server_cert = get_dummy_cert(ca, "server", auth_required);
+  auto client_cert = get_dummy_cert(ca, "client", auth_required);
 
-  LOG_INFO_FMT("verified handshake");
+  LOG_INFO_FMT("TEST: verified handshake");
 
   // Just testing handshake, no communication, but verifies certificates.
   run_test_case(
@@ -350,8 +453,7 @@ TEST_CASE("verified handshake")
     (const uint8_t*)"",
     0,
     move(server_cert),
-    move(client_cert),
-    true);
+    move(client_cert));
 }
 
 TEST_CASE("verified communication")
@@ -365,10 +467,10 @@ TEST_CASE("verified communication")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server");
-  auto client_cert = get_dummy_cert(ca, "client");
+  auto server_cert = get_dummy_cert(ca, "server", auth_required);
+  auto client_cert = get_dummy_cert(ca, "client", auth_required);
 
-  LOG_INFO_FMT("verified communication");
+  LOG_INFO_FMT("TEST: verified communication");
 
   // Testing communication channel, verifying certificates.
   run_test_case(
@@ -378,8 +480,7 @@ TEST_CASE("verified communication")
     response,
     response_length,
     move(server_cert),
-    move(client_cert),
-    true);
+    move(client_cert));
 }
 
 TEST_CASE("large message")
@@ -393,10 +494,10 @@ TEST_CASE("large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server");
-  auto client_cert = get_dummy_cert(ca, "client");
+  auto server_cert = get_dummy_cert(ca, "server", auth_required);
+  auto client_cert = get_dummy_cert(ca, "client", auth_required);
 
-  LOG_INFO_FMT("large message");
+  LOG_INFO_FMT("TEST: large message");
 
   // Testing communication channel, verifying certificates.
   run_test_case(
@@ -406,8 +507,7 @@ TEST_CASE("large message")
     (const uint8_t*)message.data(),
     message.size(),
     move(server_cert),
-    move(client_cert),
-    true);
+    move(client_cert));
 }
 
 TEST_CASE("very large message")
@@ -421,10 +521,10 @@ TEST_CASE("very large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server");
-  auto client_cert = get_dummy_cert(ca, "client");
+  auto server_cert = get_dummy_cert(ca, "server", auth_required);
+  auto client_cert = get_dummy_cert(ca, "client", auth_required);
 
-  LOG_INFO_FMT("very large message");
+  LOG_INFO_FMT("TEST: very large message");
 
   // Testing communication channel, verifying certificates.
   run_test_case(
@@ -434,6 +534,5 @@ TEST_CASE("very large message")
     (const uint8_t*)message.data(),
     message.size(),
     move(server_cert),
-    move(client_cert),
-    true);
+    move(client_cert));
 }
