@@ -244,7 +244,13 @@ namespace ds
           return left.first < right.first;
         });
 
-      if (it != ranges.begin() && t != it->first)
+      // Usually this has found the iterator _after_ the range containing t, and
+      // so we want std::prev(it). The only time when that is not the case are
+      // if it == ranges.begin() (there is no prev), or t == it->first()
+      // (lower_bound returned the correct iterator, because t is the start of a
+      // range). The latter must be additionally guarded by a check that we're
+      // not dereferencing an end iterator.
+      if (it != ranges.begin() && (it == ranges.end() || t != it->first))
       {
         it = std::prev(it);
       }
