@@ -15,7 +15,7 @@ parameters:
 
   build:
     common:
-      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DENABLE_2TX_RECONFIG=ON'
+      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DENABLE_2TX_RECONFIG=ON -DKV_STATE_RB=ON'
     NoSGX:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:

@@ -2690,6 +2690,7 @@ std::map<T, T> kv_map_range(H& h, const T& from, const T& to)
 
 TEST_CASE("Range")
 {
+  LOG_INFO_FMT("Running KV range tests");
   using KVMap = kv::untyped::Map;
   using KeyType = KVMap::K;
   using ValueType = KVMap::V;
