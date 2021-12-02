@@ -2536,6 +2536,8 @@ namespace aft
   public:
     void update_parameters(kv::ConsensusParameters& params)
     {
+      // This should only be called when the state->lock is held, so we do not
+      // acquire the lock here.
       CCF_ASSERT_FMT(
         params.reconfiguration_type != TWO_TRANSACTION || node_client,
         "Bug; all enclaves that support 2tx reconfig must have node_clients");
