@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/indexing/strategy.h"
 #include "indexing/indexing_types.h"
-#include "indexing/strategy.h"
 
 #include <memory>
 #include <string>

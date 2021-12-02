@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
+#include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/wrap.h"
 #include "node/entities.h"
@@ -43,20 +44,41 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      std::unique_ptr<ccf::historical::StateCache> historical_state_cache =
+      std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
         nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
+      std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
 
       NodeContext() {}
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
+        if (historical_state_cache == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_historical_state before NodeContext is initialized");
+        }
         return *historical_state_cache;
       }
 
       ccf::AbstractNodeState& get_node_state() override
       {
+        if (node_state == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_node_state before NodeContext is initialized");
+        }
         return *node_state;
+      }
+
+      ccf::indexing::AbstractIndexer& get_indexer() override
+      {
+        if (indexer == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_indexer before NodeContext is initialized");
+        }
+        return *indexer;
       }
     };
 
@@ -111,11 +133,14 @@ namespace enclave
 
       context = std::make_unique<NodeContext>();
       context->historical_state_cache =
-        std::make_unique<ccf::historical::StateCache>(
+        std::make_shared<ccf::historical::StateCache>(
           *network.tables,
           network.ledger_secrets,
           writer_factory.create_writer_to_outside());
       context->node_state = node.get();
+      context->indexer = std::make_shared<ccf::indexing::Indexer>(
+        std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
+          context->historical_state_cache));
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
@@ -133,6 +158,7 @@ namespace enclave
         consensus_config,
         rpc_map,
         rpcsessions,
+        context->indexer,
         signature_intervals.sig_tx_interval,
         signature_intervals.sig_ms_interval);
     }

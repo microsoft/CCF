@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/indexing/indexer_interface.h"
 #include "node/rpc/node_interface.h"
 
 namespace ccfapp
@@ -13,5 +14,6 @@ namespace ccfapp
 
     virtual ccf::historical::AbstractStateCache& get_historical_state() = 0;
     virtual ccf::AbstractNodeState& get_node_state() = 0;
+    virtual ccf::indexing::AbstractIndexer& get_indexer() = 0;
   };
 }

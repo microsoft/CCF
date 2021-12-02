@@ -11,11 +11,12 @@ namespace ccf::indexing
   class HistoricalTransactionFetcher : public TransactionFetcher
   {
   private:
-    ccf::historical::StateCacheImpl& state_cache;
+    std::shared_ptr<ccf::historical::StateCacheImpl> historical_cache;
 
   public:
-    HistoricalTransactionFetcher(ccf::historical::StateCacheImpl& sc) :
-      state_cache(sc)
+    HistoricalTransactionFetcher(
+      const std::shared_ptr<ccf::historical::StateCacheImpl>& sc) :
+      historical_cache(sc)
     {}
 
     StorePtr deserialise_transaction(
@@ -23,7 +24,7 @@ namespace ccf::indexing
     {
       kv::ApplyResult result;
       auto store =
-        state_cache.deserialise_ledger_entry(seqno, data, size, result);
+        historical_cache->deserialise_ledger_entry(seqno, data, size, result);
       if (store != nullptr && result != kv::ApplyResult::FAIL)
       {
         return store;
@@ -39,7 +40,7 @@ namespace ccf::indexing
     std::vector<StorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) override
     {
-      return state_cache.get_stores_for(
+      return historical_cache->get_stores_for(
         {historical::RequestNamespace::System, 0}, seqnos);
     }
   };

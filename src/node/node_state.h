@@ -20,6 +20,7 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "hooks.h"
+#include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
 #include "node/http_node_client.h"
@@ -118,6 +119,7 @@ namespace ccf
 
     std::shared_ptr<kv::Consensus> consensus;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<ccf::indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
@@ -246,6 +248,7 @@ namespace ccf
       const consensus::Configuration& consensus_config_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<enclave::AbstractRPCResponder> rpc_sessions_,
+      std::shared_ptr<ccf::indexing::Indexer> indexer_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -254,6 +257,7 @@ namespace ccf
 
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
+      indexer = indexer_;
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
@@ -1979,6 +1983,7 @@ namespace ccf
         shared_state,
         std::move(resharing_tracker),
         node_client,
+        indexer,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),

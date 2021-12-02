@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "indexing/strategy.h"
+#include "ccf/indexing/indexer_interface.h"
 #include "indexing/transaction_fetcher_interface.h"
 
 #include <memory>
@@ -13,22 +13,18 @@ namespace ccf::indexing
 {
   // This is responsible for managing a collection of strategies, and ensuring
   // each has been given every transaction up to the commit point, in-order. It
-  // is informed of commit progress by the consensus, and then fetches
-  // transactions through the historical query system (to populate entries for
-  // strategies installed after construction, or to populate entries when this
-  // node was initialised via snapshot rather than consensus).
-  class Indexer
+  // is informed of new entries commit progress by the consensus, and if it sees
+  // any holes (for instance because a strategy is installed after some
+  // transactions are run, or because this node started from existing state and
+  // not all entries were received through consensus) then it fetches them and
+  // passes them onto each strategy.
+  class Indexer : public AbstractIndexer
   {
   public:
     static constexpr size_t MAX_REQUESTABLE = 1000;
 
-  private:
-    TransactionFetcher& transaction_fetcher;
-
-    // Store the highest TxID that each strategy has been given, and assume it
-    // doesn't need to be given again later.
-    using StrategyContext = std::pair<ccf::TxID, StrategyPtr>;
-    std::map<std::string, StrategyContext> strategies;
+  protected:
+    std::shared_ptr<TransactionFetcher> transaction_fetcher;
 
     using PendingTx = std::pair<ccf::TxID, std::vector<uint8_t>>;
     std::vector<PendingTx> uncommitted_entries;
@@ -50,42 +46,9 @@ namespace ccf::indexing
     }
 
   public:
-    Indexer(TransactionFetcher& tf) : transaction_fetcher(tf) {}
-
-    std::string install_strategy(StrategyPtr&& strategy)
-    {
-      if (strategy == nullptr)
-      {
-        throw std::logic_error("Tried to install null strategy");
-      }
-
-      const auto name = strategy->get_name();
-
-      auto it = strategies.find(name);
-      if (it != strategies.end())
-      {
-        throw std::logic_error(
-          fmt::format("Strategy named {} already exists", name));
-      }
-
-      strategies.emplace_hint(
-        it, name, std::make_pair(ccf::TxID{}, std::move(strategy)));
-
-      return name;
-    }
-
-    template <typename T>
-    T* get_strategy(const std::string& name)
-    {
-      auto it = strategies.find(name);
-      if (it != strategies.end())
-      {
-        auto t = dynamic_cast<T*>(it->second.second.get());
-        return t;
-      }
-
-      return nullptr;
-    }
+    Indexer(const std::shared_ptr<TransactionFetcher>& tf) :
+      transaction_fetcher(tf)
+    {}
 
     // Returns true if it looks like there's still a gap to fill. Useful for
     // testing
@@ -117,7 +80,7 @@ namespace ccf::indexing
 
           SeqNoCollection seqnos(first_requested, additional);
 
-          auto stores = transaction_fetcher.fetch_transactions(seqnos);
+          auto stores = transaction_fetcher->fetch_transactions(seqnos);
           for (auto& store : stores)
           {
             const auto tx_id_ = store->current_txid();
@@ -205,7 +168,7 @@ namespace ccf::indexing
       {
         const auto& [id, entry] = *it;
 
-        auto store_ptr = transaction_fetcher.deserialise_transaction(
+        auto store_ptr = transaction_fetcher->deserialise_transaction(
           id.seqno, entry.data(), entry.size());
 
         if (store_ptr != nullptr)

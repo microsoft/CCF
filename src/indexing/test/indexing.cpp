@@ -197,7 +197,7 @@ void create_transactions(
 TEST_CASE("basic indexing")
 {
   kv::Store kv_store;
-  TestTransactionFetcher fetcher;
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
   ccf::indexing::Indexer indexer(fetcher);
 
   auto consensus = std::make_shared<AllCommittableIndexingConsensus>(indexer);
@@ -249,18 +249,18 @@ TEST_CASE("basic indexing")
     REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
   }
 
-  while (indexer.tick() || !fetcher.requested.empty())
+  while (indexer.tick() || !fetcher->requested.empty())
   {
     // Do the fetch, simulating an asynchronous fetch by the historical query
     // system
-    for (auto seqno : fetcher.requested)
+    for (auto seqno : fetcher->requested)
     {
       REQUIRE(consensus->replica.size() >= seqno);
       const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
-      fetcher.fetched_stores[seqno] =
-        fetcher.deserialise_transaction(seqno, entry->data(), entry->size());
+      fetcher->fetched_stores[seqno] =
+        fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
     }
-    fetcher.requested.clear();
+    fetcher->requested.clear();
   }
 
   {
@@ -315,24 +315,10 @@ kv::Version rekey(
   return tx_version;
 }
 
-// Uses the real classes, to test their interaction with indexing
-TEST_CASE("integrated indexing")
+aft::LedgerStubProxy* add_raft_consensus(
+  std::shared_ptr<kv::Store> kv_store,
+  std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
-  auto kv_store_p = std::make_shared<kv::Store>();
-  auto& kv_store = *kv_store_p;
-
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-  kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
-
-  auto stub_writer = std::make_shared<StubWriter>();
-  ccf::historical::StateCacheImpl cache(kv_store, ledger_secrets, stub_writer);
-
-  ccf::indexing::HistoricalTransactionFetcher fetcher(cache);
-  auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
-  auto& indexer = *indexer_p;
-
-  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
-
   using TConsensus = aft::Consensus<
     aft::LedgerStubProxy,
     aft::ChannelStubProxy,
@@ -344,7 +330,7 @@ TEST_CASE("integrated indexing")
   const std::string node_id = "Node 0";
   auto raft = new TRaft(
     ConsensusType::CFT,
-    std::make_unique<aft::Adaptor<kv::Store>>(kv_store_p),
+    std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
@@ -353,7 +339,7 @@ TEST_CASE("integrated indexing")
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr,
-    indexer_p,
+    indexer,
     ms(20),
     ms(20),
     ms(1000));
@@ -365,7 +351,33 @@ TEST_CASE("integrated indexing")
   raft->add_configuration(0, initial_config);
 
   consensus->force_become_primary();
-  kv_store.set_consensus(consensus);
+
+  kv_store->set_consensus(consensus);
+
+  return raft->ledger.get();
+}
+
+// Uses the real classes, to test their interaction with indexing
+TEST_CASE("integrated indexing")
+{
+  auto kv_store_p = std::make_shared<kv::Store>();
+  auto& kv_store = *kv_store_p;
+
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
+    kv_store, ledger_secrets, stub_writer);
+
+  auto fetcher =
+    std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(cache);
+  auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
+  auto& indexer = *indexer_p;
+
+  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
+
+  auto ledger = add_raft_consensus(kv_store_p, indexer_p);
 
   ledger_secrets->init();
   {
@@ -440,11 +452,11 @@ TEST_CASE("integrated indexing")
       std::vector<uint8_t> combined;
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
-        const auto entry = raft->ledger->get_raw_entry_by_idx(seqno);
+        const auto entry = ledger->get_raw_entry_by_idx(seqno);
         REQUIRE(entry.has_value());
         combined.insert(combined.end(), entry->begin(), entry->end());
       }
-      cache.handle_ledger_entries(from_seqno, to_seqno, combined);
+      cache->handle_ledger_entries(from_seqno, to_seqno, combined);
     }
 
     handled_writes = writes.end() - writes.begin();
