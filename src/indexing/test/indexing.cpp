@@ -22,6 +22,8 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
+using MapA = kv::Map<std::string, std::string>;
+using MapB = kv::Map<size_t, size_t>;
 kv::Map<std::string, std::string> map_a("private_map_a");
 using IndexA = ccf::indexing::strategies::SeqnosByKey<decltype(map_a)>;
 

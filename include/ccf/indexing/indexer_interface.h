@@ -10,12 +10,12 @@
 
 namespace ccf::indexing
 {
-  // An abstract Indexer manages a collection of strategies. The implementation
-  // will pass each committed transaction in-order to each registered strategy.
-  // Applications should install strategies at construction, and then retrieve
-  // those strategies and query them for indexed results during endpoint
-  // execution.
-  class AbstractIndexer
+  // This base class simply manages a collection of indexing strategies. The
+  // implementation will pass each committed transaction in-order to each
+  // installed strategy. Applications should install strategies at
+  // construction, and then retrieve those strategies and query them for indexed
+  // results during endpoint execution.
+  class IndexingStrategies
   {
   protected:
     // Store the highest TxID that each strategy has been given, and assume it
@@ -24,7 +24,7 @@ namespace ccf::indexing
     std::map<std::string, StrategyContext> strategies;
 
   public:
-    virtual ~AbstractIndexer() = default;
+    virtual ~IndexingStrategies() = default;
 
     std::string install_strategy(StrategyPtr&& strategy)
     {

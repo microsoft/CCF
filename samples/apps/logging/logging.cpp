@@ -12,6 +12,7 @@
 #include "ccf/http_query.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
+#include "indexing/seqnos_by_key.h" // TODO: Should probably be under ccf/
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -31,6 +32,9 @@ namespace loggingapp
   // the _next_ write transaction to that key.
   using FirstWritesMap = kv::Map<size_t, ccf::SeqNo>;
   static constexpr auto FIRST_WRITES = "first_write_version";
+
+  using RecordsIndexingStrategy =
+    ccf::indexing::strategies::SeqnosByKey<RecordsMap>;
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -133,6 +137,8 @@ namespace loggingapp
 
     metrics::Tracker metrics_tracker;
 
+    std::string index_per_private_key_strategy;
+
     static void update_first_write(kv::Tx& tx, size_t id)
     {
       auto first_writes = tx.rw<FirstWritesMap>("first_write_version");
@@ -156,6 +162,10 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      index_per_private_key_strategy =
+        context.get_indexing_strategies().install_strategy(
+          std::make_unique<RecordsIndexingStrategy>(PRIVATE_RECORDS));
+
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
@@ -952,15 +962,34 @@ namespace loggingapp
           return;
         }
 
-        // TODO: Do we need to paginate the index too? Probably! And it probably needs handles as well!
-        // TODO: Implement these
-        // const auto interesting_seqnos = indexer.get_write_txs(table_name, key);
-        // if (!interesting_seqnos.has_value())
-        // {
-        //   set_error();
-        //   return;
-        // }
-        
+        auto strategy = context.get_indexing_strategies()
+                          .get_strategy<RecordsIndexingStrategy>(
+                            index_per_private_key_strategy);
+        if (strategy == nullptr)
+        {
+          // TODO: I guess rather than throwing, this could install on-demand?
+          // But we tried to install this during construction, so why would we
+          // think it's more likely to succeed now? Of course the other question
+          // is, why are we re-requesting it by name now? Why didn't we get and
+          // retain a handle then? Hmmm...
+          throw std::logic_error("Error: missing strategy");
+        }
+
+        // TODO: Request for target range only!
+
+        const auto interesting_seqnos = strategy->get_write_txs(id);
+        if (interesting_seqnos.empty())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          ctx.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          ctx.rpc_ctx->set_response_body(fmt::format(
+            "Still constructing index for private records at {}", id));
+          return;
+        }
 
         // Set a maximum range, paginate larger requests
         static constexpr size_t max_seqno_per_page = 2000;

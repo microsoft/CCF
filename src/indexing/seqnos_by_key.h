@@ -21,13 +21,15 @@ namespace ccf::indexing::strategies
     std::unordered_map<kv::untyped::SerialisedEntry, SeqNoCollection>
       seqnos_by_key;
 
-    M map;
+    std::string map_name;
 
   public:
-    SeqnosByKey(const M& m) :
-      Strategy(fmt::format("SeqnosByKey for {}", m.get_name())),
-      map(m)
+    SeqnosByKey(const std::string& map_name_) :
+      Strategy(fmt::format("SeqnosByKey for {}", map_name_)),
+      map_name(map_name_)
     {}
+
+    SeqnosByKey(const M& map) : SeqnosByKey(map.get_name()) {}
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const StorePtr& store) override
@@ -35,7 +37,7 @@ namespace ccf::indexing::strategies
       // NB: Don't use M, instead get an untyped view over the map with the same
       // name. This saves deserialisation here, where we work with the raw key.
       auto tx = store->create_tx();
-      auto handle = tx.ro<kv::untyped::Map>(map.get_name());
+      auto handle = tx.ro<kv::untyped::Map>(map_name);
       handle->foreach(
         [this, seqno = tx_id.seqno](const auto& k, const auto& v) {
           seqnos_by_key[k].insert(seqno);

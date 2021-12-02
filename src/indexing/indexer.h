@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
 #include "ccf/indexing/indexer_interface.h"
+#include "ds/logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 
 #include <memory>
@@ -18,7 +18,7 @@ namespace ccf::indexing
   // transactions are run, or because this node started from existing state and
   // not all entries were received through consensus) then it fetches them and
   // passes them onto each strategy.
-  class Indexer : public AbstractIndexer
+  class Indexer : public IndexingStrategies
   {
   public:
     static constexpr size_t MAX_REQUESTABLE = 1000;
@@ -104,9 +104,9 @@ namespace ccf::indexing
       return false;
     }
 
-    // TODO: So _maybe_ we can be given these before they leave the enclave, and
-    // just process them on tick() once commit has passed them. But that's risky
-    // memory pressure!
+    // TODO: Discuss the memory-pressure/efficiency trade-off of passing these
+    // directly here. Perhaps we should also cap how many of these we store, if
+    // we're capping how many we fetch historically?
     void append_entry(const ccf::TxID& tx_id, const uint8_t* data, size_t size)
     {
       if (tx_id_less(tx_id, committed))

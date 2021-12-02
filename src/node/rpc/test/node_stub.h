@@ -244,7 +244,7 @@ namespace ccf
       return state;
     }
 
-    ccf::indexing::AbstractIndexer& get_indexer() override
+    ccf::indexing::IndexingStrategies& get_indexing_strategies() override
     {
       throw std::logic_error("Not implemented");
     }

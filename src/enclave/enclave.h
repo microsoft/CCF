@@ -71,12 +71,12 @@ namespace enclave
         return *node_state;
       }
 
-      ccf::indexing::AbstractIndexer& get_indexer() override
+      ccf::indexing::IndexingStrategies& get_indexing_strategies() override
       {
         if (indexer == nullptr)
         {
           throw std::logic_error(
-            "Calling get_indexer before NodeContext is initialized");
+            "Calling get_indexing_strategies before NodeContext is initialized");
         }
         return *indexer;
       }
