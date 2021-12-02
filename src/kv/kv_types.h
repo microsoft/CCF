@@ -509,7 +509,6 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
 
