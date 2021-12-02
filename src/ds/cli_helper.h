@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/san.h"
+#include "ds/ccf_assert.h"
 #include "ds/nonstd.h"
 #include "node/node_info_network.h"
 
@@ -137,7 +138,8 @@ namespace cli
   {
     size_t ret = 0;
     CLI::AsSizeValue(false)(input); // Parse both all values as multiple of 1024
-    assert(CLI::detail::integral_conversion(input, ret));
+    auto rc = CLI::detail::integral_conversion(input, ret);
+    CCF_ASSERT_FMT(rc, "Could not convert {} to size_t: {}", input, rc);
     return ret;
   }
 }
