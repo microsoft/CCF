@@ -38,13 +38,13 @@ def submit_range(primary, id_pattern, start, end):
             )
             assert r.status_code == http.HTTPStatus.OK
 
-        seqno = r.seqno
-        view = r.view
+            seqno = r.seqno
+            view = r.view
 
-        if first_seqno is None:
-            first_seqno = seqno
+            if first_seqno is None:
+                first_seqno = seqno
 
-        last_seqno = seqno
+            last_seqno = seqno
 
     return (first_seqno, view, last_seqno)
 
