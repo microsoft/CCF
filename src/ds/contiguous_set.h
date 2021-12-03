@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
+
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <numeric>
@@ -23,31 +25,37 @@ namespace ds
 
     // Define an iterator for accessing each contained element, rather than the
     // ranges
-    template <typename RangeIt>
-    struct TIterator
+    struct ConstIterator
     {
-      using iterator_category = std::bidirectional_iterator_tag;
+      using iterator_category = std::random_access_iterator_tag;
       using value_type = size_t;
       using difference_type = std::ptrdiff_t;
-      using pointer = const size_t*; // TODO: const depends on RangeIt?
+      using pointer = const size_t*;
       using reference = size_t;
+
+      using RangeIt = typename Ranges::const_iterator;
 
       RangeIt it;
       size_t offset = 0;
 
-      TIterator(RangeIt i, size_t o = 0) : it(i), offset(o) {}
+      ConstIterator(RangeIt i, size_t o = 0) : it(i), offset(o) {}
 
-      bool operator==(const TIterator& other) const
+      T operator*() const
+      {
+        return it->first + offset;
+      }
+
+      bool operator==(const ConstIterator& other) const
       {
         return (it == other.it && offset == other.offset);
       }
 
-      bool operator!=(const TIterator& other) const
+      bool operator!=(const ConstIterator& other) const
       {
         return !(*this == other);
       }
 
-      TIterator& operator++()
+      ConstIterator& operator++()
       {
         ++offset;
         if (offset > it->second)
@@ -58,14 +66,14 @@ namespace ds
         return (*this);
       }
 
-      TIterator operator++(int)
+      ConstIterator operator++(int)
       {
         auto temp(*this);
         ++(*this);
         return temp;
       }
 
-      TIterator& operator--()
+      ConstIterator& operator--()
       {
         if (offset == 0)
         {
@@ -79,20 +87,85 @@ namespace ds
         return (*this);
       }
 
-      TIterator operator--(int)
+      ConstIterator operator--(int)
       {
         auto temp(*this);
         --(*this);
         return temp;
       }
 
-      T operator*() const
+      ConstIterator& operator+=(size_t n)
       {
-        return it->first + offset;
+        while (offset + n > it->second)
+        {
+          n -= (it->second - offset + 1);
+          it = std::next(it);
+          offset = 0;
+        }
+        offset += n;
+        return (*this);
+      }
+
+      ConstIterator operator+(size_t n) const
+      {
+        ConstIterator copy(it, offset);
+        copy += n;
+        return copy;
+      }
+
+      friend ConstIterator operator+(size_t n, const ConstIterator& other)
+      {
+        return other + n;
+      }
+
+      ConstIterator& operator-=(size_t n)
+      {
+        while (n > offset)
+        {
+          n -= (offset + 1);
+          it = std::prev(it);
+          offset = it->second;
+        }
+        offset -= n;
+        return (*this);
+      }
+
+      ConstIterator operator-(size_t n) const
+      {
+        ConstIterator copy(it, offset);
+        copy -= n;
+        return copy;
+      }
+
+      difference_type operator-(const ConstIterator& other) const
+      {
+        if (it == other.it)
+        {
+          // In same range, simple diff
+          return offset - other.offset;
+        }
+        else if (it < other.it)
+        {
+          return -(other - (*this));
+        }
+        else
+        {
+          // it > other.it
+          // Walk from this->it to other.it, summing all of the ranges that are
+          // passed
+          difference_type sum = 0;
+          sum += offset + 1;
+          auto it_ = std::prev(it);
+          while (it_ != other.it)
+          {
+            sum += it_->second + 1;
+            it_ = std::prev(it_);
+          }
+          sum += it_->second - other.offset;
+          return sum;
+        }
       }
     };
-
-    using ConstIterator = TIterator<typename Ranges::const_iterator>;
 
   private:
     Ranges ranges;
