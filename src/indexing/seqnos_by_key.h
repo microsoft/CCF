@@ -78,8 +78,6 @@ namespace ccf::indexing::strategies
         const auto from_it = seqnos.lower_bound(from);
         const auto to_it = seqnos.upper_bound(to);
 
-        // TODO: Add a more efficient way to get a subrange from
-        // SeqNoCollection, rather than re-constructing here?
         SeqNoCollection sub_range(from_it, to_it);
         return sub_range;
       }

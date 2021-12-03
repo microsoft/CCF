@@ -171,26 +171,59 @@ namespace ds
     Ranges ranges;
 
     template <typename It>
-    void populate_ranges(It first, It end)
+    void init_from_iterators(It begin, It end)
     {
-      if (!std::is_sorted(first, end))
+      if (!std::is_sorted(begin, end))
       {
         throw std::logic_error("Range must be sorted");
       }
 
-      ranges.clear();
-      while (first != end)
+      while (begin != end)
       {
         auto next = std::adjacent_find(
-          first, end, [](const T& a, const T& b) { return a + 1 != b; });
+          begin, end, [](const T& a, const T& b) { return a + 1 != b; });
         if (next == end)
         {
-          ranges.emplace_back(*first, size_t(std::distance(first, end)) - 1);
+          ranges.emplace_back(*begin, size_t(std::distance(begin, end)) - 1);
           break;
         }
-        ranges.emplace_back(*first, size_t(std::distance(first, next)));
-        first = std::next(next);
+        ranges.emplace_back(*begin, size_t(std::distance(begin, next)));
+        begin = std::next(next);
       }
+    }
+
+    void init_from_iterators(
+      const ConstIterator& begin, const ConstIterator& end)
+    {
+      // If they're in different ranges, insert the end of the initial range
+      if (begin.it != end.it)
+      {
+        ranges.emplace_back(
+          begin.it->first + begin.offset, begin.it->second - begin.offset);
+
+        // Walk through intermediate ranges, inserting each
+        auto it = std::next(begin.it);
+        while (it != end.it)
+        {
+          ranges.emplace_back(it->first, it->second);
+          it = std::next(it);
+        }
+
+        // Reached the final range. Insert our final range, if it is non-zero,
+        // depending on the offset
+        if (end.offset != 0)
+        {
+          ranges.emplace_back(end.it->first, end.offset - 1);
+        }
+      }
+      else
+      {
+        if (begin.offset < end.offset)
+        {
+          ranges.emplace_back(begin.it->first, end.offset - begin.offset - 1);
+        }
+      }
+      
     }
 
     void maybe_merge_with_following(typename Ranges::iterator it)
@@ -250,9 +283,9 @@ namespace ds
     ContiguousSet() = default;
 
     template <typename It>
-    ContiguousSet(It first, It end)
+    ContiguousSet(It&& begin, It&& end)
     {
-      populate_ranges(first, end);
+      init_from_iterators(std::forward<It>(begin), std::forward<It>(end));
     }
 
     ContiguousSet(const T& from, size_t additional)
