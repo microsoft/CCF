@@ -240,6 +240,13 @@ void run_tests(
     REQUIRE(sub_range_saluton.has_value());
     check_seqnos(seqnos_saluton, *sub_range_saluton, false);
 
+    const auto max_seqnos = 3;
+    const auto truncated_sub_range_saluton = index_a->get_write_txs_in_range(
+      "saluton", sub_range_start, sub_range_end, max_seqnos);
+    REQUIRE(truncated_sub_range_saluton.has_value());
+    REQUIRE(truncated_sub_range_saluton->size() == max_seqnos);
+    check_seqnos(seqnos_saluton, *truncated_sub_range_saluton, false);
+
     const auto full_range_1 =
       index_b->get_write_txs_in_range(1, 0, current_seqno);
     REQUIRE(full_range_1.has_value());
