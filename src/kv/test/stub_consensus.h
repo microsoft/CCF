@@ -215,11 +215,6 @@ namespace kv::test
     {
       last_signature = seqno;
     }
-
-    void set_last_signature_at(ccf::SeqNo seqno)
-    {
-      last_signature = seqno;
-    }
   };
 
   class BackupStubConsensus : public StubConsensus
