@@ -16,17 +16,16 @@ namespace kv
 {
   template <typename V>
   using VersionV = map::VersionV<V>;
+
+  template <typename K, typename V, typename H>
 #ifndef KV_STATE_RB
-  template <typename K, typename V, typename H>
   using State = champ::Map<K, VersionV<V>, H>;
-  template <typename K, typename V, typename H>
-  using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
 #else
-  template <typename K, typename V, typename H>
   using State = rb::Map<K, VersionV<V>>;
-  template <typename K, typename V, typename H>
-  using Snapshot = rb::Snapshot<K, VersionV<V>>;
 #endif
+
+  template <typename K, typename V, typename H>
+  using Snapshot = typename State<K, V, H>::Snapshot;
 
   // This is a map of keys and with a tuple of the key's write version and the
   // version of last transaction which read the key and committed successfully
