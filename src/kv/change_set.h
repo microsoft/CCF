@@ -2,9 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/champ_map.h"
 #include "ds/hash.h"
 #include "kv/kv_types.h"
+#ifndef KV_STATE_RB
+#  include "ds/champ_map.h"
+#else
+#  include "ds/rb_map.h"
+#endif
 
 #include <map>
 
@@ -12,10 +16,16 @@ namespace kv
 {
   template <typename V>
   using VersionV = map::VersionV<V>;
+
   template <typename K, typename V, typename H>
+#ifndef KV_STATE_RB
   using State = champ::Map<K, VersionV<V>, H>;
+#else
+  using State = rb::Map<K, VersionV<V>>;
+#endif
+
   template <typename K, typename V, typename H>
-  using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
+  using Snapshot = typename State<K, V, H>::Snapshot;
 
   // This is a map of keys and with a tuple of the key's write version and the
   // version of last transaction which read the key and committed successfully

@@ -396,6 +396,7 @@ namespace champ
   public:
     using KeyType = K;
     using ValueType = V;
+    using Snapshot = Snapshot<K, V, H>;
 
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
@@ -457,9 +458,9 @@ namespace champ
       return root->foreach(0, std::forward<F>(f));
     }
 
-    std::unique_ptr<Snapshot<K, V, H>> make_snapshot() const
+    std::unique_ptr<Snapshot> make_snapshot() const
     {
-      return std::make_unique<Snapshot<K, V, H>>(*this);
+      return std::make_unique<Snapshot>(*this);
     }
   };
 
