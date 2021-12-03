@@ -203,17 +203,17 @@ namespace ds
     void init_from_iterators(
       const ConstIterator& begin, const ConstIterator& end)
     {
-      // If they're in different ranges, insert the end of the initial range
+      // If they're in different ranges...
       if (begin.it != end.it)
       {
+        // first insert the end of the initial range
         ranges.emplace_back(
           begin.it->first + begin.offset, begin.it->second - begin.offset);
 
-        // Insert all intermediate ranges, by direct copies
+        // then insert all intermediate ranges, by direct copies
         ranges.insert(ranges.end(), std::next(begin.it), end.it);
 
-        // Reached the final range. Insert our final range, if it is non-zero,
-        // depending on the offset
+        // finally handle the final range; insert part of it if it is non-empty
         if (end.offset != 0)
         {
           ranges.emplace_back(end.it->first, end.offset - 1);
