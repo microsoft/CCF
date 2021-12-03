@@ -77,7 +77,7 @@ def test_add_node(network, args):
     network.trust_node(
         new_node,
         args,
-        validity_period_days=args.max_allowed_node_cert_validity_days // 2,
+        validity_period_days=args.maximum_node_certificate_validity_days // 2,
     )
     with new_node.client() as c:
         s = c.get("/node/state")
@@ -100,11 +100,11 @@ def test_add_node_invalid_validity_period(network, args):
         network.trust_node(
             new_node,
             args,
-            validity_period_days=args.max_allowed_node_cert_validity_days + 1,
+            validity_period_days=args.maximum_node_certificate_validity_days + 1,
         )
     except infra.proposal.ProposalNotAccepted:
         LOG.info(
-            "As expected, not could not be trusted since its certificate validity period is invalid"
+            "As expected, node could not be trusted since its certificate validity period is invalid"
         )
     else:
         raise Exception(
@@ -165,12 +165,12 @@ def test_add_node_from_snapshot(
             break
 
     target_node = None
-    snapshot_dir = None
+    snapshots_dir = None
     if from_backup:
         primary, target_node = network.find_primary_and_any_backup()
         # Retrieve snapshot from primary as only primary node
         # generates snapshots
-        snapshot_dir = network.get_committed_snapshots(primary)
+        snapshots_dir = network.get_committed_snapshots(primary)
 
     new_node = network.create_node("local://localhost")
     network.join_node(
@@ -179,7 +179,7 @@ def test_add_node_from_snapshot(
         args,
         copy_ledger_read_only=copy_ledger_read_only,
         target_node=target_node,
-        snapshot_dir=snapshot_dir,
+        snapshots_dir=snapshots_dir,
         from_snapshot=True,
     )
     network.trust_node(new_node, args)
@@ -320,16 +320,20 @@ def test_node_replacement(network, args):
 
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
-        f"local://{node_to_replace.rpc_host}:{node_to_replace.rpc_port}",
+        f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
         node_port=node_to_replace.node_port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
     network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
-    assert replacement_node.rpc_host == node_to_replace.rpc_host
+    assert (
+        replacement_node.get_public_rpc_host() == node_to_replace.get_public_rpc_host()
+    )
     assert replacement_node.node_port == node_to_replace.node_port
-    assert replacement_node.rpc_port == node_to_replace.rpc_port
+    assert (
+        replacement_node.get_public_rpc_port() == node_to_replace.get_public_rpc_port()
+    )
 
     allowed_to_suspend_count = network.get_f() - len(network.get_stopped_nodes())
     backups_to_suspend = backups[:allowed_to_suspend_count]
@@ -496,6 +500,15 @@ def test_add_node_with_read_only_ledger(network, args):
     return network
 
 
+@reqs.description("Test reconfiguration type in service config")
+def test_service_config_endpoint(network, args):
+    for n in network.get_joined_nodes():
+        with n.client() as c:
+            r = c.get("/node/service-configuration")
+            rj = r.body.json()
+            assert args.reconfiguration_type == rj["reconfiguration_type"]
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -510,7 +523,7 @@ def run(args):
 
         test_version(network, args)
 
-        if args.consensus != "bft":
+        if args.consensus != "BFT":
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
@@ -529,9 +542,10 @@ def run(args):
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
 
-        if args.reconfiguration_type == "2tx":
+        if args.reconfiguration_type == "TwoTransaction":
             test_learner_catches_up(network, args)
 
+        test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
 
@@ -589,7 +603,7 @@ def run_join_old_snapshot(args):
                     args.package,
                     args,
                     from_snapshot=True,
-                    snapshot_dir=tmp_dir,
+                    snapshots_dir=tmp_dir,
                     timeout=3,
                 )
             except infra.network.StartupSnapshotIsOld:
@@ -598,7 +612,7 @@ def run_join_old_snapshot(args):
 
 def run_all(args):
     run(args)
-    if cr.args.consensus != "bft":
+    if cr.args.consensus != "BFT":
         run_join_old_snapshot(all)
 
 
@@ -608,6 +622,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--include-2tx-reconfig",
             help="Include tests for the 2-transaction reconfiguration scheme",
+            default=False,
             action="store_true",
         )
 
@@ -618,7 +633,7 @@ if __name__ == "__main__":
         run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="1tx",
+        reconfiguration_type="OneTransaction",
     )
 
     if cr.args.include_2tx_reconfig:
@@ -627,7 +642,7 @@ if __name__ == "__main__":
             run,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="2tx",
+            reconfiguration_type="TwoTransaction",
         )
 
     cr.run()

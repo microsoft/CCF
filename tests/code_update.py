@@ -29,7 +29,7 @@ def test_verify_quotes(network, args):
         assert (
             infra.proc.ccall(
                 "verify_quote.sh",
-                f"https://{node.pubhost}:{node.pubport}",
+                f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
                 "--cacert",
                 f"{cafile}",
                 log_output=True,

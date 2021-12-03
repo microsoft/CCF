@@ -209,7 +209,7 @@ TEST_CASE("Add a node to an opening service")
     auto http_response = frontend_process(frontend, join_input, "join", caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(http_response, "A node with the same node host");
+    check_error_message(http_response, "A node with the same node address");
   }
 }
 
@@ -284,7 +284,7 @@ TEST_CASE("Add a node to an open service")
     auto http_response = frontend_process(frontend, join_input, "join", caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(http_response, "A node with the same node host");
+    check_error_message(http_response, "A node with the same node address");
   }
 
   INFO("Try to join again without being trusted");

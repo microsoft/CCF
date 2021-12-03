@@ -27,7 +27,7 @@ def minimum_number_of_local_nodes(args):
     """
     If we are using bft then we need to have 3 nodes. CFT will run with 1 nodes, unless it expects a backup
     """
-    if args.consensus == "bft":
+    if args.consensus == "BFT":
         return 3
 
     if args.send_tx_to == "backups":
@@ -63,8 +63,8 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             "client_" + str(client_id),
             client_host,
             args.client,
-            node.rpc_host,
-            node.rpc_port,
+            node.get_public_rpc_host(),
+            node.get_public_rpc_port(),
             args.workspace,
             args.label,
             args.config,

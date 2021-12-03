@@ -14,17 +14,9 @@ namespace kv
   template <typename W>
   class GenericDeserialiseWrapper;
 
-#ifdef USE_NLJSON_KV_SERIALISER
-  class JsonWriter;
-  using KvStoreSerialiser = GenericSerialiseWrapper<JsonWriter>;
-
-  class JsonReader;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<JsonReader>;
-#else
   class RawWriter;
   using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
 
   class RawReader;
   using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
-#endif
 }

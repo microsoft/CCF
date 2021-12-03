@@ -3,8 +3,4 @@
 
 #pragma once
 
-#ifdef USE_NLJSON_KV_SERIALISER
-#  include "kv/nljson_serialise.h"
-#else
-#  include "kv/raw_serialise.h"
-#endif
+#include "kv/raw_serialise.h"

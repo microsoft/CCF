@@ -753,6 +753,45 @@
         ]
       }
     },
+    "/log/private/historical/sparse": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "seqnos",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetHistoricalRange__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
     "/log/private/historical_receipt": {
       "get": {
         "parameters": [

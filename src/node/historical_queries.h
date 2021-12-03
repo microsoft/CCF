@@ -114,7 +114,7 @@ namespace ccf::historical
       std::map<ccf::SeqNo, StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
 
-      bool include_receipts;
+      bool include_receipts = false;
 
       // Entries from outside the requested range (such as the next signature)
       // may be needed to produce receipts. They are stored here, distinct from

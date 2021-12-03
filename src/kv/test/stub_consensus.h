@@ -197,7 +197,7 @@ namespace kv::test
 
     ConsensusDetails get_details() override
     {
-      return ConsensusDetails{{}, {}, ReplicaState::Candidate};
+      return ConsensusDetails{{}, {}, MembershipState::Active};
     }
 
     void add_resharing_result(
@@ -206,14 +206,14 @@ namespace kv::test
       const ccf::ResharingResult& result) override
     {}
 
-    void emit_signature() override
-    {
-      return;
-    }
-
     ConsensusType type() override
     {
       return consensus_type;
+    }
+
+    void set_last_signature_at(ccf::SeqNo seqno)
+    {
+      last_signature = seqno;
     }
 
     void set_last_signature_at(ccf::SeqNo seqno)

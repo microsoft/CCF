@@ -65,17 +65,23 @@
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
           },
+          "leadership_state": {
+            "$ref": "#/components/schemas/LeadershipState"
+          },
           "learners": {
             "$ref": "#/components/schemas/EntityId_to_uint64"
           },
-          "state": {
-            "$ref": "#/components/schemas/ReplicaState"
+          "membership_state": {
+            "$ref": "#/components/schemas/MembershipState"
+          },
+          "retirement_phase": {
+            "$ref": "#/components/schemas/RetirementPhase"
           }
         },
         "required": [
           "configs",
           "acks",
-          "state"
+          "membership_state"
         ],
         "type": "object"
       },
@@ -89,6 +95,13 @@
           "address"
         ],
         "type": "object"
+      },
+      "ConsensusType": {
+        "enum": [
+          "CFT",
+          "BFT"
+        ],
+        "type": "string"
       },
       "EndpointMetrics": {
         "properties": {
@@ -358,6 +371,23 @@
         ],
         "type": "object"
       },
+      "LeadershipState": {
+        "enum": [
+          "Leader",
+          "Follower",
+          "Candidate"
+        ],
+        "type": "string"
+      },
+      "MembershipState": {
+        "enum": [
+          "Learner",
+          "Active",
+          "RetirementInitiated",
+          "Retired"
+        ],
+        "type": "string"
+      },
       "MemoryUsage__Out": {
         "properties": {
           "current_allocated_heap_size": {
@@ -485,16 +515,41 @@
         },
         "type": "array"
       },
-      "ReplicaState": {
+      "ReconfigurationType": {
         "enum": [
-          "Leader",
-          "Follower",
-          "Candidate",
-          "Retired",
-          "Learner",
-          "Retiring"
+          "OneTransaction",
+          "TwoTransaction"
         ],
         "type": "string"
+      },
+      "RetirementPhase": {
+        "enum": [
+          "Committed",
+          "Ordered",
+          "Signed",
+          "Completed"
+        ],
+        "type": "string"
+      },
+      "ServiceConfiguration": {
+        "properties": {
+          "consensus": {
+            "$ref": "#/components/schemas/ConsensusType"
+          },
+          "maximum_node_certificate_validity_days": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "reconfiguration_type": {
+            "$ref": "#/components/schemas/ReconfigurationType"
+          },
+          "recovery_threshold": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "recovery_threshold"
+        ],
+        "type": "object"
       },
       "ServiceStatus": {
         "enum": [
@@ -611,7 +666,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.5.0"
+    "version": "2.7.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -946,6 +1001,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/service-configuration": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceConfiguration"
                 }
               }
             },
