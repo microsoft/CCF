@@ -66,12 +66,18 @@ namespace ccf::indexing::strategies
     }
 
     std::optional<SeqNoCollection> get_write_txs_in_range(
-      const typename M::Key& key, ccf::SeqNo from, ccf::SeqNo to, std::optional<size_t> max_seqnos = std::nullopt)
+      const typename M::Key& key,
+      ccf::SeqNo from,
+      ccf::SeqNo to,
+      std::optional<size_t> max_seqnos = std::nullopt)
     {
       if (to > current_txid.seqno)
       {
-        // If the requested range hasn't been populated yet, indicate that with
-        // nullopt
+        // TODO: Is it possible to return a partial range? If we ask for 10 to
+        // 100 and only 50 is committed, but seqnos is only 10, can we return 10
+        // -> 20?
+        // If the requested range hasn't been populated yet, indicate
+        // that with nullopt
         return std::nullopt;
       }
 
@@ -81,11 +87,15 @@ namespace ccf::indexing::strategies
       {
         SeqNoCollection& seqnos = it->second;
         auto from_it = seqnos.lower_bound(from);
-        auto to_it = seqnos.upper_bound(to);
+        auto to_it = from_it;
 
-        if (max_seqnos.has_value() && (to_it - from_it) > *max_seqnos)
+        if (max_seqnos.has_value() && (size_t)(seqnos.end() - from_it) > *max_seqnos)
         {
-          to_it = from_it + *max_seqnos;
+          to_it += *max_seqnos;
+        }
+        else
+        {
+          to_it = seqnos.upper_bound(to);
         }
 
         SeqNoCollection sub_range(from_it, to_it);

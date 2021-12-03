@@ -962,15 +962,33 @@ namespace loggingapp
           return;
         }
 
+        // TODO: Should decide this after deciding max range?
+        const auto indexed_txid =
+          index_per_private_key->get_indexed_watermark();
+        if (indexed_txid.seqno < to_seqno)
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          ctx.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          ctx.rpc_ctx->set_response_body(fmt::format(
+            "Still constructing index for private records on key {} - indexed "
+            "to {}/{}",
+            id,
+            indexed_txid.seqno,
+            to_seqno));
+          return;
+        }
+
         // Set a maximum range, paginate larger requests
         static constexpr size_t max_seqno_per_page = 2000;
         const auto range_begin = from_seqno;
-        const auto range_end =
-          std::min(to_seqno, range_begin + max_seqno_per_page);
 
         const auto interesting_seqnos =
           index_per_private_key->get_write_txs_in_range(
-            id, range_begin, range_end);
+            id, range_begin, to_seqno, max_seqno_per_page);
         if (!interesting_seqnos.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
@@ -983,6 +1001,8 @@ namespace loggingapp
             "Still constructing index for private records at {}", id));
           return;
         }
+
+        const auto range_end = interesting_seqnos->back();
 
         // Use hash of request as RequestHandle. WARNING: This means identical
         // requests from different users will collide, and overwrite each
