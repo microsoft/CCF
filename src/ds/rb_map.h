@@ -88,6 +88,7 @@ namespace rb
   public:
     using KeyType = K;
     using ValueType = V;
+    using Snapshot = Snapshot<K, V>;
 
     Map() {}
 
@@ -163,9 +164,9 @@ namespace rb
       return true;
     }
 
-    std::unique_ptr<Snapshot<K, V>> make_snapshot() const
+    std::unique_ptr<Snapshot> make_snapshot() const
     {
-      return std::make_unique<Snapshot<K, V>>(*this);
+      return std::make_unique<Snapshot>(*this);
     }
 
   private:
