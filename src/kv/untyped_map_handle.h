@@ -267,7 +267,6 @@ namespace kv::untyped
       return size_;
     }
 
-#ifdef KV_STATE_RB
     // Returns a map of keys to values between [from, to).
     template <class F>
     void range(F&& f, const KeyType& from, const KeyType& to)
@@ -290,8 +289,18 @@ namespace kv::untyped
         return;
       }
 
+      // Since entries are ordered in the RB Map, it is OK to early out once we
+      // have passed the end of the range. Otherwise (CHAMP), all entries should
+      // be considered.
+#ifndef KV_STATE_RB
+      bool continue_past_range_to = true;
+#else
+      bool continue_past_range_to = false;
+#endif
+
       std::map<KeyType, ValueType> res;
-      auto g = [&res, &from, &to](const KeyType& k, const ValueType& v) {
+      auto g = [&res, &from, &to, continue_past_range_to](
+                 const KeyType& k, const ValueType& v) {
         if (k < from)
         {
           // Start of range is not yet found.
@@ -300,7 +309,7 @@ namespace kv::untyped
         else if (k == to || to < k)
         {
           // End of range. Note: `to` is excluded.
-          return false;
+          return continue_past_range_to;
         }
 
         res[k] = v;
@@ -313,6 +322,5 @@ namespace kv::untyped
         f(e.first, e.second);
       }
     }
-#endif
   };
 }

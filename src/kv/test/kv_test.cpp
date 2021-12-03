@@ -2648,8 +2648,6 @@ TEST_CASE("Reported TxID after commit")
   }
 }
 
-#ifdef KV_STATE_RB
-
 template <typename T>
 std::map<T, T> std_map_range(const std::map<T, T>& map, T from, T to)
 {
@@ -2821,4 +2819,3 @@ TEST_CASE("Range")
     REQUIRE(kv_range.at(existing_key) == well_known_value);
   }
 }
-#endif
