@@ -76,7 +76,8 @@ namespace enclave
         if (indexer == nullptr)
         {
           throw std::logic_error(
-            "Calling get_indexing_strategies before NodeContext is initialized");
+            "Calling get_indexing_strategies before NodeContext is "
+            "initialized");
         }
         return *indexer;
       }

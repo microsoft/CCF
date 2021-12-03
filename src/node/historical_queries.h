@@ -1226,7 +1226,8 @@ namespace ccf::historical
     std::vector<StorePtr> get_stores_for(
       RequestHandle handle, const SeqNoCollection& seqnos) override
     {
-      return StateCacheImpl::get_stores_for(make_compound_handle(handle), seqnos);
+      return StateCacheImpl::get_stores_for(
+        make_compound_handle(handle), seqnos);
     }
 
     std::vector<StatePtr> get_states_for(
@@ -1241,7 +1242,8 @@ namespace ccf::historical
     std::vector<StatePtr> get_states_for(
       RequestHandle handle, const SeqNoCollection& seqnos) override
     {
-      return StateCacheImpl::get_states_for(make_compound_handle(handle), seqnos);
+      return StateCacheImpl::get_states_for(
+        make_compound_handle(handle), seqnos);
     }
 
     void set_default_expiry_duration(ExpiryDuration duration) override

@@ -89,7 +89,9 @@ namespace ccf::indexing::strategies
         auto from_it = seqnos.lower_bound(from);
         auto to_it = from_it;
 
-        if (max_seqnos.has_value() && (size_t)(seqnos.end() - from_it) > *max_seqnos)
+        if (
+          max_seqnos.has_value() &&
+          (size_t)(seqnos.end() - from_it) > *max_seqnos)
         {
           to_it += *max_seqnos;
         }
