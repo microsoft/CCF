@@ -57,7 +57,7 @@ def test_historical_query_range(network, args):
     # NB: Because we submit from multiple concurrent threads, the actual pattern
     # on the ledger will not match this but will be interleaved. But the final
     # ratio of transactions will match this
-    id_pattern = [id_a, id_a, id_a, id_b, id_b, id_c]
+    id_pattern = [id_a] * 20 + [id_b] * 5 + [id_c] * 1
 
     n_entries = 10000
 
