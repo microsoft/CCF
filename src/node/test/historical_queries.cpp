@@ -124,7 +124,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     size_t recovery_threshold = 1;
     config->put({recovery_threshold});
     auto member_info = tx.rw<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
-    auto member_public_encryption_keys = tx.rw<ccf::MmeberPublicEncryptionKeys>(
+    auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
     auto kp = crypto::make_key_pair();
