@@ -21,6 +21,8 @@ namespace ccf::indexing::strategies
     std::unordered_map<kv::untyped::SerialisedEntry, SeqNoCollection>
       seqnos_by_key;
 
+    ccf::TxID current_txid;
+
     std::string map_name;
 
   public:
@@ -43,9 +45,10 @@ namespace ccf::indexing::strategies
           seqnos_by_key[k].insert(seqno);
           return true;
         });
+      current_txid = tx_id;
     }
 
-    SeqNoCollection get_write_txs(const typename M::Key& key)
+    SeqNoCollection get_all_write_txs(const typename M::Key& key)
     {
       const auto serialised_key = M::KeySerialiser::to_serialised(key);
       const auto it = seqnos_by_key.find(serialised_key);
@@ -55,6 +58,35 @@ namespace ccf::indexing::strategies
       }
 
       return {};
+    }
+
+    std::optional<SeqNoCollection> get_write_txs_in_range(
+      const typename M::Key& key, ccf::SeqNo from, ccf::SeqNo to)
+    {
+      if (to > current_txid.seqno)
+      {
+        // If the requested range hasn't been populated yet, indicate that with
+        // nullopt
+        return std::nullopt;
+      }
+
+      const auto serialised_key = M::KeySerialiser::to_serialised(key);
+      const auto it = seqnos_by_key.find(serialised_key);
+      if (it != seqnos_by_key.end())
+      {
+        SeqNoCollection& seqnos = it->second;
+        const auto from_it = seqnos.lower_bound(from);
+        const auto to_it = seqnos.upper_bound(to);
+
+        // TODO: Add a more efficient way to get a subrange from
+        // SeqNoCollection, rather than re-constructing here?
+        SeqNoCollection sub_range(from_it, to_it);
+        return sub_range;
+      }
+
+      // In this case we have seen every tx in the requested range, but have not
+      // seen the target key at all
+      return SeqNoCollection();
     }
   };
 }

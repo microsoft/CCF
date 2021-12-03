@@ -55,10 +55,8 @@ namespace ccf::indexing
     bool tick()
     {
       std::optional<ccf::TxID> min_provided = std::nullopt;
-      for (auto& [name, ctx] : strategies)
+      for (auto& [strategy, last_provided] : strategies)
       {
-        auto& [last_provided, strategy] = ctx;
-
         strategy->tick();
 
         if (
@@ -86,9 +84,8 @@ namespace ccf::indexing
             const auto tx_id_ = store->current_txid();
             const ccf::TxID tx_id{tx_id_.term, tx_id_.version};
 
-            for (auto& [name, ctx] : strategies)
+            for (auto& [strategy, last_provided] : strategies)
             {
-              auto& [last_provided, strategy] = ctx;
               if (tx_id.seqno == last_provided.seqno + 1)
               {
                 strategy->handle_committed_transaction(tx_id, store);
@@ -173,14 +170,13 @@ namespace ccf::indexing
 
         if (store_ptr != nullptr)
         {
-          for (auto& [name, ctxt] : strategies)
+          for (auto& [strategy, last_provided] : strategies)
           {
-            auto& [seen_so_far, strategy] = ctxt;
             // Only pass if this is the next seqno this index is seeking
-            if (seen_so_far.seqno + 1 == id.seqno)
+            if (last_provided.seqno + 1 == id.seqno)
             {
               strategy->handle_committed_transaction(id, store_ptr);
-              ctxt.first = id;
+              last_provided = id;
             }
           }
         }

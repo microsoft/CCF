@@ -31,5 +31,5 @@ namespace ccf::indexing
     virtual void tick() {}
   };
 
-  using StrategyPtr = std::unique_ptr<Strategy>;
+  using StrategyPtr = std::shared_ptr<Strategy>;
 }

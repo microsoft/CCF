@@ -134,25 +134,34 @@ public:
 using AllCommittableIndexingConsensus =
   AllCommittableConsensus<IndexingConsensus>;
 
-using SeqNoVec = std::vector<ccf::SeqNo>;
+using ExpectedSeqNos = std::set<ccf::SeqNo>;
 
 void check_seqnos(
-  const SeqNoVec& expected, const ccf::indexing::SeqNoCollection& actual)
+  const ExpectedSeqNos& expected,
+  const ccf::indexing::SeqNoCollection& actual,
+  bool complete_match = true)
 {
-  REQUIRE(expected.size() == actual.size());
-
-  for (auto n : expected)
+  if (complete_match)
   {
-    REQUIRE(actual.contains(n));
+    REQUIRE(expected.size() == actual.size());
+  }
+  else
+  {
+    REQUIRE(expected.size() >= actual.size());
+  }
+
+  for (auto n : actual)
+  {
+    REQUIRE(expected.contains(n));
   }
 }
 
 void create_transactions(
   kv::Store& kv_store,
-  SeqNoVec& seqnos_hello,
-  SeqNoVec& seqnos_saluton,
-  SeqNoVec& seqnos_1,
-  SeqNoVec& seqnos_2,
+  ExpectedSeqNos& seqnos_hello,
+  ExpectedSeqNos& seqnos_saluton,
+  ExpectedSeqNos& seqnos_1,
+  ExpectedSeqNos& seqnos_2,
   size_t count = ccf::indexing::Indexer::MAX_REQUESTABLE * 3)
 {
   INFO("Create and commit transactions");
@@ -179,19 +188,92 @@ void create_transactions(
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     const auto seqno = tx.get_txid()->version;
-    seqnos_hello.push_back(seqno);
+    seqnos_hello.insert(seqno);
     if (write_saluton)
     {
-      seqnos_saluton.push_back(seqno);
+      seqnos_saluton.insert(seqno);
     }
     if (write_1)
     {
-      seqnos_1.push_back(seqno);
+      seqnos_1.insert(seqno);
     }
     if (write_2)
     {
-      seqnos_2.push_back(seqno);
+      seqnos_2.insert(seqno);
     }
+  }
+}
+
+void run_tests(
+  kv::Store& kv_store,
+  ccf::indexing::Indexer& indexer,
+  ExpectedSeqNos& seqnos_hello,
+  ExpectedSeqNos& seqnos_saluton,
+  ExpectedSeqNos& seqnos_1,
+  ExpectedSeqNos& seqnos_2,
+  const std::shared_ptr<IndexA> index_a,
+  const std::shared_ptr<IndexB> index_b)
+{
+  REQUIRE(index_a != nullptr);
+  REQUIRE(index_b != nullptr);
+
+  {
+    check_seqnos(seqnos_1, index_b->get_all_write_txs(1));
+    check_seqnos(seqnos_2, index_b->get_all_write_txs(2));
+  }
+
+  {
+    INFO("Sub-ranges can be requested");
+    const auto current_seqno = kv_store.current_version();
+    const auto sub_range_start = current_seqno / 5;
+    const auto sub_range_end = current_seqno / 3;
+    const auto invalid_seqno_a = current_seqno + 1;
+    const auto invalid_seqno_b = current_seqno * 2;
+
+    const auto full_range_hello =
+      index_a->get_write_txs_in_range("hello", 0, current_seqno);
+    REQUIRE(full_range_hello.has_value());
+    check_seqnos(seqnos_hello, *full_range_hello);
+
+    const auto sub_range_saluton = index_a->get_write_txs_in_range(
+      "saluton", sub_range_start, sub_range_end);
+    REQUIRE(sub_range_saluton.has_value());
+    check_seqnos(seqnos_saluton, *sub_range_saluton, false);
+
+    const auto full_range_1 =
+      index_b->get_write_txs_in_range(1, 0, current_seqno);
+    REQUIRE(full_range_1.has_value());
+    check_seqnos(seqnos_1, *full_range_1);
+
+    const auto sub_range_2 =
+      index_b->get_write_txs_in_range(2, sub_range_start, sub_range_end);
+    REQUIRE(sub_range_2.has_value());
+    check_seqnos(seqnos_2, *sub_range_2, false);
+
+    REQUIRE_FALSE(
+      index_a->get_write_txs_in_range("hello", 0, invalid_seqno_a).has_value());
+    REQUIRE_FALSE(
+      index_a
+        ->get_write_txs_in_range("unused_key", sub_range_start, invalid_seqno_b)
+        .has_value());
+    REQUIRE_FALSE(
+      index_b->get_write_txs_in_range(1, current_seqno, invalid_seqno_a)
+        .has_value());
+    REQUIRE_FALSE(
+      index_b->get_write_txs_in_range(42, invalid_seqno_a, invalid_seqno_b)
+        .has_value());
+  }
+
+  {
+    INFO("Both indexes continue to be updated with new entries");
+    create_transactions(
+      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100);
+
+    check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
+    check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
+
+    check_seqnos(seqnos_1, index_b->get_all_write_txs(1));
+    check_seqnos(seqnos_2, index_b->get_all_write_txs(2));
   }
 }
 
@@ -210,46 +292,30 @@ TEST_CASE("basic indexing")
 
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
 
-  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
-  REQUIRE_THROWS(indexer.install_strategy(std::make_unique<IndexA>(map_a)));
-
-  {
-    REQUIRE(indexer.get_strategy<IndexA>(name_a) != nullptr);
-
-    REQUIRE(indexer.get_strategy<IndexA>("some other junk name") == nullptr);
-    REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
-  }
+  auto index_a = std::make_shared<IndexA>(map_a);
+  REQUIRE(indexer.install_strategy(index_a));
+  REQUIRE_FALSE(indexer.install_strategy(index_a));
 
   static constexpr auto num_transactions =
     ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
-  SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
+  ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
   create_transactions(
     kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
 
   {
     INFO("Confirm that pre-existing strategy was populated already");
 
-    auto index_a = indexer.get_strategy<IndexA>(name_a);
-    REQUIRE(index_a != nullptr);
-
-    check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
-    check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
+    check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
+    check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
   }
 
   INFO(
     "Indexes can be installed later, and will be populated after enough "
     "ticks");
 
-  const auto name_b = indexer.install_strategy(std::make_unique<IndexB>(map_b));
-  REQUIRE_THROWS(indexer.install_strategy(std::make_unique<IndexB>(map_b)));
-
-  {
-    REQUIRE(indexer.get_strategy<IndexA>(name_a) != nullptr);
-    REQUIRE(indexer.get_strategy<IndexB>(name_b) != nullptr);
-
-    REQUIRE(indexer.get_strategy<IndexA>(name_b) == nullptr);
-    REQUIRE(indexer.get_strategy<IndexB>(name_a) == nullptr);
-  }
+  auto index_b = std::make_shared<IndexB>(map_b);
+  REQUIRE(indexer.install_strategy(index_b));
+  REQUIRE_FALSE(indexer.install_strategy(index_b));
 
   while (indexer.tick() || !fetcher->requested.empty())
   {
@@ -265,31 +331,15 @@ TEST_CASE("basic indexing")
     fetcher->requested.clear();
   }
 
-  {
-    auto index_b = indexer.get_strategy<IndexB>(name_b);
-    REQUIRE(index_b != nullptr);
-
-    check_seqnos(seqnos_1, index_b->get_write_txs(1));
-    check_seqnos(seqnos_2, index_b->get_write_txs(2));
-  }
-
-  {
-    INFO("Both indexes continue to be updated with new entries");
-    create_transactions(
-      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100);
-
-    auto index_a = indexer.get_strategy<IndexA>(name_a);
-    REQUIRE(index_a != nullptr);
-
-    check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
-    check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
-
-    auto index_b = indexer.get_strategy<IndexB>(name_b);
-    REQUIRE(index_b != nullptr);
-
-    check_seqnos(seqnos_1, index_b->get_write_txs(1));
-    check_seqnos(seqnos_2, index_b->get_write_txs(2));
-  }
+  run_tests(
+    kv_store,
+    indexer,
+    seqnos_hello,
+    seqnos_saluton,
+    seqnos_1,
+    seqnos_2,
+    index_a,
+    index_b);
 }
 
 kv::Version rekey(
@@ -377,7 +427,8 @@ TEST_CASE("integrated indexing")
   auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
   auto& indexer = *indexer_p;
 
-  const auto name_a = indexer.install_strategy(std::make_unique<IndexA>(map_a));
+  auto index_a = std::make_shared<IndexA>(map_a);
+  REQUIRE(indexer.install_strategy(index_a));
 
   auto ledger = add_raft_consensus(kv_store_p, indexer_p);
 
@@ -405,7 +456,7 @@ TEST_CASE("integrated indexing")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
-  SeqNoVec seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
+  ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
 
   for (size_t i = 0; i < 3; ++i)
   {
@@ -420,18 +471,16 @@ TEST_CASE("integrated indexing")
   {
     INFO("Confirm that pre-existing strategy was populated already");
 
-    auto index_a = indexer.get_strategy<IndexA>(name_a);
-    REQUIRE(index_a != nullptr);
-
-    check_seqnos(seqnos_hello, index_a->get_write_txs("hello"));
-    check_seqnos(seqnos_saluton, index_a->get_write_txs("saluton"));
+    check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
+    check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
   }
 
   INFO(
     "Indexes can be installed later, and will be populated after enough "
     "ticks");
 
-  const auto name_b = indexer.install_strategy(std::make_unique<IndexB>(map_b));
+  auto index_b = std::make_shared<IndexB>(map_b);
+  REQUIRE(indexer.install_strategy(index_b));
 
   size_t handled_writes = 0;
   const auto& writes = stub_writer->writes;
@@ -469,11 +518,13 @@ TEST_CASE("integrated indexing")
     }
   }
 
-  {
-    auto index_b = indexer.get_strategy<IndexB>(name_b);
-    REQUIRE(index_b != nullptr);
-
-    check_seqnos(seqnos_1, index_b->get_write_txs(1));
-    check_seqnos(seqnos_2, index_b->get_write_txs(2));
-  }
+  run_tests(
+    kv_store,
+    indexer,
+    seqnos_hello,
+    seqnos_saluton,
+    seqnos_1,
+    seqnos_2,
+    index_a,
+    index_b);
 }

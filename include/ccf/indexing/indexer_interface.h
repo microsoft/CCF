@@ -6,7 +6,6 @@
 
 #include <map>
 #include <memory>
-#include <string>
 
 namespace ccf::indexing
 {
@@ -20,45 +19,28 @@ namespace ccf::indexing
   protected:
     // Store the highest TxID that each strategy has been given, and assume it
     // doesn't need to be given again later.
-    using StrategyContext = std::pair<ccf::TxID, StrategyPtr>;
-    std::map<std::string, StrategyContext> strategies;
+    std::map<StrategyPtr, ccf::TxID> strategies;
 
   public:
     virtual ~IndexingStrategies() = default;
 
-    std::string install_strategy(StrategyPtr&& strategy)
+    bool install_strategy(const StrategyPtr& strategy)
     {
       if (strategy == nullptr)
       {
         throw std::logic_error("Tried to install null strategy");
       }
 
-      const auto name = strategy->get_name();
-
-      auto it = strategies.find(name);
-      if (it != strategies.end())
+      const auto it = strategies.find(strategy);
+      if (it == strategies.end())
       {
-        throw std::logic_error(
-          fmt::format("Strategy named {} already exists", name));
+        strategies.emplace_hint(it, strategy, ccf::TxID{});
+        return true;
       }
-
-      strategies.emplace_hint(
-        it, name, std::make_pair(ccf::TxID{}, std::move(strategy)));
-
-      return name;
-    }
-
-    template <typename T>
-    T* get_strategy(const std::string& name)
-    {
-      auto it = strategies.find(name);
-      if (it != strategies.end())
+      else
       {
-        auto t = dynamic_cast<T*>(it->second.second.get());
-        return t;
+        return false;
       }
-
-      return nullptr;
     }
   };
 }
