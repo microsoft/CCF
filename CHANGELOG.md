@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Internally, CCF now interprets the former `bool is_snapshot` field in ledger transactions as an `enum EntryType entry_type`. The values and their semantics remain identical for now, but will be extended in 2.0. This change is back-ported to provide a user-friendly error in the event that 1.x nodes attempt to read a ledger produced by 2.x nodes (#3275).
+
 ## [1.0.15]
 
 ### Changed
