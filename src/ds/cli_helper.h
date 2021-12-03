@@ -51,7 +51,7 @@ namespace cli
     return std::make_pair(hostname, port);
   }
 
-  bool parse_address(
+  static bool parse_address(
     const std::string& addr,
     ParsedAddress& parsed,
     const std::string& option_name,
@@ -71,7 +71,7 @@ namespace cli
     return true;
   }
 
-  CLI::Option* add_address_option(
+  static CLI::Option* add_address_option(
     CLI::App& app,
     ParsedAddress& parsed,
     const std::string& option_name,
@@ -98,7 +98,7 @@ namespace cli
   static const std::string IP_ADDRESS_PREFIX("iPAddress:");
   static const std::string DNS_NAME_PREFIX("dNSName:");
 
-  CLI::Option* add_subject_alternative_name_option(
+  static CLI::Option* add_subject_alternative_name_option(
     CLI::App& app,
     std::vector<crypto::SubjectAltName>& parsed,
     const std::string& option_name,
@@ -134,15 +134,11 @@ namespace cli
     return option;
   }
 
-  /// Converts a human-readable time string (with unit literal) to uin64_t size.
-  /// Example:
-  ///   "100" => 100
-  ///   "1 b" => 100
-  ///   "10Kb" => 10240 // you can configure this to be interpreted as kilobyte
-  ///   (*1000) or kibibyte (*1024) "10 KB" => 10240 "10 kb" => 10240 "10 kib"
-  ///   => 10240 // *i, *ib are always interpreted as *bibyte (*1024) "10kb" =>
-  ///   10240 "2 MB" => 2097152 "2 EiB" => 2^61 // Units up to exibyte are
-  ///   supported
+  // Converts a human-readable time string (with unit literal) to uin64_t size
+  // in micro-seconds. Example:
+  //   "100" => 100 microseconds
+  //   "1ms" => 1'000 microseconds
+  // "10min" => 600'000'000 microseconds
   class AsTimeValue : public CLI::AsNumberWithUnit
   {
   public:
@@ -150,7 +146,7 @@ namespace cli
 
     explicit AsTimeValue() : CLI::AsNumberWithUnit(get_mapping())
     {
-      description("TIME [ns, us, ms, s, min(=60s), h]");
+      description("TIME [us, ms, s, min(=60s), h(=24h)]");
     }
 
   private:

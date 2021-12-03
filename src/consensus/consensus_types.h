@@ -12,8 +12,9 @@ namespace consensus
   struct Configuration
   {
     ConsensusType type = ConsensusType::CFT;
-    TimeString timeout; // TODO: ms
-    TimeString election_timeout; // TODO: ms
+    TimeString timeout = 100'000; // TODO: it would be nice to have a better
+                                  // ctor to avoid these huge numbers!
+    TimeString election_timeout = 5'000'000;
 
     bool operator==(const Configuration&) const = default;
     bool operator!=(const Configuration&) const = default;

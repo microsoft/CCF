@@ -3,6 +3,12 @@
 
 #pragma once
 
+#ifndef INSIDE_ENCLAVE
+#  include "ds/cli_helper.h"
+#endif
+
+#include "ds/logger.h"
+
 #include <chrono>
 #include <nlohmann/json.hpp>
 
@@ -21,39 +27,70 @@ struct SizeString
   }
 };
 
-// Note: from_json() is defined differently whether for host or in enclave
-inline void from_json(const nlohmann::json& j, SizeString& str);
 inline void to_json(nlohmann::json& j, const SizeString& str)
 {
   j = str.value;
 }
 
+// Note: Read differently whether on host or enclave
+inline void from_json(const nlohmann::json& j, SizeString& str)
+{
+#ifdef INSIDE_ENCLAVE
+  str = j.get<size_t>();
+#else
+  str = cli::convert_size_string(
+    j.get<std::string>()); // Read from config file on host
+#endif
+}
+
 struct TimeString
 {
-  size_t value_us;
+  std::chrono::microseconds value;
 
   TimeString() = default;
-  TimeString(size_t value_us_) : value_us(value_us_) {}
+  TimeString(size_t value_us_) : value(value_us_) {}
 
   bool operator==(const TimeString&) const = default;
 
-  inline operator size_t() const
-  {
-    return value_us;
-  }
-
   inline operator std::chrono::microseconds() const
   {
-    return std::chrono::microseconds(value_us);
+    LOG_FAIL_FMT("us(): {}", value.count());
+    return value;
+  }
+
+  inline operator std::chrono::milliseconds() const
+  {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(value);
+  }
+
+  inline operator std::chrono::seconds() const
+  {
+    return std::chrono::duration_cast<std::chrono::seconds>(value);
+  }
+
+  size_t count_ms() const
+  {
+    return std::chrono::milliseconds(*this).count();
+  }
+
+  size_t count_s() const
+  {
+    return std::chrono::seconds(*this).count();
   }
 };
 
 // Note: from_json() is defined differently whether for host or in enclave
-inline void from_json(const nlohmann::json& j, TimeString& str);
-inline void to_json(nlohmann::json& j, const TimeString& str)
+inline void from_json(const nlohmann::json& j, TimeString& str)
 {
-  j = str.value_us;
+#ifdef INSIDE_ENCLAVE
+  str = j.get<size_t>();
+#else
+  str = cli::convert_time_string(
+    j.get<std::string>()); // Read from config file on host
+#endif
 }
 
-// using SizeString = UnitString<cli::SizeStringConverter>;
-// using TimeString = UnitString<cli::TimeStringConverter>;
+inline void to_json(nlohmann::json& j, const TimeString& str)
+{
+  j = str.value.count();
+}

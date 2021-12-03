@@ -4,21 +4,9 @@
 #pragma once
 
 #include "common/configuration.h"
-#include "ds/cli_helper.h"
 
 #include <optional>
 #include <string>
-
-inline void from_json(const nlohmann::json& j, SizeString& str)
-{
-  str = cli::convert_size_string(j.get<std::string>());
-}
-
-inline void from_json(const nlohmann::json& j, TimeString& str)
-{
-  str = cli::convert_time_string(j.get<std::string>());
-  LOG_FAIL_FMT("from_json time str: {}", str.value_us);
-}
 
 namespace host
 {
@@ -75,10 +63,10 @@ namespace host
     std::string rpc_addresses_file = "";
 
     // Other
-    TimeString tick_period = 10; // TODO: ms
-    TimeString io_logging_threshold = 10'000'000; // TODO: ns
+    TimeString tick_period = 10'000;
+    TimeString io_logging_threshold = 10'000;
     std::optional<std::string> node_client_interface = std::nullopt;
-    TimeString client_connection_timeout = 2000; // TODO: ms
+    TimeString client_connection_timeout = 2'000'000;
 
     struct Ledger
     {
@@ -135,7 +123,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-        TimeString timer = 1000; // TODO: ms
+        TimeString timer = 1'000'000;
 
         bool operator==(const Join&) const = default;
       };

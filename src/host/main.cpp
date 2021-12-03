@@ -35,8 +35,7 @@ using namespace std::chrono_literals;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
 
-std::chrono::nanoseconds asynchost::TimeBoundLogger::default_max_time(
-  10'000'000);
+std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
 void print_version(size_t)
 {
@@ -182,10 +181,7 @@ int main(int argc, char** argv)
   // set the host log level
   logger::config::level() = config.logging.host_level;
 
-  asynchost::TimeBoundLogger::default_max_time =
-    std::chrono::duration_cast<decltype(
-      asynchost::TimeBoundLogger::default_max_time)>(
-      std::chrono::nanoseconds(config.io_logging_threshold));
+  asynchost::TimeBoundLogger::default_max_time = config.io_logging_threshold;
 
   // create the enclave
   host::Enclave enclave(config.enclave.file, oe_flags);
@@ -392,8 +388,8 @@ int main(int argc, char** argv)
         config.command.join.target_rpc_address);
       startup_config.join.target_rpc_address =
         config.command.join.target_rpc_address;
-      startup_config.join.timer_ms =
-        config.command.join.timer; // TODO: Convert!
+      // startup_config.join.timer_ms =
+      //   config.command.join.timer; // TODO: Convert!
       startup_config.join.network_cert =
         files::slurp(config.network_certificate_file);
     }
