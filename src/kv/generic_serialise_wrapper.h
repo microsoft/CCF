@@ -23,7 +23,7 @@ namespace kv
     W private_writer;
     W* current_writer;
     TxID tx_id;
-    bool is_snapshot;
+    EntryType entry_type;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -57,13 +57,13 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
-      bool is_snapshot_ = false) :
+      EntryType entry_type_ = EntryType::WriteSet) :
       tx_id(tx_id_),
-      is_snapshot(is_snapshot_),
+      entry_type(entry_type_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
-      serialise_internal(is_snapshot);
+      serialise_internal(entry_type);
       serialise_internal(tx_id.version);
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);
@@ -186,7 +186,7 @@ namespace kv
             serialised_hdr,
             encrypted_private_domain,
             tx_id,
-            is_snapshot))
+            entry_type))
       {
         throw KvSerialiserException(fmt::format(
           "Could not serialise transaction at seqno {}", tx_id.version));
@@ -221,7 +221,7 @@ namespace kv
     R private_reader;
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
-    bool is_snapshot;
+    EntryType entry_type;
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -230,7 +230,7 @@ namespace kv
     // domain have been read
     void read_public_header()
     {
-      is_snapshot = public_reader.template read_next<bool>();
+      entry_type = public_reader.template read_next<EntryType>();
       version = public_reader.template read_next<Version>();
       // max_conflict_version is included for compatibility, but currently
       // ignored
