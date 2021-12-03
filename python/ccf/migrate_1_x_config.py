@@ -104,7 +104,7 @@ if __name__ == "__main__":
             elif k == "target_rpc_address":
                 output["command"][s][k] = v
             elif k == "join_timer":
-                output["command"][s]["timer_ms"] = int(v)
+                output["command"][s]["timer"] = f"{v}ms"
 
             # enclave
             elif k == "enclave_file":
@@ -161,22 +161,28 @@ if __name__ == "__main__":
             elif k == "consensus":
                 output["consensus"]["type"] = str.upper(v)
             elif k == "raft_timeout_ms":
-                output["consensus"]["timeout_ms"] = int(v)
+                output["consensus"]["timeout"] = f"{v}ms"
             elif k == "raft_election_timeout_ms":
-                output["consensus"]["election_timeout_ms"] = int(v)
+                output["consensus"]["election_timeout"] = f"{v}ms"
 
             elif k == "sig_tx_interval":
                 output["intervals"]["signature_interval_size"] = int(v)
             elif k == "sig_ms_interval":
-                output["intervals"]["signature_interval_duration_ms"] = int(v)
+                output["intervals"]["signature_interval_duration"] = f"{v}ms"
             elif k == "jwt_key_refresh_interval_s":
-                output["jwt"]["key_refresh_interval_s"] = int(v)
+                output["jwt"]["key_refresh_interval"] = f"{v}s"
 
             # memory
             elif "size" in k:
+                # Remove shift suffix if it exists
+                suffix = "_shift"
+                k = k[: -len(suffix)] if k.endswith(suffix) else k
                 output["memory"][k] = f"{1 << int(v)}"
 
-            elif k in ("worker_threads", "tick_period_ms"):
+            elif k == "tick_period_ms":
+                output["tick_period"] = f"{v}ms"
+
+            elif k == "worker_threads":
                 output[k] = int(v)
 
             # all other options are converted at the top level
