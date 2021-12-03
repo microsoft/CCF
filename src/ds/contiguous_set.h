@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <numeric>
 #include <vector>
 
@@ -24,14 +26,26 @@ namespace ds
     template <typename RangeIt>
     struct TIterator
     {
+      using iterator_category = std::bidirectional_iterator_tag;
+      using value_type = size_t;
+      using difference_type = std::ptrdiff_t;
+      using pointer = const size_t*; // TODO: const depends on RangeIt?
+      using reference = size_t;
+
       RangeIt it;
       size_t offset = 0;
 
-      // clang-format off
-      TIterator(RangeIt i, size_t o = 0): it(i), offset(o) {}
+      TIterator(RangeIt i, size_t o = 0) : it(i), offset(o) {}
 
-      bool operator==(const TIterator& other) const { return (it == other.it && offset == other.offset); }
-      bool operator!=(const TIterator& other) const { return !(*this == other); }
+      bool operator==(const TIterator& other) const
+      {
+        return (it == other.it && offset == other.offset);
+      }
+
+      bool operator!=(const TIterator& other) const
+      {
+        return !(*this == other);
+      }
 
       TIterator& operator++()
       {
@@ -43,14 +57,39 @@ namespace ds
         }
         return (*this);
       }
+
       TIterator operator++(int)
       {
         auto temp(*this);
         ++(*this);
         return temp;
       }
-      T operator*() const { return it->first + offset; }
-      // clang-format on
+
+      TIterator& operator--()
+      {
+        if (offset == 0)
+        {
+          it = std::prev(it);
+          offset = it->second;
+        }
+        else
+        {
+          --offset;
+        }
+        return (*this);
+      }
+
+      TIterator operator--(int)
+      {
+        auto temp(*this);
+        --(*this);
+        return temp;
+      }
+
+      T operator*() const
+      {
+        return it->first + offset;
+      }
     };
 
     using ConstIterator = TIterator<typename Ranges::const_iterator>;
@@ -309,6 +348,16 @@ namespace ds
       return end();
     }
 
+    ConstIterator lower_bound(const T& t) const
+    {
+      return std::lower_bound(begin(), end(), t);
+    }
+
+    ConstIterator upper_bound(const T& t) const
+    {
+      return std::upper_bound(begin(), end(), t);
+    }
+
     void clear()
     {
       ranges.clear();
@@ -333,6 +382,35 @@ namespace ds
     ConstIterator end() const
     {
       return ConstIterator(ranges.end());
+    }
+  };
+}
+
+namespace fmt
+{
+  template <typename T>
+  struct formatter<ds::ContiguousSet<T>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ds::ContiguousSet<T>& v, FormatContext& ctx)
+    {
+      std::vector<std::string> ranges;
+      for (const auto& [from, additional] : v.get_ranges())
+      {
+        ranges.emplace_back(fmt::format("[{}->{}]", from, from + additional));
+      }
+      return format_to(
+        ctx.out(),
+        "{{{} values in {} ranges: {}}}",
+        v.size(),
+        v.get_ranges().size(),
+        fmt::join(ranges, ", "));
     }
   };
 }

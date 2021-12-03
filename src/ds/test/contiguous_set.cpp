@@ -293,6 +293,36 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
   REQUIRE(cs.size() == 5);
   REQUIRE(cs.get_ranges().size() == 2);
 
+  {
+    INFO("lower_bound");
+    REQUIRE(*cs.lower_bound(3) == 5);
+    REQUIRE(*cs.lower_bound(4) == 5);
+    REQUIRE(*cs.lower_bound(5) == 5);
+    REQUIRE(*cs.lower_bound(6) == 8);
+    REQUIRE(*cs.lower_bound(7) == 8);
+    REQUIRE(*cs.lower_bound(8) == 8);
+    REQUIRE(*cs.lower_bound(9) == 9);
+    REQUIRE(*cs.lower_bound(10) == 10);
+    REQUIRE(*cs.lower_bound(11) == 11);
+    REQUIRE(cs.lower_bound(12) == cs.end());
+    REQUIRE(cs.lower_bound(13) == cs.end());
+  }
+
+  {
+    INFO("upper_bound");
+    REQUIRE(*cs.upper_bound(3) == 5);
+    REQUIRE(*cs.upper_bound(4) == 5);
+    REQUIRE(*cs.upper_bound(5) == 8);
+    REQUIRE(*cs.upper_bound(6) == 8);
+    REQUIRE(*cs.upper_bound(7) == 8);
+    REQUIRE(*cs.upper_bound(8) == 9);
+    REQUIRE(*cs.upper_bound(9) == 10);
+    REQUIRE(*cs.upper_bound(10) == 11);
+    REQUIRE(cs.upper_bound(11) == cs.end());
+    REQUIRE(cs.upper_bound(12) == cs.end());
+    REQUIRE(cs.upper_bound(13) == cs.end());
+  }
+
   REQUIRE(cs.find(5) != cs.end());
   REQUIRE(cs.find(5).it->first == 5);
   REQUIRE(cs.find(5).offset == 0);
