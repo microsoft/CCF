@@ -392,39 +392,39 @@ TEST_CASE("Contiguous set iterators" * doctest::test_suite("contiguousset"))
 
   {
     auto it_5 = cs.find(5);
+    auto it_10 = cs.find(10);
     auto it_11 = cs.find(11);
-    auto it_15 = cs.find(15);
     auto it_20 = cs.find(20);
     auto it_30 = cs.find(30);
 
     REQUIRE(it_30 - it_30 == 0);
     REQUIRE(it_30 - it_20 == 3);
-    REQUIRE(it_30 - it_15 == 5);
     REQUIRE(it_30 - it_11 == 6);
+    REQUIRE(it_30 - it_10 == 7);
     REQUIRE(it_30 - it_5 == 9);
 
     REQUIRE(it_20 - it_30 == -3);
     REQUIRE(it_20 - it_20 == 0);
-    REQUIRE(it_20 - it_15 == 2);
     REQUIRE(it_20 - it_11 == 3);
+    REQUIRE(it_20 - it_10 == 4);
     REQUIRE(it_20 - it_5 == 6);
-
-    REQUIRE(it_15 - it_30 == -5);
-    REQUIRE(it_15 - it_20 == -2);
-    REQUIRE(it_15 - it_15 == 0);
-    REQUIRE(it_15 - it_11 == 1);
-    REQUIRE(it_15 - it_5 == 4);
 
     REQUIRE(it_11 - it_30 == -6);
     REQUIRE(it_11 - it_20 == -3);
-    REQUIRE(it_11 - it_15 == -1);
     REQUIRE(it_11 - it_11 == 0);
+    REQUIRE(it_11 - it_10 == 1);
     REQUIRE(it_11 - it_5 == 3);
+
+    REQUIRE(it_10 - it_30 == -7);
+    REQUIRE(it_10 - it_20 == -4);
+    REQUIRE(it_10 - it_11 == -1);
+    REQUIRE(it_10 - it_10 == 0);
+    REQUIRE(it_10 - it_5 == 2);
 
     REQUIRE(it_5 - it_30 == -9);
     REQUIRE(it_5 - it_20 == -6);
-    REQUIRE(it_5 - it_15 == -4);
     REQUIRE(it_5 - it_11 == -3);
+    REQUIRE(it_5 - it_10 == -2);
     REQUIRE(it_5 - it_5 == 0);
   }
 }
