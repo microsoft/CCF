@@ -179,7 +179,8 @@ namespace cli
     size_t ret = 0;
     CLI::AsSizeValue(false)(input); // Parse both all values as multiple of 1024
     auto rc = CLI::detail::integral_conversion(input, ret);
-    CCF_ASSERT_FMT(rc, "Could not convert {} to size_t: {}", input, rc);
+    CCF_ASSERT_FMT(
+      rc, "Could not convert size string {} to size_t: {}", input, rc);
     return ret;
   }
 
@@ -187,7 +188,9 @@ namespace cli
   {
     size_t ret = 0;
     AsTimeValue()(input);
-    assert(CLI::detail::integral_conversion(input, ret));
+    auto rc = CLI::detail::integral_conversion(input, ret);
+    CCF_ASSERT_FMT(
+      rc, "Could not convert time string {} to size_t: {}", input, rc);
     return ret;
   }
 }
