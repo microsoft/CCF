@@ -1072,13 +1072,18 @@ namespace loggingapp
         if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
-          const auto next_page_end =
-            std::min(to_seqno, next_page_start + max_seqno_per_page);
+          const auto next_seqnos =
+            index_per_private_key->get_write_txs_in_range(
+              id, next_page_start, to_seqno, max_seqno_per_page);
+          if (next_seqnos.has_value())
+          {
+            const auto next_page_end = next_seqnos->back();
 
-          ccf::historical::RequestHandle next_page_handle =
-            make_handle(next_page_start, next_page_end, id);
-          historical_cache.get_store_range(
-            next_page_handle, next_page_start, next_page_end);
+            ccf::historical::RequestHandle next_page_handle =
+              make_handle(next_page_start, next_page_end, id);
+            historical_cache.get_store_range(
+              next_page_handle, next_page_start, next_page_end);
+          }
 
           // NB: This path tells the caller to continue to ask until the end of
           // the range, even if the next response is paginated
