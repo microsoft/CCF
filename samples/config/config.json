@@ -1,7 +1,7 @@
 {
   "enclave": {
-    "file": "/home/jumaffre/git/CCF/build/samples/apps/logging/liblogging.virtual.so",
-    "type": "virtual"
+    "file": "lib_jsgeneric.enclave.so.signed",
+    "type": "release"
   },
   "network": {
     "node_address": "127.0.0.1:8081",
@@ -24,15 +24,15 @@
     "type": "start",
     "start": {
       "constitution_files": [
-        "/home/jumaffre/git/CCF/build/workspace/full_test_suite_common/validate.js",
-        "/home/jumaffre/git/CCF/build/workspace/full_test_suite_common/apply.js",
-        "/home/jumaffre/git/CCF/build/workspace/full_test_suite_common/resolve.js",
-        "/home/jumaffre/git/CCF/build/workspace/full_test_suite_common/actions.js"
+        "validate.js",
+        "apply.js",
+        "resolve.js",
+        "actions.js"
       ],
       "members": [
         {
-          "certificate_file": "/home/jumaffre/git/CCF/build/workspace/full_test_suite_common/member0_cert.pem",
-          "encryption_public_key_file": "/home/jumaffre/git/CCF/build/workspace/full_test_suite_common/member0_enc_pubk.pem"
+          "certificate_file": "member0_cert.pem",
+          "encryption_public_key_file": "member0_enc_pubk.pem"
         }
       ],
       "service_configuration": {
