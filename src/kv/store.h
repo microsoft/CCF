@@ -174,8 +174,6 @@ namespace kv
       replicated_tables(replicated_tables_)
     {}
 
-    Store(std::shared_ptr<Consensus> consensus_) : consensus(consensus_) {}
-
     Store(const Store& that) = delete;
 
     std::shared_ptr<Consensus> get_consensus() override

@@ -12,6 +12,8 @@ import suite.test_requirements as reqs
 import infra.crypto
 import ipaddress
 import infra.interfaces
+import infra.path
+import infra.proc
 
 
 from loguru import logger as LOG
@@ -112,6 +114,41 @@ def run_tls_san_checks(args):
         assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
 
+def run_configuration_file_checks(args):
+    LOG.info(
+        f"Verifying JSON configuration samples in {args.config_samples_dir} directory"
+    )
+    CCHOST_BINARY_NAME = "cchost"
+    MIGRATE_CONFIGURATION_SCRIPT = "migrate_1_x_config.py"
+    OUTPUT_2_X_CONFIGURATION_FILE = "2_x_config.json"
+
+    bin_path = infra.path.build_bin_path(
+        CCHOST_BINARY_NAME, enclave_type=args.enclave_type, binary_dir=args.binary_dir
+    )
+
+    # Assumes MIGRATE_CONFIGURATION_SCRIPT is in the path
+    cmd = [
+        MIGRATE_CONFIGURATION_SCRIPT,
+        args.config_file_1x,
+        OUTPUT_2_X_CONFIGURATION_FILE,
+    ]
+    assert infra.proc.ccall(*cmd).returncode == 0
+    config_files_to_check = [OUTPUT_2_X_CONFIGURATION_FILE]
+    config_files_to_check.extend(
+        [
+            os.path.join(args.config_samples_dir, c)
+            for c in os.listdir(args.config_samples_dir)
+        ]
+    )
+
+    for config in config_files_to_check:
+        cmd = [bin_path, f"--config={config}", "--check"]
+        rc = infra.proc.ccall(*cmd).returncode
+        assert rc == 0, f"Failed to run tutorial script: {rc}"
+
+
 def run(args):
+
     run_file_operations(args)
     run_tls_san_checks(args)
+    run_configuration_file_checks(args)

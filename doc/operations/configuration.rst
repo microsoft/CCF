@@ -1,12 +1,20 @@
 Configuration
 =============
 
-The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config </path/to/configuration/file>`` argument.
+The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config /path/to/config/file`` argument.
 
-.. tip:: JSON configuration samples:
+.. tip::
+
+    JSON configuration samples:
 
     - Minimal configuration: https://github.com/microsoft/CCF/blob/main/samples/config/minimal_config.json
     - Full configuration: https://github.com/microsoft/CCF/blob/main/samples/config/config.json
+
+    A single configuration file can be verified using the ``cchost`` executable, but without launching the enclave application, using the ``--check`` option:
+
+    .. code-block:: bash
+
+        $ cchost --config /path/to/config/file --check
 
 Configuration Options
 ---------------------
@@ -62,12 +70,19 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 - ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``secp384r1``.
 - ``initial_validity_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
 
+``command``
+~~~~~~~~~~~
+
+The ``command`` section includes configuration for the type of node (start, join or recover) and associated information.
+
+- ``type``: Type of CCF node (either ``start``, ``join`` or ``recover``). Default value: ``start``.
+
 .. _start configuration:
 
 ``start``
-~~~~~~~~~
++++++++++
 
-.. note:: This only needs to be set when the node started in ``start`` mode.
+Only set when ``type`` is ``start``.
 
 - ``constitution_files``: List of constitution files. These typically include ``actions.js``, ``validate.js``, ``resolve.js`` and ``apply.js``.
 
@@ -108,9 +123,9 @@ Example:
 .. _join configuration:
 
 ``join``
-~~~~~~~~
+++++++++
 
-.. note:: This only needs to be set when the node is started in ``join`` mode.
+Only set when ``type`` is ``join``.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
 - ``timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1000`` ms.

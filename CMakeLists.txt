@@ -268,6 +268,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -344,8 +345,15 @@ if(BUILD_TESTS)
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
-    add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
-    target_link_libraries(cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+    add_unit_test(
+      base64_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
+    )
+    target_link_libraries(base64_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+    add_test_bin(
+      kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
+    )
+    target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
@@ -417,7 +425,7 @@ if(BUILD_TESTS)
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
     add_test(NAME csr_test COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py
-                                   ./cert_test
+                                   ./kp_cert_test
     )
     set_property(
       TEST csr_test
@@ -653,9 +661,16 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --client-tutorial
-      ${CMAKE_SOURCE_DIR}/python/tutorial.py --ledger-tutorial
+      --schema-dir
+      ${CMAKE_SOURCE_DIR}/doc/schemas
+      --client-tutorial
+      ${CMAKE_SOURCE_DIR}/python/tutorial.py
+      --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
+      --config-samples-dir
+      ${CMAKE_SOURCE_DIR}/samples/config
+      --config-file-1x
+      ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version

@@ -500,6 +500,15 @@ def test_add_node_with_read_only_ledger(network, args):
     return network
 
 
+@reqs.description("Test reconfiguration type in service config")
+def test_service_config_endpoint(network, args):
+    for n in network.get_joined_nodes():
+        with n.client() as c:
+            r = c.get("/node/service-configuration")
+            rj = r.body.json()
+            assert args.reconfiguration_type == rj["reconfiguration_type"]
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -536,6 +545,7 @@ def run(args):
         if args.reconfiguration_type == "TwoTransaction":
             test_learner_catches_up(network, args)
 
+        test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
 

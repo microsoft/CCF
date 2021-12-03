@@ -173,7 +173,7 @@ class Node:
         **kwargs,
     ):
         self._start(
-            infra.remote.StartType.new,
+            infra.remote.StartType.start,
             lib_name,
             enclave_type,
             workspace,
@@ -253,7 +253,7 @@ class Node:
             label=label,
             local_node_id=self.local_node_id,
             host=self.host,
-            node_address_hostname=self.node_host,
+            node_address=infra.interfaces.make_address(self.node_host, self.node_port),
             node_address_port=self.node_port,
             node_client_interface=self.node_client_host,
             members_info=members_info,

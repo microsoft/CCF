@@ -20,7 +20,7 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
 
 .. code-block:: bash
 
-    $ cchost --config /path/to/config/file recover
+    $ cchost --config /path/to/config/file
 
 Each node will then immediately restore the public entries of its ledger ("ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``GET /node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
