@@ -317,6 +317,11 @@ TEST_CASE("basic indexing")
   REQUIRE(indexer.install_strategy(index_b));
   REQUIRE_FALSE(indexer.install_strategy(index_b));
 
+  auto current_ = kv_store.current_txid();
+  ccf::TxID current{current_.term, current_.version};
+  REQUIRE(index_a->get_indexed_watermark() == current);
+  REQUIRE(index_b->get_indexed_watermark() == ccf::TxID());
+
   while (indexer.tick() || !fetcher->requested.empty())
   {
     // Do the fetch, simulating an asynchronous fetch by the historical query
@@ -330,6 +335,9 @@ TEST_CASE("basic indexing")
     }
     fetcher->requested.clear();
   }
+
+  REQUIRE(index_a->get_indexed_watermark() == current);
+  REQUIRE(index_b->get_indexed_watermark() == current);
 
   run_tests(
     kv_store,

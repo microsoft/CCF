@@ -21,7 +21,7 @@ namespace ccf::indexing::strategies
     std::unordered_map<kv::untyped::SerialisedEntry, SeqNoCollection>
       seqnos_by_key;
 
-    ccf::TxID current_txid;
+    ccf::TxID current_txid = {};
 
     std::string map_name;
 
@@ -46,6 +46,11 @@ namespace ccf::indexing::strategies
           return true;
         });
       current_txid = tx_id;
+    }
+
+    ccf::TxID get_indexed_watermark() const
+    {
+      return current_txid;
     }
 
     SeqNoCollection get_all_write_txs(const typename M::Key& key)
@@ -86,5 +91,32 @@ namespace ccf::indexing::strategies
       // seen the target key at all
       return SeqNoCollection();
     }
+
+    // std::optional<SeqNoCollection> get_n_write_txs(
+    //   const typename M::Key& key, ccf::SeqNo from, size_t n)
+    // {
+    //   if (to > current_txid.seqno)
+    //   {
+    //     // If the requested range hasn't been populated yet, indicate that with
+    //     // nullopt
+    //     return std::nullopt;
+    //   }
+
+    //   const auto serialised_key = M::KeySerialiser::to_serialised(key);
+    //   const auto it = seqnos_by_key.find(serialised_key);
+    //   if (it != seqnos_by_key.end())
+    //   {
+    //     SeqNoCollection& seqnos = it->second;
+    //     const auto from_it = seqnos.lower_bound(from);
+    //     const auto to_it = seqnos.upper_bound(to);
+
+    //     SeqNoCollection sub_range(from_it, to_it);
+    //     return sub_range;
+    //   }
+
+    //   // In this case we have seen every tx in the requested range, but have not
+    //   // seen the target key at all
+    //   return SeqNoCollection();
+    // }
   };
 }
