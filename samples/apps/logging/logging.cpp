@@ -962,11 +962,15 @@ namespace loggingapp
           return;
         }
 
-        // TODO: Request for target range only!
+        // Set a maximum range, paginate larger requests
+        static constexpr size_t max_seqno_per_page = 2000;
+        const auto range_begin = from_seqno;
+        const auto range_end =
+          std::min(to_seqno, range_begin + max_seqno_per_page);
 
         const auto interesting_seqnos =
           index_per_private_key->get_write_txs_in_range(
-            id, from_seqno, to_seqno);
+            id, range_begin, range_end);
         if (!interesting_seqnos.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
@@ -979,12 +983,6 @@ namespace loggingapp
             "Still constructing index for private records at {}", id));
           return;
         }
-
-        // Set a maximum range, paginate larger requests
-        static constexpr size_t max_seqno_per_page = 2000;
-        const auto range_begin = from_seqno;
-        const auto range_end =
-          std::min(to_seqno, range_begin + max_seqno_per_page);
 
         // Use hash of request as RequestHandle. WARNING: This means identical
         // requests from different users will collide, and overwrite each
