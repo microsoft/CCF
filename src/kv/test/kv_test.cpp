@@ -2651,19 +2651,18 @@ TEST_CASE("Reported TxID after commit")
 template <typename T>
 std::map<T, T> std_map_range(const std::map<T, T>& map, T from, T to)
 {
-  std::map<T, T> ret;
-  for (auto const& e : map)
+  if (to < from || to == from)
   {
-    if (e.first < from)
-    {
-      continue;
-    }
-    else if (!(e.first < to))
-    {
-      break;
-    }
+    return {};
+  }
 
-    ret.emplace(e);
+  std::map<T, T> ret = {};
+  auto f = map.lower_bound(from);
+  auto t = map.upper_bound(to);
+
+  for (auto it = f; it != std::prev(t); it++)
+  {
+    ret.emplace(*it);
   }
 
   return ret;
@@ -2688,14 +2687,13 @@ std::map<T, T> kv_map_range(H& h, const T& from, const T& to)
 
 TEST_CASE("Range")
 {
-  LOG_INFO_FMT("Running KV range tests");
   using KVMap = kv::untyped::Map;
   using KeyType = KVMap::K;
   using ValueType = KVMap::V;
   using RefMap = std::map<KeyType, ValueType>;
   using Serialiser = kv::serialisers::JsonSerialiser<size_t>;
 
-  size_t size = 10;
+  size_t size = 100;
   size_t entries_space_size = size * 10;
   const auto map_name = "public:map";
   const ValueType empty_value = {};
@@ -2747,12 +2745,7 @@ TEST_CASE("Range")
     {
       auto std_range = std_map_range(ref, range.first, range.second);
       auto kv_range = kv_map_range(h, range.first, range.second);
-
       REQUIRE(std_range == kv_range);
-      if (!(range.first < range.second))
-      {
-        REQUIRE(kv_range.empty());
-      }
     }
   }
 
