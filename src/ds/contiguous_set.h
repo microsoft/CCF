@@ -94,16 +94,24 @@ namespace ds
         return temp;
       }
 
-      ConstIterator& operator+=(size_t n)
+      ConstIterator& operator+=(difference_type n_)
       {
-        while (offset + n > it->second)
+        if (n_ < 0)
         {
-          n -= (it->second - offset + 1);
-          it = std::next(it);
-          offset = 0;
+          return (*this) -= (size_t)-n_;
         }
-        offset += n;
-        return (*this);
+        else
+        {
+          size_t n = n_;
+          while (offset + n > it->second)
+          {
+            n -= (it->second - offset + 1);
+            it = std::next(it);
+            offset = 0;
+          }
+          offset += n;
+          return (*this);
+        }
       }
 
       ConstIterator operator+(size_t n) const
@@ -201,13 +209,8 @@ namespace ds
         ranges.emplace_back(
           begin.it->first + begin.offset, begin.it->second - begin.offset);
 
-        // Walk through intermediate ranges, inserting each
-        auto it = std::next(begin.it);
-        while (it != end.it)
-        {
-          ranges.emplace_back(it->first, it->second);
-          it = std::next(it);
-        }
+        // Insert all intermediate ranges, by direct copies
+        ranges.insert(ranges.end(), std::next(begin.it), end.it);
 
         // Reached the final range. Insert our final range, if it is non-zero,
         // depending on the offset
@@ -220,10 +223,10 @@ namespace ds
       {
         if (begin.offset < end.offset)
         {
-          ranges.emplace_back(begin.it->first, end.offset - begin.offset - 1);
+          ranges.emplace_back(
+            begin.it->first + begin.offset, end.offset - begin.offset - 1);
         }
       }
-      
     }
 
     void maybe_merge_with_following(typename Ranges::iterator it)
