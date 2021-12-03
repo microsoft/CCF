@@ -95,7 +95,7 @@ class Network:
         "consensus",
         "log_format_json",
         "constitution",
-        "join_timer",
+        "join_timer_s",
         "worker_threads",
         "ledger_chunk_bytes",
         "subject_alt_names",
@@ -629,13 +629,13 @@ class Network:
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=ceil(args.join_timer * 2 / 1000),
+                    timeout=ceil(args.join_timer_s * 2),
                 )
             if not no_wait:
                 # Here, quote verification has already been run when the node
                 # was added as pending. Only wait for the join timer for the
                 # joining node to retrieve network secrets.
-                node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+                node.wait_for_node_to_join(timeout=ceil(args.join_timer_s * 2))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()
