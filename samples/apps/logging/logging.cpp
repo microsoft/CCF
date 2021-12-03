@@ -137,7 +137,7 @@ namespace loggingapp
 
     metrics::Tracker metrics_tracker;
 
-    std::string index_per_private_key_strategy;
+    std::shared_ptr<RecordsIndexingStrategy> index_per_private_key = nullptr;
 
     static void update_first_write(kv::Tx& tx, size_t id)
     {
@@ -162,9 +162,9 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
-      index_per_private_key_strategy =
-        context.get_indexing_strategies().install_strategy(
-          std::make_unique<RecordsIndexingStrategy>(PRIVATE_RECORDS));
+      index_per_private_key =
+        std::make_shared<RecordsIndexingStrategy>(PRIVATE_RECORDS);
+      context.get_indexing_strategies().install_strategy(index_per_private_key);
 
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
@@ -962,23 +962,12 @@ namespace loggingapp
           return;
         }
 
-        auto strategy = context.get_indexing_strategies()
-                          .get_strategy<RecordsIndexingStrategy>(
-                            index_per_private_key_strategy);
-        if (strategy == nullptr)
-        {
-          // TODO: I guess rather than throwing, this could install on-demand?
-          // But we tried to install this during construction, so why would we
-          // think it's more likely to succeed now? Of course the other question
-          // is, why are we re-requesting it by name now? Why didn't we get and
-          // retain a handle then? Hmmm...
-          throw std::logic_error("Error: missing strategy");
-        }
-
         // TODO: Request for target range only!
 
-        const auto interesting_seqnos = strategy->get_write_txs(id);
-        if (interesting_seqnos.empty())
+        const auto interesting_seqnos =
+          index_per_private_key->get_write_txs_in_range(
+            id, from_seqno, to_seqno);
+        if (!interesting_seqnos.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
@@ -1017,7 +1006,7 @@ namespace loggingapp
         auto& historical_cache = context.get_historical_state();
 
         auto stores =
-          historical_cache.get_store_range(handle, range_begin, range_end);
+          historical_cache.get_stores_for(handle, interesting_seqnos.value());
         if (stores.empty())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
