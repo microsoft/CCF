@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <numeric>
 #include <vector>
 
@@ -21,25 +23,37 @@ namespace ds
 
     // Define an iterator for accessing each contained element, rather than the
     // ranges
-    template <typename RangeIt>
-    struct TIterator
+    struct ConstIterator
     {
+      using iterator_category = std::random_access_iterator_tag;
+      using value_type = size_t;
+      using difference_type = std::ptrdiff_t;
+      using pointer = const size_t*;
+      using reference = size_t;
+
+      using RangeIt = typename Ranges::const_iterator;
+
       RangeIt it;
       size_t offset = 0;
 
-      TIterator(RangeIt i, size_t o = 0) : it(i), offset(o) {}
+      ConstIterator(RangeIt i, size_t o = 0) : it(i), offset(o) {}
 
-      bool operator==(const TIterator& other) const
+      T operator*() const
+      {
+        return it->first + offset;
+      }
+
+      bool operator==(const ConstIterator& other) const
       {
         return (it == other.it && offset == other.offset);
       }
 
-      bool operator!=(const TIterator& other) const
+      bool operator!=(const ConstIterator& other) const
       {
         return !(*this == other);
       }
 
-      TIterator& operator++()
+      ConstIterator& operator++()
       {
         ++offset;
         if (offset > it->second)
@@ -50,44 +64,166 @@ namespace ds
         return (*this);
       }
 
-      TIterator operator++(int)
+      ConstIterator operator++(int)
       {
         auto temp(*this);
         ++(*this);
         return temp;
       }
 
-      T operator*() const
+      ConstIterator& operator--()
       {
-        return it->first + offset;
+        if (offset == 0)
+        {
+          it = std::prev(it);
+          offset = it->second;
+        }
+        else
+        {
+          --offset;
+        }
+        return (*this);
+      }
+
+      ConstIterator operator--(int)
+      {
+        auto temp(*this);
+        --(*this);
+        return temp;
+      }
+
+      ConstIterator& operator+=(difference_type n_)
+      {
+        if (n_ < 0)
+        {
+          return (*this) -= (size_t)-n_;
+        }
+        else
+        {
+          size_t n = n_;
+          while (offset + n > it->second)
+          {
+            n -= (it->second - offset + 1);
+            it = std::next(it);
+            offset = 0;
+          }
+          offset += n;
+          return (*this);
+        }
+      }
+
+      ConstIterator operator+(size_t n) const
+      {
+        ConstIterator copy(it, offset);
+        copy += n;
+        return copy;
+      }
+
+      friend ConstIterator operator+(size_t n, const ConstIterator& other)
+      {
+        return other + n;
+      }
+
+      ConstIterator& operator-=(size_t n)
+      {
+        while (n > offset)
+        {
+          n -= (offset + 1);
+          it = std::prev(it);
+          offset = it->second;
+        }
+        offset -= n;
+        return (*this);
+      }
+
+      ConstIterator operator-(size_t n) const
+      {
+        ConstIterator copy(it, offset);
+        copy -= n;
+        return copy;
+      }
+
+      difference_type operator-(const ConstIterator& other) const
+      {
+        if (it == other.it)
+        {
+          // In same range, simple diff
+          return offset - other.offset;
+        }
+        else if (it < other.it)
+        {
+          return -(other - (*this));
+        }
+        else
+        {
+          // it > other.it
+          // Walk from this->it to other.it, summing all of the ranges that are
+          // passed
+          difference_type sum = 0;
+          sum += offset + 1;
+          auto it_ = std::prev(it);
+          while (it_ != other.it)
+          {
+            sum += it_->second + 1;
+            it_ = std::prev(it_);
+          }
+          sum += it_->second - other.offset;
+          return sum;
+        }
       }
     };
-
-    using ConstIterator = TIterator<typename Ranges::const_iterator>;
 
   private:
     Ranges ranges;
 
     template <typename It>
-    void populate_ranges(It first, It end)
+    void init_from_iterators(It begin, It end)
     {
-      if (!std::is_sorted(first, end))
+      if (!std::is_sorted(begin, end))
       {
         throw std::logic_error("Range must be sorted");
       }
 
-      ranges.clear();
-      while (first != end)
+      while (begin != end)
       {
         auto next = std::adjacent_find(
-          first, end, [](const T& a, const T& b) { return a + 1 != b; });
+          begin, end, [](const T& a, const T& b) { return a + 1 != b; });
         if (next == end)
         {
-          ranges.emplace_back(*first, size_t(std::distance(first, end)) - 1);
+          ranges.emplace_back(*begin, size_t(std::distance(begin, end)) - 1);
           break;
         }
-        ranges.emplace_back(*first, size_t(std::distance(first, next)));
-        first = std::next(next);
+        ranges.emplace_back(*begin, size_t(std::distance(begin, next)));
+        begin = std::next(next);
+      }
+    }
+
+    void init_from_iterators(
+      const ConstIterator& begin, const ConstIterator& end)
+    {
+      // If they're in different ranges...
+      if (begin.it != end.it)
+      {
+        // first insert the end of the initial range
+        ranges.emplace_back(
+          begin.it->first + begin.offset, begin.it->second - begin.offset);
+
+        // then insert all intermediate ranges, by direct copies
+        ranges.insert(ranges.end(), std::next(begin.it), end.it);
+
+        // finally handle the final range; insert part of it if it is non-empty
+        if (end.offset != 0)
+        {
+          ranges.emplace_back(end.it->first, end.offset - 1);
+        }
+      }
+      else
+      {
+        if (begin.offset < end.offset)
+        {
+          ranges.emplace_back(
+            begin.it->first + begin.offset, end.offset - begin.offset - 1);
+        }
       }
     }
 
@@ -148,9 +284,9 @@ namespace ds
     ContiguousSet() = default;
 
     template <typename It>
-    ContiguousSet(It first, It end)
+    ContiguousSet(It&& begin, It&& end)
     {
-      populate_ranges(first, end);
+      init_from_iterators(std::forward<It>(begin), std::forward<It>(end));
     }
 
     ContiguousSet(const T& from, size_t additional)
@@ -325,6 +461,16 @@ namespace ds
       return end();
     }
 
+    ConstIterator lower_bound(const T& t) const
+    {
+      return std::lower_bound(begin(), end(), t);
+    }
+
+    ConstIterator upper_bound(const T& t) const
+    {
+      return std::upper_bound(begin(), end(), t);
+    }
+
     void clear()
     {
       ranges.clear();
@@ -349,6 +495,35 @@ namespace ds
     ConstIterator end() const
     {
       return ConstIterator(ranges.end());
+    }
+  };
+}
+
+namespace fmt
+{
+  template <typename T>
+  struct formatter<ds::ContiguousSet<T>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ds::ContiguousSet<T>& v, FormatContext& ctx)
+    {
+      std::vector<std::string> ranges;
+      for (const auto& [from, additional] : v.get_ranges())
+      {
+        ranges.emplace_back(fmt::format("[{}->{}]", from, from + additional));
+      }
+      return format_to(
+        ctx.out(),
+        "{{{} values in {} ranges: {}}}",
+        v.size(),
+        v.get_ranges().size(),
+        fmt::join(ranges, ", "));
     }
   };
 }

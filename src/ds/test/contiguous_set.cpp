@@ -217,7 +217,7 @@ TEST_CASE_TEMPLATE(
   REQUIRE_FALSE(cs.contains(b));
 }
 
-TEST_CASE("foo" * doctest::test_suite("contiguousset"))
+TEST_CASE("Contiguous set single range" * doctest::test_suite("contiguousset"))
 {
   ds::ContiguousSet<size_t> cs;
 
@@ -293,6 +293,36 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
   REQUIRE(cs.size() == 5);
   REQUIRE(cs.get_ranges().size() == 2);
 
+  {
+    INFO("lower_bound");
+    REQUIRE(*cs.lower_bound(3) == 5);
+    REQUIRE(*cs.lower_bound(4) == 5);
+    REQUIRE(*cs.lower_bound(5) == 5);
+    REQUIRE(*cs.lower_bound(6) == 8);
+    REQUIRE(*cs.lower_bound(7) == 8);
+    REQUIRE(*cs.lower_bound(8) == 8);
+    REQUIRE(*cs.lower_bound(9) == 9);
+    REQUIRE(*cs.lower_bound(10) == 10);
+    REQUIRE(*cs.lower_bound(11) == 11);
+    REQUIRE(cs.lower_bound(12) == cs.end());
+    REQUIRE(cs.lower_bound(13) == cs.end());
+  }
+
+  {
+    INFO("upper_bound");
+    REQUIRE(*cs.upper_bound(3) == 5);
+    REQUIRE(*cs.upper_bound(4) == 5);
+    REQUIRE(*cs.upper_bound(5) == 8);
+    REQUIRE(*cs.upper_bound(6) == 8);
+    REQUIRE(*cs.upper_bound(7) == 8);
+    REQUIRE(*cs.upper_bound(8) == 9);
+    REQUIRE(*cs.upper_bound(9) == 10);
+    REQUIRE(*cs.upper_bound(10) == 11);
+    REQUIRE(cs.upper_bound(11) == cs.end());
+    REQUIRE(cs.upper_bound(12) == cs.end());
+    REQUIRE(cs.upper_bound(13) == cs.end());
+  }
+
   REQUIRE(cs.find(5) != cs.end());
   REQUIRE(cs.find(5).it->first == 5);
   REQUIRE(cs.find(5).offset == 0);
@@ -305,6 +335,207 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
   REQUIRE(cs.get_ranges().size() == 0);
 }
 
+TEST_CASE("Contiguous set iterators" * doctest::test_suite("contiguousset"))
+{
+  ds::ContiguousSet<size_t> cs;
+
+  REQUIRE(cs.insert(5));
+  REQUIRE(cs.insert(9));
+  REQUIRE(cs.insert(10));
+  REQUIRE(cs.insert(11));
+  REQUIRE(cs.insert(15));
+  REQUIRE(cs.insert(16));
+  REQUIRE(cs.insert(20));
+  REQUIRE(cs.insert(25));
+  REQUIRE(cs.insert(29));
+  REQUIRE(cs.insert(30));
+
+  auto it = cs.lower_bound(12);
+  REQUIRE(*it == 15);
+  it += 1;
+  REQUIRE(*it == 16);
+  it += 1;
+  REQUIRE(*it == 20);
+  it += 2;
+  REQUIRE(*it == 29);
+
+  it -= 1;
+  REQUIRE(*it == 25);
+  it -= 1;
+  REQUIRE(*it == 20);
+  it -= 1;
+  REQUIRE(*it == 16);
+  it -= 2;
+  REQUIRE(*it == 11);
+
+  it += 0;
+  REQUIRE(*it == 11);
+  it -= 0;
+  REQUIRE(*it == 11);
+
+  {
+    auto it_a = it + 1;
+    REQUIRE(*it_a == 15);
+    it_a = 1 + it;
+    REQUIRE(*it_a == 15);
+
+    it_a = it + 3;
+    REQUIRE(*it_a == 20);
+    it_a = 3 + it;
+    REQUIRE(*it_a == 20);
+
+    it_a = it - 1;
+    REQUIRE(*it_a == 10);
+    it_a = it - 3;
+    REQUIRE(*it_a == 5);
+  }
+
+  {
+    auto it_5 = cs.find(5);
+    auto it_11 = cs.find(11);
+    auto it_15 = cs.find(15);
+    auto it_20 = cs.find(20);
+    auto it_30 = cs.find(30);
+
+    REQUIRE(it_30 - it_30 == 0);
+    REQUIRE(it_30 - it_20 == 3);
+    REQUIRE(it_30 - it_15 == 5);
+    REQUIRE(it_30 - it_11 == 6);
+    REQUIRE(it_30 - it_5 == 9);
+
+    REQUIRE(it_20 - it_30 == -3);
+    REQUIRE(it_20 - it_20 == 0);
+    REQUIRE(it_20 - it_15 == 2);
+    REQUIRE(it_20 - it_11 == 3);
+    REQUIRE(it_20 - it_5 == 6);
+
+    REQUIRE(it_15 - it_30 == -5);
+    REQUIRE(it_15 - it_20 == -2);
+    REQUIRE(it_15 - it_15 == 0);
+    REQUIRE(it_15 - it_11 == 1);
+    REQUIRE(it_15 - it_5 == 4);
+
+    REQUIRE(it_11 - it_30 == -6);
+    REQUIRE(it_11 - it_20 == -3);
+    REQUIRE(it_11 - it_15 == -1);
+    REQUIRE(it_11 - it_11 == 0);
+    REQUIRE(it_11 - it_5 == 3);
+
+    REQUIRE(it_5 - it_30 == -9);
+    REQUIRE(it_5 - it_20 == -6);
+    REQUIRE(it_5 - it_15 == -4);
+    REQUIRE(it_5 - it_11 == -3);
+    REQUIRE(it_5 - it_5 == 0);
+  }
+}
+
+TEST_CASE(
+  "Contiguous set range construction" * doctest::test_suite("contiguousset"))
+{
+  ds::ContiguousSet<size_t> cs;
+
+  REQUIRE(cs.insert(5));
+  REQUIRE(cs.insert(6));
+  REQUIRE(cs.insert(9));
+  REQUIRE(cs.insert(10));
+  REQUIRE(cs.insert(11));
+  REQUIRE(cs.insert(12));
+  REQUIRE(cs.insert(16));
+  REQUIRE(cs.insert(20));
+  REQUIRE(cs.insert(25));
+  REQUIRE(cs.insert(26));
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.begin(), cs.end());
+    REQUIRE(cs == subrange);
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.begin(), cs.begin());
+    REQUIRE(subrange.empty());
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.end(), cs.end());
+    REQUIRE(subrange.empty());
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(6));
+    REQUIRE(subrange.size() == 1);
+    REQUIRE(subrange.contains(5));
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.begin(), cs.find(9));
+    REQUIRE(subrange.size() == 2);
+    REQUIRE(subrange.contains(5));
+    REQUIRE(subrange.contains(6));
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(9));
+    REQUIRE(subrange.size() == 2);
+    REQUIRE(subrange.contains(5));
+    REQUIRE(subrange.contains(6));
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(10));
+    REQUIRE(subrange.size() == 3);
+    REQUIRE(subrange.contains(5));
+    REQUIRE(subrange.contains(6));
+    REQUIRE(subrange.contains(9));
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(11));
+    REQUIRE(subrange.size() == 3);
+    REQUIRE(subrange.contains(6));
+    REQUIRE(subrange.contains(9));
+    REQUIRE(subrange.contains(10));
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(25));
+    REQUIRE(subrange.size() == 7);
+    REQUIRE(subrange.contains(6));
+    REQUIRE(subrange.contains(9));
+    REQUIRE(subrange.contains(10));
+    REQUIRE(subrange.contains(11));
+    REQUIRE(subrange.contains(12));
+    REQUIRE(subrange.contains(16));
+    REQUIRE(subrange.contains(20));
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(26));
+    REQUIRE(subrange.size() == 8);
+    REQUIRE(subrange.contains(6));
+    REQUIRE(subrange.contains(9));
+    REQUIRE(subrange.contains(10));
+    REQUIRE(subrange.contains(11));
+    REQUIRE(subrange.contains(12));
+    REQUIRE(subrange.contains(16));
+    REQUIRE(subrange.contains(20));
+    REQUIRE(subrange.contains(25));
+  }
+
+  {
+    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.end());
+    REQUIRE(subrange.size() == 9);
+    REQUIRE(subrange.contains(6));
+    REQUIRE(subrange.contains(9));
+    REQUIRE(subrange.contains(10));
+    REQUIRE(subrange.contains(11));
+    REQUIRE(subrange.contains(12));
+    REQUIRE(subrange.contains(16));
+    REQUIRE(subrange.contains(20));
+    REQUIRE(subrange.contains(25));
+    REQUIRE(subrange.contains(26));
+  }
+}
+
 TEST_CASE("Contiguous set correctness" * doctest::test_suite("contiguousset"))
 {
   for (auto i = 0; i < 10; ++i)
@@ -313,6 +544,11 @@ TEST_CASE("Contiguous set correctness" * doctest::test_suite("contiguousset"))
     test<int>(0, 20);
     test<int>(-20, 20);
   }
+}
+
+TEST_CASE("Contiguous set scale" * doctest::test_suite("contiguousset"))
+{
+  test<size_t>(0, 100'000);
 }
 
 TEST_CASE("Contiguous set extend" * doctest::test_suite("contiguousset"))
