@@ -20,7 +20,7 @@ namespace ccf
       digest = digest_;
     }
 
-    inline bool empty()
+    inline bool empty() const
     {
       return is_set;
     }

@@ -7,6 +7,7 @@
 #include "kv_types.h"
 #include "serialised_entry.h"
 #include "serialised_entry_format.h"
+#include "enclave/claims.h"
 
 #include <optional>
 
@@ -57,13 +58,19 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
-      EntryType entry_type_ = EntryType::WriteSet) :
+      EntryType entry_type_ = EntryType::WriteSet,
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
+      if (entry_type == EntryType::WriteSetWithClaims &&
+          !claims_digest_.empty())
+      {
+        serialise_internal(claims_digest_.value());
+      }
       serialise_internal(tx_id.version);
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);

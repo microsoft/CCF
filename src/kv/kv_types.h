@@ -283,7 +283,8 @@ namespace kv
   enum class EntryType : uint8_t
   {
     WriteSet = 0,
-    Snapshot = 1
+    Snapshot = 1,
+    WriteSetWithClaims = 2
   };
 
   // EntryType must be backwards compatible with the older

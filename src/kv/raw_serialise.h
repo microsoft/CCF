@@ -47,6 +47,12 @@ namespace kv
         entry_size_bytes);
     }
 
+    template <typename T, typename SIZE>
+    serialise_array(const std::array<T, SIZE>& array)
+    {
+      
+    }
+
     void serialise_string(const std::string& str)
     {
       size_t size_before = buf.size();
@@ -72,6 +78,10 @@ namespace kv
         {
           serialise_vector(entry);
         }
+      }
+      else if constexpr (std::is_same_v<T, crypto::Sha256Hash))
+      {
+        serialise_entry();
       }
       else if constexpr (std::is_same_v<T, EntryType>)
       {
