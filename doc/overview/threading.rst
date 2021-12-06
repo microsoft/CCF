@@ -17,7 +17,10 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-To enable multiple worker threads, pass the ``--worker-threads=`` flag along with the number of desired threads to ``cchost`` when starting a CCF node.
+.. warning:: Multiple enclave threads are experimental for now. The ``worker_threads`` configuration option should be set to ``0`` in production environments.
+
+To enable multiple worker threads, the ``worker_threads`` configuration option can be used  along with the number of desired threads to ``cchost`` when starting a CCF node.
+
 It is strongly recommended that all CCF nodes run the same number of worker threads.
 The number of worker threads must be at least 1 less than the value of ``NumTCS`` in the oe_sign.conf file.
 

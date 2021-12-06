@@ -1,116 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-/* Definition of the call-in and call-out interfaces
- */
 #pragma once
 
-#include "consensus/consensus_types.h"
-#include "consensus_type.h"
-#include "crypto/curve.h"
-#include "crypto/san.h"
 #include "ds/buffer.h"
-#include "ds/json.h"
-#include "ds/logger.h"
 #include "ds/oversized.h"
 #include "ds/ring_buffer_types.h"
-#include "kv/kv_types.h"
-#include "node/members.h"
-#include "node/node_info_network.h"
-#include "reconfiguration_type.h"
 
 #include <chrono>
-
-struct EnclaveConfig
-{
-  uint8_t* to_enclave_buffer_start;
-  size_t to_enclave_buffer_size;
-  ringbuffer::Offsets* to_enclave_buffer_offsets;
-
-  uint8_t* from_enclave_buffer_start;
-  size_t from_enclave_buffer_size;
-  ringbuffer::Offsets* from_enclave_buffer_offsets;
-
-  oversized::WriterConfig writer_config = {};
-};
-
-struct CCFConfig
-{
-  consensus::Configuration consensus_config = {};
-  ccf::NodeInfoNetwork node_info_network = {};
-  size_t snapshot_tx_interval;
-
-  // Only if joining or recovering
-  std::vector<uint8_t> startup_snapshot;
-  std::optional<size_t> startup_snapshot_evidence_seqno_for_1_x = std::nullopt;
-
-  struct SignatureIntervals
-  {
-    size_t sig_tx_interval;
-    size_t sig_ms_interval;
-  };
-  SignatureIntervals signature_intervals = {};
-
-  struct Genesis
-  {
-    std::vector<ccf::NewMember> members_info;
-    std::string constitution;
-    size_t recovery_threshold;
-    size_t max_allowed_node_cert_validity_days;
-    ReconfigurationType reconfiguration_type;
-  };
-  Genesis genesis = {};
-
-  struct Joining
-  {
-    std::string target_host;
-    std::string target_port;
-    std::vector<uint8_t> network_cert;
-    size_t join_timer;
-  };
-  Joining joining = {};
-
-  crypto::CertificateSubjectIdentity node_certificate_subject_identity;
-  size_t jwt_key_refresh_interval_s;
-  crypto::CurveID curve_id;
-
-  size_t initial_node_certificate_validity_period_days;
-  std::string startup_host_time;
-};
-
-DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::SignatureIntervals, sig_tx_interval, sig_ms_interval);
-
-DECLARE_JSON_TYPE(CCFConfig::Genesis);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Genesis,
-  members_info,
-  constitution,
-  recovery_threshold,
-  max_allowed_node_cert_validity_days,
-  reconfiguration_type);
-
-DECLARE_JSON_TYPE(CCFConfig::Joining);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Joining, target_host, target_port, network_cert, join_timer);
-
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
-DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig,
-  consensus_config,
-  node_info_network,
-  snapshot_tx_interval,
-  startup_snapshot,
-  signature_intervals,
-  genesis,
-  joining,
-  node_certificate_subject_identity,
-  jwt_key_refresh_interval_s,
-  curve_id,
-  initial_node_certificate_validity_period_days,
-  startup_host_time);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig, startup_snapshot_evidence_seqno_for_1_x);
+#include <vector>
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message

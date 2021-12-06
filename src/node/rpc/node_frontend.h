@@ -188,10 +188,9 @@ namespace ccf
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::NodeAlreadyExists,
           fmt::format(
-            "A node with the same node host {} and port {} already exists "
+            "A node with the same node address {} already exists "
             "(node id: {}).",
-            in.node_info_network.node_address.hostname,
-            in.node_info_network.node_address.port,
+            in.node_info_network.node_address,
             conflicting_node_id.value()));
       }
 
@@ -321,7 +320,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.5.0";
+      openapi_info.document_version = "2.7.0";
     }
 
     void init_handlers() override
@@ -429,13 +428,10 @@ namespace ccf
               if (info)
               {
                 const auto& pub_address =
-                  info->rpc_interfaces[0].public_rpc_address;
+                  info->rpc_interfaces[0].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format(
-                    "https://{}:{}/node/join",
-                    pub_address.hostname,
-                    pub_address.port));
+                  fmt::format("https://{}/node/join", pub_address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -518,13 +514,10 @@ namespace ccf
               if (info)
               {
                 const auto& pub_address =
-                  info->rpc_interfaces[0].public_rpc_address;
+                  info->rpc_interfaces[0].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format(
-                    "https://{}:{}/node/join",
-                    pub_address.hostname,
-                    pub_address.port));
+                  fmt::format("https://{}/node/join", pub_address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -778,10 +771,12 @@ namespace ccf
         nodes->foreach([this, host, port, status, &out](
                          const NodeId& nid, const NodeInfo& ni) {
           const auto& primary_interface = ni.rpc_interfaces[0];
-          const auto& pub_address = primary_interface.public_rpc_address;
-          if (host.has_value() && host.value() != pub_address.hostname)
+          const auto& pub_address = primary_interface.published_address;
+          const auto& [pub_host, pub_port] = split_net_address(pub_address);
+
+          if (host.has_value() && host.value() != pub_host)
             return true;
-          if (port.has_value() && port.value() != pub_address.port)
+          if (port.has_value() && port.value() != pub_port)
             return true;
           if (status.has_value() && status.value() != ni.status)
             return true;
@@ -791,13 +786,16 @@ namespace ccf
           {
             is_primary = consensus->primary() == nid;
           }
+
+          const auto& [rpc_host, rpc_port] =
+            split_net_address(primary_interface.bind_address);
           out.nodes.push_back(
             {nid,
              ni.status,
-             pub_address.hostname,
-             pub_address.port,
-             primary_interface.rpc_address.hostname,
-             primary_interface.rpc_address.port,
+             pub_host,
+             pub_port,
+             rpc_host,
+             rpc_port,
              is_primary});
           return true;
         });
@@ -855,14 +853,12 @@ namespace ccf
         }
         auto ni = info.value();
         const auto& primary_interface = ni.rpc_interfaces[0];
+        const auto& [pubhost, pubport] =
+          split_net_address(primary_interface.published_address);
+        const auto& [rpchost, rpcport] =
+          split_net_address(primary_interface.bind_address);
         return make_success(GetNode::Out{
-          node_id,
-          ni.status,
-          primary_interface.public_rpc_address.hostname,
-          primary_interface.public_rpc_address.port,
-          primary_interface.rpc_address.hostname,
-          primary_interface.rpc_address.port,
-          is_primary});
+          node_id, ni.status, pubhost, pubport, rpchost, rpcport, is_primary});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",
@@ -880,15 +876,12 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
-          const auto& address = info->rpc_interfaces[0].public_rpc_address;
+          const auto& address = info->rpc_interfaces[0].published_address;
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
             fmt::format(
-              "https://{}:{}/node/network/nodes/{}",
-              address.hostname,
-              address.port,
-              node_id.value()));
+              "https://{}/node/network/nodes/{}", address, node_id.value()));
           return;
         }
 
@@ -924,14 +917,13 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
-            const auto& address = info->rpc_interfaces[0].public_rpc_address;
+            const auto& address = info->rpc_interfaces[0].published_address;
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
             args.rpc_ctx->set_response_header(
               http::headers::LOCATION,
               fmt::format(
-                "https://{}:{}/node/network/nodes/{}",
-                address.hostname,
-                address.port,
+                "https://{}/node/network/nodes/{}",
+                address,
                 primary_id->value()));
             return;
           }
@@ -974,13 +966,10 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
-              const auto& address = info->rpc_interfaces[0].public_rpc_address;
+              const auto& address = info->rpc_interfaces[0].published_address;
               args.rpc_ctx->set_response_header(
                 http::headers::LOCATION,
-                fmt::format(
-                  "https://{}:{}/node/primary",
-                  address.hostname,
-                  address.port));
+                fmt::format("https://{}/node/primary", address));
             }
           }
         }
@@ -1188,16 +1177,18 @@ namespace ccf
           // Note that it is acceptable to start a network without any member
           // having a recovery share. The service will check that at least one
           // recovery member is added before the service is opened.
-          for (const auto& info : in.genesis_info->members_info)
+          for (const auto& info : in.genesis_info->members)
           {
             g.add_member(info);
           }
 
           if (
-            in.genesis_info->configuration.consensus == ConsensusType::BFT &&
-            (!in.genesis_info->configuration.reconfiguration_type.has_value() ||
-             in.genesis_info->configuration.reconfiguration_type.value() !=
-               ReconfigurationType::TWO_TRANSACTION))
+            in.genesis_info->service_configuration.consensus ==
+              ConsensusType::BFT &&
+            (!in.genesis_info->service_configuration.reconfiguration_type
+                .has_value() ||
+             in.genesis_info->service_configuration.reconfiguration_type
+                 .value() != ReconfigurationType::TWO_TRANSACTION))
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1205,7 +1196,7 @@ namespace ccf
               "BFT consensus requires two-transaction reconfiguration.");
           }
 
-          g.init_configuration(in.genesis_info->configuration);
+          g.init_configuration(in.genesis_info->service_configuration);
           g.set_constitution(in.genesis_info->constitution);
         }
 
@@ -1458,6 +1449,22 @@ namespace ccf
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
+        .install();
+
+      auto service_config_handler =
+        [this](auto& args, const nlohmann::json& params) {
+          return make_success(args.tx.ro(network.config)->get());
+        };
+
+      make_endpoint(
+        "/service-configuration",
+        HTTP_GET,
+        json_adapter(service_config_handler),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, ServiceConfiguration>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
     }
   };

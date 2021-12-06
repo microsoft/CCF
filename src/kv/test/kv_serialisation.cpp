@@ -26,9 +26,11 @@ TEST_CASE(
 {
   // No need for an encryptor here as all maps are public. Both serialisation
   // and deserialisation should succeed.
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
 
-  kv::Store kv_store(consensus);
+  kv::Store kv_store;
+
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  kv_store.set_consensus(consensus);
 
   kv::Store kv_store_target;
 
@@ -131,7 +133,8 @@ TEST_CASE(
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-  kv::Store kv_store(consensus);
+  kv::Store kv_store;
+  kv_store.set_consensus(consensus);
 
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
@@ -178,7 +181,8 @@ TEST_CASE(
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-  kv::Store kv_store(consensus);
+  kv::Store kv_store;
+  kv_store.set_consensus(consensus);
   kv_store.set_encryptor(encryptor);
 
   constexpr auto priv_map = "priv_map";
@@ -222,7 +226,8 @@ TEST_CASE(
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-  kv::Store kv_store(consensus);
+  kv::Store kv_store;
+  kv_store.set_consensus(consensus);
   kv_store.set_encryptor(encryptor);
 
   kv::Store kv_store_target;
@@ -602,7 +607,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   {
     auto consensus = std::make_shared<kv::test::StubConsensus>();
     using Table = kv::Map<std::vector<int>, std::string>;
-    kv::Store s0(consensus), s1;
+    kv::Store s0, s1;
+    s0.set_consensus(consensus);
     Table t("public:t");
 
     auto tx = s0.create_tx();
@@ -620,7 +626,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   {
     auto consensus = std::make_shared<kv::test::StubConsensus>();
     using Table = kv::Map<nlohmann::json, nlohmann::json>;
-    kv::Store s0(consensus), s1;
+    kv::Store s0, s1;
+    s0.set_consensus(consensus);
     Table t("public:t");
 
     auto tx = s0.create_tx();
@@ -723,7 +730,8 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   auto consensus = std::make_shared<kv::test::StubConsensus>();
 
-  kv::Store store(consensus);
+  kv::Store store;
+  store.set_consensus(consensus);
   store.set_encryptor(encryptor);
 
   kv::TypedMap<

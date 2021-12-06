@@ -8,11 +8,11 @@
 
 TEST_CASE("Multiple versions of NodeInfo")
 {
-  ccf::NodeInfoNetwork::NetAddress node{"42.42.42.42", "4242"};
-  ccf::NodeInfoNetwork::NetAddress rpc_a{"1.2.3.4", "4321"};
-  ccf::NodeInfoNetwork::NetAddress rpc_a_pub{"5.6.7.8", "8765"};
-  ccf::NodeInfoNetwork::NetAddress rpc_b{"1.2.3.4", "4444"};
-  ccf::NodeInfoNetwork::NetAddress rpc_b_pub{"5.6.7.8", "8888"};
+  ccf::NodeInfoNetwork::NetAddress node{"42.42.42.42:4242"};
+  ccf::NodeInfoNetwork::NetAddress rpc_a{"1.2.3.4:4321"};
+  ccf::NodeInfoNetwork::NetAddress rpc_a_pub{"5.6.7.8:8765"};
+  ccf::NodeInfoNetwork::NetAddress rpc_b{"1.2.3.4:4444"};
+  ccf::NodeInfoNetwork::NetAddress rpc_b_pub{"5.6.7.8:8888"};
 
   ccf::NodeInfoNetwork current;
   current.node_address = node;
@@ -22,12 +22,9 @@ TEST_CASE("Multiple versions of NodeInfo")
     ccf::NodeInfoNetwork::RpcAddresses{rpc_b, rpc_b_pub, 300, 400});
 
   ccf::NodeInfoNetwork_v1 v1;
-  v1.nodehost = node.hostname;
-  v1.nodeport = node.port;
-  v1.rpchost = rpc_a.hostname;
-  v1.rpcport = rpc_a.port;
-  v1.pubhost = rpc_b.hostname;
-  v1.pubport = rpc_b.port;
+  std::tie(v1.nodehost, v1.nodeport) = ccf::split_net_address(node);
+  std::tie(v1.rpchost, v1.nodeport) = ccf::split_net_address(rpc_a);
+  std::tie(v1.pubhost, v1.pubport) = ccf::split_net_address(rpc_b);
 
   {
     INFO("Current format can be converted to and from JSON");
@@ -69,10 +66,10 @@ TEST_CASE("Multiple versions of NodeInfo")
     REQUIRE(converted.rpc_interfaces.size() > 0);
     const auto& current_interface = current.rpc_interfaces[0];
     const auto& converted_interface = converted.rpc_interfaces[0];
-    REQUIRE(current_interface.rpc_address == converted_interface.rpc_address);
+    REQUIRE(current_interface.bind_address == converted_interface.bind_address);
     REQUIRE(
-      current_interface.public_rpc_address ==
-      converted_interface.public_rpc_address);
+      current_interface.published_address ==
+      converted_interface.published_address);
     REQUIRE(
       current_interface.max_open_sessions_hard !=
       converted_interface.max_open_sessions_hard);

@@ -216,6 +216,17 @@ def test_learner_does_not_take_part(network, args):
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, from_snapshot=False)
 
+    LOG.info("Wait for all nodes to have committed join of new pending node")
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
+    # Here, we partition a majority of backups. This is very intentional so that
+    # the new learner node is not promoted to trusted while the partition is up.
+    # However, this means that the isolated majority of backups can (and will)
+    # elect one of them as new primary while the partition is up. When the partition
+    # is lifted, all the transactions executed of the primary node (including
+    # trusting the new node) will be rolled back. Because of this, we issue a new
+    # trust_node proposal to make sure the new node ends up being trusted and joins
+    # successfully.
     with network.partitioner.partition(f_backups):
 
         check_does_not_progress(primary, timeout=5)
@@ -227,34 +238,35 @@ def test_learner_does_not_take_part(network, args):
                 timeout=ceil(args.join_timer * 2 / 1000),
                 valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
             )
-            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
-            join_failed = False
-        except Exception:
-            join_failed = True
-
-        if not join_failed:
-            raise Exception("join succeeded unexpectedly")
-
-        with new_node.client(self_signed_ok=True) as c:
-            r = c.get("/node/network/nodes/self")
-            assert r.body.json()["status"] == "Learner"
-            r = c.get("/node/consensus")
-            assert new_node.node_id in r.body.json()["details"]["learners"]
-
-        # New node joins, but cannot be promoted to TRUSTED without f other backups
+        except TimeoutError:
+            LOG.info("Trust node proposal did not commit as expected")
+        else:
+            raise Exception("Trust node proposal committed unexpectedly")
 
         check_does_not_progress(primary, timeout=5)
 
+        LOG.info("Majority partition can make progress")
+        parition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
+        check_can_progress(parition_primary)
+
+        LOG.info("New joiner is not promoted to Trusted without f other backups")
         with new_node.client(self_signed_ok=True) as c:
             r = c.get("/node/network/nodes/self")
             assert r.body.json()["status"] == "Learner"
             r = c.get("/node/consensus")
             assert new_node.node_id in r.body.json()["details"]["learners"]
 
-    network.wait_for_primary_unanimity()
-    primary, _ = network.find_nodes()
+    LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
+    # Note: Because trusting the new node failed, the new node is not considered
+    # in the primary unanimity. Indeed, its transition to Trusted may have been rolled back.
+    primary = network.wait_for_primary_unanimity()
     network.wait_for_all_nodes_to_commit(primary=primary)
+
+    LOG.info("Trust new joiner again")
+    network.trust_node(new_node, args)
+
     check_can_progress(primary)
+    check_can_progress(new_node)
 
 
 def run_2tx_reconfig_tests(args):
@@ -263,8 +275,8 @@ def run_2tx_reconfig_tests(args):
 
     local_args = args
 
-    if args.reconfiguration_type != "2tx":
-        local_args.reconfiguration_type = "2tx"
+    if args.reconfiguration_type != "TwoTransaction":
+        local_args.reconfiguration_type = "TwoTransaction"
 
     with infra.network.network(
         local_args.nodes,
@@ -307,6 +319,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--include-2tx-reconfig",
             help="Include tests for the 2-transaction reconfiguration scheme",
+            default=False,
             action="store_true",
         )
 

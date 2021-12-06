@@ -2,11 +2,10 @@
 # Licensed under the Apache 2.0 License.
 import argparse
 import os
+import infra.interfaces
 import infra.path
 import infra.network
 import sys
-from dataclasses import dataclass
-from typing import Optional
 
 from loguru import logger as LOG
 
@@ -19,54 +18,15 @@ def absolute_path_to_existing_file(arg):
     return arg
 
 
-@dataclass
-class HostSpec:
-    protocol: str = "local"
-    rpchost: str = "localhost"
-    public_rpchost: Optional[str] = None
-    max_open_sessions: Optional[int] = None
-    max_open_sessions_hard: Optional[int] = None
-    additional_raw_node_args: Optional[list] = None
-
-    def __str__(self):
-        s = f"{self.protocol}://{self.rpchost}"
-        if self.public_rpchost or self.max_open_sessions or self.max_open_sessions_hard:
-            s += ","
-        if self.public_rpchost:
-            s += self.public_rpchost
-        if self.max_open_sessions or self.max_open_sessions_hard:
-            s += ","
-        if self.max_open_sessions:
-            s += f"{self.max_open_sessions}"
-        if self.max_open_sessions_hard:
-            s += f",{self.max_open_sessions_hard}"
-        return s
-
-    @staticmethod
-    def from_str(s):
-        kwargs = {}
-        protocol_end = s.find("://")
-        if protocol_end != -1:
-            kwargs["protocol"] = s[:protocol_end]
-            rpc_start = protocol_end + len("://")
-        else:
-            rpc_start = 0
-        components = s[rpc_start:].split(",")
-        kwargs["rpchost"] = components[0]
-        if len(components) > 1 and len(components[1]) > 0:
-            kwargs["public_rpchost"] = components[1]
-        if len(components) > 2 and len(components[2]) > 0:
-            kwargs["max_open_sessions"] = components[2]
-        if len(components) > 3 and len(components[3]) > 0:
-            kwargs["max_open_sessions_hard"] = components[3]
-        return HostSpec(**kwargs)
-
-
 def nodes(args, n):
     return [
-        HostSpec(
-            max_open_sessions=args.max_open_sessions,
-            max_open_sessions_hard=args.max_open_sessions_hard,
+        infra.interfaces.HostSpec(
+            rpc_interfaces=[
+                infra.interfaces.RPCInterface(
+                    max_open_sessions_soft=args.max_open_sessions,
+                    max_open_sessions_hard=args.max_open_sessions_hard,
+                )
+            ]
         )
         for _ in range(n)
     ]
@@ -77,7 +37,7 @@ def min_nodes(args, f):
     Minimum number of nodes allowing 'f' faults for the
     consensus variant.
     """
-    if args.consensus == "bft":
+    if args.consensus == "BFT":
         n = 3 * f + 1
     else:
         n = 2 * f + 1
@@ -93,7 +53,7 @@ def max_nodes(args, f):
 
 
 def max_f(args, number_nodes):
-    if args.consensus == "bft":
+    if args.consensus == "BFT":
         return (number_nodes - 1) // 3
     else:
         return (number_nodes - 1) // 2
@@ -202,7 +162,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
     )
     parser.add_argument(
-        "--raft-election-timeout-ms",
+        "--election-timeout-ms",
         help="Raft maximum election timeout for each node in the network",
         type=int,
         default=4000,
@@ -210,8 +170,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--consensus",
         help="Consensus",
-        default="cft",
-        choices=("cft", "bft", "all"),
+        default="CFT",
+        choices=("CFT", "BFT", "ALL"),
     )
     parser.add_argument(
         "--worker-threads",
@@ -243,9 +203,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Subject Name in node certificate, eg. CN=CCF Node",
     )
     parser.add_argument(
-        "--san",
+        "--subject_alt_names",
         help="Subject Alternative Name in node certificate. Can be either iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld",
         action="append",
+        default=[],
     )
     parser.add_argument(
         "--participants-curve",
@@ -293,6 +254,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--ledger-chunk-bytes",
         help="Size (bytes) at which a new ledger chunk is created",
+        type=str,
         default="20KB",
     )
     parser.add_argument(
@@ -304,17 +266,18 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--max-open-sessions",
         help="Soft cap on max open TLS sessions on each node",
-        default=None,
+        default=1000,
     )
     parser.add_argument(
         "--max-open-sessions-hard",
         help="Hard cap on max open TLS sessions on each node",
-        default=None,
+        default=1010,
     )
     parser.add_argument(
         "--jwt-key-refresh-interval-s",
         help="JWT key refresh interval in seconds",
-        default=None,
+        type=int,
+        default=1800,
     )
     parser.add_argument(
         "--disable-member-session-auth",
@@ -330,7 +293,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--curve-id",
         help="Elliptic curve to use as for node and network identities",
-        default=None,
+        default=infra.network.EllipticCurve.secp384r1,
         type=lambda curve: infra.network.EllipticCurve[curve],
         choices=list(infra.network.EllipticCurve),
     )
@@ -340,18 +303,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=str,
     )
     parser.add_argument(
-        "--client-connection-timeout-ms",
-        help="TCP client connection timeout in ms",
-        default=None,
-    )
-    parser.add_argument(
         "--initial-node-cert-validity-days",
         help="Initial validity period in days for certificates of nodes before the first certificate renewal",
         type=int,
         default=1,
     )
     parser.add_argument(
-        "--max-allowed-node-cert-validity-days",
+        "--maximum-node-certificate-validity-days",
         help="Maximum allowed validity period in days for certificates of trusted nodes",
         type=int,
         default=365,
@@ -359,8 +317,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--reconfiguration-type",
         help="Reconfiguration type",
-        default="1tx",
-        choices=("1tx", "2tx"),
+        default="OneTransaction",
+        choices=("OneTransaction", "TwoTransaction"),
+    )
+    parser.add_argument(
+        "--config-file",
+        help="Absolute path to node JSON configuration file",
+        default=None,
     )
 
     add(parser)

@@ -93,9 +93,11 @@ static void deserialise(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
-  kv::Store kv_store(consensus);
+  kv::Store kv_store;
   kv::Store kv_store2;
+
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  kv_store.set_consensus(consensus);
 
   auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);

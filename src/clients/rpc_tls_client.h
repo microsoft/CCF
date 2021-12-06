@@ -16,243 +16,247 @@
 #include <optional>
 #include <thread>
 
-class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
+namespace client
 {
-public:
-  struct PreparedRpc
+  class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
   {
-    std::vector<uint8_t> encoded;
-    size_t id;
-  };
-
-  struct Response
-  {
-    size_t id;
-    http_status status;
-    http::HeaderMap headers;
-    std::vector<uint8_t> body;
-  };
-
-protected:
-  http::ResponseParser parser;
-  std::optional<std::string> prefix;
-  crypto::KeyPairPtr key_pair = nullptr;
-  std::string key_id = "Invalid";
-
-  size_t next_send_id = 0;
-  size_t next_recv_id = 0;
-
-  std::vector<uint8_t> gen_http_request_internal(
-    const std::string& method,
-    const CBuffer params,
-    const std::string& content_type,
-    llhttp_method verb,
-    const char* auth_token = nullptr)
-  {
-    auto path = method;
-    if (prefix.has_value())
+  public:
+    struct PreparedRpc
     {
-      path = fmt::format("/{}/{}", prefix.value(), path);
-    }
+      std::vector<uint8_t> encoded;
+      size_t id;
+    };
 
-    auto r = http::Request(path, verb);
-    r.set_body(params.p, params.n);
-    r.set_header(http::headers::CONTENT_TYPE, content_type);
-    if (auth_token != nullptr)
+    struct Response
     {
-      r.set_header(
-        http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
-    }
+      size_t id;
+      http_status status;
+      http::HeaderMap headers;
+      std::vector<uint8_t> body;
+    };
 
-    if (key_pair != nullptr)
+  protected:
+    http::ResponseParser parser;
+    std::optional<std::string> prefix;
+    crypto::KeyPairPtr key_pair = nullptr;
+    std::string key_id = "Invalid";
+
+    size_t next_send_id = 0;
+    size_t next_recv_id = 0;
+
+    std::vector<uint8_t> gen_http_request_internal(
+      const std::string& method,
+      const CBuffer params,
+      const std::string& content_type,
+      llhttp_method verb,
+      const char* auth_token = nullptr)
     {
-      http::sign_request(r, key_pair, key_id);
-    }
-
-    return r.build_request();
-  }
-
-  std::vector<uint8_t> gen_request_internal(
-    const std::string& method,
-    const CBuffer params,
-    const std::string& content_type,
-    llhttp_method verb,
-    const char* auth_token = nullptr)
-  {
-    return gen_http_request_internal(
-      method, params, content_type, verb, auth_token);
-  }
-
-  Response call_raw(const std::vector<uint8_t>& raw)
-  {
-    CBuffer b(raw);
-    write(b);
-    return read_response();
-  }
-
-  Response call_raw(const PreparedRpc& prep)
-  {
-    return call_raw(prep.encoded);
-  }
-
-  std::optional<Response> last_response;
-
-public:
-  using TlsClient::TlsClient;
-
-  HttpRpcTlsClient(
-    const std::string& host,
-    const std::string& port,
-    std::shared_ptr<tls::CA> node_ca = nullptr,
-    std::shared_ptr<tls::Cert> cert = nullptr,
-    const std::string& key_id_ = "Invalid") :
-    TlsClient(host, port, node_ca, cert),
-    key_id(key_id_),
-    parser(*this)
-  {}
-
-  HttpRpcTlsClient(const HttpRpcTlsClient& c) :
-    TlsClient(c),
-    key_id(c.key_id),
-    parser(*this)
-  {}
-
-  void create_key_pair(const crypto::Pem priv_key)
-  {
-    key_pair = crypto::make_key_pair(priv_key);
-  }
-
-  PreparedRpc gen_request(
-    const std::string& method,
-    const CBuffer params,
-    const std::string& content_type,
-    llhttp_method verb = HTTP_POST,
-    const char* auth_token = nullptr)
-  {
-    return {
-      gen_request_internal(method, params, content_type, verb, auth_token),
-      next_send_id++};
-  }
-
-  PreparedRpc gen_request(
-    const std::string& method,
-    const nlohmann::json& params = nullptr,
-    llhttp_method verb = HTTP_POST,
-    const char* auth_token = nullptr)
-  {
-    std::vector<uint8_t> body;
-    if (!params.is_null())
-    {
-      body = serdes::pack(params, serdes::Pack::MsgPack);
-    }
-    return gen_request(
-      method,
-      {body.data(), body.size()},
-      http::headervalues::contenttype::MSGPACK,
-      verb,
-      auth_token);
-  }
-
-  Response call(
-    const std::string& method,
-    const nlohmann::json& params = nullptr,
-    llhttp_method verb = HTTP_POST)
-  {
-    return call_raw(gen_request(method, params, verb, nullptr));
-  }
-
-  Response call(
-    const std::string& method,
-    const CBuffer& params,
-    llhttp_method verb = HTTP_POST)
-  {
-    return call_raw(
-      gen_request(method, params, http::headervalues::contenttype::JSON, verb));
-  }
-
-  Response post(const std::string& method, const nlohmann::json& params)
-  {
-    return call(method, params, HTTP_POST);
-  }
-
-  Response get(
-    const std::string& method, const nlohmann::json& params = nullptr)
-  {
-    // GET body is ignored, so params must be placed in query
-    auto full_path = method;
-    if (!params.is_null())
-    {
-      for (auto it = params.begin(); it != params.end(); ++it)
+      auto path = method;
+      if (prefix.has_value())
       {
-        full_path += fmt::format(
-          "{}{}={}",
-          it == params.begin() ? "?" : "&",
-          it.key(),
-          it.value().is_string() ? it.value().get<std::string>() :
-                                   it.value().dump());
+        path = fmt::format("/{}/{}", prefix.value(), path);
       }
-    }
-    return call(full_path, nullptr, HTTP_GET);
-  }
 
-  nlohmann::json unpack_body(const Response& resp)
-  {
-    if (resp.body.empty())
-    {
-      return nullptr;
-    }
-    else if (http::status_success(resp.status))
-    {
-      const auto& content_type = resp.headers.find(http::headers::CONTENT_TYPE);
-      return serdes::unpack(resp.body, serdes::Pack::MsgPack);
-    }
-    else
-    {
-      return std::string(resp.body.begin(), resp.body.end());
-    }
-  }
+      auto r = http::Request(path, verb);
+      r.set_body(params.p, params.n);
+      r.set_header(http::headers::CONTENT_TYPE, content_type);
+      if (auth_token != nullptr)
+      {
+        r.set_header(
+          http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
+      }
 
-  std::string get_error(const Response& resp)
-  {
-    return std::string(resp.body.begin(), resp.body.end());
-  }
+      if (key_pair != nullptr)
+      {
+        http::sign_request(r, key_pair, key_id);
+      }
 
-  Response read_response()
-  {
-    last_response = std::nullopt;
-
-    while (!last_response.has_value())
-    {
-      const auto next = read_all();
-      parser.execute(next.data(), next.size());
+      return r.build_request();
     }
 
-    return std::move(last_response.value());
-  }
-
-  std::optional<Response> read_response_non_blocking()
-  {
-    if (bytes_available())
+    std::vector<uint8_t> gen_request_internal(
+      const std::string& method,
+      const CBuffer params,
+      const std::string& content_type,
+      llhttp_method verb,
+      const char* auth_token = nullptr)
     {
+      return gen_http_request_internal(
+        method, params, content_type, verb, auth_token);
+    }
+
+    Response call_raw(const std::vector<uint8_t>& raw)
+    {
+      CBuffer b(raw);
+      write(b);
       return read_response();
     }
 
-    return std::nullopt;
-  }
+    Response call_raw(const PreparedRpc& prep)
+    {
+      return call_raw(prep.encoded);
+    }
 
-  virtual void handle_response(
-    http_status status,
-    http::HeaderMap&& headers,
-    std::vector<uint8_t>&& body) override
-  {
-    last_response = {
-      next_recv_id++, status, std::move(headers), std::move(body)};
-  }
+    std::optional<Response> last_response;
 
-  void set_prefix(const std::string& prefix_)
-  {
-    prefix = prefix_;
-  }
-};
+  public:
+    using TlsClient::TlsClient;
 
-using RpcTlsClient = HttpRpcTlsClient;
+    HttpRpcTlsClient(
+      const std::string& host,
+      const std::string& port,
+      std::shared_ptr<tls::TlsCA> node_ca = nullptr,
+      std::shared_ptr<tls::TlsCert> cert = nullptr,
+      const std::string& key_id_ = "Invalid") :
+      TlsClient(host, port, node_ca, cert),
+      parser(*this),
+      key_id(key_id_)
+    {}
+
+    HttpRpcTlsClient(const HttpRpcTlsClient& c) :
+      TlsClient(c),
+      parser(*this),
+      key_id(c.key_id)
+    {}
+
+    void create_key_pair(const crypto::Pem priv_key)
+    {
+      key_pair = crypto::make_key_pair(priv_key);
+    }
+
+    PreparedRpc gen_request(
+      const std::string& method,
+      const CBuffer params,
+      const std::string& content_type,
+      llhttp_method verb = HTTP_POST,
+      const char* auth_token = nullptr)
+    {
+      return {
+        gen_request_internal(method, params, content_type, verb, auth_token),
+        next_send_id++};
+    }
+
+    PreparedRpc gen_request(
+      const std::string& method,
+      const nlohmann::json& params = nullptr,
+      llhttp_method verb = HTTP_POST,
+      const char* auth_token = nullptr)
+    {
+      std::vector<uint8_t> body;
+      if (!params.is_null())
+      {
+        body = serdes::pack(params, serdes::Pack::MsgPack);
+      }
+      return gen_request(
+        method,
+        {body.data(), body.size()},
+        http::headervalues::contenttype::MSGPACK,
+        verb,
+        auth_token);
+    }
+
+    Response call(
+      const std::string& method,
+      const nlohmann::json& params = nullptr,
+      llhttp_method verb = HTTP_POST)
+    {
+      return call_raw(gen_request(method, params, verb, nullptr));
+    }
+
+    Response call(
+      const std::string& method,
+      const CBuffer& params,
+      llhttp_method verb = HTTP_POST)
+    {
+      return call_raw(gen_request(
+        method, params, http::headervalues::contenttype::JSON, verb));
+    }
+
+    Response post(const std::string& method, const nlohmann::json& params)
+    {
+      return call(method, params, HTTP_POST);
+    }
+
+    Response get(
+      const std::string& method, const nlohmann::json& params = nullptr)
+    {
+      // GET body is ignored, so params must be placed in query
+      auto full_path = method;
+      if (!params.is_null())
+      {
+        for (auto it = params.begin(); it != params.end(); ++it)
+        {
+          full_path += fmt::format(
+            "{}{}={}",
+            it == params.begin() ? "?" : "&",
+            it.key(),
+            it.value().is_string() ? it.value().get<std::string>() :
+                                     it.value().dump());
+        }
+      }
+      return call(full_path, nullptr, HTTP_GET);
+    }
+
+    nlohmann::json unpack_body(const Response& resp)
+    {
+      if (resp.body.empty())
+      {
+        return nullptr;
+      }
+      else if (http::status_success(resp.status))
+      {
+        const auto& content_type =
+          resp.headers.find(http::headers::CONTENT_TYPE);
+        return serdes::unpack(resp.body, serdes::Pack::MsgPack);
+      }
+      else
+      {
+        return std::string(resp.body.begin(), resp.body.end());
+      }
+    }
+
+    std::string get_error(const Response& resp)
+    {
+      return std::string(resp.body.begin(), resp.body.end());
+    }
+
+    Response read_response()
+    {
+      last_response = std::nullopt;
+
+      while (!last_response.has_value())
+      {
+        const auto next = read_all();
+        parser.execute(next.data(), next.size());
+      }
+
+      return std::move(last_response.value());
+    }
+
+    std::optional<Response> read_response_non_blocking()
+    {
+      if (bytes_available())
+      {
+        return read_response();
+      }
+
+      return std::nullopt;
+    }
+
+    virtual void handle_response(
+      http_status status,
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
+    {
+      last_response = {
+        next_recv_id++, status, std::move(headers), std::move(body)};
+    }
+
+    void set_prefix(const std::string& prefix_)
+    {
+      prefix = prefix_;
+    }
+  };
+
+  using RpcTlsClient = HttpRpcTlsClient;
+}

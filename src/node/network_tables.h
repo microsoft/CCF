@@ -51,7 +51,7 @@ namespace ccf
     // Governance tables
     //
     MemberCerts member_certs;
-    MmeberPublicEncryptionKeys member_encryption_public_keys;
+    MemberPublicEncryptionKeys member_encryption_public_keys;
     MemberInfo member_info;
 
     Modules modules;

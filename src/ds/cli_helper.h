@@ -4,6 +4,7 @@
 
 #include "crypto/san.h"
 #include "ds/nonstd.h"
+#include "node/node_info_network.h"
 
 #include <CLI11/CLI11.hpp>
 #include <charconv>
@@ -14,17 +15,10 @@
 
 namespace cli
 {
-  struct ParsedAddress
-  {
-    std::string hostname = {};
-    std::string port = {};
-  };
+  using ParsedAddress = ccf::NodeInfoNetwork_v2::NetAddress;
 
-  bool parse_address(
-    const std::string_view& addr,
-    ParsedAddress& parsed,
-    const std::string& option_name,
-    const std::string& default_port = "0")
+  static std::pair<std::string, std::string> validate_address(
+    const ParsedAddress& addr, const std::string& default_port = "0")
   {
     auto found = addr.find_last_of(":");
     auto hostname = addr.substr(0, found);
@@ -33,28 +27,42 @@ namespace cli
       found == std::string::npos ? default_port : addr.substr(found + 1);
 
     // Check if port is in valid range
-    uint16_t port_n;
+    uint16_t port_n = 0;
     const auto [_, ec] =
       std::from_chars(port.data(), port.data() + port.size(), port_n);
     if (ec == std::errc::invalid_argument)
     {
-      throw CLI::ValidationError(
-        option_name, fmt::format("Port '{}' is not a number", port));
+      throw std::logic_error(fmt::format("Port '{}' is not a number", port));
     }
     else if (ec == std::errc::result_out_of_range)
     {
-      throw CLI::ValidationError(
-        option_name,
-        fmt::format("Port '{}'  number is not in range 0-65535", port));
+      throw std::logic_error(
+        fmt::format("Port '{}' is not in range 0-65535", port));
     }
     else if (ec != std::errc())
     {
-      throw CLI::ValidationError(
-        option_name, fmt::format("Error parsing port '{}'", port));
+      throw std::logic_error(fmt::format("Error parsing port '{}'", port));
     }
 
-    parsed.hostname = hostname;
-    parsed.port = port;
+    return std::make_pair(hostname, port);
+  }
+
+  bool parse_address(
+    const std::string& addr,
+    ParsedAddress& parsed,
+    const std::string& option_name,
+    const std::string& default_port = "0")
+  {
+    try
+    {
+      validate_address(addr, default_port);
+    }
+    catch (const std::exception& e)
+    {
+      throw CLI::ValidationError(option_name, e.what());
+    }
+
+    parsed = addr;
 
     return true;
   }
@@ -79,200 +87,6 @@ namespace cli
 
     auto* option = app.add_option(option_name, fun, option_desc, true);
     option->type_name("HOST:PORT");
-
-    return option;
-  }
-
-  struct ParsedRpcInterface
-  {
-    ParsedAddress rpc_address;
-    ParsedAddress public_rpc_address;
-    size_t max_open_sessions = 1'000;
-    size_t max_open_sessions_hard;
-    static constexpr size_t default_mosh_diff = 10;
-  };
-
-  CLI::Option* add_rpc_interface_option(
-    CLI::App& app,
-    std::vector<ParsedRpcInterface>& parsed,
-    const std::string& option_name,
-    const std::string& option_desc)
-  {
-    CLI::callback_t fun = [&parsed, option_name](CLI::results_t results) {
-      for (size_t i = 0; i < results.size(); ++i)
-      {
-        const auto& arg = results[i];
-        const auto chunks = nonstd::split(arg, ",");
-
-        if (chunks.size() < 1 || chunks.size() > 4)
-        {
-          throw CLI::ValidationError(
-            option_name,
-            "Expected between 1 and 4 comma-separated elements: "
-            "<rpc-address>[,<public-rpc-address>[,<max-open-sessions>[,<max-"
-            "open-sessions-hard>]]]");
-        }
-
-        ParsedRpcInterface interface;
-        if (!parse_address(
-              chunks[0],
-              interface.rpc_address,
-              fmt::format("{}[{}][0]", option_name, i)))
-        {
-          return false;
-        }
-
-        if (chunks.size() > 1 && !chunks[1].empty())
-        {
-          if (!parse_address(
-                chunks[1],
-                interface.public_rpc_address,
-                fmt::format("{}[{}][1]", option_name, i)))
-          {
-            return false;
-          }
-        }
-        else
-        {
-          interface.public_rpc_address = interface.rpc_address;
-        }
-
-        if (chunks.size() > 2 && !chunks[2].empty())
-        {
-          try
-          {
-            interface.max_open_sessions = std::stoul(std::string(chunks[2]));
-          }
-          catch (const std::exception&)
-          {
-            throw CLI::ValidationError(
-              fmt::format("{}[{}][2]", option_name, i),
-              "Max open sessions is not a number");
-          }
-        }
-
-        if (chunks.size() > 3 && !chunks[3].empty())
-        {
-          try
-          {
-            interface.max_open_sessions_hard =
-              std::stoul(std::string(chunks[3]));
-          }
-          catch (const std::exception&)
-          {
-            throw CLI::ValidationError(
-              fmt::format("{}[{}][3]", option_name, i),
-              "Max open sessions hard cap is not a number");
-          }
-        }
-        else
-        {
-          interface.max_open_sessions_hard = interface.max_open_sessions +
-            cli::ParsedRpcInterface::default_mosh_diff;
-        }
-
-        parsed.emplace_back(interface);
-      }
-
-      return true;
-    };
-
-    auto* option = app.add_option(option_name, fun, option_desc, true);
-    option
-      ->type_name(
-        "<rpc-address>[,<public-rpc-address>[,<max-open-sessions>[,<max-"
-        "open-sessions-hard>]]]")
-      ->type_size(-1);
-
-    return option;
-  }
-
-  struct ParsedMemberInfo
-  {
-    std::string cert_file;
-    std::optional<std::string> enc_pubk_file;
-    std::optional<std::string> member_data_file;
-  };
-
-  CLI::Option* add_member_info_option(
-    CLI::App& app,
-    std::vector<ParsedMemberInfo>& parsed,
-    const std::string& option_name,
-    const std::string& option_desc)
-  {
-    CLI::callback_t fun = [&option_name, &parsed](CLI::results_t res) {
-      parsed.clear();
-      for (const auto& r : res)
-      {
-        std::stringstream ss(r);
-        std::string chunk;
-        std::vector<std::string> chunks;
-
-        while (std::getline(ss, chunk, ','))
-        {
-          chunks.emplace_back(chunk);
-        }
-
-        if (chunks.empty() || chunks.size() > 3)
-        {
-          throw CLI::ValidationError(
-            option_name,
-            "Member info is not in expected format: "
-            "member_cert.pem[,member_enc_pubk.pem[,member_data.json]]");
-        }
-
-        ParsedMemberInfo member_info;
-        member_info.cert_file = chunks.at(0);
-        if (chunks.size() == 2)
-        {
-          member_info.enc_pubk_file = chunks.at(1);
-        }
-        else if (chunks.size() == 3)
-        {
-          // Only read encryption public key if there is something between two
-          // commas
-          if (!chunks.at(1).empty())
-          {
-            member_info.enc_pubk_file = chunks.at(1);
-          }
-          member_info.member_data_file = chunks.at(2);
-        }
-
-        // Validate that member info files exist, when specified
-        auto validator = CLI::detail::ExistingFileValidator();
-        auto err_str = validator(member_info.cert_file);
-        if (!err_str.empty())
-        {
-          throw CLI::ValidationError(option_name, err_str);
-        }
-
-        if (member_info.enc_pubk_file.has_value())
-        {
-          err_str = validator(member_info.enc_pubk_file.value());
-          if (!err_str.empty())
-          {
-            throw CLI::ValidationError(option_name, err_str);
-          }
-        }
-
-        if (member_info.member_data_file.has_value())
-        {
-          err_str = validator(member_info.member_data_file.value());
-          if (!err_str.empty())
-          {
-            throw CLI::ValidationError(option_name, err_str);
-          }
-        }
-
-        parsed.emplace_back(member_info);
-      }
-      return true;
-    };
-
-    auto* option = app.add_option(option_name, fun, option_desc, true);
-    option
-      ->type_name("member_cert.pem[,member_enc_pubk.pem[,member_data.json]]")
-      ->type_size(-1);
 
     return option;
   }

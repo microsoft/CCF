@@ -82,6 +82,48 @@ namespace kv::untyped
       return &search->value;
     }
 
+    template <class F>
+    void foreach_state_and_writes(F&& f, bool always_consider_writes)
+    {
+      // Record a global read dependency.
+      tx_changes.read_version = tx_changes.start_version;
+
+      // Take a snapshot copy of the writes. This is what we will iterate over,
+      // while any additional modifications made by the functor will modify the
+      // original tx_changes.writes, and be visible outside of the functor's
+      // args
+      auto w = tx_changes.writes;
+      bool should_continue = true;
+
+      tx_changes.state.foreach(
+        [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
+          auto write = w.find(k);
+
+          if ((write == w.end()) && !is_deleted(v.version))
+          {
+            should_continue = f(k, v.value);
+          }
+
+          return should_continue;
+        });
+
+      if (always_consider_writes || should_continue)
+      {
+        for (auto write = w.begin(); write != w.end(); ++write)
+        {
+          if (write->second.has_value())
+          {
+            should_continue = f(write->first, write->second.value());
+          }
+
+          if (!should_continue)
+          {
+            break;
+          }
+        }
+      }
+    }
+
   public:
     MapHandle(ChangeSet& cs, const std::string& map_name) :
       tx_changes(cs),
@@ -210,43 +252,7 @@ namespace kv::untyped
     template <class F>
     void foreach(F&& f)
     {
-      // Record a global read dependency.
-      tx_changes.read_version = tx_changes.start_version;
-
-      // Take a snapshot copy of the writes. This is what we will iterate over,
-      // while any additional modifications made by the functor will modify the
-      // original tx_changes.writes, and be visible outside of the functor's
-      // args
-      auto w = tx_changes.writes;
-      bool should_continue = true;
-
-      tx_changes.state.foreach(
-        [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
-          auto write = w.find(k);
-
-          if ((write == w.end()) && !is_deleted(v.version))
-          {
-            should_continue = f(k, v.value);
-          }
-
-          return should_continue;
-        });
-
-      if (should_continue)
-      {
-        for (auto write = w.begin(); write != w.end(); ++write)
-        {
-          if (write->second.has_value())
-          {
-            should_continue = f(write->first, write->second.value());
-          }
-
-          if (!should_continue)
-          {
-            break;
-          }
-        }
-      }
+      foreach_state_and_writes(std::forward<F>(f), false);
     }
 
     size_t size()
@@ -259,6 +265,62 @@ namespace kv::untyped
       });
 
       return size_;
+    }
+
+    // Returns a map of keys to values between [from, to).
+    template <class F>
+    void range(F&& f, const KeyType& from, const KeyType& to)
+    {
+      // Current limitations/ineficiencies:
+      // - The state and writes are wastefully looped over until `from` is
+      // found.
+      // - All keys and values in the range are stored in the intermediate map
+      // `res`.
+      // - The constructed range is loop over at the end to call lambda on.
+      // Optimisation is possible to only loop over the state/writes once, in
+      // order, and call the user lambda on each element in the range directly.
+      // This should include adding an iterator to underlying ordered state
+      // (i.e. rb::Map) to find the start/end of the range using
+      // std::lower_bound()/std::upper_bound() and loop over it, interleaves
+      // with the local writes.
+
+      if (from == to || to < from)
+      {
+        return;
+      }
+
+      // Since entries are ordered in the RB Map, it is OK to early out once we
+      // have passed the end of the range. Otherwise (CHAMP), all entries should
+      // be considered.
+#ifndef KV_STATE_RB
+      bool continue_past_range_to = true;
+#else
+      bool continue_past_range_to = false;
+#endif
+
+      std::map<KeyType, ValueType> res;
+      auto g = [&res, &from, &to, continue_past_range_to](
+                 const KeyType& k, const ValueType& v) {
+        if (k < from)
+        {
+          // Start of range is not yet found.
+          return true;
+        }
+        else if (k == to || to < k)
+        {
+          // End of range. Note: `to` is excluded.
+          return continue_past_range_to;
+        }
+
+        res[k] = v;
+        return true;
+      };
+      foreach_state_and_writes(g, true);
+
+      for (const auto& e : res)
+      {
+        f(e.first, e.second);
+      }
     }
   };
 }

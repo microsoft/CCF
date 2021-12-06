@@ -4,6 +4,7 @@
 
 #include "ds/logger.h"
 #include "node/signatures.h"
+#include "node_info_network.h"
 
 namespace ccf
 {
@@ -27,6 +28,7 @@ namespace ccf
       for (const auto& [node_id, opt_ni] : w)
       {
         const auto& ni = opt_ni.value();
+        const auto [host, port] = split_net_address(ni.node_address);
         switch (ni.status)
         {
           case NodeStatus::PENDING:
@@ -37,9 +39,7 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(
-              node_id,
-              NodeAddr{ni.node_address.hostname, ni.node_address.port});
+            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
             break;
           }
           case NodeStatus::RETIRED:
@@ -50,9 +50,7 @@ namespace ccf
           }
           case NodeStatus::LEARNER:
           {
-            cfg_delta.try_emplace(
-              node_id,
-              NodeAddr{ni.node_address.hostname, ni.node_address.port});
+            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
             learners.insert(node_id);
             break;
           }
