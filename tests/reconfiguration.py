@@ -627,8 +627,6 @@ def check_2tx_ledger(ledger_paths, learner_id):
 
     ledger = ccf.ledger.Ledger(ledger_paths, committed_only=True)
 
-    LOG.info(f"LEARNER ID: {learner_id}")
-
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
