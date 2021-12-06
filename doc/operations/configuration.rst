@@ -144,7 +144,7 @@ Example:
 
 - ``directory``: Path to main ledger directory. Default value: ``ledger``.
 - ``read_only_directories``: Optional. Paths to read-only ledger directories. Note that only ``.committed`` files will be read from these directories. Default value: ``[]``.
-- ``chunk_size``: Minimum size (bytes) of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5000000`` bytes.
+- ``chunk_size``: Minimum size of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5MB``  [#size_string]_.
 
 ``snapshots``
 ~~~~~~~~~~~~~
@@ -245,6 +245,10 @@ Experimental. Number of additional threads processing incoming client requests i
 ``memory``
 ~~~~~~~~~~
 
-- ``circuit_size_shift``: Size of the internal host-enclave ringbuffers, as a power of 2. Default value: ``22`` (``4,194,304`` bytes).
-- ``max_msg_size_shift``: Maximum size for a message sent over the ringbuffer, as a power of 2. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments. Default value: ``24`` (``16,777,216`` bytes).
-- ``max_fragment_size_shift``: Maximum size of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments Default value: ``16`` (``65,536`` bytes).
+- ``circuit_size``: Size of the internal host-enclave ringbuffers, as a power of 2. Default value: ``"4MB"`` [#size_string]_.
+- ``max_msg_size``: Maximum size for a message sent over the ringbuffer, as a power of 2. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments. Default value: ``"16MB"`` [#size_string]_.
+- ``max_fragment_size``: Maximum size of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments Default value: ``"64KB"`` [#size_string]_.
+
+.. rubric:: Footnotes
+
+.. [#size_string] Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
