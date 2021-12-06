@@ -8,7 +8,7 @@ void log(const v8::FunctionCallbackInfo<v8::Value>& info)
 
 tmpl->Set(
     v8_util::to_v8_istr(isolate, "data"),
-    v8::FunctionTemplate::New(isolate, log));
+    v8::FunctionTemplate::New(isolate, log)).Check();
 ```
 
 When, `obj.log` is accessed, then the function is returned, which means it can be called with `obj.log()`.
@@ -20,7 +20,7 @@ Note: The above doesn't use the template cache for the function template. This i
 ```cpp
 tmpl->Set(
     v8_util::to_v8_istr(isolate, "name"),
-    v8_util::to_v8_istr(isolate, "ECMA"));
+    v8_util::to_v8_istr(isolate, "ECMA")).Check();
 ```
 
 When, `obj.name` is accessed, then the constant value is returned, here a string.

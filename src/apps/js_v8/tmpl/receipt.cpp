@@ -72,7 +72,7 @@ namespace ccf::v8_tmpl
         context,
         v8_util::to_v8_istr(isolate, is_left ? "left" : "right"),
         v8_util::to_v8_str(
-          isolate, (is_left ? element.left : element.right).value()));
+          isolate, (is_left ? element.left : element.right).value())).Check();
       elements.push_back(obj);
     }
 

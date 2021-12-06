@@ -174,6 +174,8 @@ export BUILD_CXXFLAGS=""
 #   but prefixed with 'BUILD_'.
 # v8_snapshot_toolchain=".../unbundle:host": use environment variables to configure the snapshot toolchain
 #   For our purposes, identical to host_toolchain.
+# v8_enable_snapshot_compression=false: disable snapshot compression to avoid runtime decompression overhead
+# v8_os_page_size=4: hardcode the page size to 4K
 # target_cpu="x64": build for x64
 # is_debug=true: include debug information
 # v8_optimized_debug=false: disable compiler optimizations for debug builds
@@ -233,9 +235,11 @@ GN_ARGS="\
   custom_toolchain=\"//build/toolchain/linux/unbundle:default\" \
   host_toolchain=\"//build/toolchain/linux/unbundle:host\" \
   v8_snapshot_toolchain=\"//build/toolchain/linux/unbundle:host\" \
+  v8_enable_snapshot_compression=false \
   is_clang=true \
   clang_use_chrome_plugins=false \
   target_cpu=\"x64\" \
+  v8_os_page_size=\"4\" \
   use_sysroot=false \
   use_custom_libcxx=false \
   use_glib=false \

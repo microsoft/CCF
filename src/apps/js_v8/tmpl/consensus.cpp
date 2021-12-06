@@ -47,11 +47,11 @@ namespace ccf::v8_tmpl
     obj->Set(
       context,
       v8_util::to_v8_istr(isolate, "view"),
-      v8::Number::New(isolate, view));
+      v8::Number::New(isolate, view)).Check();
     obj->Set(
       context,
       v8_util::to_v8_istr(isolate, "seqno"),
-      v8::Number::New(isolate, seqno));
+      v8::Number::New(isolate, seqno)).Check();
 
     info.GetReturnValue().Set(obj);
   }

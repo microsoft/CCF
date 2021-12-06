@@ -109,17 +109,17 @@ namespace ccf::v8_tmpl
     jwt->Set(
       context,
       v8_util::to_v8_istr(isolate, "keyIssuer"),
-      v8_util::to_v8_str(isolate, jwt_ident->key_issuer));
+      v8_util::to_v8_str(isolate, jwt_ident->key_issuer)).Check();
 
     jwt->Set(
       context,
       v8_util::to_v8_istr(isolate, "header"),
-      v8_util::to_v8_obj(isolate, jwt_ident->header));
+      v8_util::to_v8_obj(isolate, jwt_ident->header)).Check();
 
     jwt->Set(
       context,
       v8_util::to_v8_istr(isolate, "payload"),
-      v8_util::to_v8_obj(isolate, jwt_ident->payload));
+      v8_util::to_v8_obj(isolate, jwt_ident->payload)).Check();
 
     info.GetReturnValue().Set(jwt);
   }

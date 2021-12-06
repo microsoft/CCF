@@ -187,7 +187,7 @@ namespace ccf
 #else
     // Disables runtime allocation of executable memory.
     // Uses only the Ignition interpreter.
-    v8::V8::SetFlagsFromString("--single-threaded --jitless");
+    v8::V8::SetFlagsFromString("--v8_os_page_size=4 --single-threaded --jitless");
     platform = v8::platform::NewSingleThreadedDefaultPlatform();
 #endif
 

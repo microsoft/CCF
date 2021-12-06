@@ -164,14 +164,51 @@
 -#endif
 -#endif
 -#endif
---- src/base/cpu.original.cc	2021-11-15 15:01:11.791000000 +0000
-+++ src/base/cpu.cc	2021-11-15 16:18:29.007000000 +0000
-@@ -8,6 +8,8 @@
+--- src/base/cpu.original.cc    2021-12-06 11:12:27.510000000 +0000
++++ src/base/cpu.cc     2021-12-06 11:12:33.773000000 +0000
+@@ -8,6 +8,9 @@
  #include "starboard/cpu_features.h"
  #endif
  
 +#undef V8_OS_LINUX
++#undef V8_HOST_ARCH_X64
 +
  #if V8_LIBC_MSVCRT
  #include <intrin.h>  // __cpuid()
  #endif
+@@ -414,23 +417,23 @@
+       part_(0),
+       icache_line_size_(kUnknownCacheLineSize),
+       dcache_line_size_(kUnknownCacheLineSize),
+-      has_fpu_(false),
+-      has_cmov_(false),
++      has_fpu_(true),
++      has_cmov_(true),
+       has_sahf_(false),
+-      has_mmx_(false),
+-      has_sse_(false),
+-      has_sse2_(false),
++      has_mmx_(true),
++      has_sse_(true),
++      has_sse2_(true),
+       has_sse3_(false),
+-      has_ssse3_(false),
+-      has_sse41_(false),
+-      has_sse42_(false),
++      has_ssse3_(true),
++      has_sse41_(true),
++      has_sse42_(true),
+       is_atom_(false),
+       has_osxsave_(false),
+-      has_avx_(false),
+-      has_avx2_(false),
++      has_avx_(true),
++      has_avx2_(true),
+       has_fma3_(false),
+-      has_bmi1_(false),
+-      has_bmi2_(false),
++      has_bmi1_(true),
++      has_bmi2_(true),
+       has_lzcnt_(false),
+       has_popcnt_(false),
+       has_idiva_(false),
