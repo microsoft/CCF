@@ -4,15 +4,10 @@
 #pragma once
 
 #include "common/configuration.h"
-#include "ds/cli_helper.h"
+#include "ds/unit_strings.h"
 
 #include <optional>
 #include <string>
-
-inline void from_json(const nlohmann::json& j, SizeString& str)
-{
-  str = cli::convert_size_string(j.get<std::string>());
-}
 
 namespace host
 {
@@ -78,7 +73,7 @@ namespace host
     {
       std::string directory = "ledger";
       std::vector<std::string> read_only_directories = {};
-      SizeString chunk_size = 5'000'000;
+      ds::SizeString chunk_size = 5'000'000;
 
       bool operator==(const Ledger&) const = default;
     };
@@ -104,9 +99,9 @@ namespace host
 
     struct Memory
     {
-      SizeString circuit_size = 1 << 22; // 4MB
-      SizeString max_msg_size = 1 << 24; // 16MB
-      SizeString max_fragment_size = 1 << 16; // 64KB
+      ds::SizeString circuit_size = 1 << 22; // 4MB
+      ds::SizeString max_msg_size = 1 << 24; // 16MB
+      ds::SizeString max_fragment_size = 1 << 16; // 64KB
 
       bool operator==(const Memory&) const = default;
     };

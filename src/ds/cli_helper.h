@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/san.h"
-#include "ds/ccf_assert.h"
 #include "ds/nonstd.h"
 #include "node/node_info_network.h"
 
@@ -132,72 +131,5 @@ namespace cli
     option->type_name("(iPAddress|dNSName):VALUE")->type_size(-1);
 
     return option;
-  }
-
-  // TODO: Move to unit_strings.h
-  static size_t convert_size_string(const std::string& input)
-  {
-    // TODO: Use string view!
-    if (input.empty())
-    {
-      throw std::logic_error("Cannot convert empty string to size string");
-    }
-
-    auto unit_begin = input.end();
-    while (unit_begin > input.begin() && std::isalpha(*(unit_begin - 1)))
-    {
-      unit_begin--;
-    }
-
-    auto unit = std::string(unit_begin, input.end());
-    nonstd::to_lower(unit);
-    auto value = std::string(input.begin(), unit_begin);
-
-    size_t ret = 0;
-    auto res = std::from_chars(value.data(), value.data() + value.size(), ret);
-    if (res.ec != std::errc())
-    {
-      throw std::logic_error(fmt::format(
-        "Could not convert value from size string \"{}\": {}", value, res.ec));
-    }
-
-    if (unit.empty())
-    {
-      return ret;
-    }
-
-    std::map<std::string, size_t> unit_mapping_power = {
-      {"b", 0}, {"kb", 1}, {"mb", 2}, {"gb", 3}, {"tb", 4}, {"pb", 5}};
-
-    auto power = unit_mapping_power.find(unit);
-    if (power == unit_mapping_power.end())
-    {
-      // TODO: Return allowed units map
-      std::string allowed_units_str;
-      for (auto it = unit_mapping_power.begin(); it != unit_mapping_power.end();
-           ++it)
-      {
-        allowed_units_str += it->first;
-        if (std::next(it) != unit_mapping_power.end())
-        {
-          allowed_units_str += ", ";
-        }
-      }
-      throw std::logic_error(fmt::format(
-        "Unit {} is invalid. Allowed: {}", unit, allowed_units_str));
-    }
-
-    ret = ret * std::pow(1024, power->second);
-
-    return ret;
-  }
-
-  inline static size_t convert_size_string2(std::string input)
-  {
-    size_t ret = 0;
-    CLI::AsSizeValue(false)(input); // Parse all values as multiple of 1024
-    auto rc = CLI::detail::integral_conversion(input, ret);
-    CCF_ASSERT_FMT(rc, "Could not convert {} to size_t: {}", input, rc);
-    return ret;
   }
 }

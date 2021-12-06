@@ -8,6 +8,7 @@
 #include "crypto/curve.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
+#include "ds/unit_strings.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/config.h"
@@ -33,27 +34,6 @@ namespace logger
     Level,
     {{Level::INFO, "info"}, {Level::FAIL, "fail"}, {Level::FATAL, "fatal"}});
 #endif
-}
-
-struct SizeString
-{
-  size_t value;
-
-  SizeString() = default;
-  SizeString(size_t val) : value(val) {}
-
-  bool operator==(const SizeString&) const = default;
-
-  inline operator size_t() const
-  {
-    return value;
-  }
-};
-
-// Note: from_json() is defined differently whether for host or in enclave
-inline void to_json(nlohmann::json& j, const SizeString& str)
-{
-  j = str.value;
 }
 
 DECLARE_JSON_ENUM(
