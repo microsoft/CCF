@@ -30,6 +30,15 @@ SECTIONS_2_X = [
 DEFAULT_MAX_RPC_SESSIONS_SOFT = 1000
 
 
+def human_readable_size(n):
+    suffixes = ("B", "KB", "MB", "GB")
+    i = 0
+    while n >= 1024 and i < len(suffixes) - 1:
+        n //= 1024
+        i += 1
+    return f"{n}{suffixes[i]}"
+
+
 def make_key_json_compatible(key):
     return key.replace("-", "_")
 
@@ -143,7 +152,7 @@ if __name__ == "__main__":
             elif k == "read_only_ledger_dir":
                 output["ledger"]["read_only_directories"] = [v]
             elif k == "ledger_chunk_bytes":
-                output["ledger"]["chunk_size"] = v
+                output["ledger"]["chunk_size"] = human_readable_size(int(v))
 
             # snapshots
             elif k == "snapshot_dir":  # plural
@@ -177,7 +186,7 @@ if __name__ == "__main__":
                 # Remove shift suffix if it exists
                 suffix = "_shift"
                 k = k[: -len(suffix)] if k.endswith(suffix) else k
-                output["memory"][k] = f"{1 << int(v)}"
+                output["memory"][k] = f"{human_readable_size(1 << int(v))}"
 
             elif k == "tick_period_ms":
                 output["tick_period"] = f"{v}ms"

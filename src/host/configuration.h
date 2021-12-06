@@ -4,6 +4,7 @@
 #pragma once
 
 #include "common/configuration.h"
+#include "ds/unit_strings.h"
 
 #include <optional>
 #include <string>
@@ -72,7 +73,7 @@ namespace host
     {
       std::string directory = "ledger";
       std::vector<std::string> read_only_directories = {};
-      SizeString chunk_size = 5'000'000;
+      ds::SizeString chunk_size = std::string("5MB");
 
       bool operator==(const Ledger&) const = default;
     };
@@ -98,9 +99,9 @@ namespace host
 
     struct Memory
     {
-      SizeString circuit_size = 1 << 22; // 4MB
-      SizeString max_msg_size = 1 << 24; // 16MB
-      SizeString max_fragment_size = 1 << 16; // 64KB
+      ds::SizeString circuit_size = std::string("4MB");
+      ds::SizeString max_msg_size = std::string("16MB");
+      ds::SizeString max_fragment_size = std::string("64KB");
 
       bool operator==(const Memory&) const = default;
     };

@@ -4,11 +4,11 @@
 #pragma once
 
 #include "common/enclave_interface_types.h"
-#include "common/unit_strings.h"
 #include "consensus/consensus_types.h"
 #include "crypto/curve.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
+#include "ds/unit_strings.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/config.h"

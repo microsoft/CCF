@@ -144,7 +144,7 @@ Example:
 
 - ``directory``: Path to main ledger directory. Default value: ``ledger``.
 - ``read_only_directories``: Optional. Paths to read-only ledger directories. Note that only ``.committed`` files will be read from these directories. Default value: ``[]``.
-- ``chunk_size``: Minimum size of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5MB`` [#size_string]_.
+- ``chunk_size``: Minimum size of the current ledger file after which a new ledger file (chunk) is created. Default value: ``"5MB"``  [#size_string]_.
 
 ``snapshots``
 ~~~~~~~~~~~~~
@@ -251,6 +251,6 @@ Experimental. Number of additional threads processing incoming client requests i
 
 .. rubric:: Footnotes
 
-.. [#size_string] Size strings are expressed as the value suffixed with the size in bytes, e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
+.. [#size_string] Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
 
 .. [#time_string] Time strings are expressed as the value suffixed with the duration, e.g. ``"1000ms"``, ``"10s"`` or ``"30min"``.
