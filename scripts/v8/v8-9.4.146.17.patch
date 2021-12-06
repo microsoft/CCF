@@ -212,3 +212,16 @@
        has_lzcnt_(false),
        has_popcnt_(false),
        has_idiva_(false),
+--- src/base/platform/time.original.cc  2021-12-06 15:36:42.784000000 +0000
++++ src/base/platform/time.cc   2021-12-06 15:37:09.016546075 +0000
+@@ -35,6 +35,10 @@
+ #include "starboard/time.h"
+ #endif
+ 
++#ifdef _POSIX_MONOTONIC_CLOCK
++#undef _POSIX_MONOTONIC_CLOCK
++#endif
++
+ namespace {
+ 
+ #if V8_OS_MACOSX

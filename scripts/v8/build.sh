@@ -92,6 +92,7 @@ gclient sync -D
 # rm -f $PATCH_PATH
 # diff -u third_party/zlib/cpu_features.original.c third_party/zlib/cpu_features.c >> $PATCH_PATH
 # diff -u src/base/cpu.original.cc src/base/cpu.cc >> $PATCH_PATH
+# diff -u src/base/platform/time.original.cc src/base/platform/time.cc >> $PATCH_PATH
 
 echo " + Apply V8 patches..."
 if ! patch --forward -p0 < "$PATCH_PATH"; then
