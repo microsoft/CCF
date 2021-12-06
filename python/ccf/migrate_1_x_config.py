@@ -30,6 +30,15 @@ SECTIONS_2_X = [
 DEFAULT_MAX_RPC_SESSIONS_SOFT = 1000
 
 
+def human_readable_size(n):
+    suffixes = ("B", "KB", "MB", "GB")
+    i = 0
+    while n >= 1024 and i < len(suffixes) - 1:
+        n //= 1024
+        i += 1
+    return f"{n}{suffixes[i]}"
+
+
 def make_key_json_compatible(key):
     return key.replace("-", "_")
 
@@ -174,7 +183,10 @@ if __name__ == "__main__":
 
             # memory
             elif "size" in k:
-                output["memory"][k] = f"{1 << int(v)}"
+                # Remove shift suffix if it exists
+                suffix = "_shift"
+                k = k[: -len(suffix)] if k.endswith(suffix) else k
+                output["memory"][k] = f"{human_readable_size(1 << int(v))}"
 
             elif k in ("worker_threads", "tick_period_ms"):
                 output[k] = int(v)
