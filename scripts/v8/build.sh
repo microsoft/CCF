@@ -93,6 +93,7 @@ gclient sync -D
 # diff -u third_party/zlib/cpu_features.original.c third_party/zlib/cpu_features.c >> $PATCH_PATH
 # diff -u src/base/cpu.original.cc src/base/cpu.cc >> $PATCH_PATH
 # diff -u src/base/platform/time.original.cc src/base/platform/time.cc >> $PATCH_PATH
+# diff -u src/base/platform/semaphore.original.cc src/base/platform/semaphore.cc >> $PATCH_PATH
 
 echo " + Apply V8 patches..."
 if ! patch --forward -p0 < "$PATCH_PATH"; then
@@ -143,12 +144,12 @@ if [ "$TARGET" == "sgx" ]; then
   other_ignore_warn="-Wno-unused-const-variable"
 
   oe_include_dir="/opt/openenclave/include"
-  export CFLAGS="$oe_ignore_warn $other_ignore_warn -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
+  export CFLAGS="$oe_ignore_warn $other_ignore_warn -DV8_OS_OPENENCLAVE=1 -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
   export CXXFLAGS="-isystem $oe_include_dir/openenclave/3rdparty/libcxx $CFLAGS"
 elif [  "$TARGET" == "virtual" ]; then
   # Use libc++ to match CCF.
-  export CFLAGS=""
-  export CXXFLAGS="-stdlib=libc++"
+  export CFLAGS="-DV8_OS_OPENENCLAVE=0"
+  export CXXFLAGS="$CFLAGS -stdlib=libc++"
 else
   echo "ERROR: Invalid target '$TARGET'"
   exit 1

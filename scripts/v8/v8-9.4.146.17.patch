@@ -214,6 +214,8 @@
        has_idiva_(false),
 --- src/base/platform/time.original.cc  2021-12-06 15:36:42.784000000 +0000
 +++ src/base/platform/time.cc   2021-12-06 15:37:09.016546075 +0000
+--- src/base/platform/time.original.cc  2021-12-06 15:36:42.784000000 +0000
++++ src/base/platform/time.cc   2021-12-06 17:34:08.651708386 +0000
 @@ -35,6 +35,10 @@
  #include "starboard/time.h"
  #endif
@@ -225,3 +227,89 @@
  namespace {
  
  #if V8_OS_MACOSX
+@@ -376,11 +380,15 @@
+ #elif V8_OS_POSIX
+ 
+ Time Time::Now() {
++#if V8_OS_OPENENCLAVE
++  return Time();
++#else
+   struct timeval tv;
+   int result = gettimeofday(&tv, nullptr);
+   DCHECK_EQ(0, result);
+   USE(result);
+   return FromTimeval(tv);
++#endif
+ }
+--- src/base/platform/semaphore.original.cc     2021-12-06 16:51:05.114000000 +0000
++++ src/base/platform/semaphore.cc      2021-12-06 17:06:10.449860483 +0000
+@@ -45,19 +45,30 @@
+ 
+ Semaphore::Semaphore(int count) {
+   DCHECK_GE(count, 0);
++#if V8_OS_OPENENCLAVE
++  USE(count);
++#else
+   int result = sem_init(&native_handle_, 0, count);
+   DCHECK_EQ(0, result);
+   USE(result);
++#endif
+ }
+ 
+ 
+ Semaphore::~Semaphore() {
++#if V8_OS_OPENENCLAVE
++  UNIMPLEMENTED();
++#else
+   int result = sem_destroy(&native_handle_);
+   DCHECK_EQ(0, result);
+   USE(result);
++#endif
+ }
+ 
+ void Semaphore::Signal() {
++#if V8_OS_OPENENCLAVE
++  UNIMPLEMENTED();
++#else
+   int result = sem_post(&native_handle_);
+   // This check may fail with <libc-2.21, which we use on the try bots, if the
+   // semaphore is destroyed while sem_post is still executed. A work around is
+@@ -65,10 +76,14 @@
+   if (result != 0) {
+     FATAL("Error when signaling semaphore, errno: %d", errno);
+   }
++#endif
+ }
+ 
+ 
+ void Semaphore::Wait() {
++#if V8_OS_OPENENCLAVE
++  UNIMPLEMENTED();
++#else
+   while (true) {
+     int result = sem_wait(&native_handle_);
+     if (result == 0) return;  // Semaphore was signalled.
+@@ -76,10 +91,15 @@
+     DCHECK_EQ(-1, result);
+     DCHECK_EQ(EINTR, errno);
+   }
++#endif
+ }
+ 
+ 
+ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
++#if V8_OS_OPENENCLAVE
++  USE(rel_time);
++  UNIMPLEMENTED();
++#else
+   // Compute the time for end of timeout.
+   const Time time = Time::NowFromSystemTime() + rel_time;
+   const struct timespec ts = time.ToTimespec();
+@@ -103,6 +123,7 @@
+     DCHECK_EQ(-1, result);
+     DCHECK_EQ(EINTR, errno);
+   }
++#endif
+ }
+ 
+ #elif V8_OS_WIN
