@@ -133,7 +133,12 @@ namespace kv
 
       if (history)
       {
-        history->append(data);
+        crypto::Sha256Hash write_set_digest(
+          {data.data(), data.size()});
+        crypto::Sha256Hash mt_entry(write_set_digest, claims_digest.value());
+        std::vector<uint8_t> mt_entry_buf(
+          mt_entry.h.begin(), mt_entry.h.end());
+        history->append(mt_entry_buf);
       }
       return success;
     }
