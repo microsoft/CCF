@@ -255,24 +255,18 @@ function updateServiceConfig(new_config) {
     config.reconfiguration_type = new_config.reconfiguration_type;
   }
 
-  let need_recovery_threshold_refresh = false;
   if (
     new_config.recovery_threshold !== undefined &&
     new_config.recovery_threshold !== config.recovery_threshold
   ) {
     config.recovery_threshold = new_config.recovery_threshold;
-    need_recovery_threshold_refresh = true;
+    ccf.node.triggerRecoverySharesRefresh();
   }
 
   ccf.kv[service_config_table].set(
     getSingletonKvKey(),
     ccf.jsonCompatibleToBuf(config)
   );
-
-  // All ok, run triggers
-  if (need_recovery_threshold_refresh) {
-    ccf.node.triggerRecoverySharesRefresh();
-  }
 }
 
 const actions = new Map([
