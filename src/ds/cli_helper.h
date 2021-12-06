@@ -137,7 +137,7 @@ namespace cli
   inline static size_t convert_size_string(std::string input)
   {
     size_t ret = 0;
-    CLI::AsSizeValue(false)(input); // Parse both all values as multiple of 1024
+    CLI::AsSizeValue(false)(input); // Parse all values as multiple of 1024
     auto rc = CLI::detail::integral_conversion(input, ret);
     CCF_ASSERT_FMT(rc, "Could not convert {} to size_t: {}", input, rc);
     return ret;

@@ -168,23 +168,21 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
   kv::Version version = 10;
   kv::Term term = 1;
 
-  bool is_snapshot = true;
   encryptor.encrypt(
     plain,
     additional_data,
     serialised_header,
     cipher,
     {term, version},
-    is_snapshot);
+    kv::EntryType::Snapshot);
 
-  is_snapshot = !is_snapshot;
   encryptor.encrypt(
     plain,
     additional_data,
     serialised_header2,
     cipher2,
     {term, version},
-    is_snapshot);
+    kv::EntryType::WriteSet);
 
   // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
