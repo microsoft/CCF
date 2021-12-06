@@ -21,7 +21,7 @@ namespace ccf::indexing
   class Indexer : public IndexingStrategies
   {
   public:
-    static constexpr size_t MAX_REQUESTABLE = 1000;
+    static constexpr size_t MAX_REQUESTABLE = 100;
 
   protected:
     std::shared_ptr<TransactionFetcher> transaction_fetcher;
@@ -73,8 +73,9 @@ namespace ccf::indexing
           // Request a prefix of the missing entries. Cap the requested range,
           // so we don't overload the node with a huge historical request
           const auto first_requested = min_provided->seqno + 1;
-          auto additional =
-            std::min(MAX_REQUESTABLE, committed.seqno - first_requested);
+          auto additional = std::min(
+            MAX_REQUESTABLE - uncommitted_entries.size(),
+            committed.seqno - first_requested);
 
           SeqNoCollection seqnos(first_requested, additional);
 
@@ -106,30 +107,34 @@ namespace ccf::indexing
     // we're capping how many we fetch historically?
     void append_entry(const ccf::TxID& tx_id, const uint8_t* data, size_t size)
     {
-      // TODO: Look at memory savings of this before commit
-      // if (tx_id_less(tx_id, committed))
-      // {
-      //   throw std::logic_error(fmt::format(
-      //     "Appending entry out-of-order. Committed to {}, trying to append {}",
-      //     committed.to_str(),
-      //     tx_id.to_str()));
-      // }
+      if (tx_id_less(tx_id, committed))
+      {
+        throw std::logic_error(fmt::format(
+          "Appending entry out-of-order. Committed to {}, trying to append {}",
+          committed.to_str(),
+          tx_id.to_str()));
+      }
 
-      // if (!uncommitted_entries.empty())
-      // {
-      //   const auto& [back_id, _] = uncommitted_entries.back();
-      //   if (tx_id_less(tx_id, back_id))
-      //   {
-      //     throw std::logic_error(fmt::format(
-      //       "Appending entry out-of-order. Last entry is {}, trying to append "
-      //       "{}",
-      //       back_id.to_str(),
-      //       tx_id.to_str()));
-      //   }
-      // }
+      if (uncommitted_entries.size() >= MAX_REQUESTABLE)
+      {
+        return;
+      }
 
-      // uncommitted_entries.emplace_back(
-      //   std::make_pair(tx_id, std::vector<uint8_t>{data, data + size}));
+      if (!uncommitted_entries.empty())
+      {
+        const auto& [back_id, _] = uncommitted_entries.back();
+        if (tx_id_less(tx_id, back_id))
+        {
+          throw std::logic_error(fmt::format(
+            "Appending entry out-of-order. Last entry is {}, trying to append "
+            "{}",
+            back_id.to_str(),
+            tx_id.to_str()));
+        }
+      }
+
+      uncommitted_entries.emplace_back(
+        std::make_pair(tx_id, std::vector<uint8_t>{data, data + size}));
     }
 
     void rollback(const ccf::TxID& tx_id)
