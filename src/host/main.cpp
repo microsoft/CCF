@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
@@ -76,7 +77,7 @@ int main(int argc, char** argv)
 
   std::string config_str = files::slurp_string(config_file_path);
 
-  CCHostConfig config = {};
+  host::CCHostConfig config = {};
   try
   {
     config = nlohmann::json::parse(config_str);
@@ -94,7 +95,7 @@ int main(int argc, char** argv)
   }
 
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
-  if (config.logging.format == LogFormat::JSON)
+  if (config.logging.format == host::LogFormat::JSON)
   {
     logger::config::initialize_with_json_console();
   }
@@ -148,16 +149,16 @@ int main(int argc, char** argv)
 
     switch (config.enclave.type)
     {
-      case EnclaveType::RELEASE:
+      case host::EnclaveType::RELEASE:
       {
         break;
       }
-      case EnclaveType::DEBUG:
+      case host::EnclaveType::DEBUG:
       {
         oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
         break;
       }
-      case EnclaveType::VIRTUAL:
+      case host::EnclaveType::VIRTUAL:
       {
         oe_flags = ENCLAVE_FLAG_VIRTUAL;
         break;
@@ -190,7 +191,7 @@ int main(int argc, char** argv)
   host::Enclave enclave(config.enclave.file, oe_flags);
 
   // messaging ring buffers
-  const auto buffer_size = 1 << config.memory.circuit_size_shift;
+  const auto buffer_size = config.memory.circuit_size;
 
   std::vector<uint8_t> to_enclave_buffer(buffer_size);
   ringbuffer::Offsets to_enclave_offsets;
@@ -214,8 +215,7 @@ int main(int argc, char** argv)
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{
-    (size_t)(1 << config.memory.max_fragment_size_shift),
-    (size_t)(1 << config.memory.max_msg_size_shift)};
+    config.memory.max_fragment_size, config.memory.max_msg_size};
   oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
 
   // reconstruct oversized messages sent to the host
