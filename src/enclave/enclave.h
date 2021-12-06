@@ -24,11 +24,6 @@
 
 namespace enclave
 {
-  inline void from_json(const nlohmann::json& j, SizeString& str)
-  {
-    str = j.get<size_t>();
-  }
-
   class Enclave
   {
   private:

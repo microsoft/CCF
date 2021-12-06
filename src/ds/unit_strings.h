@@ -85,31 +85,26 @@ namespace ds
 
   struct SizeString
   {
-    size_t value;
+    std::string str;
 
     SizeString() = default;
-    SizeString(size_t val) : value(val) {}
-
-    void operator=(size_t val)
-    {
-      value = val;
-    }
+    SizeString(const std::string& str_) : str(str_) {}
 
     bool operator==(const SizeString&) const = default;
 
     inline operator size_t() const
     {
-      return value;
+      return convert_size_string(str);
     }
   };
 
-  inline void from_json(const nlohmann::json& j, SizeString& str)
+  inline void from_json(const nlohmann::json& j, SizeString& s)
   {
-    str = convert_size_string(j.get<std::string>());
+    s = j.get<std::string>();
   }
 
-  inline void to_json(nlohmann::json& j, const SizeString& str)
+  inline void to_json(nlohmann::json& j, const SizeString& s)
   {
-    j = str.value;
+    j = s.str;
   }
 }
