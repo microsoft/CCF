@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <iostream>
 #include <vector>
+#include <array>
 
 namespace crypto
 {
@@ -54,6 +55,8 @@ namespace crypto
   {
   public:
     static constexpr size_t SIZE = 256 / 8;
+    using Representation = std::array<uint8_t, SIZE>;
+
     Sha256Hash() : h{0} {}
     Sha256Hash(const CBuffer& data) : h{0}
     {
@@ -71,7 +74,7 @@ namespace crypto
       default_sha256(data, h.data());
     }
 
-    std::array<uint8_t, SIZE> h;
+    Representation h;
 
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)

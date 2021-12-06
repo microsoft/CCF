@@ -7,6 +7,7 @@
 
 #include <small_vector/SmallVector.h>
 #include <type_traits>
+#include <array>
 
 namespace kv
 {
@@ -47,10 +48,16 @@ namespace kv
         entry_size_bytes);
     }
 
-    template <typename T, typename SIZE>
-    serialise_array(const std::array<T, SIZE>& array)
+    template <typename T, size_t SIZE>
+    void serialise_array(const std::array<T, SIZE>& array)
     {
-      
+      constexpr size_t array_size = SIZE * sizeof(T);
+      size_t size_before = buf.size();
+      buf.resize(buf.size() + array_size);
+
+      auto data_ = buf.data() + size_before;
+      auto size_ = buf.size() - size_before;
+      serialized::write(data_, size_, reinterpret_cast<const uint8_t*>(array.data()), array_size);
     }
 
     void serialise_string(const std::string& str)
@@ -79,9 +86,9 @@ namespace kv
           serialise_vector(entry);
         }
       }
-      else if constexpr (std::is_same_v<T, crypto::Sha256Hash))
+      else if constexpr (std::is_same_v<T, crypto::Sha256Hash>)
       {
-        serialise_entry();
+        serialise_array(entry.h);
       }
       else if constexpr (std::is_same_v<T, EntryType>)
       {
@@ -182,6 +189,15 @@ namespace kv
         auto data_ = reinterpret_cast<uint8_t*>(ret.data());
         auto size_ = entry_size;
         serialized::write(data_, size_, data_ptr + entry_offset, entry_size);
+
+        return ret;
+      }
+      else if constexpr(nonstd::is_std_array<T>::value)
+      {
+        T ret;
+        auto data_ = reinterpret_cast<uint8_t*>(ret.data());
+        auto size_ = ret.size();
+        serialized::write(data_, size_, data_ptr, ret.size());
 
         return ret;
       }

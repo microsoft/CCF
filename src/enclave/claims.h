@@ -8,13 +8,17 @@ namespace ccf
 {
   class ClaimsDigest
   {
+  public:
+    using Digest = crypto::Sha256Hash; 
+
+  private:
     bool is_set = false;
-    crypto::Sha256Hash digest;
+    Digest digest;
 
   public:
     ClaimsDigest() = default;
 
-    inline void set(crypto::Sha256Hash digest_)
+    inline void set(const Digest& digest_) // TODO: move?
     {
       is_set = true;
       digest = digest_;
@@ -25,7 +29,7 @@ namespace ccf
       return is_set;
     }
 
-    const crypto::Sha256Hash& value() const
+    const Digest& value() const
     {
       return digest;
     }

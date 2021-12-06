@@ -229,6 +229,7 @@ namespace kv
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
+    ccf::ClaimsDigest claims_digest = ccf::no_claims();
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -238,6 +239,10 @@ namespace kv
     void read_public_header()
     {
       entry_type = public_reader.template read_next<EntryType>();
+      if (entry_type == EntryType::WriteSetWithClaims)
+      {
+        auto digest_array = public_reader.template read_next<ccf::ClaimsDigest::Digest::Representation>();
+      }
       version = public_reader.template read_next<Version>();
       // max_conflict_version is included for compatibility, but currently
       // ignored
