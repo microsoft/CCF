@@ -21,7 +21,7 @@ from loguru import logger as LOG
 
 def node_configs(network):
     configs = {}
-    for node in network.nodes:
+    for node in network.get_joined_nodes():
         try:
             with node.client() as nc:
                 configs[node.node_id] = nc.get("/node/config").body.json()
@@ -47,7 +47,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
     while max_num_configs > 1 or not all_same_rid:
         max_num_configs = 0
         all_same_rid = True
-        for node in network.nodes:
+        for node in network.get_joined_nodes():
             with node.client(self_signed_ok=True) as c:
                 try:
                     r = c.get("/node/consensus")

@@ -110,9 +110,9 @@ def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         running_nodes_count = len(network.get_joined_nodes())
         would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
-        minimum_nodes_to_run_count = network.nodes - network.get_f()
+        minimum_nodes_to_run_count = len(network.nodes) - network.get_f()
         LOG.info(
-            f"{running_nodes_count}/{network.nodes} nodes running, with f={network.get_f()}, trying to kill {nodes_to_kill_count}"
+            f"{running_nodes_count}/{len(network.nodes)} nodes running, with f={network.get_f()}, trying to kill {nodes_to_kill_count}"
         )
         if would_leave_nodes_count < minimum_nodes_to_run_count:
             raise TestRequirementsNotMet(
