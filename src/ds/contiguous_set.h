@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
-
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <numeric>
@@ -161,15 +159,14 @@ namespace ds
           // it > other.it
           // Walk from this->it to other.it, summing all of the ranges that are
           // passed
-          difference_type sum = 0;
-          sum += offset + 1;
-          auto it_ = std::prev(it);
-          while (it_ != other.it)
-          {
-            sum += it_->second + 1;
-            it_ = std::prev(it_);
-          }
-          sum += it_->second - other.offset;
+          difference_type sum = std::accumulate(
+            std::reverse_iterator(it),
+            std::prev(std::reverse_iterator(other.it)),
+            offset + 1,
+            [](difference_type acc, const auto& range) {
+              return acc + range.second + 1;
+            });
+          sum += other.it->second - other.offset;
           return sum;
         }
       }

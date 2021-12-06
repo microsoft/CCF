@@ -290,7 +290,7 @@ namespace kv::untyped
       }
     };
 
-    // Public typedef for external consumption
+    // Public typedefs for external consumption
     using ReadOnlyHandle = kv::untyped::MapHandle;
     using WriteOnlyHandle = kv::untyped::MapHandle;
     using Handle = kv::untyped::MapHandle;
