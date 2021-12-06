@@ -63,6 +63,8 @@ namespace kv
 
     ApplyResult apply() override
     {
+      ccf::ClaimsDigest claims_digest;
+
       if (!store->fill_maps(
             data, public_only, version, term, changes, new_maps, true))
       {

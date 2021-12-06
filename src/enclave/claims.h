@@ -24,6 +24,12 @@ namespace ccf
       digest = digest_;
     }
 
+    inline void set(const Digest::Representation& r)
+    {
+      is_set = true;
+      digest.set(r);
+    }
+
     inline bool empty() const
     {
       return is_set;

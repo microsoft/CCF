@@ -242,6 +242,7 @@ namespace kv
       if (entry_type == EntryType::WriteSetWithClaims)
       {
         auto digest_array = public_reader.template read_next<ccf::ClaimsDigest::Digest::Representation>();
+        claims_digest.set(digest_array);
       }
       version = public_reader.template read_next<Version>();
       // max_conflict_version is included for compatibility, but currently
@@ -256,6 +257,11 @@ namespace kv
       crypto_util(e),
       domain_restriction(domain_restriction)
     {}
+
+    const ccf::ClaimsDigest& get_claims_digest() const
+    {
+      return claims_digest;
+    }
 
     std::optional<Version> init(
       const uint8_t* data,
