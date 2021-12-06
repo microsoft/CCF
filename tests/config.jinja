@@ -37,7 +37,7 @@
   {
     "directory": "{{ ledger_dir }}",
     "read_only_directories": {{ read_only_ledger_dirs|tojson }},
-    "chunk_size": {{ ledger_chunk_bytes }}
+    "chunk_size": "{{ ledger_chunk_bytes }}"
   },
   "snapshots":
   {
@@ -74,10 +74,9 @@
   "client_connection_timeout_ms": 2000,
   "node_client_interface": {{ node_client_interface|tojson }},
   "worker_threads": {{ worker_threads }},
-  "memory":
-  {
-    "circuit_size_shift": 22,
-    "max_msg_size_shift": 24,
-    "max_fragment_size_shift": 16
+  "memory": {
+    "circuit_size": "4MB",
+    "max_msg_size": "16MB",
+    "max_fragment_size": "64KB"
   }
 }
