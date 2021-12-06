@@ -611,22 +611,6 @@ def run_join_old_snapshot(args):
                 pass
 
 
-def get_current_config(network):
-    tables, _ = network.get_latest_ledger_public_state()
-    nwcfgs_tn = "public:ccf.gov.nodes.network.configurations"
-    if nwcfgs_tn not in tables:
-        return None
-    nwcfgs = tables[nwcfgs_tn]
-    if ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY not in nwcfgs:
-        return None
-    current_ptr = json.loads(nwcfgs[ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY])
-    rid = current_ptr["rid"].to_bytes(8, "little")
-    if rid not in nwcfgs:
-        return None
-    current_cfg = json.loads(nwcfgs[rid])
-    return current_cfg
-
-
 def get_current_nodes_table(network):
     tables, _ = network.get_latest_ledger_public_state()
     tn = "public:ccf.gov.nodes.info"
@@ -636,27 +620,32 @@ def get_current_nodes_table(network):
     return r
 
 
-def get_joining_node_dates(network, tx_id_before, tx_id_after, node_id):
+def check_2tx_ledger(ledger_paths, learner_id):
     pending_at = 0
     learner_at = 0
     trusted_at = 0
 
-    for i in range(tx_id_before.seqno, tx_id_after.seqno + 1):
-        tables = network.get_ledger_public_state_at(i)
-        ntn = "public:ccf.gov.nodes.info"
-        if ntn in tables:
-            for k, v in tables[ntn].items():
-                if k.decode() == node_id:
-                    jv = json.loads(v)
-                    if "status" in jv:
-                        if jv["status"] == "Pending":
-                            pending_at = i
-                        elif jv["status"] == "Learner":
-                            learner_at = i
-                        elif jv["status"] == "Trusted":
-                            trusted_at = i
+    ledger = ccf.ledger.Ledger(ledger_paths, committed_only=True)
 
-    return pending_at, learner_at, trusted_at
+    LOG.info(f"LEARNER ID: {learner_id}")
+
+    for chunk in ledger:
+        for tr in chunk:
+            tables = tr.get_public_domain().get_tables()
+            if ccf.ledger.NODES_TABLE_NAME in tables:
+                nodes = tables[ccf.ledger.NODES_TABLE_NAME]
+                for nid, info_ in nodes.items():
+                    info = json.loads(info_)
+                    if nid.decode() == learner_id and "status" in info:
+                        seq_no = tr.get_public_domain().get_seqno()
+                        if info["status"] == "Pending":
+                            pending_at = seq_no
+                        elif info["status"] == "Learner":
+                            learner_at = seq_no
+                        elif info["status"] == "Trusted":
+                            trusted_at = seq_no
+
+    assert pending_at < learner_at < trusted_at
 
 
 def run_migration_tests(args):
@@ -664,6 +653,8 @@ def run_migration_tests(args):
         return
 
     txs = app.LoggingTxs("user0")
+    ledger_paths = None
+    learner_id = None
 
     with infra.network.network(
         args.nodes,
@@ -675,12 +666,6 @@ def run_migration_tests(args):
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
-
-        config_before = get_current_config(network)
-
-        if config_before is not None:
-            for n in network.nodes:
-                assert n.node_id in config_before["nodes"]
 
         nodes_before = get_current_nodes_table(network)
         for n in network.nodes:
@@ -708,26 +693,8 @@ def run_migration_tests(args):
                 assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
                 assert len(rj["details"]["learners"]) == 0
 
-        # Add a new node and check that the reconfiguration is recorded correctly
-        tx_id_before = TxID(0, 0)
-        with primary.client() as c:
-            rj = c.get("/node/commit").body.json()
-            tx_id_before = TxID.from_str(rj["transaction_id"])
-
-        new_node = network.create_node("local://localhost")
-        network.join_node(new_node, args.package, args, from_snapshot=False)
-        network.trust_node(new_node, args)
-
-        config_after = get_current_config(network)
-        nodes_after = get_current_nodes_table(network)
-
-        assert len(nodes_after) == len(nodes_before) + 1
-        assert nodes_after[new_node.node_id]["status"] == "Trusted"
-
-        assert config_before is None or (
-            config_after["rid"] == config_before["rid"] + 1
-        )
-        assert new_node.node_id in config_after["nodes"]
+        test_add_node(network, args)
+        new_node = network.nodes[-1]
 
         # Check that the new node has the right consensus parameter
         with new_node.client() as c:
@@ -737,14 +704,13 @@ def run_migration_tests(args):
             assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
             assert len(rj["details"]["learners"]) == 0
 
-        tx_id_after = TxID(0, 0)
-        with primary.client() as c:
-            rj = c.get("/node/commit").body.json()
-            tx_id_after = TxID.from_str(rj["transaction_id"])
-        pending_at, learner_at, trusted_at = get_joining_node_dates(
-            network, tx_id_before, tx_id_after, new_node.node_id
-        )
-        assert pending_at < learner_at < trusted_at
+        ledger_paths = primary.remote.ledger_paths()
+        learner_id = new_node.node_id
+
+        # Force ledger flush of all transactions so far.
+        network.get_latest_ledger_public_state()
+
+    check_2tx_ledger(ledger_paths, learner_id)
 
 
 def run_all(args):
