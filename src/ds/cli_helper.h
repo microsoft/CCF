@@ -146,13 +146,12 @@ namespace cli
 
     explicit AsTimeValue() : CLI::AsNumberWithUnit(get_mapping())
     {
-      description("TIME [us, ms, s, min(=60s), h(=24h)]");
+      description("TIME [us, ms, s, min(=60s), h(=60min)]");
     }
 
   private:
     static std::map<std::string, result_t> init_mapping()
     {
-      // TODO: Unit test for this!
       std::map<std::string, result_t> m;
       m["us"] = 1;
       m["ms"] = m["us"] * 1000;
