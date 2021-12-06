@@ -152,7 +152,7 @@ if __name__ == "__main__":
             elif k == "read_only_ledger_dir":
                 output["ledger"]["read_only_directories"] = [v]
             elif k == "ledger_chunk_bytes":
-                output["ledger"]["chunk_size"] = v
+                output["ledger"]["chunk_size"] = human_readable_size(int(v))
 
             # snapshots
             elif k == "snapshot_dir":  # plural

@@ -11,10 +11,7 @@
 #include <optional>
 
 #define FMT_HEADER_ONLY
-#include "ds/logger.h"
-
 #include <fmt/format.h>
-#include <nlohmann/json.hpp>
 
 namespace cli
 {
