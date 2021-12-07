@@ -315,16 +315,6 @@ namespace aft
         return index;
       }
 
-      ccf::PrimarySignature& get_signature() override
-      {
-        throw std::logic_error("get_signature not implemented");
-      }
-
-      aft::Request& get_request() override
-      {
-        throw std::logic_error("get_request not implemented");
-      }
-
       bool support_async_execution() override
       {
         return false;

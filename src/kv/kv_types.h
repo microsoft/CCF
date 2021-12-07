@@ -694,8 +694,6 @@ namespace kv
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;
     virtual kv::Version get_index() = 0;
-    virtual ccf::PrimarySignature& get_signature() = 0;
-    virtual aft::Request& get_request() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
 
