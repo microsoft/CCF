@@ -17,8 +17,7 @@ SECTIONS_2_X = [
     "enclave",
     "network",
     "node_certificate",
-    "start",
-    "join",
+    "command",
     "ledger",
     "snapshots",
     "logging",
@@ -31,13 +30,17 @@ SECTIONS_2_X = [
 DEFAULT_MAX_RPC_SESSIONS_SOFT = 1000
 
 
+def human_readable_size(n):
+    suffixes = ("B", "KB", "MB", "GB")
+    i = 0
+    while n >= 1024 and i < len(suffixes) - 1:
+        n //= 1024
+        i += 1
+    return f"{n}{suffixes[i]}"
+
+
 def make_key_json_compatible(key):
     return key.replace("-", "_")
-
-
-def split_address(addr, default_port="0"):
-    host, *port = addr.split(":")
-    return {"hostname": host, "port": (port[0] if port else default_port)}
 
 
 def split_member_info(member_info_str):
@@ -76,15 +79,21 @@ if __name__ == "__main__":
     for s in SECTIONS_2_X:
         output[s] = {}
     output["network"]["rpc_interfaces"] = [{}]
-    output["start"]["constitution_files"] = []
     output["network"]["rpc_interfaces"][0] = {
         "max_open_sessions_soft": DEFAULT_MAX_RPC_SESSIONS_SOFT,
         "max_open_sessions_hard": DEFAULT_MAX_RPC_SESSIONS_SOFT + 10,
     }
-    output["start"]["members"] = []
-    output["start"]["service_configuration"] = {
+    output["command"]["start"] = {}
+    output["command"]["start"]["constitution_files"] = []
+    output["command"]["start"]["members"] = []
+    output["command"]["start"]["service_configuration"] = {
         "maximum_node_certificate_validity_days": 365
     }
+    output["command"]["join"] = {}
+
+    output["command"]["type"] = "start" if "start" in config.sections() else "join"
+
+    LOG.info(f'Command type: {output["command"]["type"]}')
 
     for s in config.sections():
         for k_, v_ in config.items(s):
@@ -94,17 +103,17 @@ if __name__ == "__main__":
             # sub-commands
             # start
             if k == "constitution":
-                output["start"]["constitution_files"] = json.loads(v)
+                output["command"]["start"]["constitution_files"] = json.loads(v)
             elif k == "member_info":
                 for m in json.loads(v):
-                    output["start"]["members"].append(split_member_info(m))
+                    output["command"]["start"]["members"].append(split_member_info(m))
             elif k == "recovery_threshold":
-                output["start"]["service_configuration"][k] = int(v)
+                output["command"]["start"]["service_configuration"][k] = int(v)
             # join
             elif k == "target_rpc_address":
-                output[s][k] = split_address(v)
+                output["command"][s][k] = v
             elif k == "join_timer":
-                output[s]["timer_ms"] = int(v)
+                output["command"][s]["timer_ms"] = int(v)
 
             # enclave
             elif k == "enclave_file":
@@ -114,13 +123,9 @@ if __name__ == "__main__":
 
             # network
             elif k == "rpc_address":
-                output["network"]["rpc_interfaces"][0]["bind_address"] = split_address(
-                    v
-                )
+                output["network"]["rpc_interfaces"][0]["bind_address"] = v
             elif k == "public_rpc_address":
-                output["network"]["rpc_interfaces"][0][
-                    "published_address"
-                ] = split_address(v)
+                output["network"]["rpc_interfaces"][0]["published_address"] = v
             elif k == "max_open_sessions":
                 output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = int(
                     v
@@ -129,7 +134,7 @@ if __name__ == "__main__":
                     int(v) + 10
                 )
             elif k == "node_address":
-                output["network"]["node_address"] = split_address(v)
+                output["network"]["node_address"] = v
             elif k == "network_cert_file":
                 output["network_certificate_file"] = v
 
@@ -147,7 +152,7 @@ if __name__ == "__main__":
             elif k == "read_only_ledger_dir":
                 output["ledger"]["read_only_directories"] = [v]
             elif k == "ledger_chunk_bytes":
-                output["ledger"]["chunk_size"] = int(v)
+                output["ledger"]["chunk_size"] = human_readable_size(int(v))
 
             # snapshots
             elif k == "snapshot_dir":  # plural
@@ -178,7 +183,10 @@ if __name__ == "__main__":
 
             # memory
             elif "size" in k:
-                output["memory"][k] = int(v)
+                # Remove shift suffix if it exists
+                suffix = "_shift"
+                k = k[: -len(suffix)] if k.endswith(suffix) else k
+                output["memory"][k] = f"{human_readable_size(1 << int(v))}"
 
             elif k in ("worker_threads", "tick_period_ms"):
                 output[k] = int(v)

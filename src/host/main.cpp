@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "configuration.h"
 #include "crypto/openssl/x509_time.h"
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "ds/net.h"
@@ -55,14 +57,12 @@ int main(int argc, char** argv)
       "-c,--config", config_file_path, "Path to JSON configuration file")
     ->check(CLI::ExistingFile);
 
+  bool check_config_only = false;
+  app.add_flag(
+    "--check", check_config_only, "Verify configuration file and exit");
+
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
-
-  app.require_subcommand(1, 1);
-
-  auto start = app.add_subcommand("start", "Start new network");
-  auto join = app.add_subcommand("join", "Join existing network");
-  auto recover = app.add_subcommand("recover", "Recover crashed network");
 
   try
   {
@@ -76,10 +76,26 @@ int main(int argc, char** argv)
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
   std::string config_str = files::slurp_string(config_file_path);
-  CCHostConfig config = nlohmann::json::parse(config_str);
-  LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
 
-  if (config.logging.format == LogFormat::JSON)
+  host::CCHostConfig config = {};
+  try
+  {
+    config = nlohmann::json::parse(config_str);
+  }
+  catch (const std::exception& e)
+  {
+    throw std::logic_error(fmt::format(
+      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+  }
+
+  if (check_config_only)
+  {
+    LOG_INFO_FMT("Configuration file successfully verified");
+    return 0;
+  }
+
+  LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
+  if (config.logging.format == host::LogFormat::JSON)
   {
     logger::config::initialize_with_json_console();
   }
@@ -88,22 +104,21 @@ int main(int argc, char** argv)
   size_t recovery_threshold = 0;
   try
   {
-    if (*start && files::exists(config.ledger.directory))
+    if (config.command.type == StartType::Start)
     {
-      throw std::logic_error(fmt::format(
-        "On start, ledger directory should not exist ({})",
-        config.ledger.directory));
-    }
-
-    if (*start)
-    {
+      if (files::exists(config.ledger.directory))
+      {
+        throw std::logic_error(fmt::format(
+          "On start, ledger directory should not exist ({})",
+          config.ledger.directory));
+      }
       // Count members with public encryption key as only these members will be
       // handed a recovery share.
       // Note that it is acceptable to start a network without any member having
       // a recovery share. The service will check that at least one recovery
       // member is added before the service can be opened.
       size_t members_with_pubk_count = 0;
-      for (auto const& m : config.start.members)
+      for (auto const& m : config.command.start.members)
       {
         if (m.encryption_public_key_file.has_value())
         {
@@ -112,7 +127,7 @@ int main(int argc, char** argv)
       }
 
       recovery_threshold =
-        config.start.service_configuration.recovery_threshold;
+        config.command.start.service_configuration.recovery_threshold;
       if (recovery_threshold == 0)
       {
         LOG_INFO_FMT(
@@ -134,16 +149,16 @@ int main(int argc, char** argv)
 
     switch (config.enclave.type)
     {
-      case EnclaveType::RELEASE:
+      case host::EnclaveType::RELEASE:
       {
         break;
       }
-      case EnclaveType::DEBUG:
+      case host::EnclaveType::DEBUG:
       {
         oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
         break;
       }
-      case EnclaveType::VIRTUAL:
+      case host::EnclaveType::VIRTUAL:
       {
         oe_flags = ENCLAVE_FLAG_VIRTUAL;
         break;
@@ -176,7 +191,7 @@ int main(int argc, char** argv)
   host::Enclave enclave(config.enclave.file, oe_flags);
 
   // messaging ring buffers
-  const auto buffer_size = 1 << config.memory.circuit_size_shift;
+  const auto buffer_size = config.memory.circuit_size;
 
   std::vector<uint8_t> to_enclave_buffer(buffer_size);
   ringbuffer::Offsets to_enclave_offsets;
@@ -200,8 +215,7 @@ int main(int argc, char** argv)
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{
-    (size_t)(1 << config.memory.max_fragment_size_shift),
-    (size_t)(1 << config.memory.max_msg_size_shift)};
+    config.memory.max_fragment_size, config.memory.max_msg_size};
   oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
 
   // reconstruct oversized messages sent to the host
@@ -246,22 +260,21 @@ int main(int argc, char** argv)
     // This includes DNS resolution and potentially dynamic port assignment (if
     // requesting port 0). The hostname and port may be modified - after calling
     // it holds the final assigned values.
+    auto [node_host, node_port] =
+      cli::validate_address(config.network.node_address);
     asynchost::NodeConnections node(
       bp.get_dispatcher(),
       ledger,
       writer_factory,
-      config.network.node_address.hostname,
-      config.network.node_address.port,
+      node_host,
+      node_port,
       config.node_client_interface,
       config.client_connection_timeout_ms);
+    config.network.node_address = ccf::make_net_address(node_host, node_port);
     if (!config.node_address_file.empty())
     {
       files::dump(
-        fmt::format(
-          "{}\n{}",
-          config.network.node_address.hostname,
-          config.network.node_address.port),
-        config.node_address_file);
+        fmt::format("{}\n{}", node_host, node_port), config.node_address_file);
     }
 
     asynchost::RPCConnections rpc(
@@ -271,23 +284,24 @@ int main(int argc, char** argv)
     std::string rpc_addresses;
     for (auto& interface : config.network.rpc_interfaces)
     {
-      rpc.listen(
-        0, interface.bind_address.hostname, interface.bind_address.port);
-      rpc_addresses += fmt::format(
-        "{}\n{}\n",
-        interface.bind_address.hostname,
-        interface.bind_address.port);
+      auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
+      rpc.listen(0, rpc_host, rpc_port);
+      rpc_addresses += fmt::format("{}\n{}\n", rpc_host, rpc_port);
+
+      interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
 
       // If public RPC address is not set, default to local RPC address
-      if (interface.published_address.hostname.empty())
+      if (interface.published_address.empty())
       {
-        interface.published_address.hostname = interface.bind_address.hostname;
+        interface.published_address = interface.bind_address;
       }
-      if (
-        interface.published_address.port.empty() ||
-        interface.published_address.port == "0")
+
+      auto [pub_host, pub_port] =
+        cli::validate_address(interface.published_address);
+      if (pub_port == "0")
       {
-        interface.published_address.port = interface.bind_address.port;
+        pub_port = rpc_port;
+        interface.published_address = ccf::make_net_address(pub_host, pub_port);
       }
     }
     if (!config.rpc_addresses_file.empty())
@@ -299,8 +313,6 @@ int main(int argc, char** argv)
     const size_t certificate_size = 4096;
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> network_cert(certificate_size);
-
-    StartType start_type = StartType::New;
 
     EnclaveConfig enclave_config;
     enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
@@ -328,11 +340,9 @@ int main(int argc, char** argv)
     startup_config.startup_host_time = crypto::OpenSSL::to_x509_time_string(
       std::chrono::system_clock::to_time_t(startup_host_time));
 
-    if (*start)
+    if (config.command.type == StartType::Start)
     {
-      start_type = StartType::New;
-
-      for (auto const& m : config.start.members)
+      for (auto const& m : config.command.start.members)
       {
         std::optional<std::vector<uint8_t>> public_encryption_key =
           std::nullopt;
@@ -354,7 +364,8 @@ int main(int argc, char** argv)
           files::slurp(m.certificate_file), public_encryption_key, md);
       }
       startup_config.start.constitution = "";
-      for (const auto& constitution_path : config.start.constitution_files)
+      for (const auto& constitution_path :
+           config.command.start.constitution_files)
       {
         // Separate with single newlines
         if (!startup_config.start.constitution.empty())
@@ -366,38 +377,38 @@ int main(int argc, char** argv)
           files::slurp_string(constitution_path);
       }
       startup_config.start.service_configuration =
-        config.start.service_configuration;
+        config.command.start.service_configuration;
       startup_config.start.service_configuration.recovery_threshold =
         recovery_threshold;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
-        config.start.members.size(),
+        config.command.start.members.size(),
         recovery_threshold);
     }
-    else if (*join)
+    else if (config.command.type == StartType::Join)
     {
       LOG_INFO_FMT(
-        "Creating new node - join existing network at {}:{}",
-        config.join.target_rpc_address.hostname,
-        config.join.target_rpc_address.port);
-      start_type = StartType::Join;
-      startup_config.join.target_rpc_address = config.join.target_rpc_address;
-      startup_config.join.timer_ms = config.join.timer_ms;
+        "Creating new node - join existing network at {}",
+        config.command.join.target_rpc_address);
+      startup_config.join.target_rpc_address =
+        config.command.join.target_rpc_address;
+      startup_config.join.timer_ms = config.command.join.timer_ms;
       startup_config.join.network_cert =
         files::slurp(config.network_certificate_file);
     }
-    else if (*recover)
+    else if (config.command.type == StartType::Recover)
     {
       LOG_INFO_FMT("Creating new node - recover");
-      start_type = StartType::Recover;
     }
     else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
 
-    if (*join || *recover)
+    if (
+      config.command.type == StartType::Join ||
+      config.command.type == StartType::Recover)
     {
       auto snapshot_file = snapshots.find_latest_committed_snapshot();
       if (snapshot_file.has_value())
@@ -441,7 +452,7 @@ int main(int argc, char** argv)
       startup_config,
       node_cert,
       network_cert,
-      start_type,
+      config.command.type,
       config.worker_threads,
       time_updater->behaviour.get_value());
 
@@ -453,7 +464,9 @@ int main(int argc, char** argv)
       "Output self-signed node certificate to {}",
       config.node_certificate_file);
 
-    if (*start || *recover)
+    if (
+      config.command.type == StartType::Start ||
+      config.command.type == StartType::Recover)
     {
       files::dump(network_cert, config.network_certificate_file);
       LOG_INFO_FMT(

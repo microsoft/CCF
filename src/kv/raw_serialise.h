@@ -73,6 +73,10 @@ namespace kv
           serialise_vector(entry);
         }
       }
+      else if constexpr (std::is_same_v<T, EntryType>)
+      {
+        serialise_entry(static_cast<uint8_t>(entry));
+      }
       else if constexpr (std::is_same_v<T, std::string>)
       {
         serialise_string(entry);
@@ -170,6 +174,15 @@ namespace kv
         serialized::write(data_, size_, data_ptr + entry_offset, entry_size);
 
         return ret;
+      }
+      else if constexpr (std::is_same_v<T, kv::EntryType>)
+      {
+        uint8_t entry_type = read_entry<uint8_t>();
+        if (entry_type > 1)
+          throw std::logic_error(
+            fmt::format("Invalid EntryType: {}", entry_type));
+
+        return kv::EntryType(entry_type);
       }
       else if constexpr (std::is_same_v<T, std::string>)
       {

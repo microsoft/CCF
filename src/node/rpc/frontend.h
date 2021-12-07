@@ -137,11 +137,9 @@ namespace ccf
 
           if (info)
           {
-            const auto& address = info->rpc_interfaces[0].published_address;
             const auto location = fmt::format(
-              "https://{}:{}{}",
-              address.hostname,
-              address.port,
+              "https://{}{}",
+              info->rpc_interfaces[0].published_address,
               ctx->get_request_path());
             ctx->set_response_header(http::headers::LOCATION, location);
             LOG_DEBUG_FMT("Redirecting to {}", location);

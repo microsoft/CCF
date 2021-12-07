@@ -794,6 +794,106 @@ def test_historical_query_range(network, args):
     return network
 
 
+@reqs.description("Read state at multiple distinct historical points")
+@reqs.supports_methods("log/private", "log/private/historical/sparse")
+def test_historical_query_sparse(network, args):
+    idx = 142
+
+    seqnos = []
+
+    primary, _ = network.find_primary()
+    with primary.client("user0") as c:
+        # Submit many transactions, overwriting the same ID
+        # Need to submit through network.txs so these can be verified at shutdown, but also need to submit one at a
+        # time to retrieve the submitted transactions
+        msgs = {}
+        n_entries = 100
+
+        for _ in range(n_entries):
+            network.txs.issue(
+                network,
+                repeat=True,
+                idx=idx,
+                wait_for_sync=False,
+                log_capture=[],
+                send_public=False,
+            )
+            _, tx = network.txs.get_last_tx(idx=idx)
+            msg = tx["msg"]
+            seqno = tx["seqno"]
+            view = tx["view"]
+            msgs[seqno] = msg
+
+            seqnos.append(seqno)
+
+        ccf.commit.wait_for_commit(c, seqno=seqnos[-1], view=view, timeout=3)
+
+        def get_sparse(client, target_id, seqnos, timeout=3):
+            seqnos_s = ",".join(str(n) for n in seqnos)
+            LOG.info(f"Getting historical entries: {seqnos_s}")
+            logs = []
+
+            start_time = time.time()
+            end_time = start_time + timeout
+            entries = {}
+            path = (
+                f"/app/log/private/historical/sparse?id={target_id}&seqnos={seqnos_s}"
+            )
+            while time.time() < end_time:
+                r = client.get(path, log_capture=logs)
+                if r.status_code == http.HTTPStatus.OK:
+                    j_body = r.body.json()
+                    for entry in j_body["entries"]:
+                        assert entry["id"] == target_id, entry
+                        entries[entry["seqno"]] = entry["msg"]
+                    duration = time.time() - start_time
+                    LOG.info(
+                        f"Done! Fetched {len(entries)} entries in {duration:0.2f}s"
+                    )
+                    return entries, duration
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    # Ignore retry-after header, retry soon
+                    time.sleep(0.1)
+                    continue
+                else:
+                    LOG.error("Printing historical/sparse logs on unexpected status")
+                    flush_info(logs, None)
+                    raise ValueError(
+                        f"Unexpected status code from historical sparse query: {r.status_code}"
+                    )
+
+            LOG.error("Printing historical/sparse logs on timeout")
+            flush_info(logs, None)
+            raise TimeoutError(
+                f"Historical sparse query not available after {timeout}s"
+            )
+
+        entries_all, _ = get_sparse(c, idx, seqnos)
+
+        seqnos_a = [s for s in seqnos if random.random() < 0.7]
+        entries_a, _ = get_sparse(c, idx, seqnos_a)
+        seqnos_b = [s for s in seqnos if random.random() < 0.5]
+        entries_b, _ = get_sparse(c, idx, seqnos_b)
+        small_range = len(seqnos) // 20
+        seqnos_c = seqnos[:small_range] + seqnos[-small_range:]
+        entries_c, _ = get_sparse(c, idx, seqnos_c)
+
+        def check_presence(expected, entries, seqno):
+            if seqno in expected:
+                assert seqno in entries, f"Missing result for {seqno}"
+                assert (
+                    entries[seqno] == msgs[seqno]
+                ), f"{entries[seqno]} != {msgs[seqno]}"
+
+        for seqno in seqnos:
+            check_presence(seqnos, entries_all, seqno)
+            check_presence(seqnos_a, entries_a, seqno)
+            check_presence(seqnos_b, entries_b, seqno)
+            check_presence(seqnos_c, entries_c, seqno)
+
+    return network
+
+
 def escaped_query_tests(c, endpoint):
     samples = [
         {"this": "that"},
@@ -1336,6 +1436,7 @@ def run(args):
             network = test_random_receipts(network, args, False)
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
+            network = test_historical_query_sparse(network, args)
         network = test_historical_receipts(network, args)
 
 

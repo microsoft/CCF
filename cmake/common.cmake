@@ -50,6 +50,10 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
+option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
+if(KV_STATE_RB)
+  add_compile_definitions(KV_STATE_RB)
+endif()
 
 option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
 if(ENABLE_BFT)
@@ -61,11 +65,6 @@ option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
 )
 if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
-endif()
-
-option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
-if(USE_NLJSON_KV_SERIALISER)
-  add_compile_definitions(USE_NLJSON_KV_SERIALISER)
 endif()
 
 enable_language(ASM)

@@ -268,6 +268,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -340,6 +342,9 @@ if(BUILD_TESTS)
       node_info_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )
+
+    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
+    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       base64_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
@@ -657,9 +662,16 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --client-tutorial
-      ${CMAKE_SOURCE_DIR}/python/tutorial.py --ledger-tutorial
+      --schema-dir
+      ${CMAKE_SOURCE_DIR}/doc/schemas
+      --client-tutorial
+      ${CMAKE_SOURCE_DIR}/python/tutorial.py
+      --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
+      --config-samples-dir
+      ${CMAKE_SOURCE_DIR}/samples/config
+      --config-file-1x
+      ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version

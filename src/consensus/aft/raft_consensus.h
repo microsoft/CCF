@@ -195,8 +195,6 @@ namespace aft
       aft->enable_all_domains();
     }
 
-    void emit_signature() override {}
-
     ConsensusType type() override
     {
       return consensus_type;

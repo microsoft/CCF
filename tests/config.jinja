@@ -4,7 +4,7 @@
     "type": "{{ enclave_type }}"
   },
   "network": {
-    "node_address": { "hostname": "{{ node_address_hostname }}",  "port": "{{ node_address_port }}" },
+    "node_address": "{{ node_address }}",
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
   },
   "node_certificate":
@@ -14,27 +14,30 @@
     "curve_id": "{{ curve_id }}",
     "initial_validity_days": {{ initial_node_cert_validity_days }}
   },
-  "start":
-  {
-    "members": {{ members_info|tojson }},
-    "constitution_files": {{ constitution|tojson }},
-    "service_configuration":
+  "command": {
+    "type": "{{ start_type }}",
+    "start":
     {
-      "recovery_threshold": {{ recovery_threshold or 0 }},
-      "maximum_node_certificate_validity_days": {{ maximum_node_certificate_validity_days }},
-      "reconfiguration_type": "{{ reconfiguration_type }}"
+      "members": {{ members_info|tojson }},
+      "constitution_files": {{ constitution|tojson }},
+      "service_configuration":
+      {
+        "recovery_threshold": {{ recovery_threshold or 0 }},
+        "maximum_node_certificate_validity_days": {{ maximum_node_certificate_validity_days }},
+        "reconfiguration_type": "{{ reconfiguration_type }}"
+      }
+    },
+    "join":
+    {
+      "timer_ms": {{ join_timer }},
+      "target_rpc_address": "{{ target_rpc_address }}"
     }
-  },
-  "join":
-  {
-    "timer_ms": {{ join_timer }},
-    "target_rpc_address": { "hostname": "{{ target_rpc_address_hostname }}", "port": "{{ target_rpc_address_port }}" }
   },
   "ledger":
   {
     "directory": "{{ ledger_dir }}",
     "read_only_directories": {{ read_only_ledger_dirs|tojson }},
-    "chunk_size": {{ ledger_chunk_bytes }}
+    "chunk_size": "{{ ledger_chunk_bytes }}"
   },
   "snapshots":
   {
@@ -66,12 +69,14 @@
   "node_pid_file": "{{ node_pid_file or "node.pid" }}",
   "node_address_file": "{{ node_address_file }}",
   "rpc_addresses_file" : "{{ rpc_addresses_file }}",
+  "tick_period_ms": 1,
+  "io_logging_threshold_ns": 10000000,
+  "client_connection_timeout_ms": 2000,
   "node_client_interface": {{ node_client_interface|tojson }},
-  "worker_threads": 0,
-  "memory":
-  {
-    "circuit_size_shift": 22,
-    "max_msg_size_shift": 24,
-    "max_fragment_size_shift": 16
+  "worker_threads": {{ worker_threads }},
+  "memory": {
+    "circuit_size": "4MB",
+    "max_msg_size": "16MB",
+    "max_fragment_size": "64KB"
   }
 }

@@ -4,10 +4,11 @@
     "type": "release"
   },
   "network": {
-    "node_address": { "hostname": "127.0.0.1", "port": "8081" },
+    "node_address": "127.0.0.1:8081",
     "rpc_interfaces": [
       {
-        "bind_address": { "hostname": "127.0.0.1", "port": "8080" },
+        "bind_address": "127.0.0.1:8080",
+        "published_rpc_address": "ccf.dummy.com:12345",
         "max_open_sessions_soft": 1000,
         "max_open_sessions_hard": 1010
       }
@@ -19,32 +20,35 @@
     "curve_id": "secp384r1",
     "initial_validity_days": 1
   },
-  "start": {
-    "constitution_files": [
-      "validate.js",
-      "apply.js",
-      "resolve.js",
-      "actions.js"
-    ],
-    "members": [
-      {
-        "certificate_file": "member0_cert.pem",
-        "encryption_public_key_file": "member0_enc_pubk.pem"
+  "command": {
+    "type": "start",
+    "start": {
+      "constitution_files": [
+        "validate.js",
+        "apply.js",
+        "resolve.js",
+        "actions.js"
+      ],
+      "members": [
+        {
+          "certificate_file": "member0_cert.pem",
+          "encryption_public_key_file": "member0_enc_pubk.pem"
+        }
+      ],
+      "service_configuration": {
+        "recovery_threshold": 1,
+        "maximum_node_certificate_validity_days": 365
       }
-    ],
-    "service_configuration": {
-      "recovery_threshold": 1,
-      "maximum_node_certificate_validity_days": 365
+    },
+    "join": {
+      "timer_ms": 1000,
+      "target_rpc_address": "127.0.0.1:5678"
     }
-  },
-  "join": {
-    "timer_ms": 1000,
-    "target_rpc_address": { "hostname": "127.0.0.1", "port": "5678" }
   },
   "ledger": {
     "directory": "ledger",
     "read_only_directories": [],
-    "chunk_size": 20000
+    "chunk_size": "5MB"
   },
   "snapshots": {
     "directory": "snapshots",
@@ -76,8 +80,8 @@
   "client_connection_timeout_ms": 2000,
   "worker_threads": 0,
   "memory": {
-    "circuit_size_shift": 22,
-    "max_msg_size_shift": 24,
-    "max_fragment_size_shift": 16
+    "circuit_size": "4MB",
+    "max_msg_size": "16MB",
+    "max_fragment_size": "64KB"
   }
 }

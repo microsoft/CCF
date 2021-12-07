@@ -315,7 +315,7 @@ namespace ccf
 
       switch (start_type)
       {
-        case StartType::New:
+        case StartType::Start:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             "CN=CCF Network", curve_id);
@@ -414,9 +414,12 @@ namespace ccf
       auto join_client =
         rpcsessions->create_client(std::move(join_client_cert));
 
+      auto [target_host, target_port] =
+        split_net_address(config.join.target_rpc_address);
+
       join_client->connect(
-        config.join.target_rpc_address.hostname,
-        config.join.target_rpc_address.port,
+        target_host,
+        target_port,
         [this](
           http_status status,
           http::HeaderMap&& headers,
@@ -435,8 +438,8 @@ namespace ccf
               location != headers.end())
             {
               const auto& url = http::parse_url_full(location->second);
-              config.join.target_rpc_address.hostname = url.host;
-              config.join.target_rpc_address.port = url.port;
+              config.join.target_rpc_address =
+                make_net_address(url.host, url.port);
               LOG_INFO_FMT("Target node redirected to {}", location->second);
             }
             else
@@ -612,9 +615,7 @@ namespace ccf
         config.node_certificate.subject_name, subject_alt_names);
 
       LOG_DEBUG_FMT(
-        "Sending join request to {}:{}",
-        config.join.target_rpc_address.hostname,
-        config.join.target_rpc_address.port);
+        "Sending join request to {}", config.join.target_rpc_address);
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
 
@@ -1468,7 +1469,7 @@ namespace ccf
     }
 
   private:
-    bool is_ip(const std::string& hostname)
+    bool is_ip(const std::string_view& hostname)
     {
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
@@ -1512,9 +1513,8 @@ namespace ccf
         std::vector<crypto::SubjectAltName> sans;
         for (const auto& interface : config.network.rpc_interfaces)
         {
-          sans.push_back(
-            {interface.published_address.hostname,
-             is_ip(interface.published_address.hostname)});
+          auto [host, _] = split_net_address(interface.published_address);
+          sans.push_back({host, is_ip(host)});
         }
         return sans;
       }
