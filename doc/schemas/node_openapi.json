@@ -74,6 +74,9 @@
           "membership_state": {
             "$ref": "#/components/schemas/MembershipState"
           },
+          "reconfiguration_type": {
+            "$ref": "#/components/schemas/ReconfigurationType"
+          },
           "retirement_phase": {
             "$ref": "#/components/schemas/RetirementPhase"
           }
@@ -666,7 +669,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.7.0"
+    "version": "2.7.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1009,7 +1012,7 @@
         }
       }
     },
-    "/service-configuration": {
+    "/service/configuration": {
       "get": {
         "responses": {
           "200": {
