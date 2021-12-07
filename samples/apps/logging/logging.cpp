@@ -1042,11 +1042,8 @@ namespace loggingapp
 
         // Process the fetched Stores
         LoggingGetHistoricalRange::Out response;
-        for (size_t i = 0; i < stores.size(); ++i)
+        for (auto& store: stores)
         {
-          const auto store_seqno = range_begin + i;
-          auto& store = stores[i];
-
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
             historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
@@ -1055,7 +1052,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store_seqno;
+            e.seqno = store->current_txid().version;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
