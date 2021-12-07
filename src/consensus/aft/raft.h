@@ -105,8 +105,6 @@ namespace aft
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
-    std::chrono::milliseconds view_change_timeout;
-    size_t sig_tx_interval;
     bool ticking = false;
 
     // Configurations
@@ -152,8 +150,6 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
     std::shared_ptr<SnapshotterProxy> snapshotter;
-    std::shared_ptr<enclave::RPCSessions> rpc_sessions;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
     std::set<ccf::NodeId> backup_nodes;
 
   public:
@@ -163,15 +159,11 @@ namespace aft
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
-      std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
-      std::chrono::milliseconds view_change_timeout_,
-      size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
       kv::MembershipState initial_membership_state_ =
         kv::MembershipState::Active,
@@ -187,9 +179,6 @@ namespace aft
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
-      view_change_timeout(view_change_timeout_),
-
-      sig_tx_interval(sig_tx_interval_),
 
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
@@ -202,9 +191,7 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(channels_),
-      snapshotter(snapshotter_),
-      rpc_sessions(rpc_sessions_),
-      rpc_map(rpc_map_)
+      snapshotter(snapshotter_)
 
     {
       LOG_DEBUG_FMT(
