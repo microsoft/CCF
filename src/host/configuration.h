@@ -64,10 +64,10 @@ namespace host
     std::string rpc_addresses_file = "";
 
     // Other
-    TimeString tick_period = 10'000;
-    TimeString io_logging_threshold = 10'000;
+    ds::TimeString tick_period = std::string("10ms");
+    ds::TimeString io_logging_threshold = std::string("10ms");
     std::optional<std::string> node_client_interface = std::nullopt;
-    TimeString client_connection_timeout = 2'000'000;
+    ds::TimeString client_connection_timeout = std::string("2000ms");
 
     struct Ledger
     {
@@ -124,7 +124,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-        TimeString timer = 1'000'000;
+        ds::TimeString timer = std::string("1000ms");
 
         bool operator==(const Join&) const = default;
       };

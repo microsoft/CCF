@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "common/unit_strings.h"
+#include "ds/unit_strings.h"
 #include "node/nodes.h"
 
 #include <stdint.h>
@@ -12,9 +12,8 @@ namespace consensus
   struct Configuration
   {
     ConsensusType type = ConsensusType::CFT;
-    TimeString timeout = 100'000; // TODO: it would be nice to have a better
-                                  // ctor to avoid these huge numbers!
-    TimeString election_timeout = 5'000'000;
+    ds::TimeString timeout = std::string("100ms");
+    ds::TimeString election_timeout = std::string("5000ms");
 
     bool operator==(const Configuration&) const = default;
     bool operator!=(const Configuration&) const = default;

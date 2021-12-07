@@ -16,9 +16,9 @@ namespace ds
   class UnitStringConverter
   {
   public:
-    template <class F>
+    template <class F, typename T>
     static size_t convert(
-      const std::string& input, std::map<std::string, size_t>& mapping, F&& f)
+      const std::string& input, std::map<std::string, T>& mapping, F&& f)
     {
       if (input.empty())
       {
@@ -83,14 +83,48 @@ namespace ds
       });
   }
 
-  struct SizeString
+  static size_t convert_time_string(const std::string& input)
+  {
+    std::map<std::string, std::pair<size_t, size_t>> size_suffix_to_power = {
+      {"", {1, 0}},
+      {"us", {1, 0}},
+      {"ms", {1, 3}},
+      {"s", {1, 6}},
+      {"min", {60, 6}},
+      {"h", {36, 8}}};
+
+    return UnitStringConverter::convert(
+      input,
+      size_suffix_to_power,
+      [](size_t value, const std::pair<size_t, size_t>& factors) {
+        return value * factors.first * std::pow(10, factors.second);
+      });
+  }
+
+  struct UnitString
   {
     std::string str;
 
-    SizeString() = default;
-    SizeString(const std::string& str_) : str(str_) {}
+    UnitString() = default;
+    UnitString(const std::string& str_) : str(str_) {}
 
-    bool operator==(const SizeString&) const = default;
+    bool operator==(const UnitString&) const = default;
+  };
+
+  inline void from_json(const nlohmann::json& j, UnitString& s)
+  {
+    s = j.get<std::string>();
+  }
+
+  inline void to_json(nlohmann::json& j, const UnitString& s)
+  {
+    j = s.str;
+  }
+
+  struct SizeString : UnitString
+  {
+    SizeString() = default;
+    SizeString(const std::string& str_) : UnitString(str_) {}
 
     inline operator size_t() const
     {
@@ -98,13 +132,36 @@ namespace ds
     }
   };
 
-  inline void from_json(const nlohmann::json& j, SizeString& s)
+  struct TimeString : UnitString
   {
-    s = j.get<std::string>();
-  }
+    TimeString() = default;
+    TimeString(const std::string& str_) : UnitString(str_) {}
 
-  inline void to_json(nlohmann::json& j, const SizeString& s)
-  {
-    j = s.str;
-  }
+    inline operator std::chrono::microseconds() const
+    {
+      return std::chrono::microseconds(convert_time_string(str));
+    }
+
+    inline operator std::chrono::milliseconds() const
+    {
+      return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::microseconds(*this));
+    }
+
+    inline operator std::chrono::seconds() const
+    {
+      return std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::microseconds(*this));
+    }
+
+    size_t count_ms() const
+    {
+      return std::chrono::milliseconds(*this).count();
+    }
+
+    size_t count_s() const
+    {
+      return std::chrono::seconds(*this).count();
+    }
+  };
 }

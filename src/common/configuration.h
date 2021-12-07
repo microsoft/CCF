@@ -75,7 +75,7 @@ struct CCFConfig
   struct Intervals
   {
     size_t signature_interval_size = 5000;
-    TimeString signature_interval_duration = 1'000'000;
+    ds::TimeString signature_interval_duration = std::string("1000ms");
 
     bool operator==(const Intervals&) const = default;
   };
@@ -83,7 +83,7 @@ struct CCFConfig
 
   struct JWT
   {
-    TimeString key_refresh_interval = 1'800'000'000;
+    ds::TimeString key_refresh_interval = std::string("30min");
 
     bool operator==(const JWT&) const = default;
   };
