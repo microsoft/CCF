@@ -212,10 +212,8 @@
        has_lzcnt_(false),
        has_popcnt_(false),
        has_idiva_(false),
---- src/base/platform/time.original.cc  2021-12-06 15:36:42.784000000 +0000
-+++ src/base/platform/time.cc   2021-12-06 15:37:09.016546075 +0000
---- src/base/platform/time.original.cc  2021-12-06 15:36:42.784000000 +0000
-+++ src/base/platform/time.cc   2021-12-06 17:34:08.651708386 +0000
+--- src/base/platform/time.original.cc  2021-12-07 12:12:50.589000000 +0000
++++ src/base/platform/time.cc   2021-12-07 12:13:36.684062620 +0000
 @@ -35,6 +35,10 @@
  #include "starboard/time.h"
  #endif
@@ -241,6 +239,8 @@
    return FromTimeval(tv);
 +#endif
  }
+
+
 --- src/base/platform/semaphore.original.cc     2021-12-06 16:51:05.114000000 +0000
 +++ src/base/platform/semaphore.cc      2021-12-06 17:06:10.449860483 +0000
 @@ -45,19 +45,30 @@
