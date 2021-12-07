@@ -8,6 +8,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
+#include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
 #include "node/resharing_types.h"
 #include "serialiser_declare.h"
@@ -194,13 +195,18 @@ namespace kv
     std::optional<LeadershipState> leadership_state;
     std::optional<RetirementPhase> retirement_phase;
     std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
+    std::optional<ReconfigurationType> reconfiguration_type;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
     ConsensusDetails, configs, acks, membership_state);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    ConsensusDetails, learners, leadership_state, retirement_phase);
+    ConsensusDetails,
+    reconfiguration_type,
+    learners,
+    leadership_state,
+    retirement_phase);
 
   struct NetworkConfiguration
   {
@@ -215,6 +221,11 @@ namespace kv
 
   DECLARE_JSON_TYPE(kv::NetworkConfiguration);
   DECLARE_JSON_REQUIRED_FIELDS(kv::NetworkConfiguration, rid, nodes);
+
+  struct ConsensusParameters
+  {
+    ReconfigurationType reconfiguration_type;
+  };
 
   class ConfigurableConsensus
   {
@@ -241,6 +252,7 @@ namespace kv
       const crypto::Pem& node_cert) = 0;
     virtual void record_serialised_tree(
       kv::Version version, const std::vector<uint8_t>& tree) = 0;
+    virtual void update_parameters(ConsensusParameters& params) = 0;
   };
 
   class ConsensusHook

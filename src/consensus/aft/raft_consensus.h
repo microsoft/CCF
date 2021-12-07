@@ -172,6 +172,11 @@ namespace aft
       return aft->get_latest_configuration_unsafe();
     }
 
+    virtual void update_parameters(kv::ConsensusParameters& params) override
+    {
+      return aft->update_parameters(params);
+    }
+
     kv::ConsensusDetails get_details() override
     {
       return aft->get_details();
