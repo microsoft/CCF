@@ -128,14 +128,14 @@ Example:
 Only set when ``type`` is ``join``.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
-- ``retry_timeout``: Interval at which the node sends join requests to the existing network. Default value: ``1000`` ms [#time_string]_.
+- ``retry_timeout``: Interval at which the node sends join requests to the existing network. Default value: ``"1000ms"`` [#time_string]_.
 
 Example:
 
 .. code-block:: json
 
     "join": {
-        "retry_timeout": "1ms",
+        "retry_timeout": "1000ms",
         "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
     }
 
@@ -165,14 +165,14 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported. Default value: ``CFT``.
-- ``timeout_ms``: Interval (ms) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout_ms``. Default value: ``100`` ms.
-- ``election_timeout_ms``: Timeout value (ms) after which backup node that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``timeout_ms``. Default timeout: ``4000`` ms.
+- ``message_timeout``: Interval at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout``. Default value: ``"100ms"`.
+- ``election_timeout``: Timeout value after which backup node that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``message_timeout``. Default timeout: ``"5000ms"``.
 
 ``intervals``
 ~~~~~~~~~~~~~
 
 - ``signature_interval_size``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5000``.
-- ``signature_interval_duration``: Maximum duration after which a signature transaction is automatically triggered. Default value: ``1000`` ms [#time_string]_.
+- ``signature_interval_duration``: Maximum duration after which a signature transaction is automatically triggered. Default value: ``"1000ms"``[#time_string]_.
 
 .. note::
     Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
@@ -182,7 +182,7 @@ Example:
 ``jwt``
 ~~~~~~~
 
-- ``key_refresh_interval``: Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``30`` min [#time_string]_.
+- ``key_refresh_interval``: Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``30min`` [#time_string]_.
 
 ``network_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -219,12 +219,12 @@ Advanced Configuration Options
 ``tick_period``
 ~~~~~~~~~~~~~~~
 
-Interval at which the enclave time will be updated by the host. Default value: ``10`` ms [#time_string]_.
+Interval at which the enclave time will be updated by the host. Default value: ``"10ms"`` [#time_string]_.
 
 ``io_logging_threshold``
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10000`` us [#time_string]_.
+Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10000us``[#time_string]_.
 
 ``node_client_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -235,7 +235,7 @@ This option is particularly useful for testing purposes (e.g. establishing netwo
 ``client_connection_timeout``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``2000`` ms [#time_string]_.
+Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``2000ms`` [#time_string]_.
 
 ``worker_threads``
 ~~~~~~~~~~~~~~~~~~

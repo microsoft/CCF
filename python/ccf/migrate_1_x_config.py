@@ -170,7 +170,7 @@ if __name__ == "__main__":
             elif k == "consensus":
                 output["consensus"]["type"] = str.upper(v)
             elif k == "raft_timeout_ms":
-                output["consensus"]["timeout"] = f"{v}ms"
+                output["consensus"]["message_timeout"] = f"{v}ms"
             elif k == "raft_election_timeout_ms":
                 output["consensus"]["election_timeout"] = f"{v}ms"
 

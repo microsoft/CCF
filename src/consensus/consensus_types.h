@@ -12,7 +12,7 @@ namespace consensus
   struct Configuration
   {
     ConsensusType type = ConsensusType::CFT;
-    ds::TimeString timeout = std::string("100ms");
+    ds::TimeString message_timeout = std::string("100ms");
     ds::TimeString election_timeout = std::string("5000ms");
 
     bool operator==(const Configuration&) const = default;
@@ -20,7 +20,8 @@ namespace consensus
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration);
-  DECLARE_JSON_OPTIONAL_FIELDS(Configuration, type, timeout, election_timeout);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    Configuration, type, message_timeout, election_timeout);
 
 #pragma pack(push, 1)
   template <typename T>

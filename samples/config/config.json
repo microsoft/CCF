@@ -60,7 +60,7 @@
   },
   "consensus": {
     "type": "CFT",
-    "timeout": "100ms",
+    "message_timeout": "100ms",
     "election_timeout": "4000ms"
   },
   "intervals": {
@@ -68,7 +68,7 @@
     "signature_interval_duration": "1s"
   },
   "jwt": {
-    "key_refresh_interval": "1800s"
+    "key_refresh_interval": "30min"
   },
   "network_certificate_file": "networkcert.pem",
   "node_certificate_file": "node.pem",
@@ -76,7 +76,7 @@
   "node_address_file": "node.node_address",
   "rpc_addresses_file": "node.rpc_addresses",
   "tick_period": "1ms",
-  "io_logging_threshold": "12345us",
+  "io_logging_threshold": "10000us",
   "client_connection_timeout": "2000ms",
   "worker_threads": 0,
   "memory": {

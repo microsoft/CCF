@@ -1968,7 +1968,7 @@ namespace ccf
         shared_state,
         std::move(resharing_tracker),
         node_client,
-        consensus_config.timeout,
+        consensus_config.message_timeout,
         consensus_config.election_timeout,
         consensus_config.election_timeout,
         sig_tx_interval,
