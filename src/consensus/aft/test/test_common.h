@@ -8,8 +8,7 @@
 #include <chrono>
 #include <string>
 
-using TRaft =
-  aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
+using TRaft = aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
