@@ -1,13 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/indexing/seqnos_by_key.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "ds/test/stub_writer.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/indexer.h"
-#include "indexing/seqnos_by_key.h"
 #include "kv/test/stub_consensus.h"
 #include "node/share_manager.h"
 

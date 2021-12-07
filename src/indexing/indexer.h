@@ -102,9 +102,6 @@ namespace ccf::indexing
       return false;
     }
 
-    // TODO: Discuss the memory-pressure/efficiency trade-off of passing these
-    // directly here. Perhaps we should also cap how many of these we store, if
-    // we're capping how many we fetch historically?
     void append_entry(const ccf::TxID& tx_id, const uint8_t* data, size_t size)
     {
       if (tx_id_less(tx_id, committed))

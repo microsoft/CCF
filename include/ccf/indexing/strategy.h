@@ -27,7 +27,6 @@ namespace ccf::indexing
     virtual void handle_committed_transaction(
       const ccf::TxID& tx_id, const std::shared_ptr<kv::Store>& store) = 0;
 
-    // I think some strategies need this, so the indexer should tick them?
     virtual void tick() {}
   };
 

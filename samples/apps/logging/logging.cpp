@@ -10,9 +10,9 @@
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
+#include "ccf/indexing/seqnos_by_key.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
-#include "indexing/seqnos_by_key.h" // TODO: Should probably be under ccf/
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -962,7 +962,6 @@ namespace loggingapp
           return;
         }
 
-        // TODO: Should decide this after deciding max range?
         const auto indexed_txid =
           index_per_private_key->get_indexed_watermark();
         if (indexed_txid.seqno < to_seqno)

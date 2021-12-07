@@ -73,9 +73,6 @@ namespace ccf::indexing::strategies
     {
       if (to > current_txid.seqno)
       {
-        // TODO: Is it possible to return a partial range? If we ask for 10 to
-        // 100 and only 50 is committed, but seqnos is only 10, can we return 10
-        // -> 20?
         // If the requested range hasn't been populated yet, indicate
         // that with nullopt
         return std::nullopt;
