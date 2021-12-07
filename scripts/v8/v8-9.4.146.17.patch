@@ -164,68 +164,85 @@
 -#endif
 -#endif
 -#endif
---- src/base/cpu.original.cc    2021-12-06 11:12:27.510000000 +0000
-+++ src/base/cpu.cc     2021-12-06 11:12:33.773000000 +0000
-@@ -8,6 +8,9 @@
- #include "starboard/cpu_features.h"
- #endif
+--- src/base/cpu.original.cc    2021-12-07 18:08:23.069664125 +0000
++++ src/base/cpu.cc     2021-12-07 18:10:55.222103042 +0000
+@@ -4,6 +4,11 @@
  
+ #include "src/base/cpu.h"
+ 
++#if V8_OS_OPENENCLAVE
 +#undef V8_OS_LINUX
 +#undef V8_HOST_ARCH_X64
++#endif
 +
- #if V8_LIBC_MSVCRT
- #include <intrin.h>  // __cpuid()
+ #if defined(V8_OS_STARBOARD)
+ #include "starboard/cpu_features.h"
  #endif
-@@ -414,23 +417,23 @@
+@@ -412,6 +417,40 @@
+       architecture_(0),
+       variant_(-1),
        part_(0),
-       icache_line_size_(kUnknownCacheLineSize),
-       dcache_line_size_(kUnknownCacheLineSize),
--      has_fpu_(false),
--      has_cmov_(false),
++#if V8_OS_OPENENCLAVE
++      icache_line_size_(kUnknownCacheLineSize),
++      dcache_line_size_(kUnknownCacheLineSize),
 +      has_fpu_(true),
 +      has_cmov_(true),
-       has_sahf_(false),
--      has_mmx_(false),
--      has_sse_(false),
--      has_sse2_(false),
++      has_sahf_(false),
 +      has_mmx_(true),
 +      has_sse_(true),
 +      has_sse2_(true),
-       has_sse3_(false),
--      has_ssse3_(false),
--      has_sse41_(false),
--      has_sse42_(false),
++      has_sse3_(false),
 +      has_ssse3_(true),
 +      has_sse41_(true),
 +      has_sse42_(true),
-       is_atom_(false),
-       has_osxsave_(false),
--      has_avx_(false),
--      has_avx2_(false),
++      is_atom_(false),
++      has_osxsave_(false),
 +      has_avx_(true),
 +      has_avx2_(true),
-       has_fma3_(false),
--      has_bmi1_(false),
--      has_bmi2_(false),
++      has_fma3_(false),
 +      has_bmi1_(true),
 +      has_bmi2_(true),
-       has_lzcnt_(false),
-       has_popcnt_(false),
-       has_idiva_(false),
---- src/base/platform/time.original.cc  2021-12-07 12:12:50.589000000 +0000
-+++ src/base/platform/time.cc   2021-12-07 12:13:36.684062620 +0000
-@@ -35,6 +35,10 @@
++      has_lzcnt_(false),
++      has_popcnt_(false),
++      has_idiva_(false),
++      has_neon_(false),
++      has_thumb2_(false),
++      has_vfp_(false),
++      has_vfp3_(false),
++      has_vfp3_d32_(false),
++      has_jscvt_(false),
++      is_fp64_mode_(false),
++      has_non_stop_time_stamp_counter_(false),
++      is_running_in_vm_(false),
++      has_msa_(false) {
++#else
+       icache_line_size_(kUnknownCacheLineSize),
+       dcache_line_size_(kUnknownCacheLineSize),
+       has_fpu_(false),
+@@ -444,6 +483,7 @@
+       has_non_stop_time_stamp_counter_(false),
+       is_running_in_vm_(false),
+       has_msa_(false) {
++#endif
+   memcpy(vendor_, "Unknown", 8);
+ 
+ #if defined(V8_OS_STARBOARD)
+--- src/base/platform/time.original.cc  2021-12-07 18:02:09.310000000 +0000
++++ src/base/platform/time.cc   2021-12-07 18:12:57.126453257 +0000
+@@ -35,6 +35,12 @@
  #include "starboard/time.h"
  #endif
  
++#if V8_OS_OPENENCLAVE
 +#ifdef _POSIX_MONOTONIC_CLOCK
 +#undef _POSIX_MONOTONIC_CLOCK
++#endif
 +#endif
 +
  namespace {
  
  #if V8_OS_MACOSX
-@@ -376,11 +380,15 @@
+@@ -376,11 +382,15 @@
  #elif V8_OS_POSIX
  
  Time Time::Now() {
