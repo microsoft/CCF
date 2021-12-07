@@ -185,6 +185,14 @@ export BUILD_CXXFLAGS=""
 # v8_enable_backtrace=true: enable backtraces (for debugging)
 # use_debug_fission=false: don't use split DWARF for debug builds
 # dcheck_always_on=false: disable DCHECKs (for release)
+# use_rtti=true: enable RTTI (for debug)
+#   RTTI is required when ASAN is enabled in V8 itself or
+#   the consuming software (CCF). Even if V8 was not built with ASAN
+#   enabled it is still desirable to be able to use a single debug build
+#   within CCF both with and without ASAN in CCF enabled.
+#   Therefore, RTTI is enabled for all debug builds and when
+#   explicitly requested for release builds.
+#   The main use case is for the daily "Instrumented" CI job in CCF.
 # is_component_build=false: don't build shared libraries
 # v8_monolithic=true: build a single static archive
 # v8_use_external_startup_data=false: bundle startup data in the archive
@@ -214,7 +222,7 @@ export BUILD_CXXFLAGS=""
 # clang_use_chrome_plugins=false: don't use linting plugins for Clang from Chrome
 # use_goma=false: don't use Google's internal build infrastructure
 if [ "$MODE" == "debug" ]; then
-  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true v8_enable_slow_dchecks=true use_debug_fission=false"
+  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true v8_enable_slow_dchecks=true use_debug_fission=false use_rtti=true"
 elif [ "$MODE" == "release" ]; then
   MODE_ARGS="is_debug=false dcheck_always_on=false"
 else
