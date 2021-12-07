@@ -15,7 +15,6 @@ import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
 from infra.runner import ConcurrentRunner
-from ccf.tx_id import TxID
 
 from loguru import logger as LOG
 
