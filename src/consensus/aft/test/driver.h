@@ -101,7 +101,7 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSig
 
 using ms = std::chrono::milliseconds;
 using TRaft = aft::
-  Aft<LedgerStubProxy_Mermaid, aft::ChannelStubProxy, aft::StubSnapshotter>;
+  Aft<LedgerStubProxy_Mermaid, aft::StubSnapshotter>;
 using Store = LoggingStubStoreSig_Mermaid;
 using Adaptor = aft::Adaptor<Store>;
 

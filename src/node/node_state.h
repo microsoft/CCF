@@ -67,7 +67,7 @@ namespace std
 
 namespace ccf
 {
-  using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
 
   struct NodeCreateInfo
   {

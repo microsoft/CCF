@@ -9,7 +9,7 @@
 #include <string>
 
 using TRaft =
-  aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
+  aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 

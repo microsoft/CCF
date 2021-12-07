@@ -29,7 +29,7 @@ namespace aft
 {
   using Configuration = kv::Configuration;
 
-  template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
+  template <class LedgerProxy, class SnapshotterProxy>
   class Aft : public kv::Consensus
   {
   private:
