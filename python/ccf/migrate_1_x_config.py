@@ -113,7 +113,7 @@ if __name__ == "__main__":
             elif k == "target_rpc_address":
                 output["command"][s][k] = v
             elif k == "join_timer":
-                output["command"][s]["timer"] = f"{v}ms"
+                output["command"][s]["retry_timeout"] = f"{v}ms"
 
             # enclave
             elif k == "enclave_file":

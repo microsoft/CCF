@@ -388,7 +388,7 @@ int main(int argc, char** argv)
         config.command.join.target_rpc_address);
       startup_config.join.target_rpc_address =
         config.command.join.target_rpc_address;
-      startup_config.join.timer = config.command.join.timer;
+      startup_config.join.retry_timeout = config.command.join.retry_timeout;
       startup_config.join.network_cert =
         files::slurp(config.network_certificate_file);
     }

@@ -128,14 +128,14 @@ Example:
 Only set when ``type`` is ``join``.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
-- ``timer``: Interval at which the node sends join requests to the existing network. Default value: ``1000`` ms [#time_string]_.
+- ``retry_timeout``: Interval at which the node sends join requests to the existing network. Default value: ``1000`` ms [#time_string]_.
 
 Example:
 
 .. code-block:: json
 
     "join": {
-        "timer": "1ms",
+        "retry_timeout": "1ms",
         "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
     }
 
