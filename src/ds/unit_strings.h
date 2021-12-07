@@ -179,9 +179,4 @@ namespace ds
   {
     s = j.get<std::string>();
   }
-
-  inline void to_json(nlohmann::json& j, const TimeString& s)
-  {
-    j = s.str;
-  }
 }

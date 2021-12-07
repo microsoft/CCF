@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/san.h"
-#include "ds/ccf_assert.h"
 #include "ds/nonstd.h"
 #include "node/node_info_network.h"
 
@@ -12,10 +11,7 @@
 #include <optional>
 
 #define FMT_HEADER_ONLY
-#include "ds/logger.h"
-
 #include <fmt/format.h>
-#include <nlohmann/json.hpp>
 
 namespace cli
 {
