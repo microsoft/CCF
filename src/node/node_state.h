@@ -644,7 +644,7 @@ namespace ccf
           {
             msg->data.self.initiate_join();
             auto delay =
-              std::chrono::milliseconds(msg->data.self.config.join.timer_ms);
+              std::chrono::milliseconds(msg->data.self.config.join.timer);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
@@ -653,7 +653,7 @@ namespace ccf
         *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(timer_msg), std::chrono::milliseconds(config.join.timer_ms));
+        std::move(timer_msg), std::chrono::milliseconds(config.join.timer));
     }
 
     void join()
@@ -1968,9 +1968,9 @@ namespace ccf
         shared_state,
         std::move(resharing_tracker),
         node_client,
-        std::chrono::milliseconds(consensus_config.timeout),
-        std::chrono::milliseconds(consensus_config.election_timeout),
-        std::chrono::milliseconds(consensus_config.election_timeout),
+        consensus_config.timeout,
+        consensus_config.election_timeout,
+        consensus_config.election_timeout,
         sig_tx_interval,
         public_only,
         membership_state,

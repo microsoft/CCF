@@ -136,7 +136,7 @@ struct StartupConfig : CCFConfig
   struct Join
   {
     ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    size_t timer_ms = 1000;
+    ds::TimeString timer = std::string("1000ms");
     std::vector<uint8_t> network_cert = {};
   };
   Join join = {};
@@ -148,7 +148,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(StartupConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig::Join, target_rpc_address, timer_ms, network_cert);
+  StartupConfig::Join, target_rpc_address, timer, network_cert);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(

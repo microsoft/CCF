@@ -253,4 +253,4 @@ Experimental. Number of additional threads processing incoming client requests i
 
 .. [#size_string] Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
 
-.. [#time_string] Time strings are expressed as the value suffixed with the duration, e.g. ``"1000ms"``, ``"10s"`` or ``"30min"``.
+.. [#time_string] Time strings are expressed as the value suffixed with the duration (``us``, ``ms``, ``s``, ``min``, ``h``), e.g. ``"1000ms"``, ``"10s"`` or ``"30min"``.
