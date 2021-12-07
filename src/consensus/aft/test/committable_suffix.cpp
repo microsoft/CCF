@@ -92,13 +92,10 @@ void keep_earliest_append_entries_for_each_target(
     std::make_unique<aft::LedgerStubProxy>(node_id##N), \
     std::make_shared<aft::ChannelStubProxy>(), \
     std::make_shared<aft::StubSnapshotter>(), \
-    nullptr, \
-    nullptr, \
     std::make_shared<aft::State>(node_id##N), \
     nullptr, \
     nullptr, \
     request_timeout, \
-    election_timeout, \
     election_timeout); \
   r##N.start_ticking(); \
   initial_config[node_id##N] = {}; \

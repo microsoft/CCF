@@ -24,14 +24,11 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr,
     request_timeout,
-    election_timeout,
-    ms(1000));
+    election_timeout);
   r0.start_ticking();
 
   kv::Configuration::Nodes config;
@@ -68,14 +65,11 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr,
     request_timeout,
-    election_timeout,
-    ms(1000));
+    election_timeout);
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -123,42 +117,33 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
     request_timeout,
-    ms(20),
-    ms(1000));
+    ms(20));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
     request_timeout,
-    ms(100),
-    ms(1000));
+    ms(100));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr,
     request_timeout,
-    ms(50),
-    ms(1000));
+    ms(50));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -290,42 +275,33 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
     request_timeout,
-    ms(20),
-    ms(1000));
+    ms(20));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
     request_timeout,
-    ms(100),
-    ms(1000));
+    ms(100));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr,
     request_timeout,
-    ms(50),
-    ms(1000));
+    ms(50));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -449,42 +425,33 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
     request_timeout,
-    ms(20),
-    ms(1000));
+    ms(20));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
     request_timeout,
-    ms(100),
-    ms(1000));
+    ms(100));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr,
     request_timeout,
-    ms(50),
-    ms(1000));
+    ms(50));
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -587,28 +554,22 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
     request_timeout,
-    ms(20),
-    ms(1000));
+    ms(20));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<SigAdaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
     request_timeout,
-    ms(100),
-    ms(1000));
+    ms(100));
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
   aft::Configuration::Nodes config0;
@@ -848,42 +809,33 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
     request_timeout,
-    ms(20),
-    ms(1000));
+    ms(20));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
     request_timeout,
-    ms(100),
-    ms(1000));
+    ms(100));
   TRaft r2(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id2),
     nullptr,
     nullptr,
     request_timeout,
-    ms(50),
-    ms(1000));
+    ms(50));
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -1025,28 +977,22 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id0),
     nullptr,
     nullptr,
     request_timeout,
-    ms(20),
-    ms(1000));
+    ms(20));
   TRaft r1(
     ConsensusType::CFT,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id1),
     nullptr,
     nullptr,
     request_timeout,
-    ms(100),
-    ms(1000));
+    ms(100));
 
   std::map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
