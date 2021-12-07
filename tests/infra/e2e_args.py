@@ -254,8 +254,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--ledger-chunk-bytes",
         help="Size (bytes) at which a new ledger chunk is created",
-        type=int,
-        default=20000,
+        type=str,
+        default="20KB",
     )
     parser.add_argument(
         "--snapshot-tx-interval",

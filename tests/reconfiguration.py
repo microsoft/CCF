@@ -21,7 +21,7 @@ from loguru import logger as LOG
 
 def node_configs(network):
     configs = {}
-    for node in network.nodes:
+    for node in network.get_joined_nodes():
         try:
             with node.client() as nc:
                 configs[node.node_id] = nc.get("/node/config").body.json()
@@ -47,7 +47,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
     while max_num_configs > 1 or not all_same_rid:
         max_num_configs = 0
         all_same_rid = True
-        for node in network.nodes:
+        for node in network.get_joined_nodes():
             with node.client(self_signed_ok=True) as c:
                 try:
                     r = c.get("/node/consensus")
@@ -504,7 +504,7 @@ def test_add_node_with_read_only_ledger(network, args):
 def test_service_config_endpoint(network, args):
     for n in network.get_joined_nodes():
         with n.client() as c:
-            r = c.get("/node/service-configuration")
+            r = c.get("/node/service/configuration")
             rj = r.body.json()
             assert args.reconfiguration_type == rj["reconfiguration_type"]
 
@@ -610,6 +610,98 @@ def run_join_old_snapshot(args):
                 pass
 
 
+def get_current_nodes_table(network):
+    tables, _ = network.get_latest_ledger_public_state()
+    tn = "public:ccf.gov.nodes.info"
+    r = {}
+    for nid, info in tables[tn].items():
+        r[nid.decode()] = json.loads(info)
+    return r
+
+
+def check_2tx_ledger(ledger_paths, learner_id):
+    pending_at = 0
+    learner_at = 0
+    trusted_at = 0
+
+    ledger = ccf.ledger.Ledger(ledger_paths, committed_only=False)
+
+    for chunk in ledger:
+        for tr in chunk:
+            tables = tr.get_public_domain().get_tables()
+            if ccf.ledger.NODES_TABLE_NAME in tables:
+                nodes = tables[ccf.ledger.NODES_TABLE_NAME]
+                for nid, info_ in nodes.items():
+                    info = json.loads(info_)
+                    if nid.decode() == learner_id and "status" in info:
+                        seq_no = tr.get_public_domain().get_seqno()
+                        if info["status"] == "Pending":
+                            pending_at = seq_no
+                        elif info["status"] == "Learner":
+                            learner_at = seq_no
+                        elif info["status"] == "Trusted":
+                            trusted_at = seq_no
+
+    assert pending_at < learner_at < trusted_at
+
+
+def run_migration_tests(args):
+    if args.reconfiguration_type != "OneTransaction":
+        return
+
+    txs = app.LoggingTxs("user0")
+    ledger_paths = None
+    learner_id = None
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_join(args)
+        primary, _ = network.find_primary()
+
+        # Check that the service config agrees that this is a 1tx network
+        with primary.client() as c:
+            s = c.get("/node/service/configuration").body.json()
+            assert s["reconfiguration_type"] == "OneTransaction"
+
+        network.consortium.submit_2tx_migration_proposal(primary)
+        network.wait_for_all_nodes_to_commit(primary)
+
+        # Check that the service config has been updated
+        with primary.client() as c:
+            rj = c.get("/node/service/configuration").body.json()
+            assert rj["reconfiguration_type"] == "TwoTransaction"
+
+        # Check that all nodes have updated their consensus parameters
+        for node in network.nodes:
+            with node.client() as c:
+                rj = c.get("/node/consensus").body.json()
+                assert "reconfiguration_type" in rj["details"]
+                assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+                assert len(rj["details"]["learners"]) == 0
+
+        test_add_node(network, args)
+        new_node = network.nodes[-1]
+
+        # Check that the new node has the right consensus parameter
+        with new_node.client() as c:
+            rj = c.get("/node/consensus").body.json()
+            assert "reconfiguration_type" in rj["details"]
+            assert "learners" in rj["details"]
+            assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+            assert len(rj["details"]["learners"]) == 0
+
+        ledger_paths = primary.remote.ledger_paths()
+        learner_id = new_node.node_id
+
+    check_2tx_ledger(ledger_paths, learner_id)
+
+
 def run_all(args):
     run(args)
     if cr.args.consensus != "BFT":
@@ -643,6 +735,14 @@ if __name__ == "__main__":
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             reconfiguration_type="TwoTransaction",
+        )
+
+        cr.add(
+            "migration",
+            run_migration_tests,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="OneTransaction",
         )
 
     cr.run()
