@@ -327,10 +327,10 @@ public:
                          "  Note right of {}: {} @{}.{} (committed {})",
                          node_id,
                          raft->is_primary() ? "P" :
-                                              (raft->is_follower() ? "F" : "C"),
-                         raft->get_term(),
+                                              (raft->is_backup() ? "F" : "C"),
+                         raft->get_view(),
                          raft->get_last_idx(),
-                         raft->get_commit_idx())
+                         raft->get_committed_seqno())
                     << std::endl;
   }
 
@@ -485,7 +485,7 @@ public:
     {
       if (node_driver.raft->is_primary())
       {
-        primaries.emplace_back(node_driver.raft->get_term(), node_id);
+        primaries.emplace_back(node_driver.raft->get_view(), node_id);
       }
     }
 
@@ -631,9 +631,9 @@ public:
   {
     auto [target_id, nd] = *_nodes.begin();
     auto& target_raft = nd.raft;
-    const auto target_term = target_raft->get_term();
+    const auto target_term = target_raft->get_view();
     const auto target_last_idx = target_raft->get_last_idx();
-    const auto target_commit_idx = target_raft->get_commit_idx();
+    const auto target_commit_idx = target_raft->get_committed_seqno();
 
     const auto target_final_entry =
       target_raft->ledger->get_entry_by_idx(target_last_idx);
@@ -644,13 +644,13 @@ public:
       const auto& node_id = it->first;
       auto& raft = it->second.raft;
 
-      if (raft->get_term() != target_term)
+      if (raft->get_view() != target_term)
       {
         RAFT_DRIVER_OUT
           << fmt::format(
                "  Note over {}: Term {} doesn't match term {} on {}",
                node_id,
-               raft->get_term(),
+               raft->get_view(),
                target_term,
                target_id)
           << std::endl;
@@ -691,13 +691,13 @@ public:
         }
       }
 
-      if (raft->get_commit_idx() != target_commit_idx)
+      if (raft->get_committed_seqno() != target_commit_idx)
       {
         RAFT_DRIVER_OUT << fmt::format(
                              "  Note over {}: Commit index {} doesn't "
                              "match commit index {} on {}",
                              node_id,
-                             raft->get_commit_idx(),
+                             raft->get_committed_seqno(),
                              target_commit_idx,
                              target_id)
                         << std::endl;

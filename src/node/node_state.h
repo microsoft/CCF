@@ -3,7 +3,7 @@
 #pragma once
 
 #include "blit.h"
-#include "consensus/aft/raft_consensus.h"
+#include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "crypto/entropy.h"
@@ -67,8 +67,6 @@ namespace std
 
 namespace ccf
 {
-  using RaftConsensusType =
-    aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
 
   struct NodeCreateInfo
@@ -1957,7 +1955,7 @@ namespace ccf
         kv::MembershipState::Learner :
         kv::MembershipState::Active;
 
-      auto raft = std::make_unique<RaftType>(
+      auto raft = std::make_shared<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
@@ -1972,10 +1970,7 @@ namespace ccf
         membership_state,
         reconfiguration_type);
 
-      consensus = std::make_shared<RaftConsensusType>(
-        std::move(raft), network.consensus_type);
-
-      network.tables->set_consensus(consensus);
+      network.tables->set_consensus(raft);
 
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.

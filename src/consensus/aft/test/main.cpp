@@ -38,9 +38,9 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
   DOCTEST_REQUIRE(!r0.is_primary());
-  DOCTEST_REQUIRE(!r0.leader().has_value());
-  DOCTEST_REQUIRE(r0.get_term() == 0);
-  DOCTEST_REQUIRE(r0.get_commit_idx() == 0);
+  DOCTEST_REQUIRE(!r0.primary().has_value());
+  DOCTEST_REQUIRE(r0.get_view() == 0);
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 0);
 
   DOCTEST_INFO(
     "In the absence of other nodes, become leader after election timeout");
@@ -50,7 +50,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(r0.is_primary());
-  DOCTEST_REQUIRE(r0.leader() == node_id);
+  DOCTEST_REQUIRE(r0.primary() == node_id);
 }
 
 DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
@@ -94,7 +94,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
     r0.replicate(kv::BatchVector{{i, entry, true, hooks}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
-    DOCTEST_REQUIRE(r0.get_commit_idx() == i);
+    DOCTEST_REQUIRE(r0.get_committed_seqno() == i);
   }
 }
 
@@ -723,11 +723,11 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == last_correct_version);
 
       // How do we force Raft to increment its view? Currently by hacking to
-      // follower then force_become_leader. There should be a neater way to do
+      // follower then force_become_primary. There should be a neater way to do
       // this.
       r0.become_aware_of_new_term(2);
-      r0.force_become_leader(); // The term actually jumps by 2 in this
-                                // function. Oh well, what can you do
+      r0.force_become_primary(); // The term actually jumps by 2 in this
+                                 // function. Oh well, what can you do
     }
 
     std::vector<uint8_t> live_branch;

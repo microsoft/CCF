@@ -451,57 +451,19 @@ namespace kv
 
   class Consensus : public ConfigurableConsensus
   {
-  protected:
-    enum State
-    {
-      Primary,
-      Backup,
-      Candidate
-    };
-
-    State state;
-    NodeId local_id;
-
   public:
-    Consensus(const NodeId& id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
-    virtual NodeId id()
-    {
-      return local_id;
-    }
+    virtual NodeId id() = 0;
+    virtual bool is_primary() = 0;
+    virtual bool is_backup() = 0;
+    virtual bool can_replicate() = 0;
 
-    virtual bool is_primary()
-    {
-      return state == Primary;
-    }
-
-    virtual bool can_replicate()
-    {
-      return state == Primary;
-    }
-
-    virtual bool is_backup()
-    {
-      return state == Backup;
-    }
-
-    virtual void force_become_primary()
-    {
-      state = Primary;
-    }
-
+    virtual void force_become_primary() = 0;
     virtual void force_become_primary(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo)
-    {
-      state = Primary;
-    }
-
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
     virtual void init_as_backup(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&)
-    {
-      state = Backup;
-    }
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) = 0;
 
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;

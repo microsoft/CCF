@@ -30,7 +30,7 @@ namespace aft
   using Configuration = kv::Configuration;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft : public kv::ConfigurableConsensus
+  class Aft : public kv::Consensus
   {
   private:
     struct NodeState
@@ -218,12 +218,12 @@ namespace aft
 
     virtual ~Aft() = default;
 
-    std::optional<ccf::NodeId> leader()
+    std::optional<ccf::NodeId> primary() override
     {
       return leader_id;
     }
 
-    bool view_change_in_progress()
+    bool view_change_in_progress() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
@@ -237,7 +237,7 @@ namespace aft
       }
     }
 
-    std::set<ccf::NodeId> active_nodes()
+    std::set<ccf::NodeId> active_nodes() override
     {
       // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
@@ -254,24 +254,24 @@ namespace aft
       return backup_nodes;
     }
 
-    ccf::NodeId id()
+    ccf::NodeId id() override
     {
       return state->my_node_id;
     }
 
-    bool is_primary()
+    bool is_primary() override
     {
       return leadership_state == kv::LeadershipState::Leader;
     }
 
-    bool can_replicate()
+    bool can_replicate() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
       return leadership_state == kv::LeadershipState::Leader &&
         !retirement_committable_idx.has_value();
     }
 
-    bool is_follower() const
+    bool is_backup() override
     {
       return leadership_state == kv::LeadershipState::Follower;
     }
@@ -308,7 +308,7 @@ namespace aft
                                            committable_indices.back();
     }
 
-    void enable_all_domains()
+    void enable_all_domains() override
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
@@ -316,7 +316,12 @@ namespace aft
       public_only = false;
     }
 
-    void force_become_leader()
+    ConsensusType type() override
+    {
+      return consensus_type;
+    }
+
+    void force_become_primary() override
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -331,11 +336,11 @@ namespace aft
       become_leader(true);
     }
 
-    void force_become_leader(
+    void force_become_primary(
       Index index,
       Term term,
       const std::vector<Index>& terms,
-      Index commit_idx_)
+      Index commit_idx_) override
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -355,8 +360,8 @@ namespace aft
       become_leader(true);
     }
 
-    void init_as_follower(
-      Index index, Term term, const std::vector<Index>& term_history)
+    void init_as_backup(
+      Index index, Term term, const std::vector<Index>& term_history) override
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -378,27 +383,26 @@ namespace aft
       return state->last_idx;
     }
 
-    Index get_commit_idx()
+    Index get_committed_seqno() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_commit_idx_unsafe();
     }
 
-    Term get_term()
+    Term get_view() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return state->current_view;
     }
 
-    std::pair<Term, Index> get_commit_term_and_idx()
+    std::pair<Term, Index> get_committed_txid() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       ccf::SeqNo commit_idx = get_commit_idx_unsafe();
       return {get_term_internal(commit_idx), commit_idx};
     }
 
-    std::optional<kv::Consensus::SignableTxIndices>
-    get_signable_commit_term_and_idx()
+    std::optional<kv::Consensus::SignableTxIndices> get_signable_txid() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       if (
@@ -417,22 +421,23 @@ namespace aft
       }
     }
 
-    Term get_term(Index idx)
+    Term get_view(Index idx) override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
-    std::vector<Index> get_term_history(Index idx)
+    std::vector<Index> get_view_history(Index idx) override
     {
       // This should only be called when the spin lock is held.
       return state->view_history.get_history_until(idx);
     }
 
-    void initialise_term_history(const std::vector<Index>& term_history)
+    void initialise_view_history(
+      const std::vector<Index>& view_history) override
     {
       // This should only be called when the spin lock is held.
-      return state->view_history.initialise(term_history);
+      return state->view_history.initialise(view_history);
     }
 
   private:
@@ -447,7 +452,7 @@ namespace aft
       Index idx,
       const kv::Configuration::Nodes& conf,
       const std::unordered_set<ccf::NodeId>& new_learner_nodes = {},
-      const std::unordered_set<ccf::NodeId>& new_retired_nodes = {})
+      const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
     {
       LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
@@ -556,19 +561,19 @@ namespace aft
       kv::Version version,
       const std::vector<uint8_t>& sig,
       const ccf::NodeId& node_id,
-      const crypto::Pem& node_cert)
+      const crypto::Pem& node_cert) override
     {
       snapshotter->record_signature(version, sig, node_id, node_cert);
     }
 
     void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree)
+      kv::Version version, const std::vector<uint8_t>& tree) override
     {
       snapshotter->record_serialised_tree(version, tree);
     }
 
     void reconfigure(
-      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig)
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig) override
     {
       LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
 
@@ -600,7 +605,7 @@ namespace aft
     void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
-      const ccf::ResharingResult& result)
+      const ccf::ResharingResult& result) override
     {
       if (
         reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
@@ -630,7 +635,7 @@ namespace aft
     // guaranteed that we will eventually receive all of them, since all
     // nodes keep re-submitting ORCs until they are able to switch to the next
     // pending configuration.
-    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
+    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
@@ -672,7 +677,7 @@ namespace aft
       return oit->second.size() >= get_quorum(ncnodes.size());
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const
+    Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       if (configurations.empty())
       {
@@ -682,13 +687,13 @@ namespace aft
       return configurations.back().nodes;
     }
 
-    Configuration::Nodes get_latest_configuration()
+    Configuration::Nodes get_latest_configuration() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
     }
 
-    kv::ConsensusDetails get_details()
+    kv::ConsensusDetails get_details() override
     {
       kv::ConsensusDetails details;
       std::lock_guard<std::mutex> guard(state->lock);
@@ -714,12 +719,7 @@ namespace aft
       return details;
     }
 
-    template <typename T>
-    bool replicate(
-      const std::vector<
-        std::tuple<Index, T, bool, std::shared_ptr<kv::ConsensusHookPtrs>>>&
-        entries,
-      Term term)
+    bool replicate(const kv::BatchVector& entries, Term term) override
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
@@ -827,7 +827,8 @@ namespace aft
       return true;
     }
 
-    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
+    void recv_message(
+      const ccf::NodeId& from, const uint8_t* data, size_t size) override
     {
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
@@ -888,7 +889,7 @@ namespace aft
       }
     }
 
-    void periodic(std::chrono::milliseconds elapsed)
+    void periodic(std::chrono::milliseconds elapsed) override
     {
       {
         std::unique_lock<std::mutex> guard(state->lock);
@@ -2521,7 +2522,7 @@ namespace aft
     }
 
   public:
-    void update_parameters(kv::ConsensusParameters& params)
+    void update_parameters(kv::ConsensusParameters& params) override
     {
       // This should only be called when the state->lock is held, so we do not
       // acquire the lock here.
