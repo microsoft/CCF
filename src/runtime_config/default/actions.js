@@ -197,6 +197,78 @@ function setNodeCertificateValidityPeriod(
   );
 }
 
+function checkRecoveryThreshold(config, new_config) {
+  const from = config.recovery_threshold;
+  const to = new_config.recovery_threshold;
+  if (to === undefined || from === to) {
+    return;
+  }
+
+  const service_info = "public:ccf.gov.service.info";
+  const rawService = ccf.kv[service_info].get(getSingletonKvKey());
+  if (rawService === undefined) {
+    throw new Error("Service information could not be found");
+  }
+
+  const service = ccf.bufToJsonCompatible(rawService);
+
+  if (service.status === "WaitingForRecoveryShares") {
+    throw new Error(
+      `Cannot set recovery threshold if service is ${service.status}`
+    );
+  } else if (service.status === "Open") {
+    let activeRecoveryMembersCount = getActiveRecoveryMembersCount();
+    if (new_config.recovery_threshold > activeRecoveryMembersCount) {
+      throw new Error(
+        `Cannot set recovery threshold to ${new_config.recovery_threshold}: recovery threshold would be greater than the number of recovery members ${activeRecoveryMembersCount}`
+      );
+    }
+  }
+}
+
+function checkReconfigurationType(config, new_config) {
+  const from = config.reconfiguration_type;
+  const to = new_config.reconfiguration_type;
+  if (from !== to && to !== undefined) {
+    if (!(from === "OneTransaction" && to === "TwoTransaction")) {
+      throw new Error(
+        `Cannot change reconfiguration type from ${from} to ${to}.`
+      );
+    }
+  }
+}
+
+function updateServiceConfig(new_config) {
+  const service_config_table = "public:ccf.gov.service.config";
+  const rawConfig = ccf.kv[service_config_table].get(getSingletonKvKey());
+  if (rawConfig === undefined) {
+    throw new Error("Service configuration could not be found");
+  }
+  let config = ccf.bufToJsonCompatible(rawConfig);
+
+  // First run all checks
+  checkReconfigurationType(config, new_config);
+  checkRecoveryThreshold(config, new_config);
+
+  // Then all updates
+  if (new_config.reconfiguration_type !== undefined) {
+    config.reconfiguration_type = new_config.reconfiguration_type;
+  }
+
+  if (
+    new_config.recovery_threshold !== undefined &&
+    new_config.recovery_threshold !== config.recovery_threshold
+  ) {
+    config.recovery_threshold = new_config.recovery_threshold;
+    ccf.node.triggerRecoverySharesRefresh();
+  }
+
+  ccf.kv[service_config_table].set(
+    getSingletonKvKey(),
+    ccf.jsonCompatibleToBuf(config)
+  );
+}
+
 const actions = new Map([
   [
     "set_constitution",
@@ -422,48 +494,7 @@ const actions = new Map([
         checkBounds(args.recovery_threshold, 1, 254, "threshold");
       },
       function (args) {
-        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-          getSingletonKvKey()
-        );
-        if (rawConfig === undefined) {
-          throw new Error("Service configuration could not be found");
-        }
-
-        let config = ccf.bufToJsonCompatible(rawConfig);
-
-        if (args.recovery_threshold === config.recovery_threshold) {
-          return; // No effect
-        }
-
-        const rawService = ccf.kv["public:ccf.gov.service.info"].get(
-          getSingletonKvKey()
-        );
-        if (rawService === undefined) {
-          throw new Error("Service information could not be found");
-        }
-
-        const service = ccf.bufToJsonCompatible(rawService);
-
-        if (service.status === "WaitingForRecoveryShares") {
-          throw new Error(
-            `Cannot set recovery threshold if service is ${service.status}`
-          );
-        } else if (service.status === "Open") {
-          let activeRecoveryMembersCount = getActiveRecoveryMembersCount();
-          if (args.recovery_threshold > activeRecoveryMembersCount) {
-            throw new Error(
-              `Cannot set recovery threshold to ${args.recovery_threshold}: recovery threshold would be greater than the number of recovery members ${activeRecoveryMembersCount}`
-            );
-          }
-        }
-
-        config.recovery_threshold = args.recovery_threshold;
-        ccf.kv["public:ccf.gov.service.config"].set(
-          getSingletonKvKey(),
-          ccf.jsonCompatibleToBuf(config)
-        );
-
-        ccf.node.triggerRecoverySharesRefresh();
+        updateServiceConfig(args);
       }
     ),
   ],
@@ -1057,6 +1088,26 @@ const actions = new Map([
             );
           }
         });
+      }
+    ),
+  ],
+  [
+    "set_service_configuration",
+    new Action(
+      function (args) {
+        for (var key in args) {
+          if (key !== "reconfiguration_type" && key !== "recovery_threshold") {
+            throw new Error(
+              `Cannot change ${key} via set_service_configuration.`
+            );
+          }
+        }
+        checkType(args.reconfiguration_type, "string?", "reconfiguration type");
+        checkType(args.recovery_threshold, "integer?", "recovery threshold");
+        checkBounds(args.recovery_threshold, 1, 254, "recovery threshold");
+      },
+      function (args) {
+        updateServiceConfig(args);
       }
     ),
   ],
