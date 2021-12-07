@@ -120,7 +120,6 @@
         "OE_LOG_LEVEL": "WARNING"
       },
       "sourceMap": {
-        "../../src": "${workspaceFolder}/build-v8/tmp/v8/src",
         "/source/openenclave": "${workspaceFolder}/../openenclave"
       },
       "terminal": "console",
