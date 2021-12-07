@@ -94,6 +94,7 @@ gclient sync -D
 # diff -u src/base/cpu.original.cc src/base/cpu.cc >> $PATCH_PATH
 # diff -u src/base/platform/time.original.cc src/base/platform/time.cc >> $PATCH_PATH
 # diff -u src/base/platform/semaphore.original.cc src/base/platform/semaphore.cc >> $PATCH_PATH
+# diff -u src/base/platform/platform-posix.original.cc src/base/platform/platform-posix.cc >> $PATCH_PATH
 
 echo " + Apply V8 patches..."
 if ! patch --forward -p0 < "$PATCH_PATH"; then

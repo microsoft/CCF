@@ -313,3 +313,22 @@
  }
  
  #elif V8_OS_WIN
+--- src/base/platform/platform-posix.original.cc        2021-12-06 18:13:50.725293115 +0000
++++ src/base/platform/platform-posix.cc 2021-12-06 18:12:53.952876886 +0000
+@@ -259,12 +259,16 @@
+ 
+ // static
+ size_t OS::AllocatePageSize() {
++#if V8_OS_OPENENCLAVE
++  return 4096;
++#else
+ #if defined(V8_TARGET_OS_MACOSX) && V8_HOST_ARCH_ARM64
+   return kAppleArmPageSize;
+ #else
+   static size_t page_size = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+   return page_size;
+ #endif
++#endif
+ }
+ 
+ // static
