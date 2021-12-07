@@ -24,30 +24,32 @@ current_state="$STATE_UNDEFINED"
 current_arg_type="$ARG_TYPE_DEFAULT"
 actions="[]"
 
+THIS_SCRIPT="$(basename $0)"
 function usage()
 {
   echo "Usage:"
-  echo "  $0 [--help | --action ACTION_NAME [[FLAGS] ARG_NAME ARG_VALUE...]...]"
+  echo "  $THIS_SCRIPT [--help | --action ACTION_NAME [[FLAGS] ARG_NAME ARG_VALUE...]...]"
 }
 
 function print_help()
 {
   echo ""
-  echo "This tool is a wrapper around jq, to simplify creation of CCF governance proposals."
-  echo "Specify a list of actions and associated args. A single flag per-argument can be used"
-  echo "to indicate how the value should be parsed:"
+  echo "This tool is a wrapper around jq, to simplify creation of CCF governance"
+  echo "proposals."
+  echo "Specify a list of actions and associated args. A single flag per argument can be"
+  echo "used to indicate how the value should be parsed:"
   echo "  -s String (default)"
   echo "  -b Boolean"
   echo "  -n Number"
   echo "  -j JSON"
-  echo "Additionally, any @-prefixed string is assumed to be a file path, and will be replaced"
-  echo "with the contents of the file."
+  echo "Additionally, any @-prefixed string is treated as a file path, and will be"
+  echo "replaced with the contents of the file."
+  echo ""
   args_a=("--action" "set_greeting" "message" "HelloWorld" "-n" "max_repetitions" "42")
   args_b=("--action" "no_arg_action")
   args_c=("--action" "upload_file" "contents" "@file.txt")
-  echo ""
   echo "For example:"
-  echo "  $0"
+  echo "  $THIS_SCRIPT"
   echo "    ${args_a[*]}"
   echo "    ${args_b[*]}"
   echo "    ${args_c[*]}"
