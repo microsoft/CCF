@@ -625,7 +625,7 @@ def check_2tx_ledger(ledger_paths, learner_id):
     learner_at = 0
     trusted_at = 0
 
-    ledger = ccf.ledger.Ledger(ledger_paths, committed_only=True)
+    ledger = ccf.ledger.Ledger(ledger_paths, committed_only=False)
 
     for chunk in ledger:
         for tr in chunk:
@@ -665,11 +665,6 @@ def run_migration_tests(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        nodes_before = get_current_nodes_table(network)
-        for n in network.nodes:
-            assert n.node_id in nodes_before
-            assert nodes_before[n.node_id]["status"] == "Trusted"
-
         # Check that the service config agrees that this is a 1tx network
         with primary.client() as c:
             s = c.get("/node/service/configuration").body.json()
@@ -704,9 +699,6 @@ def run_migration_tests(args):
 
         ledger_paths = primary.remote.ledger_paths()
         learner_id = new_node.node_id
-
-        # Force ledger flush of all transactions so far.
-        network.get_latest_ledger_public_state()
 
     check_2tx_ledger(ledger_paths, learner_id)
 
