@@ -111,11 +111,6 @@ namespace ds
     bool operator==(const UnitString&) const = default;
   };
 
-  inline void from_json(const nlohmann::json& j, UnitString& s)
-  {
-    s = j.get<std::string>();
-  }
-
   inline void to_json(nlohmann::json& j, const UnitString& s)
   {
     j = s.str;
@@ -123,23 +118,38 @@ namespace ds
 
   struct SizeString : UnitString
   {
+    size_t value;
+
     SizeString() = default;
-    SizeString(const std::string& str_) : UnitString(str_) {}
+    SizeString(const std::string& str_) :
+      UnitString(str_),
+      value(convert_size_string(str_))
+    {}
 
     inline operator size_t() const
     {
-      return convert_size_string(str);
+      return value;
     }
   };
 
+  inline void from_json(const nlohmann::json& j, SizeString& s)
+  {
+    s = j.get<std::string>();
+  }
+
   struct TimeString : UnitString
   {
+    std::chrono::microseconds value;
+
     TimeString() = default;
-    TimeString(const std::string& str_) : UnitString(str_) {}
+    TimeString(const std::string& str_) :
+      UnitString(str_),
+      value(convert_time_string(str_))
+    {}
 
     inline operator std::chrono::microseconds() const
     {
-      return std::chrono::microseconds(convert_time_string(str));
+      return value;
     }
 
     inline operator std::chrono::milliseconds() const
@@ -164,4 +174,14 @@ namespace ds
       return std::chrono::seconds(*this).count();
     }
   };
+
+  inline void from_json(const nlohmann::json& j, TimeString& s)
+  {
+    s = j.get<std::string>();
+  }
+
+  inline void to_json(nlohmann::json& j, const TimeString& s)
+  {
+    j = s.str;
+  }
 }
