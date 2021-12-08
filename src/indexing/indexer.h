@@ -102,51 +102,8 @@ namespace ccf::indexing
       return false;
     }
 
-    void append_entry(const ccf::TxID& tx_id, const uint8_t* data, size_t size)
-    {
-      if (tx_id_less(tx_id, committed))
-      {
-        throw std::logic_error(fmt::format(
-          "Appending entry out-of-order. Committed to {}, trying to append {}",
-          committed.to_str(),
-          tx_id.to_str()));
-      }
-
-      if (uncommitted_entries.size() >= MAX_REQUESTABLE)
-      {
-        return;
-      }
-
-      if (!uncommitted_entries.empty())
-      {
-        const auto& [back_id, _] = uncommitted_entries.back();
-        if (tx_id_less(tx_id, back_id))
-        {
-          throw std::logic_error(fmt::format(
-            "Appending entry out-of-order. Last entry is {}, trying to append "
-            "{}",
-            back_id.to_str(),
-            tx_id.to_str()));
-        }
-      }
-
-      uncommitted_entries.emplace_back(
-        std::make_pair(tx_id, std::vector<uint8_t>{data, data + size}));
-    }
-
-    void rollback(const ccf::TxID& tx_id)
-    {
-      auto it = std::upper_bound(
-        uncommitted_entries.begin(),
-        uncommitted_entries.end(),
-        tx_id,
-        [](const ccf::TxID& a, const PendingTx& b) {
-          return tx_id_less(a, b.first);
-        });
-      uncommitted_entries.erase(it, uncommitted_entries.end());
-    }
-
-    void commit(const ccf::TxID& tx_id)
+    // TODO: To be replaced?
+    void notify_commit(const ccf::TxID& tx_id)
     {
       if (tx_id_less(tx_id, committed))
       {
@@ -155,37 +112,6 @@ namespace ccf::indexing
           committed.to_str(),
           tx_id.to_str()));
       }
-
-      auto end_it = std::upper_bound(
-        uncommitted_entries.begin(),
-        uncommitted_entries.end(),
-        tx_id,
-        [](const ccf::TxID& a, const PendingTx& b) {
-          return tx_id_less(a, b.first);
-        });
-
-      for (auto it = uncommitted_entries.begin(); it != end_it; ++it)
-      {
-        const auto& [id, entry] = *it;
-
-        auto store_ptr = transaction_fetcher->deserialise_transaction(
-          id.seqno, entry.data(), entry.size());
-
-        if (store_ptr != nullptr)
-        {
-          for (auto& [strategy, last_provided] : strategies)
-          {
-            // Only pass if this is the next seqno this index is seeking
-            if (last_provided.seqno + 1 == id.seqno)
-            {
-              strategy->handle_committed_transaction(id, store_ptr);
-              last_provided = id;
-            }
-          }
-        }
-      }
-
-      uncommitted_entries.erase(uncommitted_entries.begin(), end_it);
 
       committed = tx_id;
     }

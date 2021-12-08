@@ -90,29 +90,8 @@ public:
   }
 };
 
-class IndexingConsensus : public kv::test::StubConsensus
-{
-public:
-  ccf::indexing::Indexer& indexer;
-
-  IndexingConsensus(ccf::indexing::Indexer& i) : indexer(i) {}
-
-  bool replicate(const kv::BatchVector& entries, ccf::View view) override
-  {
-    auto replicated = kv::test::StubConsensus::replicate(entries, view);
-
-    for (const auto& [seqno, data, committable, hooks] : entries)
-    {
-      indexer.append_entry({view, seqno}, data->data(), data->size());
-    }
-    indexer.commit(committed_txid);
-
-    return replicated;
-  }
-};
-
 template <typename TConsensus>
-class AllCommittableConsensus : public TConsensus
+class AllCommittableWrapper : public TConsensus
 {
 public:
   using TConsensus::TConsensus;
@@ -131,8 +110,7 @@ public:
   }
 };
 
-using AllCommittableIndexingConsensus =
-  AllCommittableConsensus<IndexingConsensus>;
+using AllCommittableConsensus = AllCommittableWrapper<kv::test::StubConsensus>;
 
 using ExpectedSeqNos = std::set<ccf::SeqNo>;
 
@@ -205,6 +183,7 @@ void create_transactions(
 }
 
 void run_tests(
+  const std::function<void()>& tick_until_caught_up,
   kv::Store& kv_store,
   ccf::indexing::Indexer& indexer,
   ExpectedSeqNos& seqnos_hello,
@@ -216,6 +195,8 @@ void run_tests(
 {
   REQUIRE(index_a != nullptr);
   REQUIRE(index_b != nullptr);
+
+  tick_until_caught_up();
 
   {
     check_seqnos(seqnos_1, index_b->get_all_write_txs(1));
@@ -276,6 +257,8 @@ void run_tests(
     create_transactions(
       kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100);
 
+    tick_until_caught_up();
+
     check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
     check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
 
@@ -288,11 +271,13 @@ void run_tests(
 TEST_CASE("basic indexing")
 {
   kv::Store kv_store;
+
+  auto consensus = std::make_shared<AllCommittableConsensus>();
+  kv_store.set_consensus(consensus);
+
+  // TODO: Pass consensus to Indexer
   auto fetcher = std::make_shared<TestTransactionFetcher>();
   ccf::indexing::Indexer indexer(fetcher);
-
-  auto consensus = std::make_shared<AllCommittableIndexingConsensus>(indexer);
-  kv_store.set_consensus(consensus);
 
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
@@ -308,6 +293,25 @@ TEST_CASE("basic indexing")
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
   create_transactions(
     kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
+
+  auto tick_until_caught_up = [&]() {
+    indexer.notify_commit(kv_store.current_txid());
+    while (indexer.tick() || !fetcher->requested.empty())
+    {
+      // Do the fetch, simulating an asynchronous fetch by the historical query
+      // system
+      for (auto seqno : fetcher->requested)
+      {
+        REQUIRE(consensus->replica.size() >= seqno);
+        const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+        fetcher->fetched_stores[seqno] =
+          fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
+      }
+      fetcher->requested.clear();
+    }
+  };
+
+  tick_until_caught_up();
 
   {
     INFO("Confirm that pre-existing strategy was populated already");
@@ -329,24 +333,13 @@ TEST_CASE("basic indexing")
   REQUIRE(index_a->get_indexed_watermark() == current);
   REQUIRE(index_b->get_indexed_watermark() == ccf::TxID());
 
-  while (indexer.tick() || !fetcher->requested.empty())
-  {
-    // Do the fetch, simulating an asynchronous fetch by the historical query
-    // system
-    for (auto seqno : fetcher->requested)
-    {
-      REQUIRE(consensus->replica.size() >= seqno);
-      const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
-      fetcher->fetched_stores[seqno] =
-        fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
-    }
-    fetcher->requested.clear();
-  }
+  tick_until_caught_up();
 
   REQUIRE(index_a->get_indexed_watermark() == current);
   REQUIRE(index_b->get_indexed_watermark() == current);
 
   run_tests(
+    tick_until_caught_up,
     kv_store,
     indexer,
     seqnos_hello,
@@ -392,7 +385,7 @@ aft::LedgerStubProxy* add_raft_consensus(
     aft::StubSnapshotter>;
   using TRaft =
     aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
-  using AllCommittableRaftConsensus = AllCommittableConsensus<TConsensus>;
+  using AllCommittableRaftConsensus = AllCommittableWrapper<TConsensus>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
   auto raft = new TRaft(
@@ -406,7 +399,6 @@ aft::LedgerStubProxy* add_raft_consensus(
     std::make_shared<aft::State>(node_id),
     nullptr,
     nullptr,
-    indexer,
     ms(20),
     ms(20),
     ms(1000));
@@ -483,6 +475,48 @@ TEST_CASE("integrated indexing")
   create_transactions(
     kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
 
+  size_t handled_writes = 0;
+  const auto& writes = stub_writer->writes;
+
+  auto tick_until_caught_up = [&]() {
+    indexer.notify_commit(kv_store.current_txid());
+    size_t loops = 0;
+    while (indexer.tick() || handled_writes < writes.size())
+    {
+      // Do the fetch, simulating an asynchronous fetch by the historical
+      // query system
+      for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
+      {
+        const auto& write = *it;
+
+        const uint8_t* data = write.contents.data();
+        size_t size = write.contents.size();
+        REQUIRE(write.m == consensus::ledger_get_range);
+        auto [from_seqno, to_seqno, purpose] =
+          ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+        REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+
+        std::vector<uint8_t> combined;
+        for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+        {
+          const auto entry = ledger->get_raw_entry_by_idx(seqno);
+          REQUIRE(entry.has_value());
+          combined.insert(combined.end(), entry->begin(), entry->end());
+        }
+        cache->handle_ledger_entries(from_seqno, to_seqno, combined);
+      }
+
+      handled_writes = writes.end() - writes.begin();
+
+      if (loops++ > 100)
+      {
+        throw std::logic_error("Looks like a permanent loop");
+      }
+    }
+  };
+
+  tick_until_caught_up();
+
   {
     INFO("Confirm that pre-existing strategy was populated already");
 
@@ -497,43 +531,8 @@ TEST_CASE("integrated indexing")
   auto index_b = std::make_shared<IndexB>(map_b);
   REQUIRE(indexer.install_strategy(index_b));
 
-  size_t handled_writes = 0;
-  const auto& writes = stub_writer->writes;
-  size_t loops = 0;
-  while (indexer.tick() || handled_writes < writes.size())
-  {
-    // Do the fetch, simulating an asynchronous fetch by the historical query
-    // system
-    for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
-    {
-      const auto& write = *it;
-
-      const uint8_t* data = write.contents.data();
-      size_t size = write.contents.size();
-      REQUIRE(write.m == consensus::ledger_get_range);
-      auto [from_seqno, to_seqno, purpose] =
-        ringbuffer::read_message<consensus::ledger_get_range>(data, size);
-      REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
-
-      std::vector<uint8_t> combined;
-      for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
-      {
-        const auto entry = ledger->get_raw_entry_by_idx(seqno);
-        REQUIRE(entry.has_value());
-        combined.insert(combined.end(), entry->begin(), entry->end());
-      }
-      cache->handle_ledger_entries(from_seqno, to_seqno, combined);
-    }
-
-    handled_writes = writes.end() - writes.begin();
-
-    if (loops++ > 100)
-    {
-      throw std::logic_error("Looks like a permanent loop");
-    }
-  }
-
   run_tests(
+    tick_until_caught_up,
     kv_store,
     indexer,
     seqnos_hello,
