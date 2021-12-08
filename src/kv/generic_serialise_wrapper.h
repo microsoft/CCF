@@ -66,12 +66,11 @@ namespace kv
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
-      if (
-        entry_type == EntryType::WriteSetWithClaims && !claims_digest_.empty())
+      serialise_internal(tx_id.version);
+      if (entry_type == EntryType::WriteSetWithClaims)
       {
         serialise_internal(claims_digest_.value());
       }
-      serialise_internal(tx_id.version);
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);
     }
@@ -239,6 +238,7 @@ namespace kv
     void read_public_header()
     {
       entry_type = public_reader.template read_next<EntryType>();
+      version = public_reader.template read_next<Version>();
       if (entry_type == EntryType::WriteSetWithClaims)
       {
         auto digest_array =
@@ -246,7 +246,6 @@ namespace kv
             .template read_next<ccf::ClaimsDigest::Digest::Representation>();
         claims_digest.set(digest_array);
       }
-      version = public_reader.template read_next<Version>();
       // max_conflict_version is included for compatibility, but currently
       // ignored
       const auto _ = public_reader.template read_next<Version>();

@@ -62,6 +62,12 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
+def digest(algo, data):
+    h = hashes.Hash(algo)
+    h.update(data)
+    return h.finalize()
+
+
 def unpack(stream, fmt):
     size = struct.calcsize(fmt)
     buf = stream.read(size)
@@ -122,10 +128,9 @@ class PublicDomain:
         self._buffer = buffer
         self._buffer_size = self._buffer.getbuffer().nbytes
         self._entry_type = self._read_entry_type()
+        self._version = self._read_version()
         if self._entry_type == EntryType.WRITE_SET_WITH_CLAIMS:
             self._claims_digest = self._read_claims_digest()
-
-        self._version = self._read_version()
         self._max_conflict_version = self._read_version()
 
         if self._entry_type == EntryType.SNAPSHOT:
@@ -245,6 +250,16 @@ class PublicDomain:
         """
         return self._version
 
+    def get_claims_digest(self) -> Optional[bytes]:
+        """
+        Return the claims digest when there is one
+        """
+        return (
+            self._claims_digest
+            if self._entry_type == EntryType.WRITE_SET_WITH_CLAIMS
+            else None
+        )
+
 
 def _byte_read_safe(file, num_of_bytes):
     offset = file.tell()
@@ -302,7 +317,7 @@ class LedgerValidator:
         self.signature_count = 0
         self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
 
-        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of it's merkle tree.
+        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
         empty_bytes_array = bytearray(hashes.SHA256.digest_size)
@@ -398,7 +413,7 @@ class LedgerValidator:
                 self.last_verified_view = current_view
 
         # Checks complete, add this transaction to tree
-        self.merkle.add_leaf(transaction.get_raw_tx())
+        self.merkle.add_leaf(transaction.get_tx_digest(), False)
 
     def _verify_tx_set(self, tx_info: TxBundleInfo):
         """
@@ -603,6 +618,14 @@ class Transaction(Entry):
             TransactionHeader.get_size() + self._header.size,
             pos=self._tx_offset,
         )
+
+    def get_tx_digest(self) -> bytes:
+        claims_digest = self.get_public_domain().get_claims_digest()
+        write_set_digest = digest(hashes.SHA256(), self.get_raw_tx())
+        if claims_digest is None:
+            return write_set_digest
+        else:
+            return digest(hashes.SHA256(), write_set_digest + claims_digest)
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)

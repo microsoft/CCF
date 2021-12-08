@@ -44,7 +44,10 @@ namespace kv
       }
 
       auto e = store->get_encryptor();
-      KvStoreSerialiser replicated_serialiser(e, {commit_view, version});
+      auto entry_type = claims_digest.empty() ? EntryType::WriteSet :
+                                                EntryType::WriteSetWithClaims;
+      KvStoreSerialiser replicated_serialiser(
+        e, {commit_view, version}, entry_type, claims_digest);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
