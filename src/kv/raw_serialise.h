@@ -5,9 +5,9 @@
 #include "ds/serialized.h"
 #include "generic_serialise_wrapper.h"
 
+#include <array>
 #include <small_vector/SmallVector.h>
 #include <type_traits>
-#include <array>
 
 namespace kv
 {
@@ -57,7 +57,11 @@ namespace kv
 
       auto data_ = buf.data() + size_before;
       auto size_ = buf.size() - size_before;
-      serialized::write(data_, size_, reinterpret_cast<const uint8_t*>(array.data()), array_size);
+      serialized::write(
+        data_,
+        size_,
+        reinterpret_cast<const uint8_t*>(array.data()),
+        array_size);
     }
 
     void serialise_string(const std::string& str)
@@ -192,7 +196,7 @@ namespace kv
 
         return ret;
       }
-      else if constexpr(nonstd::is_std_array<T>::value)
+      else if constexpr (nonstd::is_std_array<T>::value)
       {
         T ret;
         auto data_ = reinterpret_cast<uint8_t*>(ret.data());

@@ -22,7 +22,9 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    std::vector<uint8_t> serialise(const ccf::ClaimsDigest& claims_digest = ccf::no_claims(), bool include_reads = false)
+    std::vector<uint8_t> serialise(
+      const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
+      bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");

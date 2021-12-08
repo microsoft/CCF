@@ -4,10 +4,10 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
+#include "enclave/claims.h"
 #include "kv_types.h"
 #include "serialised_entry.h"
 #include "serialised_entry_format.h"
-#include "enclave/claims.h"
 
 #include <optional>
 
@@ -66,8 +66,8 @@ namespace kv
     {
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
-      if (entry_type == EntryType::WriteSetWithClaims &&
-          !claims_digest_.empty())
+      if (
+        entry_type == EntryType::WriteSetWithClaims && !claims_digest_.empty())
       {
         serialise_internal(claims_digest_.value());
       }
@@ -241,7 +241,9 @@ namespace kv
       entry_type = public_reader.template read_next<EntryType>();
       if (entry_type == EntryType::WriteSetWithClaims)
       {
-        auto digest_array = public_reader.template read_next<ccf::ClaimsDigest::Digest::Representation>();
+        auto digest_array =
+          public_reader
+            .template read_next<ccf::ClaimsDigest::Digest::Representation>();
         claims_digest.set(digest_array);
       }
       version = public_reader.template read_next<Version>();

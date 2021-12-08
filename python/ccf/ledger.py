@@ -51,6 +51,7 @@ class NodeStatus(Enum):
 class EntryType(Enum):
     WRITE_SET = 0
     SNAPSHOT = 1
+    WRITE_SET_WITH_CLAIMS = 2
 
 
 def to_uint_64(buffer):
@@ -112,6 +113,7 @@ class PublicDomain:
     _buffer: io.BytesIO
     _buffer_size: int
     _entry_type: EntryType
+    _claims_digest: bytes
     _version: int
     _max_conflict_version: int
     _tables: dict
@@ -120,6 +122,9 @@ class PublicDomain:
         self._buffer = buffer
         self._buffer_size = self._buffer.getbuffer().nbytes
         self._entry_type = self._read_entry_type()
+        if self._entry_type == EntryType.WRITE_SET_WITH_CLAIMS:
+            self._claims_digest = self._read_claims_digest()
+
         self._version = self._read_version()
         self._max_conflict_version = self._read_version()
 
@@ -131,9 +136,10 @@ class PublicDomain:
 
     def _read_entry_type(self):
         val = unpack(self._buffer, "<B")
-        if val > EntryType.SNAPSHOT.value:
-            raise ValueError(f"Invalid EntryType: {val}")
         return EntryType(val)
+
+    def _read_claims_digest(self):
+        return self._buffer.read(hashes.SHA256.digest_size)
 
     def _read_version(self):
         return unpack(self._buffer, "<q")
@@ -290,9 +296,6 @@ class LedgerValidator:
         3) The merkle proof is correct for each set of transactions
     """
 
-    # Constant for the size of a hashed transaction
-    SHA_256_HASH_SIZE = 32
-
     def __init__(self):
         self.node_certificates = {}
         self.node_activity_status = {}
@@ -302,7 +305,7 @@ class LedgerValidator:
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of it's merkle tree.
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
-        empty_bytes_array = bytearray(self.SHA_256_HASH_SIZE)
+        empty_bytes_array = bytearray(hashes.SHA256.digest_size)
         self.merkle.add_leaf(empty_bytes_array, do_hash=False)
 
         self.last_verified_seqno = 0

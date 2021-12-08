@@ -6,10 +6,10 @@
 #include "ds/hex.h"
 #include "ds/json.h"
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <vector>
-#include <array>
 
 namespace crypto
 {
