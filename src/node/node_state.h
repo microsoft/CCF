@@ -1955,7 +1955,7 @@ namespace ccf
         kv::MembershipState::Learner :
         kv::MembershipState::Active;
 
-      auto raft = std::make_shared<RaftType>(
+      consensus = std::make_shared<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
@@ -1970,7 +1970,7 @@ namespace ccf
         membership_state,
         reconfiguration_type);
 
-      network.tables->set_consensus(raft);
+      network.tables->set_consensus(consensus);
 
       // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
