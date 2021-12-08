@@ -5,6 +5,7 @@ import sys
 import http
 import json
 import os
+import subprocess
 from loguru import logger as LOG
 
 # Change default log format
@@ -91,11 +92,17 @@ r = member_client.post("/gov/ack/update_state_digest")
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: signed_request
 
-# SNIPPET: import_proposal_generator
-import ccf.proposal_generator
-
 # SNIPPET_START: dict_proposal
-proposal, vote = ccf.proposal_generator.transition_service_to_open()
+rc = subprocess.run(
+    ["build_proposal.sh", "--action", "transition_service_to_open"],
+    capture_output=True,
+    check=True,
+)
+proposal = rc.stdout.decode()
+
+# TODO: Document that this is just a jinja template, Python wrapper is not necessary
+import ccf.ballot_builder
+vote = ccf.ballot_builder.build_ballot_raw(json.loads(proposal))
 
 member_client = ccf.clients.CCFClient(
     host,
@@ -112,7 +119,7 @@ response = member_client.post(
 
 # SNIPPET_START: json_proposal_with_file
 with open("my_open_network_proposal.json", "w", encoding="utf-8") as f:
-    f.write(json.dumps(proposal, indent=2))
+    f.write(proposal)
 
 # The contents of `my_open_network_proposal.json` are submitted as the request body.
 response = member_client.post(

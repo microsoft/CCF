@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import tempfile
+import infra.consortium
 import infra.network
 import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
-import ccf.proposal_generator
 import json
 
 from loguru import logger as LOG
@@ -25,7 +25,9 @@ def test_cert_store(network, args):
         f.write("foo")
         f.flush()
         try:
-            ccf.proposal_generator.set_ca_cert_bundle(cert_name, f.name)
+            infra.consortium.generate_proposal(
+                "set_ca_cert_bundle", cert=cert_name, cert_bundle="@" + f.name
+            )
         except ValueError:
             pass
         else:
@@ -36,9 +38,7 @@ def test_cert_store(network, args):
         f.write("foo")
         f.flush()
         try:
-            network.consortium.set_ca_cert_bundle(
-                primary, cert_name, f.name
-            )
+            network.consortium.set_ca_cert_bundle(primary, cert_name, f.name)
         except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
             pass
         else:

@@ -37,6 +37,25 @@ def read_modules(modules_path):
             modules.append({"name": rel_module_name, "module": js})
     return modules
 
+def generate_proposal(proposal_name, **kwargs):
+    cmd = ["build_proposal.sh"]
+    cmd += ["--action", proposal_name]
+    for k, v in kwargs.items():
+        if v is not None:
+            if isinstance(v, bool):
+                cmd += ["-b", str(k), str(v)]
+            elif not isinstance(v, str):
+                cmd += ["-j", str(k), json.dumps(v)]
+            else:
+                cmd += [str(k), str(v)]
+
+    rc = subprocess.run(cmd, capture_output=True, check=True)
+    proposal = rc.stdout.decode()
+
+    vote = ccf.ballot_builder.build_ballot_raw(json.loads(proposal))
+
+    return proposal, vote
+
 
 class Consortium:
     def __init__(
@@ -133,21 +152,7 @@ class Consortium:
             member.authenticate_session = flag
 
     def make_proposal(self, proposal_name, **kwargs):
-        cmd = ["build_proposal.sh"]
-        cmd += ["--action", proposal_name]
-        for k, v in kwargs.items():
-            if v is not None:
-                if isinstance(v, bool):
-                    cmd += ["-b", str(k), str(v)]
-                elif not isinstance(v, str):
-                    cmd += ["-j", str(k), json.dumps(v)]
-                else:
-                    cmd += [str(k), str(v)]
-
-        rc = subprocess.run(cmd, capture_output=True, check=True)
-        proposal = rc.stdout.decode()
-
-        vote = ccf.ballot_builder.build_ballot_raw(json.loads(proposal))
+        proposal, vote = generate_proposal(proposal_name, **kwargs)
 
         proposal_output_path = os.path.join(
             self.common_dir, f"{proposal_name}_proposal.json"
