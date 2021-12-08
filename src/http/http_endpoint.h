@@ -8,6 +8,10 @@
 #include "http_parser.h"
 #include "http_rpc_context.h"
 
+#ifdef ENABLE_HTTP2
+#  include <nghttp2/nghttp2.h>
+#endif
+
 namespace http
 {
   class HTTPEndpoint : public enclave::TLSEndpoint
