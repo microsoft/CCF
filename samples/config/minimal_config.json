@@ -23,10 +23,6 @@
           "encryption_public_key_file": "member0_enc_pubk.pem"
         }
       ]
-    },
-    "join": {
-      "retry_timeout": "1000ms",
-      "target_rpc_address": "127.0.0.1:5678"
     }
   }
 }
