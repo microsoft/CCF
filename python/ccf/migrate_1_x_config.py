@@ -22,7 +22,7 @@ SECTIONS_2_X = [
     "snapshots",
     "logging",
     "consensus",
-    "intervals",
+    "ledger_signatures",
     "jwt",
     "memory",
     "output_files",
@@ -177,9 +177,9 @@ if __name__ == "__main__":
                 output["consensus"]["election_timeout"] = f"{v}ms"
 
             elif k == "sig_tx_interval":
-                output["intervals"]["signature_interval_size"] = int(v)
+                output["ledger_signatures"]["tx_count"] = int(v)
             elif k == "sig_ms_interval":
-                output["intervals"]["signature_interval_duration"] = f"{v}ms"
+                output["ledger_signatures"]["delay"] = f"{v}ms"
             elif k == "jwt_key_refresh_interval_s":
                 output["jwt"]["key_refresh_interval"] = f"{v}s"
 

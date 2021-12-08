@@ -64,9 +64,9 @@
     "message_timeout": "100ms",
     "election_timeout": "4000ms"
   },
-  "intervals": {
-    "signature_interval_size": 5000,
-    "signature_interval_duration": "1s"
+  "ledger_signatures": {
+    "tx_count": 5000,
+    "delay": "1s"
   },
   "jwt": {
     "key_refresh_interval": "30min"

@@ -171,16 +171,16 @@ Example:
 - ``message_timeout``: Interval at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout``. Default value: ``"100ms"``.
 - ``election_timeout``: Timeout value after which backup node that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``message_timeout``. Default timeout: ``"5000ms"``.
 
-``intervals``
-~~~~~~~~~~~~~
+``ledger_signatures``
+~~~~~~~~~~~~~~~~~~~~~
 
-- ``signature_interval_size``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5000``.
-- ``signature_interval_duration``: Maximum duration after which a signature transaction is automatically triggered. Default value: ``"1000ms"``[#time_string]_.
+- ``tx_count``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5000``.
+- ``delay``: Maximum duration after which a signature transaction is automatically generated. Default value: ``"1000ms"``[#time_string]_.
 
 .. note::
     Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
 
-    The signature interval options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution and queuing of transactions, the intervals between signature transactions may be slightly larger in practice.
+    The ledger signature interval options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution and queuing of transactions, the intervals between signature transactions may be slightly larger in practice.
 
 ``jwt``
 ~~~~~~~

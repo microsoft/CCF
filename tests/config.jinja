@@ -55,10 +55,10 @@
     "message_timeout": "100ms",
     "election_timeout": "{{ election_timeout }}"
   },
-  "intervals":
+  "ledger_signatures":
   {
-    "signature_interval_size": {{ sig_tx_interval }},
-    "signature_interval_duration": "{{ signature_interval_duration }}"
+    "tx_count": {{ sig_tx_interval }},
+    "delay": "{{ signature_interval_duration }}"
   },
   "jwt":
   {
