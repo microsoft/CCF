@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "common/configuration.h"
 #include "ds/json_schema.h"
 #include "enclave/interface.h"
 #include "node/config.h"

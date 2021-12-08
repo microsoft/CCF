@@ -3,7 +3,7 @@
 #pragma once
 
 #include "blit.h"
-#include "consensus/aft/raft_consensus.h"
+#include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "crypto/entropy.h"
@@ -67,9 +67,7 @@ namespace std
 
 namespace ccf
 {
-  using RaftConsensusType =
-    aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
 
   struct NodeCreateInfo
   {
@@ -1957,27 +1955,18 @@ namespace ccf
         kv::MembershipState::Learner :
         kv::MembershipState::Active;
 
-      auto raft = std::make_unique<RaftType>(
-        network.consensus_type,
+      consensus = std::make_shared<RaftType>(
+        consensus_config,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
-        rpcsessions,
-        rpc_map,
         shared_state,
         std::move(resharing_tracker),
         node_client,
-        std::chrono::milliseconds(consensus_config.timeout_ms),
-        std::chrono::milliseconds(consensus_config.election_timeout_ms),
-        std::chrono::milliseconds(consensus_config.election_timeout_ms),
-        sig_tx_interval,
         public_only,
         membership_state,
         reconfiguration_type);
-
-      consensus = std::make_shared<RaftConsensusType>(
-        std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
 
@@ -2021,6 +2010,14 @@ namespace ccf
           [](kv::Version version, const SerialisedMerkleTree::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<SerialisedMerkleTreeHook>(version, w);
+          }));
+
+      network.tables->set_global_hook(
+        network.config.get_name(),
+        network.config.wrap_commit_hook(
+          [c = this->consensus](
+            kv::Version version, const Configuration::Write& w) {
+            service_configuration_commit_hook(version, w, c);
           }));
 
       setup_basic_hooks();

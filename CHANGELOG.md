@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added endpoint to obtain service configuration via `/node/service-configuration` (#3251)
+- Added endpoint to obtain service configuration via `/node/service/configuration` (#3251)
 
 ### Changed
 
