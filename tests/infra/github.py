@@ -219,7 +219,7 @@ class Repository:
         assert infra.proc.ccall(*install_cmd).returncode == 0, "Installation failed"
 
         # Write new file to avoid having to download install again
-        open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+")
+        open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8")
 
         LOG.info(f"CCF release {stripped_tag} successfully installed at {install_path}")
         return stripped_tag, install_path
