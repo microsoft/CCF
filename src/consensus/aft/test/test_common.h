@@ -8,8 +8,7 @@
 #include <chrono>
 #include <string>
 
-using TRaft =
-  aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
+using TRaft = aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -20,6 +19,11 @@ static std::vector<uint8_t> cert;
 
 static const auto request_timeout = std::chrono::milliseconds(10);
 static const auto election_timeout = std::chrono::milliseconds(100);
+
+static const consensus::Configuration raft_settings{
+  ConsensusType::CFT,
+  (size_t)request_timeout.count(),
+  (size_t)election_timeout.count()};
 
 static auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 

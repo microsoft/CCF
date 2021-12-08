@@ -23,6 +23,8 @@ namespace aft
 
     LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
+    virtual void init(Index idx) {}
+
     virtual void put_entry(
       const std::vector<uint8_t>& original,
       bool globally_committable,
@@ -315,16 +317,6 @@ namespace aft
         return index;
       }
 
-      ccf::PrimarySignature& get_signature() override
-      {
-        throw std::logic_error("get_signature not implemented");
-      }
-
-      aft::Request& get_request() override
-      {
-        throw std::logic_error("get_request not implemented");
-      }
-
       bool support_async_execution() override
       {
         return false;
@@ -372,6 +364,8 @@ namespace aft
   {
   public:
     void update(Index, bool) {}
+
+    void set_last_snapshot_idx(Index idx) {}
 
     bool record_committable(Index)
     {
