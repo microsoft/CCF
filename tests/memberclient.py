@@ -7,6 +7,7 @@ import infra.e2e_args
 import infra.network
 import infra.consortium
 from infra.proposal import ProposalState
+import ccf.clients
 
 import suite.test_requirements as reqs
 

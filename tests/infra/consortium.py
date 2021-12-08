@@ -487,8 +487,10 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_jwt_public_signing_keys(self, remote_node, issuer, jwks_path):
+        with open(jwks_path, encoding="utf-8") as f:
+            obj = json.load(f)
         proposal_body, careful_vote = self.make_proposal(
-            "set_jwt_public_signing_keys", issuer=issuer, jwks="@" + jwks_path
+            "set_jwt_public_signing_keys", issuer=issuer, jwks=obj
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
