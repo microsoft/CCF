@@ -79,6 +79,7 @@ if __name__ == "__main__":
     for s in SECTIONS_2_X:
         output[s] = {}
     output["network"]["rpc_interfaces"] = [{}]
+    output["network"]["node_to_node_interface"] = {}
     output["network"]["rpc_interfaces"][0] = {
         "max_open_sessions_soft": DEFAULT_MAX_RPC_SESSIONS_SOFT,
         "max_open_sessions_hard": DEFAULT_MAX_RPC_SESSIONS_SOFT + 10,
@@ -134,7 +135,7 @@ if __name__ == "__main__":
                     int(v) + 10
                 )
             elif k == "node_address":
-                output["network"]["node_to_node_interface"] = v
+                output["network"]["node_to_node_interface"]["bind_address"] = v
             elif k == "network_cert_file":
                 output["network_certificate_file"] = v
 
