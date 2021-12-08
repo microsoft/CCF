@@ -276,7 +276,6 @@ TEST_CASE("basic indexing")
   auto consensus = std::make_shared<AllCommittableConsensus>();
   kv_store.set_consensus(consensus);
 
-  // TODO: Pass consensus to Indexer
   auto fetcher = std::make_shared<TestTransactionFetcher>();
   ccf::indexing::Indexer indexer(fetcher);
 
