@@ -12,6 +12,7 @@ keygenerator.sh --name alice
 keygenerator.sh --name bob --gen-enc-key
 
 build_proposal.sh --help
+python -m ccf.ballot_builder --help
 
 build_proposal.sh --action set_member cert @bob_cert.pem > set_member_proposal_a.json
 python -m ccf.ballot_builder set_member_proposal_a.json
@@ -42,3 +43,9 @@ python -m ccf.ballot_builder transition_node_to_trusted_proposal.json
 
 build_proposal.sh --action add_node_code code_id 1234abcd > add_node_code_proposal.json
 python -m ccf.ballot_builder add_node_code_proposal.json
+
+CCF_ROOT_DIR="${1}"
+python -m ccf.bundle_js_app --help
+python -m ccf.bundle_js_app "${1}"/samples/apps/logging/js > bundle.json
+build_proposal.sh --action set_js_app bundle -j @bundle.json > set_js_app_proposal.json
+python -m ccf.ballot_builder set_js_app_proposal.json

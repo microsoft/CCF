@@ -67,7 +67,7 @@ python -m pip install -e ../../../python
 python ../../../python/tutorial.py ./workspace/sandbox_common/
 
 # Test Python package CLI
-../../../tests/test_python_cli.sh > test_python_cli.out
+../../../tests/test_python_cli.sh ../../../ > test_python_cli.out
 
 # Poll until service has died
 while [ "$(service_http_status)" == "200" ]; do

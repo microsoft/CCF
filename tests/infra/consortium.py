@@ -8,9 +8,6 @@ import json
 import random
 import re
 import subprocess
-import tempfile
-import glob
-import shutil
 import infra.network
 import infra.proc
 import infra.checker
@@ -19,23 +16,12 @@ import infra.crypto
 import infra.member
 from ccf.ledger import NodeStatus
 import ccf.ballot_builder
+import ccf.bundle_js_app
 import ccf.ledger
 from infra.proposal import ProposalState
 
 from loguru import logger as LOG
 
-
-def read_modules(modules_path):
-    modules = []
-    for path in glob.glob(f"{modules_path}/**/*", recursive=True):
-        if not os.path.isfile(path):
-            continue
-        rel_module_name = os.path.relpath(path, modules_path)
-        rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
-        with open(path, encoding="utf-8") as f:
-            js = f.read()
-            modules.append({"name": rel_module_name, "module": js})
-    return modules
 
 def generate_proposal(proposal_name, **kwargs):
     cmd = ["build_proposal.sh"]
@@ -455,33 +441,11 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_js_app(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
-        # TODO: Use script for this?
-        # read modules
-        if os.path.isfile(app_bundle_path):
-            tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
-            shutil.unpack_archive(app_bundle_path, tmp_dir.name)
-            app_bundle_path = tmp_dir.name
-        modules_path = os.path.join(app_bundle_path, "src")
-        modules = read_modules(modules_path)
-
-        # read metadata
-        metadata_path = os.path.join(app_bundle_path, "app.json")
-        with open(metadata_path, encoding="utf-8") as f:
-            metadata = json.load(f)
-
-        # sanity checks
-        module_paths = set(module["name"] for module in modules)
-        for url, methods in metadata["endpoints"].items():
-            for method, endpoint in methods.items():
-                module_path = endpoint["js_module"]
-                if module_path not in module_paths:
-                    raise ValueError(
-                        f"{method} {url}: module '{module_path}' not found in bundle"
-                    )
+        bundle = ccf.bundle_js_app.create_bundle(app_bundle_path)
 
         proposal_body, careful_vote = self.make_proposal(
             "set_js_app",
-            bundle={"metadata": metadata, "modules": modules},
+            bundle=bundle,
             disable_bytecode_cache=disable_bytecode_cache,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
