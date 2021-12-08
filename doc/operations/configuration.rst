@@ -8,7 +8,8 @@ The configuration for each CCF node must be contained in a single JSON configura
     JSON configuration samples:
 
     - Minimal configuration: https://github.com/microsoft/CCF/blob/main/samples/config/minimal_config.json
-    - Full configuration: https://github.com/microsoft/CCF/blob/main/samples/config/config.json
+    - Complete ``start`` configuration: https://github.com/microsoft/CCF/blob/main/samples/config/start_config.json
+    - Complete ``join`` configuration: https://github.com/microsoft/CCF/blob/main/samples/config/join_config.json
 
     A single configuration file can be verified using the ``cchost`` executable, but without launching the enclave application, using the ``--check`` option:
 
