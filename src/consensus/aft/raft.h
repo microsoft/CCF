@@ -889,16 +889,8 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
-      {
-        std::unique_lock<std::mutex> guard(state->lock);
-        timeout_elapsed += elapsed;
-      }
-      do_periodic();
-    }
-
-    void do_periodic()
-    {
       std::unique_lock<std::mutex> guard(state->lock);
+      timeout_elapsed += elapsed;
 
       if (leadership_state == kv::LeadershipState::Leader)
       {
