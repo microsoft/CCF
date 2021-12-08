@@ -56,7 +56,7 @@ namespace host
 
     // Other
     ds::TimeString tick_period = std::string("10ms");
-    ds::TimeString io_logging_threshold = std::string("10ms");
+    ds::TimeString slow_io_logging_threshold = std::string("10ms");
     std::optional<std::string> node_client_interface = std::nullopt;
     ds::TimeString client_connection_timeout = std::string("2000ms");
 
@@ -189,7 +189,7 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig,
     tick_period,
-    io_logging_threshold,
+    slow_io_logging_threshold,
     node_client_interface,
     client_connection_timeout,
     output_files,

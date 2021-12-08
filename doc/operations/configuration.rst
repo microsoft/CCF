@@ -205,8 +205,8 @@ Advanced Configuration Options
 
 Interval at which the enclave time will be updated by the host. Default value: ``"10ms"`` [#time_string]_.
 
-``io_logging_threshold``
-~~~~~~~~~~~~~~~~~~~~~~~~
+``slow_io_logging_threshold``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``"10000us"`` [#time_string]_.
 

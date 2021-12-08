@@ -181,7 +181,8 @@ int main(int argc, char** argv)
   // set the host log level
   logger::config::level() = config.logging.host_level;
 
-  asynchost::TimeBoundLogger::default_max_time = config.io_logging_threshold;
+  asynchost::TimeBoundLogger::default_max_time =
+    config.slow_io_logging_threshold;
 
   // create the enclave
   host::Enclave enclave(config.enclave.file, oe_flags);
