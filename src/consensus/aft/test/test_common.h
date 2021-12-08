@@ -17,13 +17,14 @@ using SigAdaptor = aft::Adaptor<SigStore>;
 
 static std::vector<uint8_t> cert;
 
-static const auto request_timeout = std::chrono::milliseconds(10);
-static const auto election_timeout = std::chrono::milliseconds(100);
+static const ds::TimeString request_timeout_ = std::string("10ms");
+static const ds::TimeString election_timeout_ = std::string("100ms");
+
+static const std::chrono::milliseconds request_timeout = request_timeout_;
+static const std::chrono::milliseconds election_timeout = election_timeout_;
 
 static const consensus::Configuration raft_settings{
-  ConsensusType::CFT,
-  (size_t)request_timeout.count(),
-  (size_t)election_timeout.count()};
+  ConsensusType::CFT, request_timeout_, election_timeout_};
 
 static auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
