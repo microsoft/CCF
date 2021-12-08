@@ -324,7 +324,7 @@ int main(int argc, char** argv)
 
     StartupConfig startup_config;
 
-    startup_config.snapshot_tx_interval = config.snapshots.interval_size;
+    startup_config.snapshot_tx_interval = config.snapshots.tx_count;
     startup_config.consensus = config.consensus;
     startup_config.ledger_signatures = config.ledger_signatures;
     startup_config.jwt = config.jwt;

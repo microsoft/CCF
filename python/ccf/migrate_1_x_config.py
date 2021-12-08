@@ -160,7 +160,7 @@ if __name__ == "__main__":
             elif k == "snapshot_dir":  # plural
                 output["snapshots"]["directory"] = v
             elif k == "snapshot_tx_interval":
-                output["snapshots"]["interval_size"] = int(v)
+                output["snapshots"]["tx_count"] = int(v)
 
             # logging
             elif k == "log_format_json":

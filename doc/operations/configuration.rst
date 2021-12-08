@@ -153,7 +153,7 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``directory``: Path to snapshot directory. Default value: ``"snapshots"``.
-- ``interval_size``: Minimum number of transactions between two snapshots. Default value: ``10000``.
+- ``tx_count``: Minimum number of transactions between two snapshots. Default value: ``10000``.
 
 ``logging``
 ~~~~~~~~~~~
