@@ -131,17 +131,16 @@ public:
       ccf::NodeId node_id(node_id_s);
 
       auto kv = std::make_shared<Store>(node_id);
+      const consensus::Configuration settings{ConsensusType::CFT, 10, 100};
       auto raft = std::make_shared<TRaft>(
-        ConsensusType::CFT,
+        settings,
         std::make_unique<Adaptor>(kv),
         std::make_unique<LedgerStubProxy_Mermaid>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
         std::make_shared<aft::StubSnapshotter>(),
         std::make_shared<aft::State>(node_id),
         nullptr,
-        nullptr,
-        ms(10),
-        ms(100));
+        nullptr);
       raft->start_ticking();
 
       _nodes.emplace(node_id, NodeDriver{kv, raft});

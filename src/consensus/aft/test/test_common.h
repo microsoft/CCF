@@ -20,6 +20,11 @@ static std::vector<uint8_t> cert;
 static const auto request_timeout = std::chrono::milliseconds(10);
 static const auto election_timeout = std::chrono::milliseconds(100);
 
+static const consensus::Configuration raft_settings{
+  ConsensusType::CFT,
+  (size_t)request_timeout.count(),
+  (size_t)election_timeout.count()};
+
 static auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
 static aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)

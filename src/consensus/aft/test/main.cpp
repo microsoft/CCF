@@ -16,19 +16,16 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
-  ms election_timeout(150);
 
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id),
     nullptr,
-    nullptr,
-    request_timeout,
-    election_timeout);
+    nullptr);
   r0.start_ticking();
 
   kv::Configuration::Nodes config;
@@ -57,19 +54,16 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
-  ms election_timeout(150);
 
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id),
     nullptr,
-    nullptr,
-    request_timeout,
-    election_timeout);
+    nullptr);
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -109,41 +103,33 @@ DOCTEST_TEST_CASE(
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
 
-  ms request_timeout(10);
-
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(20));
+    nullptr);
   TRaft r1(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(100));
+    nullptr);
   TRaft r2(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(50));
+    nullptr);
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -160,7 +146,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Node 0 exceeds its election timeout and starts an election");
 
   r0.start_ticking();
-  r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
     r0c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 2);
 
@@ -267,41 +253,33 @@ DOCTEST_TEST_CASE(
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
 
-  ms request_timeout(10);
-
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(20));
+    nullptr);
   TRaft r1(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(100));
+    nullptr);
   TRaft r2(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(50));
+    nullptr);
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -321,7 +299,7 @@ DOCTEST_TEST_CASE(
   auto r2c = channel_stub_proxy(r2);
 
   r0.start_ticking();
-  r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(election_timeout * 2);
 
   DOCTEST_INFO("Send request_votes to other nodes");
   DOCTEST_REQUIRE(2 == dispatch_all(nodes, node_id0, r0c->messages));
@@ -417,41 +395,33 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
 
-  ms request_timeout(10);
-
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(20));
+    nullptr);
   TRaft r1(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(100));
+    nullptr);
   TRaft r2(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(50));
+    nullptr);
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -468,7 +438,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   auto r2c = channel_stub_proxy(r2);
 
   r0.start_ticking();
-  r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(election_timeout * 2);
 
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
@@ -546,30 +516,24 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   auto kv_store0 = std::make_shared<SigStore>(node_id0);
   auto kv_store1 = std::make_shared<SigStore>(node_id1);
 
-  ms request_timeout(10);
-
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<SigAdaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(20));
+    nullptr);
   TRaft r1(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<SigAdaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(100));
+    nullptr);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
   aft::Configuration::Nodes config0;
@@ -586,7 +550,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   auto r1c = channel_stub_proxy(r1);
 
   r0.start_ticking();
-  r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(election_timeout * 2);
 
   DOCTEST_INFO("Initial election");
   {
@@ -801,41 +765,33 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
 
-  ms request_timeout(10);
-
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(20));
+    nullptr);
   TRaft r1(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(100));
+    nullptr);
   TRaft r2(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id2),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(50));
+    nullptr);
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -851,7 +807,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto r1c = channel_stub_proxy(r1);
 
   r0.start_ticking();
-  r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(election_timeout * 2);
 
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id0, r0c->messages));
   DOCTEST_REQUIRE(1 == dispatch_all(nodes, node_id1, r1c->messages));
@@ -969,30 +925,24 @@ DOCTEST_TEST_CASE(
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
 
-  ms request_timeout(10);
-
   TRaft r0(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id0),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(20));
+    nullptr);
   TRaft r1(
-    ConsensusType::CFT,
+    raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
     std::make_shared<aft::State>(node_id1),
     nullptr,
-    nullptr,
-    request_timeout,
-    ms(100));
+    nullptr);
 
   std::map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -1010,7 +960,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 0 exceeds its election timeout and does not start an election "
     "because it is not ticking");
-  r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
     r0c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 0);
 
@@ -1018,7 +968,7 @@ DOCTEST_TEST_CASE(
     "Node 0 starts ticking, exceeds its election timeout and so does start an "
     "election");
   r0.start_ticking();
-  r0.periodic(std::chrono::milliseconds(200));
+  r0.periodic(election_timeout * 2);
 
   DOCTEST_INFO("Initial election");
   {
@@ -1034,7 +984,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 1 exceeds its election timeout but does not start an election "
     "because it isn't ticking yet");
-  r1.periodic(std::chrono::milliseconds(200));
+  r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
     r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 0);
 
@@ -1042,7 +992,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 1 is now ticking, exceeds its election timeout and so calls an "
     "election");
-  r1.periodic(std::chrono::milliseconds(200));
+  r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
     r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 1);
 }

@@ -154,7 +154,7 @@ namespace aft
 
   public:
     Aft(
-      ConsensusType consensus_type_,
+      const consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
@@ -162,14 +162,12 @@ namespace aft
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      std::chrono::milliseconds request_timeout_,
-      std::chrono::milliseconds election_timeout_,
       bool public_only_ = false,
       kv::MembershipState initial_membership_state_ =
         kv::MembershipState::Active,
       ReconfigurationType reconfiguration_type_ =
         ReconfigurationType::ONE_TRANSACTION) :
-      consensus_type(consensus_type_),
+      consensus_type(settings_.type),
       store(std::move(store_)),
 
       membership_state(initial_membership_state_),
@@ -177,8 +175,8 @@ namespace aft
 
       state(state_),
 
-      request_timeout(request_timeout_),
-      election_timeout(election_timeout_),
+      request_timeout(settings_.timeout_ms),
+      election_timeout(settings_.election_timeout_ms),
 
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
@@ -186,7 +184,7 @@ namespace aft
 
       public_only(public_only_),
 
-      distrib(0, (int)election_timeout_.count() / 2),
+      distrib(0, (int)election_timeout.count() / 2),
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),

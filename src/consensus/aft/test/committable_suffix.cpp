@@ -87,16 +87,14 @@ void keep_earliest_append_entries_for_each_target(
   ccf::NodeId node_id##N(#N); \
   auto store##N = std::make_shared<AllSigsStore>(node_id##N); \
   TRaft r##N( \
-    ConsensusType::CFT, \
+    raft_settings, \
     std::make_unique<AllSigsAdaptor>(store##N), \
     std::make_unique<aft::LedgerStubProxy>(node_id##N), \
     std::make_shared<aft::ChannelStubProxy>(), \
     std::make_shared<aft::StubSnapshotter>(), \
     std::make_shared<aft::State>(node_id##N), \
     nullptr, \
-    nullptr, \
-    request_timeout, \
-    election_timeout); \
+    nullptr); \
   r##N.start_ticking(); \
   initial_config[node_id##N] = {}; \
   nodes[node_id##N] = &r##N; \

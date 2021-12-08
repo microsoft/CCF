@@ -1956,7 +1956,7 @@ namespace ccf
         kv::MembershipState::Active;
 
       consensus = std::make_shared<RaftType>(
-        network.consensus_type,
+        consensus_config,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
@@ -1964,8 +1964,6 @@ namespace ccf
         shared_state,
         std::move(resharing_tracker),
         node_client,
-        std::chrono::milliseconds(consensus_config.timeout_ms),
-        std::chrono::milliseconds(consensus_config.election_timeout_ms),
         public_only,
         membership_state,
         reconfiguration_type);
