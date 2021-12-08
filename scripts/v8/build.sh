@@ -124,10 +124,6 @@ if [ "$TARGET" == "sgx" ]; then
   # but V8 needs it for intrinsics and those headers are not part
   # of Open Enclave. Therefore, add it back manually.
   compiler_include_dir=/usr/lib/llvm-$CCF_CLANG_VERSION/lib/clang/$CCF_CLANG_VERSION.0.0/include
-  if [ "${#compiler_include_dir[@]}" -ne 1 ]; then
-    echo "ERROR: Found multiple compiler include dirs"
-    exit 1
-  fi
   
   # V8 uses some standard library functions unsupported and marked
   # as deprecated in OE, triggering a warning that fails the build.
