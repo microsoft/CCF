@@ -191,7 +191,7 @@ Example:
 ~~~~~~~~~~~~~~~~
 
 - ``node_certificate_file``: Path to self-signed node certificate output by node on startup. Default value: ``"nodecert.pem"``.
-- ``node_pid_file``: Path to file in which ``cchost`` process identifier (PID) will be written to on startup. Default value: ``"cchost.pid"``.
+- ``pid_file``: Path to file in which ``cchost`` process identifier (PID) will be written to on startup. Default value: ``"cchost.pid"``.
 - ``node_to_node_address_file``: Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
 - ``rpc_addresses_file``: Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
 

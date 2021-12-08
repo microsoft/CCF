@@ -194,7 +194,7 @@ if __name__ == "__main__":
             elif k == "node_cert_file":
                 output["output_files"]["node_certificate_file"] = v
             elif k == "node_pid_file":
-                output["output_files"]["node_pid_file"] = v
+                output["output_files"]["pid_file"] = v
             elif k == "rpc_address_file":
                 output["output_files"]["rpc_addresses_file"] = v
             elif k == "node_address_file":

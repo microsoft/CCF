@@ -63,7 +63,7 @@ namespace host
     struct OutputFiles
     {
       std::string node_certificate_file = "nodecert.pem";
-      std::string node_pid_file = "cchost.pid";
+      std::string pid_file = "cchost.pid";
 
       // Addresses files
       std::string node_to_node_address_file = "";
@@ -146,7 +146,7 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::OutputFiles,
     node_certificate_file,
-    node_pid_file,
+    pid_file,
     node_to_node_address_file,
     rpc_addresses_file);
 

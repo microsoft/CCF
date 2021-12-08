@@ -73,7 +73,7 @@
   },
   "output_files": {
     "node_certificate_file": "node.pem",
-    "node_pid_file": "node.pid",
+    "pid_file": "node.pid",
     "node_to_node_address_file": "node.node_address",
     "rpc_addresses_file": "node.rpc_addresses"
   },

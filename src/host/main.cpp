@@ -176,7 +176,7 @@ int main(int argc, char** argv)
   }
 
   // Write PID to disk
-  files::dump(fmt::format("{}", ::getpid()), config.output_files.node_pid_file);
+  files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
   // set the host log level
   logger::config::level() = config.logging.host_level;
