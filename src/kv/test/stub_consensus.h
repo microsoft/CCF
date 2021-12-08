@@ -30,11 +30,62 @@ namespace kv::test
 
     aft::ViewHistory view_history;
 
+    enum State
+    {
+      Primary,
+      Backup,
+      Candidate
+    };
+
+    State state;
+    NodeId local_id;
+
     StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
-      Consensus(PrimaryNodeId),
       replica(),
-      consensus_type(consensus_type_)
+      consensus_type(consensus_type_),
+      state(Backup),
+      local_id(PrimaryNodeId)
     {}
+
+    virtual NodeId id() override
+    {
+      return local_id;
+    }
+
+    virtual bool is_primary() override
+    {
+      return state == Primary;
+    }
+
+    virtual bool can_replicate() override
+    {
+      return state == Primary;
+    }
+
+    virtual bool is_backup() override
+    {
+      return state == Backup;
+    }
+
+    virtual void force_become_primary() override
+    {
+      state = Primary;
+    }
+
+    virtual void force_become_primary(
+      ccf::SeqNo,
+      ccf::View,
+      const std::vector<ccf::SeqNo>&,
+      ccf::SeqNo) override
+    {
+      state = Primary;
+    }
+
+    virtual void init_as_backup(
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) override
+    {
+      state = Backup;
+    }
 
     bool replicate(const BatchVector& entries, ccf::View view) override
     {
@@ -128,11 +179,6 @@ namespace kv::test
       return {PrimaryNodeId};
     }
 
-    NodeId id() override
-    {
-      return PrimaryNodeId;
-    }
-
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);
@@ -194,6 +240,8 @@ namespace kv::test
     {
       return {};
     }
+
+    virtual void update_parameters(kv::ConsensusParameters& params) override {}
 
     ConsensusDetails get_details() override
     {
