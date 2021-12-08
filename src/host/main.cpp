@@ -392,7 +392,7 @@ int main(int argc, char** argv)
         config.command.join.target_rpc_address;
       startup_config.join.retry_timeout = config.command.join.retry_timeout;
       startup_config.join.network_cert =
-        files::slurp(config.network_certificate_file);
+        files::slurp(config.command.network_certificate_file);
     }
     else if (config.command.type == StartType::Recover)
     {
@@ -465,9 +465,10 @@ int main(int argc, char** argv)
       config.command.type == StartType::Start ||
       config.command.type == StartType::Recover)
     {
-      files::dump(network_cert, config.network_certificate_file);
+      files::dump(network_cert, config.command.network_certificate_file);
       LOG_INFO_FMT(
-        "Output service certificate to {}", config.network_certificate_file);
+        "Output service certificate to {}",
+        config.command.network_certificate_file);
     }
 
     auto enclave_thread_start = [&]() {

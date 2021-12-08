@@ -23,7 +23,7 @@ Configuration Options
 ~~~~~~~~~~~
 
 - ``file``: Path to enclave application.
-- ``type``: Type of enclave application (either ``release``, ``debug`` or ``virtual``). Default value: ``release``.
+- ``type``: Type of enclave application (either ``"release"``, ``"debug"`` or ``"virtual"``). Default value: ``"release"``.
 
 ``network``
 ~~~~~~~~~~~
@@ -32,17 +32,15 @@ The ``network`` section includes configuration for the interfaces a node listens
 
 - ``node_to_node_interface``: Address (hostname and port) to listen on for incoming node-to-node connections.
 
-Each node-to-node interface must containe:
-
-- The local RPC address (``bind_address``) the node binds to and listens on.
+Each node-to-node interface must contain the local RPC address (``bind_address``) the node binds to and listens on.
 
 - ``rpc_interfaces``: Addresses (hostname and port) to listen on for incoming client TLS connections.
 
 Each RPC interface must contain:
 
 - The local RPC address (``bind_address``) the node binds to and listens on.
-- The published RPC address (``published_address``) advertised to clients. Default value: value of ``rpc_address``.
-- The maximum number of active client sessions (``max_open_sessions_soft``) on that interface after which clients will receive a HTTP 503 error. Default value: ``1000``.
+- The published RPC address (``published_address``) advertised to clients. Default value: value of ``bind_address``.
+- The maximum number of active client sessions (``max_open_sessions_soft``) on that interface after which clients will receive an HTTP 503 error. Default value: ``1000``.
 - The maximum number of active client sessions (``max_open_sessions_hard``) on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``. Default value: ``1010``.
 
 Example:
@@ -71,7 +69,7 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 
 - ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
 - ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``published_address``. Default value: ``[]``.
-- ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``secp384r1``.
+- ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``"secp384r1"``.
 - ``initial_validity_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
 
 ``command``
@@ -79,7 +77,8 @@ Optional. The ``node_certificate`` section includes configuration for the node x
 
 The ``command`` section includes configuration for the type of node (start, join or recover) and associated information.
 
-- ``type``: Type of CCF node (either ``start``, ``join`` or ``recover``). Default value: ``start``.
+- ``type``: Type of CCF node (either ``start``, ``join`` or ``recover``). Default value: ``"start"``.
+- ``network_certificate_file``: For ``start`` and ``recover`` nodes, path to which network certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join. Default value: ``"networkcert.pem"``.
 
 .. _start configuration:
 
@@ -103,7 +102,7 @@ Only set when ``type`` is ``start``.
 
     - ``maximum_node_certificate_validity_days``: The maximum number of days allowed for node certificate validity period. Default value: ``365`` days.
     - ``recovery_threshold``. Note that if the recovery threshold is set to ``0``, it is automatically set to the number of recovery members specified in ``members``.
-    - ``reconfiguration_type``. The type of reconfiguration for new nodes. Default value: ``OneTransaction``.
+    - ``reconfiguration_type``. The type of reconfiguration for new nodes. Default value: ``"OneTransaction"``.
 
 Example:
 
@@ -146,20 +145,20 @@ Example:
 ``ledger``
 ~~~~~~~~~~
 
-- ``directory``: Path to main ledger directory. Default value: ``ledger``.
+- ``directory``: Path to main ledger directory. Default value: ``"ledger"``.
 - ``read_only_directories``: Optional. Paths to read-only ledger directories. Note that only ``.committed`` files will be read from these directories. Default value: ``[]``.
 - ``chunk_size``: Minimum size of the current ledger file after which a new ledger file (chunk) is created. Default value: ``"5MB"``  [#size_string]_.
 
 ``snapshots``
 ~~~~~~~~~~~~~
 
-- ``directory``: Path to snapshot directory. Default value: ``snapshots``.
+- ``directory``: Path to snapshot directory. Default value: ``"snapshots"``.
 - ``interval_size``: Minimum number of transactions between two snapshots. Default value: ``10000``.
 
 ``logging``
 ~~~~~~~~~~~
 
-- ``host_level``: Logging level for the `untrusted host`. Default value: ``INFO``.
+- ``host_level``: Logging level for the `untrusted host`. Default value: ``"info"``.
 
 .. note:: While it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity.
 
@@ -168,7 +167,7 @@ Example:
 ``consensus``
 ~~~~~~~~~~~~~
 
-- ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported. Default value: ``CFT``.
+- ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported. Default value: ``"CFT"``.
 - ``message_timeout``: Interval at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout``. Default value: ``"100ms"``.
 - ``election_timeout``: Timeout value after which backup node that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``message_timeout``. Default timeout: ``"5000ms"``.
 
@@ -188,17 +187,11 @@ Example:
 
 - ``key_refresh_interval``: Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``"30min"`` [#time_string]_.
 
-``network_certificate_file``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For ``start`` and ``recover`` nodes, path to which network/service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network/service to join. Default value: ``networkcert.pem``.
-
-
 ``output_files``
 ~~~~~~~~~~~~~~~~
 
-- ``node_certificate_file``: Path to self-signed node certificate output by node on startup. Default value: ``nodecert.pem``.
-- ``node_pid_file``: Path to file in which ``cchost`` process identifier (PID) will be written to on startup. Default value: ``cchost.pid``.
+- ``node_certificate_file``: Path to self-signed node certificate output by node on startup. Default value: ``"nodecert.pem"``.
+- ``node_pid_file``: Path to file in which ``cchost`` process identifier (PID) will be written to on startup. Default value: ``"cchost.pid"``.
 - ``node_to_node_address_file``: Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
 - ``rpc_addresses_file``: Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
 

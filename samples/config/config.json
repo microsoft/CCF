@@ -22,6 +22,7 @@
   },
   "command": {
     "type": "start",
+    "network_certificate_file": "networkcert.pem",
     "start": {
       "constitution_files": [
         "validate.js",
@@ -76,7 +77,6 @@
     "node_to_node_address_file": "node.node_address",
     "rpc_addresses_file": "node.rpc_addresses"
   },
-  "network_certificate_file": "networkcert.pem",
   "tick_period": "1ms",
   "io_logging_threshold": "10000us",
   "client_connection_timeout": "2000ms",

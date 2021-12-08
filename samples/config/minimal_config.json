@@ -9,6 +9,7 @@
   },
   "command": {
     "type": "start",
+    "network_certificate_file": "networkcert.pem",
     "start": {
       "constitution_files": [
         "validate.js",

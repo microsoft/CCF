@@ -54,8 +54,6 @@ namespace host
     };
     Enclave enclave = {};
 
-    std::string network_certificate_file = "networkcert.pem";
-
     // Other
     ds::TimeString tick_period = std::string("10ms");
     ds::TimeString io_logging_threshold = std::string("10ms");
@@ -116,6 +114,7 @@ namespace host
     struct Command
     {
       StartType type = StartType::Start;
+      std::string network_certificate_file = "networkcert.pem";
 
       struct Start
       {
@@ -182,7 +181,8 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command, start, join);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::Command, network_certificate_file, start, join);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
@@ -192,7 +192,6 @@ namespace host
     io_logging_threshold,
     node_client_interface,
     client_connection_timeout,
-    network_certificate_file,
     output_files,
     ledger,
     snapshots,
