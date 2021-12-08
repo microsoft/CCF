@@ -64,11 +64,13 @@
   {
     "key_refresh_interval": "{{ jwt_key_refresh_interval }}"
   },
+  "output_files": {
+    "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
+    "node_pid_file": "{{ node_pid_file or "node.pid" }}",
+    "node_to_node_address_file": "{{ node_address_file }}",
+    "rpc_addresses_file" : "{{ rpc_addresses_file }}"
+  },
   "network_certificate_file": "networkcert.pem",
-  "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
-  "node_pid_file": "{{ node_pid_file or "node.pid" }}",
-  "node_address_file": "{{ node_address_file }}",
-  "rpc_addresses_file" : "{{ rpc_addresses_file }}",
   "tick_period": "1ms",
   "io_logging_threshold": "10ms",
   "client_connection_timeout": "2s",

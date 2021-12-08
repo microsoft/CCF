@@ -54,20 +54,26 @@ namespace host
     };
     Enclave enclave = {};
 
-    std::string node_certificate_file = "nodecert.pem";
-    std::string node_pid_file = "cchost.pid";
-
     std::string network_certificate_file = "networkcert.pem";
-
-    // Addresses files
-    std::string node_address_file = "";
-    std::string rpc_addresses_file = "";
 
     // Other
     ds::TimeString tick_period = std::string("10ms");
     ds::TimeString io_logging_threshold = std::string("10ms");
     std::optional<std::string> node_client_interface = std::nullopt;
     ds::TimeString client_connection_timeout = std::string("2000ms");
+
+    struct OutputFiles
+    {
+      std::string node_certificate_file = "nodecert.pem";
+      std::string node_pid_file = "cchost.pid";
+
+      // Addresses files
+      std::string node_to_node_address_file = "";
+      std::string rpc_addresses_file = "";
+
+      bool operator==(const OutputFiles&) const = default;
+    };
+    OutputFiles output_files = {};
 
     struct Ledger
     {
@@ -136,6 +142,15 @@ namespace host
   DECLARE_JSON_TYPE(CCHostConfig::Enclave);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::OutputFiles,
+    node_certificate_file,
+    node_pid_file,
+    node_to_node_address_file,
+    rpc_addresses_file);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -173,15 +188,12 @@ namespace host
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig,
-    node_certificate_file,
-    node_pid_file,
-    node_address_file,
-    rpc_addresses_file,
     tick_period,
     io_logging_threshold,
     node_client_interface,
     client_connection_timeout,
     network_certificate_file,
+    output_files,
     ledger,
     snapshots,
     logging,

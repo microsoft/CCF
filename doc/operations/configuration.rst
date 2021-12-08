@@ -169,7 +169,7 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported. Default value: ``CFT``.
-- ``message_timeout``: Interval at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout``. Default value: ``"100ms"`.
+- ``message_timeout``: Interval at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout``. Default value: ``"100ms"``.
 - ``election_timeout``: Timeout value after which backup node that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``message_timeout``. Default timeout: ``"5000ms"``.
 
 ``intervals``
@@ -186,34 +186,21 @@ Example:
 ``jwt``
 ~~~~~~~
 
-- ``key_refresh_interval``: Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``30min`` [#time_string]_.
+- ``key_refresh_interval``: Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``"30min"`` [#time_string]_.
 
 ``network_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For ``start`` and ``recover`` nodes, path to which network/service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network/service to join. Default value: ``networkcert.pem``.
 
-``node_certificate_file``
-~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Path to self-signed node certificate output by node on startup. Default value: ``nodecert.pem``.
+``output_files``
+~~~~~~~~~~~~~~~~
 
-``node_pid_file``
-~~~~~~~~~~~~~~~~~
-
-Path to file in which ``cchost`` process identifier (PID) will be written to on startup. Default value: ``cchost.pid``.
-
-``node_address_file``
-~~~~~~~~~~~~~~~~~~~~~
-
-Optional. Path to file in which node address (hostname and port) will be written to on startup.
-This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS.
-
-``rpc_addresses_file``
-~~~~~~~~~~~~~~~~~~~~~~
-
-Optional. Path to file in which all RPC addresses (hostnames and ports) will be written to on startup.
-This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS.
+- ``node_certificate_file``: Path to self-signed node certificate output by node on startup. Default value: ``nodecert.pem``.
+- ``node_pid_file``: Path to file in which ``cchost`` process identifier (PID) will be written to on startup. Default value: ``cchost.pid``.
+- ``node_to_node_address_file``: Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
+- ``rpc_addresses_file``: Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port ``0`` and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
 
 Advanced Configuration Options
 ------------------------------
@@ -228,7 +215,7 @@ Interval at which the enclave time will be updated by the host. Default value: `
 ``io_logging_threshold``
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10000us``[#time_string]_.
+Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``"10000us"`` [#time_string]_.
 
 ``node_client_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -239,7 +226,7 @@ This option is particularly useful for testing purposes (e.g. establishing netwo
 ``client_connection_timeout``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``2000ms`` [#time_string]_.
+Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``"2000ms"`` [#time_string]_.
 
 ``worker_threads``
 ~~~~~~~~~~~~~~~~~~

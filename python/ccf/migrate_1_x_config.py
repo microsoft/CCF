@@ -25,6 +25,7 @@ SECTIONS_2_X = [
     "intervals",
     "jwt",
     "memory",
+    "output_files",
 ]
 
 DEFAULT_MAX_RPC_SESSIONS_SOFT = 1000
@@ -188,6 +189,16 @@ if __name__ == "__main__":
                 suffix = "_shift"
                 k = k[: -len(suffix)] if k.endswith(suffix) else k
                 output["memory"][k] = f"{human_readable_size(1 << int(v))}"
+
+            # output files
+            elif k == "node_cert_file":
+                output["output_files"]["node_certificate_file"] = v
+            elif k == "node_pid_file":
+                output["output_files"]["node_pid_file"] = v
+            elif k == "rpc_address_file":
+                output["output_files"]["rpc_addresses_file"] = v
+            elif k == "node_address_file":
+                output["output_files"]["node_to_node_address_file"] = v
 
             elif k == "tick_period_ms":
                 output["tick_period"] = f"{v}ms"

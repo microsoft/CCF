@@ -70,11 +70,13 @@
   "jwt": {
     "key_refresh_interval": "30min"
   },
+  "output_files": {
+    "node_certificate_file": "node.pem",
+    "node_pid_file": "node.pid",
+    "node_to_node_address_file": "node.node_address",
+    "rpc_addresses_file": "node.rpc_addresses"
+  },
   "network_certificate_file": "networkcert.pem",
-  "node_certificate_file": "node.pem",
-  "node_pid_file": "node.pid",
-  "node_address_file": "node.node_address",
-  "rpc_addresses_file": "node.rpc_addresses",
   "tick_period": "1ms",
   "io_logging_threshold": "10000us",
   "client_connection_timeout": "2000ms",

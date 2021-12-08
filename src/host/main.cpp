@@ -176,7 +176,7 @@ int main(int argc, char** argv)
   }
 
   // Write PID to disk
-  files::dump(fmt::format("{}", ::getpid()), config.node_pid_file);
+  files::dump(fmt::format("{}", ::getpid()), config.output_files.node_pid_file);
 
   // set the host log level
   logger::config::level() = config.logging.host_level;
@@ -267,10 +267,11 @@ int main(int argc, char** argv)
       config.client_connection_timeout);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);
-    if (!config.node_address_file.empty())
+    if (!config.output_files.node_to_node_address_file.empty())
     {
       files::dump(
-        fmt::format("{}\n{}", node_host, node_port), config.node_address_file);
+        fmt::format("{}\n{}", node_host, node_port),
+        config.output_files.node_to_node_address_file);
     }
 
     asynchost::RPCConnections rpc(
@@ -300,9 +301,9 @@ int main(int argc, char** argv)
         interface.published_address = ccf::make_net_address(pub_host, pub_port);
       }
     }
-    if (!config.rpc_addresses_file.empty())
+    if (!config.output_files.rpc_addresses_file.empty())
     {
-      files::dump(rpc_addresses, config.rpc_addresses_file);
+      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
     }
 
     // Initialise the enclave and create a CCF node in it
@@ -455,10 +456,10 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Created new node");
 
     // Write the node and network certs to disk.
-    files::dump(node_cert, config.node_certificate_file);
+    files::dump(node_cert, config.output_files.node_certificate_file);
     LOG_INFO_FMT(
       "Output self-signed node certificate to {}",
-      config.node_certificate_file);
+      config.output_files.node_certificate_file);
 
     if (
       config.command.type == StartType::Start ||
