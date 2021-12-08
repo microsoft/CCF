@@ -55,7 +55,7 @@ namespace host
     Enclave enclave = {};
 
     // Other
-    ds::TimeString tick_period = std::string("10ms");
+    ds::TimeString tick_interval = std::string("10ms");
     ds::TimeString slow_io_logging_threshold = std::string("10ms");
     std::optional<std::string> node_client_interface = std::nullopt;
     ds::TimeString client_connection_timeout = std::string("2000ms");
@@ -187,7 +187,7 @@ namespace host
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig,
-    tick_period,
+    tick_interval,
     slow_io_logging_threshold,
     node_client_interface,
     client_connection_timeout,

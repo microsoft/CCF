@@ -201,7 +201,7 @@ if __name__ == "__main__":
                 output["output_files"]["node_to_node_address_file"] = v
 
             elif k == "tick_period_ms":
-                output["tick_period"] = f"{v}ms"
+                output["tick_interval"] = f"{v}ms"
 
             elif k == "worker_threads":
                 output[k] = int(v)

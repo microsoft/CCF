@@ -223,7 +223,7 @@ int main(int argc, char** argv)
 
   {
     // provide regular ticks to the enclave
-    asynchost::Ticker ticker(config.tick_period, writer_factory);
+    asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;

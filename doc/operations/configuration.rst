@@ -200,8 +200,8 @@ Advanced Configuration Options
 
 .. warning:: The following configuration options have sensible default values and should be modified with care.
 
-``tick_period``
-~~~~~~~~~~~~~~~
+``tick_interval``
+~~~~~~~~~~~~~~~~~
 
 Interval at which the enclave time will be updated by the host. Default value: ``"10ms"`` [#time_string]_.
 

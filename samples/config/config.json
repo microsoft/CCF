@@ -77,7 +77,7 @@
     "node_to_node_address_file": "node.node_address",
     "rpc_addresses_file": "node.rpc_addresses"
   },
-  "tick_period": "1ms",
+  "tick_interval": "1ms",
   "slow_io_logging_threshold": "10000us",
   "client_connection_timeout": "2000ms",
   "worker_threads": 0,
