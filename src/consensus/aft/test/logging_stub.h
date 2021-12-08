@@ -400,7 +400,5 @@ namespace aft
       const ccf::NodeId&,
       const crypto::Pem&)
     {}
-
-    void set_last_snapshot_idx(Index idx) {}
   };
 }

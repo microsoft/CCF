@@ -3,7 +3,6 @@
 
 #include "ccf/indexing/seqnos_by_key.h"
 #include "consensus/aft/raft.h"
-#include "consensus/aft/raft_consensus.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "ds/test/stub_writer.h"
 #include "indexing/historical_transaction_fetcher.h"
@@ -379,41 +378,31 @@ aft::LedgerStubProxy* add_raft_consensus(
   std::shared_ptr<kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
-  using TConsensus = aft::Consensus<
-    aft::LedgerStubProxy,
-    aft::ChannelStubProxy,
-    aft::StubSnapshotter>;
   using TRaft =
-    aft::Aft<aft::LedgerStubProxy, aft::ChannelStubProxy, aft::StubSnapshotter>;
-  using AllCommittableRaftConsensus = AllCommittableWrapper<TConsensus>;
+    aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
+  using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
-  auto raft = new TRaft(
-    ConsensusType::CFT,
+  const consensus::Configuration settings{ConsensusType::CFT, 20, 100};
+  auto consensus = std::make_shared<AllCommittableRaftConsensus>(
+    settings,
     std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::StubSnapshotter>(),
-    nullptr,
-    nullptr,
     std::make_shared<aft::State>(node_id),
     nullptr,
-    nullptr,
-    ms(20),
-    ms(20),
-    ms(1000));
-  auto consensus = std::make_shared<AllCommittableRaftConsensus>(
-    std::unique_ptr<TRaft>(raft), ConsensusType::CFT);
+    nullptr);
 
   aft::Configuration::Nodes initial_config;
   initial_config[node_id] = {};
-  raft->add_configuration(0, initial_config);
+  consensus->add_configuration(0, initial_config);
 
   consensus->force_become_primary();
 
   kv_store->set_consensus(consensus);
 
-  return raft->ledger.get();
+  return consensus->ledger.get();
 }
 
 // Uses the real classes, to test their interaction with indexing
