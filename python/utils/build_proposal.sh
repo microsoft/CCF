@@ -39,13 +39,12 @@ function print_help()
   echo "Specify a list of actions and associated args. A single flag per argument can be"
   echo "used to indicate how the value should be parsed:"
   echo "  -s String (default)"
-  echo "  -b Boolean"
-  echo "  -n Number"
-  echo "  -j JSON"
+  echo "  -j JSON (including raw numbers)"
+  echo "  -b Boolean (including case-insensitive parsing)"
   echo "Additionally, any @-prefixed string is treated as a file path, and will be"
   echo "replaced with the contents of the file."
   echo ""
-  args_a=("--action" "set_greeting" "message" "HelloWorld" "-n" "max_repetitions" "42")
+  args_a=("--action" "set_greeting" "message" "HelloWorld" "-j" "max_repetitions" "42")
   args_b=("--action" "no_arg_action")
   args_c=("--action" "upload_file" "contents" "@file.txt")
   echo "For example:"
