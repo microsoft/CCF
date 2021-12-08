@@ -37,4 +37,4 @@ if __name__ == "__main__":
 
     ballot = build_ballot(args.proposal)
 
-    print(json.dumps(ballot, indent=2))
+    print(ballot)

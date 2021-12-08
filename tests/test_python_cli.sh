@@ -42,7 +42,7 @@ build_proposal.sh --action transition_node_to_trusted node_id 42 valid_from 2110
 python -m ccf.ballot_builder transition_node_to_trusted_proposal.json > transition_node_to_trusted_vote_for.json
 
 build_proposal.sh --action add_node_code code_id 1234abcd > add_node_code_proposal.json
-python -m ccf.ballot_builder add_node_code_proposal.json > add_node_codde_vote_for.json
+python -m ccf.ballot_builder add_node_code_proposal.json > add_node_code_vote_for.json
 
 CCF_ROOT_DIR="${1}"
 python -m ccf.bundle_js_app --help
