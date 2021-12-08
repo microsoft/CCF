@@ -59,7 +59,7 @@ if __name__ == "__main__":
         "-bo",
         "--ballot-output-file",
         type=str,
-        help=f"Path where ballot JSON object (request body for POST /gov/proposals/{{proposal_id}}/ballots) will be written. Default is {DEFAULT_BALLOT_OUTPUT}",
+        help=f"Path where ballot JSON object will be written. Default is {DEFAULT_BALLOT_OUTPUT}",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
 

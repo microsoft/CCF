@@ -11,23 +11,34 @@ keygenerator.sh --help
 keygenerator.sh --name alice
 keygenerator.sh --name bob --gen-enc-key
 
-python -m ccf.proposal_generator --help
+build_proposal.sh --help
 
-python -m ccf.proposal_generator set_member --help
-python -m ccf.proposal_generator set_member bob_cert.pem bob_enc_pubk.pem
-python -m ccf.proposal_generator set_member bob_cert.pem bob_enc_pubk.pem '"Arbitrary data"'
-python -m ccf.proposal_generator set_member bob_cert.pem bob_enc_pubk.pem '{"Interesting": {"nested": ["da", "ta"]}}'
+build_proposal.sh --action set_member cert @bob_cert.pem > set_member_proposal_a.json
+python -m ccf.ballot_builder set_member_proposal_a.json
+build_proposal.sh --action set_member cert @bob_cert.pem encryption_pub_key @bob_enc_pubk.pem > set_member_proposal_b.json
+python -m ccf.ballot_builder set_member_proposal_b.json
+build_proposal.sh --action set_member cert @bob_cert.pem encryption_pub_key @bob_enc_pubk.pem member_data 'Arbitrary data' > set_member_proposal_c.json
+python -m ccf.ballot_builder set_member_proposal_c.json
+build_proposal.sh \
+    --action set_member \
+        cert @bob_cert.pem \
+        encryption_pub_key @bob_enc_pubk.pem \
+        -j member_data '{"Interesting": {"nested": ["da", "ta"]}}' \
+    > set_member_proposal_d.json
+python -m ccf.ballot_builder set_member_proposal_d.json
 
-python -m ccf.proposal_generator set_user --help
-python -m ccf.proposal_generator set_user alice_cert.pem
-python -m ccf.proposal_generator set_user alice_cert.pem '"ADMIN"'
-python -m ccf.proposal_generator set_user alice_cert.pem '{"type": "ADMIN", "friendlyName": "Alice"}'
+build_proposal.sh --action set_user cert @alice_cert.pem > set_user_proposal_a.json
+python -m ccf.ballot_builder set_user_proposal_a.json
+build_proposal.sh --action set_user cert @alice_cert.pem user_data 'ADMIN' > set_user_proposal_b.json
+python -m ccf.ballot_builder set_user_proposal_b.json
+build_proposal.sh --action set_user cert @alice_cert.pem -j user_data '{"type": "ADMIN", "friendlyName ": "Alice"}' > set_user_proposal_c.json
+python -m ccf.ballot_builder set_user_proposal_c.json
 
-python -m ccf.proposal_generator transition_service_to_open --help
-python -m ccf.proposal_generator transition_service_to_open
+build_proposal.sh --action transition_service_to_open > transition_service_to_open_proposal.json
+python -m ccf.ballot_builder transition_service_to_open_proposal.json
 
-python -m ccf.proposal_generator transition_node_to_trusted --help
-python -m ccf.proposal_generator transition_node_to_trusted 42 211019154318Z
+build_proposal.sh --action transition_node_to_trusted node_id 42 valid_from 211019154318Z > transition_node_to_trusted_proposal.json
+python -m ccf.ballot_builder transition_node_to_trusted_proposal.json
 
-python -m ccf.proposal_generator add_node_code --help
-python -m ccf.proposal_generator add_node_code 1234abcd
+build_proposal.sh --action add_node_code code_id 1234abcd > add_node_code_proposal.json
+python -m ccf.ballot_builder add_node_code_proposal.json
