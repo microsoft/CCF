@@ -689,3 +689,20 @@ class Consortium:
             self.wait_for_node_to_exist_in_store(
                 remote_node, n.node_id, timeout, NodeStatus.TRUSTED
             )
+
+    def submit_2tx_migration_proposal(self, remote_node, timeout=10):
+        proposal_body = {
+            "actions": [
+                {
+                    "name": "set_service_configuration",
+                    "args": {"reconfiguration_type": "TwoTransaction"},
+                }
+            ]
+        }
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        self.vote_using_majority(
+            remote_node,
+            proposal,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+            timeout=timeout,
+        )
