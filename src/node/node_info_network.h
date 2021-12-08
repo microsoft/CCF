@@ -22,9 +22,13 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v1, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
 
+  static constexpr auto default_rpc_interface_name =
+    "ccf.default.rpc_interface";
+
   struct NodeInfoNetwork_v2
   {
     using NetAddress = std::string;
+    using RpcInterfaceName = std::string;
 
     struct NetInterface
     {
@@ -44,7 +48,7 @@ namespace ccf
     };
 
     NetInterface node_to_node_interface;
-    std::vector<NetInterface> rpc_interfaces;
+    std::map<RpcInterfaceName, NetInterface> rpc_interfaces;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
@@ -95,7 +99,7 @@ namespace ccf
 
       if (nin.rpc_interfaces.size() > 0)
       {
-        const auto& primary_interface = nin.rpc_interfaces[0];
+        const auto& primary_interface = nin.rpc_interfaces.begin()->second;
         std::tie(v1.rpchost, v1.rpcport) =
           split_net_address(primary_interface.bind_address);
         std::tie(v1.pubhost, v1.pubport) =
@@ -128,7 +132,8 @@ namespace ccf
       primary_interface.published_address =
         make_net_address(v1.pubhost, v1.pubport);
 
-      nin.rpc_interfaces.emplace_back(std::move(primary_interface));
+      nin.rpc_interfaces.emplace(
+        default_rpc_interface_name, std::move(primary_interface));
     }
   }
 }
