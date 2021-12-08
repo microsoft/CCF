@@ -116,6 +116,15 @@
           "commitHash": "715f394ade83e545ffc0aa79c14fefc1c0987f21"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/nghttp2/nghttp2",
+          "commitHash": "7af0c508be9cbec407268e2f546f597d268c104e"
+        }
+      }
     }
   ],
   "Version": 1
