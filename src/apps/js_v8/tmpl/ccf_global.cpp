@@ -220,6 +220,11 @@ namespace ccf::v8_tmpl
   {
     ccf::historical::StatePtr* historical_state =
       unwrap_historical_state(info.Holder());
+    if (*historical_state == nullptr)
+    {
+      info.GetReturnValue().Set(v8::Undefined(info.GetIsolate()));
+      return;
+    }
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> value =
