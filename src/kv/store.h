@@ -934,12 +934,7 @@ namespace kv
 
           if (h)
           {
-            crypto::Sha256Hash write_set_digest(
-              {data_shared->data(), data_shared->size()});
-            crypto::Sha256Hash mt_entry(write_set_digest, claims_digest_);
-            std::vector<uint8_t> mt_entry_buf(
-              mt_entry.h.begin(), mt_entry.h.end());
-            h->append(mt_entry_buf);
+            h->append_entry(ccf::entry_leaf(*data_shared, claims_digest_));
           }
 
           LOG_DEBUG_FMT(

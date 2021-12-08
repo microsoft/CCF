@@ -18,7 +18,7 @@ namespace ccf
   public:
     ClaimsDigest() = default;
 
-    inline void set(const Digest& digest_) // TODO: move?
+    inline void set(const Digest& digest_)
     {
       is_set = true;
       digest = digest_;
@@ -44,5 +44,11 @@ namespace ccf
   static ClaimsDigest no_claims()
   {
     return ClaimsDigest();
+  }
+
+  static crypto::Sha256Hash entry_leaf(const std::vector<uint8_t> write_set, const crypto::Sha256Hash& claims_digest)
+  {
+    crypto::Sha256Hash write_set_digest({write_set.data(), write_set.size()});
+    return crypto::Sha256Hash(write_set_digest, claims_digest);
   }
 }

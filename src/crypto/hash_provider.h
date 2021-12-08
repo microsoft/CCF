@@ -60,7 +60,7 @@ namespace crypto
 
     Sha256Hash() : h{0} {}
 
-    inline void set(const Representation& r) // TODO: move?
+    inline void set(const Representation& r)
     {
       h = r;
     }

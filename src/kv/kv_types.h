@@ -440,8 +440,8 @@ namespace kv
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
-
     virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void append_entry(const crypto::Sha256Hash& digest) = 0;
     virtual void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;

@@ -139,6 +139,11 @@ namespace ccf
       version++;
     }
 
+    void append_entry(const crypto::Sha256Hash& digest) override
+    {
+      version++;
+    }
+
     kv::TxHistory::Result verify_and_sign(
       PrimarySignature&, kv::Term*, kv::Configuration::Nodes&) override
     {
@@ -369,7 +374,7 @@ namespace ccf
       tree = new HistoryTree(serialised);
     }
 
-    void append(crypto::Sha256Hash& hash)
+    void append(const crypto::Sha256Hash& hash)
     {
       tree->insert(merkle::Hash(hash.h));
     }
@@ -802,6 +807,13 @@ namespace ccf
       log_hash(rh, APPEND);
       std::lock_guard<std::mutex> guard(state_lock);
       replicated_state_tree.append(rh);
+    }
+
+    void append_entry(const crypto::Sha256Hash& digest) override
+    {
+      log_hash(digest, APPEND);
+      std::lock_guard<std::mutex> guard(state_lock);
+      replicated_state_tree.append(digest);
     }
 
     void set_endorsed_certificate(const crypto::Pem& cert) override
