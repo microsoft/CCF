@@ -4,7 +4,7 @@
     "type": "release"
   },
   "network": {
-    "node_address": "127.0.0.1:8081",
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
     "rpc_interfaces": [{ "bind_address": "127.0.0.1:8080" }]
   },
   "command": {

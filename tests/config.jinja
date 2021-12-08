@@ -4,7 +4,7 @@
     "type": "{{ enclave_type }}"
   },
   "network": {
-    "node_address": "{{ node_address }}",
+    "node_to_node_interface": { "bind_address": "{{ node_address }}" },
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
   },
   "node_certificate":

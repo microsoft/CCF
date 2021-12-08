@@ -30,11 +30,15 @@ Configuration Options
 
 The ``network`` section includes configuration for the interfaces a node listens on (both node-to-node and RPC).
 
-- ``node_address``: Address (hostname and port) to listen on for incoming node-to-node connections.
+- ``node_to_node_interface``: Address (hostname and port) to listen on for incoming node-to-node connections.
+
+Each node-to-node interface must containe:
+
+- The local RPC address (``bind_address``) the node binds to and listens on.
 
 - ``rpc_interfaces``: Addresses (hostname and port) to listen on for incoming client TLS connections.
 
-Each RPC address must contain:
+Each RPC interface must contain:
 
 - The local RPC address (``bind_address``) the node binds to and listens on.
 - The published RPC address (``published_address``) advertised to clients. Default value: value of ``rpc_address``.
@@ -46,14 +50,14 @@ Example:
 .. code-block:: json
 
     "network": {
-        "node_address": {"hostname": "127.0.0.1", "port": "0"},
+        "node_to_node_interface": {"bind_address": "127.0.0.1:0"},
         "rpc_interfaces": [
             {
-                "bind_address":{"hostname": "127.0.0.1", "port": "0"},
-                "published_address":{"hostname":"foo.dummy.com","port": "12345"},
+                "bind_address": "127.0.0.1:0",
+                "published_address": "foo.dummy.com:12345",
             },
             {
-                "bind_address":{"hostname": "127.0.0.2", "port": "8080"},
+                "bind_address": "127.0.0.2:8080",
                 "max_open_sessions_soft": 200,
                 "max_open_sessions_hard": 210
             }

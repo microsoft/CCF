@@ -134,7 +134,7 @@ if __name__ == "__main__":
                     int(v) + 10
                 )
             elif k == "node_address":
-                output["network"]["node_address"] = v
+                output["network"]["node_to_node_interface"] = v
             elif k == "network_cert_file":
                 output["network_certificate_file"] = v
 

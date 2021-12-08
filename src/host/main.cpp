@@ -256,7 +256,7 @@ int main(int argc, char** argv)
     // requesting port 0). The hostname and port may be modified - after calling
     // it holds the final assigned values.
     auto [node_host, node_port] =
-      cli::validate_address(config.network.node_address);
+      cli::validate_address(config.network.node_to_node_interface.bind_address);
     asynchost::NodeConnections node(
       bp.get_dispatcher(),
       ledger,
@@ -265,7 +265,8 @@ int main(int argc, char** argv)
       node_port,
       config.node_client_interface,
       config.client_connection_timeout);
-    config.network.node_address = ccf::make_net_address(node_host, node_port);
+    config.network.node_to_node_interface.bind_address =
+      ccf::make_net_address(node_host, node_port);
     if (!config.node_address_file.empty())
     {
       files::dump(
