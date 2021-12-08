@@ -21,6 +21,8 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
+const std::chrono::milliseconds step_time(10);
+
 using MapA = kv::Map<std::string, std::string>;
 using MapB = kv::Map<size_t, size_t>;
 kv::Map<std::string, std::string> map_a("private_map_a");
@@ -294,8 +296,8 @@ TEST_CASE("basic indexing")
     kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
 
   auto tick_until_caught_up = [&]() {
-    indexer.notify_commit(kv_store.current_txid());
-    while (indexer.tick() || !fetcher->requested.empty())
+    while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
+           !fetcher->requested.empty())
     {
       // Do the fetch, simulating an asynchronous fetch by the historical query
       // system
@@ -378,8 +380,7 @@ aft::LedgerStubProxy* add_raft_consensus(
   std::shared_ptr<kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
-  using TRaft =
-    aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
+  using TRaft = aft::Aft<aft::LedgerStubProxy, aft::StubSnapshotter>;
   using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
@@ -468,9 +469,9 @@ TEST_CASE("integrated indexing")
   const auto& writes = stub_writer->writes;
 
   auto tick_until_caught_up = [&]() {
-    indexer.notify_commit(kv_store.current_txid());
     size_t loops = 0;
-    while (indexer.tick() || handled_writes < writes.size())
+    while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
+           handled_writes < writes.size())
     {
       // Do the fetch, simulating an asynchronous fetch by the historical
       // query system

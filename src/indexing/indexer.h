@@ -45,6 +45,19 @@ namespace ccf::indexing
       return tx_id_less(a, b.first);
     }
 
+    void update_commit(const ccf::TxID& tx_id)
+    {
+      if (tx_id_less(tx_id, committed))
+      {
+        throw std::logic_error(fmt::format(
+          "Committing out-of-order. Committed to {}, trying to commit {}",
+          committed.to_str(),
+          tx_id.to_str()));
+      }
+
+      committed = tx_id;
+    }
+
   public:
     Indexer(const std::shared_ptr<TransactionFetcher>& tf) :
       transaction_fetcher(tf)
@@ -52,8 +65,10 @@ namespace ccf::indexing
 
     // Returns true if it looks like there's still a gap to fill. Useful for
     // testing
-    bool tick()
+    bool update_strategies(std::chrono::milliseconds elapsed, const ccf::TxID& newly_committed)
     {
+      update_commit(newly_committed);
+  
       std::optional<ccf::TxID> min_provided = std::nullopt;
       for (auto& [strategy, last_provided] : strategies)
       {
@@ -100,20 +115,6 @@ namespace ccf::indexing
       }
 
       return false;
-    }
-
-    // TODO: To be replaced?
-    void notify_commit(const ccf::TxID& tx_id)
-    {
-      if (tx_id_less(tx_id, committed))
-      {
-        throw std::logic_error(fmt::format(
-          "Committing out-of-order. Committed to {}, trying to commit {}",
-          committed.to_str(),
-          tx_id.to_str()));
-      }
-
-      committed = tx_id;
     }
   };
 }
