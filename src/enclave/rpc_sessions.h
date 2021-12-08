@@ -5,6 +5,7 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "forwarder_types.h"
+#include "http/http2_endpoint.h"
 #include "http/http_endpoint.h"
 #include "node/node_info_network.h"
 #include "node/session_metrics.h"
@@ -19,8 +20,8 @@
 
 namespace enclave
 {
-  using ServerEndpointImpl = http::HTTPServerEndpoint;
-  using ClientEndpointImpl = http::HTTPClientEndpoint;
+  using ServerEndpointImpl = http::HTTP2ServerEndpoint;
+  using ClientEndpointImpl = http::HTTP2ClientEndpoint;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;

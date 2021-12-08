@@ -1441,25 +1441,10 @@ def run(args):
 
 
 if __name__ == "__main__":
-    cr = ConcurrentRunner()
+    args = infra.e2e_args.cli_args()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    args.package = "samples/apps/logging/liblogging"
 
-    cr.add(
-        "cpp",
-        run,
-        package="samples/apps/logging/liblogging",
-        js_app_bundle=None,
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
-
-    cr.run()
+    args.nodes = ["local://localhost"]
+    with infra.network.network(args.nodes) as network:
+        network.start_and_join(args)
