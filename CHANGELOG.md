@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Breaking change: Configuration for CCF node is now a JSON configuration file passed in to `cchost` via `--config /path/to/config/file/` CLI argument. Existing CLI arguments have been removed. The `migrate_1_x_config.py` script (included in `ccf` Python package) should be used to migrate existing `.ini` configuration files to `.json` format (#3209).
+- `ccf.proposal_generator` has been removed from the pip package. Sample tools to build proposals and ballots are now included in the pip package as `build_proposal.sh` and `ccf.ballot_builder`. See https://microsoft.github.io/CCF/main/governance/proposals.html#creating-a-proposal for a guide to using these new tools. TODO: Get a usefully future-proof link for this?
 
 ### Renamed
 
