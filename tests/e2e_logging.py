@@ -1203,9 +1203,7 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
-            assert node["host"] == n.get_public_rpc_host()
-            assert node["port"] == str(n.get_public_rpc_port())
-            assert node["primary"] == (n == primary)
+            assert infra.interfaces.HostSpec.to_json(n.host) == node["rpc_interfaces"]
             del nodes_by_id[n.node_id]
 
         assert nodes_by_id == {}
@@ -1227,8 +1225,9 @@ def test_network_node_info(network, args):
             assert r.status_code == http.HTTPStatus.OK.value
             body = r.body.json()
             assert body["node_id"] == node.node_id
-            assert body["host"] == node.get_public_rpc_host()
-            assert body["port"] == str(node.get_public_rpc_port())
+            assert (
+                infra.interfaces.HostSpec.to_json(node.host) == body["rpc_interfaces"]
+            )
             assert body["primary"] == (node == primary)
 
             node_infos[node.node_id] = body

@@ -867,18 +867,16 @@ namespace ccf
         if (info)
         {
           auto& interface_id = args.rpc_ctx->session->interface_id;
-          LOG_FAIL_FMT("interface id: {}", interface_id.value_or("Not set"));
           if (!interface_id.has_value())
           {
             args.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              "Cannot redirect non-RPC request");
+              "Cannot redirect non-RPC request.");
             return;
           }
           const auto& address =
             info->rpc_interfaces[interface_id.value()].published_address;
-          LOG_FAIL_FMT("Redirecting to address: {}", address);
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
@@ -919,7 +917,17 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
-            const auto& address = info->rpc_interfaces[0].published_address;
+            auto& interface_id = args.rpc_ctx->session->interface_id;
+            if (!interface_id.has_value())
+            {
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Cannot redirect non-RPC request.");
+              return;
+            }
+            const auto& address =
+              info->rpc_interfaces[interface_id.value()].published_address;
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
             args.rpc_ctx->set_response_header(
               http::headers::LOCATION,
@@ -968,7 +976,17 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
-              const auto& address = info->rpc_interfaces[0].published_address;
+              auto& interface_id = args.rpc_ctx->session->interface_id;
+              if (!interface_id.has_value())
+              {
+                args.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Cannot redirect non-RPC request.");
+                return;
+              }
+              const auto& address =
+                info->rpc_interfaces[interface_id.value()].published_address;
               args.rpc_ctx->set_response_header(
                 http::headers::LOCATION,
                 fmt::format("https://{}/node/primary", address));
