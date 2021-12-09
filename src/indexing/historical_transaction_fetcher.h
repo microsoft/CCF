@@ -40,9 +40,9 @@ namespace ccf::indexing
     std::vector<StorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) override
     {
-      const ccf::historical::CompoundHandle handle{historical::RequestNamespace::System, 0};
-      auto stores = historical_cache->get_stores_for(
-        handle, seqnos);
+      const ccf::historical::CompoundHandle handle{
+        historical::RequestNamespace::System, 0};
+      auto stores = historical_cache->get_stores_for(handle, seqnos);
       if (!stores.empty())
       {
         historical_cache->drop_cached_states(handle);
