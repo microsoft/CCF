@@ -14,8 +14,8 @@ The crash fault tolerant implementation in CCF is based on Raft. You can find mo
 
 CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
-- ``consensus.timeout_ms`` is the Raft heartbeat timeout in milliseconds. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.election_timeout_ms``.
-- ``consensus.election_timeout_ms`` is the Raft election timeout in milliseconds. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
+- ``consensus.message_timeout`` is the Raft heartbeat timeout. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.election_timeout``.
+- ``consensus.election_timeout`` is the Raft election timeout. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
 BFT Consensus Protocol
 ----------------------
@@ -32,13 +32,13 @@ Replica State Machine
 Membership
 ~~~~~~~~~~
 
-Any node of the network is always in one of four membership states. When using one-transaction reconfiguration, the ``Learner`` and 
-``RetirementInitiated`` states are not used and each node is either in the ``Active`` or ``Retired`` states. The dotted arrows in the 
+Any node of the network is always in one of four membership states. When using one-transaction reconfiguration, the ``Learner`` and
+``RetirementInitiated`` states are not used and each node is either in the ``Active`` or ``Retired`` states. The dotted arrows in the
 state diagram indicate a transition on rollback:
 
 .. mermaid::
 
-    graph LR;  
+    graph LR;
         Learner-->Active
         Active-->RetirementInitiated
         Active-->Retired
@@ -47,25 +47,25 @@ state diagram indicate a transition on rollback:
         Retired-.->RetirementInitiated
         Retired-.->Active
 
-The membership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint. 
+The membership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint.
 
 Simplified Leadership
 ~~~~~~~~~~~~~~~~~~~~~
 
 Main consensus states and transitions. Note that while the implementation of the transitions differs between CFT and BFT, the states themselves do not.
-Nodes are not in any consensus state if they are not in the ``Active`` membership state yet, but once they are, they transition between all the 
+Nodes are not in any consensus state if they are not in the ``Active`` membership state yet, but once they are, they transition between all the
 consensus states as the network evolves:
 
 .. mermaid::
 
-    graph LR;                        
+    graph LR;
         Follower-->Candidate;
         Candidate-->Follower;
         Candidate-->Leader;
         Candidate-->Candidate;
         Leader-->Follower;
 
-The leadership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint. 
+The leadership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint.
 
 Key-Value Store
 ~~~~~~~~~~~~~~~
@@ -78,4 +78,3 @@ Further information about the reconfiguration schemes:
 .. toctree::
     1tx-reconfig
     2tx-reconfig
-    

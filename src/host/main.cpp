@@ -35,8 +35,7 @@ using namespace std::chrono_literals;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
 
-std::chrono::nanoseconds asynchost::TimeBoundLogger::default_max_time(
-  10'000'000);
+std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
 void print_version(size_t)
 {
@@ -176,16 +175,14 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
-  asynchost::TimeBoundLogger::default_max_time =
-    std::chrono::duration_cast<decltype(
-      asynchost::TimeBoundLogger::default_max_time)>(
-      std::chrono::nanoseconds(config.io_logging_threshold_ns));
-
   // Write PID to disk
-  files::dump(fmt::format("{}", ::getpid()), config.node_pid_file);
+  files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
   // set the host log level
   logger::config::level() = config.logging.host_level;
+
+  asynchost::TimeBoundLogger::default_max_time =
+    config.slow_io_logging_threshold;
 
   // create the enclave
   host::Enclave enclave(config.enclave.file, oe_flags);
@@ -226,8 +223,7 @@ int main(int argc, char** argv)
 
   {
     // provide regular ticks to the enclave
-    const std::chrono::milliseconds tick_period(config.tick_period_ms);
-    asynchost::Ticker ticker(tick_period, writer_factory);
+    asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
@@ -261,7 +257,7 @@ int main(int argc, char** argv)
     // requesting port 0). The hostname and port may be modified - after calling
     // it holds the final assigned values.
     auto [node_host, node_port] =
-      cli::validate_address(config.network.node_address);
+      cli::validate_address(config.network.node_to_node_interface.bind_address);
     asynchost::NodeConnections node(
       bp.get_dispatcher(),
       ledger,
@@ -269,16 +265,18 @@ int main(int argc, char** argv)
       node_host,
       node_port,
       config.node_client_interface,
-      config.client_connection_timeout_ms);
-    config.network.node_address = ccf::make_net_address(node_host, node_port);
-    if (!config.node_address_file.empty())
+      config.client_connection_timeout);
+    config.network.node_to_node_interface.bind_address =
+      ccf::make_net_address(node_host, node_port);
+    if (!config.output_files.node_to_node_address_file.empty())
     {
       files::dump(
-        fmt::format("{}\n{}", node_host, node_port), config.node_address_file);
+        fmt::format("{}\n{}", node_host, node_port),
+        config.output_files.node_to_node_address_file);
     }
 
     asynchost::RPCConnections rpc(
-      writer_factory, config.client_connection_timeout_ms);
+      writer_factory, config.client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
 
     std::string rpc_addresses;
@@ -304,9 +302,9 @@ int main(int argc, char** argv)
         interface.published_address = ccf::make_net_address(pub_host, pub_port);
       }
     }
-    if (!config.rpc_addresses_file.empty())
+    if (!config.output_files.rpc_addresses_file.empty())
     {
-      files::dump(rpc_addresses, config.rpc_addresses_file);
+      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
     }
 
     // Initialise the enclave and create a CCF node in it
@@ -326,9 +324,9 @@ int main(int argc, char** argv)
 
     StartupConfig startup_config;
 
-    startup_config.snapshot_tx_interval = config.snapshots.interval_size;
+    startup_config.snapshot_tx_interval = config.snapshots.tx_count;
     startup_config.consensus = config.consensus;
-    startup_config.intervals = config.intervals;
+    startup_config.ledger_signatures = config.ledger_signatures;
     startup_config.jwt = config.jwt;
     startup_config.network = config.network;
     startup_config.worker_threads = config.worker_threads;
@@ -393,9 +391,9 @@ int main(int argc, char** argv)
         config.command.join.target_rpc_address);
       startup_config.join.target_rpc_address =
         config.command.join.target_rpc_address;
-      startup_config.join.timer_ms = config.command.join.timer_ms;
+      startup_config.join.retry_timeout = config.command.join.retry_timeout;
       startup_config.join.network_cert =
-        files::slurp(config.network_certificate_file);
+        files::slurp(config.command.network_certificate_file);
     }
     else if (config.command.type == StartType::Recover)
     {
@@ -459,18 +457,19 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Created new node");
 
     // Write the node and network certs to disk.
-    files::dump(node_cert, config.node_certificate_file);
+    files::dump(node_cert, config.output_files.node_certificate_file);
     LOG_INFO_FMT(
       "Output self-signed node certificate to {}",
-      config.node_certificate_file);
+      config.output_files.node_certificate_file);
 
     if (
       config.command.type == StartType::Start ||
       config.command.type == StartType::Recover)
     {
-      files::dump(network_cert, config.network_certificate_file);
+      files::dump(network_cert, config.command.network_certificate_file);
       LOG_INFO_FMT(
-        "Output service certificate to {}", config.network_certificate_file);
+        "Output service certificate to {}",
+        config.command.network_certificate_file);
     }
 
     auto enclave_thread_start = [&]() {

@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()` (#3187).
 
+### Dependency
+
+- Upgrade OpenEnclave from 0.17.2 to 0.17.5
+
 ## [2.0.0-dev6]
 
 ### Added

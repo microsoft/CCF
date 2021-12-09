@@ -54,20 +54,24 @@ namespace host
     };
     Enclave enclave = {};
 
-    std::string node_certificate_file = "nodecert.pem";
-    std::string node_pid_file = "cchost.pid";
-
-    std::string network_certificate_file = "networkcert.pem";
-
-    // Addresses files
-    std::string node_address_file = "";
-    std::string rpc_addresses_file = "";
-
     // Other
-    size_t tick_period_ms = 10;
-    size_t io_logging_threshold_ns = 10'000'000;
+    ds::TimeString tick_interval = std::string("10ms");
+    ds::TimeString slow_io_logging_threshold = std::string("10ms");
     std::optional<std::string> node_client_interface = std::nullopt;
-    size_t client_connection_timeout_ms = 2000;
+    ds::TimeString client_connection_timeout = std::string("2000ms");
+
+    struct OutputFiles
+    {
+      std::string node_certificate_file = "nodecert.pem";
+      std::string pid_file = "cchost.pid";
+
+      // Addresses files
+      std::string node_to_node_address_file = "";
+      std::string rpc_addresses_file = "";
+
+      bool operator==(const OutputFiles&) const = default;
+    };
+    OutputFiles output_files = {};
 
     struct Ledger
     {
@@ -82,7 +86,7 @@ namespace host
     struct Snapshots
     {
       std::string directory = "snapshots";
-      size_t interval_size = 10'000;
+      size_t tx_count = 10'000;
 
       bool operator==(const Snapshots&) const = default;
     };
@@ -110,6 +114,7 @@ namespace host
     struct Command
     {
       StartType type = StartType::Start;
+      std::string network_certificate_file = "networkcert.pem";
 
       struct Start
       {
@@ -124,7 +129,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-        size_t timer_ms = 1000;
+        ds::TimeString retry_timeout = std::string("1000ms");
 
         bool operator==(const Join&) const = default;
       };
@@ -136,6 +141,15 @@ namespace host
   DECLARE_JSON_TYPE(CCHostConfig::Enclave);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::OutputFiles,
+    node_certificate_file,
+    pid_file,
+    node_to_node_address_file,
+    rpc_addresses_file);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -143,8 +157,7 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Snapshots);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Snapshots);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Snapshots, directory, interval_size);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Snapshots, directory, tx_count);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
@@ -163,25 +176,22 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, timer_ms);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, retry_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command, start, join);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::Command, network_certificate_file, start, join);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig,
-    node_certificate_file,
-    node_pid_file,
-    node_address_file,
-    rpc_addresses_file,
-    tick_period_ms,
-    io_logging_threshold_ns,
+    tick_interval,
+    slow_io_logging_threshold,
     node_client_interface,
-    client_connection_timeout_ms,
-    network_certificate_file,
+    client_connection_timeout,
+    output_files,
     ledger,
     snapshots,
     logging,
