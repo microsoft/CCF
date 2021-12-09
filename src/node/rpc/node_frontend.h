@@ -734,90 +734,91 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto get_nodes = [this](auto& args, nlohmann::json&&) {
-        const auto parsed_query =
-          http::parse_query(args.rpc_ctx->get_request_query());
+      // auto get_nodes = [this](auto& args, nlohmann::json&&) {
+      //   const auto parsed_query =
+      //     http::parse_query(args.rpc_ctx->get_request_query());
 
-        std::string error_string; // Ignored - all params are optional
-        const auto host = http::get_query_value_opt<std::string>(
-          parsed_query, "host", error_string);
-        const auto port = http::get_query_value_opt<std::string>(
-          parsed_query, "port", error_string);
-        const auto status_str = http::get_query_value_opt<std::string>(
-          parsed_query, "status", error_string);
+      //   std::string error_string; // Ignored - all params are optional
+      //   const auto host = http::get_query_value_opt<std::string>(
+      //     parsed_query, "host", error_string);
+      //   const auto port = http::get_query_value_opt<std::string>(
+      //     parsed_query, "port", error_string);
+      //   const auto status_str = http::get_query_value_opt<std::string>(
+      //     parsed_query, "status", error_string);
 
-        std::optional<NodeStatus> status;
-        if (status_str.has_value())
-        {
-          // Convert the query argument to a JSON string, try to parse it as a
-          // NodeStatus, return an error if this doesn't work
-          try
-          {
-            status = nlohmann::json(status_str.value()).get<NodeStatus>();
-          }
-          catch (const JsonParseError& e)
-          {
-            return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidQueryParameterValue,
-              fmt::format(
-                "Query parameter '{}' is not a valid node status",
-                status_str.value()));
-          }
-        }
+      //   std::optional<NodeStatus> status;
+      //   if (status_str.has_value())
+      //   {
+      //     // Convert the query argument to a JSON string, try to parse it as
+      //     a
+      //     // NodeStatus, return an error if this doesn't work
+      //     try
+      //     {
+      //       status = nlohmann::json(status_str.value()).get<NodeStatus>();
+      //     }
+      //     catch (const JsonParseError& e)
+      //     {
+      //       return ccf::make_error(
+      //         HTTP_STATUS_BAD_REQUEST,
+      //         ccf::errors::InvalidQueryParameterValue,
+      //         fmt::format(
+      //           "Query parameter '{}' is not a valid node status",
+      //           status_str.value()));
+      //     }
+      //   }
 
-        GetNodes::Out out;
+      //   GetNodes::Out out;
 
-        auto nodes = args.tx.ro(this->network.nodes);
-        nodes->foreach([this, host, port, status, &out](
-                         const NodeId& nid, const NodeInfo& ni) {
-          const auto& primary_interface = ni.rpc_interfaces[0];
-          const auto& pub_address = primary_interface.published_address;
-          const auto& [pub_host, pub_port] = split_net_address(pub_address);
+      //   auto nodes = args.tx.ro(this->network.nodes);
+      //   nodes->foreach([this, host, port, status, &out](
+      //                    const NodeId& nid, const NodeInfo& ni) {
+      //     const auto& primary_interface = ni.rpc_interfaces[0];
+      //     const auto& pub_address = primary_interface.published_address;
+      //     const auto& [pub_host, pub_port] = split_net_address(pub_address);
 
-          if (host.has_value() && host.value() != pub_host)
-            return true;
-          if (port.has_value() && port.value() != pub_port)
-            return true;
-          if (status.has_value() && status.value() != ni.status)
-            return true;
+      //     if (host.has_value() && host.value() != pub_host)
+      //       return true;
+      //     if (port.has_value() && port.value() != pub_port)
+      //       return true;
+      //     if (status.has_value() && status.value() != ni.status)
+      //       return true;
 
-          bool is_primary = false;
-          if (consensus != nullptr)
-          {
-            is_primary = consensus->primary() == nid;
-          }
+      //     bool is_primary = false;
+      //     if (consensus != nullptr)
+      //     {
+      //       is_primary = consensus->primary() == nid;
+      //     }
 
-          const auto& [rpc_host, rpc_port] =
-            split_net_address(primary_interface.bind_address);
-          out.nodes.push_back(
-            {nid,
-             ni.status,
-             pub_host,
-             pub_port,
-             rpc_host,
-             rpc_port,
-             is_primary});
-          return true;
-        });
+      //     const auto& [rpc_host, rpc_port] =
+      //       split_net_address(primary_interface.bind_address);
+      //     out.nodes.push_back(
+      //       {nid,
+      //        ni.status,
+      //        pub_host,
+      //        pub_port,
+      //        rpc_host,
+      //        rpc_port,
+      //        is_primary});
+      //     return true;
+      //   });
 
-        return make_success(out);
-      };
-      make_read_only_endpoint(
-        "/network/nodes",
-        HTTP_GET,
-        json_read_only_adapter(get_nodes),
-        no_auth_required)
-        .set_execute_outside_consensus(
-          ccf::endpoints::ExecuteOutsideConsensus::Primary)
-        .set_auto_schema<void, GetNodes::Out>()
-        .add_query_parameter<std::string>(
-          "host", ccf::endpoints::OptionalParameter)
-        .add_query_parameter<std::string>(
-          "port", ccf::endpoints::OptionalParameter)
-        .add_query_parameter<std::string>(
-          "status", ccf::endpoints::OptionalParameter)
-        .install();
+      //   return make_success(out);
+      // };
+      // make_read_only_endpoint(
+      //   "/network/nodes",
+      //   HTTP_GET,
+      //   json_read_only_adapter(get_nodes),
+      //   no_auth_required)
+      //   .set_execute_outside_consensus(
+      //     ccf::endpoints::ExecuteOutsideConsensus::Primary)
+      //   .set_auto_schema<void, GetNodes::Out>()
+      //   .add_query_parameter<std::string>(
+      //     "host", ccf::endpoints::OptionalParameter)
+      //   .add_query_parameter<std::string>(
+      //     "port", ccf::endpoints::OptionalParameter)
+      //   .add_query_parameter<std::string>(
+      //     "status", ccf::endpoints::OptionalParameter)
+      //   .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
         std::string node_id;

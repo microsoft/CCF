@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, Dict
 
 
 def split_address(addr, default_port=0):
@@ -20,6 +20,7 @@ DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 
 @dataclass
 class RPCInterface:
+    name: str = "main_interface"
     protocol: str = "local"
     rpc_host: str = "localhost"
     rpc_port: int = 0
@@ -40,16 +41,17 @@ class RPCInterface:
     @staticmethod
     def from_json(json):
         interface = RPCInterface()
-        interface.rpc_host, interface.rpc_port = split_address(json.get("bind_address"))
-        published_address = json.get("published_address")
+        interface.name, info = json
+        interface.rpc_host, interface.rpc_port = split_address(info.get("bind_address"))
+        published_address = info.get("published_address")
         if published_address is not None:
             interface.public_rpc_host, interface.public_rpc_port = split_address(
                 published_address
             )
-        interface.max_open_sessions_soft = json.get(
+        interface.max_open_sessions_soft = info.get(
             "max_open_sessions_soft", DEFAULT_MAX_OPEN_SESSIONS_SOFT
         )
-        interface.max_open_sessions_hard = json.get(
+        interface.max_open_sessions_hard = info.get(
             "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
         )
         return interface
@@ -57,14 +59,14 @@ class RPCInterface:
 
 @dataclass
 class HostSpec:
-    rpc_interfaces: List[RPCInterface] = RPCInterface()
+    rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
 
     @staticmethod
     def to_json(host_spec):
-        return [
-            RPCInterface.to_json(rpc_interface)
+        return {
+            rpc_interface.name: RPCInterface.to_json(rpc_interface)
             for rpc_interface in host_spec.rpc_interfaces
-        ]
+        }
 
     @staticmethod
     def from_json(rpc_interfaces_json):

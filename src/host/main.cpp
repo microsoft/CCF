@@ -280,10 +280,11 @@ int main(int argc, char** argv)
     rpc.register_message_handlers(bp.get_dispatcher());
 
     std::string rpc_addresses;
-    for (auto& interface : config.network.rpc_interfaces)
+    for (auto& [name, interface] : config.network.rpc_interfaces)
     {
+      // TODO: Change output format of rpc_addresses file
       auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
-      rpc.listen(0, rpc_host, rpc_port);
+      rpc.listen(0, rpc_host, rpc_port, name);
       rpc_addresses += fmt::format("{}\n{}\n", rpc_host, rpc_port);
 
       interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
