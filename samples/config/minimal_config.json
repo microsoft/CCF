@@ -24,7 +24,7 @@
       ]
     },
     "join": {
-      "timer_ms": 1000,
+      "retry_timeout": "1000ms",
       "target_rpc_address": "127.0.0.1:5678"
     }
   }

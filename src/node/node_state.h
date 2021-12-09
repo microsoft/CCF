@@ -641,8 +641,8 @@ namespace ccf
           if (msg->data.self.sm.check(State::pending))
           {
             msg->data.self.initiate_join();
-            auto delay =
-              std::chrono::milliseconds(msg->data.self.config.join.timer_ms);
+            auto delay = std::chrono::milliseconds(
+              msg->data.self.config.join.retry_timeout);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
@@ -651,7 +651,7 @@ namespace ccf
         *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(timer_msg), std::chrono::milliseconds(config.join.timer_ms));
+        std::move(timer_msg), config.join.retry_timeout);
     }
 
     void join()
@@ -671,7 +671,7 @@ namespace ccf
         return;
       }
       jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
-        config.jwt.key_refresh_interval_s,
+        config.jwt.key_refresh_interval.count_s(),
         network,
         consensus,
         rpcsessions,

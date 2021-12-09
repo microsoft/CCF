@@ -557,6 +557,10 @@ class CCFRemote(object):
         major_version=None,
         include_addresses=True,
         config_file=None,
+        join_timer_s=None,
+        sig_ms_interval=None,
+        jwt_key_refresh_interval_s=None,
+        election_timeout_ms=None,
         **kwargs,
     ):
         """
@@ -635,6 +639,10 @@ class CCFRemote(object):
                 snapshots_dir=self.snapshot_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name,
+                join_timer=f"{join_timer_s}s" if join_timer_s else None,
+                signature_interval_duration=f"{sig_ms_interval}ms",
+                jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
+                election_timeout=f"{election_timeout_ms}ms",
                 **kwargs,
             )
 
@@ -665,7 +673,6 @@ class CCFRemote(object):
 
         else:
             consensus = kwargs.get("consensus")
-            election_timeout_ms = kwargs.get("election_timeout_ms")
             node_address = kwargs.get("node_address")
             host_log_level = kwargs.get("host_log_level")
             worker_threads = kwargs.get("worker_threads")
@@ -674,14 +681,12 @@ class CCFRemote(object):
             snapshot_tx_interval = kwargs.get("snapshot_tx_interval")
             max_open_sessions = kwargs.get("max_open_sessions")
             max_open_sessions_hard = kwargs.get("max_open_sessions_hard")
-            jwt_key_refresh_interval_s = kwargs.get("jwt_key_refresh_interval_s")
             curve_id = kwargs.get("curve_id")
             initial_node_cert_validity_days = kwargs.get(
                 "initial_node_cert_validity_days"
             )
             node_client_host = kwargs.get("node_client_host")
             members_info = kwargs.get("members_info")
-            join_timer = kwargs.get("join_timer")
             target_rpc_address = kwargs.get("target_rpc_address")
             maximum_node_certificate_validity_days = kwargs.get(
                 "maximum_node_certificate_validity_days"
@@ -689,7 +694,6 @@ class CCFRemote(object):
             reconfiguration_type = kwargs.get("reconfiguration_type")
             log_format_json = kwargs.get("log_format_json")
             sig_tx_interval = kwargs.get("sig_tx_interval")
-            sig_ms_interval = kwargs.get("sig_ms_interval")
 
             primary_rpc_interface = host.rpc_interfaces[0]
             cmd = [
@@ -800,7 +804,7 @@ class CCFRemote(object):
                     "join",
                     "--network-cert-file=networkcert.pem",
                     f"--target-rpc-address={target_rpc_address}",
-                    f"--join-timer={join_timer}",
+                    f"--join-timer={join_timer_s * 1000}",
                 ]
                 data_files += [os.path.join(self.common_dir, "networkcert.pem")]
 

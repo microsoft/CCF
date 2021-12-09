@@ -216,10 +216,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=list(infra.network.EllipticCurve),
     )
     parser.add_argument(
-        "--join-timer",
-        help="Timer period when trying to join an existing network (ms)",
+        "--join-timer-s",
+        help="Timer period when trying to join an existing network",
         type=int,
-        default=4000,  # Set higher than cchost default to avoid swamping joinee with requests during slow quote verification
+        default=4,  # Set higher than cchost default to avoid swamping joinee with requests during slow quote verification
     )
     parser.add_argument(
         "--initial-member-count",
