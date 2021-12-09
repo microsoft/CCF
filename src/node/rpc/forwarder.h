@@ -51,7 +51,7 @@ namespace ccf
     bool forward_command(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       const NodeId& to,
-      std::set<NodeId> nodes,
+      const std::set<NodeId>& nodes,
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
