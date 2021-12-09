@@ -28,8 +28,6 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    using ListenInterfaceID = ccf::NodeInfoNetwork_v2::RpcInterfaceName;
-
     struct ListenInterface
     {
       size_t open_sessions;
@@ -261,13 +259,13 @@ namespace enclave
       else
       {
         LOG_DEBUG_FMT(
-          "Accepting a session {} inside the enclave from interface {}",
+          "Accepting a session {} inside the enclave from interface \"{}\"",
           id,
           listen_interface_id);
         auto ctx = std::make_unique<tls::Server>(cert);
 
         auto session = std::make_shared<ServerEndpointImpl>(
-          rpc_map, id, writer_factory, std::move(ctx));
+          rpc_map, id, listen_interface_id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(session))));
         per_listen_interface.open_sessions++;

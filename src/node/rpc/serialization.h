@@ -101,14 +101,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNode::NodeInfo,
-    node_id,
-    status,
-    host,
-    port,
-    local_host,
-    local_port,
-    primary)
+    GetNode::NodeInfo, node_id, status, primary, rpc_interfaces)
 
   DECLARE_JSON_TYPE(GetNodes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)

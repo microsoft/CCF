@@ -23,12 +23,12 @@ namespace ccf
     NodeInfoNetwork_v1, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
 
   static constexpr auto default_rpc_interface_name =
-    "ccf.default.rpc_interface";
+    "ccf.default_rpc_interface";
 
   struct NodeInfoNetwork_v2
   {
     using NetAddress = std::string;
-    using RpcInterfaceName = std::string;
+    using RpcInterfaceID = std::string;
 
     struct NetInterface
     {
@@ -47,8 +47,10 @@ namespace ccf
       }
     };
 
+    using RpcInterfaces = std::map<RpcInterfaceID, NetInterface>;
+
     NetInterface node_to_node_interface;
-    std::map<RpcInterfaceName, NetInterface> rpc_interfaces;
+    RpcInterfaces rpc_interfaces;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
