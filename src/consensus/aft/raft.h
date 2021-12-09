@@ -175,8 +175,8 @@ namespace aft
 
       state(state_),
 
-      request_timeout(settings_.timeout_ms),
-      election_timeout(settings_.election_timeout_ms),
+      request_timeout(settings_.message_timeout),
+      election_timeout(settings_.election_timeout),
 
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),

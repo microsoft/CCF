@@ -47,7 +47,7 @@ namespace cli
     return std::make_pair(hostname, port);
   }
 
-  bool parse_address(
+  static bool parse_address(
     const std::string& addr,
     ParsedAddress& parsed,
     const std::string& option_name,
@@ -67,7 +67,7 @@ namespace cli
     return true;
   }
 
-  CLI::Option* add_address_option(
+  static CLI::Option* add_address_option(
     CLI::App& app,
     ParsedAddress& parsed,
     const std::string& option_name,
@@ -94,7 +94,7 @@ namespace cli
   static const std::string IP_ADDRESS_PREFIX("iPAddress:");
   static const std::string DNS_NAME_PREFIX("dNSName:");
 
-  CLI::Option* add_subject_alternative_name_option(
+  static CLI::Option* add_subject_alternative_name_option(
     CLI::App& app,
     std::vector<crypto::SubjectAltName>& parsed,
     const std::string& option_name,
