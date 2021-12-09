@@ -140,19 +140,19 @@ To deploy a new JS application, it must be embedded into a JSON governance propo
 
 The steps to deploy are:
 
-    1. Embed your JS app into a JSON object.
+#. Embed your JS app into a JSON object.
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        $ python -m ccf.bundle_js_app path/to/my-app/ > my_app_bundle.json
+      $ python -m ccf.bundle_js_app path/to/my-app/ > my_app_bundle.json
 
-    2. Create a CCF ``set_js_app`` proposal containing that JSON object, as an argument named ``bundle``. Note the use of ``-j`` to indicate that the argument is already JSON encoded, and the ``@`` prefix to insert the contents of this file.
+#. Create a CCF ``set_js_app`` proposal containing that JSON object, as an argument named ``bundle``. Note the use of ``-j`` to indicate that the argument is already JSON encoded, and the ``@`` prefix to insert the contents of this file.
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        $ build_proposal.sh --action set_js_app bundle -j @my_app_bundle.json > set_js_app_proposal.json
+      $ build_proposal.sh --action set_js_app bundle -j @my_app_bundle.json > set_js_app_proposal.json
 
-    3. :ref:`Submit and accept<governance/proposals:Submitting a New Proposal>` this proposal.
+#. :ref:`Submit and accept<governance/proposals:Submitting a New Proposal>` this proposal.
 
 Once accepted, a ``set_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.

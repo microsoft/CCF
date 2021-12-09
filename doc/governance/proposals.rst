@@ -110,9 +110,7 @@ Ballots are JSON objects containing a JS script exporting a single ``vote`` func
 
 These tools can also be found in a checkout of CCF, under the ``python/`` directory.
 
-.. note::
-
-    Both of these print their results (the generated proposal or ballot) directly to stdout on success, so you will likely want to redirect the output to a file to be used later.
+.. note:: Both of these tools print their results (the generated proposal or ballot) directly to stdout on success, so you will likely want to redirect the output to a file to be used later.
 
 For example, to add a new user to the service (using the default ``actions.js``), we call the ``set_user`` proposal, which expects the user's certificate in an argument named ``cert``. The ``build_proposal.sh`` script can read the cert directly from a file and insert that into the generated proposal by prefixing the argument value with ``@``:
 
