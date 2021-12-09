@@ -626,6 +626,8 @@ class CCFRemote(object):
             loader = FileSystemLoader(binary_dir)
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
+
+            LOG.error(host.rpc_interfaces)
             output = t.render(
                 start_type=start_type.name,
                 enclave_file=self.enclave_file,

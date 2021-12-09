@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Optional, List
 
 
 def split_address(addr, default_port=0):
@@ -17,10 +17,12 @@ def make_address(host, port=0):
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 
+DEFAULT_RPC_INTERFACE_NAME = "rpc_interface"
+
 
 @dataclass
 class RPCInterface:
-    name: str = "main_interface"
+    name: str = DEFAULT_RPC_INTERFACE_NAME
     protocol: str = "local"
     rpc_host: str = "localhost"
     rpc_port: int = 0
@@ -59,7 +61,7 @@ class RPCInterface:
 
 @dataclass
 class HostSpec:
-    rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
+    rpc_interfaces: List[RPCInterface] = RPCInterface()
 
     @staticmethod
     def to_json(host_spec):

@@ -49,6 +49,7 @@ def max_nodes(args, f):
     Maximum number of nodes allowing no more than 'f'
     faults for the consensus variant.
     """
+    LOG.error(min_nodes(args, f + 1)[:-1])
     return min_nodes(args, f + 1)[:-1]
 
 

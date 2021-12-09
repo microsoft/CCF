@@ -38,22 +38,33 @@ def get_session_metrics(node, timeout=3):
 
 def interface_caps(i):
     return {
-        f"127.{i}.0.1": 2,
-        f"127.{i}.0.2": 5,
+        "first_interface": {
+            "bind_address": f"127.{i}.0.1",
+            "max_open_sessions_soft": 2,
+        },
+        "second_interface": {
+            "bind_address": f"127.{i}.0.2",
+            "max_open_sessions_soft": 5,
+        },
     }
 
 
 def run(args):
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
+        LOG.error(type(node_spec.rpc_interfaces))
         caps = interface_caps(i)
-        for host, cap in caps.items():
+        for interface_name, info in caps.items():
             node_spec.rpc_interfaces.append(
-                infra.interfaces.RPCInterface(rpc_host=host, max_open_sessions_soft=cap)
+                infra.interfaces.RPCInterface(
+                    name=interface_name,
+                    rpc_host=info["bind_address"],
+                    max_open_sessions_soft=info["max_open_sessions_soft"],
+                )
             )
 
     # Chunk often, so that new fds are regularly requested
-    args.ledger_chunk_bytes = "500"
+    args.ledger_chunk_bytes = "500B"
 
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
