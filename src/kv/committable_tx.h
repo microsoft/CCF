@@ -46,6 +46,10 @@ namespace kv
       auto e = store->get_encryptor();
       auto entry_type = claims_digest.empty() ? EntryType::WriteSet :
                                                 EntryType::WriteSetWithClaims;
+      LOG_INFO_FMT(
+        "Serialising claim digest {} {}",
+        claims_digest.value(),
+        claims_digest.empty());
       KvStoreSerialiser replicated_serialiser(
         e, {commit_view, version}, entry_type, claims_digest);
 
@@ -155,12 +159,12 @@ namespace kv
             return CommitResult::SUCCESS;
           }
 
-          auto claims_digest = claims.value();
+          auto claims_ = claims;
 
           return store->commit(
             {commit_view, version},
             std::make_unique<MovePendingTx>(
-              std::move(data), std::move(claims_digest), std::move(hooks)),
+              std::move(data), std::move(claims_), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -329,12 +333,8 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      auto no_claims_digest = ccf::no_claims().value();
       return {
-        CommitResult::SUCCESS,
-        serialise(),
-        std::move(no_claims_digest),
-        std::move(hooks)};
+        CommitResult::SUCCESS, serialise(), ccf::no_claims(), std::move(hooks)};
     }
   };
 }

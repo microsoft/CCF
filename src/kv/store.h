@@ -698,7 +698,10 @@ namespace kv
         return false;
       }
       v = v_.value();
-      LOG_INFO_FMT("Deserialised claim digest {} {}", d.get_claims_digest().value(), d.get_claims_digest().empty());
+      LOG_INFO_FMT(
+        "Deserialised claim digest {} {}",
+        d.get_claims_digest().value(),
+        d.get_claims_digest().empty());
       if (!d.get_claims_digest().empty())
         claims_digest.set(d.get_claims_digest().value());
 
@@ -938,7 +941,15 @@ namespace kv
 
           if (h)
           {
-            h->append_entry(ccf::entry_leaf(*data_shared, claims_digest_));
+            if (claims_digest_.empty())
+            {
+              h->append(*data_shared);
+            }
+            else
+            {
+              h->append_entry(
+                ccf::entry_leaf(*data_shared, claims_digest_.value()));
+            }
           }
 
           LOG_DEBUG_FMT(

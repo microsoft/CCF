@@ -7,6 +7,7 @@
 #include "crypto/hash.h"
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
+#include "enclave/claims.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
@@ -501,13 +502,13 @@ namespace kv
   {
     CommitResult success;
     std::vector<uint8_t> data;
-    crypto::Sha256Hash claims_digest;
+    ccf::ClaimsDigest claims_digest;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
       std::vector<uint8_t>&& data_,
-      crypto::Sha256Hash&& claims_digest_,
+      ccf::ClaimsDigest&& claims_digest_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       data(std::move(data_)),
@@ -527,13 +528,13 @@ namespace kv
   {
   private:
     std::vector<uint8_t> data;
-    crypto::Sha256Hash claims_digest;
+    ccf::ClaimsDigest claims_digest;
     ConsensusHookPtrs hooks;
 
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_,
-      crypto::Sha256Hash&& claims_digest_,
+      ccf::ClaimsDigest&& claims_digest_,
       ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
       claims_digest(claims_digest_),

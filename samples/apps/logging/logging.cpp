@@ -298,7 +298,8 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         records_handle->put(params["id"], in.msg);
-        // ctx.rpc_ctx->set_claims_digest(ccf::ClaimsDigest::Digest::from_string(in.msg));
+        ctx.rpc_ctx->set_claims_digest(
+          ccf::ClaimsDigest::Digest::from_string(in.msg));
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
