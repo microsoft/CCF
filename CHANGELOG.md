@@ -5,11 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.16]
 
 ### Changed
 
 - Internally, CCF now interprets the former `bool is_snapshot` field in ledger transactions as an `enum EntryType entry_type`. The values and their semantics remain identical for now, but will be extended in 2.0. This change is back-ported to provide a user-friendly error in the event that 1.x nodes attempt to read a ledger produced by 2.x nodes (#3275).
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.17.2 to 0.17.5
 
 ## [1.0.15]
 
@@ -978,6 +982,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.15
 [1.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.15
 [1.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.14
 [1.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.13
