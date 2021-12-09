@@ -22,6 +22,7 @@ namespace kv
       kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
+      ccf::ClaimsDigest& claims_digest,
       bool ignore_strict_versions = false) = 0;
 
     virtual bool commit_deserialised(
@@ -66,7 +67,14 @@ namespace kv
       ccf::ClaimsDigest claims_digest;
 
       if (!store->fill_maps(
-            data, public_only, version, term, changes, new_maps, true))
+            data,
+            public_only,
+            version,
+            term,
+            changes,
+            new_maps,
+            claims_digest,
+            true))
       {
         return ApplyResult::FAIL;
       }

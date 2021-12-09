@@ -676,6 +676,7 @@ namespace kv
       kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
+      ccf::ClaimsDigest& claims_digest,
       bool ignore_strict_versions = false) override
     {
       // This will return FAILED if the serialised transaction is being
@@ -697,6 +698,7 @@ namespace kv
         return false;
       }
       v = v_.value();
+      claims_digest = d.get_claims_digest();
 
       // Throw away any local commits that have not propagated via the
       // consensus.
