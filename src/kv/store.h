@@ -698,7 +698,8 @@ namespace kv
         return false;
       }
       v = v_.value();
-      claims_digest = d.get_claims_digest();
+      LOG_INFO_FMT("Deserialised claim digest {} {}", d.get_claims_digest().value(), d.get_claims_digest().empty());
+      claims_digest.set(d.get_claims_digest().value());
 
       // Throw away any local commits that have not propagated via the
       // consensus.

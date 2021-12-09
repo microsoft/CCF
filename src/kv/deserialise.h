@@ -141,7 +141,14 @@ namespace kv
 
       if (history)
       {
-        history->append_entry(ccf::entry_leaf(data, claims_digest.value()));
+        if (claims_digest.empty())
+        {
+          history->append(data);
+        }
+        else
+        {
+          history->append_entry(ccf::entry_leaf(data, claims_digest.value()));
+        }
       }
       return success;
     }
