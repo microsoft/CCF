@@ -60,7 +60,7 @@ A new node can only join an existing CCF network if its SGX quote is valid  [#re
 
 If the network has not yet been opened by members (see :ref:`governance/open_network:Opening the Network`), the joining node becomes part of the network immediately. Otherwise, if the network has already been opened to users, members need to trust the joining node before it can become part of the network and participate in the consensus (see :ref:`governance/common_member_operations:Trusting a New Node`).
 
-The ``Pending`` joining node automatically polls the service (interval configurable via ``join.retry_timeout`` configuration entry) until the members have successfully transitioned the node to the ``Trusted`` state. It is only then that the joining node transitions to the ``PartOfNetwork`` state and start updating its ledger.
+The ``Pending`` joining node automatically polls the service (interval configurable via ``join.retry_timeout`` configuration entry) until the members have successfully transitioned the node to the ``Trusted`` state. It is only then that the joining node transitions to the ``PartOfNetwork`` state and starts updating its ledger.
 
 .. tip:: After the node has been trusted by members, operators should poll the ``GET /node/state`` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
 
