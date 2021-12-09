@@ -46,76 +46,132 @@ For transparency and auditability, all governance operations (including votes) a
 Creating a Proposal
 -------------------
 
-For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand.
-For simple proposals there is a helper script in the CCF Python package - ``proposal_generator.py``.
-This can be used to create proposals for common operations like adding members and users, without writing any JSON.
-It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected.
-These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
-
-Assuming the CCF Python package has been installed in the current Python environment, the proposal generator can be invoked directly as ``ccf.proposal_generator``. With no further argument it will print help text, including the list of possible actions as subcommands:
+Proposals are JSON objects specifying a list of actions and associated arguments. The name of the action should match one of the actions available in your service (in ``actions.js``), and the expected types of the arguments are dictated by the validate and apply functions which handle that action.
+These proposal objects can be constructed by an tool or language which can produce JSON. The CCF pip package contains a sample of a tool to automate proposal creation, written in bash and wrapping the CLI tool ``jq``, named ``build_proposal.sh``:
 
 .. code-block:: bash
 
-    usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
-                                {add_node_code,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_node,remove_node_code,remove_user,set_ca_cert_bundle,set_constitution,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member,set_member_data,set_recovery_threshold,set_user,set_user_data,transition_node_to_trusted,transition_service_to_open,trigger_ledger_rekey,trigger_recovery_shares_refresh}
+    $ build_proposal.sh --help
 
-Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
+    Usage:
+      build_proposal.sh [--help | --action ACTION_NAME [[FLAGS] ARG_NAME ARG_VALUE...]...]
 
-.. code-block:: bash
+    This tool is a wrapper around jq, to simplify creation of CCF governance
+    proposals.
+    Specify a list of actions and associated args. A single flag per argument can be
+    used to indicate how the value should be parsed:
+      -s String (default)
+      -j JSON (including raw numbers)
+      -b Boolean (including case-insensitive parsing)
+    Additionally, any @-prefixed string is treated as a file path, and will be
+    replaced with the contents of the file.
 
-    $ python CCF/python/ccf/proposal_generator.py
+    For example:
+      build_proposal.sh
+        --action set_greeting message HelloWorld -j max_repetitions 42
+        --action no_arg_action
+        --action upload_file contents @file.txt
 
-Some of these subcommands require additional arguments, such as the node ID or user certificate to add to the service. Additional options allow the generated votes and proposals to be redirected to other files or pretty-printed:
-
-.. code-block:: bash
-
-    $ python -m ccf.proposal_generator transition_node_to_trusted 6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f 211019154318Z
-    SUCCESS | Writing proposal to ./trust_node_proposal.json
-    SUCCESS | Wrote vote to ./trust_node_vote_for.json
-
-    $ cat trust_node_proposal.json
-    {"actions": [{"name": "transition_node_to_trusted", "args": {"node_id": "6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f", "valid_from": "211019154318Z"}}]}
-
-    $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json set_user pedro_cert.pem
-    SUCCESS | Writing proposal to ./add_pedro.json
-    SUCCESS | Wrote vote to ./vote_for_pedro.json
-
-    $ cat add_pedro.json
+    Will produce:
     {
       "actions": [
         {
-          "name": "set_user",
+          "name": "set_greeting",
           "args": {
-            "cert": "-----BEGIN CERTIFICATE-----\nMIIBsjCCATigAwIBAgIUOiTU32JZsA0dSv64hW2mrKM0phEwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjIwHhcNMjEwNDE0MTUyODMyWhcNMjIwNDE0MTUyODMy\nWjAQMQ4wDAYDVQQDDAV1c2VyMjB2MBAGByqGSM49AgEGBSuBBAAiA2IABBFf+FD0\nUGIyJubt8j+f8+/BP7IY6G144yF/vBNe7CJpNNRyiMZzEyN6wmEKIjsn3gU36A6E\nqNYBlbYbXD1kzlw4q/Pe/Wl3o237p8Es6LD1e1MDUFp2qUcNA6vari6QLKNTMFEw\nHQYDVR0OBBYEFDuGVragGSHoIrFA44kQRg/SKIcFMB8GA1UdIwQYMBaAFDuGVrag\nGSHoIrFA44kQRg/SKIcFMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\nZQIxAPx54LaqQevKrcZIr7QSCZKGFJgSxfVxovSfEqTMD+sKdWzNTqJtJ1SDav1v\nImA4iwIwBsrdevSQj4U2ynXiTJKljviDnyc47ktJVkg/Ppq5cMcEZHO4Q0H/Wq3H\nlUuVImyR\n-----END CERTIFICATE-----\n"
+            "message": "HelloWorld",
+            "max_repetitions": 42
+          }
+        },
+        {
+          "name": "no_arg_action"
+        },
+        {
+          "name": "upload_file",
+          "args": {
+            "contents": "This is a file.\nContaining multiple lines."
           }
         }
       ]
     }
 
-These proposals and votes should be sent as the body of HTTP requests as described below.
+Ballots are JSON objects containing a JS script exporting a single ``vote`` function, which parse a proposal and return a boolean to indicate the submitter's assent (true to vote in favour, false to vote against). These votes may be hand-written to logically validate complex proposals, but for simple proposals it is often sufficient to do an equality check. Given a proposal object, we can generate a ballot which implements this quality check. Within the CCF pip package there are Jinja templates to generate these objects and scripts, and a Python script that demonstrates rendering these templates from a proposal, named ``ballot_builder``:
 
-Creating Proposals in Python
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-``ccf.proposal_generator`` can also be imported and used in a Python application instead of as a command-line tool.
+.. code-block:: bash
 
-.. literalinclude:: ../../python/tutorial.py
-    :language: py
-    :start-after: SNIPPET: import_proposal_generator
-    :lines: 1
+    $ python -m ccf.ballot_builder --help
 
-The proposal generation functions return dictionaries that can be submitted to a ``CCFClient``.
+    usage: ballot_builder.py [-h] proposal
 
-.. literalinclude:: ../../python/tutorial.py
-    :language: py
-    :start-after: SNIPPET_START: dict_proposal
-    :end-before: SNIPPET_END: dict_proposal
+    positional arguments:
+      proposal       Path to proposal JSON file
 
-You may wish to write these proposals to files so they can be examined or modified further. These proposal files can be submitted directly --- ``CCFClient`` will treat string request bodies beginning with an ``@`` as file paths in the same way that ``curl`` does, and use the content of the file when sending.
+    optional arguments:
+      -h, --help     show this help message and exit
 
-.. literalinclude:: ../../python/tutorial.py
-    :language: py
-    :start-after: SNIPPET_START: json_proposal_with_file
-    :end-before: SNIPPET_END: json_proposal_with_file
+These tools can also be found in a checkout of CCF, under the ``python/`` directory.
+
+.. note::
+
+    Both of these print their results (the generated proposal or ballot) directly to stdout on success, so you will likely want to redirect the output to a file to be used later.
+
+For example, to add a new user to the service (using the default ``actions.js``), we call the ``set_user`` proposal, which expects the user's certificate in an argument named ``cert``. The ``build_proposal.sh`` script can read the cert directly from a file and insert that into the generated proposal by prefixing the argument value with ``@``:
+
+.. code-block:: bash
+
+    $ build_proposal.sh --action set_user cert @pedro_cert.pem > set_user_pedro.json
+
+    $ cat set_user_pedro.json 
+    {
+      "actions": [
+        {
+          "name": "set_user",
+          "args": {
+            "cert": "-----BEGIN CERTIFICATE-----\nMIIBsjCCATigAwIBAgIUPutF1tdOKYecWwiX6FHw99I7QWIwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFcGVkcm8wHhcNMjExMjA5MTQ0OTE2WhcNMjIxMjA5MTQ0OTE2\nWjAQMQ4wDAYDVQQDDAVwZWRybzB2MBAGByqGSM49AgEGBSuBBAAiA2IABJi0tNaU\nWmstK3Sx0pIEuQQT8gNlWLV1El3WnXYRQSaRKAVH5MRZIMPxxQbU17WA8IYOhzel\nzgp0A91JN7jB2bqYzhV/liWIbPpGw5lIFX4eeBF7tOyZeaGc1j35sKUveKNTMFEw\nHQYDVR0OBBYEFEVkwYquNo8Nk4yVDyRz74EG+lTNMB8GA1UdIwQYMBaAFEVkwYqu\nNo8Nk4yVDyRz74EG+lTNMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\nZQIwXweMn2htClgJlvukyHC8qIFpelPXmtJRuJ77VyDfqqQSDcVLl4sNGAHjqprv\nBYPmAjEA1XvpLLmPvIMfiwXeapgFnUzajFsuT3qzgWVgfED6E9B3kvQUhx6ZRG1l\np+BCBQGl\n-----END CERTIFICATE-----"
+          }
+        }
+      ]
+    }
+
+We can auto-generate a ballot for this proposal:
+
+.. code-block:: bash
+
+    $ ballot_builder.py set_user_pedro.json > vote_for_pedro.json
+
+    $ cat vote_for_pedro.json 
+    {
+      "ballot": "export function vote (rawProposal, proposerId) { let proposal = JSON.parse(rawProposal); if (!(\"actions\" in proposal)) { return false; } /* SNIP */ return true; }"
+    }
+
+To encode non-string arguments, we must pass a flag to the generator telling it the argument is raw JSON. Compare:
+
+.. code-block:: bash
+
+    $ build_proposal.sh --action set_recovery_threshold threshold 42
+    {
+      "actions": [
+        {
+          "name": "set_recovery_threshold",
+          "args": {
+            "threshold": "42"
+          }
+        }
+      ]
+    }
+
+    $ build_proposal.sh --action set_recovery_threshold threshold -j 42
+    {
+      "actions": [
+        {
+          "name": "set_recovery_threshold",
+          "args": {
+            "threshold": 42
+          }
+        }
+      ]
+    }
+
+These proposals and ballots should be sent as the body of HTTP requests as described below.
 
 Submitting a New Proposal
 -------------------------
@@ -147,7 +203,9 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       "state": "Open"
     }
 
-Here a new proposal has successfully been created, and nobody has yet voted for it. The proposal is in state ``Open``, meaning it will can receive additional votes. Members can then vote to accept or reject the proposal:
+.. note:: Requests which affect governance must be signed, so this request is submitted by ``scurl.sh`` rather than ``curl``. If you do not sign a request which the service expects to be signed, it will return a ``401 Unauthorized`` response.
+
+Here a new proposal has successfully been created, and nobody has yet voted for it. The proposal is in state ``Open``, meaning it can receive additional votes. Members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
 
