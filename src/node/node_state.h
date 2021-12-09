@@ -3,7 +3,7 @@
 #pragma once
 
 #include "blit.h"
-#include "consensus/aft/raft_consensus.h"
+#include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "crypto/entropy.h"
@@ -67,9 +67,7 @@ namespace std
 
 namespace ccf
 {
-  using RaftConsensusType =
-    aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
 
   struct NodeCreateInfo
   {
@@ -643,8 +641,8 @@ namespace ccf
           if (msg->data.self.sm.check(State::pending))
           {
             msg->data.self.initiate_join();
-            auto delay =
-              std::chrono::milliseconds(msg->data.self.config.join.timer_ms);
+            auto delay = std::chrono::milliseconds(
+              msg->data.self.config.join.retry_timeout);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
@@ -653,7 +651,7 @@ namespace ccf
         *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(timer_msg), std::chrono::milliseconds(config.join.timer_ms));
+        std::move(timer_msg), config.join.retry_timeout);
     }
 
     void join()
@@ -673,7 +671,7 @@ namespace ccf
         return;
       }
       jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
-        config.jwt.key_refresh_interval_s,
+        config.jwt.key_refresh_interval.count_s(),
         network,
         consensus,
         rpcsessions,
@@ -1957,27 +1955,18 @@ namespace ccf
         kv::MembershipState::Learner :
         kv::MembershipState::Active;
 
-      auto raft = std::make_unique<RaftType>(
-        network.consensus_type,
+      consensus = std::make_shared<RaftType>(
+        consensus_config,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
-        rpcsessions,
-        rpc_map,
         shared_state,
         std::move(resharing_tracker),
         node_client,
-        std::chrono::milliseconds(consensus_config.timeout_ms),
-        std::chrono::milliseconds(consensus_config.election_timeout_ms),
-        std::chrono::milliseconds(consensus_config.election_timeout_ms),
-        sig_tx_interval,
         public_only,
         membership_state,
         reconfiguration_type);
-
-      consensus = std::make_shared<RaftConsensusType>(
-        std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
 

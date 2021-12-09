@@ -235,7 +235,7 @@ def test_learner_does_not_take_part(network, args):
             network.consortium.trust_node(
                 primary,
                 new_node.node_id,
-                timeout=ceil(args.join_timer * 2 / 1000),
+                timeout=ceil(args.join_timer_s * 2),
                 valid_from=str(infra.crypto.datetime_to_X509time(datetime.now())),
             )
         except TimeoutError:

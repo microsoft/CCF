@@ -96,6 +96,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
                        sss.enclave ccf_endpoints.enclave
   )
 
+  if(ENABLE_HTTP2)
+    target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
+  endif()
+
   enable_quote_code(ccf.enclave)
 
   add_lvi_mitigations(ccf.enclave)
@@ -144,6 +148,10 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
+
+  if(ENABLE_HTTP2)
+    target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
+  endif()
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 

@@ -99,13 +99,15 @@ namespace asynchost
     std::unordered_map<tls::ConnID, TCP> sockets;
     tls::ConnID next_id = 1;
 
-    size_t client_connection_timeout;
+    std::optional<std::chrono::milliseconds> client_connection_timeout =
+      std::nullopt;
     ringbuffer::WriterPtr to_enclave;
 
   public:
     RPCConnections(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      size_t client_connection_timeout_) :
+      std::optional<std::chrono::milliseconds> client_connection_timeout_ =
+        std::nullopt) :
       client_connection_timeout(client_connection_timeout_),
       to_enclave(writer_factory.create_writer_to_inside())
     {}
