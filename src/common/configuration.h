@@ -72,14 +72,14 @@ struct CCFConfig
   };
   NodeCertificateInfo node_certificate = {};
 
-  struct Intervals
+  struct LedgerSignatures
   {
-    size_t signature_interval_size = 5000;
-    ds::TimeString signature_interval_duration = std::string("1000ms");
+    size_t tx_count = 5000;
+    ds::TimeString delay = std::string("1000ms");
 
-    bool operator==(const Intervals&) const = default;
+    bool operator==(const LedgerSignatures&) const = default;
   };
-  Intervals intervals = {};
+  LedgerSignatures ledger_signatures = {};
 
   struct JWT
   {
@@ -99,10 +99,9 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   curve_id,
   initial_validity_days);
 
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Intervals);
-DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Intervals);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Intervals, signature_interval_size, signature_interval_duration);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::LedgerSignatures);
+DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures, tx_count, delay);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
@@ -111,7 +110,12 @@ DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval);
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig, worker_threads, node_certificate, consensus, intervals, jwt);
+  CCFConfig,
+  worker_threads,
+  node_certificate,
+  consensus,
+  ledger_signatures,
+  jwt);
 
 struct StartupConfig : CCFConfig
 {
