@@ -267,9 +267,9 @@ class LoggingTxs:
                 f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
 
-    def get_receipt(self, node, idx, seqno, view, timeout=3):
+    def get_receipt(self, node, idx, seqno, view, timeout=3, domain="private"):
 
-        cmd = "/app/log/private/historical_receipt"
+        cmd = f"/app/log/{domain}/historical_receipt"
         headers = self._get_headers_base()
         headers.update(
             {

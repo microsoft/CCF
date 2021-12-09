@@ -947,6 +947,8 @@ namespace kv
             }
             else
             {
+              LOG_INFO_FMT(
+                "Appending with claim digest {}", claims_digest_.value());
               h->append_entry(
                 ccf::entry_leaf(*data_shared, claims_digest_.value()));
             }

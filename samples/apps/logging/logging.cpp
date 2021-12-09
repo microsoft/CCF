@@ -814,6 +814,61 @@ namespace loggingapp
         .install();
       // SNIPPET_END: get_historical_with_receipt
 
+      auto get_historical_with_receipt_and_claims =
+        [this](
+          ccf::endpoints::EndpointContext& ctx,
+          ccf::historical::StatePtr historical_state) {
+          const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
+
+          // Parse id from query
+          const auto parsed_query =
+            http::parse_query(ctx.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          size_t id;
+          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
+
+          auto historical_tx = historical_state->store->create_read_only_tx();
+          auto records_handle =
+            historical_tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+          const auto v = records_handle->get(id);
+
+          if (v.has_value())
+          {
+            LoggingGetReceipt::Out out;
+            out.msg = v.value();
+            assert(historical_state->receipt);
+            historical_state->receipt->describe(out.receipt);
+            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
+          }
+          else
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+        };
+      make_endpoint(
+        "/log/public/historical_receipt",
+        HTTP_GET,
+        ccf::historical::adapter_v2(
+          get_historical_with_receipt_and_claims,
+          context.get_historical_state(),
+          is_tx_committed),
+        auth_policies)
+        .set_auto_schema<void, LoggingGetReceipt::Out>()
+        .add_query_parameter<size_t>("id")
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+      // SNIPPET_END: get_historical_with_receipt
+
       static constexpr auto get_historical_range_path =
         "/log/private/historical/range";
       auto get_historical_range = [&,

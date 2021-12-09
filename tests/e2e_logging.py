@@ -29,6 +29,8 @@ import random
 import re
 import infra.crypto
 from infra.runner import ConcurrentRunner
+import pprint
+from hashlib import sha256
 
 from loguru import logger as LOG
 
@@ -40,6 +42,21 @@ def verify_receipt(receipt, network_cert, check_endorsement=True):
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, network_cert)
+    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+    ccf.receipt.verify(root, receipt["signature"], node_cert)
+
+
+def verify_receipt_with_claims(receipt, network_cert, claims, check_endorsement=True):
+    """
+    Raises an exception on failure
+    """
+    node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
+    if check_endorsement:
+        ccf.receipt.check_endorsement(node_cert, network_cert)
+    claims_digest = sha256(claims).digest()
+    leaf = sha256(bytes.fromhex(receipt["write_set_digest"]) + claims_digest).digest()
+    pprint.pprint(receipt)
+    assert leaf.hex() == receipt["leaf"]
     root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
@@ -643,7 +660,7 @@ def test_historical_query(network, args):
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
-    network.txs.issue(network, number_txs=5)
+    network.txs.issue(network, send_public=False, number_txs=5)
     for idx in range(1, TXS_COUNT + 1):
         for node in [primary, backups[0]]:
             first_msg = network.txs.priv[idx][0]
@@ -652,6 +669,36 @@ def test_historical_receipts(network, args):
             )
             r = first_receipt.json()["receipt"]
             verify_receipt(r, network.cert)
+
+    # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
+    verified = True
+    try:
+        ccf.receipt.verify(
+            hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
+        )
+    except InvalidSignature:
+        verified = False
+    assert not verified
+
+    return network
+
+
+@reqs.description("Read historical receipts with claims")
+@reqs.supports_methods("log/public", "log/public/historical_receipt")
+def test_historical_receipts_with_claims(network, args):
+    primary, backups = network.find_nodes()
+    TXS_COUNT = 5
+    network.txs.issue(network, send_private=False, number_txs=5)
+    for idx in range(1, TXS_COUNT + 1):
+        for node in [primary, backups[0]]:
+            first_msg = network.txs.pub[idx][0]
+            first_receipt = network.txs.get_receipt(
+                node, idx, first_msg["seqno"], first_msg["view"], domain="public"
+            )
+            r = first_receipt.json()["receipt"]
+            verify_receipt_with_claims(
+                r, network.cert, first_receipt.json()["msg"].encode()
+            )
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
@@ -1406,6 +1453,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        """
         network = test(network, args, verify=args.package != "libjs_generic")
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
@@ -1438,11 +1486,14 @@ def run(args):
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
         network = test_historical_receipts(network, args)
+        """
+        network = test_historical_receipts_with_claims(network, args)
 
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
+    """
     cr.add(
         "js",
         run,
@@ -1451,6 +1502,7 @@ if __name__ == "__main__":
         initial_user_count=4,
         initial_member_count=2,
     )
+    """
 
     cr.add(
         "cpp",

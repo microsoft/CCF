@@ -23,6 +23,7 @@ namespace ccf
     std::string leaf;
     ccf::NodeId node_id;
     std::optional<std::string> cert = std::nullopt;
+    std::optional<std::string> write_set_digest = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::Element)
@@ -30,7 +31,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt::Element, left, right)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, leaf, node_id)
-  DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root, cert)
+  DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root, cert, write_set_digest)
 
   static crypto::Sha256Hash compute_root_from_receipt(const Receipt& receipt)
   {

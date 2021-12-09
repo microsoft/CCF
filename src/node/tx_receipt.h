@@ -14,18 +14,24 @@ namespace ccf
     std::shared_ptr<ccf::HistoryTree::Path> path = {};
     ccf::NodeId node_id = {};
     std::optional<crypto::Pem> cert = std::nullopt;
+    std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
+    ccf::ClaimsDigest claims_digest = {};
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
       const HistoryTree::Hash& r_,
       std::shared_ptr<ccf::HistoryTree::Path> p_,
       const NodeId& n_,
-      const std::optional<crypto::Pem>& c_) :
+      const std::optional<crypto::Pem>& c_,
+      const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       signature(s_),
       root(r_),
       path(p_),
       node_id(n_),
-      cert(c_)
+      cert(c_),
+      write_set_digest(write_set_digest_),
+      claims_digest(claims_digest_)
     {}
 
     void describe(ccf::Receipt& r, bool include_root = false)
@@ -61,6 +67,11 @@ namespace ccf
       if (cert.has_value())
       {
         r.cert = cert->str();
+      }
+
+      if (write_set_digest.has_value())
+      {
+        r.write_set_digest = write_set_digest->hex_str();
       }
     }
   };

@@ -45,6 +45,7 @@ namespace kv
     OrderedChanges changes;
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
+    ccf::ClaimsDigest claims_digest;
 
     const std::optional<TxID> expected_txid;
 
@@ -62,10 +63,13 @@ namespace kv
       expected_txid(expected_txid_)
     {}
 
+    const ccf::ClaimsDigest& get_claims_digest() const override
+    {
+      return claims_digest;
+    }
+
     ApplyResult apply() override
     {
-      ccf::ClaimsDigest claims_digest;
-
       if (!store->fill_maps(
             data,
             public_only,

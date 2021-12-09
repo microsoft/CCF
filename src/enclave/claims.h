@@ -32,7 +32,7 @@ namespace ccf
 
     inline bool empty() const
     {
-      return is_set;
+      return !is_set;
     }
 
     const Digest& value() const

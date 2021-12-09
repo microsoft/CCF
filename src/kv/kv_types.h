@@ -671,6 +671,7 @@ namespace kv
     virtual kv::Version get_index() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
+    virtual const ccf::ClaimsDigest& get_claims_digest() const = 0;
 
     // Setting a short rollback is a work around that should be fixed
     // shortly. In BFT mode when we deserialize and realize we need to
