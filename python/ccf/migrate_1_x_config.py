@@ -22,9 +22,10 @@ SECTIONS_2_X = [
     "snapshots",
     "logging",
     "consensus",
-    "intervals",
+    "ledger_signatures",
     "jwt",
     "memory",
+    "output_files",
 ]
 
 DEFAULT_MAX_RPC_SESSIONS_SOFT = 1000
@@ -79,6 +80,7 @@ if __name__ == "__main__":
     for s in SECTIONS_2_X:
         output[s] = {}
     output["network"]["rpc_interfaces"] = [{}]
+    output["network"]["node_to_node_interface"] = {}
     output["network"]["rpc_interfaces"][0] = {
         "max_open_sessions_soft": DEFAULT_MAX_RPC_SESSIONS_SOFT,
         "max_open_sessions_hard": DEFAULT_MAX_RPC_SESSIONS_SOFT + 10,
@@ -134,7 +136,7 @@ if __name__ == "__main__":
                     int(v) + 10
                 )
             elif k == "node_address":
-                output["network"]["node_address"] = v
+                output["network"]["node_to_node_interface"]["bind_address"] = v
             elif k == "network_cert_file":
                 output["network_certificate_file"] = v
 
@@ -158,7 +160,7 @@ if __name__ == "__main__":
             elif k == "snapshot_dir":  # plural
                 output["snapshots"]["directory"] = v
             elif k == "snapshot_tx_interval":
-                output["snapshots"]["interval_size"] = int(v)
+                output["snapshots"]["tx_count"] = int(v)
 
             # logging
             elif k == "log_format_json":
@@ -175,9 +177,9 @@ if __name__ == "__main__":
                 output["consensus"]["election_timeout"] = f"{v}ms"
 
             elif k == "sig_tx_interval":
-                output["intervals"]["signature_interval_size"] = int(v)
+                output["ledger_signatures"]["tx_count"] = int(v)
             elif k == "sig_ms_interval":
-                output["intervals"]["signature_interval_duration"] = f"{v}ms"
+                output["ledger_signatures"]["delay"] = f"{v}ms"
             elif k == "jwt_key_refresh_interval_s":
                 output["jwt"]["key_refresh_interval"] = f"{v}s"
 
@@ -188,8 +190,18 @@ if __name__ == "__main__":
                 k = k[: -len(suffix)] if k.endswith(suffix) else k
                 output["memory"][k] = f"{human_readable_size(1 << int(v))}"
 
+            # output files
+            elif k == "node_cert_file":
+                output["output_files"]["node_certificate_file"] = v
+            elif k == "node_pid_file":
+                output["output_files"]["pid_file"] = v
+            elif k == "rpc_address_file":
+                output["output_files"]["rpc_addresses_file"] = v
+            elif k == "node_address_file":
+                output["output_files"]["node_to_node_address_file"] = v
+
             elif k == "tick_period_ms":
-                output["tick_period"] = f"{v}ms"
+                output["tick_interval"] = f"{v}ms"
 
             elif k == "worker_threads":
                 output[k] = int(v)
