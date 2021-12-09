@@ -3,10 +3,7 @@
 
 import argparse
 import json
-import os
-import sys
 import jinja2
-from typing import Optional
 
 
 def build_ballot_raw(proposal: dict):
@@ -22,7 +19,7 @@ def build_ballot_raw(proposal: dict):
 
 
 def build_ballot(proposal_path: str):
-    with open(proposal_path, "r") as f:
+    with open(proposal_path, "r", encoding="utf-8") as f:
         proposal = json.load(f)
 
     return build_ballot_raw(proposal)

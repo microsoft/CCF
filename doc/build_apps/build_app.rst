@@ -8,7 +8,7 @@ Build and Sign CCF Applications
 
 Once an application is complete, it needs to be built into a shared object, and signed.
 
-Using `cmake`, an application can be built and then signed using the functions provided by CCF's ``cmake/ccf.cmake``. For example, for the ``js_generic`` JavaScript application:
+Using `CMake <https://cmake.org/>`_, an application can be built and then signed using the functions provided by CCF's ``cmake/ccf.cmake``. For example, for the ``js_generic`` JavaScript application:
 
 .. literalinclude:: ../../cmake/common.cmake
     :language: cmake

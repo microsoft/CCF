@@ -75,7 +75,7 @@ function emit_action()
     exit 1
   fi
   current_state="$STATE_ACTION_NAME"
-  if [ ! -z "$action" ]; then
+  if [ -n "$action" ]; then
     actions="$(jq -n 'input + [input]' <(echo "$action") <(echo "$actions"))"
   fi
 }
