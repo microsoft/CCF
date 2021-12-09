@@ -31,10 +31,6 @@ def build_ballot(proposal_path: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("proposal", type=str, help="Path to proposal JSON file")
-    parser.add_argument("-v", "--verbose", action="store_true")
-
     args = parser.parse_args()
-
     ballot = build_ballot(args.proposal)
-
     print(ballot)
