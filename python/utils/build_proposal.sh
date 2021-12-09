@@ -24,7 +24,7 @@ current_state="$STATE_UNDEFINED"
 current_arg_type="$ARG_TYPE_DEFAULT"
 actions="[]"
 
-THIS_SCRIPT="$(basename $0)"
+THIS_SCRIPT="$(basename "$0")"
 function usage()
 {
   echo "Usage:"
@@ -56,11 +56,11 @@ function print_help()
   # To keep this help up-to-date, actually run this sample program!
   # But it requires a file, so cheat a little and rewrite that to a temp file
   tmp_file=$(mktemp)
-  echo "This is a file." >> $tmp_file
-  echo "Containing multiple lines." >> $tmp_file
+  echo "This is a file." >> "$tmp_file"
+  echo "Containing multiple lines." >> "$tmp_file"
   args_c[-1]="@$tmp_file"
   echo "Will produce:"
-  echo "$($0 ${args_a[@]} ${args_b[@]} ${args_c[@]})"
+  $0 "${args_a[@]}" "${args_b[@]}" "${args_c[@]}"
 }
 
 function emit_action()

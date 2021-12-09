@@ -46,6 +46,6 @@ python -m ccf.ballot_builder add_node_code_proposal.json > add_node_code_vote_fo
 
 CCF_ROOT_DIR="${1}"
 python -m ccf.bundle_js_app --help
-python -m ccf.bundle_js_app "${1}"/samples/apps/logging/js > bundle.json
+python -m ccf.bundle_js_app "$CCF_ROOT_DIR"/samples/apps/logging/js > bundle.json
 build_proposal.sh --action set_js_app bundle -j @bundle.json > set_js_app_proposal.json
 python -m ccf.ballot_builder set_js_app_proposal.json > set_js_app_vote_for.json
