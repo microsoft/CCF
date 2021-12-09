@@ -16,24 +16,18 @@ Before adding public token signing keys to a running CCF network, the IdP has to
 
 .. code-block:: bash
 
-    $ cat issuer.json
-    {
-      "issuer": "my-issuer",
-      "auto_refresh": false
-    }
-    $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
+    $ build_proposal.sh --action set_jwt_issuer issuer my-issuer auto_refresh -b false key_filter all
 
 The ``issuer`` field is an arbitrary identifier and should be used during token validation to differentiate between multiple issuers.
 
-Note that ``issuer.json`` has some additional optional fields for more advanced scenarios.
+Note that ``set_jwt_issuer`` has some additional optional arguments for more advanced scenarios.
 See :ref:`build_apps/auth/jwt:Advanced issuer configuration` for details.
 
 After this proposal is accepted, signing keys for an issuer can be updated with a ``set_jwt_public_signing_keys`` proposal:
 
 .. code-block:: bash
 
-    $ ISSUER="my-issuer"
-    $ python -m ccf.proposal_generator set_jwt_public_signing_keys $ISSUER jwks.json
+    $ build_proposal.sh --action set_jwt_public_signing_keys issuer "my-issuer" jwks -j @jwks.json
 
 ``jwks.json`` contains the signing keys as JWKS (`JSON Web Key Set <https://tools.ietf.org/html/rfc7517>`_) document.
 
@@ -52,23 +46,22 @@ The CA certificate is stored with a ``set_ca_cert`` proposal:
 
 .. code-block:: bash
 
-    $ python -m ccf.proposal_generator set_ca_cert jwt_ms cacert.pem
+    $ build_proposal.sh --action set_ca_cert name jwt_ms cert_bundle @pedro_cert.pem
 
 Now the issuer can be created with auto-refresh enabled:
 
 .. code-block:: bash
 
-    $ cat issuer.json
-    {
-      "issuer": "https://login.microsoftonline.com/common/v2.0",
-      "auto_refresh": true,
-      "ca_cert_name": "jwt_ms"
-    }
-    $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
+    $ build_proposal.sh \
+      --action set_jwt_issuer \
+        issuer "https://login.microsoftonline.com/common/v2.0" \
+        auto_refresh -b true \
+        key_filter all \
+        ca_cert_name jwt_ms
 
 .. note::
 
-    The key refresh interval is set via the ``jwt.key_refresh_interval_s`` configuration entry, where the default is 30 min (1800 seconds).
+    The key refresh interval is set via the ``jwt.key_refresh_interval_s`` configuration entry when starting a node, where the default is 30 min (1800 seconds).
 
 Removing a token issuer
 -----------------------
@@ -77,14 +70,13 @@ If an issuer should not be used anymore, then a ``remove_jwt_issuer`` proposal c
 
 .. code-block:: bash
 
-    $ ISSUER="https://login.microsoftonline.com/common/v2.0"
-    $ python -m ccf.proposal_generator remove_jwt_issuer $ISSUER
+    $ build_proposal.sh --action remove_jwt_issuer issuer "https://login.microsoftonline.com/common/v2.0"
 
 Validating tokens
 -----------------
 
 Validating a token means checking its format, signature, and IdP- and app-specific claims.
-See `tests/js-authentication/src/endpoints.ts <https://github.com/microsoft/CCF/blob/main/tests/js-authentication/src/endpoints.ts>`_ for an example on how to do this in TypeScript.
+See `tests/js-authentication/src/endpoints.js <https://github.com/microsoft/CCF/blob/main/tests/js-authentication/src/endpoints.js>`_ for an example on how to do this in JS.
 
 Token signing keys are stored in the ``public:ccf.gov.jwt.public_signing_keys`` kv map where the key is the key ID and the value the DER-encoded X.509 certificate. The key ID matches the ``kid`` field in the token header and can be used to retrieve the matching certificate for validation.
 
@@ -103,18 +95,14 @@ CCF validates embedded SGX evidence if a key policy is given in the issuer metad
 
 .. code-block:: bash
 
-    $ cat issuer.json
+    $ cat key_policy.json
     {
-      "issuer": "https://shareduks.uks.attest.azure.net",
-      "key_filter": "sgx",
-      "key_policy": {
-        "sgx_claims": {
-          "signer_id": "5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526",
-          "attributes": "0300000000000000"
-        }
+      "sgx_claims": {
+        "signer_id": "5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526",
+        "attributes": "0300000000000000"
       }
     }
-    $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
+    $ build_proposal.sh --action set_jwt_issuer issuer "https://shareduks.uks.attest.azure.net" key_filter sgx key_policy -j @key_policy.json
 
 All claims contained in ``key_policy.sgx_claims`` must be identical to the ones embedded in the certificate.
 Any attempt to add a certificate with mismatching claims in a ``set_jwt_public_signing_keys`` proposal for that issuer would result in failure.
