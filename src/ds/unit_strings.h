@@ -18,7 +18,9 @@ namespace ds
   public:
     template <class F, typename T>
     static size_t convert(
-      const std::string_view& input, std::map<std::string_view, T>& mapping, F&& f)
+      const std::string_view& input,
+      std::map<std::string_view, T>& mapping,
+      F&& f)
     {
       if (input.empty())
       {
@@ -85,13 +87,13 @@ namespace ds
 
   static size_t convert_time_string(const std::string_view& input)
   {
-    std::map<std::string_view, std::pair<size_t, size_t>> size_suffix_to_power = {
-      {"", {1, 0}},
-      {"us", {1, 0}},
-      {"ms", {1, 3}},
-      {"s", {1, 6}},
-      {"min", {60, 6}},
-      {"h", {36, 8}}};
+    std::map<std::string_view, std::pair<size_t, size_t>> size_suffix_to_power =
+      {{"", {1, 0}},
+       {"us", {1, 0}},
+       {"ms", {1, 3}},
+       {"s", {1, 6}},
+       {"min", {60, 6}},
+       {"h", {36, 8}}};
 
     return UnitStringConverter::convert(
       input,
