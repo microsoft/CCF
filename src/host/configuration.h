@@ -55,10 +55,10 @@ namespace host
     Enclave enclave = {};
 
     // Other
-    ds::TimeString tick_interval = std::string("10ms");
-    ds::TimeString slow_io_logging_threshold = std::string("10ms");
+    ds::TimeString tick_interval = {"10ms"};
+    ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
-    ds::TimeString client_connection_timeout = std::string("2000ms");
+    ds::TimeString client_connection_timeout = {"2000ms"};
 
     struct OutputFiles
     {
@@ -77,7 +77,7 @@ namespace host
     {
       std::string directory = "ledger";
       std::vector<std::string> read_only_directories = {};
-      ds::SizeString chunk_size = std::string("5MB");
+      ds::SizeString chunk_size = {"5MB"};
 
       bool operator==(const Ledger&) const = default;
     };
@@ -103,9 +103,9 @@ namespace host
 
     struct Memory
     {
-      ds::SizeString circuit_size = std::string("4MB");
-      ds::SizeString max_msg_size = std::string("16MB");
-      ds::SizeString max_fragment_size = std::string("64KB");
+      ds::SizeString circuit_size = {"4MB"};
+      ds::SizeString max_msg_size = {"16MB"};
+      ds::SizeString max_fragment_size = {"64KB"};
 
       bool operator==(const Memory&) const = default;
     };
@@ -129,7 +129,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-        ds::TimeString retry_timeout = std::string("1000ms");
+        ds::TimeString retry_timeout = {"1000ms"};
 
         bool operator==(const Join&) const = default;
       };
