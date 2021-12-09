@@ -19,9 +19,6 @@
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
-      "sourceFileMap": {
-        "./../../src": "${workspaceFolder}/build-v8/tmp/v8/src"
-      },
       "environment": [],
       "externalConsole": false,
       "MIMode": "gdb",
@@ -54,9 +51,6 @@
       "program": "/bin/bash",
       "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
       "cwd": "${workspaceFolder}",
-      "sourceMap": {
-        "../../src": "${workspaceFolder}/build-v8/tmp/v8/src"
-      },
       "terminal": "console",
       "stopOnEntry": false,
       "initCommands": ["settings set target.process.stop-on-exec false"],
@@ -75,7 +69,6 @@
       "cwd": "${workspaceFolder}",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
       "sourceFileMap": {
-        "./../../src": "${workspaceFolder}/build-v8/tmp/v8/src",
         "/source/openenclave": "${workspaceFolder}/../openenclave"
       },
       "environment": [{ "name": "OE_LOG_LEVEL", "value": "WARNING" }],
