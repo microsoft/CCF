@@ -699,7 +699,8 @@ namespace kv
       }
       v = v_.value();
       LOG_INFO_FMT("Deserialised claim digest {} {}", d.get_claims_digest().value(), d.get_claims_digest().empty());
-      claims_digest.set(d.get_claims_digest().value());
+      if (!d.get_claims_digest().empty())
+        claims_digest.set(d.get_claims_digest().value());
 
       // Throw away any local commits that have not propagated via the
       // consensus.
