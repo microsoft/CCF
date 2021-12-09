@@ -35,9 +35,11 @@ The following table describes the structure of a serialised transaction as it is
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | uint64_t                                 | Length of serialised public domain                                      |
 +----------+------------------------------------------+-------------------------------------------------------------------------+
-|          | bool                                     | Is snapshot (``false`` for all ledger entries)                          |
+|          | :cpp:type:`kv::EntryType`                | One of WriteSet, Snapshot or WriteSetWithClaims                         |
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`kv::Version`                  | Transaction version                                                     |
++          +------------------------------------------+-------------------------------------------------------------------------+
+|          | :cpp:type:`crypto::Sha256Hash`           | User-defined claims digest, only when entry type is WriteSetWithClaims  |
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`kv::Version`                  | Indicates after which version can this ledger entry be executed while   |
 |          |                                          | maintaining linearizability                                             |

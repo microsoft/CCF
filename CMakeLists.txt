@@ -696,15 +696,19 @@ if(BUILD_TESTS)
     )
   endif()
 
-  foreach(ITERATION ${LTS_ITERATIONS})
-    add_e2e_test(
-      NAME lts_${ITERATION}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-      CONSENSUS cft
-      LABEL e2e
-      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-    )
-  endforeach()
+  # To be removed before merge, this is to make it easier to spot failures in
+  # the rest of the tests while the LTS changes are being made.
+  if(LONG_TESTS)
+    foreach(ITERATION ${LTS_ITERATIONS})
+      add_e2e_test(
+        NAME lts_${ITERATION}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+        CONSENSUS cft
+        LABEL e2e
+        ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+      )
+    endforeach()
+  endif()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
