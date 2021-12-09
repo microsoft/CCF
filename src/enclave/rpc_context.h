@@ -206,5 +206,10 @@ namespace enclave
     virtual void reset_response() = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
+
+    virtual void set_claims_digest(const ccf::ClaimsDigest::Digest& digest)
+    {
+      claims.set(digest);
+    }
   };
 }

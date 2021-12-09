@@ -98,6 +98,12 @@ namespace crypto
     {
       return ds::to_hex(h);
     };
+
+    static inline Sha256Hash from_string(const std::string& str)
+    {
+      CBuffer cb(str);
+      return Sha256Hash(cb);
+    }
   };
 
   inline void to_json(nlohmann::json& j, const Sha256Hash& hash)
