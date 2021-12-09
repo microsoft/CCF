@@ -113,7 +113,7 @@ namespace ccf
         ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "RPC could not be redirected to unknown primary.");
+          "RPC could not be forwarded to unknown primary.");
         update_metrics(ctx, endpoint);
         return ctx->serialise_response();
       }
