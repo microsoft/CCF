@@ -122,8 +122,9 @@ namespace ccf
       cmd_forwarder->forward_command(
         ctx, primary_id.value(), ctx->session->caller_cert);
 
-      // Indicate that the RPC has been forwarded to primary
       LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
+
+      // Indicate that the RPC has been forwarded to primary
       return std::nullopt;
     }
 
