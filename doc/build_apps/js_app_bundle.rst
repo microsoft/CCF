@@ -15,11 +15,6 @@ This page documents the components of a bundle and the JavaScript API available 
     They involve a `build` step that generates an app bundle suitable for CCF.
     See the following for more details:
 
-    .. toctree::
-      :maxdepth: 1
-
-      js_app_ts
-
 Folder Layout
 -------------
 
