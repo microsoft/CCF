@@ -333,6 +333,13 @@ namespace ccf
     finalizers_.push_back({callback, data});
   }
 
+  void V8Context::run_finalizers()
+  {
+    for (auto& [fn, data] : finalizers_)
+      fn(data);
+    finalizers_.clear();
+  }
+
   void V8Context::set_module_load_callback(
     ModuleLoadCallback callback, void* data)
   {

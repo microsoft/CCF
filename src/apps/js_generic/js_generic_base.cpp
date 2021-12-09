@@ -258,17 +258,33 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptPtr receipt)
     {
-      js::Runtime rt;
-      rt.add_ccf_classdefs();
+      // TEST: temporarily reuse runtime and context
+      thread_local js::Runtime rt;
+      thread_local bool is_first_call = true;
+      JSRuntime* rt_ = rt;
+      JS_UpdateStackTop(rt_);
+      if (is_first_call)
+      {
+        rt.add_ccf_classdefs();
+      }
 
       JS_SetModuleLoaderFunc(
         rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::Context ctx(rt);
+      thread_local js::Context ctx(rt);
+      if (!is_first_call)
+      {
+        JS_FreeModules(ctx);
+      }
+
       js::TxContext txctx{&endpoint_ctx.tx, js::TxAccess::APP};
       js::TxContext historical_txctx{historical_tx, js::TxAccess::APP};
 
-      js::register_request_body_class(ctx);
+      if (is_first_call)
+      {
+        js::register_request_body_class(ctx);
+      }
+      is_first_call = false;
       js::populate_global(
         &txctx,
         historical_tx ? &historical_txctx : nullptr,

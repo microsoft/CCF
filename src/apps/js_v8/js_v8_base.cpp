@@ -75,11 +75,11 @@ namespace ccfapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::historical::StatePtr historical_state)
     {
-      //thread_local V8Isolate isolate;
-      V8Isolate isolate;
+      thread_local V8Isolate isolate;
 
       // Each request is executed in a new context
-      V8Context ctx(isolate);
+      // TEST only: re-use contexts
+      thread_local V8Context ctx(isolate);
 
       // set a callback that loads modules from the KV
       ctx.set_module_load_callback(
@@ -109,6 +109,10 @@ namespace ccfapp
       std::vector<v8::Local<v8::Value>> args{request};
       v8::Local<v8::Value> val =
         ctx.run(props.js_module, props.js_function, args);
+
+      // Needed when re-using contexts.
+      // Should ideally be done in a scope.
+      ctx.run_finalizers();
 
       if (val.IsEmpty())
       {

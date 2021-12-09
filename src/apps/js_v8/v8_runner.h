@@ -135,6 +135,7 @@ namespace ccf
     static V8Context& from_context(v8::Local<v8::Context> context);
 
     void register_finalizer(FinalizerCallback callback, void* data);
+    void run_finalizers();
 
     /**
      * Must be called before run().

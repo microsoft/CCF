@@ -21,3 +21,8 @@ JSAtom JS_GetModuleExportEntryName(JSContext *ctx, JSModuleDef *m, int idx)
         return JS_ATOM_NULL;
     return JS_DupAtom(ctx, m->export_entries[idx].export_name);
 }
+
+void JS_FreeModules(JSContext *ctx)
+{
+    js_free_modules(ctx, JS_FREE_MODULE_ALL);
+}
