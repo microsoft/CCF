@@ -81,4 +81,8 @@ class HostSpec:
     def from_str(s):
         protocol, address = s.split("://")
         host, port = split_address(address)
-        return HostSpec(rpc_interfaces=[RPCInterface(protocol, host, port)])
+        return HostSpec(
+            rpc_interfaces=[
+                RPCInterface(protocol=protocol, rpc_host=host, rpc_port=port)
+            ]
+        )
