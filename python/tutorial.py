@@ -102,6 +102,7 @@ proposal = rc.stdout.decode()
 
 # TODO: Document that this is just a jinja template, Python wrapper is not necessary
 import ccf.ballot_builder
+
 vote = ccf.ballot_builder.build_ballot_raw(json.loads(proposal))
 
 member_client = ccf.clients.CCFClient(
