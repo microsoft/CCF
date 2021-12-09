@@ -26,7 +26,7 @@ namespace ccf
   {
     using NetAddress = std::string;
 
-    struct RpcAddresses
+    struct NetInterface
     {
       NetAddress bind_address;
       NetAddress published_address;
@@ -34,28 +34,28 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
-      bool operator==(const RpcAddresses& other) const
+      bool operator==(const NetInterface& other) const
       {
         return bind_address == other.bind_address &&
           published_address == other.published_address &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
-          max_open_sessions_hard && other.max_open_sessions_hard;
+          max_open_sessions_hard == other.max_open_sessions_hard;
       }
     };
 
-    NetAddress node_address;
-    std::vector<RpcAddresses> rpc_interfaces;
+    NetInterface node_to_node_interface;
+    std::vector<NetInterface> rpc_interfaces;
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::RpcAddresses);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::RpcAddresses, bind_address);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfoNetwork_v2::RpcAddresses,
+    NodeInfoNetwork_v2::NetInterface,
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfoNetwork_v2, node_address, rpc_interfaces);
+    NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
@@ -65,7 +65,7 @@ namespace ccf
 
     bool operator==(const NodeInfoNetwork& other) const
     {
-      return node_address == other.node_address &&
+      return node_to_node_interface == other.node_to_node_interface &&
         rpc_interfaces == other.rpc_interfaces;
     }
   };
@@ -90,7 +90,8 @@ namespace ccf
   {
     {
       NodeInfoNetwork_v1 v1;
-      std::tie(v1.nodehost, v1.nodeport) = split_net_address(nin.node_address);
+      std::tie(v1.nodehost, v1.nodeport) =
+        split_net_address(nin.node_to_node_interface.bind_address);
 
       if (nin.rpc_interfaces.size() > 0)
       {
@@ -119,9 +120,10 @@ namespace ccf
       NodeInfoNetwork_v1 v1;
       from_json(j, v1);
 
-      nin.node_address = make_net_address(v1.nodehost, v1.nodeport);
+      nin.node_to_node_interface.bind_address =
+        make_net_address(v1.nodehost, v1.nodeport);
 
-      NodeInfoNetwork::RpcAddresses primary_interface;
+      NodeInfoNetwork::NetInterface primary_interface;
       primary_interface.bind_address = make_net_address(v1.rpchost, v1.rpcport);
       primary_interface.published_address =
         make_net_address(v1.pubhost, v1.pubport);

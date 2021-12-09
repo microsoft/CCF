@@ -96,7 +96,7 @@ namespace asynchost
     };
 
     bool is_client;
-    size_t connection_timeout = 0;
+    std::optional<std::chrono::milliseconds> connection_timeout = std::nullopt;
     Status status;
     std::unique_ptr<TCPBehaviour> behaviour;
     std::vector<PendingWrite> pending_writes;
@@ -129,7 +129,10 @@ namespace asynchost
       }
     }
 
-    TCPImpl(bool is_client_ = false, size_t connection_timeout_ = 0) :
+    TCPImpl(
+      bool is_client_ = false,
+      std::optional<std::chrono::milliseconds> connection_timeout_ =
+        std::nullopt) :
       is_client(is_client_),
       connection_timeout(connection_timeout_),
       status(FRESH)
@@ -377,12 +380,11 @@ namespace asynchost
           return false;
         }
 
-        setsockopt(
-          sock,
-          IPPROTO_TCP,
-          TCP_USER_TIMEOUT,
-          &connection_timeout,
-          sizeof(connection_timeout));
+        if (connection_timeout.has_value())
+        {
+          auto const t = connection_timeout.value();
+          setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &t, sizeof(t));
+        }
 
         if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
         {
