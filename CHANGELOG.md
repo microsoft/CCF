@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [1.0.16]
 
+### Changed
+
+- Internally, CCF now interprets the former `bool is_snapshot` field in ledger transactions as an `enum EntryType entry_type`. The values and their semantics remain identical for now, but will be extended in 2.0. This change is back-ported to provide a user-friendly error in the event that 1.x nodes attempt to read a ledger produced by 2.x nodes (#3275).
+
 ### Dependency
 
 - Upgrade OpenEnclave from 0.17.2 to 0.17.5

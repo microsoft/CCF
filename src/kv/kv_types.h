@@ -144,6 +144,16 @@ namespace kv
     APPLICATION
   };
 
+  enum class EntryType : uint8_t
+  {
+    WriteSet = 0,
+    Snapshot = 1
+  };
+
+  // EntryType must be backwards compatible with the older
+  // bool is_snapshot field
+  static_assert(sizeof(EntryType) == sizeof(bool));
+
   constexpr auto public_domain_prefix = "public:";
 
   static inline SecurityDomain get_security_domain(const std::string& name)
@@ -431,7 +441,7 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      bool is_snapshot = false) = 0;
+      EntryType entry_type = EntryType::WriteSet) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
