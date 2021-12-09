@@ -263,7 +263,7 @@ echo " + gn args: $GN_ARGS"
 gn gen "$OUT_DIR" --args="$GN_ARGS"
 
 if [ "$VERBOSE" == 1 ]; then
-  verbose_flag="--verbose"
+  verbose_flag="-v"
 else
   verbose_flag=""
 fi
