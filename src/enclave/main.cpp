@@ -157,7 +157,7 @@ extern "C"
       enclave = new enclave::Enclave(
         ec,
         cc.intervals.signature_interval_size,
-        cc.intervals.signature_interval_duration_ms,
+        cc.intervals.signature_interval_duration.count_ms(),
         cc.consensus,
         cc.node_certificate.curve_id);
     }

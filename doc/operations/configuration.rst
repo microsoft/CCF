@@ -128,14 +128,14 @@ Example:
 Only set when ``type`` is ``join``.
 
 - ``target_rpc_address``: Address (hostname and port) of a node of the existing service to join.
-- ``timer_ms``: Interval (ms) at which the node sends join requests to the existing network. Default value: ``1000`` ms.
+- ``retry_timeout``: Interval at which the node sends join requests to the existing network. Default value: ``"1000ms"`` [#time_string]_.
 
 Example:
 
 .. code-block:: json
 
     "join": {
-        "timer_ms": 1000,
+        "retry_timeout": "1000ms",
         "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
     }
 
@@ -144,7 +144,7 @@ Example:
 
 - ``directory``: Path to main ledger directory. Default value: ``ledger``.
 - ``read_only_directories``: Optional. Paths to read-only ledger directories. Note that only ``.committed`` files will be read from these directories. Default value: ``[]``.
-- ``chunk_size``: Minimum size of the current ledger file after which a new ledger file (chunk) is created. Default value: ``5MB``  [#size_string]_.
+- ``chunk_size``: Minimum size of the current ledger file after which a new ledger file (chunk) is created. Default value: ``"5MB"``  [#size_string]_.
 
 ``snapshots``
 ~~~~~~~~~~~~~
@@ -165,14 +165,14 @@ Example:
 ~~~~~~~~~~~~~
 
 - ``type``: Type of consensus protocol. Only ``CFT`` (Crash-Fault Tolerant) is currently supported. Default value: ``CFT``.
-- ``timeout_ms``: Interval (ms) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout_ms``. Default value: ``100`` ms.
-- ``election_timeout_ms``: Timeout value (ms) after which backup node that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``timeout_ms``. Default timeout: ``4000`` ms.
+- ``message_timeout``: Maximum interval at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ``election_timeout``. Default value: ``"100ms"`.
+- ``election_timeout``: Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly lower value than ``message_timeout``. Default timeout: ``"5000ms"``.
 
 ``intervals``
 ~~~~~~~~~~~~~
 
 - ``signature_interval_size``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5000``.
-- ``signature_interval_duration_ms``: Maximum duration (milliseconds) after which a signature transaction is automatically triggered. Default value: ``1000`` ms.
+- ``signature_interval_duration``: Maximum duration after which a signature transaction is automatically triggered. Default value: ``"1000ms"``[#time_string]_.
 
 .. note::
     Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
@@ -182,7 +182,7 @@ Example:
 ``jwt``
 ~~~~~~~
 
-- ``key_refresh_interval_s``: Interval (seconds) at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``1800`` s.
+- ``key_refresh_interval``: Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default value: ``30min`` [#time_string]_.
 
 ``network_certificate_file``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -216,15 +216,15 @@ Advanced Configuration Options
 
 .. warning:: The following configuration options have sensible default values and should be modified with care.
 
-``tick_period_ms``
-~~~~~~~~~~~~~~~~~~
+``tick_period``
+~~~~~~~~~~~~~~~
 
-Interval (milliseconds) at which the enclave time will be updated by the host. Default value: ``10`` ms.
+Interval at which the enclave time will be updated by the host. Default value: ``"10ms"`` [#time_string]_.
 
-``io_logging_threshold_ns``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``io_logging_threshold``
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration (nanoseconds) of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10000000`` ns.
+Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node's log. Default value: ``10000us``[#time_string]_.
 
 ``node_client_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -232,10 +232,10 @@ Maximum duration (nanoseconds) of I/O operations (ledger and snapshots) after wh
 Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS.
 This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).
 
-``client_connection_timeout_ms``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``client_connection_timeout``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration (milliseconds) after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``2000`` ms.
+Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default value: ``2000ms`` [#time_string]_.
 
 ``worker_threads``
 ~~~~~~~~~~~~~~~~~~
@@ -252,3 +252,5 @@ Experimental. Number of additional threads processing incoming client requests i
 .. rubric:: Footnotes
 
 .. [#size_string] Size strings are expressed as the value suffixed with the size in bytes (``B``, ``KB``, ``MB``, ``GB``, ``TB``, as factors of 1024), e.g. ``"20MB"``, ``"100KB"`` or ``"2048"`` (bytes).
+
+.. [#time_string] Time strings are expressed as the value suffixed with the duration (``us``, ``ms``, ``s``, ``min``, ``h``), e.g. ``"1000ms"``, ``"10s"`` or ``"30min"``.

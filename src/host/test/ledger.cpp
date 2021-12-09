@@ -13,8 +13,7 @@
 
 using namespace asynchost;
 
-std::chrono::nanoseconds asynchost::TimeBoundLogger::default_max_time(
-  10'000'000);
+std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
 // Used throughout
 using frame_header_type = uint32_t;

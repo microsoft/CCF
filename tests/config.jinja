@@ -29,7 +29,7 @@
     },
     "join":
     {
-      "timer_ms": {{ join_timer }},
+      "retry_timeout": "{{ join_timer }}",
       "target_rpc_address": "{{ target_rpc_address }}"
     }
   },
@@ -52,26 +52,26 @@
   "consensus":
   {
     "type": "{{ consensus }}",
-    "timeout_ms": {{ timeout_ms or 100 }},
-    "election_timeout_ms": {{ election_timeout_ms }}
+    "message_timeout": "100ms",
+    "election_timeout": "{{ election_timeout }}"
   },
   "intervals":
   {
     "signature_interval_size": {{ sig_tx_interval }},
-    "signature_interval_duration_ms": {{ sig_ms_interval }}
+    "signature_interval_duration": "{{ signature_interval_duration }}"
   },
   "jwt":
   {
-    "key_refresh_interval_s": {{ jwt_key_refresh_interval_s }}
+    "key_refresh_interval": "{{ jwt_key_refresh_interval }}"
   },
   "network_certificate_file": "networkcert.pem",
   "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
   "node_pid_file": "{{ node_pid_file or "node.pid" }}",
   "node_address_file": "{{ node_address_file }}",
   "rpc_addresses_file" : "{{ rpc_addresses_file }}",
-  "tick_period_ms": 1,
-  "io_logging_threshold_ns": 10000000,
-  "client_connection_timeout_ms": 2000,
+  "tick_period": "1ms",
+  "io_logging_threshold": "10ms",
+  "client_connection_timeout": "2s",
   "node_client_interface": {{ node_client_interface|tojson }},
   "worker_threads": {{ worker_threads }},
   "memory": {

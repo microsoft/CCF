@@ -64,10 +64,10 @@ namespace host
     std::string rpc_addresses_file = "";
 
     // Other
-    size_t tick_period_ms = 10;
-    size_t io_logging_threshold_ns = 10'000'000;
+    ds::TimeString tick_period = std::string("10ms");
+    ds::TimeString io_logging_threshold = std::string("10ms");
     std::optional<std::string> node_client_interface = std::nullopt;
-    size_t client_connection_timeout_ms = 2000;
+    ds::TimeString client_connection_timeout = std::string("2000ms");
 
     struct Ledger
     {
@@ -124,7 +124,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-        size_t timer_ms = 1000;
+        ds::TimeString retry_timeout = std::string("1000ms");
 
         bool operator==(const Join&) const = default;
       };
@@ -163,7 +163,7 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, timer_ms);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, retry_timeout);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
@@ -177,10 +177,10 @@ namespace host
     node_pid_file,
     node_address_file,
     rpc_addresses_file,
-    tick_period_ms,
-    io_logging_threshold_ns,
+    tick_period,
+    io_logging_threshold,
     node_client_interface,
-    client_connection_timeout_ms,
+    client_connection_timeout,
     network_certificate_file,
     ledger,
     snapshots,
