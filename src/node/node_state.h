@@ -1296,11 +1296,11 @@ namespace ccf
 
       consensus->periodic(elapsed);
 
-      // if (sm.check(State::partOfNetwork))
-      // {
-      //   const auto tx_id = consensus->get_committed_txid();
-      //   indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
-      // }
+      if (sm.check(State::partOfNetwork))
+      {
+        const auto tx_id = consensus->get_committed_txid();
+        indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
+      }
     }
 
     void tick_end()
