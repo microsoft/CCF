@@ -46,7 +46,7 @@ The CA certificate is stored with a ``set_ca_cert`` proposal:
 
 .. code-block:: bash
 
-    $ build_proposal.sh --action set_ca_cert name jwt_ms cert_bundle @pedro_cert.pem
+    $ build_proposal.sh --action set_ca_cert name microsoft_jwt_issuer cert_bundle @ca_cert.pem
 
 Now the issuer can be created with auto-refresh enabled:
 
@@ -57,7 +57,7 @@ Now the issuer can be created with auto-refresh enabled:
         issuer "https://login.microsoftonline.com/common/v2.0" \
         auto_refresh -b true \
         key_filter all \
-        ca_cert_name jwt_ms
+        ca_cert_name microsoft_jwt_issuer
 
 .. note::
 

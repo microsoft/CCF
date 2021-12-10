@@ -47,7 +47,7 @@ Creating a Proposal
 -------------------
 
 Proposals are JSON objects specifying a list of actions and associated arguments. The name of the action should match one of the actions available in your service (in ``actions.js``), and the expected types of the arguments are dictated by the validate and apply functions which handle that action.
-These proposal objects can be constructed by an tool or language which can produce JSON. The CCF pip package contains a sample of a tool to automate proposal creation, written in bash and wrapping the CLI tool ``jq``, named ``build_proposal.sh``:
+These proposal objects can be constructed by any tool or language which can produce JSON. The CCF pip package contains a sample of a tool to automate proposal creation, written in bash and wrapping the CLI tool ``jq``, named ``build_proposal.sh``:
 
 .. code-block:: bash
 
@@ -94,7 +94,7 @@ These proposal objects can be constructed by an tool or language which can produ
       ]
     }
 
-Ballots are JSON objects containing a JS script exporting a single ``vote`` function, which parse a proposal and return a boolean to indicate the submitter's assent (true to vote in favour, false to vote against). These votes may be hand-written to logically validate complex proposals, but for simple proposals it is often sufficient to do an equality check. Given a proposal object, we can generate a ballot which implements this quality check. Within the CCF pip package there are Jinja templates to generate these objects and scripts, and a Python script that demonstrates rendering these templates from a proposal, named ``ballot_builder``:
+Ballots are JSON objects containing a JS script exporting a single ``vote`` function, which parse a proposal and return a boolean to indicate the submitter's conditional assent (true to vote in favour, false to vote against). These votes may be hand-written to logically validate complex proposals, but for simple proposals it is often sufficient to do an equality check. Given a proposal object, we can generate a ballot which implements this equality check. Within the CCF pip package there are sample Jinja templates to generate these objects and scripts, and a Python script that demonstrates rendering these templates from a proposal, named ``ballot_builder``:
 
 .. code-block:: bash
 
@@ -138,7 +138,7 @@ We can auto-generate a ballot for this proposal:
 
     $ cat vote_for_pedro.json 
     {
-      "ballot": "export function vote (rawProposal, proposerId) { let proposal = JSON.parse(rawProposal); if (!(\"actions\" in proposal)) { return false; } /* SNIP */ return true; }"
+      "ballot": "export function vote (rawProposal, proposerId) {\n  let proposal = JSON.parse(rawProposal);\n  if (!(\"actions\" in proposal))\n  {\n    return false;\n  }\n\n  let actions = proposal[\"actions\"];\n  if (actions.length !== 1 )\n  {\n    return false;\n  }\n\n  // Check that the \"set_user\" action is exactly what was expected\n  {\n    let action = actions[0];\n    if (!(\"name\" in action))\n    {\n      return false;\n    }\n\n    if (action.name !== \"set_user\")\n    {\n      return false;\n    }\n\n\n    if (!(\"args\" in action))\n    {\n      return false;\n    }\n\n    let args = action.args;\n\n    // Check each argument\n    {\n      if (!(\"cert\" in args))\n      {\n        return false;\n      }\n\n      // Compare stringified JSON representation, to cover object equality\n      const expected = JSON.stringify(\"-----BEGIN CERTIFICATE-----\\nMIIBsjCCATigAwIBAgIUPutF1tdOKYecWwiX6FHw99I7QWIwCgYIKoZIzj0EAwMw\\nEDEOMAwGA1UEAwwFcGVkcm8wHhcNMjExMjA5MTQ0OTE2WhcNMjIxMjA5MTQ0OTE2\\nWjAQMQ4wDAYDVQQDDAVwZWRybzB2MBAGByqGSM49AgEGBSuBBAAiA2IABJi0tNaU\\nWmstK3Sx0pIEuQQT8gNlWLV1El3WnXYRQSaRKAVH5MRZIMPxxQbU17WA8IYOhzel\\nzgp0A91JN7jB2bqYzhV/liWIbPpGw5lIFX4eeBF7tOyZeaGc1j35sKUveKNTMFEw\\nHQYDVR0OBBYEFEVkwYquNo8Nk4yVDyRz74EG+lTNMB8GA1UdIwQYMBaAFEVkwYqu\\nNo8Nk4yVDyRz74EG+lTNMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\\nZQIwXweMn2htClgJlvukyHC8qIFpelPXmtJRuJ77VyDfqqQSDcVLl4sNGAHjqprv\\nBYPmAjEA1XvpLLmPvIMfiwXeapgFnUzajFsuT3qzgWVgfED6E9B3kvQUhx6ZRG1l\\np+BCBQGl\\n-----END CERTIFICATE-----\");\n      if (JSON.stringify(args[\"cert\"]) !== expected)\n      {\n        return false;\n      }\n    } \n  }\n\n  return true;\n}"
     }
 
 To encode non-string arguments, we must pass a flag to the generator telling it the argument is raw JSON. Compare:

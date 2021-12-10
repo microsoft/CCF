@@ -129,7 +129,7 @@ It validates the request body and returns the result of a mathematical operation
 Deployment
 ----------
 
-To deploy a new JS application, it must be embedded into a JSON governance proposal containing all of the new code and endpoint metadata. There is a tool in the CCF pip package to generate this object named ``bundle_js_app``.
+To deploy a new JS application, it must be embedded into a JSON governance proposal containing all of the new code and endpoint metadata. There is a sample tool in the CCF pip package to generate this object named ``bundle_js_app``.
 
 .. note:: This tool is just a sample, and is not required to be used. Packaging the source files into a JSON object could be done in your existing package build pipeline.
 
