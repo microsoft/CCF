@@ -8,6 +8,7 @@ import json
 import random
 import re
 import subprocess
+import tempfile
 import infra.network
 import infra.proc
 import infra.checker
@@ -40,7 +41,7 @@ def generate_proposal(proposal_name, **kwargs):
                 if len(v) == 2 and len(v[0]) == 2 and v[0][0] == "-":
                     flag = v[0]
                     v = v[1]
-            except TypeError:
+            except (TypeError, KeyError):
                 pass
 
             # If no explicit flag were found, infer the type
@@ -461,14 +462,15 @@ class Consortium:
 
     def set_js_app(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
         bundle = ccf.bundle_js_app.create_bundle(app_bundle_path)
-        file_name = "./app_bundle.json"
-        with open(file_name, mode="w+", encoding="utf-8") as f:
-            json.dump(bundle, f, indent=2)
+        f = tempfile.NamedTemporaryFile(prefix="ccf", mode="w+")
+        json.dump(bundle, f, indent=2)
+        f.flush()
         proposal_body, careful_vote = self.make_proposal(
             "set_js_app",
-            bundle=("-j", "@" + file_name),
+            bundle=("-j", "@" + f.name),
             disable_bytecode_cache=disable_bytecode_cache,
         )
+        f.close()
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
