@@ -520,6 +520,11 @@ if(ENABLE_V8)
   option(ENABLE_V8_SGX
          "Enable building of the SGX compile target of the js_v8 app" OFF
   )
+  if(ENABLE_V8_SGX AND NOT "sgx" IN_LIST COMPILE_TARGETS)
+    message(
+      FATAL_ERROR "ENABLE_V8_SGX=ON requires COMPILE_TARGETS to include 'sgx'"
+    )
+  endif()
   if(ENABLE_V8_SGX AND "sgx" IN_LIST COMPILE_TARGETS)
     message(STATUS "WARNING: V8 SGX target is not fully functional yet")
     add_enclave_library(
@@ -544,11 +549,17 @@ if(ENABLE_V8)
     )
   endif()
 
+  set(v8_supported_targets virtual)
+  if(ENABLE_V8_SGX)
+    list(APPEND v8_supported_targets sgx)
+  endif()
+
   add_ccf_app(
     js_v8
     SRCS ${CCF_DIR}/src/apps/js_v8/js_v8.cpp
     LINK_LIBS_ENCLAVE js_v8_base.enclave js_openenclave.enclave
     LINK_LIBS_VIRTUAL js_v8_base.virtual js_openenclave.virtual INSTALL_LIBS ON
+                      SUPPORTED_TARGETS ${v8_supported_targets}
   )
   sign_app_library(
     js_v8.enclave ${CCF_DIR}/src/apps/js_v8/oe_sign.conf

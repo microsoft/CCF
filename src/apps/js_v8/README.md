@@ -30,6 +30,7 @@ The answers to those problems are:
 New CMake options:
 
 - `-DENABLE_V8=ON|OFF`: Enables building of the V8 app library, disabled by default.
+- `-DENABLE_V8_SGX=ON|OFF`: Enables building of the SGX target of the V8 app library, disabled by default.
 - `-DV8_DEBUG=ON|OFF`: Whether to use the debug or release variant of V8, defaults to release.
 
 See `scripts/v8` for tools to help with building/downloading V8.
