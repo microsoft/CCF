@@ -1164,7 +1164,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+    CHECK(response.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
@@ -1229,22 +1229,24 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto response =
       parse_response(user_frontend_backup.process_forwarded(fwd_ctx));
 
-    CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+    // Command was already forwarded
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
   }
 
   {
     // A write was executed on this frontend (above), so reads must be
     // forwarded too for session consistency
     INFO("Read command is now forwarded to primary on this session");
+
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
+    user_frontend_backup_read.set_cmd_forwarder(backup_forwarder);
     REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup_read.process(backup_ctx);
-    REQUIRE(r.has_value());
-    REQUIRE(channel_stub->is_empty());
+    REQUIRE(!r.has_value());
+    REQUIRE(channel_stub->size() == 1);
 
-    const auto response = parse_response(r.value());
-    CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+    channel_stub->clear();
   }
 
   {

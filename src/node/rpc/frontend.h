@@ -88,9 +88,9 @@ namespace ccf
       if (!cmd_forwarder || !consensus)
       {
         ctx->set_error(
-          HTTP_STATUS_SERVICE_UNAVAILABLE,
-          ccf::errors::PrimaryNotFound,
-          "RPC could not be forwarded to unknown primary.");
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "No consensus or forwarder to forward request.");
         update_metrics(ctx, endpoint);
         return ctx->serialise_response();
       }
@@ -111,9 +111,9 @@ namespace ccf
       if (!primary_id.has_value())
       {
         ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
           ccf::errors::InternalError,
-          "RPC could not be redirected to unknown primary.");
+          "RPC could not be forwarded to unknown primary.");
         update_metrics(ctx, endpoint);
         return ctx->serialise_response();
       }
@@ -122,8 +122,9 @@ namespace ccf
       cmd_forwarder->forward_command(
         ctx, primary_id.value(), ctx->session->caller_cert);
 
-      // Indicate that the RPC has been forwarded to primary
       LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
+
+      // Indicate that the RPC has been forwarded to primary
       return std::nullopt;
     }
 
