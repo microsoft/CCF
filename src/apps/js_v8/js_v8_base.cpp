@@ -75,17 +75,23 @@ namespace ccfapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::historical::StatePtr historical_state)
     {
+      // Isolates are re-used across requests
       thread_local V8Isolate isolate;
 
       // Each request is executed in a new context
-      // TEST only: re-use contexts
-      thread_local V8Context ctx(isolate);
+      V8Context ctx(isolate);
+
+      // Make sure handles are cleaned up at request end
+      v8::HandleScope handle_scope(isolate);
+
+      // Run finalizers at the end of the request
+      // no matter whether a context is re-used or not.
+      V8Context::FinalizerScope finalizer_scope(ctx);
 
       // set a callback that loads modules from the KV
       ctx.set_module_load_callback(
         ccf::v8_kv_module_load_callback, &endpoint_ctx.tx);
 
-      v8::HandleScope handle_scope(isolate);
       v8::Local<v8::Context> context = ctx.get_context();
       v8::TryCatch try_catch(isolate);
 

@@ -115,6 +115,21 @@ namespace ccf
       std::function<std::optional<std::string>(const std::string&, void*)>;
     using FinalizerCallback = std::function<void(void*)>;
 
+    class FinalizerScope
+    {
+    public:
+      explicit FinalizerScope(V8Context& context);
+      ~FinalizerScope();
+
+      void register_finalizer(FinalizerCallback callback, void* data);
+
+      static FinalizerScope& from_context(v8::Local<v8::Context> context);
+
+    private:
+      v8::Local<v8::Context> context_;
+      std::vector<std::pair<FinalizerCallback, void*>> finalizers_;
+    };
+
     V8Context(V8Isolate& isolate);
     ~V8Context();
 
@@ -153,7 +168,6 @@ namespace ccf
     v8::Global<v8::Context> context_;
     ModuleLoadCallback module_load_cb_;
     void* module_load_cb_data_;
-    std::vector<std::pair<FinalizerCallback, void*>> finalizers_;
 
     static v8::MaybeLocal<v8::Module> compile_module(
       v8::Local<v8::Context> context,

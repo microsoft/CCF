@@ -97,7 +97,8 @@ namespace ccf
   enum
   {
     kContextEmbedderDataField,
-    kModuleEmbedderDataField
+    kModuleEmbedderDataField,
+    kFinalizerEmbedderDataField
   };
 
   // Adapted from v8/src/d8/d8.cc::ModuleEmbedderData.
@@ -170,6 +171,37 @@ namespace ccf
     std::unordered_map<v8::Global<v8::Module>, std::string, ModuleGlobalHash>
       module_to_specifier_map;
   };
+
+  V8Context::FinalizerScope::FinalizerScope(V8Context& context) :
+    context_(context.get_context())
+  {
+    context_->SetAlignedPointerInEmbedderData(
+      kFinalizerEmbedderDataField, this);
+  }
+
+  V8Context::FinalizerScope::~FinalizerScope()
+  {
+    for (auto& [fn, data] : finalizers_)
+      fn(data);
+    context_->SetAlignedPointerInEmbedderData(
+      kFinalizerEmbedderDataField, nullptr);
+  }
+
+  void V8Context::FinalizerScope::register_finalizer(
+    FinalizerCallback callback, void* data)
+  {
+    finalizers_.push_back({callback, data});
+  }
+
+  V8Context::FinalizerScope& V8Context::FinalizerScope::from_context(
+    v8::Local<v8::Context> context)
+  {
+    auto s = static_cast<V8Context::FinalizerScope*>(
+      context->GetAlignedPointerFromEmbedderData(kFinalizerEmbedderDataField));
+    if (!s)
+      throw std::logic_error("No FinalizerScope in context");
+    return *s;
+  }
 
   void v8_initialize()
   {
@@ -307,9 +339,6 @@ namespace ccf
 
   V8Context::~V8Context()
   {
-    for (auto& [fn, data] : finalizers_)
-      fn(data);
-
     {
       v8::HandleScope handle_scope(isolate_);
       v8::Local<v8::Context> context = get_context();
@@ -331,7 +360,8 @@ namespace ccf
 
   void V8Context::register_finalizer(FinalizerCallback callback, void* data)
   {
-    finalizers_.push_back({callback, data});
+    FinalizerScope::from_context(get_context())
+      .register_finalizer(callback, data);
   }
 
   void V8Context::set_module_load_callback(
