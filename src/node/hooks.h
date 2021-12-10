@@ -30,7 +30,8 @@ namespace ccf
       for (const auto& [node_id, opt_ni] : w)
       {
         const auto& ni = opt_ni.value();
-        const auto [host, port] = split_net_address(ni.node_address);
+        const auto [host, port] =
+          split_net_address(ni.node_to_node_interface.bind_address);
         switch (ni.status)
         {
           case NodeStatus::PENDING:

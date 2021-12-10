@@ -4,7 +4,7 @@
     "type": "{{ enclave_type }}"
   },
   "network": {
-    "node_address": "{{ node_address }}",
+    "node_to_node_interface": { "bind_address": "{{ node_address }}" },
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
   },
   "node_certificate":
@@ -42,7 +42,7 @@
   "snapshots":
   {
     "directory": "{{ snapshots_dir }}",
-    "interval_size": {{ snapshot_tx_interval }}
+    "tx_count": {{ snapshot_tx_interval }}
   },
   "logging":
   {
@@ -55,22 +55,24 @@
     "message_timeout": "100ms",
     "election_timeout": "{{ election_timeout }}"
   },
-  "intervals":
+  "ledger_signatures":
   {
-    "signature_interval_size": {{ sig_tx_interval }},
-    "signature_interval_duration": "{{ signature_interval_duration }}"
+    "tx_count": {{ sig_tx_interval }},
+    "delay": "{{ signature_interval_duration }}"
   },
   "jwt":
   {
     "key_refresh_interval": "{{ jwt_key_refresh_interval }}"
   },
+  "output_files": {
+    "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
+    "pid_file": "{{ node_pid_file or "node.pid" }}",
+    "node_to_node_address_file": "{{ node_address_file }}",
+    "rpc_addresses_file" : "{{ rpc_addresses_file }}"
+  },
   "network_certificate_file": "networkcert.pem",
-  "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
-  "node_pid_file": "{{ node_pid_file or "node.pid" }}",
-  "node_address_file": "{{ node_address_file }}",
-  "rpc_addresses_file" : "{{ rpc_addresses_file }}",
-  "tick_period": "1ms",
-  "io_logging_threshold": "10ms",
+  "tick_interval": "1ms",
+  "slow_io_logging_threshold": "10ms",
   "client_connection_timeout": "2s",
   "node_client_interface": {{ node_client_interface|tojson }},
   "worker_threads": {{ worker_threads }},
