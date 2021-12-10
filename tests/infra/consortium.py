@@ -21,6 +21,9 @@ import ccf.bundle_js_app
 import ccf.ledger
 from infra.proposal import ProposalState
 
+from cryptography import x509
+import cryptography.hazmat.backends as crypto_backends
+
 from loguru import logger as LOG
 
 
@@ -518,9 +521,24 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_ca_cert_bundle(self, remote_node, cert_name, cert_pem_path):
+    def set_ca_cert_bundle(self, remote_node, cert_name, cert_bundle_path, skip_checks=False):
+        if not skip_checks:
+            with open(cert_bundle_path, encoding="utf-8") as f:
+                cert_bundle_pem = f.read()
+            delim = "-----END CERTIFICATE-----"
+            for cert_pem in cert_bundle_pem.split(delim):
+                if not cert_pem.strip():
+                    continue
+                cert_pem += delim
+                try:
+                    x509.load_pem_x509_certificate(
+                        cert_pem.encode(), crypto_backends.default_backend()
+                    )
+                except Exception as exc:
+                    raise ValueError("Cannot parse PEM certificate") from exc
+
         proposal_body, careful_vote = self.make_proposal(
-            "set_ca_cert_bundle", name=cert_name, cert_bundle="@" + cert_pem_path
+            "set_ca_cert_bundle", name=cert_name, cert_bundle="@" + cert_bundle_path
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
