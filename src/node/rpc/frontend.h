@@ -80,75 +80,52 @@ namespace ccf
       }
     }
 
-    std::optional<std::vector<uint8_t>> forward_or_redirect(
+    std::optional<std::vector<uint8_t>> forward(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
-      if (cmd_forwarder && !ctx->session->is_forwarded)
+      if (!cmd_forwarder || !consensus)
       {
-        if (consensus != nullptr)
-        {
-          auto primary_id = consensus->primary();
+        ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "No consensus or forwarder to forward request.");
+        update_metrics(ctx, endpoint);
+        return ctx->serialise_response();
+      }
 
-          if (primary_id.has_value())
-          {
-            // Ignore return value - false only means it is pending
-            cmd_forwarder->forward_command(
-              ctx,
-              primary_id.value(),
-              endpoint->properties.execute_outside_consensus ==
-                  endpoints::ExecuteOutsideConsensus::Never ?
-                consensus->active_nodes() :
-                std::set<NodeId>(),
-              ctx->session->caller_cert);
-
-            // Indicate that the RPC has been forwarded to primary
-            LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
-            return std::nullopt;
-          }
-        }
+      if (ctx->session->is_forwarded)
+      {
+        // If the request was already forwarded, return an error to prevent
+        // daisy chains.
         ctx->set_error(
           HTTP_STATUS_SERVICE_UNAVAILABLE,
-          ccf::errors::PrimaryNotFound,
+          ccf::errors::RequestAlreadyForwarded,
+          "RPC was already forwarded.");
+        update_metrics(ctx, endpoint);
+        return ctx->serialise_response();
+      }
+
+      auto primary_id = consensus->primary();
+      if (!primary_id.has_value())
+      {
+        ctx->set_error(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          ccf::errors::InternalError,
           "RPC could not be forwarded to unknown primary.");
         update_metrics(ctx, endpoint);
         return ctx->serialise_response();
       }
-      else
-      {
-        // If this frontend is not allowed to forward or the command has already
-        // been forwarded, redirect to the current primary
-        ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
-        if (consensus != nullptr)
-        {
-          auto primary_id = consensus->primary();
-          if (!primary_id.has_value())
-          {
-            ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "RPC could not be redirected to unknown primary.");
-            return ctx->serialise_response();
-          }
 
-          auto nodes = tx.ro<Nodes>(Tables::NODES);
-          auto info = nodes->get(primary_id.value());
+      // Ignore return value - false only means it is pending
+      cmd_forwarder->forward_command(
+        ctx, primary_id.value(), ctx->session->caller_cert);
 
-          if (info)
-          {
-            const auto location = fmt::format(
-              "https://{}{}",
-              info->rpc_interfaces[0].published_address,
-              ctx->get_request_path());
-            ctx->set_response_header(http::headers::LOCATION, location);
-            LOG_DEBUG_FMT("Redirecting to {}", location);
-          }
-        }
+      LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
 
-        update_metrics(ctx, endpoint);
-        return ctx->serialise_response();
-      }
+      // Indicate that the RPC has been forwarded to primary
+      return std::nullopt;
     }
 
     std::optional<std::vector<uint8_t>> process_command(
@@ -262,7 +239,7 @@ namespace ccf
                    endpoints::ExecuteOutsideConsensus::Locally))))
             {
               ctx->session->is_forwarding = true;
-              return forward_or_redirect(ctx, tx, endpoint);
+              return forward(ctx, tx, endpoint);
             }
             break;
           }
@@ -270,7 +247,7 @@ namespace ccf
           case endpoints::ForwardingRequired::Always:
           {
             ctx->session->is_forwarding = true;
-            return forward_or_redirect(ctx, tx, endpoint);
+            return forward(ctx, tx, endpoint);
           }
         }
       }
