@@ -1453,7 +1453,6 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        """
         network = test(network, args, verify=args.package != "libjs_generic")
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
@@ -1486,14 +1485,12 @@ def run(args):
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
         network = test_historical_receipts(network, args)
-        """
         network = test_historical_receipts_with_claims(network, args)
 
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    """
     cr.add(
         "js",
         run,
@@ -1502,7 +1499,6 @@ if __name__ == "__main__":
         initial_user_count=4,
         initial_member_count=2,
     )
-    """
 
     cr.add(
         "cpp",

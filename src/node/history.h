@@ -87,7 +87,7 @@ namespace ccf
 
   static inline void log_hash(const crypto::Sha256Hash& h, HashOp flag)
   {
-    LOG_DEBUG_FMT("History [{}] {}", flag, h);
+    LOG_INFO_FMT("History [{}] {}", flag, h);
   }
 
   class NullTxHistoryPendingTx : public kv::PendingTx

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/hash_provider.h"
+#include "ds/logger.h"
 
 namespace ccf
 {
@@ -51,6 +52,11 @@ namespace ccf
     const crypto::Sha256Hash& claims_digest)
   {
     crypto::Sha256Hash write_set_digest({write_set.data(), write_set.size()});
+    LOG_INFO_FMT(
+      "entry_leaf {} + {} = {}",
+      write_set_digest,
+      claims_digest,
+      crypto::Sha256Hash(write_set_digest, claims_digest));
     return crypto::Sha256Hash(write_set_digest, claims_digest);
   }
 }
