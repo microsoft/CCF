@@ -68,11 +68,13 @@ namespace ccf::v8_tmpl
     {
       auto is_left = element.left.has_value();
       v8::Local<v8::Object> obj = v8::Object::New(isolate);
-      obj->Set(
-        context,
-        v8_util::to_v8_istr(isolate, is_left ? "left" : "right"),
-        v8_util::to_v8_str(
-          isolate, (is_left ? element.left : element.right).value())).Check();
+      obj
+        ->Set(
+          context,
+          v8_util::to_v8_istr(isolate, is_left ? "left" : "right"),
+          v8_util::to_v8_str(
+            isolate, (is_left ? element.left : element.right).value()))
+        .Check();
       elements.push_back(obj);
     }
 

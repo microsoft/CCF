@@ -182,7 +182,7 @@ namespace ccf
     // for all available flags.
 
 #ifdef VIRTUAL_ENCLAVE
-    // By default, strings from the snapshot are rehashed 
+    // By default, strings from the snapshot are rehashed
     // when creating a context to override the baked-in seed.
     // For now, we disable this to avoid the performance hit,
     // but since it is a security feature it needs to be carefully
@@ -192,7 +192,8 @@ namespace ccf
 #else
     // Disables runtime allocation of executable memory.
     // Uses only the Ignition interpreter.
-    v8::V8::SetFlagsFromString("--v8_os_page_size=4 --single-threaded --jitless --norehash_snapshot");
+    v8::V8::SetFlagsFromString(
+      "--v8_os_page_size=4 --single-threaded --jitless --norehash_snapshot");
     platform = v8::platform::NewSingleThreadedDefaultPlatform();
 #endif
 

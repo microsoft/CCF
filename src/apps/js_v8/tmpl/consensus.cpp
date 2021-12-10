@@ -44,14 +44,18 @@ namespace ccf::v8_tmpl
     }
 
     auto obj = v8::Object::New(isolate);
-    obj->Set(
-      context,
-      v8_util::to_v8_istr(isolate, "view"),
-      v8::Number::New(isolate, view)).Check();
-    obj->Set(
-      context,
-      v8_util::to_v8_istr(isolate, "seqno"),
-      v8::Number::New(isolate, seqno)).Check();
+    obj
+      ->Set(
+        context,
+        v8_util::to_v8_istr(isolate, "view"),
+        v8::Number::New(isolate, view))
+      .Check();
+    obj
+      ->Set(
+        context,
+        v8_util::to_v8_istr(isolate, "seqno"),
+        v8::Number::New(isolate, seqno))
+      .Check();
 
     info.GetReturnValue().Set(obj);
   }

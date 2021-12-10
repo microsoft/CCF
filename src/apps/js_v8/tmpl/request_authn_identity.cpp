@@ -106,20 +106,26 @@ namespace ccf::v8_tmpl
     // Ideally, this should be a template as well.
     v8::Local<v8::Object> jwt = v8::Object::New(isolate);
 
-    jwt->Set(
-      context,
-      v8_util::to_v8_istr(isolate, "keyIssuer"),
-      v8_util::to_v8_str(isolate, jwt_ident->key_issuer)).Check();
+    jwt
+      ->Set(
+        context,
+        v8_util::to_v8_istr(isolate, "keyIssuer"),
+        v8_util::to_v8_str(isolate, jwt_ident->key_issuer))
+      .Check();
 
-    jwt->Set(
-      context,
-      v8_util::to_v8_istr(isolate, "header"),
-      v8_util::to_v8_obj(isolate, jwt_ident->header)).Check();
+    jwt
+      ->Set(
+        context,
+        v8_util::to_v8_istr(isolate, "header"),
+        v8_util::to_v8_obj(isolate, jwt_ident->header))
+      .Check();
 
-    jwt->Set(
-      context,
-      v8_util::to_v8_istr(isolate, "payload"),
-      v8_util::to_v8_obj(isolate, jwt_ident->payload)).Check();
+    jwt
+      ->Set(
+        context,
+        v8_util::to_v8_istr(isolate, "payload"),
+        v8_util::to_v8_obj(isolate, jwt_ident->payload))
+      .Check();
 
     info.GetReturnValue().Set(jwt);
   }

@@ -517,7 +517,9 @@ if(ENABLE_V8)
     )
   endif()
 
-  option(ENABLE_V8_SGX "Enable building of the SGX compile target of the js_v8 app" OFF)
+  option(ENABLE_V8_SGX
+         "Enable building of the SGX compile target of the js_v8 app" OFF
+  )
   if(ENABLE_V8_SGX AND "sgx" IN_LIST COMPILE_TARGETS)
     message(STATUS "WARNING: V8 SGX target is not fully functional yet")
     add_enclave_library(
