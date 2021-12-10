@@ -126,10 +126,9 @@ class Node:
         if isinstance(self.host, str):
             self.host = infra.interfaces.HostSpec.from_str(self.host)
 
-        # TODO: Change this as self.host.rpc_interfaces is now a dict
-        for idx, (_, rpc_interface) in enumerate(self.host.rpc_interfaces.items()):
+        for interface_name, rpc_interface in self.host.rpc_interfaces.items():
             # Main RPC interface determines remote implementation
-            if idx == 0:
+            if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
                     self.remote_impl = infra.remote.LocalRemote
                     # Node client address does not currently work with DockerShim
@@ -154,7 +153,7 @@ class Node:
                 rpc_interface.public_port = rpc_interface.port
 
             # Default node address host to same host as main RPC interface
-            if idx == 0:
+            if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 self.n2n_interface = infra.interfaces.Interface(
                     host=rpc_interface.host, port=node_port
                 )
