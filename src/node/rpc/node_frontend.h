@@ -144,7 +144,7 @@ namespace ccf
     {
       auto nodes = tx.rw(network.nodes);
 
-      std::optional<NodeId> duplicate_node_id;
+      std::optional<NodeId> duplicate_node_id = std::nullopt;
       nodes->foreach([&node_info_network, &duplicate_node_id](
                        const NodeId& nid, const NodeInfo& ni) {
         if (

@@ -52,15 +52,12 @@ def interface_caps(i):
 def run(args):
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
-        LOG.error(type(node_spec.rpc_interfaces))
         caps = interface_caps(i)
-        for interface_name, info in caps.items():
-            node_spec.rpc_interfaces.append(
-                infra.interfaces.RPCInterface(
-                    name=interface_name,
-                    rpc_host=info["bind_address"],
-                    max_open_sessions_soft=info["max_open_sessions_soft"],
-                )
+        for interface_name, interface in caps.items():
+            node_spec.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
+                name=interface_name,
+                rpc_host=interface["bind_address"],
+                max_open_sessions_soft=interface["max_open_sessions_soft"],
             )
 
     # Chunk often, so that new fds are regularly requested
@@ -88,10 +85,8 @@ def run(args):
         initial_metrics = get_session_metrics(primary)
         assert initial_metrics["active"] <= initial_metrics["peak"], initial_metrics
 
-        for rpc_interface in primary.host.rpc_interfaces:
-            metrics = initial_metrics["interfaces"][
-                f"{rpc_interface.rpc_host}:{rpc_interface.rpc_port}"
-            ]
+        for interface_name, rpc_interface in primary.host.rpc_interfaces.items():
+            metrics = initial_metrics["interfaces"][interface_name]
             assert metrics["soft_cap"] == rpc_interface.max_open_sessions_soft, metrics
             assert metrics["hard_cap"] == rpc_interface.max_open_sessions_hard, metrics
 
@@ -220,10 +215,10 @@ def run(args):
         num_fds = create_connections_until_exhaustion(to_create)
 
         LOG.info("Check that lower caps are enforced on each interface")
-        for i, (_, cap) in enumerate(caps.items()):
+        for (name, interface) in caps.items():
             create_connections_until_exhaustion(
-                cap + 1,
-                client_fn=functools.partial(primary.client, interface_idx=i + 1),
+                interface["max_open_sessions_soft"] + 1,
+                client_fn=functools.partial(primary.client, interface_name=name),
             )
 
         try:

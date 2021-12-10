@@ -577,7 +577,9 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
-        self.pub_rpc_host = host.rpc_interfaces[0].public_rpc_host
+        self.pub_rpc_host = host.rpc_interfaces[
+            infra.interfaces.DEFAULT_RPC_INTERFACE_NAME
+        ].public_rpc_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
         data_files = []
         exe_files = []
@@ -626,8 +628,6 @@ class CCFRemote(object):
             loader = FileSystemLoader(binary_dir)
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
-
-            LOG.error(host.rpc_interfaces)
             output = t.render(
                 start_type=start_type.name,
                 enclave_file=self.enclave_file,

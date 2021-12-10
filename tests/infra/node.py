@@ -18,6 +18,7 @@ import re
 import ipaddress
 import ssl
 import copy
+import json
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -125,7 +126,9 @@ class Node:
         if isinstance(self.host, str):
             self.host = infra.interfaces.HostSpec.from_str(self.host)
 
-        for idx, rpc_interface in enumerate(self.host.rpc_interfaces):
+        LOG.error(self.host.rpc_interfaces)
+
+        for idx, (_, rpc_interface) in enumerate(self.host.rpc_interfaces.items()):
             # Main RPC interface determines remote implementation
             if idx == 0:
                 if rpc_interface.protocol == "local":
@@ -311,8 +314,8 @@ class Node:
                 self.common_dir, self.remote.node_address_file
             )
             with open(node_address_file, "r", encoding="utf-8") as f:
-                node_host, node_port = f.read().splitlines()
-                node_port = int(node_port)
+                node_address = json.load(f)
+                node_host, node_port = infra.interfaces.split_address(node_address)
                 if self.remote_shim != infra.remote_shim.DockerShim:
                     assert (
                         node_host == self.node_host
@@ -329,12 +332,11 @@ class Node:
                 self.common_dir, self.remote.rpc_addresses_file
             )
             with open(rpc_address_file, "r", encoding="utf-8") as f:
-                lines = f.read().splitlines()
-                it = [iter(lines)] * 2
-            for (rpc_host, rpc_port), rpc_interface in zip(
-                zip(*it), self.host.rpc_interfaces
-            ):
-                rpc_port = int(rpc_port)
+                rpc_addresses = json.load(f)
+
+            for interface_name, resolved_address in rpc_addresses.items():
+                rpc_host, rpc_port = infra.interfaces.split_address(resolved_address)
+                rpc_interface = self.host.rpc_interfaces[interface_name]
                 if self.remote_shim != infra.remote_shim.DockerShim:
                     assert (
                         rpc_host == rpc_interface.rpc_host
@@ -343,7 +345,7 @@ class Node:
                     assert (
                         rpc_port == rpc_interface.rpc_port
                     ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
-                rpc_interface.rpc_port = int(rpc_port)
+                rpc_interface.rpc_port = rpc_port
                 # In the infra, public RPC port is always the same as local RPC port
                 rpc_interface.public_rpc_port = rpc_interface.rpc_port
 
@@ -448,7 +450,9 @@ class Node:
         return self.remote.get_host()
 
     def get_public_rpc_port(self):
-        return self.host.rpc_interfaces[0].rpc_port
+        return self.host.rpc_interfaces[
+            infra.interfaces.DEFAULT_RPC_INTERFACE_NAME
+        ].rpc_port
 
     def session_ca(self, self_signed_ok):
         if self_signed_ok:
@@ -460,7 +464,7 @@ class Node:
         self,
         identity=None,
         signing_identity=None,
-        interface_idx=0,
+        interface_name=infra.interfaces.DEFAULT_RPC_INTERFACE_NAME,
         self_signed_ok=False,
         **kwargs,
     ):
@@ -481,10 +485,10 @@ class Node:
             akwargs["curl"] = True
 
         try:
-            rpc_interface = self.host.rpc_interfaces[interface_idx]
-        except IndexError:
+            rpc_interface = self.host.rpc_interfaces[interface_name]
+        except KeyError:
             LOG.error(
-                f"Cannot create client on interface {interface_idx} - this node only has {len(self.host)} interfaces"
+                f'Cannot create client on interface "{interface_name}" - available interfaces: {self.host.rpc_interfaces.keys()}'
             )
             raise
 

@@ -271,7 +271,7 @@ int main(int argc, char** argv)
     if (!config.output_files.node_to_node_address_file.empty())
     {
       files::dump(
-        fmt::format("{}\n{}", node_host, node_port),
+        fmt::format("\"{}:{}\"", node_host, node_port),
         config.output_files.node_to_node_address_file);
     }
 
@@ -279,13 +279,16 @@ int main(int argc, char** argv)
       writer_factory, config.client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
 
-    std::string rpc_addresses;
+    std::map<
+      ccf::NodeInfoNetwork::RpcInterfaceID,
+      ccf::NodeInfoNetwork::NetAddress>
+      resolved_rpc_interfaces;
     for (auto& [name, interface] : config.network.rpc_interfaces)
     {
-      // TODO: Change output format of rpc_addresses file
       auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
       rpc.listen(0, rpc_host, rpc_port, name);
-      rpc_addresses += fmt::format("{}\n{}\n", rpc_host, rpc_port);
+
+      resolved_rpc_interfaces[name] = fmt::format("{}:{}", rpc_host, rpc_port);
 
       interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
 
@@ -305,7 +308,9 @@ int main(int argc, char** argv)
     }
     if (!config.output_files.rpc_addresses_file.empty())
     {
-      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
+      files::dump(
+        nlohmann::json(resolved_rpc_interfaces).dump(),
+        config.output_files.rpc_addresses_file);
     }
 
     // Initialise the enclave and create a CCF node in it

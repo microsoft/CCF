@@ -2,7 +2,9 @@
 # Licensed under the Apache 2.0 License.
 
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, Dict
+
+from loguru import logger as LOG
 
 
 def split_address(addr, default_port=0):
@@ -43,6 +45,7 @@ class RPCInterface:
     @staticmethod
     def from_json(json):
         interface = RPCInterface()
+        # TODO: Get name out!
         interface.name, info = json
         interface.rpc_host, interface.rpc_port = split_address(info.get("bind_address"))
         published_address = info.get("published_address")
@@ -61,13 +64,14 @@ class RPCInterface:
 
 @dataclass
 class HostSpec:
-    rpc_interfaces: List[RPCInterface] = RPCInterface()
+    rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
 
     @staticmethod
     def to_json(host_spec):
+        LOG.error(host_spec.rpc_interfaces)
         return {
-            rpc_interface.name: RPCInterface.to_json(rpc_interface)
-            for rpc_interface in host_spec.rpc_interfaces
+            name: RPCInterface.to_json(rpc_interface)
+            for name, rpc_interface in host_spec.rpc_interfaces.items()
         }
 
     @staticmethod
@@ -84,7 +88,9 @@ class HostSpec:
         protocol, address = s.split("://")
         host, port = split_address(address)
         return HostSpec(
-            rpc_interfaces=[
-                RPCInterface(protocol=protocol, rpc_host=host, rpc_port=port)
-            ]
+            rpc_interfaces={
+                DEFAULT_RPC_INTERFACE_NAME: RPCInterface(
+                    protocol=protocol, rpc_host=host, rpc_port=port
+                )
+            }
         )

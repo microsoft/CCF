@@ -21,12 +21,12 @@ def absolute_path_to_existing_file(arg):
 def nodes(args, n):
     return [
         infra.interfaces.HostSpec(
-            rpc_interfaces=[
-                infra.interfaces.RPCInterface(
+            rpc_interfaces={
+                infra.interfaces.DEFAULT_RPC_INTERFACE_NAME: infra.interfaces.RPCInterface(
                     max_open_sessions_soft=args.max_open_sessions,
                     max_open_sessions_hard=args.max_open_sessions_hard,
                 )
-            ]
+            }
         )
         for _ in range(n)
     ]
@@ -49,7 +49,6 @@ def max_nodes(args, f):
     Maximum number of nodes allowing no more than 'f'
     faults for the consensus variant.
     """
-    LOG.error(min_nodes(args, f + 1)[:-1])
     return min_nodes(args, f + 1)[:-1]
 
 
