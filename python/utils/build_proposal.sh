@@ -115,11 +115,11 @@ function consume_arg_value()
       fi
       # "Command substitutions strip all trailing newlines from the output of the command inside them."
       # So append then strip a single x, to ensure arg_value contains any original trailing newlines verbatim
-      arg_value="$(cat ${arg_value:1}; echo x)"
+      arg_value="$(cat "${arg_value:1}"; echo x)"
       arg_value="${arg_value%x}"
     fi
   fi
-  action="$(echo "$action" | jq --arg name "$arg_name" $arg_kind value "$arg_value" '.args += {($name): '$jq_val'}')"
+  action="$(echo "$action" | jq --arg name "$arg_name" $arg_kind value "$arg_value" '.args += {($name): '"$jq_val"'}')"
   current_arg_type="$ARG_TYPE_DEFAULT"
 }
 
