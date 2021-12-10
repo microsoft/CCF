@@ -145,12 +145,12 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
         # TODO: Fix!
-        self.host.rpc_interfaces[0].rpc_host = "0.0.0.0"
+        self.host.rpc_interfaces[0].host = "0.0.0.0"
 
         # Mark public RPC host and node address so that they are replaced by the NODE_STARTUP_WRAPPER_SCRIPT
         # at node startup
         kwargs["include_addresses"] = False
-        self.host.rpc_interfaces[0].public_rpc_host = CONTAINER_IP_REPLACE_STR
+        self.host.rpc_interfaces[0].public_host = CONTAINER_IP_REPLACE_STR
         kwargs["node_address"] = CONTAINER_IP_REPLACE_STR
         super().__init__(*args, host=host, **kwargs)
 
@@ -185,7 +185,7 @@ class DockerShim(infra.remote.CCFRemote):
         self.container_ip = self.container.attrs["NetworkSettings"]["Networks"][
             self.network.name
         ]["IPAddress"]
-        self.host.rpc_interfaces[0].public_rpc_host = self.container_ip
+        self.host.rpc_interfaces[0].public_host = self.container_ip
         self.remote.hostname = self.container_ip
         LOG.debug(f"Started container {self.container_name} [{self.container_ip}]")
 

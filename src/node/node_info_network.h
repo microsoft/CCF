@@ -22,8 +22,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v1, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
 
-  static constexpr auto default_rpc_interface_name =
-    "ccf.default_rpc_interface";
+  static constexpr auto PRIMARY_RPC_INTERFACE = "ccf.default_rpc_interface";
 
   struct NodeInfoNetwork_v2
   {
@@ -135,7 +134,7 @@ namespace ccf
         make_net_address(v1.pubhost, v1.pubport);
 
       nin.rpc_interfaces.emplace(
-        default_rpc_interface_name, std::move(primary_interface));
+        PRIMARY_RPC_INTERFACE, std::move(primary_interface));
     }
   }
 }

@@ -22,7 +22,7 @@ def nodes(args, n):
     return [
         infra.interfaces.HostSpec(
             rpc_interfaces={
-                infra.interfaces.DEFAULT_RPC_INTERFACE_NAME: infra.interfaces.RPCInterface(
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                     max_open_sessions_soft=args.max_open_sessions,
                     max_open_sessions_hard=args.max_open_sessions_hard,
                 )

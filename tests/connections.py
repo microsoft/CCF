@@ -56,7 +56,7 @@ def run(args):
         for interface_name, interface in caps.items():
             node_spec.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
                 name=interface_name,
-                rpc_host=interface["bind_address"],
+                host=interface["bind_address"],
                 max_open_sessions_soft=interface["max_open_sessions_soft"],
             )
 

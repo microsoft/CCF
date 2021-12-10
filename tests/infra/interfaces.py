@@ -17,25 +17,29 @@ def make_address(host, port=0):
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 
-DEFAULT_RPC_INTERFACE_NAME = "rpc_interface"
+PRIMARY_RPC_INTERFACE = "rpc_interface"
 
 
 @dataclass
-class RPCInterface:
-    name: str = DEFAULT_RPC_INTERFACE_NAME
+class Interface:
+    host: str = "localhost"
+    port: int = 0
+
+
+@dataclass
+class RPCInterface(Interface):
+    name: str = PRIMARY_RPC_INTERFACE
     protocol: str = "local"
-    rpc_host: str = "localhost"
-    rpc_port: int = 0
-    public_rpc_host: Optional[str] = None
-    public_rpc_port: Optional[int] = None
+    public_host: Optional[str] = None
+    public_port: Optional[int] = None
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
 
     @staticmethod
     def to_json(interface):
         return {
-            "bind_address": f"{interface.rpc_host}:{interface.rpc_port}",
-            "published_address": f"{interface.public_rpc_host}:{interface.public_rpc_port or 0}",
+            "bind_address": f"{interface.host}:{interface.port}",
+            "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
         }
@@ -45,10 +49,10 @@ class RPCInterface:
         interface = RPCInterface()
         # TODO: Get name out!
         interface.name, info = json
-        interface.rpc_host, interface.rpc_port = split_address(info.get("bind_address"))
+        interface.host, interface.port = split_address(info.get("bind_address"))
         published_address = info.get("published_address")
         if published_address is not None:
-            interface.public_rpc_host, interface.public_rpc_port = split_address(
+            interface.public_host, interface.public_port = split_address(
                 published_address
             )
         interface.max_open_sessions_soft = info.get(
@@ -63,6 +67,9 @@ class RPCInterface:
 @dataclass
 class HostSpec:
     rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
+
+    def get_primary_interface(self):
+        return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]
 
     @staticmethod
     def to_json(host_spec):
@@ -86,8 +93,8 @@ class HostSpec:
         host, port = split_address(address)
         return HostSpec(
             rpc_interfaces={
-                DEFAULT_RPC_INTERFACE_NAME: RPCInterface(
-                    protocol=protocol, rpc_host=host, rpc_port=port
+                PRIMARY_RPC_INTERFACE: RPCInterface(
+                    protocol=protocol, host=host, port=port
                 )
             }
         )

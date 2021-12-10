@@ -73,7 +73,7 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
 
     const auto& current_interface = current.rpc_interfaces.begin()->second;
     const auto& converted_interface =
-      converted.rpc_interfaces.at(ccf::default_rpc_interface_name);
+      converted.rpc_interfaces.at(ccf::PRIMARY_RPC_INTERFACE);
 
     REQUIRE(current_interface.bind_address == converted_interface.bind_address);
     REQUIRE(

@@ -126,8 +126,7 @@ class Node:
         if isinstance(self.host, str):
             self.host = infra.interfaces.HostSpec.from_str(self.host)
 
-        LOG.error(self.host.rpc_interfaces)
-
+        # TODO: Change this as self.host.rpc_interfaces is now a dict
         for idx, (_, rpc_interface) in enumerate(self.host.rpc_interfaces.items()):
             # Main RPC interface determines remote implementation
             if idx == 0:
@@ -147,17 +146,18 @@ class Node:
                         False
                     ), f"{rpc_interface.protocol} is not 'local://' or 'ssh://'"
 
-            if rpc_interface.rpc_host == "localhost":
-                rpc_interface.rpc_host = infra.net.expand_localhost()
+            if rpc_interface.host == "localhost":
+                rpc_interface.host = infra.net.expand_localhost()
 
-            if rpc_interface.public_rpc_host is None:
-                rpc_interface.public_rpc_host = rpc_interface.rpc_host
-                rpc_interface.public_rpc_port = rpc_interface.rpc_port
+            if rpc_interface.public_host is None:
+                rpc_interface.public_host = rpc_interface.host
+                rpc_interface.public_port = rpc_interface.port
 
             # Default node address host to same host as main RPC interface
             if idx == 0:
-                self.node_host = rpc_interface.rpc_host
-            self.node_port = node_port
+                self.n2n_interface = infra.interfaces.Interface(
+                    host=rpc_interface.host, port=node_port
+                )
 
     def __hash__(self):
         return self.local_node_id
@@ -256,8 +256,10 @@ class Node:
             label=label,
             local_node_id=self.local_node_id,
             host=self.host,
-            node_address=infra.interfaces.make_address(self.node_host, self.node_port),
-            node_address_port=self.node_port,
+            node_address=infra.interfaces.make_address(
+                self.n2n_interface.host, self.n2n_interface.port
+            ),
+            node_address_port=self.n2n_interface.port,
             node_client_interface=self.node_client_host,
             members_info=members_info,
             version=self.version,
@@ -308,46 +310,78 @@ class Node:
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
 
+    def _resolve_address(self, address_file_path, interfaces):
+        with open(address_file_path, "r", encoding="utf-8") as f:
+            addresses = json.load(f)
+
+        for interface_name, resolved_address in addresses.items():
+            host, port = infra.interfaces.split_address(resolved_address)
+            interface = interfaces[interface_name]
+            if self.remote_shim != infra.remote_shim.DockerShim:
+                assert (
+                    host == interface.host
+                ), f"Unexpected change in RPC address from {interface.host} to {host}"
+                if interface.port != 0:
+                    assert (
+                        port == interface.port
+                    ), f"Unexpected change in node port from {interface.port} to {port}"
+                interface.port = port
+
     def _read_ports(self):
         if self.remote.node_address_file is not None:
             node_address_file = os.path.join(
                 self.common_dir, self.remote.node_address_file
             )
-            with open(node_address_file, "r", encoding="utf-8") as f:
-                node_address = json.load(f)
-                node_host, node_port = infra.interfaces.split_address(node_address)
-                if self.remote_shim != infra.remote_shim.DockerShim:
-                    assert (
-                        node_host == self.node_host
-                    ), f"Unexpected change in node address from {self.node_host} to {node_host}"
-                if self.node_port != 0:
-                    assert (
-                        node_port == self.node_port
-                    ), f"Unexpected change in node port from {self.node_port} to {node_port}"
-                    self.node_port = node_port
-                self.node_port = node_port
+            self._resolve_address(
+                node_address_file, {"node_to_node": self.n2n_interface}
+            )
 
         if self.remote.rpc_addresses_file is not None:
             rpc_address_file = os.path.join(
                 self.common_dir, self.remote.rpc_addresses_file
             )
-            with open(rpc_address_file, "r", encoding="utf-8") as f:
-                rpc_addresses = json.load(f)
+            self._resolve_address(rpc_address_file, self.host.rpc_interfaces)
+            #  In the infra, public RPC port is always the same as local RPC port
+            for _, interface in self.host.rpc_interfaces.items():
+                interface.public_port = interface.port
 
-            for interface_name, resolved_address in rpc_addresses.items():
-                rpc_host, rpc_port = infra.interfaces.split_address(resolved_address)
-                rpc_interface = self.host.rpc_interfaces[interface_name]
-                if self.remote_shim != infra.remote_shim.DockerShim:
-                    assert (
-                        rpc_host == rpc_interface.rpc_host
-                    ), f"Unexpected change in RPC address from {rpc_interface.rpc_host} to {rpc_host}"
-                if rpc_interface.rpc_port != 0:
-                    assert (
-                        rpc_port == rpc_interface.rpc_port
-                    ), f"Unexpected change in RPC port from {rpc_interface.rpc_port} to {rpc_port}"
-                rpc_interface.rpc_port = rpc_port
-                # In the infra, public RPC port is always the same as local RPC port
-                rpc_interface.public_rpc_port = rpc_interface.rpc_port
+        # TODO: Support legacy nodes!
+
+        # with open(node_address_file, "r", encoding="utf-8") as f:
+        #     node_address = json.load(f)
+        #     node_host, node_port = infra.interfaces.split_address(node_address)
+        #     if self.remote_shim != infra.remote_shim.DockerShim:
+        #         assert (
+        #             node_host == self.node_host
+        #         ), f"Unexpected change in node address from {self.node_host} to {node_host}"
+        #     if self.node_port != 0:
+        #         assert (
+        #             node_port == self.node_port
+        #         ), f"Unexpected change in node port from {self.node_port} to {node_port}"
+        #         self.node_port = node_port
+        #     self.node_port = node_port
+
+        # if self.remote.rpc_addresses_file is not None:
+        #     rpc_address_file = os.path.join(
+        #         self.common_dir, self.remote.rpc_addresses_file
+        #     )
+        #     with open(rpc_address_file, "r", encoding="utf-8") as f:
+        #         rpc_addresses = json.load(f)
+
+        #     for interface_name, resolved_address in rpc_addresses.items():
+        #         host, port = infra.interfaces.split_address(resolved_address)
+        #         rpc_interface = self.host.rpc_interfaces[interface_name]
+        #         if self.remote_shim != infra.remote_shim.DockerShim:
+        #             assert (
+        #                 host == rpc_interface.host
+        #             ), f"Unexpected change in RPC address from {rpc_interface.host} to {host}"
+        #         if rpc_interface.port != 0:
+        #             assert (
+        #                 port == rpc_interface.port
+        #             ), f"Unexpected change in RPC port from {rpc_interface.port} to {port}"
+        #         rpc_interface.port = port
+        #         # In the infra, public RPC port is always the same as local RPC port
+        #         rpc_interface.public_port = rpc_interface.port
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -450,9 +484,8 @@ class Node:
         return self.remote.get_host()
 
     def get_public_rpc_port(self):
-        return self.host.rpc_interfaces[
-            infra.interfaces.DEFAULT_RPC_INTERFACE_NAME
-        ].rpc_port
+        LOG.error(self.host.rpc_interfaces)
+        return self.host.get_primary_interface().port
 
     def session_ca(self, self_signed_ok):
         if self_signed_ok:
@@ -464,7 +497,7 @@ class Node:
         self,
         identity=None,
         signing_identity=None,
-        interface_name=infra.interfaces.DEFAULT_RPC_INTERFACE_NAME,
+        interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
         self_signed_ok=False,
         **kwargs,
     ):
@@ -493,7 +526,7 @@ class Node:
             raise
 
         return ccf.clients.client(
-            rpc_interface.public_rpc_host, rpc_interface.public_rpc_port, **akwargs
+            rpc_interface.public_host, rpc_interface.public_port, **akwargs
         )
 
     def get_tls_certificate_pem(self):
