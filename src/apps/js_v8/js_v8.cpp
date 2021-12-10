@@ -14,7 +14,7 @@ namespace ccfapp
 
   std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
-    return {ccf::js::openenclave_plugin};
+    return {};
   }
 
 } // namespace ccfapp

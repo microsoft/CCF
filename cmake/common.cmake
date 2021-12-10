@@ -447,6 +447,7 @@ sign_app_library(
 )
 # SNIPPET_END: JS generic application
 
+option(ENABLE_V8 "Enable building of the js_v8 app" OFF)
 if(ENABLE_V8)
   message(STATUS "WARNING: V8 utilisation is experimental")
 
@@ -515,7 +516,10 @@ if(ENABLE_V8)
       DESTINATION lib
     )
   endif()
-  if("sgx" IN_LIST COMPILE_TARGETS)
+
+  option(ENABLE_V8_SGX "Enable building of the SGX compile target of the js_v8 app" OFF)
+  if(ENABLE_V8_SGX AND "sgx" IN_LIST COMPILE_TARGETS)
+    message(STATUS "WARNING: V8 SGX target is not fully functional yet")
     add_enclave_library(
       v8_oe_stubs.enclave ${CCF_DIR}/src/apps/js_v8/v8_oe_stubs.cpp
     )
