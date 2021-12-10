@@ -46,11 +46,12 @@ jobs:
         parameters:
           target: ${{ target }}
           env: ${{ parameters.env[target] }}
-          fetch_v8: release # debug is tested in daily
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.v8.cmake_args }} ${{ parameters.build[target].cmake_args }}"
           suffix: "Debug"
           artifact_name: "${{ target }}_Debug"
           ctest_filter: "${{ parameters.test[target].ctest_args }}"
+          ${{ if eq(parameters.target, 'NoSGX') }}:
+            fetch_v8: release # debug is tested in daily
 
   # Performance
   - ${{ if eq(parameters.perf_tests, 'run') }}:
