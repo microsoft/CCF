@@ -17,7 +17,7 @@ def make_address(host, port=0):
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
 
-PRIMARY_RPC_INTERFACE = "rpc_interface"
+PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 
 
