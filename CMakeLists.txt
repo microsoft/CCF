@@ -852,13 +852,9 @@ if(BUILD_TESTS)
       text
   )
 
-  # TODO: Don't merge
-  # add_e2e_test(
-  #   NAME historical_query_perf_test
-  #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
-  #   CONSENSUS cft
-  #   LABEL perf
-  # )
+  # TODO: Don't merge add_e2e_test( NAME historical_query_perf_test
+  # PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py CONSENSUS
+  # cft LABEL perf )
 endif()
 
 # Generate and install CMake export file for consumers using CMake
