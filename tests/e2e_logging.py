@@ -55,7 +55,6 @@ def verify_receipt_with_claims(receipt, network_cert, claims, check_endorsement=
         ccf.receipt.check_endorsement(node_cert, network_cert)
     claims_digest = sha256(claims).digest()
     leaf = sha256(bytes.fromhex(receipt["write_set_digest"]) + claims_digest).digest()
-    pprint.pprint(receipt)
     assert leaf.hex() == receipt["leaf"]
     root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
@@ -696,6 +695,7 @@ def test_historical_receipts_with_claims(network, args):
                 node, idx, first_msg["seqno"], first_msg["view"], domain="public"
             )
             r = first_receipt.json()["receipt"]
+            pprint.pprint(first_receipt.json())
             verify_receipt_with_claims(
                 r, network.cert, first_receipt.json()["msg"].encode()
             )
@@ -1485,7 +1485,8 @@ def run(args):
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
         network = test_historical_receipts(network, args)
-        network = test_historical_receipts_with_claims(network, args)
+        if args.package == "samples/apps/logging/liblogging":
+            network = test_historical_receipts_with_claims(network, args)
 
 
 if __name__ == "__main__":
