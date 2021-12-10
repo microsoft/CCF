@@ -893,6 +893,7 @@ namespace ccf
           }
           const auto& address =
             info->rpc_interfaces[interface_id.value()].published_address;
+          LOG_FAIL_FMT("Address: {}", address);
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
