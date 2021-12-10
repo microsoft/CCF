@@ -4,8 +4,6 @@
 from dataclasses import dataclass
 from typing import Optional, Dict
 
-from loguru import logger as LOG
-
 
 def split_address(addr, default_port=0):
     host, *port = addr.split(":")
@@ -68,7 +66,6 @@ class HostSpec:
 
     @staticmethod
     def to_json(host_spec):
-        LOG.error(host_spec.rpc_interfaces)
         return {
             name: RPCInterface.to_json(rpc_interface)
             for name, rpc_interface in host_spec.rpc_interfaces.items()

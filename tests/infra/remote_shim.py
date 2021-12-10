@@ -144,6 +144,7 @@ class DockerShim(infra.remote.CCFRemote):
             self.docker_client.images.pull(image_name)
 
         # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
+        # TODO: Fix!
         self.host.rpc_interfaces[0].rpc_host = "0.0.0.0"
 
         # Mark public RPC host and node address so that they are replaced by the NODE_STARTUP_WRAPPER_SCRIPT

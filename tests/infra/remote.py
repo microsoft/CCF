@@ -697,6 +697,7 @@ class CCFRemote(object):
             log_format_json = kwargs.get("log_format_json")
             sig_tx_interval = kwargs.get("sig_tx_interval")
 
+            # TODO: Fix!
             primary_rpc_interface = host.rpc_interfaces[0]
             cmd = [
                 bin_path,

@@ -428,11 +428,19 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                const auto& pub_address =
-                  info->rpc_interfaces[0].published_address;
+                auto& interface_id = args.rpc_ctx->session->interface_id;
+                if (!interface_id.has_value())
+                {
+                  return make_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Cannot redirect non-RPC request.");
+                }
+                const auto& address =
+                  info->rpc_interfaces[interface_id.value()].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", pub_address));
+                  fmt::format("https://{}/node/join", address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -514,11 +522,19 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                const auto& pub_address =
-                  info->rpc_interfaces[0].published_address;
+                auto& interface_id = args.rpc_ctx->session->interface_id;
+                if (!interface_id.has_value())
+                {
+                  return make_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Cannot redirect non-RPC request.");
+                }
+                const auto& address =
+                  info->rpc_interfaces[interface_id.value()].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", pub_address));
+                  fmt::format("https://{}/node/join", address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
