@@ -51,8 +51,7 @@ namespace ccf
     bool forward_command(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       const NodeId& to,
-      std::set<NodeId> nodes,
-      const std::vector<uint8_t>& caller_cert)
+      const std::vector<uint8_t>& caller_cert) override
     {
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
@@ -80,34 +79,8 @@ namespace ccf
       ForwardedHeader msg = {
         ForwardedMsg::forwarded_cmd, rpc_ctx->frame_format()};
 
-      if (consensus_type == ConsensusType::BFT && !nodes.empty())
-      {
-        send_request_hash_to_nodes(rpc_ctx, nodes, to);
-      }
-
       return n2n_channels->send_encrypted(
         to, NodeMsgType::forwarded_msg, plain, msg);
-    }
-
-    void send_request_hash_to_nodes(
-      std::shared_ptr<enclave::RpcContext> rpc_ctx,
-      std::set<NodeId> nodes,
-      const NodeId& skip_node)
-    {
-      const auto& raw_request = rpc_ctx->get_serialised_request();
-      auto data_ = raw_request.data();
-      auto size_ = raw_request.size();
-
-      MessageHash msg(
-        ForwardedMsg::request_hash, crypto::Sha256Hash({data_, size_}));
-
-      for (auto to : nodes)
-      {
-        if (self != to && skip_node != to)
-        {
-          n2n_channels->send_authenticated(to, NodeMsgType::forwarded_msg, msg);
-        }
-      }
     }
 
     std::shared_ptr<enclave::RpcContext> recv_forwarded_command(
@@ -208,25 +181,6 @@ namespace ccf
       return std::make_pair(client_session_id, rpc);
     }
 
-    std::optional<MessageHash> recv_request_hash(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      MessageHash m;
-
-      try
-      {
-        m = n2n_channels->template recv_authenticated<MessageHash>(
-          from, data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_FMT("Invalid forwarded hash");
-        LOG_DEBUG_FMT("Invalid forwarded hash: {}", err.what());
-        return std::nullopt;
-      }
-      return m;
-    }
-
     void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
       try
@@ -310,16 +264,6 @@ namespace ccf
               return;
             }
 
-            break;
-          }
-
-          case ForwardedMsg::request_hash:
-          {
-            auto hash = recv_request_hash(from, data, size);
-            if (!hash.has_value())
-            {
-              return;
-            }
             break;
           }
 
