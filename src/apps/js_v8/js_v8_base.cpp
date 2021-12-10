@@ -110,10 +110,6 @@ namespace ccfapp
       v8::Local<v8::Value> val =
         ctx.run(props.js_module, props.js_function, args);
 
-      // Needed when re-using contexts.
-      // Should ideally be done in a scope.
-      ctx.run_finalizers();
-
       if (val.IsEmpty())
       {
         v8_util::report_exception(isolate, &try_catch);
