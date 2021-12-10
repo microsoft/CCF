@@ -50,7 +50,7 @@ jobs:
           suffix: "Debug"
           artifact_name: "${{ target }}_Debug"
           ctest_filter: "${{ parameters.test[target].ctest_args }}"
-          ${{ if eq(parameters.target, 'NoSGX') }}:
+          ${{ if eq(target, 'NoSGX') }}:
             fetch_v8: release # debug is tested in daily
 
   # Performance
