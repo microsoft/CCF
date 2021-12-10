@@ -8,7 +8,6 @@ import json
 import random
 import re
 import subprocess
-import tempfile
 import infra.network
 import infra.proc
 import infra.checker
@@ -41,7 +40,7 @@ def generate_proposal(proposal_name, **kwargs):
                 if len(v) == 2 and len(v[0]) == 2 and v[0][0] == "-":
                     flag = v[0]
                     v = v[1]
-            except:
+            except TypeError:
                 pass
 
             # If no explicit flag were found, infer the type
@@ -463,7 +462,7 @@ class Consortium:
     def set_js_app(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
         bundle = ccf.bundle_js_app.create_bundle(app_bundle_path)
         file_name = "./app_bundle.json"
-        with open(file_name, mode="w+") as f:
+        with open(file_name, mode="w+", encoding="utf-8") as f:
             json.dump(bundle, f, indent=2)
         proposal_body, careful_vote = self.make_proposal(
             "set_js_app",
@@ -518,7 +517,9 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_ca_cert_bundle(self, remote_node, cert_name, cert_bundle_path, skip_checks=False):
+    def set_ca_cert_bundle(
+        self, remote_node, cert_name, cert_bundle_path, skip_checks=False
+    ):
         if not skip_checks:
             with open(cert_bundle_path, encoding="utf-8") as f:
                 cert_bundle_pem = f.read()
