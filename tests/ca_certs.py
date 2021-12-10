@@ -25,24 +25,11 @@ def test_cert_store(network, args):
         f.write("foo")
         f.flush()
         try:
-            infra.consortium.generate_proposal(
-                "set_ca_cert_bundle", cert=cert_name, cert_bundle="@" + f.name
-            )
+            network.consortium.set_ca_cert_bundle(primary, cert_name, f.name)
         except ValueError:
             pass
         else:
             assert False, "set_ca_cert_bundle should have raised an error"
-
-    LOG.info("Member makes a ca cert update proposal with malformed cert")
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write("foo")
-        f.flush()
-        try:
-            network.consortium.set_ca_cert_bundle(primary, cert_name, f.name)
-        except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
-            pass
-        else:
-            assert False, "Proposal should not have been accepted"
 
     LOG.info("Member makes a ca cert update proposal with valid certs")
     key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
