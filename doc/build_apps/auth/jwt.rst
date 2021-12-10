@@ -16,7 +16,7 @@ Before adding public token signing keys to a running CCF network, the IdP has to
 
 .. code-block:: bash
 
-    $ build_proposal.sh --action set_jwt_issuer issuer my-issuer auto_refresh -b false key_filter all
+    $ build_proposal.sh --action set_jwt_issuer issuer my-issuer auto_refresh -j false key_filter all
 
 The ``issuer`` field is an arbitrary identifier and should be used during token validation to differentiate between multiple issuers.
 
@@ -55,7 +55,7 @@ Now the issuer can be created with auto-refresh enabled:
     $ build_proposal.sh \
       --action set_jwt_issuer \
         issuer "https://login.microsoftonline.com/common/v2.0" \
-        auto_refresh -b true \
+        auto_refresh -j true \
         key_filter all \
         ca_cert_name microsoft_jwt_issuer
 

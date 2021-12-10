@@ -46,12 +46,9 @@ def generate_proposal(proposal_name, **kwargs):
 
             # If no explicit flag were found, infer the type
             str_v = str(v)
-            if flag is None:
-                if isinstance(v, bool):
-                    flag = "-b"
-                elif not isinstance(v, str):
-                    flag = "-j"
-                    str_v = json.dumps(v)
+            if flag is None and not isinstance(v, str):
+                flag = "-j"
+                str_v = json.dumps(v)
 
             if flag is not None:
                 cmd.append(flag)

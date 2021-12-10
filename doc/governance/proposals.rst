@@ -61,8 +61,7 @@ These proposal objects can be constructed by any tool or language which can prod
     Specify a list of actions and associated args. A single flag per argument can be
     used to indicate how the value should be parsed:
       -s String (default)
-      -j JSON (including raw numbers)
-      -b Boolean (including case-insensitive parsing)
+      -j JSON (including objects, numbers and booleans)
     Additionally, any @-prefixed string is treated as a file path, and will be
     replaced with the contents of the file.
 
