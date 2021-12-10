@@ -8,6 +8,7 @@ import json
 import random
 import re
 import subprocess
+import tempfile
 import infra.network
 import infra.proc
 import infra.checker
@@ -28,12 +29,31 @@ def generate_proposal(proposal_name, **kwargs):
     cmd += ["--action", proposal_name]
     for k, v in kwargs.items():
         if v is not None:
-            if isinstance(v, bool):
-                cmd += ["-b", str(k), str(v)]
-            elif not isinstance(v, str):
-                cmd += ["-j", str(k), json.dumps(v)]
-            else:
-                cmd += [str(k), str(v)]
+            cmd.append(str(k))
+
+            flag = None
+
+            # See if there was an explicit flag passed in a tuple
+            try:
+                if len(v) == 2 and len(v[0]) == 2 and v[0][0] == "-":
+                    flag = v[0]
+                    v = v[1]
+            except:
+                pass
+
+            # If no explicit flag were found, infer the type
+            str_v = str(v)
+            if flag is None:
+                if isinstance(v, bool):
+                    flag = "-b"
+                elif not isinstance(v, str):
+                    flag = "-j"
+                    str_v = json.dumps(v)
+
+            if flag is not None:
+                cmd.append(flag)
+
+            cmd.append(str_v)
 
     rc = subprocess.run(cmd, capture_output=True, check=True)
     proposal = rc.stdout.decode()
@@ -442,12 +462,15 @@ class Consortium:
 
     def set_js_app(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
         bundle = ccf.bundle_js_app.create_bundle(app_bundle_path)
-
+        file_name = "./app_bundle.json"
+        with open(file_name, mode="w+") as f:
+            json.dump(bundle, f, indent=2)
         proposal_body, careful_vote = self.make_proposal(
             "set_js_app",
-            bundle=bundle,
+            bundle=("-j", "@" + file_name),
             disable_bytecode_cache=disable_bytecode_cache,
         )
+
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)

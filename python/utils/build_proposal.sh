@@ -96,23 +96,34 @@ function consume_arg_value()
 {
   arg_value="$1"
   current_state="$STATE_ARG_NAME"
-  if [ "${arg_value:0:1}" == "@" ]; then
-    if [[ ! -a "${arg_value:1}" ]]; then
-      echo "Could not find file: ${arg_value:1}"
-      exit 1
-    fi
-    arg_value="$(cat "${arg_value:1}")"
-  fi
   if [ $current_arg_type == "$ARG_TYPE_BOOL" ]; then
     # Allow varied capitalisation, by pre-transforming value to lower case
     arg_value="${arg_value,,}"
   fi
+  jq_val="\$value"
   if [ $current_arg_type == "$ARG_TYPE_NUMBER" ] || [ $current_arg_type == "$ARG_TYPE_JSON" ] || [ $current_arg_type == "$ARG_TYPE_BOOL" ]; then
-    arg_kind="--argjson"
+    if [ "${arg_value:0:1}" == "@" ]; then
+      if [[ ! -a "${arg_value:1}" ]]; then
+        echo "Could not find file: ${arg_value:1}"
+        exit 1
+      fi
+      arg_kind="--slurpfile"
+      arg_value="${arg_value:1}"
+      jq_val="\$value[0]"
+    else
+      arg_kind="--argjson"
+    fi
   else
     arg_kind="--arg"
+    if [ "${arg_value:0:1}" == "@" ]; then
+      if [[ ! -a "${arg_value:1}" ]]; then
+        echo "Could not find file: ${arg_value:1}"
+        exit 1
+      fi
+      arg_value="$(cat ${arg_value:1})"
+    fi
   fi
-  action="$(echo "$action" | jq --arg name "$arg_name" $arg_kind value "$arg_value" '.args += {($name): $value}')"
+  action="$(echo "$action" | jq --arg name "$arg_name" $arg_kind value "$arg_value" '.args += {($name): '$jq_val'}')"
   current_arg_type="$ARG_TYPE_DEFAULT"
 }
 
