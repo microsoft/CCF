@@ -32,13 +32,11 @@ Configuration Options
 
 The ``network`` section includes configuration for the interfaces a node listens on (both node-to-node and RPC).
 
-- ``node_to_node_interface``: Address (hostname and port) to listen on for incoming node-to-node connections.
+- ``node_to_node_interface``: Address (hostname and port) to listen on for incoming node-to-node connections (e.g. internal consensus messages). Each node-to-node interface must contain the local RPC address (``bind_address``) the node binds to and listens on.
 
-Each node-to-node interface must contain the local RPC address (``bind_address``) the node binds to and listens on.
+- ``rpc_interfaces``: Addresses to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information.
 
-- ``rpc_interfaces``: Addresses (hostname and port) to listen on for incoming client TLS connections.
-
-Each RPC interface must contain:
+Each RPC interface configuration must contain:
 
 - The local RPC address (``bind_address``) the node binds to and listens on.
 - The published RPC address (``published_address``) advertised to clients. Default value: value of ``bind_address``.
@@ -50,29 +48,22 @@ Example:
 .. code-block:: json
 
     "network": {
-        "node_to_node_interface": {"bind_address": "127.0.0.1:0"},
-        "rpc_interfaces": [
-            {
-                "bind_address": "127.0.0.1:0",
-                "published_address": "foo.dummy.com:12345",
+        "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
+        "rpc_interfaces": {
+            "primary_interface": {
+                "bind_address": "127.0.0.1:8080",
+                "published_rpc_address": "ccf.dummy.com:12345",
+                "max_open_sessions_soft": 1000,
+                "max_open_sessions_hard": 1010
             },
-            {
-                "bind_address": "127.0.0.2:8080",
-                "max_open_sessions_soft": 200,
-                "max_open_sessions_hard": 210
+            "secondary_interface": {
+                "bind_address": "127.0.0.1:8081",
+                "published_rpc_address": "ccf.dummy.com:12346",
+                "max_open_sessions_soft": 100,
+                "max_open_sessions_hard": 110
             }
-        ]
+        }
     }
-
-``node_certificate``
-~~~~~~~~~~~~~~~~~~~~
-
-Optional. The ``node_certificate`` section includes configuration for the node x509 certificate.
-
-- ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
-- ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``published_address``. Default value: ``[]``.
-- ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``"secp384r1"``.
-- ``initial_validity_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
 
 ``command``
 ~~~~~~~~~~~
@@ -81,6 +72,8 @@ The ``command`` section includes configuration for the type of node (start, join
 
 - ``type``: Type of CCF node (either ``start``, ``join`` or ``recover``). Default value: ``"start"``.
 - ``network_certificate_file``: For ``start`` and ``recover`` nodes, path to which network certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join. Default value: ``"networkcert.pem"``.
+
+.. note:: There is no additional ``command`` configuration required when starting a node in ``recover`` mode since all configuration is automatically retrieved from the recovered ledger/snapshot.
 
 .. _start configuration:
 
@@ -144,6 +137,17 @@ Example:
         "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
     }
 
+``node_certificate``
+~~~~~~~~~~~~~~~~~~~~
+
+The ``node_certificate`` section includes configuration for the node x509 certificate.
+
+- ``subject_name``: Subject name to include in node certificate. Default value: ``CN=CCF Node``.
+- ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface ``published_address``. Default value: ``[]``.
+- ``curve_id``: Elliptic curve to use for node identity key (``secp384r1`` or ``secp256r1``). Default value: ``"secp384r1"``.
+- ``initial_validity_days``: Initial validity period (days) for node certificate. Default value: ``1`` day.
+
+
 ``ledger``
 ~~~~~~~~~~
 
@@ -177,7 +181,7 @@ Example:
 ~~~~~~~~~~~~~~~~~~~~~
 
 - ``tx_count``: Number of transactions after which a signature transaction is automatically generated. Default value: ``5000``.
-- ``delay``: Maximum duration after which a signature transaction is automatically generated. Default value: ``"1000ms"``[#time_string]_.
+- ``delay``: Maximum duration after which a signature transaction is automatically generated. Default value: ``"1000ms"`` [#time_string]_.
 
 .. note::
     Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.

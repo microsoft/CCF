@@ -4,15 +4,15 @@
     "type": "release"
   },
   "network": {
-    "node_to_node_interface": { "bind_address": "127.0.0.2:8081" },
-    "rpc_interfaces": [
-      {
-        "bind_address": "127.0.0.2:8080",
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
+    "rpc_interfaces": {
+      "interface_name": {
+        "bind_address": "127.0.0.1:8080",
         "published_rpc_address": "ccf.dummy.com:12345",
         "max_open_sessions_soft": 1000,
         "max_open_sessions_hard": 1010
       }
-    ]
+    }
   },
   "node_certificate": {
     "subject_name": "CN=CCF Node",
