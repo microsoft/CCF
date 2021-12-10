@@ -55,6 +55,8 @@ struct EnclaveConfig
   oversized::WriterConfig writer_config = {};
 };
 
+static constexpr auto node_to_node_interface_name = "node_to_node_interface";
+
 struct CCFConfig
 {
   size_t worker_threads = 0;

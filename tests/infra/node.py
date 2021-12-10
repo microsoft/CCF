@@ -321,20 +321,21 @@ class Node:
                 assert (
                     host == interface.host
                 ), f"Unexpected change in address from {interface.host} to {host} in {address_file_path}"
-                if interface.port != 0:
-                    assert (
-                        port == interface.port
-                    ), f"Unexpected change in node port from {interface.port} to {port} in {address_file_path}"
-                interface.port = port
+            if interface.port != 0:
+                assert (
+                    port == interface.port
+                ), f"Unexpected change in node port from {interface.port} to {port} in {address_file_path}"
+            interface.port = port
 
     def _read_ports(self):
-        if self.major_version is None or self.major_version >= 2:
+        if self.major_version is None or self.major_version > 1:
             if self.remote.node_address_file is not None:
                 node_address_file = os.path.join(
                     self.common_dir, self.remote.node_address_file
                 )
                 self._resolve_address(
-                    node_address_file, {"node_to_node": self.n2n_interface}
+                    node_address_file,
+                    {infra.interfaces.NODE_TO_NODE_INTERFACE_NAME: self.n2n_interface},
                 )
 
             if self.remote.rpc_addresses_file is not None:
@@ -488,7 +489,6 @@ class Node:
         return self.remote.get_host()
 
     def get_public_rpc_port(self):
-        LOG.error(self.host.rpc_interfaces)
         return self.host.get_primary_interface().port
 
     def session_ca(self, self_signed_ok):

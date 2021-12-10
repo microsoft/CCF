@@ -274,7 +274,7 @@ int main(int argc, char** argv)
     if (!config.output_files.node_to_node_address_file.empty())
     {
       ResolvedAddresses resolved_node_address;
-      resolved_node_address["node_to_node"] =
+      resolved_node_address[node_to_node_interface_name] =
         config.network.node_to_node_interface.bind_address;
       files::dump(
         nlohmann::json(resolved_node_address).dump(),
