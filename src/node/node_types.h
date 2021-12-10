@@ -33,8 +33,7 @@ namespace ccf
   enum ForwardedMsg : Node2NodeMsg
   {
     forwarded_cmd = 0,
-    forwarded_response,
-    request_hash
+    forwarded_response
   };
 
 #pragma pack(push, 1)
