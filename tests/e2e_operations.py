@@ -98,9 +98,11 @@ def run_tls_san_checks(args):
 
         new_node = network.create_node(
             infra.interfaces.HostSpec(
-                rpc_interfaces=[
-                    infra.interfaces.RPCInterface(public_rpc_host=dummy_public_rpc_host)
-                ]
+                rpc_interfaces={
+                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                        public_host=dummy_public_rpc_host
+                    )
+                }
             )
         )
         network.join_node(new_node, args.package, args)
@@ -111,7 +113,7 @@ def run_tls_san_checks(args):
         ) as self_signed_cert:
             sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
         assert len(sans) == 1, "Expected exactly one SAN"
-        assert sans[0].value == ipaddress.ip_address(dummy_public_host)
+        assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
 
 def run_configuration_file_checks(args):
