@@ -314,10 +314,10 @@ namespace ccf
               auto tx_id = tx.get_txid();
               if (tx_id.has_value() && consensus != nullptr)
               {
-                // Only transactions that acquired one or more map handles
-                // have a TxID, while others (e.g. unauthenticated commands)
-                // don't. Also, only report a TxID if the consensus is set, as
-                // the consensus is required to verify that a TxID is valid.
+                // Only transactions that acquired one or more map handles have
+                // a TxID, while others (e.g. unauthenticated commands) don't.
+                // Also, only report a TxID if the consensus is set, as the
+                // consensus is required to verify that a TxID is valid.
                 ctx->set_tx_id(tx_id.value());
               }
 
@@ -484,8 +484,8 @@ namespace ccf
         {
           // Warning: Retrieving the current TxID and root from the history
           // should only ever be used for the proposal creation endpoint and
-          // nothing else. Many bad things could happen otherwise (e.g.
-          // breaking session consistency).
+          // nothing else. Many bad things could happen otherwise (e.g. breaking
+          // session consistency).
           const auto& [txid, root, term_of_next_version] =
             history->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid, term_of_next_version);
@@ -520,8 +520,8 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      // NB: If we want to re-execute on backups, the original command could
-      // be propagated from here
+      // NB: If we want to re-execute on backups, the original command could be
+      // propagated from here
       return process_command(ctx, tx);
     }
 

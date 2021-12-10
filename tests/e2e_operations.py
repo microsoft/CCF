@@ -93,13 +93,13 @@ def run_tls_san_checks(args):
         assert sans[0].value == dummy_san
 
         LOG.info("A node started with no specified SAN defaults to public RPC host")
-        dummy_public_host = "123.123.123.123"
+        dummy_public_rpc_host = "123.123.123.123"
         args.subject_alt_names = []
 
         new_node = network.create_node(
             infra.interfaces.HostSpec(
                 rpc_interfaces=[
-                    infra.interfaces.RPCInterface(public_host=dummy_public_host)
+                    infra.interfaces.RPCInterface(public_rpc_host=dummy_public_rpc_host)
                 ]
             )
         )

@@ -48,18 +48,16 @@ class RPCInterface(Interface):
     @staticmethod
     def from_json(json):
         interface = RPCInterface()
-        # TODO: Get name out!
-        interface.name, info = json
-        interface.host, interface.port = split_address(info.get("bind_address"))
-        published_address = info.get("published_address")
+        interface.host, interface.port = split_address(json.get("bind_address"))
+        published_address = json.get("published_address")
         if published_address is not None:
             interface.public_host, interface.public_port = split_address(
                 published_address
             )
-        interface.max_open_sessions_soft = info.get(
+        interface.max_open_sessions_soft = json.get(
             "max_open_sessions_soft", DEFAULT_MAX_OPEN_SESSIONS_SOFT
         )
-        interface.max_open_sessions_hard = info.get(
+        interface.max_open_sessions_hard = json.get(
             "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
         )
         return interface
@@ -82,10 +80,10 @@ class HostSpec:
     @staticmethod
     def from_json(rpc_interfaces_json):
         return HostSpec(
-            rpc_interfaces=[
-                RPCInterface.from_json(rpc_interface)
-                for rpc_interface in rpc_interfaces_json
-            ]
+            rpc_interfaces={
+                name: RPCInterface.from_json(rpc_interface)
+                for name, rpc_interface in rpc_interfaces_json.items()
+            }
         )
 
     @staticmethod
