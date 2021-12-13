@@ -118,29 +118,31 @@ extern "C"
 
   int sem_init(sem_t* sem, int pshared, unsigned int value)
   {
-    // Semaphores are not supported by OE, but it's okay to con/de-struct them as long as they are not used.
+    // Semaphores are not supported by OE, but it's okay to con/de-struct them
+    // as long as they are not used.
     return 0;
   }
 
   int sem_destroy(sem_t* sem)
   {
-    // Semaphores are not supported by OE, but it's okay to con/de-struct them as long as they are not used.
+    // Semaphores are not supported by OE, but it's okay to con/de-struct them
+    // as long as they are not used.
     return 0;
   }
 
   int sem_post(sem_t* sem)
   {
-    CRASH("Open Enclave sem_post() stub called");    
+    CRASH("Open Enclave sem_post() stub called");
   }
 
   int sem_wait(sem_t* sem)
   {
-    CRASH("Open Enclave sem_wait() stub called");    
+    CRASH("Open Enclave sem_wait() stub called");
   }
 
   int mprotect(void* addr, size_t len, int prot)
   {
-    // We can't change memory permissions in SGX, but that's ok.    
+    // We can't change memory permissions in SGX, but that's ok.
     return 0;
   }
 

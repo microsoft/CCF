@@ -1453,8 +1453,9 @@ if __name__ == "__main__":
     )
 
     # Is there a better way to do this?
-    if os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")) or \
-       os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
+    if os.path.exists(
+        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
+    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
         cr.add(
             "js_v8",
             run,

@@ -267,9 +267,10 @@ def test_dynamic_endpoints(network, args):
 
 
 @reqs.description("Test basic Node.js/npm app")
-@reqs.installed_package("libjs_generic")
 def test_npm_app(network, args):
-    # Note: Not enabled for V8 because some bindings are missing.
+    if args.package == "libjs_v8":
+        LOG.warning("Skipping test_npm_app, V8 still misses some bindings")
+        return network
 
     primary, _ = network.find_nodes()
 
