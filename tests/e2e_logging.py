@@ -42,7 +42,14 @@ def verify_receipt(receipt, network_cert, check_endorsement=True):
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, network_cert)
-    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+    if "leaf" in receipt:
+        leaf = receipt["leaf"]
+    else:
+        assert "leaf_components" in receipt
+        write_set_digest = bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+        claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+        leaf = sha256(write_set_digest + claims_digest).digest().hex()
+    root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
@@ -54,9 +61,15 @@ def verify_receipt_with_claims(receipt, network_cert, claims, check_endorsement=
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, network_cert)
     claims_digest = sha256(claims).digest()
-    leaf = sha256(bytes.fromhex(receipt["write_set_digest"]) + claims_digest).digest()
-    assert leaf.hex() == receipt["leaf"]
-    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+    leaf = (
+        sha256(
+            bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+            + claims_digest
+        )
+        .digest()
+        .hex()
+    )
+    root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 

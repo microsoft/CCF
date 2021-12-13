@@ -480,6 +480,9 @@
           "leaf": {
             "$ref": "#/components/schemas/string"
           },
+          "leaf_components": {
+            "$ref": "#/components/schemas/Receipt__LeafComponents"
+          },
           "node_id": {
             "$ref": "#/components/schemas/EntityId"
           },
@@ -491,15 +494,11 @@
           },
           "signature": {
             "$ref": "#/components/schemas/string"
-          },
-          "write_set_digest": {
-            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
           "signature",
           "proof",
-          "leaf",
           "node_id"
         ],
         "type": "object"
@@ -520,6 +519,17 @@
           "$ref": "#/components/schemas/Receipt__Element"
         },
         "type": "array"
+      },
+      "Receipt__LeafComponents": {
+        "properties": {
+          "claims_digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "write_set_digest": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
       },
       "ReconfigurationType": {
         "enum": [
@@ -672,7 +682,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.8.0"
+    "version": "2.9.0"
   },
   "openapi": "3.0.0",
   "paths": {

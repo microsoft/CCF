@@ -56,11 +56,6 @@ namespace ccf
           }
           r.proof.emplace_back(std::move(n));
         }
-        r.leaf = path->leaf().to_string();
-      }
-      else
-      {
-        r.leaf = root.to_string();
       }
       r.node_id = node_id;
 
@@ -69,9 +64,27 @@ namespace ccf
         r.cert = cert->str();
       }
 
-      if (write_set_digest.has_value())
+      if (claims_digest.empty())
       {
-        r.write_set_digest = write_set_digest->hex_str();
+        if (path)
+        {
+          r.leaf = path->leaf().to_string();
+        }
+        else
+        {
+          // Signature transaction
+          r.leaf = root.to_string();
+        }
+      }
+      else
+      {
+        std::optional<std::string> write_set_digest_str = std::nullopt;
+        if (write_set_digest.has_value())
+          write_set_digest_str = write_set_digest->hex_str();
+        std::optional<std::string> claims_digest_str =
+          claims_digest.value().hex_str();
+        r.leaf_components =
+          Receipt::LeafComponents{write_set_digest_str, claims_digest_str};
       }
     }
   };
