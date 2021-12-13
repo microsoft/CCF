@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 option(ENABLE_V8 "Enable building of the js_v8 app" OFF)
 if(ENABLE_V8)
   message(STATUS "WARNING: V8 utilisation is experimental")
