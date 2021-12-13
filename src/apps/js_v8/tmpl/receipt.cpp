@@ -63,7 +63,6 @@ namespace ccf::v8_tmpl
     size_t size = receipt->proof.size();
     std::vector<v8::Local<v8::Value>> elements;
     elements.reserve(size);
-    uint32_t i = 0;
     for (auto& element : receipt->proof)
     {
       auto is_left = element.left.has_value();
