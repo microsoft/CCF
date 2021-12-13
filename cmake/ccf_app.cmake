@@ -156,26 +156,12 @@ endfunction()
 function(add_ccf_app name)
 
   cmake_parse_arguments(
-    PARSE_ARGV
-    1
-    PARSED_ARGS
-    ""
-    ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS;INSTALL_LIBS;SUPPORTED_TARGETS"
+    PARSE_ARGV 1 PARSED_ARGS "" ""
+    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS;INSTALL_LIBS"
   )
   add_custom_target(${name} ALL)
 
-  set(actual_compile_targets "${COMPILE_TARGETS}")
-  if(PARSED_ARGS_SUPPORTED_TARGETS)
-    foreach(target ${COMPILE_TARGETS})
-      list(FIND PARSED_ARGS_SUPPORTED_TARGETS ${target} SOURCE_INDEX)
-      if(SOURCE_INDEX EQUAL -1)
-        list(REMOVE_ITEM actual_compile_targets ${target})
-      endif()
-    endforeach()
-  endif()
-
-  if("sgx" IN_LIST actual_compile_targets)
+  if("sgx" IN_LIST COMPILE_TARGETS)
     set(enc_name ${name}.enclave)
 
     add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
@@ -199,7 +185,7 @@ function(add_ccf_app name)
     endif()
   endif()
 
-  if("virtual" IN_LIST actual_compile_targets)
+  if("virtual" IN_LIST COMPILE_TARGETS)
     # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 

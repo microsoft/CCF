@@ -54,10 +54,10 @@ def test_module_import(network, args):
 
 
 @reqs.description("Test dynamic module import")
-@reqs.installed_package("libjs_v8")
 def test_dynamic_module_import(network, args):
-    # Note: Our QuickJS integration doesn't support async and
-    # hence dynamic imports.
+    if args.package != "libjs_v8":
+        LOG.warning("Skipping test_dynamic_endpoints, requires V8")
+        return network
 
     primary, _ = network.find_nodes()
 
@@ -75,6 +75,10 @@ def test_dynamic_module_import(network, args):
 
 @reqs.description("Test module bytecode caching")
 def test_bytecode_cache(network, args):
+    if args.package == "libjs_v8":
+        LOG.warning("Skipping test_bytecode_cache, not supported on V8")
+        return network
+
     primary, _ = network.find_nodes()
 
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
@@ -263,7 +267,10 @@ def test_dynamic_endpoints(network, args):
 
 
 @reqs.description("Test basic Node.js/npm app")
+@reqs.installed_package("libjs_generic")
 def test_npm_app(network, args):
+    # Note: Not enabled for V8 because some bindings are missing.
+
     primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
@@ -611,6 +618,5 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
