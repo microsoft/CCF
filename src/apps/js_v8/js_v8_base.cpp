@@ -27,9 +27,6 @@ using namespace kv;
 
 namespace ccfapp
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
   /**
    * V8 Handlers, holds the list of handlers from a JavaScript source to be
    * called via RPC (through RPCFrontend).
@@ -46,7 +43,6 @@ namespace ccfapp
     {
       if (props.mode == ccf::endpoints::Mode::Historical)
       {
-        // Historical mode need a v2 adapter (why?)
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
             return ccf::historical::is_tx_committed_v2(
@@ -78,7 +74,10 @@ namespace ccfapp
       // Isolates are re-used across requests
       thread_local V8Isolate isolate;
 
-      // Each request is executed in a new context
+      // Each request is executed in a new context.
+      // A context is used in a browser to separate different
+      // origins of a page, for example iframes.
+      // No state is shared between contexts.
       V8Context ctx(isolate);
 
       // Make sure handles are cleaned up at request end
@@ -497,8 +496,6 @@ namespace ccfapp
       ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
-
-#pragma clang diagnostic pop
 
   /**
    * V8 Frontend for RPC calls
