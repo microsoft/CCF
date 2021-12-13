@@ -54,10 +54,8 @@ def test_module_import(network, args):
 
 
 @reqs.description("Test dynamic module import")
+@reqs.installed_package("libjs_v8")
 def test_dynamic_module_import(network, args):
-    if args.package != "libjs_v8":
-        LOG.warning("Skipping test_dynamic_endpoints, requires V8")
-        return network
 
     primary, _ = network.find_nodes()
 
