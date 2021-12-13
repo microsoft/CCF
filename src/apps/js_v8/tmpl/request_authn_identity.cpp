@@ -103,29 +103,8 @@ namespace ccf::v8_tmpl
     v8::Isolate* isolate = info.GetIsolate();
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
-    // Ideally, this should be a template as well.
-    v8::Local<v8::Object> jwt = v8::Object::New(isolate);
-
-    jwt
-      ->Set(
-        context,
-        v8_util::to_v8_istr(isolate, "keyIssuer"),
-        v8_util::to_v8_str(isolate, jwt_ident->key_issuer))
-      .Check();
-
-    jwt
-      ->Set(
-        context,
-        v8_util::to_v8_istr(isolate, "header"),
-        v8_util::to_v8_obj(isolate, jwt_ident->header))
-      .Check();
-
-    jwt
-      ->Set(
-        context,
-        v8_util::to_v8_istr(isolate, "payload"),
-        v8_util::to_v8_obj(isolate, jwt_ident->payload))
-      .Check();
+    v8::Local<v8::Object> jwt =
+      RequestJwtAuthnIdentityJwt::wrap(context, *jwt_ident);
 
     info.GetReturnValue().Set(jwt);
   }
@@ -156,6 +135,69 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl =
       get_cached_object_template<RequestJwtAuthnIdentity>(isolate);
+
+    v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
+    result->SetAlignedPointerInInternalField(0, (void*)&identity);
+
+    return handle_scope.Escape(result);
+  }
+
+  static void get_jwt_key_issuer(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    ccf::JwtAuthnIdentity* jwt_ident = unwrap_jwt_authn_identity(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    info.GetReturnValue().Set(
+      v8_util::to_v8_str(isolate, jwt_ident->key_issuer));
+  }
+
+  static void get_jwt_header(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    ccf::JwtAuthnIdentity* jwt_ident = unwrap_jwt_authn_identity(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    info.GetReturnValue().Set(v8_util::to_v8_obj(isolate, jwt_ident->header));
+  }
+
+  static void get_jwt_payload(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    ccf::JwtAuthnIdentity* jwt_ident = unwrap_jwt_authn_identity(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    info.GetReturnValue().Set(v8_util::to_v8_obj(isolate, jwt_ident->payload));
+  }
+
+  v8::Local<v8::ObjectTemplate> RequestJwtAuthnIdentityJwt::create_template(
+    v8::Isolate* isolate)
+  {
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
+
+    // Field 0: ccf::JwtAuthnIdentity
+    tmpl->SetInternalFieldCount(1);
+
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "keyIssuer"), get_jwt_key_issuer);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "header"), get_jwt_header);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "payload"), get_jwt_payload);
+
+    return handle_scope.Escape(tmpl);
+  }
+
+  v8::Local<v8::Object> RequestJwtAuthnIdentityJwt::wrap(
+    v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity)
+  {
+    v8::Isolate* isolate = context->GetIsolate();
+    v8::EscapableHandleScope handle_scope(isolate);
+
+    v8::Local<v8::ObjectTemplate> tmpl =
+      get_cached_object_template<RequestJwtAuthnIdentityJwt>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
     result->SetAlignedPointerInInternalField(0, (void*)&identity);

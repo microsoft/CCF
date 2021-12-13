@@ -47,6 +47,16 @@ namespace ccf::v8_tmpl
       v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity);
   };
 
+  class RequestJwtAuthnIdentityJwt
+  {
+  public:
+    static constexpr const char* NAME = "CCFRequestJwtAuthnIdentityJwt";
+    static v8::Local<v8::ObjectTemplate> create_template(v8::Isolate* isolate);
+
+    static v8::Local<v8::Object> wrap(
+      v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity);
+  };
+
   class RequestUserCertAuthnIdentity
   {
   public:
