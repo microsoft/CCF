@@ -164,8 +164,10 @@
 -#endif
 -#endif
 -#endif
---- src/base/cpu.original.cc    2021-12-07 18:08:23.069664125 +0000
-+++ src/base/cpu.cc     2021-12-07 18:10:55.222103042 +0000
+diff --git src/base/cpu.cc src/base/cpu.cc
+index 9bfc2a55af..8e9a020db8 100644
+--- src/base/cpu.cc
++++ src/base/cpu.cc
 @@ -4,6 +4,11 @@
  
  #include "src/base/cpu.h"
@@ -178,7 +180,7 @@
  #if defined(V8_OS_STARBOARD)
  #include "starboard/cpu_features.h"
  #endif
-@@ -412,6 +417,40 @@
+@@ -412,6 +417,40 @@ CPU::CPU()
        architecture_(0),
        variant_(-1),
        part_(0),
@@ -219,7 +221,7 @@
        icache_line_size_(kUnknownCacheLineSize),
        dcache_line_size_(kUnknownCacheLineSize),
        has_fpu_(false),
-@@ -444,6 +483,7 @@
+@@ -444,6 +483,7 @@ CPU::CPU()
        has_non_stop_time_stamp_counter_(false),
        is_running_in_vm_(false),
        has_msa_(false) {
@@ -227,112 +229,11 @@
    memcpy(vendor_, "Unknown", 8);
  
  #if defined(V8_OS_STARBOARD)
---- src/base/platform/time.original.cc  2021-12-07 18:02:09.310000000 +0000
-+++ src/base/platform/time.cc   2021-12-07 18:12:57.126453257 +0000
-@@ -35,6 +35,12 @@
- #include "starboard/time.h"
- #endif
- 
-+#if V8_OS_OPENENCLAVE
-+#ifdef _POSIX_MONOTONIC_CLOCK
-+#undef _POSIX_MONOTONIC_CLOCK
-+#endif
-+#endif
-+
- namespace {
- 
- #if V8_OS_MACOSX
-@@ -376,11 +382,15 @@
- #elif V8_OS_POSIX
- 
- Time Time::Now() {
-+#if V8_OS_OPENENCLAVE
-+  return Time();
-+#else
-   struct timeval tv;
-   int result = gettimeofday(&tv, nullptr);
-   DCHECK_EQ(0, result);
-   USE(result);
-   return FromTimeval(tv);
-+#endif
- }
-
-
---- src/base/platform/semaphore.original.cc     2021-12-06 16:51:05.114000000 +0000
-+++ src/base/platform/semaphore.cc      2021-12-06 17:06:10.449860483 +0000
-@@ -45,19 +45,30 @@
- 
- Semaphore::Semaphore(int count) {
-   DCHECK_GE(count, 0);
-+#if V8_OS_OPENENCLAVE
-+  USE(count);
-+#else
-   int result = sem_init(&native_handle_, 0, count);
-   DCHECK_EQ(0, result);
-   USE(result);
-+#endif
- }
- 
- 
- Semaphore::~Semaphore() {
-+#if V8_OS_OPENENCLAVE
-+  UNIMPLEMENTED();
-+#else
-   int result = sem_destroy(&native_handle_);
-   DCHECK_EQ(0, result);
-   USE(result);
-+#endif
- }
- 
- void Semaphore::Signal() {
-+#if V8_OS_OPENENCLAVE
-+  UNIMPLEMENTED();
-+#else
-   int result = sem_post(&native_handle_);
-   // This check may fail with <libc-2.21, which we use on the try bots, if the
-   // semaphore is destroyed while sem_post is still executed. A work around is
-@@ -65,10 +76,14 @@
-   if (result != 0) {
-     FATAL("Error when signaling semaphore, errno: %d", errno);
-   }
-+#endif
- }
- 
- 
- void Semaphore::Wait() {
-+#if V8_OS_OPENENCLAVE
-+  UNIMPLEMENTED();
-+#else
-   while (true) {
-     int result = sem_wait(&native_handle_);
-     if (result == 0) return;  // Semaphore was signalled.
-@@ -76,10 +91,15 @@
-     DCHECK_EQ(-1, result);
-     DCHECK_EQ(EINTR, errno);
-   }
-+#endif
- }
- 
- 
- bool Semaphore::WaitFor(const TimeDelta& rel_time) {
-+#if V8_OS_OPENENCLAVE
-+  USE(rel_time);
-+  UNIMPLEMENTED();
-+#else
-   // Compute the time for end of timeout.
-   const Time time = Time::NowFromSystemTime() + rel_time;
-   const struct timespec ts = time.ToTimespec();
-@@ -103,6 +123,7 @@
-     DCHECK_EQ(-1, result);
-     DCHECK_EQ(EINTR, errno);
-   }
-+#endif
- }
- 
- #elif V8_OS_WIN
---- src/base/platform/platform-posix.original.cc        2021-12-06 18:13:50.725293115 +0000
-+++ src/base/platform/platform-posix.cc 2021-12-06 18:12:53.952876886 +0000
-@@ -259,12 +259,16 @@
+diff --git src/base/platform/platform-posix.cc src/base/platform/platform-posix.cc
+index 179a17cc0f..26518bc6cf 100644
+--- src/base/platform/platform-posix.cc
++++ src/base/platform/platform-posix.cc
+@@ -259,12 +259,16 @@ int OS::ActivationFrameAlignment() {
  
  // static
  size_t OS::AllocatePageSize() {
@@ -349,3 +250,159 @@
  }
  
  // static
+@@ -382,6 +386,12 @@ void* OS::Allocate(void* hint, size_t size, size_t alignment,
+   // Add the maximum misalignment so we are guaranteed an aligned base address.
+   size_t request_size = size + (alignment - page_size);
+   request_size = RoundUp(request_size, OS::AllocatePageSize());
++#if V8_OS_OPENENCLAVE
++  void* result = 0;
++  posix_memalign(&result, alignment, request_size);
++  memset(result, 0, request_size);
++  return result;
++#else
+   void* result = base::Allocate(hint, request_size, access, PageType::kPrivate);
+   if (result == nullptr) return nullptr;
+ 
+@@ -405,6 +415,7 @@ void* OS::Allocate(void* hint, size_t size, size_t alignment,
+ 
+   DCHECK_EQ(size, request_size);
+   return static_cast<void*>(aligned_base);
++#endif
+ }
+ 
+ // static
+@@ -417,7 +428,12 @@ void* OS::AllocateShared(size_t size, MemoryPermission access) {
+ bool OS::Free(void* address, const size_t size) {
+   DCHECK_EQ(0, reinterpret_cast<uintptr_t>(address) % AllocatePageSize());
+   DCHECK_EQ(0, size % AllocatePageSize());
++#if V8_OS_OPENENCLAVE
++  free(address);
++  return true;
++#else
+   return munmap(address, size) == 0;
++#endif
+ }
+ 
+ // static
+diff --git src/base/platform/semaphore.cc src/base/platform/semaphore.cc
+index 2fc748da87..e07fd489d3 100644
+--- src/base/platform/semaphore.cc
++++ src/base/platform/semaphore.cc
+@@ -45,19 +45,28 @@ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
+ 
+ Semaphore::Semaphore(int count) {
+   DCHECK_GE(count, 0);
++#if V8_OS_OPENENCLAVE
++  USE(count);
++#else
+   int result = sem_init(&native_handle_, 0, count);
+   DCHECK_EQ(0, result);
+   USE(result);
++#endif
+ }
+ 
+ 
+ Semaphore::~Semaphore() {
++#if !V8_OS_OPENENCLAVE
+   int result = sem_destroy(&native_handle_);
+   DCHECK_EQ(0, result);
+   USE(result);
++#endif
+ }
+ 
+ void Semaphore::Signal() {
++#if V8_OS_OPENENCLAVE
++  UNIMPLEMENTED();
++#else
+   int result = sem_post(&native_handle_);
+   // This check may fail with <libc-2.21, which we use on the try bots, if the
+   // semaphore is destroyed while sem_post is still executed. A work around is
+@@ -65,10 +74,14 @@ void Semaphore::Signal() {
+   if (result != 0) {
+     FATAL("Error when signaling semaphore, errno: %d", errno);
+   }
++#endif
+ }
+ 
+ 
+ void Semaphore::Wait() {
++#if V8_OS_OPENENCLAVE
++  UNIMPLEMENTED();
++#else
+   while (true) {
+     int result = sem_wait(&native_handle_);
+     if (result == 0) return;  // Semaphore was signalled.
+@@ -76,10 +89,15 @@ void Semaphore::Wait() {
+     DCHECK_EQ(-1, result);
+     DCHECK_EQ(EINTR, errno);
+   }
++#endif
+ }
+ 
+ 
+ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
++#if V8_OS_OPENENCLAVE
++  USE(rel_time);
++  UNIMPLEMENTED();
++#else
+   // Compute the time for end of timeout.
+   const Time time = Time::NowFromSystemTime() + rel_time;
+   const struct timespec ts = time.ToTimespec();
+@@ -103,6 +121,7 @@ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
+     DCHECK_EQ(-1, result);
+     DCHECK_EQ(EINTR, errno);
+   }
++#endif
+ }
+ 
+ #elif V8_OS_WIN
+diff --git src/base/platform/time.cc src/base/platform/time.cc
+index 9979f33fce..68c8d503cc 100644
+--- src/base/platform/time.cc
++++ src/base/platform/time.cc
+@@ -35,6 +35,12 @@
+ #include "starboard/time.h"
+ #endif
+ 
++#if V8_OS_OPENENCLAVE
++#ifdef _POSIX_MONOTONIC_CLOCK
++#undef _POSIX_MONOTONIC_CLOCK
++#endif
++#endif
++
+ namespace {
+ 
+ #if V8_OS_MACOSX
+@@ -376,11 +382,15 @@ FILETIME Time::ToFiletime() const {
+ #elif V8_OS_POSIX
+ 
+ Time Time::Now() {
++#if V8_OS_OPENENCLAVE
++  return Time();
++#else
+   struct timeval tv;
+   int result = gettimeofday(&tv, nullptr);
+   DCHECK_EQ(0, result);
+   USE(result);
+   return FromTimeval(tv);
++#endif
+ }
+ 
+ 
+diff --git src/utils/allocation.cc src/utils/allocation.cc
+index 9cdd53fa6d..1ae3aa65b6 100644
+--- src/utils/allocation.cc
++++ src/utils/allocation.cc
+@@ -267,8 +267,12 @@ size_t VirtualMemory::Release(Address free_start) {
+   const size_t free_size = old_size - (free_start - region_.begin());
+   CHECK(InVM(free_start, free_size));
+   region_.set_size(old_size - free_size);
++#if !V8_OS_OPENENCLAVE
++  // Without mmap/munmap support in OE we don't know which pages to release, 
++  // so we just keep them for now.
+   CHECK(ReleasePages(page_allocator_, reinterpret_cast<void*>(region_.begin()),
+                      old_size, region_.size()));
++#endif
+   return free_size;
+ }
+ 
