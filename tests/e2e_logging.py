@@ -1452,6 +1452,17 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
+    # Is there a better way to do this?
+    if os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")):
+        cr.add(
+            "js_v8",
+            run,
+            package="libjs_v8",
+            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+            initial_user_count=4,
+            initial_member_count=2,
+        )
+
     cr.add(
         "cpp",
         run,
