@@ -787,17 +787,31 @@ namespace ccf
         auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach([this, host, port, status, &out](
                          const NodeId& nid, const NodeInfo& ni) {
-          // TODO: Only match on the first interface?
-          const auto& primary_interface = ni.rpc_interfaces.begin()->second;
-          const auto& pub_address = primary_interface.published_address;
-          const auto& [pub_host, pub_port] = split_net_address(pub_address);
-
-          if (host.has_value() && host.value() != pub_host)
-            return true;
-          if (port.has_value() && port.value() != pub_port)
-            return true;
           if (status.has_value() && status.value() != ni.status)
+          {
             return true;
+          }
+
+          // Match on any interface
+          bool is_matched = false;
+          for (auto const& interface : ni.rpc_interfaces)
+          {
+            const auto& [pub_host, pub_port] =
+              split_net_address(interface.second.published_address);
+
+            if (
+              (!host.has_value() || host.value() == pub_host) &&
+              (!port.has_value() || port.value() == pub_port))
+            {
+              is_matched = true;
+              break;
+            }
+          }
+
+          if (!is_matched)
+          {
+            return true;
+          }
 
           bool is_primary = false;
           if (consensus != nullptr)
@@ -805,8 +819,6 @@ namespace ccf
             is_primary = consensus->primary() == nid;
           }
 
-          const auto& [rpc_host, rpc_port] =
-            split_net_address(primary_interface.bind_address);
           out.nodes.push_back({nid, ni.status, is_primary, ni.rpc_interfaces});
           return true;
         });
