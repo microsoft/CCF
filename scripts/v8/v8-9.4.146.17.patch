@@ -285,7 +285,7 @@ index 179a17cc0f..26518bc6cf 100644
  
  // static
 diff --git src/base/platform/semaphore.cc src/base/platform/semaphore.cc
-index 2fc748da87..fdb7703bf9 100644
+index 2fc748da87..e07fd489d3 100644
 --- src/base/platform/semaphore.cc
 +++ src/base/platform/semaphore.cc
 @@ -45,19 +45,28 @@ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
@@ -356,14 +356,6 @@ index 2fc748da87..fdb7703bf9 100644
  }
  
  #elif V8_OS_WIN
-@@ -157,6 +176,7 @@ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
-       return true;
-     }
-   }
-+#endif
- }
- 
- #elif V8_OS_STARBOARD
 diff --git src/base/platform/time.cc src/base/platform/time.cc
 index 9979f33fce..68c8d503cc 100644
 --- src/base/platform/time.cc
