@@ -1450,52 +1450,52 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # network = test(network, args, verify=args.package != "libjs_generic")
-        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        # network = test_large_messages(network, args)
-        # network = test_remove(network, args)
-        # network = test_clear(network, args)
-        # network = test_record_count(network, args)
-        # network = test_forwarding_frontends(network, args)
-        # network = test_signed_escapes(network, args)
-        # network = test_user_data_ACL(network, args)
-        # network = test_cert_prefix(network, args)
-        # network = test_anonymous_caller(network, args)
-        # network = test_multi_auth(network, args)
-        # network = test_custom_auth(network, args)
-        # network = test_custom_auth_safety(network, args)
-        # network = test_raw_text(network, args)
-        # network = test_historical_query(network, args)
-        # network = test_historical_query_range(network, args)
-        # network = test_view_history(network, args)
-        # network = test_primary(network, args)
-        # network = test_network_node_info(network, args)
+        network = test(network, args, verify=args.package != "libjs_generic")
+        network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        network = test_large_messages(network, args)
+        network = test_remove(network, args)
+        network = test_clear(network, args)
+        network = test_record_count(network, args)
+        network = test_forwarding_frontends(network, args)
+        network = test_signed_escapes(network, args)
+        network = test_user_data_ACL(network, args)
+        network = test_cert_prefix(network, args)
+        network = test_anonymous_caller(network, args)
+        network = test_multi_auth(network, args)
+        network = test_custom_auth(network, args)
+        network = test_custom_auth_safety(network, args)
+        network = test_raw_text(network, args)
+        network = test_historical_query(network, args)
+        network = test_historical_query_range(network, args)
+        network = test_view_history(network, args)
+        network = test_primary(network, args)
+        network = test_network_node_info(network, args)
         network = test_node_ids(network, args)
-        # network = test_metrics(network, args)
-        # network = test_memory(network, args)
-        # BFT does not handle re-keying yet
-        # if args.consensus == "CFT":
-        #     network = test_liveness(network, args)
-        #     network = test_rekey(network, args)
-        #     network = test_liveness(network, args)
-        #     network = test_random_receipts(network, args, False)
-        # if args.package == "samples/apps/logging/liblogging":
-        #     network = test_receipts(network, args)
-        #     network = test_historical_query_sparse(network, args)
-        # network = test_historical_receipts(network, args)
+        network = test_metrics(network, args)
+        network = test_memory(network, args)
+        BFT does not handle re-keying yet
+        if args.consensus == "CFT":
+            network = test_liveness(network, args)
+            network = test_rekey(network, args)
+            network = test_liveness(network, args)
+            network = test_random_receipts(network, args, False)
+        if args.package == "samples/apps/logging/liblogging":
+            network = test_receipts(network, args)
+            network = test_historical_query_sparse(network, args)
+        network = test_historical_receipts(network, args)
 
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "js",
-    #     run,
-    #     package="libjs_generic",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     cr.add(
         "cpp",
