@@ -8,11 +8,16 @@
 
 namespace ccf::v8_tmpl
 {
+  enum class InternalFields
+  {
+    StateCache
+  };
+
   static ccf::historical::AbstractStateCache* unwrap_state_cache(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::historical::AbstractStateCache*>(
-      obj->GetAlignedPointerFromInternalField(0));
+      get_internal_field(obj, InternalFields::StateCache));
   }
 
   static void get_state_range(const v8::FunctionCallbackInfo<v8::Value>& info)
@@ -150,8 +155,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: ccf::historical::AbstractStateCache
-    tmpl->SetInternalFieldCount(1);
+    set_internal_field_count<InternalFields>(tmpl);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "getStateRange"),
@@ -174,7 +178,7 @@ namespace ccf::v8_tmpl
       get_cached_object_template<Historical>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, state_cache);
+    set_internal_field(result, InternalFields::StateCache, state_cache);
 
     return handle_scope.Escape(result);
   }

@@ -12,17 +12,23 @@ using ccf::endpoints::EndpointContext;
 
 namespace ccf::v8_tmpl
 {
+  enum class InternalFields
+  {
+    EndpointContext,
+    EndpointRegistry
+  };
+
   static EndpointContext* unwrap_endpoint_ctx(v8::Local<v8::Object> obj)
   {
     return static_cast<EndpointContext*>(
-      obj->GetAlignedPointerFromInternalField(0));
+      get_internal_field(obj, InternalFields::EndpointContext));
   }
 
   static BaseEndpointRegistry* unwrap_endpoint_registry(
     v8::Local<v8::Object> obj)
   {
     return static_cast<BaseEndpointRegistry*>(
-      obj->GetAlignedPointerFromInternalField(1));
+      get_internal_field(obj, InternalFields::EndpointRegistry));
   }
 
   static void get_headers(
@@ -88,9 +94,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: EndpointContext
-    // Field 1: BaseEndpointRegistry
-    tmpl->SetInternalFieldCount(2);
+    set_internal_field_count<InternalFields>(tmpl);
 
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "headers"), get_headers);
@@ -116,8 +120,10 @@ namespace ccf::v8_tmpl
       get_cached_object_template<Request>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, &endpoint_ctx);
-    result->SetAlignedPointerInInternalField(1, &endpoint_registry);
+
+    set_internal_field(result, InternalFields::EndpointContext, &endpoint_ctx);
+    set_internal_field(
+      result, InternalFields::EndpointRegistry, &endpoint_registry);
 
     return handle_scope.Escape(result);
   }

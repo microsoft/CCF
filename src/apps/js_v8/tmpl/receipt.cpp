@@ -8,10 +8,15 @@
 
 namespace ccf::v8_tmpl
 {
+  enum class InternalFields
+  {
+    Receipt
+  };
+
   static ccf::Receipt* unwrap_receipt(v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::Receipt*>(
-      obj->GetAlignedPointerFromInternalField(0));
+      get_internal_field(obj, InternalFields::Receipt));
   }
 
   static void get_signature(
@@ -89,8 +94,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: ccf::Receipt
-    tmpl->SetInternalFieldCount(1);
+    set_internal_field_count<InternalFields>(tmpl);
 
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "signature"), get_signature);
@@ -119,7 +123,7 @@ namespace ccf::v8_tmpl
       get_cached_object_template<Receipt>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, receipt_out);
+    set_internal_field(result, InternalFields::Receipt, receipt_out);
 
     return handle_scope.Escape(result);
   }

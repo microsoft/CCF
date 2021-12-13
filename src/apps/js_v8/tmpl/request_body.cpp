@@ -6,10 +6,15 @@
 
 namespace ccf::v8_tmpl
 {
+  enum class InternalFields
+  {
+    Body
+  };
+
   static const std::vector<uint8_t>* unwrap_body(v8::Local<v8::Object> obj)
   {
     return static_cast<const std::vector<uint8_t>*>(
-      obj->GetAlignedPointerFromInternalField(0));
+      get_internal_field(obj, InternalFields::Body));
   }
 
   static void get_text(const v8::FunctionCallbackInfo<v8::Value>& info)
@@ -78,8 +83,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: std::vector<uint8_t>
-    tmpl->SetInternalFieldCount(1);
+    set_internal_field_count<InternalFields>(tmpl);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "text"),
@@ -104,7 +108,7 @@ namespace ccf::v8_tmpl
       get_cached_object_template<RequestBody>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, (void*)&body);
+    set_internal_field(result, InternalFields::Body, (void*)&body);
 
     return handle_scope.Escape(result);
   }

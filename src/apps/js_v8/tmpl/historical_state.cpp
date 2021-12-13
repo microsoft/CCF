@@ -16,11 +16,16 @@ namespace ccf::v8_tmpl
     TxContext tx_ctx;
   };
 
+  enum class InternalFields
+  {
+    HistoricalStateContext
+  };
+
   static HistoricalStateContext* unwrap_historical_state_ctx(
     v8::Local<v8::Object> obj)
   {
     return static_cast<HistoricalStateContext*>(
-      obj->GetAlignedPointerFromInternalField(0));
+      get_internal_field(obj, InternalFields::HistoricalStateContext));
   }
 
   static void get_kv_store(
@@ -66,8 +71,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: HistoricalStateContext
-    tmpl->SetInternalFieldCount(1);
+    set_internal_field_count<InternalFields>(tmpl);
 
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
     tmpl->SetLazyDataProperty(
@@ -97,7 +101,8 @@ namespace ccf::v8_tmpl
       get_cached_object_template<HistoricalState>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, state_ctx);
+    set_internal_field(
+      result, InternalFields::HistoricalStateContext, state_ctx);
 
     return handle_scope.Escape(result);
   }

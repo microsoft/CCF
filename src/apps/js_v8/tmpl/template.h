@@ -32,4 +32,27 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Template> tmpl = get_cached_template<T>(isolate);
     return tmpl.As<v8::ObjectTemplate>();
   }
+
+  template <class T>
+  void set_internal_field_count(v8::Local<v8::ObjectTemplate> tmpl)
+  {
+    static_assert(std::is_enum_v<T>, "T must be an enum class");
+    tmpl->SetInternalFieldCount(sizeof(T));
+  }
+
+  template <class T>
+  void set_internal_field(v8::Local<v8::Object> obj, T enum_value, void* value)
+  {
+    static_assert(std::is_enum_v<T>, "T must be an enum value");
+    obj->SetAlignedPointerInInternalField(static_cast<int>(enum_value), value);
+  }
+
+  template <class T>
+  void* get_internal_field(v8::Local<v8::Object> obj, T enum_value)
+  {
+    static_assert(std::is_enum_v<T>, "T must be an enum value");
+    return obj->GetAlignedPointerFromInternalField(
+      static_cast<int>(enum_value));
+  }
+
 } // namespace ccf::v8_tmpl

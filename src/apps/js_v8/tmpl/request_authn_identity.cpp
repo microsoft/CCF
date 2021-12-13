@@ -68,8 +68,6 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    tmpl->SetInternalFieldCount(0);
-
     set_policy_name<ccf::EmptyAuthnIdentity>(isolate, tmpl);
 
     return handle_scope.Escape(tmpl);
@@ -89,11 +87,16 @@ namespace ccf::v8_tmpl
     return handle_scope.Escape(result);
   }
 
+  enum class InternalFieldsJwt
+  {
+    Identity
+  };
+
   static ccf::JwtAuthnIdentity* unwrap_jwt_authn_identity(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::JwtAuthnIdentity*>(
-      obj->GetAlignedPointerFromInternalField(0));
+      get_internal_field(obj, InternalFieldsJwt::Identity));
   }
 
   static void get_jwt_object(
@@ -116,8 +119,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: ccf::JwtAuthnIdentity
-    tmpl->SetInternalFieldCount(1);
+    set_internal_field_count<InternalFieldsJwt>(tmpl);
 
     set_policy_name<ccf::JwtAuthnIdentity>(isolate, tmpl);
 
@@ -137,7 +139,7 @@ namespace ccf::v8_tmpl
       get_cached_object_template<RequestJwtAuthnIdentity>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, (void*)&identity);
+    set_internal_field(result, InternalFieldsJwt::Identity, (void*)&identity);
 
     return handle_scope.Escape(result);
   }
@@ -177,8 +179,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: ccf::JwtAuthnIdentity
-    tmpl->SetInternalFieldCount(1);
+    set_internal_field_count<InternalFieldsJwt>(tmpl);
 
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "keyIssuer"), get_jwt_key_issuer);
@@ -200,10 +201,17 @@ namespace ccf::v8_tmpl
       get_cached_object_template<RequestJwtAuthnIdentityJwt>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, (void*)&identity);
+    set_internal_field(result, InternalFieldsJwt::Identity, (void*)&identity);
 
     return handle_scope.Escape(result);
   }
+
+  enum class InternalFieldsCertSig
+  {
+    Identity,
+    EndpointRegistry,
+    Tx
+  };
 
   template <class>
   inline constexpr bool dependent_false_v = false;
@@ -229,19 +237,21 @@ namespace ccf::v8_tmpl
   template <typename T>
   T* unwrap_authn_identity(v8::Local<v8::Object> obj)
   {
-    return static_cast<T*>(obj->GetAlignedPointerFromInternalField(0));
+    return static_cast<T*>(
+      get_internal_field(obj, InternalFieldsCertSig::Identity));
   }
 
   static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::BaseEndpointRegistry*>(
-      obj->GetAlignedPointerFromInternalField(1));
+      get_internal_field(obj, InternalFieldsCertSig::EndpointRegistry));
   }
 
   static ReadOnlyTx* unwrap_tx(v8::Local<v8::Object> obj)
   {
-    return static_cast<ReadOnlyTx*>(obj->GetAlignedPointerFromInternalField(2));
+    return static_cast<ReadOnlyTx*>(
+      get_internal_field(obj, InternalFieldsCertSig::Tx));
   }
 
   template <typename T>
@@ -334,10 +344,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: T (AuthnIdent)
-    // Field 1: BaseEndpointRegistry
-    // Field 2: ReadOnlyTx
-    tmpl->SetInternalFieldCount(3);
+    set_internal_field_count<InternalFieldsCertSig>(tmpl);
 
     set_policy_name<T>(isolate, tmpl);
 
@@ -354,7 +361,7 @@ namespace ccf::v8_tmpl
   }
 
   template <typename T, typename U>
-  v8::Local<v8::Object> wrap_user_or_sig_authn(
+  v8::Local<v8::Object> wrap_cert_or_sig_authn(
     v8::Local<v8::Context> context,
     const T& identity,
     BaseEndpointRegistry& endpoint_registry,
@@ -366,9 +373,12 @@ namespace ccf::v8_tmpl
     v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<U>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, (void*)&identity);
-    result->SetAlignedPointerInInternalField(1, &endpoint_registry);
-    result->SetAlignedPointerInInternalField(2, &tx);
+
+    set_internal_field(
+      result, InternalFieldsCertSig::Identity, (void*)&identity);
+    set_internal_field(
+      result, InternalFieldsCertSig::EndpointRegistry, &endpoint_registry);
+    set_internal_field(result, InternalFieldsCertSig::Tx, &tx);
 
     return handle_scope.Escape(result);
   }
@@ -386,7 +396,7 @@ namespace ccf::v8_tmpl
     BaseEndpointRegistry& endpoint_registry,
     ReadOnlyTx& tx)
   {
-    return wrap_user_or_sig_authn<
+    return wrap_cert_or_sig_authn<
       ccf::UserCertAuthnIdentity,
       RequestUserCertAuthnIdentity>(context, identity, endpoint_registry, tx);
   }
@@ -404,7 +414,7 @@ namespace ccf::v8_tmpl
     BaseEndpointRegistry& endpoint_registry,
     ReadOnlyTx& tx)
   {
-    return wrap_user_or_sig_authn<
+    return wrap_cert_or_sig_authn<
       ccf::MemberCertAuthnIdentity,
       RequestMemberCertAuthnIdentity>(context, identity, endpoint_registry, tx);
   }
@@ -422,7 +432,7 @@ namespace ccf::v8_tmpl
     BaseEndpointRegistry& endpoint_registry,
     ReadOnlyTx& tx)
   {
-    return wrap_user_or_sig_authn<
+    return wrap_cert_or_sig_authn<
       ccf::UserSignatureAuthnIdentity,
       RequestUserSignatureAuthnIdentity>(
       context, identity, endpoint_registry, tx);
@@ -441,7 +451,7 @@ namespace ccf::v8_tmpl
     BaseEndpointRegistry& endpoint_registry,
     ReadOnlyTx& tx)
   {
-    return wrap_user_or_sig_authn<
+    return wrap_cert_or_sig_authn<
       ccf::MemberSignatureAuthnIdentity,
       RequestMemberSignatureAuthnIdentity>(
       context, identity, endpoint_registry, tx);

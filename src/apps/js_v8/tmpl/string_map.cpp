@@ -6,10 +6,15 @@
 
 namespace ccf::v8_tmpl
 {
+  enum class InternalFields
+  {
+    StringMap
+  };
+
   static StringMap::MapType* unwrap_string_map(v8::Local<v8::Object> obj)
   {
     return static_cast<StringMap::MapType*>(
-      obj->GetAlignedPointerFromInternalField(0));
+      get_internal_field(obj, InternalFields::StringMap));
   }
 
   static void map_get(
@@ -35,8 +40,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: std::map
-    tmpl->SetInternalFieldCount(1);
+    set_internal_field_count<InternalFields>(tmpl);
 
     tmpl->SetHandler(v8::NamedPropertyHandlerConfiguration(map_get));
 
@@ -53,7 +57,7 @@ namespace ccf::v8_tmpl
       get_cached_object_template<StringMap>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, (void*)&map);
+    set_internal_field(result, InternalFields::StringMap, (void*)&map);
 
     return handle_scope.Escape(result);
   }

@@ -11,30 +11,39 @@
 
 namespace ccf::v8_tmpl
 {
+  enum class InternalFields
+  {
+    TxContext,
+    HistoricalStatePtr,
+    EndpointRegistry,
+    StateCache
+  };
+
   static TxContext* unwrap_tx_ctx(v8::Local<v8::Object> obj)
   {
-    return static_cast<TxContext*>(obj->GetAlignedPointerFromInternalField(0));
+    return static_cast<TxContext*>(
+      get_internal_field(obj, InternalFields::TxContext));
   }
 
   static ccf::historical::StatePtr* unwrap_historical_state(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::historical::StatePtr*>(
-      obj->GetAlignedPointerFromInternalField(1));
+      get_internal_field(obj, InternalFields::HistoricalStatePtr));
   }
 
   static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::BaseEndpointRegistry*>(
-      obj->GetAlignedPointerFromInternalField(2));
+      get_internal_field(obj, InternalFields::EndpointRegistry));
   }
 
   static ccf::historical::AbstractStateCache* unwrap_state_cache(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::historical::AbstractStateCache*>(
-      obj->GetAlignedPointerFromInternalField(3));
+      get_internal_field(obj, InternalFields::StateCache));
   }
 
   static v8::Local<v8::ArrayBuffer> js_str_to_buf_direct(
@@ -260,11 +269,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    // Field 0: TxContext
-    // Field 1: historical::StatePtr
-    // Field 2: BaseEndpointRegistry
-    // Field 3: historical::AbstractStateCache
-    tmpl->SetInternalFieldCount(4);
+    set_internal_field_count<InternalFields>(tmpl);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "strToBuf"),
@@ -310,10 +315,13 @@ namespace ccf::v8_tmpl
       get_cached_object_template<CCFGlobal>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    result->SetAlignedPointerInInternalField(0, &tx_ctx);
-    result->SetAlignedPointerInInternalField(1, &historical_state);
-    result->SetAlignedPointerInInternalField(2, endpoint_registry);
-    result->SetAlignedPointerInInternalField(3, state_cache);
+
+    set_internal_field(result, InternalFields::TxContext, &tx_ctx);
+    set_internal_field(
+      result, InternalFields::HistoricalStatePtr, &historical_state);
+    set_internal_field(
+      result, InternalFields::EndpointRegistry, endpoint_registry);
+    set_internal_field(result, InternalFields::StateCache, state_cache);
 
     return handle_scope.Escape(result);
   }
