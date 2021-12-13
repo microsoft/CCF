@@ -56,6 +56,8 @@ def test_module_import(network, args):
 @reqs.description("Test dynamic module import")
 @reqs.installed_package("libjs_v8")
 def test_dynamic_module_import(network, args):
+    # Note: Our QuickJS integration doesn't support async and
+    # hence dynamic imports.
 
     primary, _ = network.find_nodes()
 
