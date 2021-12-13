@@ -1417,7 +1417,7 @@ def run(args):
     for local_node_id, node_host in enumerate(args.nodes):
         for interface_name, host in additional_interfaces(local_node_id).items():
             node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
-                name=interface_name, host=host
+                host=host
             )
 
     txs = app.LoggingTxs("user0")

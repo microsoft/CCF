@@ -29,7 +29,6 @@ class Interface:
 
 @dataclass
 class RPCInterface(Interface):
-    name: str = PRIMARY_RPC_INTERFACE
     protocol: str = "local"
     public_host: Optional[str] = None
     public_port: Optional[int] = None
