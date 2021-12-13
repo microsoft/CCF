@@ -77,7 +77,9 @@ namespace ccfapp
       // Each request is executed in a new context.
       // A context is used in a browser to separate different
       // origins of a page, for example iframes.
-      // No state is shared between contexts.
+      // No state is shared between contexts, except when
+      // explicitly allowed through security tokens, which
+      // are not used here.
       V8Context ctx(isolate);
 
       // Make sure handles are cleaned up at request end
