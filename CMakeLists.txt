@@ -561,19 +561,19 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --package libjs_generic
-      --election-timeout-ms 10000 # Larger election timeout as recording
+      --package libjs_generic --election-timeout-ms
+      10000 # Larger election timeout as recording
       # large JS applications may trigger leadership changes
   )
 
-  if (ENABLE_V8)
+  if(ENABLE_V8)
     add_e2e_test(
       NAME modules_v8_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
       CONSENSUS cft
       ADDITIONAL_ARGS
-        --package libjs_v8
-        --election-timeout-ms 10000 # Larger election timeout as recording
+        --package libjs_v8 --election-timeout-ms 10000 # Larger election timeout
+                                                       # as recording
         # large JS applications may trigger leadership changes
     )
   endif()
