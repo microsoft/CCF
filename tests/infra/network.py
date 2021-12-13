@@ -286,7 +286,7 @@ class Network:
             raise ValueError("A package name must be specified.")
 
         self.status = ServiceStatus.OPENING
-        LOG.info("Opening CCF service on {}".format(hosts))
+        LOG.debug(f"Opening CCF service on {hosts}")
 
         forwarded_args = {
             arg: getattr(args, arg)
