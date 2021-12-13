@@ -1,9 +1,9 @@
 name: "Build and Publish CI Containers"
 
-on:  
+on:
   push:
     tags:
-      - 'ccf_ci_image/*'
+      - "ccf_ci_image/*"
 
 jobs:
   build:
