@@ -846,6 +846,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             historical_state->receipt->describe(out.receipt);
+            out.receipt.leaf_components->claims_digest = std::nullopt;
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else

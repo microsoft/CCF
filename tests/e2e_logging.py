@@ -60,6 +60,7 @@ def verify_receipt_with_claims(receipt, network_cert, claims, check_endorsement=
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, network_cert)
+    assert "claims_digest" not in receipt["leaf_components"]
     claims_digest = sha256(claims).digest()
     leaf = (
         sha256(
