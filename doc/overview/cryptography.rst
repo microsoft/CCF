@@ -39,6 +39,29 @@ Each node to node pair establishes a symmetric traffic key, using an authenticat
 This key authenticates ledger replication headers exchanged between  nodes. It is also use to encrypt forwarded
 write transactions from the backups to the primary.
 
+Identity keys diagram:
+
+.. mermaid::
+
+    flowchart TB
+        A[Service Identity Certificate] -.- B[[Service Identity Private Key]]
+        C[Node Identity Certificate] -.- D[[Node Identity Private Key]]
+        A[Service Identity Certificate] -- recorded in --> L[(Ledger)]
+        C[Node Identity Certificate] -- recorded in --> L[(Ledger)]
+        A[Service Identity Certificate] -- endorses --> C[Node Identity Certificate]
+
+
+Ledger Secret diagram:
+
+.. mermaid::
+
+    flowchart TB
+        A[Ledger Secret Wrapping Key] -- encrypts --> B[[Current Ledger Secret]]
+        A[Ledger Secret Wrapping Key] -- split into --> C{{k-of-n recovery shares}}
+        D[Members encryption public keys] -- encrypt --> C{{k-of-n recovery shares}}
+        C{{k-of-n recovery shares}} -- recorded in --> L[(Ledger)]
+        B[[Current Ledger Secret]] -- encrypts --> E[[Previous Ledger Secret]]
+
 Algorithms and Curves
 ---------------------
 
