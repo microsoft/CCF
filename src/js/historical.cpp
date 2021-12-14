@@ -33,13 +33,21 @@ namespace ccf::js
       auto leaf_components = JS_NewObject(ctx);
       if (receipt_out.leaf_components->write_set_digest.has_value())
       {
-        JS_SetPropertyStr(ctx, leaf_components, "write_set_digest",
-          JS_NewString(ctx, receipt_out.leaf_components->write_set_digest->c_str()));
+        JS_SetPropertyStr(
+          ctx,
+          leaf_components,
+          "write_set_digest",
+          JS_NewString(
+            ctx, receipt_out.leaf_components->write_set_digest->c_str()));
       }
       if (receipt_out.leaf_components->claims_digest.has_value())
       {
-        JS_SetPropertyStr(ctx, leaf_components, "claims_digest",
-          JS_NewString(ctx, receipt_out.leaf_components->claims_digest->c_str()));
+        JS_SetPropertyStr(
+          ctx,
+          leaf_components,
+          "claims_digest",
+          JS_NewString(
+            ctx, receipt_out.leaf_components->claims_digest->c_str()));
       }
       JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
     }

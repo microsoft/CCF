@@ -229,3 +229,8 @@ export type EndpointFn<
  * @inheritDoc CCF.rpc.setApplyWrites
  */
 export const setApplyWrites = ccf.rpc.setApplyWrites.bind(ccf.rpc);
+
+/**
+ * @inheritDoc CCF.rpc.setClaimsDigest
+ */
+export const setClaimsDigest = ccf.rpc.setClaimsDigest.bind(ccf.rpc);

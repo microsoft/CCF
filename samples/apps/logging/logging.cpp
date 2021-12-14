@@ -1431,7 +1431,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "1.5.0";
+      logger_handlers.openapi_info.document_version = "1.6.0";
     }
   };
 }

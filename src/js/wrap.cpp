@@ -704,8 +704,12 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Argument must be an ArrayBuffer of the right size");
 
-    rpc_ctx->set_claims_digest(
-      ccf::ClaimsDigest::Digest({digest, digest_size}));
+    ccf::ClaimsDigest::Digest::Representation r;
+    std::copy(digest, digest + digest_size, r.begin());
+    ccf::ClaimsDigest::Digest d;
+    d.set(r);
+
+    rpc_ctx->set_claims_digest(d);
 
     return JS_UNDEFINED;
   }
