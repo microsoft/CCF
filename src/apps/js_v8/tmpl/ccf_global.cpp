@@ -11,39 +11,40 @@
 
 namespace ccf::v8_tmpl
 {
-  enum class InternalFields
+  enum class InternalField
   {
     TxContext,
     HistoricalStatePtr,
     EndpointRegistry,
-    StateCache
+    StateCache,
+    END
   };
 
   static TxContext* unwrap_tx_ctx(v8::Local<v8::Object> obj)
   {
     return static_cast<TxContext*>(
-      get_internal_field(obj, InternalFields::TxContext));
+      get_internal_field(obj, InternalField::TxContext));
   }
 
   static ccf::historical::StatePtr* unwrap_historical_state(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::historical::StatePtr*>(
-      get_internal_field(obj, InternalFields::HistoricalStatePtr));
+      get_internal_field(obj, InternalField::HistoricalStatePtr));
   }
 
   static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::BaseEndpointRegistry*>(
-      get_internal_field(obj, InternalFields::EndpointRegistry));
+      get_internal_field(obj, InternalField::EndpointRegistry));
   }
 
   static ccf::historical::AbstractStateCache* unwrap_state_cache(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::historical::AbstractStateCache*>(
-      get_internal_field(obj, InternalFields::StateCache));
+      get_internal_field(obj, InternalField::StateCache));
   }
 
   static v8::Local<v8::ArrayBuffer> js_str_to_buf_direct(
@@ -269,7 +270,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    set_internal_field_count<InternalFields>(tmpl);
+    set_internal_field_count<InternalField>(tmpl);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "strToBuf"),
@@ -316,12 +317,12 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
 
-    set_internal_field(result, InternalFields::TxContext, &tx_ctx);
-    set_internal_field(
-      result, InternalFields::HistoricalStatePtr, &historical_state);
-    set_internal_field(
-      result, InternalFields::EndpointRegistry, endpoint_registry);
-    set_internal_field(result, InternalFields::StateCache, state_cache);
+    set_internal_fields<InternalField>(
+      result,
+      {{{InternalField::TxContext, &tx_ctx},
+        {InternalField::HistoricalStatePtr, &historical_state},
+        {InternalField::EndpointRegistry, endpoint_registry},
+        {InternalField::StateCache, state_cache}}});
 
     return handle_scope.Escape(result);
   }

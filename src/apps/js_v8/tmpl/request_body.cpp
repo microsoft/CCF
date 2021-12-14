@@ -6,15 +6,16 @@
 
 namespace ccf::v8_tmpl
 {
-  enum class InternalFields
+  enum class InternalField
   {
-    Body
+    Body,
+    END
   };
 
   static const std::vector<uint8_t>* unwrap_body(v8::Local<v8::Object> obj)
   {
     return static_cast<const std::vector<uint8_t>*>(
-      get_internal_field(obj, InternalFields::Body));
+      get_internal_field(obj, InternalField::Body));
   }
 
   static void get_text(const v8::FunctionCallbackInfo<v8::Value>& info)
@@ -83,7 +84,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    set_internal_field_count<InternalFields>(tmpl);
+    set_internal_field_count<InternalField>(tmpl);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "text"),
@@ -108,7 +109,10 @@ namespace ccf::v8_tmpl
       get_cached_object_template<RequestBody>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    set_internal_field(result, InternalFields::Body, (void*)&body);
+
+    set_internal_fields<InternalField>(
+      result,
+      {{{InternalField::Body, const_cast<std::vector<uint8_t>*>(&body)}}});
 
     return handle_scope.Escape(result);
   }

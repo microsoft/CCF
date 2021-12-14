@@ -6,15 +6,16 @@
 
 namespace ccf::v8_tmpl
 {
-  enum class InternalFields
+  enum class InternalField
   {
-    KVMapHandle
+    KVMapHandle,
+    END
   };
 
   static KVMapHandle* unwrap_kv_map_handle(v8::Local<v8::Object> obj)
   {
     return static_cast<KVMapHandle*>(
-      get_internal_field(obj, InternalFields::KVMapHandle));
+      get_internal_field(obj, InternalField::KVMapHandle));
   }
 
   static void js_kv_map_size_getter(
@@ -300,7 +301,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    set_internal_field_count<InternalFields>(tmpl);
+    set_internal_field_count<InternalField>(tmpl);
 
     auto setter = js_kv_map_set;
     auto deleter = js_kv_map_delete;
@@ -362,7 +363,9 @@ namespace ccf::v8_tmpl
     v8::Local<v8::ObjectTemplate> tmpl = get_cached_object_template<T>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    set_internal_field(result, InternalFields::KVMapHandle, (void*)&map_handle);
+
+    set_internal_fields<InternalField>(
+      result, {{{InternalField::KVMapHandle, &map_handle}}});
 
     return handle_scope.Escape(result);
   }

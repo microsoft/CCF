@@ -7,16 +7,17 @@
 
 namespace ccf::v8_tmpl
 {
-  enum class InternalFields
+  enum class InternalField
   {
-    EndpointRegistry
+    EndpointRegistry,
+    END
   };
 
   static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(
     v8::Local<v8::Object> obj)
   {
     return static_cast<ccf::BaseEndpointRegistry*>(
-      get_internal_field(obj, InternalFields::EndpointRegistry));
+      get_internal_field(obj, InternalField::EndpointRegistry));
   }
 
   static void get_last_committed_txid(
@@ -176,7 +177,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    set_internal_field_count<InternalFields>(tmpl);
+    set_internal_field_count<InternalField>(tmpl);
 
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "getLastCommittedTxId"),
@@ -202,8 +203,8 @@ namespace ccf::v8_tmpl
       get_cached_object_template<Consensus>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    set_internal_field(
-      result, InternalFields::EndpointRegistry, endpoint_registry);
+    set_internal_fields<InternalField>(
+      result, {{{InternalField::EndpointRegistry, endpoint_registry}}});
 
     return handle_scope.Escape(result);
   }

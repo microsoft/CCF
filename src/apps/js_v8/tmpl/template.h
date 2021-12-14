@@ -37,14 +37,19 @@ namespace ccf::v8_tmpl
   void set_internal_field_count(v8::Local<v8::ObjectTemplate> tmpl)
   {
     static_assert(std::is_enum_v<T>, "T must be an enum class");
-    tmpl->SetInternalFieldCount(sizeof(T));
+    tmpl->SetInternalFieldCount(static_cast<int>(T::END));
   }
 
-  template <class T>
-  void set_internal_field(v8::Local<v8::Object> obj, T enum_value, void* value)
+  template <class T, size_t N = static_cast<size_t>(T::END)>
+  void set_internal_fields(
+    v8::Local<v8::Object> obj, const std::array<std::pair<T, void*>, N>& fields)
   {
     static_assert(std::is_enum_v<T>, "T must be an enum value");
-    obj->SetAlignedPointerInInternalField(static_cast<int>(enum_value), value);
+    for (const auto& [enum_value, value] : fields)
+    {
+      obj->SetAlignedPointerInInternalField(
+        static_cast<int>(enum_value), value);
+    }
   }
 
   template <class T>

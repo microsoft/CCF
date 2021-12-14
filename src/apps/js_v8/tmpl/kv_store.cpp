@@ -6,15 +6,16 @@
 
 namespace ccf::v8_tmpl
 {
-  enum class InternalFields
+  enum class InternalField
   {
-    TxContext
+    TxContext,
+    END
   };
 
   static TxContext* unwrap_tx_ctx(v8::Local<v8::Object> obj)
   {
     return static_cast<TxContext*>(
-      get_internal_field(obj, InternalFields::TxContext));
+      get_internal_field(obj, InternalField::TxContext));
   }
 
   static void js_kv_lookup(
@@ -87,7 +88,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 
-    set_internal_field_count<InternalFields>(tmpl);
+    set_internal_field_count<InternalField>(tmpl);
 
     tmpl->SetHandler(v8::NamedPropertyHandlerConfiguration(js_kv_lookup));
 
@@ -104,7 +105,9 @@ namespace ccf::v8_tmpl
       get_cached_object_template<KVStore>(isolate);
 
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
-    set_internal_field(result, InternalFields::TxContext, &tx_ctx);
+
+    set_internal_fields<InternalField>(
+      result, {{{InternalField::TxContext, &tx_ctx}}});
 
     return handle_scope.Escape(result);
   }
