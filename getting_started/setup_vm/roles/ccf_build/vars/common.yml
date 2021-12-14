@@ -25,6 +25,7 @@ debs:
   - iptables # partition test infra
   - libclang1-9 # required by doxygen
   - libclang-cpp9 # required by doxygen
+  - pkg-config # required by v8
 
 # Not installed on GitHub Actions environment because of conflicting package
 docker_debs:
