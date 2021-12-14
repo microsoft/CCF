@@ -77,7 +77,7 @@ def verify_receipt_with_claims(receipt, network_cert, claims, check_endorsement=
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
-def test(network, args, verify=True):
+def test(network, args):
     network.txs.issue(
         network=network,
         number_txs=1,
@@ -87,10 +87,7 @@ def test(network, args, verify=True):
         number_txs=1,
         on_backup=True,
     )
-    if verify:
-        network.txs.verify()
-    else:
-        LOG.warning("Skipping log messages verification")
+    network.txs.verify()
 
     return network
 
@@ -98,7 +95,7 @@ def test(network, args, verify=True):
 @reqs.description("Protocol-illegal traffic")
 @reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
-def test_illegal(network, args, verify=True):
+def test_illegal(network, args):
     primary, _ = network.find_primary()
 
     def send_bad_raw_content(content):
@@ -139,10 +136,7 @@ def test_illegal(network, args, verify=True):
         number_txs=1,
         on_backup=True,
     )
-    if verify:
-        network.txs.verify()
-    else:
-        LOG.warning("Skipping log messages verification")
+    network.txs.verify()
 
     return network
 
@@ -1469,8 +1463,8 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test(network, args, verify=args.package != "libjs_generic")
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        network = test(network, args)
+        network = test_illegal(network, args)
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_clear(network, args)
