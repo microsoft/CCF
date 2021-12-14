@@ -1586,22 +1586,24 @@ namespace ccf
       create_params.node_id = self;
       create_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
+      create_params.node_endorsed_certificate = crypto::create_endorsed_cert(
+        create_params.certificate_signing_request,
+        config.startup_host_time,
+        config.node_certificate.initial_validity_days,
+        network.identity->priv_key,
+        network.identity->cert);
+
+      // Even though endorsed certificate is updated on (global) hook, history
+      // requires it to generate signatures
+      history->set_endorsed_certificate(
+        create_params.node_endorsed_certificate);
+
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.network;
-      create_params.node_cert_valid_from = config.startup_host_time;
-      create_params.initial_node_cert_validity_period_days =
-        config.node_certificate.initial_validity_days;
-
-      // Record self-signed certificate in create request if the node does not
-      // require endorsement by the service (i.e. BFT)
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        create_params.node_cert = self_signed_node_cert;
-      }
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1686,16 +1688,7 @@ namespace ccf
 
     bool create_and_send_boot_request(bool create_consortium = true)
     {
-      const auto create_success =
-        send_create_request(serialize_create_request(create_consortium));
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        return true;
-      }
-      else
-      {
-        return create_success;
-      }
+      return send_create_request(serialize_create_request(create_consortium));
     }
 
     void backup_initiate_private_recovery()
@@ -1791,12 +1784,12 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
-      network.tables->set_map_hook(
+      network.tables->set_global_hook(
         network.node_endorsed_certificates.get_name(),
-        network.node_endorsed_certificates.wrap_map_hook(
+        network.node_endorsed_certificates.wrap_commit_hook(
           [this](
             kv::Version hook_version,
-            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            const NodeEndorsedCertificates::Write& w) {
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
@@ -1818,8 +1811,6 @@ namespace ccf
               open_frontend(ActorsType::members);
               open_user_frontend();
             }
-
-            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
