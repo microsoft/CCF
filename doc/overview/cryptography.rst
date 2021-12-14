@@ -42,6 +42,8 @@ Each node-to-node pair establishes a symmetric key using an authenticated Diffie
 Summary Diagrams
 ----------------
 
+.. note:: The ":fa:`key`" symbol indicates that the key never leaves the enclave memory, or in the case of the ``Service Identity Private Key`` and ``Ledger Secret`` is only shared between nodes over authenticated TLS.
+
 Identity Keys and Certificates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
