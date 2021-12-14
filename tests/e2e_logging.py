@@ -673,8 +673,9 @@ def test_historical_query(network, args):
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
-    network.txs.issue(network, send_public=False, number_txs=5)
-    for idx in range(1, TXS_COUNT + 1):
+    start_idx = network.txs.idx + 1
+    network.txs.issue(network, number_txs=TXS_COUNT)
+    for idx in range(start_idx, TXS_COUNT + start_idx):
         for node in [primary, backups[0]]:
             first_msg = network.txs.priv[idx][0]
             first_receipt = network.txs.get_receipt(
@@ -701,8 +702,9 @@ def test_historical_receipts(network, args):
 def test_historical_receipts_with_claims(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
-    network.txs.issue(network, send_private=False, number_txs=5)
-    for idx in range(1, TXS_COUNT + 1):
+    start_idx = network.txs.idx + 1
+    network.txs.issue(network, number_txs=TXS_COUNT, record_claim=True)
+    for idx in range(start_idx, TXS_COUNT + start_idx):
         for node in [primary, backups[0]]:
             first_msg = network.txs.pub[idx][0]
             first_receipt = network.txs.get_receipt(

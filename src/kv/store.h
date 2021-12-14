@@ -698,7 +698,7 @@ namespace kv
         return false;
       }
       v = v_.value();
-      LOG_INFO_FMT(
+      LOG_TRACE_FMT(
         "Deserialised claim digest {} {}",
         d.get_claims_digest().value(),
         d.get_claims_digest().empty());
@@ -947,8 +947,6 @@ namespace kv
             }
             else
             {
-              LOG_INFO_FMT(
-                "Appending with claim digest {}", claims_digest_.value());
               h->append_entry(
                 ccf::entry_leaf(*data_shared, claims_digest_.value()));
             }

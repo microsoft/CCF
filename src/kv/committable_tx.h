@@ -46,7 +46,7 @@ namespace kv
       auto e = store->get_encryptor();
       auto entry_type = claims_digest.empty() ? EntryType::WriteSet :
                                                 EntryType::WriteSetWithClaims;
-      LOG_INFO_FMT(
+      LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
         claims_digest.value(),
         claims_digest.empty());

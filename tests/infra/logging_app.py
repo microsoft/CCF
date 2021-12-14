@@ -81,6 +81,7 @@ class LoggingTxs:
         log_capture=None,
         send_private=True,
         send_public=True,
+        record_claim=False,
     ):
         self.network = network
         remote_node, _ = network.find_primary(log_capture=log_capture)
@@ -124,12 +125,15 @@ class LoggingTxs:
 
                 if send_public:
                     pub_msg = f"Public message at idx {target_idx} [{len(self.pub[target_idx])}]"
+                    payload = {
+                        "id": target_idx,
+                        "msg": pub_msg,
+                    }
+                    if record_claim:
+                        payload["record_claim"] = True
                     rep_pub = c.post(
                         "/app/log/public",
-                        {
-                            "id": target_idx,
-                            "msg": pub_msg,
-                        },
+                        payload,
                         headers=self._get_headers_base(),
                         log_capture=log_capture,
                     )

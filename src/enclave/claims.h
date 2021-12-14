@@ -52,7 +52,7 @@ namespace ccf
     const crypto::Sha256Hash& claims_digest)
   {
     crypto::Sha256Hash write_set_digest({write_set.data(), write_set.size()});
-    LOG_INFO_FMT(
+    LOG_TRACE_FMT(
       "entry_leaf {} + {} = {}",
       write_set_digest,
       claims_digest,
