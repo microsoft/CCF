@@ -42,6 +42,13 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     Design documentation.
 
+    ---
+
+    :fa:`cogs` :doc:`build_images`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    CCF build images.
+
 .. toctree::
     :maxdepth: 1
     :hidden:
@@ -51,3 +58,4 @@ The CCF team welcome contributions to any part of the framework, including this 
     build_ccf
     release_ccf
     design/index
+    build_images
