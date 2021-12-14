@@ -1495,8 +1495,7 @@ def run(args):
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
         network = test_historical_receipts(network, args)
-        if args.package == "samples/apps/logging/liblogging":
-            network = test_historical_receipts_with_claims(network, args)
+        network = test_historical_receipts_with_claims(network, args)
 
 
 if __name__ == "__main__":

@@ -61,6 +61,21 @@ export function get_historical_with_receipt(request) {
   return result;
 }
 
+export function get_historical_public(request) {
+  const parsedQuery = parse_request_query(request);
+  const id = get_id_from_query(parsedQuery);
+  // Forward-compatibility with 2.x
+  const kv = ccf.historicalState.kv || ccf.kv;
+  return get_record(kv["public:records"], id);
+}
+
+export function get_historical_public_with_receipt(request) {
+  const result = get_historical_public(request);
+  result.body.receipt = ccf.historicalState.receipt;
+  delete result.body.receipt.leaf_components.claims_digest;
+  return result;
+}
+
 function get_first_write_version(id) {
   let version = ccf.kv["first_write_version"].get(id);
   if (version !== undefined) {
@@ -247,6 +262,10 @@ export function post_public(request) {
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
   ccf.kv["public:records"].set(id, ccf.strToBuf(params.msg));
+  if (params.record_claim) {
+    const claims_digest = ccf.digest("SHA-256", ccf.strToBuf(params.msg));
+    ccf.rpc.setClaimsDigest(claims_digest);
+  }
   return { body: true };
 }
 

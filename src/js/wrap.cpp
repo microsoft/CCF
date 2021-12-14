@@ -678,6 +678,38 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
+  JSValue js_rpc_set_claims_digest(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    auto rpc_ctx =
+      static_cast<enclave::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
+
+    if (rpc_ctx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "RPC context is not set");
+    }
+
+    size_t digest_size;
+    uint8_t* digest = JS_GetArrayBuffer(ctx, &digest_size, argv[0]);
+
+    if (!digest)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    if (digest_size != ccf::ClaimsDigest::Digest::SIZE)
+      return JS_ThrowTypeError(
+        ctx, "Argument must be an ArrayBuffer of the right size");
+
+    rpc_ctx->set_claims_digest(
+      ccf::ClaimsDigest::Digest({digest, digest_size}));
+
+    return JS_UNDEFINED;
+  }
+
   JSValue js_gov_set_jwt_public_signing_keys(
     JSContext* ctx,
     [[maybe_unused]] JSValueConst this_val,
@@ -1496,6 +1528,11 @@ namespace ccf::js
         rpc,
         "setApplyWrites",
         JS_NewCFunction(ctx, js_rpc_set_apply_writes, "setApplyWrites", 1));
+      JS_SetPropertyStr(
+        ctx,
+        rpc,
+        "setClaimsDigest",
+        JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
     }
 
     // All high-level public helper functions are exposed through
