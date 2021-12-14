@@ -16,7 +16,7 @@ pr:
 resources:
   containers:
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.17.5
+      image: ccfciteam/ccf-ci:initial-test
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
