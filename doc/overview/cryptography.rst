@@ -72,19 +72,20 @@ Ledger Secret diagram:
 .. mermaid::
 
     flowchart TB
-        LedgerSecret[fa:fa-key Ledger Secret] --> N[/encrypts/] --> EncryptedLedgerSecret[fa:fa-lock Encrypted Ledger Secret]
+        EncryptedLedgerSecret -- recorded in ccf.internal --> Ledger[(fa:fa-book Ledger)]
         LedgerSecret -- "encrypts (AES-GCM)" --> Transactions[fa:fa-lock All CCF Transactions]
-        WrappingKey[fa:fa-key Ledger Secret Wrapping Key] --> N[/encrypts/]
-        Transactions -- recorded in --> Ledger[(fa:fa-book Ledger)]
-        LedgerSecret --> H[/encrypts/]
-        PreviousLedgerSecret[fa:fa-key Previous Ledger Secret] --> H[/encrypts/] --> EncryptedPreviousLedgerSecret[fa:fa-lock Encrypted Previous Ledger Secret]
+        WrappingKey[fa:fa-key Ledger Secret Wrapping Key] --key--> N[/encrypts/]
+        LedgerSecret[fa:fa-key Ledger Secret] --in--> N[/encrypts/] --> EncryptedLedgerSecret[fa:fa-lock Encrypted Ledger Secret]
+        Transactions -- recorded in --> Ledger
+        LedgerSecret --key--> H[/encrypts/]
+        PreviousLedgerSecret[fa:fa-key Previous Ledger Secret] --in--> H[/encrypts/] --> EncryptedPreviousLedgerSecret[fa:fa-lock Encrypted Previous Ledger Secret]
         EncryptedPreviousLedgerSecret -- recorded in <br> ccf.internal.historical_encrypted_ledger_secret --> Ledger
         WrappingKey -- split into --> RecoveryShares{{fa:fa-helicopter k-of-n Recovery Shares}}
-        MemberPublicKeys{{fa:fa-users Members Encryption Public Keys}} --> F[/encrypts/]
-        RecoveryShares --> F[/encrypts/] --> EncryptedRecoveryShares{{fa:fa-lock Encrypted k-of-n recovery shares}}
+        MemberPublicKeys{{fa:fa-users Members Encryption Public Keys}} --key--> F[/encrypts/]
+        RecoveryShares --in--> F[/encrypts/] --> EncryptedRecoveryShares{{fa:fa-lock Encrypted k-of-n Recovery Shares}}
         EncryptedRecoveryShares -- recorded in <br> ccf.internal.recovery_shares --> Ledger
-        NodeEncryptionPublicKey{{fa:fa-key Node Encryption Public Keys}} --> K[/encrypts/]
-        LedgerSecret --> K[/encrypts/] --> NodeEncryptedLedgerSecrets{{fa:fa-lock Node Encrypted Ledger Secret}}
+        LedgerSecret --in--> K[/encrypts/] --> NodeEncryptedLedgerSecrets{{fa:fa-lock Node Encrypted Ledger Secrets}}
+        NodeEncryptionPublicKey{{fa:fa-key Node Encryption Public Keys}} --key--> K[/encrypts/]
         NodeEncryptedLedgerSecrets -- recorded in <br> ccf.internal.encrypted_ledger_secrets --> Ledger
 
 
