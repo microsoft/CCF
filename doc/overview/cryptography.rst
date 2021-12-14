@@ -45,20 +45,23 @@ Summary Diagrams
 Identity Keys and Certificates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The following diagram describes the relationships between identity keys of the service/network and nodes. The primary node periodically records a ``Ledger Signature`` over the root of the Merkle Tree of all transactions. All public certificates and attestation reports (including collaterals) are also recorded in the ledger for audit.
+The following diagram describes the relationships between identity keys of the service/network and nodes. The shared service identity (``Service Identity Certificate``) is the root of trust for the service and is assumed to be trusted by users who can connect to the service over TLS as well as verify the integrity of :ref:`transaction receipts <use_apps/verify_tx:Transaction Receipts>`.
+
+The primary node periodically signs the root of the Merkle Tree of all transactions (``Ledger Signature``) using its ``Node Identity Private Key`` and records it in the ledger. All public certificates and attestation reports (``Node Enclave Attestation + Collaterals``) are also recorded in the ledger for audit.
 
 .. mermaid::
 
     flowchart TB
-        ServiceCert[fa:fa-scroll Service Identity Certificate] -.- ServicePrivk[fa:fa-key Service Identity Private Key]
-        NodeCert[fa:fa-scroll Node Identity Certificate] -.- NodePrivk[fa:fa-key Node Identity Private Key]
+        ServiceCert[fa:fa-scroll Service Identity Certificate] --contains--> ServicePubk[Service Identity Public Key]
+        ServicePubk -.- ServicePrivk[fa:fa-key Service Identity Private Key]
+        NodePubk[Node Identity Public Key] -.- NodePrivk[fa:fa-key Node Identity Private Key]
         ServiceCert -- recorded in <br> ccf.gov.service.info --> Ledger[(fa:fa-book Ledger)]
-        NodeCert -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> Ledger
+        NodeCert[fa:fa-scroll Node Identity Certificate] -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> Ledger
         ServicePrivk -- signs --> NodeCert
         NodePrivk -- signs --> Signature[fa:fa-file-signature Ledger Signatures <br> over Merkle Tree root]
         Signature -- recorded in <br> ccf.internal.signatures --> Ledger
         Attestation[fa:fa-microchip Node Enclave Attestation <br> + Collaterals] -- contains hash of --> NodePubk
-        NodeCert -- contains --> NodePubk[Node Identity Public Key]
+        NodeCert -- contains --> NodePubk
         Attestation -- recorded in <br> ccf.gov.nodes.info --> Ledger
 
 
@@ -67,9 +70,9 @@ Ledger Secrets
 
 The ``Ledger Secret`` symmetric key is used to encrypt and protect the integrity (using AES-GCM) of all write transactions executed by the service and recorded in the ledger.
 
-To be able to recover the ledger (see :doc:`/operations/recovery`), the ledger secret is also encrypted using an ephemeral ``Ledger Secret Wrapping Key`` and the resulting ``Encrypted Ledger Secret`` is recorded in the ledger. The ``Ledger Secret Wrapping Key`` is split into ``k-of-n Recovery Shares`` (with ``k`` the :ref:`service recovery threshold <governance/common_member_operations:Updating Recovery Threshold?` and ``n`` the number of recovery members) and each recovery share is encrypted with the recovery member's encryption public key. The resulting ``Encrypted k-of-on Recovery Share`` is recorded in the ledger and can then be served to each recovery member by the recovered `public` service.
+To be able to recover the ledger (see :doc:`/operations/recovery`), the ledger secret is also encrypted using an ephemeral ``Ledger Secret Wrapping Key`` and the resulting ``Encrypted Ledger Secret`` is recorded in the ledger. The ``Ledger Secret Wrapping Key`` is split into ``k-of-n Recovery Shares`` (with ``k`` the :ref:`service recovery threshold <governance/common_member_operations:Updating Recovery Threshold>` and ``n`` the number of recovery members) and each recovery share is encrypted with the recovery member's encryption public key. The resulting ``Encrypted k-of-n Recovery Shares`` are recorded in the ledger and can then be served to each recovery member by the recovered `public` service, who can then decrypt it (for example, :doc:`by using their encryption private key stored in a HSM</governance/hsm_keys>`) and then submit the decrypted share to the new service.
 
-Since the ``Ledger Secret`` can also be rotated by members (see :ref:`governance/common_member_operations:Rekeying Ledger`), the old ledger secret (``Previous Ledger Secret``) is also encrypted with the new ledger secret and the resulting ``Encrypted Previous Ledger Secret`` is also recorded in the ledger. This allows recovery members to recover the entirety of the historical ledger by simply having access to their decrypted `most-recent` recovery shares.
+Since the ``Ledger Secret`` can also be rotated by members (see :ref:`governance/common_member_operations:Rekeying Ledger`), the old ledger secret (``Previous Ledger Secret``) is also encrypted with the new ledger secret and the resulting ``Encrypted Previous Ledger Secret`` is also recorded in the ledger. This allows recovery members to recover the entirety of the historical ledger by simply having access to their `most-recent` recovery shares.
 
 Each node also has an encryption public-key (``Node Encryption
 Public Key``) used to share ledger secrets between the primary and backups nodes during a :ref:`live ledger rekey <governance/common_member_operations:Updating Recovery Threshold>`.
