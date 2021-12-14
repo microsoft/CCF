@@ -4,53 +4,48 @@ Cryptography
 Keys
 ----
 
+.. tip:: See the :ref:`overview/cryptography:Summary Diagrams` for a detailed overview of the relationships between cryptographic keys in CCF.
+
 Service
 ~~~~~~~
 
 A CCF service/network has:
 
-- A service/network identity public-key certificate, used for :term:`TLS` server authentication.
-- Symmetric data-encryption keys, used to encrypt entries in the ledger.
+- A service/network identity public-key certificate (``Service Identity Certificate``), used as root of trust for :term:`TLS` server authentication and receipt verification.
+- A symmetric data-encryption key (``Ledger Secret``), used to encrypt and integrity protect all transactions/entries in the ledger.
+
+.. note:: The service certificate, associated private key and data-encryption keys are shared by all nodes trusted to join the network.
 
 Node
 ~~~~
 
-Each CCF node is identified by a fresh public-key certificate endorsed by a quote.
-This certificate is used to authenticate the node when it joins the
-network, and to sign entries committed by the node to the ledger during its time as primary.
+Each CCF node is identified by a public-key certificate (``Node Identity Certificate``) endorsed by an attestation report (``Node Enclave Attestation + Collaterals``). This certificate is used to authenticate the node when it joins the network, and to periodically sign entries (``Ledger Signatures``) committed by the node to the ledger during its time as primary.
 
-Node keys are also used during recovery, to share recovered ledger secrets between nodes.
-
-User
-~~~~
-
-Each CCF user is identified by a public-key certificate, used for :term:`TLS` client authentication when they connect to the service.
-These keys are also used to sign user commands.
+Each node also has an encryption public-key (``Node Encryption
+Public Key``) used to share ledger secrets between the primary and backups nodes during a :ref:`live ledger rekey <governance/common_member_operations:Updating Recovery Threshold>`.
 
 Member
 ~~~~~~
 
-Each CCF consortium member is similarly identified by a public-key certificate used for client authentication and command signing.
+Each CCF consortium member is similarly identified by a public-key certificate used for client authentication and command signing. Recovery members also have an encryption public-key (``Member Encryption Public Key``) used to encrypt recovery shares in the ledger.
+
+User
+~~~~
+
+Each CCF user is identified by a public-key certificate, used for :term:`TLS` client authentication when they connect to the service. These keys are also used to sign user commands.
 
 Ephemeral Network Keys
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Each node to node pair establishes a symmetric traffic key, using an authenticated Diffie Hellman key exchange.
-This key authenticates ledger replication headers exchanged between  nodes. It is also use to encrypt forwarded
-write transactions from the backups to the primary.
+Each node-to-node pair establishes a symmetric key using an authenticated Diffie Hellman key exchange protocol. This key protects the integrity of consensus message headers exchanged between nodes. It is also use to encrypt forwarded write transactions from the backups to the primary node.
 
-Legend:
+Summary Diagrams
+----------------
 
-.. mermaid::
+Identity Keys and Certificates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    flowchart TB
-        A[Never leaves enclave]
-        L[("Ledger (on disk)")]
-        C{{Multiple}}
-        B[Key] --> E[/encrypt/]
-        P[Plaintext] --> E[/encrypt/] --> C[Cipher]
-
-Identity keys diagram:
+The following diagram describes the relationships between identity keys of the service/network and nodes. The primary node periodically records a ``Ledger Signature`` over the root of the Merkle Tree of all transactions. All public certificates and attestation reports (including collaterals) are also recorded in the ledger for audit.
 
 .. mermaid::
 
@@ -60,14 +55,21 @@ Identity keys diagram:
         ServiceCert -- recorded in <br> ccf.gov.service.info --> Ledger[(fa:fa-book Ledger)]
         NodeCert -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> Ledger
         ServicePrivk -- signs --> NodeCert
-        NodeCert -- contains --> NodePubk[Node Identity Public Key]
-        NodePrivk -- signs --> Signature[fa:fa-file-signature Ledger Signatures]
+        NodePrivk -- signs --> Signature[fa:fa-file-signature Ledger Signatures <br> over Merkle Tree root]
         Signature -- recorded in <br> ccf.internal.signatures --> Ledger
         Attestation[fa:fa-microchip Node Enclave Attestation <br> + Collaterals] -- contains hash of --> NodePubk
+        NodeCert -- contains --> NodePubk[Node Identity Public Key]
         Attestation -- recorded in <br> ccf.gov.nodes.info --> Ledger
 
 
-Ledger Secret diagram:
+Ledger Secrets
+~~~~~~~~~~~~~~
+
+The ``Ledger Secret`` symmetric key is used to encrypt and protect the integrity (using AES-GCM) of all write transactions executed by the service and recorded in the ledger.
+
+To be able to recover the ledger (see :doc:`/operations/recovery`), the ledger secret is also encrypted using an ephemeral ``Ledger Secret Wrapping Key`` and the resulting ``Encrypted Ledger Secret`` is recorded in the ledger. The ``Ledger Secret Wrapping Key`` is split into ``k-of-n Recovery Shares`` (with ``k`` the :ref:`service recovery threshold <governance/common_member_operations:Updating Recovery Threshold?` and ``n`` the number of recovery members) and each recovery share is encrypted with the recovery member's encryption public key. The resulting ``Encrypted k-of-on Recovery Share`` is recorded in the ledger and can then be served to each recovery member by the recovered `public` service.
+
+
 
 .. mermaid::
 
@@ -79,20 +81,20 @@ Ledger Secret diagram:
 
         PreviousLedgerSecret[fa:fa-key Previous <br> Ledger Secret] --in--> H[/encrypts/] --> EncryptedPreviousLedgerSecret[fa:fa-lock Encrypted Previous <br> Ledger Secret]
         LedgerSecret --key--> H[/encrypts/]
-        EncryptedPreviousLedgerSecret -- recorded in <br> ccf.internal.historical_encrypted_ledger_secret --> Ledger
+        EncryptedPreviousLedgerSecret -- recorded in <br> ccf.internal.<br>historical_encrypted_ledger_secret --> Ledger
 
         WrappingKey[fa:fa-key Ledger Secret <br> Wrapping Key] --key--> N[/encrypts/]
         LedgerSecret --in--> N[/encrypts/] --> EncryptedLedgerSecret[fa:fa-lock Encrypted <br> Ledger Secret]
         EncryptedLedgerSecret -- recorded in ccf.internal --> Ledger[(fa:fa-book Ledger)]
 
         LedgerSecret[fa:fa-key Ledger <br> Secret] -- "encrypts <br> (AES-GCM)" --> Transactions[fa:fa-lock All CCF Transactions]
-        style LedgerSecret fill:#7EBB42,stroke:black,stroke-width:3px
+        style LedgerSecret stroke:black,stroke-width:3px
         Transactions -- recorded in --> Ledger
 
         LedgerSecret --in--> K[/encrypts/] --> NodeEncryptedLedgerSecrets{{fa:fa-lock Node Encrypted Ledger Secrets}}
         NodeEncryptionPublicKeys{{Node Encryption <br> Public Keys}} --key--> K[/encrypt/]
         NodeEncryptedLedgerSecrets{{fa:fa-lock Node Encrypted <br> Ledger Secrets}}
-        NodeEncryptedLedgerSecrets -- recorded in <br> ccf.internal.encrypted_ledger_secrets --> Ledger
+        NodeEncryptedLedgerSecrets -- recorded in <br> ccf.internal.<br>encrypted_ledger_secrets --> Ledger
 
 
 Algorithms and Curves
