@@ -298,11 +298,13 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         records_handle->put(params["id"], in.msg);
+        // SNIPPET_START: set_claims_digest
         if (in.record_claim)
         {
           ctx.rpc_ctx->set_claims_digest(
             std::move(ccf::ClaimsDigest::Digest::from_string(in.msg)));
         }
+        // SNIPPET_END: set_claims_digest
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -848,8 +850,10 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             assert(historical_state->receipt);
+            // SNIPPET_START: claims_digest_in_receipt
             historical_state->receipt->describe(out.receipt);
             out.receipt.leaf_components->claims_digest = std::nullopt;
+            // SNIPPET_END: claims_digest_in_receipt
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
