@@ -1201,23 +1201,9 @@ namespace ccf
           g.set_constitution(in.genesis_info->constitution);
         }
 
-        if (!in.node_cert.has_value())
-        {
-          auto endorsed_certificates =
-            ctx.tx.rw(network.node_endorsed_certificates);
-          endorsed_certificates->put(
-            in.node_id,
-            crypto::create_endorsed_cert(
-              in.certificate_signing_request,
-              in.node_cert_valid_from,
-              in.initial_node_cert_validity_period_days,
-              this->network.identity->priv_key,
-              this->network.identity->cert));
-        }
-        else
-        {
-          node_info.cert = in.node_cert.value();
-        }
+        auto endorsed_certificates =
+          ctx.tx.rw(network.node_endorsed_certificates);
+        endorsed_certificates->put(in.node_id, in.node_endorsed_certificate);
 
         g.add_node(in.node_id, node_info);
 

@@ -269,6 +269,9 @@ def test_each_node_cert_renewal(network, args):
                         expected_exception is None
                     ), "Proposal should have not succeeded"
 
+                # Node certificate is updated on global commit hook
+                network.wait_for_all_nodes_to_commit(primary)
+
                 node_cert_tls_after = node.get_tls_certificate_pem()
                 assert (
                     node_cert_tls_before != node_cert_tls_after
