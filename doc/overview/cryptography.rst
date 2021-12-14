@@ -44,23 +44,27 @@ Legend:
 .. mermaid::
 
     flowchart TB
-        A[[Never leaves enclave]]
+        A[Never leaves enclave]
         L[("Ledger (on disk)")]
+        C{{Multiple}}
+        B[Key] --> E[/encrypt/]
+        P[Plaintext] --> E[/encrypt/] --> C[Cipher]
 
 Identity keys diagram:
 
 .. mermaid::
 
     flowchart TB
-        A[Service Identity Certificate] -.- B[[Service Identity Private Key]]
-        C[Node Identity Certificate] -.- D[[Node Identity Private Key]]
-        A[Service Identity Certificate] -- recorded in ccf.gov.service.info --> L[(Ledger)]
-        C[Node Identity Certificate] -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> L[(Ledger)]
-        A[Service Identity Certificate] -- endorses --> C[Node Identity Certificate]
-        C[Node Identity Certificate] -- contains --> P[Node Identity Public Key]
-        Q[Node Enclave Quote] -- contains hash of --> P[Node Identity Public Key]
-        D[[Node Identity Private Key]] -- signs --> S[Ledger Signatures]
-        S[Ledger Signatures] -- recorded in <br> ccf.internal.signatures --> L[(Ledger)]
+        ServiceCert[fa:fa-scroll Service Identity Certificate] -.- ServicePrivk[fa:fa-key Service Identity Private Key]
+        NodeCert[fa:fa-scroll Node Identity Certificate] -.- NodePrivk[fa:fa-key Node Identity Private Key]
+        ServiceCert -- recorded in <br> ccf.gov.service.info --> Ledger[(fa:fa-book Ledger)]
+        NodeCert -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> Ledger
+        ServicePrivk -- signs --> NodeCert
+        NodeCert -- contains --> NodePubk[Node Identity Public Key]
+        NodePrivk -- signs --> Signature[fa:fa-file-signature Ledger Signatures]
+        Signature -- recorded in <br> ccf.internal.signatures --> Ledger
+        Attestation[fa:fa-microchip Node Enclave Attestation <br> + Collaterals] -- contains hash of --> NodePubk
+        Attestation -- recorded in <br> ccf.gov.nodes.info --> Ledger
 
 
 Ledger Secret diagram:
@@ -68,16 +72,20 @@ Ledger Secret diagram:
 .. mermaid::
 
     flowchart TB
-        B[[Current Ledger Secret]] -- encrypted by --> A[[Ledger Secret Wrapping Key]]
-        B[[Current Ledger Secret]] -- "encrypts (AES-GCM)" --> W[All Transactions]
-        W[All Transactions] -- recorded in --> L[(Ledger)]
-        B[[Current Ledger Secret]] --> H[/encrypts/]
-        E[[Previous Ledger Secret]] --> H[/encrypts/] --> I[Encrypted Previous Ledger Secret]
-        I[Encrypted Previous Ledger Secret] -- recorded in <br> ccf.internal.historical_encrypted_ledger_secret --> L[(Ledger)]
-        A[[Ledger Secret Wrapping Key]] -- split into --> C{{k-of-n recovery shares}}
-        D[Members encryption public keys] --> F[/encrypts/]
-        C{{k-of-n recovery shares}} --> F[/encrypts/] --> G[Encrypted k-of-n recovery shares]
-        G[Encrypted k-of-n recovery shares] -- recorded in <br> ccf.internal.recovery_shares --> L[(Ledger)]
+        LedgerSecret[fa:fa-key Ledger Secret] --> N[/encrypts/] --> EncryptedLedgerSecret[fa:fa-lock Encrypted Ledger Secret]
+        LedgerSecret -- "encrypts (AES-GCM)" --> Transactions[fa:fa-lock All CCF Transactions]
+        WrappingKey[fa:fa-key Ledger Secret Wrapping Key] --> N[/encrypts/]
+        Transactions -- recorded in --> Ledger[(fa:fa-book Ledger)]
+        LedgerSecret --> H[/encrypts/]
+        PreviousLedgerSecret[fa:fa-key Previous Ledger Secret] --> H[/encrypts/] --> EncryptedPreviousLedgerSecret[fa:fa-lock Encrypted Previous Ledger Secret]
+        EncryptedPreviousLedgerSecret -- recorded in <br> ccf.internal.historical_encrypted_ledger_secret --> Ledger
+        WrappingKey -- split into --> RecoveryShares{{fa:fa-helicopter k-of-n Recovery Shares}}
+        MemberPublicKeys{{fa:fa-users Members Encryption Public Keys}} --> F[/encrypts/]
+        RecoveryShares --> F[/encrypts/] --> EncryptedRecoveryShares{{fa:fa-lock Encrypted k-of-n recovery shares}}
+        EncryptedRecoveryShares -- recorded in <br> ccf.internal.recovery_shares --> Ledger
+        NodeEncryptionPublicKey{{fa:fa-key Node Encryption Public Keys}} --> K[/encrypts/]
+        LedgerSecret --> K[/encrypts/] --> NodeEncryptedLedgerSecrets{{fa:fa-lock Node Encrypted Ledger Secret}}
+        NodeEncryptedLedgerSecrets -- recorded in <br> ccf.internal.encrypted_ledger_secrets --> Ledger
 
 
 Algorithms and Curves
