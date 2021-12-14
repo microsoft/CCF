@@ -4,13 +4,13 @@ Cryptography
 Keys
 ----
 
-Network
+Service
 ~~~~~~~
 
-A CCF network has a master secret, which is used to derive keys for multiple purposes:
+A CCF service/network has:
 
- * A network identity public-key certificate, used for :term:`TLS` server authentication.
- * Symmetric data-encryption keys, used to encrypt entries in the ledger.
+- A service/network identity public-key certificate, used for :term:`TLS` server authentication.
+- Symmetric data-encryption keys, used to encrypt entries in the ledger.
 
 Node
 ~~~~
@@ -39,6 +39,14 @@ Each node to node pair establishes a symmetric traffic key, using an authenticat
 This key authenticates ledger replication headers exchanged between  nodes. It is also use to encrypt forwarded
 write transactions from the backups to the primary.
 
+Legend:
+
+.. mermaid::
+
+    flowchart TB
+        A[[Never leaves enclave]]
+        L[("Ledger (on disk)")]
+
 Identity keys diagram:
 
 .. mermaid::
@@ -46,9 +54,13 @@ Identity keys diagram:
     flowchart TB
         A[Service Identity Certificate] -.- B[[Service Identity Private Key]]
         C[Node Identity Certificate] -.- D[[Node Identity Private Key]]
-        A[Service Identity Certificate] -- recorded in --> L[(Ledger)]
-        C[Node Identity Certificate] -- recorded in --> L[(Ledger)]
+        A[Service Identity Certificate] -- recorded in ccf.gov.service.info --> L[(Ledger)]
+        C[Node Identity Certificate] -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> L[(Ledger)]
         A[Service Identity Certificate] -- endorses --> C[Node Identity Certificate]
+        C[Node Identity Certificate] -- contains --> P[Node Identity Public Key]
+        Q[Node Enclave Quote] -- contains hash of --> P[Node Identity Public Key]
+        D[[Node Identity Private Key]] -- signs --> S[Ledger Signatures]
+        S[Ledger Signatures] -- recorded in <br> ccf.internal.signatures --> L[(Ledger)]
 
 
 Ledger Secret diagram:
@@ -57,13 +69,15 @@ Ledger Secret diagram:
 
     flowchart TB
         B[[Current Ledger Secret]] -- encrypted by --> A[[Ledger Secret Wrapping Key]]
+        B[[Current Ledger Secret]] -- "encrypts (AES-GCM)" --> W[All Transactions]
+        W[All Transactions] -- recorded in --> L[(Ledger)]
         B[[Current Ledger Secret]] --> H[/encrypts/]
         E[[Previous Ledger Secret]] --> H[/encrypts/] --> I[Encrypted Previous Ledger Secret]
-        I[Encrypted Previous Ledger Secret] -- recorded in --> L[(Ledger)]
+        I[Encrypted Previous Ledger Secret] -- recorded in <br> ccf.internal.historical_encrypted_ledger_secret --> L[(Ledger)]
         A[[Ledger Secret Wrapping Key]] -- split into --> C{{k-of-n recovery shares}}
         D[Members encryption public keys] --> F[/encrypts/]
         C{{k-of-n recovery shares}} --> F[/encrypts/] --> G[Encrypted k-of-n recovery shares]
-        G[Encrypted k-of-n recovery shares] -- recorded in --> L[(Ledger)]
+        G[Encrypted k-of-n recovery shares] -- recorded in <br> ccf.internal.recovery_shares --> L[(Ledger)]
 
 
 Algorithms and Curves
