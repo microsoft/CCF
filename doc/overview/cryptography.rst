@@ -56,11 +56,15 @@ Ledger Secret diagram:
 .. mermaid::
 
     flowchart TB
-        A[Ledger Secret Wrapping Key] -- encrypts --> B[[Current Ledger Secret]]
-        A[Ledger Secret Wrapping Key] -- split into --> C{{k-of-n recovery shares}}
-        D[Members encryption public keys] -- encrypt --> C{{k-of-n recovery shares}}
-        C{{k-of-n recovery shares}} -- recorded in --> L[(Ledger)]
-        B[[Current Ledger Secret]] -- encrypts --> E[[Previous Ledger Secret]]
+        B[[Current Ledger Secret]] -- encrypted by --> A[[Ledger Secret Wrapping Key]]
+        B[[Current Ledger Secret]] --> H[/encrypts/]
+        E[[Previous Ledger Secret]] --> H[/encrypts/] --> I[Encrypted Previous Ledger Secret]
+        I[Encrypted Previous Ledger Secret] -- recorded in --> L[(Ledger)]
+        A[[Ledger Secret Wrapping Key]] -- split into --> C{{k-of-n recovery shares}}
+        D[Members encryption public keys] --> F[/encrypts/]
+        C{{k-of-n recovery shares}} --> F[/encrypts/] --> G[Encrypted k-of-n recovery shares]
+        G[Encrypted k-of-n recovery shares] -- recorded in --> L[(Ledger)]
+
 
 Algorithms and Curves
 ---------------------
