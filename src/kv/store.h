@@ -698,12 +698,11 @@ namespace kv
         return false;
       }
       v = v_.value();
+      claims_digest = std::move(d.consume_claims_digest());
       LOG_TRACE_FMT(
         "Deserialised claim digest {} {}",
-        d.get_claims_digest().value(),
-        d.get_claims_digest().empty());
-      if (!d.get_claims_digest().empty())
-        claims_digest.set(d.get_claims_digest().value());
+        claims_digest.value(),
+        claims_digest.empty());
 
       // Throw away any local commits that have not propagated via the
       // consensus.

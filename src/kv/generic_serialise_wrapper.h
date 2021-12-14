@@ -259,9 +259,9 @@ namespace kv
       domain_restriction(domain_restriction)
     {}
 
-    const ccf::ClaimsDigest& get_claims_digest() const
+    ccf::ClaimsDigest&& consume_claims_digest()
     {
-      return claims_digest;
+      return std::move(claims_digest);
     }
 
     std::optional<Version> init(

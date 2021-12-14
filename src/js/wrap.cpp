@@ -707,7 +707,7 @@ namespace ccf::js
     ccf::ClaimsDigest::Digest::Representation r;
     std::copy(digest, digest + digest_size, r.begin());
     ccf::ClaimsDigest::Digest d;
-    d.set(r);
+    d.set(std::move(r));
 
     rpc_ctx->set_claims_digest(std::move(d));
 

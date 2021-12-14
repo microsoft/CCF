@@ -513,7 +513,7 @@ namespace ccf::historical
       const crypto::Sha256Hash& entry_digest,
       ccf::SeqNo seqno,
       bool is_signature,
-      const ccf::ClaimsDigest& claims_digest)
+      ccf::ClaimsDigest&& claims_digest)
     {
       auto request_it = requests.begin();
       while (request_it != requests.end())
@@ -572,7 +572,7 @@ namespace ccf::historical
 
           details->entry_digest = entry_digest;
           if (!claims_digest.empty())
-            details->claims_digest.set(claims_digest.value());
+            details->claims_digest = std::move(claims_digest);
 
           CCF_ASSERT_FMT(
             details->store == nullptr,
@@ -979,8 +979,7 @@ namespace ccf::historical
         }
 
         deserialise_result = exec->apply();
-        if (!exec->get_claims_digest().empty())
-          claims_digest.set(exec->get_claims_digest().value());
+        claims_digest = std::move(exec->consume_claims_digest());
       }
       catch (const std::exception& e)
       {
@@ -1041,7 +1040,7 @@ namespace ccf::historical
         (size_t)deserialise_result);
       const auto entry_digest = crypto::Sha256Hash({data, size});
       process_deserialised_store(
-        store, entry_digest, seqno, is_signature, claims_digest);
+        store, entry_digest, seqno, is_signature, std::move(claims_digest));
 
       return true;
     }

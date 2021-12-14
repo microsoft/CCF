@@ -63,9 +63,9 @@ namespace kv
       expected_txid(expected_txid_)
     {}
 
-    const ccf::ClaimsDigest& get_claims_digest() const override
+    ccf::ClaimsDigest&& consume_claims_digest() override
     {
-      return claims_digest;
+      return std::move(claims_digest);
     }
 
     ApplyResult apply() override

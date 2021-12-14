@@ -60,9 +60,9 @@ namespace crypto
 
     Sha256Hash() : h{0} {}
 
-    inline void set(const Representation& r)
+    inline void set(Representation&& r)
     {
-      h = r;
+      h = std::move(r);
     }
 
     Sha256Hash(const CBuffer& data) : h{0}
