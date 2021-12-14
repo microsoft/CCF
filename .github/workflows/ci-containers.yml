@@ -1,0 +1,26 @@
+name: "Build and Publish CI Containers"
+
+on:
+  push:
+    tags:
+      - "ccf_ci_image/*"
+
+jobs:
+  build:
+    name: "Build CI Containers"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Truncate ref
+        run: echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf_ci_image/}"
+        id: tref
+
+      - name: Build CCF CI container
+        run: docker build -f docker/ccf_ci . -t ccfciteam/ccf-ci:${{steps.tref.outputs.tag}}
+
+      - name: Log in
+        run: docker login -u amchamay -p ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Push CI container
+        run: docker push ccfciteam/ccf-ci:${{steps.tref.outputs.tag}}
