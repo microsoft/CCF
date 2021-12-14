@@ -143,7 +143,7 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("log/private")
 def test_remove(network, args):
-    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
+    supported_packages = ["libjs_generic", "libjs_v8", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -167,7 +167,7 @@ def test_remove(network, args):
                         result=None,
                     )
                     get_r = c.get(f"{resource}?id={log_id}")
-                    if args.package == "libjs_generic":
+                    if args.package in ["libjs_generic", "libjs_v8"]:
                         check(
                             get_r,
                             result={"error": "No such key"},
@@ -189,7 +189,7 @@ def test_remove(network, args):
 @reqs.description("Write/Read/Clear messages on primary")
 @reqs.supports_methods("log/private/all", "log/public/all")
 def test_clear(network, args):
-    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
+    supported_packages = ["libjs_generic", "libjs_v8", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
@@ -215,7 +215,7 @@ def test_clear(network, args):
                     )
                     for log_id in log_ids:
                         get_r = c.get(f"{resource}?id={log_id}")
-                        if args.package == "libjs_generic":
+                        if args.package in ["libjs_generic", "libjs_v8"]:
                             check(
                                 get_r,
                                 result={"error": "No such key"},
@@ -241,7 +241,7 @@ def test_clear(network, args):
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("log/private/count", "log/public/count")
 def test_record_count(network, args):
-    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
+    supported_packages = ["libjs_generic", "libjs_v8", "samples/apps/logging/liblogging"]
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
