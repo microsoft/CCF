@@ -207,9 +207,9 @@ namespace enclave
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
 
-    virtual void set_claims_digest(const ccf::ClaimsDigest::Digest& digest)
+    virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest)
     {
-      claims.set(digest);
+      claims.set(std::move(digest));
     }
   };
 }

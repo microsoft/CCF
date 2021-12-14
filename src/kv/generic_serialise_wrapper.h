@@ -244,7 +244,7 @@ namespace kv
         auto digest_array =
           public_reader
             .template read_next<ccf::ClaimsDigest::Digest::Representation>();
-        claims_digest.set(digest_array);
+        claims_digest.set(std::move(digest_array));
       }
       // max_conflict_version is included for compatibility, but currently
       // ignored

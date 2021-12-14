@@ -25,7 +25,13 @@ namespace ccf
       digest = digest_;
     }
 
-    inline void set(const Digest::Representation& r)
+    inline void set(Digest&& digest_)
+    {
+      is_set = true;
+      digest = digest_;
+    }
+
+    inline void set(Digest::Representation&& r)
     {
       is_set = true;
       digest.set(r);

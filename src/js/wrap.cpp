@@ -709,7 +709,7 @@ namespace ccf::js
     ccf::ClaimsDigest::Digest d;
     d.set(r);
 
-    rpc_ctx->set_claims_digest(d);
+    rpc_ctx->set_claims_digest(std::move(d));
 
     return JS_UNDEFINED;
   }
