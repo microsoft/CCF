@@ -1,5 +1,14 @@
 ## How to write templates
 
+### Storing native pointers as internal fields in JavaScript objects
+
+`template.h` provides helper functions to set and get native pointers.
+
+Conventions:
+
+- If the JavaScript object relies on the caller to keep the resource alive, then the `wrap()` function of a template class receives the resource as **raw pointer**. This indicates to the caller that care must be taken, since raw pointers are not generally used.
+- If the JavaScript object does not rely on the caller to keep the resource alive, then the `wrap()` function receives the resource as **const reference**. An example is `receipt.h`.
+
 ### Expose a native function to JS
 
 ```cpp

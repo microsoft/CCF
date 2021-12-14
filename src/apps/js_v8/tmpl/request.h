@@ -19,8 +19,8 @@ namespace ccf::v8_tmpl
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context,
-      EndpointContext& endpoint_ctx,
-      BaseEndpointRegistry& endpoint_registry);
+      EndpointContext* endpoint_ctx,
+      BaseEndpointRegistry* endpoint_registry);
   };
 
 } // namespace ccf::v8_tmpl

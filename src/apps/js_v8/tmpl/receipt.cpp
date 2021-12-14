@@ -110,12 +110,12 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> Receipt::wrap(
-    v8::Local<v8::Context> context, ccf::TxReceipt* receipt)
+    v8::Local<v8::Context> context, const ccf::TxReceipt& receipt)
   {
     ccf::Receipt* receipt_out = new ccf::Receipt();
     V8Context::from_context(context).register_finalizer(
       [](void* data) { delete static_cast<ccf::Receipt*>(data); }, receipt_out);
-    receipt->describe(*receipt_out);
+    receipt.describe(*receipt_out);
 
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);

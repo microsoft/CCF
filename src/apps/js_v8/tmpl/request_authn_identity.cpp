@@ -14,40 +14,41 @@ namespace ccf::v8_tmpl
 {
   v8::Local<v8::Value> RequestAuthnIdentity::wrap(
     v8::Local<v8::Context> context,
-    EndpointContext& endpoint_ctx,
-    BaseEndpointRegistry& endpoint_registry)
+    EndpointContext* endpoint_ctx,
+    BaseEndpointRegistry* endpoint_registry)
   {
     v8::Isolate* isolate = context->GetIsolate();
-    if (endpoint_ctx.caller == nullptr)
+    if (endpoint_ctx->caller == nullptr)
       return v8::Null(isolate);
 
     if (
-      auto empty_ident = endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
-      return RequestEmptyAuthnIdentity::wrap(context, *empty_ident);
-    if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
-      return RequestJwtAuthnIdentity::wrap(context, *jwt_ident);
+      auto empty_ident =
+        endpoint_ctx->try_get_caller<ccf::EmptyAuthnIdentity>())
+      return RequestEmptyAuthnIdentity::wrap(context, empty_ident);
+    if (auto jwt_ident = endpoint_ctx->try_get_caller<ccf::JwtAuthnIdentity>())
+      return RequestJwtAuthnIdentity::wrap(context, jwt_ident);
 
-    ReadOnlyTx& tx = endpoint_ctx.tx;
+    ReadOnlyTx* tx = &endpoint_ctx->tx;
     if (
       auto user_cert_ident =
-        endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
+        endpoint_ctx->try_get_caller<ccf::UserCertAuthnIdentity>())
       return RequestUserCertAuthnIdentity::wrap(
-        context, *user_cert_ident, endpoint_registry, tx);
+        context, user_cert_ident, endpoint_registry, tx);
     if (
       auto member_cert_ident =
-        endpoint_ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
+        endpoint_ctx->try_get_caller<ccf::MemberCertAuthnIdentity>())
       return RequestMemberCertAuthnIdentity::wrap(
-        context, *member_cert_ident, endpoint_registry, tx);
+        context, member_cert_ident, endpoint_registry, tx);
     if (
       auto user_sig_ident =
-        endpoint_ctx.try_get_caller<ccf::UserSignatureAuthnIdentity>())
+        endpoint_ctx->try_get_caller<ccf::UserSignatureAuthnIdentity>())
       return RequestUserSignatureAuthnIdentity::wrap(
-        context, *user_sig_ident, endpoint_registry, tx);
+        context, user_sig_ident, endpoint_registry, tx);
     if (
       auto member_sig_ident =
-        endpoint_ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+        endpoint_ctx->try_get_caller<ccf::MemberSignatureAuthnIdentity>())
       return RequestMemberSignatureAuthnIdentity::wrap(
-        context, *member_sig_ident, endpoint_registry, tx);
+        context, member_sig_ident, endpoint_registry, tx);
     LOG_FATAL_FMT("Unknown caller type");
     return v8::Null(isolate);
   }
@@ -74,7 +75,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> RequestEmptyAuthnIdentity::wrap(
-    v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity&)
+    v8::Local<v8::Context> context, const ccf::EmptyAuthnIdentity*)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -108,7 +109,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
     v8::Local<v8::Object> jwt =
-      RequestJwtAuthnIdentityJwt::wrap(context, *jwt_ident);
+      RequestJwtAuthnIdentityJwt::wrap(context, jwt_ident);
 
     info.GetReturnValue().Set(jwt);
   }
@@ -131,7 +132,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> RequestJwtAuthnIdentity::wrap(
-    v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity)
+    v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity* identity)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -143,7 +144,7 @@ namespace ccf::v8_tmpl
 
     set_internal_fields<InternalFieldJwt>(
       result,
-      {{{InternalFieldJwt::Identity, const_cast<ccf::JwtAuthnIdentity*>(&identity)}}});
+      {{{InternalFieldJwt::Identity, const_cast<ccf::JwtAuthnIdentity*>(identity)}}});
 
     return handle_scope.Escape(result);
   }
@@ -196,7 +197,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> RequestJwtAuthnIdentityJwt::wrap(
-    v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity& identity)
+    v8::Local<v8::Context> context, const ccf::JwtAuthnIdentity* identity)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -207,7 +208,8 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
 
     set_internal_fields<InternalFieldJwt>(
-      result, {{{InternalFieldJwt::Identity, (void*)&identity}}});
+      result,
+      {{{InternalFieldJwt::Identity, const_cast<ccf::JwtAuthnIdentity*>(identity)}}});
 
     return handle_scope.Escape(result);
   }
@@ -370,9 +372,9 @@ namespace ccf::v8_tmpl
   template <typename T, typename U>
   v8::Local<v8::Object> wrap_cert_or_sig_authn(
     v8::Local<v8::Context> context,
-    const T& identity,
-    BaseEndpointRegistry& endpoint_registry,
-    ReadOnlyTx& tx)
+    const T* identity,
+    BaseEndpointRegistry* endpoint_registry,
+    ReadOnlyTx* tx)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -383,9 +385,9 @@ namespace ccf::v8_tmpl
 
     set_internal_fields<InternalFieldCertSig>(
       result,
-      {{{InternalFieldCertSig::Identity, (void*)&identity},
-        {InternalFieldCertSig::EndpointRegistry, &endpoint_registry},
-        {InternalFieldCertSig::Tx, &tx}}});
+      {{{InternalFieldCertSig::Identity, const_cast<T*>(identity)},
+        {InternalFieldCertSig::EndpointRegistry, endpoint_registry},
+        {InternalFieldCertSig::Tx, tx}}});
 
     return handle_scope.Escape(result);
   }
@@ -399,9 +401,9 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> RequestUserCertAuthnIdentity::wrap(
     v8::Local<v8::Context> context,
-    const ccf::UserCertAuthnIdentity& identity,
-    BaseEndpointRegistry& endpoint_registry,
-    ReadOnlyTx& tx)
+    const ccf::UserCertAuthnIdentity* identity,
+    BaseEndpointRegistry* endpoint_registry,
+    ReadOnlyTx* tx)
   {
     return wrap_cert_or_sig_authn<
       ccf::UserCertAuthnIdentity,
@@ -417,9 +419,9 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> RequestMemberCertAuthnIdentity::wrap(
     v8::Local<v8::Context> context,
-    const ccf::MemberCertAuthnIdentity& identity,
-    BaseEndpointRegistry& endpoint_registry,
-    ReadOnlyTx& tx)
+    const ccf::MemberCertAuthnIdentity* identity,
+    BaseEndpointRegistry* endpoint_registry,
+    ReadOnlyTx* tx)
   {
     return wrap_cert_or_sig_authn<
       ccf::MemberCertAuthnIdentity,
@@ -435,9 +437,9 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> RequestUserSignatureAuthnIdentity::wrap(
     v8::Local<v8::Context> context,
-    const ccf::UserSignatureAuthnIdentity& identity,
-    BaseEndpointRegistry& endpoint_registry,
-    ReadOnlyTx& tx)
+    const ccf::UserSignatureAuthnIdentity* identity,
+    BaseEndpointRegistry* endpoint_registry,
+    ReadOnlyTx* tx)
   {
     return wrap_cert_or_sig_authn<
       ccf::UserSignatureAuthnIdentity,
@@ -454,9 +456,9 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> RequestMemberSignatureAuthnIdentity::wrap(
     v8::Local<v8::Context> context,
-    const ccf::MemberSignatureAuthnIdentity& identity,
-    BaseEndpointRegistry& endpoint_registry,
-    ReadOnlyTx& tx)
+    const ccf::MemberSignatureAuthnIdentity* identity,
+    BaseEndpointRegistry* endpoint_registry,
+    ReadOnlyTx* tx)
   {
     return wrap_cert_or_sig_authn<
       ccf::MemberSignatureAuthnIdentity,

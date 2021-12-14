@@ -12,9 +12,9 @@ namespace ccf::v8_tmpl
     END
   };
 
-  static StringMap::MapType* unwrap_string_map(v8::Local<v8::Object> obj)
+  static const StringMap::MapType* unwrap_string_map(v8::Local<v8::Object> obj)
   {
-    return static_cast<StringMap::MapType*>(
+    return static_cast<const StringMap::MapType*>(
       get_internal_field(obj, InternalField::StringMap));
   }
 
@@ -24,9 +24,9 @@ namespace ccf::v8_tmpl
     if (name->IsSymbol())
       return;
 
-    StringMap::MapType* obj = unwrap_string_map(info.Holder());
+    const StringMap::MapType* obj = unwrap_string_map(info.Holder());
     std::string key = v8_util::to_str(info.GetIsolate(), name.As<v8::String>());
-    StringMap::MapType::iterator iter = obj->find(key);
+    auto iter = obj->find(key);
 
     if (iter == obj->end())
       return;
@@ -49,7 +49,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> StringMap::wrap(
-    v8::Local<v8::Context> context, const MapType& map)
+    v8::Local<v8::Context> context, const MapType* map)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -60,7 +60,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
 
     set_internal_fields<InternalField>(
-      result, {{{InternalField::StringMap, const_cast<MapType*>(&map)}}});
+      result, {{{InternalField::StringMap, const_cast<MapType*>(map)}}});
 
     return handle_scope.Escape(result);
   }

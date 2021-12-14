@@ -29,7 +29,7 @@ namespace ccf
       cert(c_)
     {}
 
-    void describe(ccf::Receipt& r, bool include_root = false)
+    void describe(ccf::Receipt& r, bool include_root = false) const
     {
       r.signature = crypto::b64_from_raw(signature);
       if (include_root)

@@ -221,7 +221,7 @@ namespace ccf::v8_tmpl
     TxContext* tx_ctx = unwrap_tx_ctx(info.Holder());
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
-    v8::Local<v8::Value> value = KVStore::wrap(context, *tx_ctx);
+    v8::Local<v8::Value> value = KVStore::wrap(context, tx_ctx);
     info.GetReturnValue().Set(value);
   }
 
@@ -296,16 +296,22 @@ namespace ccf::v8_tmpl
       v8_util::to_v8_istr(isolate, "historical"), get_historical);
 
     // To be wrapped:
-    // .rpc
-    // .host
+    // ccf.rpc
+    // ccf.host
+    // ccf.crypto
+    // ccf.generateAesKey()
+    // ccf.generateRsaKeyPair()
+    // ccf.isValidX509CertBundle()
+    // ccf.isValidX509CertChain()
+    // ccf.wrapKey()
 
     return handle_scope.Escape(tmpl);
   }
 
   v8::Local<v8::Object> CCFGlobal::wrap(
     v8::Local<v8::Context> context,
-    TxContext& tx_ctx,
-    ccf::historical::StatePtr& historical_state,
+    TxContext* tx_ctx,
+    ccf::historical::StatePtr* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
     ccf::historical::AbstractStateCache* state_cache)
   {
@@ -319,8 +325,8 @@ namespace ccf::v8_tmpl
 
     set_internal_fields<InternalField>(
       result,
-      {{{InternalField::TxContext, &tx_ctx},
-        {InternalField::HistoricalStatePtr, &historical_state},
+      {{{InternalField::TxContext, tx_ctx},
+        {InternalField::HistoricalStatePtr, historical_state},
         {InternalField::EndpointRegistry, endpoint_registry},
         {InternalField::StateCache, state_cache}}});
 

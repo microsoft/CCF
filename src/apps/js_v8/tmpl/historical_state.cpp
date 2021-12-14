@@ -37,7 +37,7 @@ namespace ccf::v8_tmpl
 
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
-    v8::Local<v8::Value> value = KVStore::wrap(context, state_ctx->tx_ctx);
+    v8::Local<v8::Value> value = KVStore::wrap(context, &state_ctx->tx_ctx);
     info.GetReturnValue().Set(value);
   }
 
@@ -61,7 +61,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 
     v8::Local<v8::Value> value =
-      Receipt::wrap(context, state_ctx->state->receipt.get());
+      Receipt::wrap(context, *state_ctx->state->receipt);
     info.GetReturnValue().Set(value);
   }
 
@@ -84,7 +84,8 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> HistoricalState::wrap(
-    v8::Local<v8::Context> context, ccf::historical::StatePtr historical_state)
+    v8::Local<v8::Context> context,
+    const ccf::historical::StatePtr& historical_state)
   {
     auto state_ctx = new HistoricalStateContext{
       historical_state,
