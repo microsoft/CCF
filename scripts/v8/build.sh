@@ -32,7 +32,7 @@ if [ "$4" != "" ]; then
   # uppercase to support Azure Pipelines booleans
   if [ "$4" == "true" ] || [ "$4" == "True" ]; then
     PUBLISH="true"
-  elif [ "$4" != "false" ] || [ "$4" == "False" ]; then
+  elif [ "$4" != "false" ] && [ "$4" != "False" ]; then
     echo "ERROR: Publish can only be 'true' or 'false', got: $4"
     echo "$SYNTAX"
     exit 1
