@@ -218,6 +218,10 @@ CCF will then record the digest of the transaction as the combined digest of the
 Receipts for transactions that have set a claims digest expose a ``leaf_components``, rather than an opaque ``leaf``,
 which means that a receipt endpoint can choose to reveal the claims and remove their digest from the receipt.
 
+The receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
+``leaf`` that correctly combines with the ``proof`` to form the ``root`` that the signature covers. Receipt verification
+therefore establishes the authenticity of the claims.
+
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: claims_digest_in_receipt
