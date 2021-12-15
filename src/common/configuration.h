@@ -127,6 +127,8 @@ struct StartupConfig : CCFConfig
   std::string startup_host_time;
   size_t snapshot_tx_interval = 10'000;
 
+  size_t initial_network_certificate_validity_days = 1;
+
   struct Start
   {
     std::vector<ccf::NewMember> members;
@@ -160,6 +162,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   startup_snapshot,
   startup_host_time,
   snapshot_tx_interval,
+  initial_network_certificate_validity_days,
   start,
   join);
 DECLARE_JSON_OPTIONAL_FIELDS(

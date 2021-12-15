@@ -315,6 +315,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=365,
     )
     parser.add_argument(
+        "--maximum-service-certificate-validity-days",
+        help="Maximum allowed validity period in days for service certificate",
+        type=int,
+        default=365,
+    )
+    parser.add_argument(
         "--reconfiguration-type",
         help="Reconfiguration type",
         default="OneTransaction",

@@ -115,6 +115,8 @@ namespace host
     {
       StartType type = StartType::Start;
       std::string network_certificate_file = "networkcert.pem";
+      size_t initial_network_certificate_validity_days =
+        1; // TODO: Probably move elsewhere!
 
       struct Start
       {
@@ -181,7 +183,11 @@ namespace host
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command, network_certificate_file, start, join);
+    CCHostConfig::Command,
+    network_certificate_file,
+    initial_network_certificate_validity_days,
+    start,
+    join);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
