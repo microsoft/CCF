@@ -21,6 +21,7 @@
 #include <memory>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
+#include <span>
 
 namespace ccf::js
 {
@@ -704,12 +705,10 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Argument must be an ArrayBuffer of the right size");
 
-    ccf::ClaimsDigest::Digest::Representation r;
-    std::copy(digest, digest + digest_size, r.begin());
-    ccf::ClaimsDigest::Digest d;
-    d.set(std::move(r));
-
-    rpc_ctx->set_claims_digest(std::move(d));
+    std::span<uint8_t, ccf::ClaimsDigest::Digest::SIZE> digest_bytes(
+      digest, ccf::ClaimsDigest::Digest::SIZE);
+    rpc_ctx->set_claims_digest(
+      ccf::ClaimsDigest::Digest::from_span(digest_bytes));
 
     return JS_UNDEFINED;
   }

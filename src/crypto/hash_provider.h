@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <span>
 #include <vector>
 
 namespace crypto
@@ -104,6 +105,13 @@ namespace crypto
     {
       Sha256Hash digest;
       ds::from_hex(str, digest.h);
+      return digest;
+    }
+
+    static inline Sha256Hash from_span(const std::span<uint8_t, SIZE>& sp)
+    {
+      Sha256Hash digest;
+      std::copy(sp.begin(), sp.end(), digest.h.begin());
       return digest;
     }
   };
