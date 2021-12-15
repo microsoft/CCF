@@ -104,6 +104,7 @@ namespace asynchost
     std::string host;
     std::string service;
     std::optional<std::string> client_host = std::nullopt;
+    std::optional<std::string> listen_name = std::nullopt;
 
     addrinfo* client_addr_base = nullptr;
     addrinfo* addr_base = nullptr;
@@ -176,6 +177,11 @@ namespace asynchost
     std::string get_service() const
     {
       return service;
+    }
+
+    std::optional<std::string> get_listen_name() const
+    {
+      return listen_name;
     }
 
     void client_bind()
@@ -308,10 +314,15 @@ namespace asynchost
       return false;
     }
 
-    bool listen(const std::string& host, const std::string& service)
+    bool listen(
+      const std::string& host,
+      const std::string& service,
+      const std::optional<std::string>& name = std::nullopt)
     {
       assert_status(FRESH, LISTENING_RESOLVING);
-      return resolve(host, service, false);
+      bool ret = resolve(host, service, false);
+      listen_name = name;
+      return ret;
     }
 
     bool write(size_t len, const uint8_t* data)

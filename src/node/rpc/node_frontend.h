@@ -144,7 +144,7 @@ namespace ccf
     {
       auto nodes = tx.rw(network.nodes);
 
-      std::optional<NodeId> duplicate_node_id;
+      std::optional<NodeId> duplicate_node_id = std::nullopt;
       nodes->foreach([&node_info_network, &duplicate_node_id](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
@@ -428,11 +428,19 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                const auto& pub_address =
-                  info->rpc_interfaces[0].published_address;
+                auto& interface_id = args.rpc_ctx->session->interface_id;
+                if (!interface_id.has_value())
+                {
+                  return make_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Cannot redirect non-RPC request.");
+                }
+                const auto& address =
+                  info->rpc_interfaces[interface_id.value()].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", pub_address));
+                  fmt::format("https://{}/node/join", address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -514,11 +522,19 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
-                const auto& pub_address =
-                  info->rpc_interfaces[0].published_address;
+                auto& interface_id = args.rpc_ctx->session->interface_id;
+                if (!interface_id.has_value())
+                {
+                  return make_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Cannot redirect non-RPC request.");
+                }
+                const auto& address =
+                  info->rpc_interfaces[interface_id.value()].published_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
-                  fmt::format("https://{}/node/join", pub_address));
+                  fmt::format("https://{}/node/join", address));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -749,8 +765,8 @@ namespace ccf
         std::optional<NodeStatus> status;
         if (status_str.has_value())
         {
-          // Convert the query argument to a JSON string, try to parse it as a
-          // NodeStatus, return an error if this doesn't work
+          // Convert the query argument to a JSON string, try to parse it as
+          // a NodeStatus, return an error if this doesn't work
           try
           {
             status = nlohmann::json(status_str.value()).get<NodeStatus>();
@@ -771,16 +787,31 @@ namespace ccf
         auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach([this, host, port, status, &out](
                          const NodeId& nid, const NodeInfo& ni) {
-          const auto& primary_interface = ni.rpc_interfaces[0];
-          const auto& pub_address = primary_interface.published_address;
-          const auto& [pub_host, pub_port] = split_net_address(pub_address);
-
-          if (host.has_value() && host.value() != pub_host)
-            return true;
-          if (port.has_value() && port.value() != pub_port)
-            return true;
           if (status.has_value() && status.value() != ni.status)
+          {
             return true;
+          }
+
+          // Match on any interface
+          bool is_matched = false;
+          for (auto const& interface : ni.rpc_interfaces)
+          {
+            const auto& [pub_host, pub_port] =
+              split_net_address(interface.second.published_address);
+
+            if (
+              (!host.has_value() || host.value() == pub_host) &&
+              (!port.has_value() || port.value() == pub_port))
+            {
+              is_matched = true;
+              break;
+            }
+          }
+
+          if (!is_matched)
+          {
+            return true;
+          }
 
           bool is_primary = false;
           if (consensus != nullptr)
@@ -788,16 +819,7 @@ namespace ccf
             is_primary = consensus->primary() == nid;
           }
 
-          const auto& [rpc_host, rpc_port] =
-            split_net_address(primary_interface.bind_address);
-          out.nodes.push_back(
-            {nid,
-             ni.status,
-             pub_host,
-             pub_port,
-             rpc_host,
-             rpc_port,
-             is_primary});
+          out.nodes.push_back({nid, ni.status, is_primary, ni.rpc_interfaces});
           return true;
         });
 
@@ -852,14 +874,9 @@ namespace ccf
             is_primary = true;
           }
         }
-        auto ni = info.value();
-        const auto& primary_interface = ni.rpc_interfaces[0];
-        const auto& [pubhost, pubport] =
-          split_net_address(primary_interface.published_address);
-        const auto& [rpchost, rpcport] =
-          split_net_address(primary_interface.bind_address);
-        return make_success(GetNode::Out{
-          node_id, ni.status, pubhost, pubport, rpchost, rpcport, is_primary});
+        auto& ni = info.value();
+        return make_success(
+          GetNode::Out{node_id, ni.status, is_primary, ni.rpc_interfaces});
       };
       make_read_only_endpoint(
         "/network/nodes/{node_id}",
@@ -877,7 +894,17 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
-          const auto& address = info->rpc_interfaces[0].published_address;
+          auto& interface_id = args.rpc_ctx->session->interface_id;
+          if (!interface_id.has_value())
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Cannot redirect non-RPC request.");
+            return;
+          }
+          const auto& address =
+            info->rpc_interfaces[interface_id.value()].published_address;
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
             http::headers::LOCATION,
@@ -918,7 +945,17 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
-            const auto& address = info->rpc_interfaces[0].published_address;
+            auto& interface_id = args.rpc_ctx->session->interface_id;
+            if (!interface_id.has_value())
+            {
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Cannot redirect non-RPC request.");
+              return;
+            }
+            const auto& address =
+              info->rpc_interfaces[interface_id.value()].published_address;
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
             args.rpc_ctx->set_response_header(
               http::headers::LOCATION,
@@ -967,7 +1004,17 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
-              const auto& address = info->rpc_interfaces[0].published_address;
+              auto& interface_id = args.rpc_ctx->session->interface_id;
+              if (!interface_id.has_value())
+              {
+                args.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Cannot redirect non-RPC request.");
+                return;
+              }
+              const auto& address =
+                info->rpc_interfaces[interface_id.value()].published_address;
               args.rpc_ctx->set_response_header(
                 http::headers::LOCATION,
                 fmt::format("https://{}/node/primary", address));

@@ -15,7 +15,7 @@
 
 namespace cli
 {
-  using ParsedAddress = ccf::NodeInfoNetwork_v2::NetAddress;
+  using ParsedAddress = ccf::NodeInfoNetwork::NetAddress;
 
   static std::pair<std::string, std::string> validate_address(
     const ParsedAddress& addr, const std::string& default_port = "0")
