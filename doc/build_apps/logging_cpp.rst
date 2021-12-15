@@ -215,7 +215,7 @@ A user wanting to tie transaction-specific values to a receipt can do so by atta
 
 CCF will then record the digest of the transaction as the combined digest of the write set, plus this claims digest.
 
-Receipts for transactions that have set a claims digest expose a `leaf_components`, rather than an opaque `leaf`,
+Receipts for transactions that have set a claims digest expose a ``leaf_components``, rather than an opaque ``leaf``,
 which means that a receipt endpoint can choose to reveal the claims and remove their digest from the receipt.
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
