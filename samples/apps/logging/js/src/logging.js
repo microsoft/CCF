@@ -72,6 +72,8 @@ export function get_historical_public(request) {
 export function get_historical_public_with_receipt(request) {
   const result = get_historical_public(request);
   result.body.receipt = ccf.historicalState.receipt;
+  // Claims are expanded in result.body, so the claims digest is removed
+  // from the receipt to force verification to re-compute it.
   delete result.body.receipt.leaf_components.claims_digest;
   return result;
 }

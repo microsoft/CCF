@@ -302,7 +302,7 @@ namespace loggingapp
         if (in.record_claim)
         {
           ctx.rpc_ctx->set_claims_digest(
-            std::move(ccf::ClaimsDigest::Digest::from_string(in.msg)));
+            ccf::ClaimsDigest::Digest::from_string(in.msg));
         }
         // SNIPPET_END: set_claims_digest
         return ccf::make_success(true);

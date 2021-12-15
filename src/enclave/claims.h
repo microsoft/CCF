@@ -53,8 +53,8 @@ namespace ccf
   }
 
   static crypto::Sha256Hash entry_leaf(
-    const std::vector<uint8_t> write_set,
-    const crypto::Sha256Hash& claims_digest)
+    const std::vector<uint8_t>& write_set,
+    const ClaimsDigest::Digest& claims_digest)
   {
     crypto::Sha256Hash write_set_digest({write_set.data(), write_set.size()});
     LOG_TRACE_FMT(

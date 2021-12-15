@@ -41,8 +41,7 @@ The following table describes the structure of a serialised transaction as it is
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`crypto::Sha256Hash`           | User-defined claims digest, only when entry type is WriteSetWithClaims  |
 +          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`kv::Version`                  | Indicates after which version can this ledger entry be executed while   |
-|          |                                          | maintaining linearizability                                             |
+|          | :cpp:type:`kv::Version`                  | Unused, reserved for compatibility                                      |
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | **Repeating [0..n]**                     | With ``n`` the number of maps in the transaction                        |
 +          +-----+------------------------------------+-------------------------------------------------------------------------+
