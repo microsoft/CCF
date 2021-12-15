@@ -225,4 +225,4 @@ which means that a receipt endpoint can choose to reveal the claims and remove t
     :dedent:
 
 A client consuming the output of this endpoint can then digest the claims themselves, combine the digest with the other leaf component
-(`write_set_digest`) to obtain the equivalent `leaf`.
+(``write_set_digest``) to obtain the equivalent ``leaf``.
