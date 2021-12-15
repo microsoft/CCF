@@ -296,7 +296,7 @@ def typedoc_role(
     pkg_name, *element_path = text_without_hash.split("/")
     typedoc_path = f"js/{pkg_name}"
     if not is_kind_package:
-        element_path = ".".join(element_path).lower()
+        element_path = ".".join(element_path)
         typedoc_path += f"/{kind_name}/{element_path}.html{url_hash}"
 
     # construct final url relative to current page
@@ -333,6 +333,12 @@ def config_inited(app, config):
         )
         subprocess.run(
             ["sed", "-i", 's/"\^14\.14\.35"/"14\.17\.27"/g', "package.json"],
+            cwd=js_pkg_dir,
+            check=True,
+        )
+        # typedoc
+        subprocess.run(
+            ["sed", "-i", 's/"\^0\.20\.34"/"\^0\.22\.7"/g', "package.json"],
             cwd=js_pkg_dir,
             check=True,
         )
