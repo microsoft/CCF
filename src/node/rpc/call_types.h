@@ -68,11 +68,8 @@ namespace ccf
     {
       NodeId node_id;
       NodeStatus status;
-      std::string host;
-      std::string port;
-      std::string local_host;
-      std::string local_port;
       bool primary;
+      ccf::NodeInfoNetwork::RpcInterfaces rpc_interfaces;
     };
 
     using Out = NodeInfo;

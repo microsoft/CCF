@@ -11,6 +11,7 @@ from loguru import logger as LOG
 
 DEFAULT_OUTPUT_PATH = "2_x_config.json"
 DEFAULT_INI_SECTION = "default"
+DEFAULT_RPC_INTERFACE_NAME = "primary_rpc_interface"
 
 
 SECTIONS_2_X = [
@@ -79,9 +80,9 @@ if __name__ == "__main__":
     output: Dict[str, Any] = {}
     for s in SECTIONS_2_X:
         output[s] = {}
-    output["network"]["rpc_interfaces"] = [{}]
+    output["network"]["rpc_interfaces"] = {}
     output["network"]["node_to_node_interface"] = {}
-    output["network"]["rpc_interfaces"][0] = {
+    output["network"]["rpc_interfaces"][DEFAULT_RPC_INTERFACE_NAME] = {
         "max_open_sessions_soft": DEFAULT_MAX_RPC_SESSIONS_SOFT,
         "max_open_sessions_hard": DEFAULT_MAX_RPC_SESSIONS_SOFT + 10,
     }
@@ -92,7 +93,6 @@ if __name__ == "__main__":
         "maximum_node_certificate_validity_days": 365
     }
     output["command"]["join"] = {}
-
     output["command"]["type"] = "start" if "start" in config.sections() else "join"
 
     LOG.info(f'Command type: {output["command"]["type"]}')
@@ -101,6 +101,9 @@ if __name__ == "__main__":
         for k_, v_ in config.items(s):
             k = make_key_json_compatible(k_)
             v = v_.strip('"')
+            rpc_interface = output["network"]["rpc_interfaces"][
+                DEFAULT_RPC_INTERFACE_NAME
+            ]
 
             # sub-commands
             # start
@@ -125,16 +128,12 @@ if __name__ == "__main__":
 
             # network
             elif k == "rpc_address":
-                output["network"]["rpc_interfaces"][0]["bind_address"] = v
+                rpc_interface["bind_address"] = v
             elif k == "public_rpc_address":
-                output["network"]["rpc_interfaces"][0]["published_address"] = v
+                rpc_interface["published_address"] = v
             elif k == "max_open_sessions":
-                output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = int(
-                    v
-                )
-                output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = (
-                    int(v) + 10
-                )
+                rpc_interface["max_open_sessions_soft"] = int(v)
+                rpc_interface["max_open_sessions_soft"] = int(v) + 10
             elif k == "node_address":
                 output["network"]["node_to_node_interface"]["bind_address"] = v
             elif k == "network_cert_file":
