@@ -53,7 +53,7 @@ DEFAULT_TAIL_LINES_LEN = 10
 
 
 def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
-    error_filter = ["[fail ]", "[fatal]"]
+    error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
     error_lines = []
     try:
         tail_lines = deque(maxlen=tail_lines_len)
