@@ -202,7 +202,7 @@ Historical state always contains a receipt. Users wishing to implement a receipt
     :end-before: SNIPPET_END: get_historical_with_receipt
     :dedent:
 
-User-defined claims in receipts
+User-Defined Claims in Receipts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A user wanting to tie transaction-specific values to a receipt can do so by attaching a claims digest to their transaction:
