@@ -336,12 +336,6 @@ def config_inited(app, config):
             cwd=js_pkg_dir,
             check=True,
         )
-        # typedoc
-        subprocess.run(
-            ["sed", "-i", 's/"\^0\.20\.34"/"\^0\.22\.7"/g', "package.json"],
-            cwd=js_pkg_dir,
-            check=True,
-        )
         subprocess.run(
             ["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
             cwd=js_pkg_dir,
