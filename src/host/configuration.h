@@ -128,7 +128,7 @@ namespace host
 
       struct Join
       {
-        ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
+        ccf::NodeInfoNetwork::NetAddress target_rpc_address;
         ds::TimeString retry_timeout = std::string("1000ms");
 
         bool operator==(const Join&) const = default;

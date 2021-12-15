@@ -15,11 +15,16 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
   ccf::NodeInfoNetwork::NetAddress rpc_b{"1.2.3.4:4444"};
   ccf::NodeInfoNetwork::NetAddress rpc_b_pub{"5.6.7.8:8888"};
 
+  static constexpr auto first_rpc_name = "first";
+  static constexpr auto second_rpc_name = "second";
+
   ccf::NodeInfoNetwork current;
   current.node_to_node_interface.bind_address = node;
-  current.rpc_interfaces.push_back(
+  current.rpc_interfaces.emplace(
+    first_rpc_name,
     ccf::NodeInfoNetwork::NetInterface{rpc_a, rpc_a_pub, 100, 200});
-  current.rpc_interfaces.push_back(
+  current.rpc_interfaces.emplace(
+    second_rpc_name,
     ccf::NodeInfoNetwork::NetInterface{rpc_b, rpc_b_pub, 300, 400});
 
   ccf::NodeInfoNetwork_v1 v1;
@@ -62,11 +67,14 @@ TEST_CASE("Multiple versions of NodeInfoNetwork")
     // The node information has been kept
     REQUIRE(current.node_to_node_interface == converted.node_to_node_interface);
 
-    // The first RPC interface has kept its addresses, though lost its sessions
-    // caps
+    // Only the _first_ RPC interface has kept its addresses, though lost its
+    // sessions caps
     REQUIRE(converted.rpc_interfaces.size() > 0);
-    const auto& current_interface = current.rpc_interfaces[0];
-    const auto& converted_interface = converted.rpc_interfaces[0];
+
+    const auto& current_interface = current.rpc_interfaces.begin()->second;
+    const auto& converted_interface =
+      converted.rpc_interfaces.at(ccf::PRIMARY_RPC_INTERFACE);
+
     REQUIRE(current_interface.bind_address == converted_interface.bind_address);
     REQUIRE(
       current_interface.published_address ==

@@ -33,6 +33,9 @@
 using namespace std::string_literals;
 using namespace std::chrono_literals;
 
+using ResolvedAddresses = std::
+  map<ccf::NodeInfoNetwork::RpcInterfaceID, ccf::NodeInfoNetwork::NetAddress>;
+
 size_t asynchost::TCPImpl::remaining_read_quota;
 
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
@@ -270,8 +273,11 @@ int main(int argc, char** argv)
       ccf::make_net_address(node_host, node_port);
     if (!config.output_files.node_to_node_address_file.empty())
     {
+      ResolvedAddresses resolved_node_address;
+      resolved_node_address[node_to_node_interface_name] =
+        config.network.node_to_node_interface.bind_address;
       files::dump(
-        fmt::format("{}\n{}", node_host, node_port),
+        nlohmann::json(resolved_node_address).dump(),
         config.output_files.node_to_node_address_file);
     }
 
@@ -279,12 +285,13 @@ int main(int argc, char** argv)
       writer_factory, config.client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
 
-    std::string rpc_addresses;
-    for (auto& interface : config.network.rpc_interfaces)
+    ResolvedAddresses resolved_rpc_addresses;
+    for (auto& [name, interface] : config.network.rpc_interfaces)
     {
       auto [rpc_host, rpc_port] = cli::validate_address(interface.bind_address);
-      rpc.listen(0, rpc_host, rpc_port);
-      rpc_addresses += fmt::format("{}\n{}\n", rpc_host, rpc_port);
+      rpc.listen(0, rpc_host, rpc_port, name);
+
+      resolved_rpc_addresses[name] = fmt::format("{}:{}", rpc_host, rpc_port);
 
       interface.bind_address = ccf::make_net_address(rpc_host, rpc_port);
 
@@ -304,7 +311,9 @@ int main(int argc, char** argv)
     }
     if (!config.output_files.rpc_addresses_file.empty())
     {
-      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
+      files::dump(
+        nlohmann::json(resolved_rpc_addresses).dump(),
+        config.output_files.rpc_addresses_file);
     }
 
     // Initialise the enclave and create a CCF node in it
