@@ -85,6 +85,10 @@ namespace ccfapp
         return caller;
       }
 
+      void* m = malloc(100);
+      free(m);
+      free(m);
+
       char const* policy_name = nullptr;
       std::string id;
       bool is_member = false;
