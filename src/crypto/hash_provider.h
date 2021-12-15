@@ -70,11 +70,6 @@ namespace crypto
       default_sha256(data, h.data());
     }
 
-    Sha256Hash(const std::string& s)
-    {
-      ds::from_hex(s, h);
-    }
-
     Sha256Hash(const Sha256Hash& left, const Sha256Hash& right)
     {
       std::vector<uint8_t> data(left.h.size() + right.h.size());
@@ -103,6 +98,13 @@ namespace crypto
     {
       CBuffer cb(str);
       return Sha256Hash(cb);
+    }
+
+    static inline Sha256Hash from_hex_string(const std::string& str)
+    {
+      Sha256Hash digest;
+      ds::from_hex(str, digest.h);
+      return digest;
     }
   };
 

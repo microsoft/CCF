@@ -61,7 +61,7 @@ namespace ccf
     crypto::Sha256Hash current;
     if (receipt.leaf.has_value())
     {
-      current = receipt.leaf.value();
+      current = crypto::Sha256Hash::from_hex_string(receipt.leaf.value());
     }
     else if (receipt.leaf_components.has_value())
     {
@@ -70,8 +70,10 @@ namespace ccf
         components.write_set_digest.has_value() &&
         components.claims_digest.has_value())
       {
-        crypto::Sha256Hash ws_dgst = components.write_set_digest.value();
-        crypto::Sha256Hash cl_dgst = components.claims_digest.value();
+        auto ws_dgst = crypto::Sha256Hash::from_hex_string(
+          components.write_set_digest.value());
+        auto cl_dgst =
+          crypto::Sha256Hash::from_hex_string(components.claims_digest.value());
         current = crypto::Sha256Hash(ws_dgst, cl_dgst);
       }
       else
@@ -91,13 +93,13 @@ namespace ccf
       if (element.left.has_value())
       {
         assert(!element.right.has_value());
-        crypto::Sha256Hash left = element.left.value();
+        auto left = crypto::Sha256Hash::from_hex_string(element.left.value());
         current = crypto::Sha256Hash(left, current);
       }
       else
       {
         assert(element.right.has_value());
-        crypto::Sha256Hash right = element.right.value();
+        auto right = crypto::Sha256Hash::from_hex_string(element.right.value());
         current = crypto::Sha256Hash(current, right);
       }
     }
