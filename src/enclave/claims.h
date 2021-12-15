@@ -40,6 +40,11 @@ namespace ccf
     {
       return digest;
     }
+
+    bool operator==(const ClaimsDigest& other) const
+    {
+      return (is_set == other.is_set) && (digest == other.digest);
+    }
   };
 
   static ClaimsDigest no_claims()
