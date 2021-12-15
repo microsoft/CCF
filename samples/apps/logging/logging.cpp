@@ -852,6 +852,8 @@ namespace loggingapp
             assert(historical_state->receipt);
             // SNIPPET_START: claims_digest_in_receipt
             historical_state->receipt->describe(out.receipt);
+            // Claims are expanded as out.msg, so the claims digest is removed
+            // from the receipt to force verification to re-compute it.
             out.receipt.leaf_components->claims_digest = std::nullopt;
             // SNIPPET_END: claims_digest_in_receipt
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);

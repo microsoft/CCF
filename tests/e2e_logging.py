@@ -36,41 +36,35 @@ from hashlib import sha256
 from loguru import logger as LOG
 
 
-def verify_receipt(receipt, network_cert, check_endorsement=True):
+def verify_receipt(receipt, network_cert, check_endorsement=True, claims=None):
     """
     Raises an exception on failure
     """
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, network_cert)
-    if "leaf" in receipt:
-        leaf = receipt["leaf"]
-    else:
+    if claims is not None:
         assert "leaf_components" in receipt
-        write_set_digest = bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
-        claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
-        leaf = sha256(write_set_digest + claims_digest).digest().hex()
-    root = ccf.receipt.root(leaf, receipt["proof"])
-    ccf.receipt.verify(root, receipt["signature"], node_cert)
-
-
-def verify_receipt_with_claims(receipt, network_cert, claims, check_endorsement=True):
-    """
-    Raises an exception on failure
-    """
-    node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
-    if check_endorsement:
-        ccf.receipt.check_endorsement(node_cert, network_cert)
-    assert "claims_digest" not in receipt["leaf_components"]
-    claims_digest = sha256(claims).digest()
-    leaf = (
-        sha256(
-            bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
-            + claims_digest
+        assert "claims_digest" not in receipt["leaf_components"]
+        claims_digest = sha256(claims).digest()
+        leaf = (
+            sha256(
+                bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+                + claims_digest
+            )
+            .digest()
+            .hex()
         )
-        .digest()
-        .hex()
-    )
+    else:
+        if "leaf" in receipt:
+            leaf = receipt["leaf"]
+        else:
+            assert "leaf_components" in receipt
+            write_set_digest = bytes.fromhex(
+                receipt["leaf_components"]["write_set_digest"]
+            )
+            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+            leaf = sha256(write_set_digest + claims_digest).digest().hex()
     root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
@@ -707,9 +701,7 @@ def test_historical_receipts_with_claims(network, args):
             )
             r = first_receipt.json()["receipt"]
             pprint.pprint(first_receipt.json())
-            verify_receipt_with_claims(
-                r, network.cert, first_receipt.json()["msg"].encode()
-            )
+            verify_receipt(r, network.cert, True, first_receipt.json()["msg"].encode())
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
