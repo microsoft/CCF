@@ -89,12 +89,8 @@ gclient sync -D
 
 # To re-create the patch file:
 # cd build-v8/tmp/v8
-# rm -f $PATCH_PATH
-# diff -u third_party/zlib/cpu_features.original.c third_party/zlib/cpu_features.c >> $PATCH_PATH
-# diff -u src/base/cpu.original.cc src/base/cpu.cc >> $PATCH_PATH
-# diff -u src/base/platform/time.original.cc src/base/platform/time.cc >> $PATCH_PATH
-# diff -u src/base/platform/semaphore.original.cc src/base/platform/semaphore.cc >> $PATCH_PATH
-# diff -u src/base/platform/platform-posix.original.cc src/base/platform/platform-posix.cc >> $PATCH_PATH
+# git diff --no-prefix > $PATCH_PATH
+# git -C third_party/zlib diff --no-prefix --src-prefix third_party/zlib/ >> $PATCH_PATH
 
 echo " + Apply V8 patches..."
 if ! patch --forward -p0 < "$PATCH_PATH"; then
