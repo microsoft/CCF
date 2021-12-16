@@ -128,7 +128,7 @@ namespace enclave
     {}
   };
 
-  using PathParams = std::map<std::string, std::string>;
+  using PathParams = std::map<std::string, std::string, std::less<>>;
 
   class RpcContext
   {
