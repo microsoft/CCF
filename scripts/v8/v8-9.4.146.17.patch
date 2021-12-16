@@ -1,5 +1,268 @@
---- third_party/zlib/cpu_features.original.c	2021-11-15 16:30:01.815000000 +0000
-+++ third_party/zlib/cpu_features.c	2021-11-15 16:31:53.023441619 +0000
+diff --git src/base/cpu.cc src/base/cpu.cc
+index 9bfc2a55af..8e9a020db8 100644
+--- src/base/cpu.cc
++++ src/base/cpu.cc
+@@ -4,6 +4,11 @@
+ 
+ #include "src/base/cpu.h"
+ 
++#if V8_OS_OPENENCLAVE
++#undef V8_OS_LINUX
++#undef V8_HOST_ARCH_X64
++#endif
++
+ #if defined(V8_OS_STARBOARD)
+ #include "starboard/cpu_features.h"
+ #endif
+@@ -412,6 +417,40 @@ CPU::CPU()
+       architecture_(0),
+       variant_(-1),
+       part_(0),
++#if V8_OS_OPENENCLAVE
++      icache_line_size_(kUnknownCacheLineSize),
++      dcache_line_size_(kUnknownCacheLineSize),
++      has_fpu_(true),
++      has_cmov_(true),
++      has_sahf_(false),
++      has_mmx_(true),
++      has_sse_(true),
++      has_sse2_(true),
++      has_sse3_(false),
++      has_ssse3_(true),
++      has_sse41_(true),
++      has_sse42_(true),
++      is_atom_(false),
++      has_osxsave_(false),
++      has_avx_(true),
++      has_avx2_(true),
++      has_fma3_(false),
++      has_bmi1_(true),
++      has_bmi2_(true),
++      has_lzcnt_(false),
++      has_popcnt_(false),
++      has_idiva_(false),
++      has_neon_(false),
++      has_thumb2_(false),
++      has_vfp_(false),
++      has_vfp3_(false),
++      has_vfp3_d32_(false),
++      has_jscvt_(false),
++      is_fp64_mode_(false),
++      has_non_stop_time_stamp_counter_(false),
++      is_running_in_vm_(false),
++      has_msa_(false) {
++#else
+       icache_line_size_(kUnknownCacheLineSize),
+       dcache_line_size_(kUnknownCacheLineSize),
+       has_fpu_(false),
+@@ -444,6 +483,7 @@ CPU::CPU()
+       has_non_stop_time_stamp_counter_(false),
+       is_running_in_vm_(false),
+       has_msa_(false) {
++#endif
+   memcpy(vendor_, "Unknown", 8);
+ 
+ #if defined(V8_OS_STARBOARD)
+diff --git src/base/platform/platform-posix.cc src/base/platform/platform-posix.cc
+index 179a17cc0f..26518bc6cf 100644
+--- src/base/platform/platform-posix.cc
++++ src/base/platform/platform-posix.cc
+@@ -259,12 +259,16 @@ int OS::ActivationFrameAlignment() {
+ 
+ // static
+ size_t OS::AllocatePageSize() {
++#if V8_OS_OPENENCLAVE
++  return 4096;
++#else
+ #if defined(V8_TARGET_OS_MACOSX) && V8_HOST_ARCH_ARM64
+   return kAppleArmPageSize;
+ #else
+   static size_t page_size = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+   return page_size;
+ #endif
++#endif
+ }
+ 
+ // static
+@@ -382,6 +386,12 @@ void* OS::Allocate(void* hint, size_t size, size_t alignment,
+   // Add the maximum misalignment so we are guaranteed an aligned base address.
+   size_t request_size = size + (alignment - page_size);
+   request_size = RoundUp(request_size, OS::AllocatePageSize());
++#if V8_OS_OPENENCLAVE
++  void* result = 0;
++  posix_memalign(&result, alignment, request_size);
++  memset(result, 0, request_size);
++  return result;
++#else
+   void* result = base::Allocate(hint, request_size, access, PageType::kPrivate);
+   if (result == nullptr) return nullptr;
+ 
+@@ -405,6 +415,7 @@ void* OS::Allocate(void* hint, size_t size, size_t alignment,
+ 
+   DCHECK_EQ(size, request_size);
+   return static_cast<void*>(aligned_base);
++#endif
+ }
+ 
+ // static
+@@ -417,7 +428,12 @@ void* OS::AllocateShared(size_t size, MemoryPermission access) {
+ bool OS::Free(void* address, const size_t size) {
+   DCHECK_EQ(0, reinterpret_cast<uintptr_t>(address) % AllocatePageSize());
+   DCHECK_EQ(0, size % AllocatePageSize());
++#if V8_OS_OPENENCLAVE
++  free(address);
++  return true;
++#else
+   return munmap(address, size) == 0;
++#endif
+ }
+ 
+ // static
+diff --git src/base/platform/semaphore.cc src/base/platform/semaphore.cc
+index 2fc748da87..e07fd489d3 100644
+--- src/base/platform/semaphore.cc
++++ src/base/platform/semaphore.cc
+@@ -45,19 +45,28 @@ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
+ 
+ Semaphore::Semaphore(int count) {
+   DCHECK_GE(count, 0);
++#if V8_OS_OPENENCLAVE
++  USE(count);
++#else
+   int result = sem_init(&native_handle_, 0, count);
+   DCHECK_EQ(0, result);
+   USE(result);
++#endif
+ }
+ 
+ 
+ Semaphore::~Semaphore() {
++#if !V8_OS_OPENENCLAVE
+   int result = sem_destroy(&native_handle_);
+   DCHECK_EQ(0, result);
+   USE(result);
++#endif
+ }
+ 
+ void Semaphore::Signal() {
++#if V8_OS_OPENENCLAVE
++  UNIMPLEMENTED();
++#else
+   int result = sem_post(&native_handle_);
+   // This check may fail with <libc-2.21, which we use on the try bots, if the
+   // semaphore is destroyed while sem_post is still executed. A work around is
+@@ -65,10 +74,14 @@ void Semaphore::Signal() {
+   if (result != 0) {
+     FATAL("Error when signaling semaphore, errno: %d", errno);
+   }
++#endif
+ }
+ 
+ 
+ void Semaphore::Wait() {
++#if V8_OS_OPENENCLAVE
++  UNIMPLEMENTED();
++#else
+   while (true) {
+     int result = sem_wait(&native_handle_);
+     if (result == 0) return;  // Semaphore was signalled.
+@@ -76,10 +89,15 @@ void Semaphore::Wait() {
+     DCHECK_EQ(-1, result);
+     DCHECK_EQ(EINTR, errno);
+   }
++#endif
+ }
+ 
+ 
+ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
++#if V8_OS_OPENENCLAVE
++  USE(rel_time);
++  UNIMPLEMENTED();
++#else
+   // Compute the time for end of timeout.
+   const Time time = Time::NowFromSystemTime() + rel_time;
+   const struct timespec ts = time.ToTimespec();
+@@ -103,6 +121,7 @@ bool Semaphore::WaitFor(const TimeDelta& rel_time) {
+     DCHECK_EQ(-1, result);
+     DCHECK_EQ(EINTR, errno);
+   }
++#endif
+ }
+ 
+ #elif V8_OS_WIN
+diff --git src/base/platform/time.cc src/base/platform/time.cc
+index 9979f33fce..e6fb9f404e 100644
+--- src/base/platform/time.cc
++++ src/base/platform/time.cc
+@@ -35,6 +35,12 @@
+ #include "starboard/time.h"
+ #endif
+ 
++#if V8_OS_OPENENCLAVE
++#ifdef _POSIX_MONOTONIC_CLOCK
++#undef _POSIX_MONOTONIC_CLOCK
++#endif
++#endif
++
+ namespace {
+ 
+ #if V8_OS_MACOSX
+@@ -110,6 +116,10 @@ V8_INLINE int64_t ClockNow(clockid_t clk_id) {
+ }
+ 
+ V8_INLINE bool IsHighResolutionTimer(clockid_t clk_id) {
++#if V8_OS_OPENENCLAVE
++  USE(clk_id);
++  return false;
++#else
+   // Limit duration of timer resolution measurement to 100 ms. If we cannot
+   // measure timer resoltuion within this time, we assume a low resolution
+   // timer.
+@@ -126,6 +136,7 @@ V8_INLINE bool IsHighResolutionTimer(clockid_t clk_id) {
+     } while (delta == 0);
+   } while (delta > 1 && start < end);
+   return delta <= 1;
++#endif
+ }
+ 
+ #elif V8_OS_WIN
+@@ -376,11 +387,15 @@ FILETIME Time::ToFiletime() const {
+ #elif V8_OS_POSIX
+ 
+ Time Time::Now() {
++#if V8_OS_OPENENCLAVE
++  return Time();
++#else
+   struct timeval tv;
+   int result = gettimeofday(&tv, nullptr);
+   DCHECK_EQ(0, result);
+   USE(result);
+   return FromTimeval(tv);
++#endif
+ }
+ 
+ 
+diff --git src/utils/allocation.cc src/utils/allocation.cc
+index 9cdd53fa6d..1ae3aa65b6 100644
+--- src/utils/allocation.cc
++++ src/utils/allocation.cc
+@@ -267,8 +267,12 @@ size_t VirtualMemory::Release(Address free_start) {
+   const size_t free_size = old_size - (free_start - region_.begin());
+   CHECK(InVM(free_start, free_size));
+   region_.set_size(old_size - free_size);
++#if !V8_OS_OPENENCLAVE
++  // Without mmap/munmap support in OE we don't know which pages to release, 
++  // so we just keep them for now.
+   CHECK(ReleasePages(page_allocator_, reinterpret_cast<void*>(region_.begin()),
+                      old_size, region_.size()));
++#endif
+   return free_size;
+ }
+ 
+diff --git third_party/zlib/cpu_features.c cpu_features.c
+index 70f01be..6eb9369 100644
+--- third_party/zlib/cpu_features.c
++++ cpu_features.c
 @@ -9,159 +9,14 @@
  #include "zutil.h"
  
@@ -30,7 +293,10 @@
 -#if defined(ARMV8_OS_ANDROID) || defined(ARMV8_OS_LINUX) || defined(ARMV8_OS_FUCHSIA)
 -#include <pthread.h>
 -#endif
--
++int ZLIB_INTERNAL x86_cpu_enable_sse2 = 1;
++int ZLIB_INTERNAL x86_cpu_enable_ssse3 = 1;
++int ZLIB_INTERNAL x86_cpu_enable_simd = 1;
+ 
 -#if defined(ARMV8_OS_ANDROID)
 -#include <cpu-features.h>
 -#elif defined(ARMV8_OS_LINUX)
@@ -51,10 +317,7 @@
 -#if !defined(CPU_NO_SIMD) && !defined(ARMV8_OS_MACOS) && !defined(ARM_OS_IOS)
 -static void _cpu_check_features(void);
 -#endif
-+int ZLIB_INTERNAL x86_cpu_enable_sse2 = 1;
-+int ZLIB_INTERNAL x86_cpu_enable_ssse3 = 1;
-+int ZLIB_INTERNAL x86_cpu_enable_simd = 1;
- 
+-
 -#if defined(ARMV8_OS_ANDROID) || defined(ARMV8_OS_LINUX) || defined(ARMV8_OS_MACOS) || defined(ARMV8_OS_FUCHSIA) || defined(X86_NOT_WINDOWS)
 -#if !defined(ARMV8_OS_MACOS)
 -// _cpu_check_features() doesn't need to do anything on mac/arm since all
@@ -63,8 +326,8 @@
 -// don't have to make all callers of it check for mac/arm.
 -static pthread_once_t cpu_check_inited_once = PTHREAD_ONCE_INIT;
 -#endif
--void ZLIB_INTERNAL cpu_check_features(void)
--{
+ void ZLIB_INTERNAL cpu_check_features(void)
+ {
 -#if !defined(ARMV8_OS_MACOS)
 -    pthread_once(&cpu_check_inited_once, _cpu_check_features);
 -#endif
@@ -76,8 +339,8 @@
 -    _cpu_check_features();
 -    return TRUE;
 -}
- void ZLIB_INTERNAL cpu_check_features(void)
- {
+-void ZLIB_INTERNAL cpu_check_features(void)
+-{
 -    InitOnceExecuteOnce(&cpu_check_inited_once, _cpu_check_features_forwarder,
 -                        NULL, NULL);
 -}
@@ -164,14 +427,3 @@
 -#endif
 -#endif
 -#endif
---- src/base/cpu.original.cc	2021-11-15 15:01:11.791000000 +0000
-+++ src/base/cpu.cc	2021-11-15 16:18:29.007000000 +0000
-@@ -8,6 +8,8 @@
- #include "starboard/cpu_features.h"
- #endif
- 
-+#undef V8_OS_LINUX
-+
- #if V8_LIBC_MSVCRT
- #include <intrin.h>  // __cpuid()
- #endif
