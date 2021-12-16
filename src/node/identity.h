@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/certs.h"
 #include "crypto/curve.h"
 #include "crypto/openssl/key_pair.h"
 
@@ -41,12 +42,20 @@ namespace ccf
     ReplicatedNetworkIdentity() : NetworkIdentity(IdentityType::REPLICATED) {}
 
     ReplicatedNetworkIdentity(
-      const std::string& name, crypto::CurveID curve_id) :
+      const std::string& name,
+      crypto::CurveID curve_id,
+      const std::string& valid_from,
+      size_t validity_period_days) :
       NetworkIdentity(IdentityType::REPLICATED)
     {
       auto identity_key_pair =
         std::make_shared<crypto::KeyPair_OpenSSL>(curve_id);
-      cert = identity_key_pair->self_sign(name);
+      cert = identity_key_pair->self_sign(
+        name,
+        std::nullopt /* SAN */,
+        true /* CA */,
+        valid_from,
+        crypto::compute_cert_valid_to_string(valid_from, validity_period_days));
       priv_key = identity_key_pair->private_key_pem();
     }
 

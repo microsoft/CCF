@@ -316,7 +316,12 @@ namespace ccf
         case StartType::Start:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network", curve_id);
+            "CN=CCF Network",
+            curve_id,
+            config.startup_host_time,
+            config.start.service_configuration
+              .maximum_service_certificate_validity_days.value_or(
+                default_service_cert_validity_period_days));
 
           network.ledger_secrets->init();
 
@@ -374,8 +379,14 @@ namespace ccf
         }
         case StartType::Recover:
         {
+          // TODO: Validity period (days) is not right!
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network", curve_id);
+            "CN=CCF Network",
+            curve_id,
+            config.startup_host_time,
+            config.start.service_configuration
+              .maximum_service_certificate_validity_days.value_or(
+                default_service_cert_validity_period_days));
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();

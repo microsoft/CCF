@@ -11,6 +11,7 @@
 namespace ccf
 {
   static constexpr auto default_node_cert_validity_period_days = 365;
+  static constexpr auto default_service_cert_validity_period_days = 365;
 
   struct ServiceConfiguration
   {

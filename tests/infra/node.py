@@ -17,7 +17,6 @@ import socket
 import re
 import ipaddress
 import ssl
-from OpenSSL import SSL, crypto
 import copy
 
 # pylint: disable=import-error, no-name-in-module
@@ -497,18 +496,6 @@ class Node:
         return ssl.get_server_certificate(
             (self.get_public_rpc_host(), self.get_public_rpc_port())
         )
-
-    def get_tls_ca(self):
-        context = SSL.Context(method=SSL.TLSv1_2_METHOD)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        conn = SSL.Connection(context, socket=sock)
-        conn.connect((self.get_public_rpc_host(), self.get_public_rpc_port()))
-        conn.do_handshake()
-        chain = conn.get_peer_cert_chain()
-        assert (
-            len(chain) == 1
-        ), "Expected only one certificate (service) in issuer chain"
-        return chain[0].to_cryptography()
 
     def suspend(self):
         assert not self.suspended

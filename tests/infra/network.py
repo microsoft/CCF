@@ -438,7 +438,6 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
-        self.verify_service_certificate_validity_period()
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
@@ -516,7 +515,6 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.verify_service_certificate_validity_period()
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -1106,23 +1104,6 @@ class Network:
                 c.read().encode("ascii"), default_backend()
             )
             return network_cert
-
-    def verify_service_certificate_validity_period(self):
-        # See https://github.com/microsoft/CCF/issues/3090
-        assert self.cert.not_valid_before == datetime(
-            year=2021, month=3, day=11
-        )  # 20210311000000Z
-        assert self.cert.not_valid_after == datetime(
-            year=2023, month=6, day=11, hour=23, minute=59, second=59
-        )  # 20230611235959Z
-        validity_period = (
-            self.cert.not_valid_after
-            - self.cert.not_valid_before
-            + timedelta(seconds=1)
-        )
-        LOG.debug(
-            f"Certificate validity period for service: {self.cert.not_valid_before} - {self.cert.not_valid_after} (for {validity_period})"
-        )
 
 
 @contextmanager

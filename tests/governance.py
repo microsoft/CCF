@@ -305,8 +305,11 @@ def test_service_cert_renewal(network, args):
     for (valid_from, validity_period_days, expected_exception) in test_vectors:
         for node in network.get_joined_nodes():
             with node.client() as c:
-                c.get("/node/network/nodes")
-                LOG.success(node.get_tls_ca().not_valid_before)
+                r = c.get("/node/network")
+                valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                    r.body.json()["service_certificate"]
+                )
+                LOG.error(f"{valid_from} - {valid_to}")
 
 
 @reqs.description("Update certificates of all nodes, one by one")
