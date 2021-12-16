@@ -50,12 +50,12 @@ namespace ccf
     {
       auto identity_key_pair =
         std::make_shared<crypto::KeyPair_OpenSSL>(curve_id);
-      cert = identity_key_pair->self_sign(
+      cert = crypto::create_self_signed_cert(
+        identity_key_pair,
         name,
-        std::nullopt /* SAN */,
-        true /* CA */,
+        {} /* SAN */,
         valid_from,
-        crypto::compute_cert_valid_to_string(valid_from, validity_period_days));
+        validity_period_days);
       priv_key = identity_key_pair->private_key_pem();
     }
 

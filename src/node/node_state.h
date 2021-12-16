@@ -271,6 +271,18 @@ namespace ccf
       }
     }
 
+    void initialise_network_identity()
+    {
+      // TODO: Validity period is not right for recovery!
+      network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+        "CN=CCF Network",
+        curve_id,
+        config.startup_host_time,
+        config.start.service_configuration
+          .maximum_service_certificate_validity_days.value_or(
+            default_service_cert_validity_period_days));
+    }
+
     //
     // funcs in state "initialized"
     //
@@ -315,13 +327,7 @@ namespace ccf
       {
         case StartType::Start:
         {
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network",
-            curve_id,
-            config.startup_host_time,
-            config.start.service_configuration
-              .maximum_service_certificate_validity_days.value_or(
-                default_service_cert_validity_period_days));
+          initialise_network_identity();
 
           network.ledger_secrets->init();
 
@@ -379,14 +385,7 @@ namespace ccf
         }
         case StartType::Recover:
         {
-          // TODO: Validity period (days) is not right!
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network",
-            curve_id,
-            config.startup_host_time,
-            config.start.service_configuration
-              .maximum_service_certificate_validity_days.value_or(
-                default_service_cert_validity_period_days));
+          initialise_network_identity();
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
