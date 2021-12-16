@@ -25,7 +25,7 @@ namespace ccf::v8_tmpl
   {
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::String> value =
-      v8_util::to_v8_str(info.GetIsolate(), receipt->signature);
+      v8_util::to_v8_str(info.GetIsolate(), receipt->signature.c_str());
     info.GetReturnValue().Set(value);
   }
 
@@ -46,7 +46,7 @@ namespace ccf::v8_tmpl
   {
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
     v8::Local<v8::String> value =
-      v8_util::to_v8_str(info.GetIsolate(), receipt->leaf);
+      v8_util::to_v8_str(info.GetIsolate(), receipt->leaf->c_str());
     info.GetReturnValue().Set(value);
   }
 
