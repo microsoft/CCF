@@ -33,7 +33,7 @@ def ensure_reqs(check_reqs):
                 # Return code is ignored
                 check_reqs(network, args, *nargs, **kwargs)
             except TestRequirementsNotMet as e:
-                if args.skip_if_no_reqs:
+                if not args.enforce_reqs:
                     LOG.warning(
                         f'Test requirements not met, skipping "{func.__name__}": {e}'
                     )

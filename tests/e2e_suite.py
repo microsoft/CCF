@@ -63,7 +63,7 @@ def run(args):
     s.validate_tests_signature(chosen_suite)
 
     # Throws TestRequirementsNotMet if test requirements are not met
-    args.skip_if_no_reqs = False
+    args.enforce_reqs = True
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
 
