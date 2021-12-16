@@ -13,6 +13,12 @@ jobs:
       - checkout: self
         clean: true
 
+      - ${{ if parameters.fetch_v8 }}:
+          - template: fetch_v8.yml
+            parameters:
+              target: ${{ parameters.target }}
+              v8_mode: ${{ parameters.fetch_v8 }}
+
       - template: cmake.yml
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
