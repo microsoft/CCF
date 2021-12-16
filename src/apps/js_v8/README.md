@@ -21,7 +21,7 @@ The answers to those problems are:
 - While CCF currently uses SGX, other platforms that CCF intends to target in the near future such as AMD SEV-SNP do not have the same limitations.
 - V8 has a `jitless` mode, that does not compile anything. We're hoping its interpreter is faster than `quickjs`, including the initial bring-up.
 - We can test JIT functionality in virtual mode, which is a good approximation for VM-based TEEs that we intend to target.
-- V8 versions tend to stick around much longer than other fast-paced projects (like LLVM), and the oldest stable release (9.4.146.*) is still receiving updates.
+- V8 versions tend to stick around much longer than other fast-paced projects (like LLVM), and the oldest stable release (9.4.146.\*) is still receiving updates.
 - This complexity is actually a great benefit. We can slice the bring-up into CCF bootstrap, endpoint bootstrap and execution, to only parse the script at the last part, while relying on V8 to cache previously-parsed scripts to speed things up even further.
 - We may be able to reduce the scope of the V8 execution to avoid enclave violations, or at least restrict in which kind of environment they execute on.
 
