@@ -489,6 +489,10 @@ class LocalRemote(CmdMixin):
         if self.proc:
             self.proc.terminate()
             self.proc.wait(10)
+            exit_code = self.proc.returncode
+            if exit_code is not None and exit_code < 0:
+                signal_str = signal.strsignal(-exit_code)
+                LOG.error(f"{self.hostname} exited with signal: {signal_str}")
             if self.stdout:
                 self.stdout.close()
             if self.stderr:
