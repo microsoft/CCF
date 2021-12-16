@@ -132,6 +132,7 @@ def test_node_ids(network, args):
                 r = c.get(
                     f"/node/network/nodes?host={interface.public_host}&port={interface.public_port}"
                 )
+
                 assert r.status_code == http.HTTPStatus.OK.value
                 info = r.body.json()["nodes"]
                 assert len(info) == 1
