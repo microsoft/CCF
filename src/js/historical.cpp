@@ -28,28 +28,35 @@ namespace ccf::js
       JS_SetPropertyStr(
         ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf->c_str()));
     }
-    if (receipt_out.leaf_components.has_value())
+    else if (receipt_out.leaf_components.has_value())
     {
-      auto leaf_components = JS_NewObject(ctx);
-      if (receipt_out.leaf_components->write_set_digest.has_value())
+      if (
+        receipt_out.leaf_components->write_set_digest.has_value() &&
+        receipt_out.leaf_components->claims_digest.has_value())
       {
+        auto leaf_components = JS_NewObject(ctx);
         JS_SetPropertyStr(
           ctx,
           leaf_components,
           "write_set_digest",
           JS_NewString(
             ctx, receipt_out.leaf_components->write_set_digest->c_str()));
-      }
-      if (receipt_out.leaf_components->claims_digest.has_value())
-      {
         JS_SetPropertyStr(
           ctx,
           leaf_components,
           "claims_digest",
           JS_NewString(
             ctx, receipt_out.leaf_components->claims_digest->c_str()));
+        JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
       }
-      JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
+      else
+      {
+        throw std::logic_error("Not all leaf components are present");
+      }
+    }
+    else
+    {
+      throw std::logic_error("Receipt neither has leaf nor leaf_components");
     }
     JS_SetPropertyStr(
       ctx,
