@@ -27,7 +27,7 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.17.5
+      image: ccfciteam/ccf-ci:oe0.17.5-2
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx

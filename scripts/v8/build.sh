@@ -32,7 +32,7 @@ if [ "$4" != "" ]; then
   # uppercase to support Azure Pipelines booleans
   if [ "$4" == "true" ] || [ "$4" == "True" ]; then
     PUBLISH="true"
-  elif [ "$4" != "false" ] || [ "$4" == "False" ]; then
+  elif [ "$4" != "false" ] && [ "$4" != "False" ]; then
     echo "ERROR: Publish can only be 'true' or 'false', got: $4"
     echo "$SYNTAX"
     exit 1
@@ -89,9 +89,8 @@ gclient sync -D
 
 # To re-create the patch file:
 # cd build-v8/tmp/v8
-# rm -f $PATCH_PATH
-# diff -u third_party/zlib/cpu_features.original.c third_party/zlib/cpu_features.c >> $PATCH_PATH
-# diff -u src/base/cpu.original.cc src/base/cpu.cc >> $PATCH_PATH
+# git diff --no-prefix > $PATCH_PATH
+# git -C third_party/zlib diff --no-prefix --src-prefix third_party/zlib/ >> $PATCH_PATH
 
 echo " + Apply V8 patches..."
 if ! patch --forward -p0 < "$PATCH_PATH"; then
@@ -121,10 +120,6 @@ if [ "$TARGET" == "sgx" ]; then
   # but V8 needs it for intrinsics and those headers are not part
   # of Open Enclave. Therefore, add it back manually.
   compiler_include_dir=/usr/lib/llvm-$CCF_CLANG_VERSION/lib/clang/$CCF_CLANG_VERSION.0.0/include
-  if [ "${#compiler_include_dir[@]}" -ne 1 ]; then
-    echo "ERROR: Found multiple compiler include dirs"
-    exit 1
-  fi
   
   # V8 uses some standard library functions unsupported and marked
   # as deprecated in OE, triggering a warning that fails the build.
@@ -142,12 +137,12 @@ if [ "$TARGET" == "sgx" ]; then
   other_ignore_warn="-Wno-unused-const-variable"
 
   oe_include_dir="/opt/openenclave/include"
-  export CFLAGS="$oe_ignore_warn $other_ignore_warn -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
+  export CFLAGS="$oe_ignore_warn $other_ignore_warn -DV8_OS_OPENENCLAVE=1 -m64 -fPIE -ftls-model=local-exec -fvisibility=hidden -fstack-protector-strong -fno-omit-frame-pointer -ffunction-sections -fdata-sections -mllvm -x86-speculative-load-hardening -nostdinc -isystem $oe_include_dir/openenclave/3rdparty/libc -isystem $oe_include_dir/openenclave/3rdparty -isystem $oe_include_dir -isystem $compiler_include_dir"
   export CXXFLAGS="-isystem $oe_include_dir/openenclave/3rdparty/libcxx $CFLAGS"
 elif [  "$TARGET" == "virtual" ]; then
   # Use libc++ to match CCF.
-  export CFLAGS=""
-  export CXXFLAGS="-stdlib=libc++"
+  export CFLAGS="-DV8_OS_OPENENCLAVE=0"
+  export CXXFLAGS="$CFLAGS -stdlib=libc++"
 else
   echo "ERROR: Invalid target '$TARGET'"
   exit 1
@@ -174,12 +169,22 @@ export BUILD_CXXFLAGS=""
 #   but prefixed with 'BUILD_'.
 # v8_snapshot_toolchain=".../unbundle:host": use environment variables to configure the snapshot toolchain
 #   For our purposes, identical to host_toolchain.
+# v8_enable_snapshot_compression=false: disable snapshot compression to avoid runtime decompression overhead
+# v8_os_page_size=4: hardcode the page size to 4K
 # target_cpu="x64": build for x64
 # is_debug=true: include debug information
 # v8_optimized_debug=false: disable compiler optimizations for debug builds
 # v8_enable_backtrace=true: enable backtraces (for debugging)
 # use_debug_fission=false: don't use split DWARF for debug builds
 # dcheck_always_on=false: disable DCHECKs (for release)
+# use_rtti=true: enable RTTI (for debug)
+#   RTTI is required when ASAN is enabled in V8 itself or
+#   the consuming software (CCF). Even if V8 was not built with ASAN
+#   enabled it is still desirable to be able to use a single debug build
+#   within CCF both with and without ASAN in CCF enabled.
+#   Therefore, RTTI is enabled for all debug builds and when
+#   explicitly requested for release builds.
+#   The main use case is for the daily "Instrumented" CI job in CCF.
 # is_component_build=false: don't build shared libraries
 # v8_monolithic=true: build a single static archive
 # v8_use_external_startup_data=false: bundle startup data in the archive
@@ -209,7 +214,7 @@ export BUILD_CXXFLAGS=""
 # clang_use_chrome_plugins=false: don't use linting plugins for Clang from Chrome
 # use_goma=false: don't use Google's internal build infrastructure
 if [ "$MODE" == "debug" ]; then
-  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true v8_enable_slow_dchecks=true use_debug_fission=false"
+  MODE_ARGS="is_debug=true v8_optimized_debug=false v8_enable_backtrace=true v8_enable_slow_dchecks=true use_debug_fission=false use_rtti=true"
 elif [ "$MODE" == "release" ]; then
   MODE_ARGS="is_debug=false dcheck_always_on=false"
 else
@@ -233,9 +238,11 @@ GN_ARGS="\
   custom_toolchain=\"//build/toolchain/linux/unbundle:default\" \
   host_toolchain=\"//build/toolchain/linux/unbundle:host\" \
   v8_snapshot_toolchain=\"//build/toolchain/linux/unbundle:host\" \
+  v8_enable_snapshot_compression=false \
   is_clang=true \
   clang_use_chrome_plugins=false \
   target_cpu=\"x64\" \
+  v8_os_page_size=\"4\" \
   use_sysroot=false \
   use_custom_libcxx=false \
   use_glib=false \
@@ -252,7 +259,7 @@ echo " + gn args: $GN_ARGS"
 gn gen "$OUT_DIR" --args="$GN_ARGS"
 
 if [ "$VERBOSE" == 1 ]; then
-  verbose_flag="--verbose"
+  verbose_flag="-v"
 else
   verbose_flag=""
 fi

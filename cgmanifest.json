@@ -125,6 +125,15 @@
           "commitHash": "7af0c508be9cbec407268e2f546f597d268c104e"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/v8/v8",
+          "commitHash": "f7528051b26ebd074f5695e7c412e1fc30f514c6"
+        }
+      }
     }
   ],
   "Version": 1
