@@ -7,7 +7,6 @@ jobs:
 
     steps:
       - script: |
-          ls -al /usr/bin/llvm-*
           sudo rm -rf build
         displayName: "Cleanup"
 
