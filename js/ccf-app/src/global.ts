@@ -246,6 +246,8 @@ export interface CCFRpc {
   /**
    * Set a claims digest to be associated with the transaction if it succeeds. This
    * digest can later be accessed from the receipt, and expanded into a full claim.
+   *
+   * The `digest` argument must be a sha-256 ArrayBuffer, eg. produced by {@link CCF.digest}
    */
   setClaimsDigest(digest: ArrayBuffer): void;
 }
