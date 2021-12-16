@@ -193,10 +193,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--label", help="Unique identifier for the test", default=default_label
     )
     parser.add_argument(
-        "--enforce-reqs",
-        help="Enforce test requirements (useful when running the test suite)",
+        "--skip-if-no-reqs",
+        help="Skip test if requirements are not met (useful when running the test suite)",
         action="store_true",
-        default=False,
+        default=True,
     )
     parser.add_argument(
         "--sn",

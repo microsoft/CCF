@@ -62,8 +62,8 @@ def run(args):
         random.shuffle(chosen_suite)
     s.validate_tests_signature(chosen_suite)
 
-    if args.enforce_reqs is False:
-        LOG.warning("Test requirements will be ignored")
+    # Throws TestRequirementsNotMet if test requirements are not met
+    args.skip_if_no_reqs = False
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
 

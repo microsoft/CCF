@@ -28,17 +28,22 @@ def ensure_reqs(check_reqs):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(network, args, *nargs, **kwargs):
-            if args.enforce_reqs:
-                try:
-                    # This should throw TestRequirementsNotMet if any checks fail.
-                    # Return code is ignored
-                    check_reqs(network, args, *nargs, **kwargs)
-                except TestRequirementsNotMet:
+            try:
+                # This should throw TestRequirementsNotMet if any checks fail.
+                # Return code is ignored
+                check_reqs(network, args, *nargs, **kwargs)
+            except TestRequirementsNotMet as e:
+                if args.skip_if_no_reqs:
+                    LOG.warning(
+                        f'Test requirements not met, skipping "{func.__name__}": {e}'
+                    )
+                    return network
+                else:
                     raise
-                except Exception as e:
-                    raise TestRequirementsNotMet(
-                        f"Could not check if test requirements were met: {e}"
-                    ) from e
+            except Exception as e:
+                raise TestRequirementsNotMet(
+                    f"Could not check if test requirements were met: {e}"
+                ) from e
 
             return func(network, args, *nargs, **kwargs)
 
@@ -56,9 +61,8 @@ def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
-            response = c.get("/app/api")
+            response = c.get("/app/api", log_capture=[])
             supported_methods = response.body.json()["paths"]
-            LOG.warning(f"Supported methods are: {supported_methods.keys()}")
             missing = {*methods}.difference(
                 [remove_prefix(key, "/") for key in supported_methods.keys()]
             )
@@ -123,11 +127,11 @@ def can_kill_n_nodes(nodes_to_kill_count):
     return ensure_reqs(check)
 
 
-def installed_package(p):
+def installed_package(*p):
     def check(network, args, *nargs, **kwargs):
-        if args.package != p:
+        if args.package not in p:
             raise TestRequirementsNotMet(
-                f"Incorrect app. Requires '{p}', not '{args.package}'"
+                f'Incorrect app. Requires "{", ".join(p)}", not "{args.package}"'
             )
 
     return ensure_reqs(check)

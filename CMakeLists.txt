@@ -504,7 +504,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --test-duration
       150
-      --enforce-reqs
       --test-suite
       rekey_recovery
       --test-suite
@@ -516,7 +515,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS --test-duration 200 --enforce-reqs --test-suite
+    ADDITIONAL_ARGS --test-duration 200 --test-suite
                     reconfiguration
   )
 
@@ -532,7 +531,6 @@ if(BUILD_TESTS)
       20
       --test-duration
       200
-      --enforce-reqs
       --test-suite
       all
   )

@@ -138,29 +138,69 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("log/private")
 def test_remove(network, args):
-    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
-    if args.package in supported_packages:
-        primary, _ = network.find_primary()
+    primary, _ = network.find_primary()
 
-        with primary.client() as nc:
-            check_commit = infra.checker.Checker(nc)
-            check = infra.checker.Checker()
+    with primary.client() as nc:
+        check_commit = infra.checker.Checker(nc)
+        check = infra.checker.Checker()
 
-            with primary.client("user0") as c:
-                log_id = 44
-                msg = "Will be deleted"
+        with primary.client("user0") as c:
+            log_id = 44
+            msg = "Will be deleted"
 
-                for table in ["private", "public"]:
-                    resource = f"/app/log/{table}"
+            for table in ["private", "public"]:
+                resource = f"/app/log/{table}"
+                check_commit(
+                    c.post(resource, {"id": log_id, "msg": msg}),
+                    result=True,
+                )
+                check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
+                check(
+                    c.delete(f"{resource}?id={log_id}"),
+                    result=None,
+                )
+                get_r = c.get(f"{resource}?id={log_id}")
+                if args.package == "libjs_generic":
+                    check(
+                        get_r,
+                        result={"error": "No such key"},
+                    )
+                else:
+                    check(
+                        get_r,
+                        error=lambda status, msg: status
+                        == http.HTTPStatus.BAD_REQUEST.value,
+                    )
+
+    return network
+
+
+@reqs.description("Write/Read/Clear messages on primary")
+@reqs.supports_methods("log/private/all", "log/public/all")
+def test_clear(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client() as nc:
+        check_commit = infra.checker.Checker(nc)
+        check = infra.checker.Checker()
+
+        with primary.client("user0") as c:
+            log_ids = list(range(40, 50))
+            msg = "Will be deleted"
+
+            for table in ["private", "public"]:
+                resource = f"/app/log/{table}"
+                for log_id in log_ids:
                     check_commit(
                         c.post(resource, {"id": log_id, "msg": msg}),
                         result=True,
                     )
                     check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
-                    check(
-                        c.delete(f"{resource}?id={log_id}"),
-                        result=None,
-                    )
+                check(
+                    c.delete(f"{resource}/all"),
+                    result=None,
+                )
+                for log_id in log_ids:
                     get_r = c.get(f"{resource}?id={log_id}")
                     if args.package == "libjs_generic":
                         check(
@@ -173,142 +213,72 @@ def test_remove(network, args):
                             error=lambda status, msg: status
                             == http.HTTPStatus.BAD_REQUEST.value,
                         )
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
-        )
 
-    return network
-
-
-@reqs.description("Write/Read/Clear messages on primary")
-@reqs.supports_methods("log/private/all", "log/public/all")
-def test_clear(network, args):
-    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
-    if args.package in supported_packages:
-        primary, _ = network.find_primary()
-
-        with primary.client() as nc:
-            check_commit = infra.checker.Checker(nc)
-            check = infra.checker.Checker()
-
-            with primary.client("user0") as c:
-                log_ids = list(range(40, 50))
-                msg = "Will be deleted"
-
-                for table in ["private", "public"]:
-                    resource = f"/app/log/{table}"
-                    for log_id in log_ids:
-                        check_commit(
-                            c.post(resource, {"id": log_id, "msg": msg}),
-                            result=True,
-                        )
-                        check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
-                    check(
-                        c.delete(f"{resource}/all"),
-                        result=None,
-                    )
-                    for log_id in log_ids:
-                        get_r = c.get(f"{resource}?id={log_id}")
-                        if args.package == "libjs_generic":
-                            check(
-                                get_r,
-                                result={"error": "No such key"},
-                            )
-                        else:
-                            check(
-                                get_r,
-                                error=lambda status, msg: status
-                                == http.HTTPStatus.BAD_REQUEST.value,
-                            )
-
-        # Make sure no-one else is still looking for these
-        network.txs.clear()
-
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
-        )
-
+    # Make sure no-one else is still looking for these
+    network.txs.clear()
     return network
 
 
 @reqs.description("Count messages on primary")
 @reqs.supports_methods("log/private/count", "log/public/count")
 def test_record_count(network, args):
-    supported_packages = ["libjs_generic", "samples/apps/logging/liblogging"]
-    if args.package in supported_packages:
-        primary, _ = network.find_primary()
+    primary, _ = network.find_primary()
 
-        with primary.client() as nc:
-            check_commit = infra.checker.Checker(nc)
-            check = infra.checker.Checker()
+    with primary.client() as nc:
+        check_commit = infra.checker.Checker(nc)
+        check = infra.checker.Checker()
 
-            with primary.client("user0") as c:
-                msg = "Will be deleted"
+        with primary.client("user0") as c:
+            msg = "Will be deleted"
 
-                def get_count(resource):
-                    r_get = c.get(f"{resource}/count")
-                    assert r_get.status_code == http.HTTPStatus.OK
-                    return int(r_get.body.json())
+            def get_count(resource):
+                r_get = c.get(f"{resource}/count")
+                assert r_get.status_code == http.HTTPStatus.OK
+                return int(r_get.body.json())
 
-                for table in ["private", "public"]:
-                    resource = f"/app/log/{table}"
+            for table in ["private", "public"]:
+                resource = f"/app/log/{table}"
 
-                    count = get_count(resource)
+                count = get_count(resource)
 
-                    # Add several new IDs
-                    for i in range(10):
-                        log_id = 234 + i
-                        check_commit(
-                            c.post(resource, {"id": log_id, "msg": msg}),
-                            result=True,
-                        )
-                        new_count = get_count(resource)
-                        assert (
-                            new_count == count + 1
-                        ), f"Added one ID after {count}, but found {new_count} resulting IDs"
-                        count = new_count
-
-                    # Clear all IDs
-                    check(
-                        c.delete(f"{resource}/all"),
-                        result=None,
+                # Add several new IDs
+                for i in range(10):
+                    log_id = 234 + i
+                    check_commit(
+                        c.post(resource, {"id": log_id, "msg": msg}),
+                        result=True,
                     )
                     new_count = get_count(resource)
                     assert (
-                        new_count == 0
-                    ), f"Found {new_count} remaining IDs after clear"
+                        new_count == count + 1
+                    ), f"Added one ID after {count}, but found {new_count} resulting IDs"
+                    count = new_count
 
-        # Make sure no-one else is still looking for these
-        network.txs.clear()
+                # Clear all IDs
+                check(
+                    c.delete(f"{resource}/all"),
+                    result=None,
+                )
+                new_count = get_count(resource)
+                assert new_count == 0, f"Found {new_count} remaining IDs after clear"
 
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
-        )
-
+    # Make sure no-one else is still looking for these
+    network.txs.clear()
     return network
 
 
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("log/private/prefix_cert", "log/private")
 def test_cert_prefix(network, args):
-    if args.package == "samples/apps/logging/liblogging":
-        primary, _ = network.find_primary()
+    primary, _ = network.find_primary()
 
-        for user in network.users:
-            with primary.client(user.local_id) as c:
-                log_id = 101
-                msg = "This message will be prefixed"
-                c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
-                r = c.get(f"/app/log/private?id={log_id}")
-                assert f"CN={user.local_id}" in r.body.json()["msg"], r
-
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
-        )
+    for user in network.users:
+        with primary.client(user.local_id) as c:
+            log_id = 101
+            msg = "This message will be prefixed"
+            c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
+            r = c.get(f"/app/log/private?id={log_id}")
+            assert f"CN={user.local_id}" in r.body.json()["msg"], r
 
     return network
 
@@ -316,28 +286,22 @@ def test_cert_prefix(network, args):
 @reqs.description("Write as anonymous caller")
 @reqs.supports_methods("log/private/anonymous", "log/private")
 def test_anonymous_caller(network, args):
-    if args.package == "samples/apps/logging/liblogging":
-        primary, _ = network.find_primary()
+    primary, _ = network.find_primary()
 
-        # Create a new user but do not record its identity
-        network.create_user("user5", args.participants_curve, record=False)
+    # Create a new user but do not record its identity
+    network.create_user("user5", args.participants_curve, record=False)
 
-        log_id = 101
-        msg = "This message is anonymous"
-        with primary.client("user5") as c:
-            r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
-            assert r.body.json() == True
-            r = c.get(f"/app/log/private?id={log_id}")
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
+    log_id = 101
+    msg = "This message is anonymous"
+    with primary.client("user5") as c:
+        r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
+        assert r.body.json() == True
+        r = c.get(f"/app/log/private?id={log_id}")
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r
 
-        with primary.client("user0") as c:
-            r = c.get(f"/app/log/private?id={log_id}")
-            assert msg in r.body.json()["msg"], r
-
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
-        )
+    with primary.client("user0") as c:
+        r = c.get(f"/app/log/private?id={log_id}")
+        assert msg in r.body.json()["msg"], r
 
     return network
 
@@ -453,52 +417,39 @@ def test_multi_auth(network, args):
 @reqs.description("Call an endpoint with a custom auth policy")
 @reqs.supports_methods("custom_auth")
 def test_custom_auth(network, args):
-    if args.package == "samples/apps/logging/liblogging":
-        primary, other = network.find_primary_and_any_backup()
+    primary, other = network.find_primary_and_any_backup()
 
-        for node in (primary, other):
-            with node.client() as c:
-                LOG.info("Request without custom headers is refused")
-                r = c.get("/app/custom_auth")
-                assert (
-                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
-                ), r.status_code
+    for node in (primary, other):
+        with node.client() as c:
+            LOG.info("Request without custom headers is refused")
+            r = c.get("/app/custom_auth")
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
 
-                name_header = "x-custom-auth-name"
-                age_header = "x-custom-auth-age"
+            name_header = "x-custom-auth-name"
+            age_header = "x-custom-auth-age"
 
-                LOG.info("Requests with partial headers are refused")
-                r = c.get("/app/custom_auth", headers={name_header: "Bob"})
-                assert (
-                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
-                ), r.status_code
-                r = c.get("/app/custom_auth", headers={age_header: "42"})
-                assert (
-                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
-                ), r.status_code
+            LOG.info("Requests with partial headers are refused")
+            r = c.get("/app/custom_auth", headers={name_header: "Bob"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+            r = c.get("/app/custom_auth", headers={age_header: "42"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
 
-                LOG.info("Requests with unacceptable header contents are refused")
-                r = c.get(
-                    "/app/custom_auth", headers={name_header: "", age_header: "42"}
-                )
-                assert (
-                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
-                ), r.status_code
-                r = c.get(
-                    "/app/custom_auth", headers={name_header: "Bob", age_header: "12"}
-                )
-                assert (
-                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
-                ), r.status_code
+            LOG.info("Requests with unacceptable header contents are refused")
+            r = c.get("/app/custom_auth", headers={name_header: "", age_header: "42"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+            r = c.get(
+                "/app/custom_auth", headers={name_header: "Bob", age_header: "12"}
+            )
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
 
-                LOG.info("Request which meets all requirements is accepted")
-                r = c.get(
-                    "/app/custom_auth", headers={name_header: "Alice", age_header: "42"}
-                )
-                assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-                response = r.body.json()
-                assert response["name"] == "Alice", response
-                assert response["age"] == 42, response
+            LOG.info("Request which meets all requirements is accepted")
+            r = c.get(
+                "/app/custom_auth", headers={name_header: "Alice", age_header: "42"}
+            )
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            response = r.body.json()
+            assert response["name"] == "Alice", response
+            assert response["age"] == 42, response
 
     return network
 
@@ -506,18 +457,17 @@ def test_custom_auth(network, args):
 @reqs.description("Call an endpoint with a custom auth policy which throws")
 @reqs.supports_methods("custom_auth")
 def test_custom_auth_safety(network, args):
-    if args.package == "samples/apps/logging/liblogging":
-        primary, other = network.find_primary_and_any_backup()
+    primary, other = network.find_primary_and_any_backup()
 
-        for node in (primary, other):
-            with node.client() as c:
-                r = c.get(
-                    "/app/custom_auth",
-                    headers={"x-custom-auth-explode": "Boom goes the dynamite"},
-                )
-                assert (
-                    r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
-                ), r.status_code
+    for node in (primary, other):
+        with node.client() as c:
+            r = c.get(
+                "/app/custom_auth",
+                headers={"x-custom-auth-explode": "Boom goes the dynamite"},
+            )
+            assert (
+                r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+            ), r.status_code
 
     return network
 
@@ -525,25 +475,19 @@ def test_custom_auth_safety(network, args):
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
-    if args.package == "samples/apps/logging/liblogging":
-        primary, _ = network.find_primary()
+    primary, _ = network.find_primary()
 
-        log_id = 101
-        msg = "This message is not in JSON"
-        with primary.client("user0") as c:
-            r = c.post(
-                f"/app/log/private/raw_text/{log_id}",
-                msg,
-                headers={"content-type": "text/plain"},
-            )
-            assert r.status_code == http.HTTPStatus.OK.value
-            r = c.get(f"/app/log/private?id={log_id}")
-            assert msg in r.body.json()["msg"], r
-
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+    log_id = 101
+    msg = "This message is not in JSON"
+    with primary.client("user0") as c:
+        r = c.post(
+            f"/app/log/private/raw_text/{log_id}",
+            msg,
+            headers={"content-type": "text/plain"},
         )
+        assert r.status_code == http.HTTPStatus.OK.value
+        r = c.get(f"/app/log/private?id={log_id}")
+        assert msg in r.body.json()["msg"], r
 
     return network
 
@@ -960,48 +904,41 @@ def test_forwarding_frontends(network, args):
 
 
 @reqs.description("Testing signed queries with escaped queries")
+@reqs.installed_package("samples/apps/logging/liblogging")
 @reqs.at_least_n_nodes(2)
 def test_signed_escapes(network, args):
-    if args.package == "samples/apps/logging/liblogging":
-        node = network.find_node_by_role()
-        with node.client("user0", "user0") as c:
-            escaped_query_tests(c, "signed_request_query")
-
+    node = network.find_node_by_role()
+    with node.client("user0", "user0") as c:
+        escaped_query_tests(c, "signed_request_query")
     return network
 
 
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("log/private/admin_only")
 def test_user_data_ACL(network, args):
-    if args.package == "samples/apps/logging/liblogging":
-        primary, _ = network.find_primary()
+    primary, _ = network.find_primary()
 
-        user = network.users[0]
+    user = network.users[0]
 
-        # Give isAdmin permissions to a single user
-        network.consortium.set_user_data(
-            primary, user.service_id, user_data={"isAdmin": True}
-        )
+    # Give isAdmin permissions to a single user
+    network.consortium.set_user_data(
+        primary, user.service_id, user_data={"isAdmin": True}
+    )
 
-        # Confirm that user can now use this endpoint
-        with primary.client(user.local_id) as c:
-            r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
-            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+    # Confirm that user can now use this endpoint
+    with primary.client(user.local_id) as c:
+        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
-        # Remove permission
-        network.consortium.set_user_data(
-            primary, user.service_id, user_data={"isAdmin": False}
-        )
+    # Remove permission
+    network.consortium.set_user_data(
+        primary, user.service_id, user_data={"isAdmin": False}
+    )
 
-        # Confirm that user is now forbidden on this endpoint
-        with primary.client(user.local_id) as c:
-            r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
-            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
-
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
-        )
+    # Confirm that user is now forbidden on this endpoint
+    with primary.client(user.local_id) as c:
+        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
 
     return network
 
