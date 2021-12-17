@@ -60,7 +60,7 @@ def test_remove_member_no_reqs(
 # Called by test suite. membership test deliberately attempts to remove recovery member.
 @reqs.sufficient_recovery_member_count()
 def test_remove_member(network, args, member_to_remove=None, recovery_member=True):
-    test_remove_member_no_reqs(network, args, member_to_remove, recovery_member)
+    return test_remove_member_no_reqs(network, args, member_to_remove, recovery_member)
 
 
 @reqs.description("Issue new recovery shares (without re-key)")

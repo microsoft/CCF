@@ -40,7 +40,7 @@ def test_kill_primary_no_reqs(network, args):
 # Called by test suite. Election test deliberately makes service unusable.
 @reqs.can_kill_n_nodes(1)
 def test_kill_primary(network, args):
-    test_kill_primary_no_reqs(network, args)
+    return test_kill_primary_no_reqs(network, args)
 
 
 def run(args):
