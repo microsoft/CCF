@@ -45,8 +45,11 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
     ccf::Receipt* receipt = unwrap_receipt(info.Holder());
-    v8::Local<v8::String> value =
-      v8_util::to_v8_str(info.GetIsolate(), receipt->leaf->c_str());
+    v8::Local<v8::Value> value;
+    if (receipt->leaf.has_value())
+      value = v8_util::to_v8_str(info.GetIsolate(), receipt->leaf.value());
+    else
+      value = v8::Undefined(info.GetIsolate());
     info.GetReturnValue().Set(value);
   }
 
