@@ -160,7 +160,7 @@ def test_remove(network, args):
                     result=None,
                 )
                 get_r = c.get(f"{resource}?id={log_id}")
-                if args.package == "libjs_generic":
+                if args.package in ["libjs_generic", "libjs_v8"]:
                     check(
                         get_r,
                         result={"error": "No such key"},
