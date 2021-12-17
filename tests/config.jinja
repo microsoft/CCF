@@ -26,7 +26,7 @@
         "maximum_node_certificate_validity_days": {{ maximum_node_certificate_validity_days }},
         "reconfiguration_type": "{{ reconfiguration_type }}"
       },
-      "network_certificate_initial_validity_days": {{ initial_network_cert_validity_days }}
+      "initial_network_certificate_validity_days": {{ initial_network_cert_validity_days }}
     },
     "join":
     {
@@ -34,7 +34,7 @@
       "target_rpc_address": "{{ target_rpc_address }}"
     },
     "recover": {
-      "network_certificate_initial_validity_days": {{ initial_network_cert_validity_days }}
+      "initial_network_certificate_validity_days": {{ initial_network_cert_validity_days }}
     }
   },
   "ledger":

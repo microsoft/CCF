@@ -273,6 +273,7 @@ namespace ccf
 
     void initialise_network_identity()
     {
+      LOG_FAIL_FMT("{}", config.initial_network_certificate_validity_days);
       network.identity = std::make_unique<ReplicatedNetworkIdentity>(
         "CN=CCF Network",
         curve_id,

@@ -441,7 +441,9 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
-        self.verify_service_certificate_validity_period()
+        self.verify_service_certificate_validity_period(
+            args.initial_network_cert_validity_days
+        )
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
@@ -519,7 +521,9 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.verify_service_certificate_validity_period()
+        self.verify_service_certificate_validity_period(
+            args.initial_network_cert_validity_days
+        )
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -1110,7 +1114,7 @@ class Network:
             )
             return network_cert
 
-    def verify_service_certificate_validity_period(self):
+    def verify_service_certificate_validity_period(self, expected_validity_days):
         # Note: The server does not return the service certificate (root) as part of the TLS connection so
         # we inspect the service certificate recorded in the store instead
         primary, _ = self.find_primary()
@@ -1128,6 +1132,16 @@ class Network:
                 raise ValueError(
                     f'Service certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
                 )
+
+        # Note: CCF substracts one second from validity period since x509 specifies
+        # that validity dates are inclusive.
+        expected_valid_to = valid_from + timedelta(
+            days=expected_validity_days, seconds=-1
+        )
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for service certiticate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+            )
 
         validity_period = valid_to - valid_from + timedelta(seconds=1)
         LOG.info(
