@@ -11,9 +11,19 @@
 
 namespace http2
 {
+#define ARRLEN(x) (sizeof(x) / sizeof(x[0]))
+
+#define MAKE_NV(NAME, VALUE) \
+  { \
+    (uint8_t*)NAME, (uint8_t*)VALUE, sizeof(NAME) - 1, sizeof(VALUE) - 1, \
+      NGHTTP2_NV_FLAG_NONE \
+  }
+
   struct Stream
   {
     uint32_t id;
+
+    Stream(uint32_t id_) : id(id_) {}
   };
 
   static ssize_t send_callback(
@@ -43,7 +53,7 @@ namespace http2
 
   class Session
   {
-  private:
+  protected:
     nghttp2_session* session;
     std::list<std::shared_ptr<Stream>> streams;
 
@@ -68,6 +78,11 @@ namespace http2
       nghttp2_session_server_new(&session, callbacks, this);
 
       nghttp2_session_callbacks_del(callbacks);
+    }
+
+    void add_stream(const std::shared_ptr<Stream>& stream)
+    {
+      streams.push_back(stream);
     }
 
     virtual void send(const uint8_t* data, size_t length)
@@ -106,10 +121,81 @@ namespace http2
     return length;
   }
 
+  static ssize_t read_callback(
+    nghttp2_session* session,
+    int32_t stream_id,
+    uint8_t* buf,
+    size_t length,
+    uint32_t* data_flags,
+    nghttp2_data_source* source,
+    void* user_data)
+  {
+    LOG_TRACE_FMT("read_callback: {}", length);
+
+    std::string resp = "Hello there";
+
+    memcpy(buf, resp.data(), resp.size());
+    *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    return resp.size();
+  }
+
+  static int on_request_recv(
+    nghttp2_session* session, Session* session_data, Stream* stream_data)
+  {
+    LOG_TRACE_FMT("on_request_recv");
+
+    nghttp2_nv hdrs[] = {MAKE_NV(":status", "200")};
+
+    std::string resp = "Hello there";
+
+    nghttp2_data_provider prov;
+    prov.source.ptr = (void*)resp.data();
+    prov.read_callback = read_callback;
+
+    int rv = nghttp2_submit_response(
+      session, stream_data->id, hdrs, ARRLEN(hdrs), &prov);
+    LOG_FAIL_FMT("nghttp2_submit_response: {}", rv);
+    if (rv != 0)
+    {
+      LOG_FAIL_FMT("Error sending response: {}", rv);
+      return -1;
+    }
+
+    return 0;
+  }
+
   static int on_frame_recv_callback(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
-    LOG_TRACE_FMT("on_frame_recv_callback");
+    LOG_TRACE_FMT("on_frame_recv_callback, type: {}", frame->hd.type);
+    auto* s = reinterpret_cast<Session*>(user_data);
+    Stream* stream;
+
+    switch (frame->hd.type)
+    {
+      case NGHTTP2_DATA:
+      case NGHTTP2_HEADERS:
+        /* Check that the client request has finished */
+        LOG_FAIL_FMT("Frame data or headers");
+        if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
+        {
+          LOG_FAIL_FMT("End of stream flag");
+          stream = reinterpret_cast<Stream*>(
+            nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+          /* For DATA and HEADERS frame, this callback may be called after
+             on_stream_close_callback. Check that stream still alive. */
+          if (!stream)
+          {
+            LOG_FAIL_FMT("No stream!");
+            return 0;
+          }
+          return on_request_recv(session, s, stream);
+        }
+        break;
+      default:
+        break;
+    }
+
     return 0;
   }
 
@@ -117,6 +203,13 @@ namespace http2
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
     LOG_TRACE_FMT("on_begin_headers_callback");
+    auto* s = reinterpret_cast<Session*>(user_data);
+
+    auto stream = std::make_shared<Stream>(frame->hd.stream_id);
+    s->add_stream(stream);
+    nghttp2_session_set_stream_user_data(
+      session, frame->hd.stream_id, stream.get());
+
     return 0;
   }
 
@@ -130,7 +223,10 @@ namespace http2
     uint8_t flags,
     void* user_data)
   {
-    LOG_TRACE_FMT("on_header_callback: {}", namelen);
+    LOG_TRACE_FMT(
+      "on_header_callback: {}:{}",
+      std::string(name, name + namelen),
+      std::string(value, value + valuelen));
     return 0;
   }
 
@@ -156,6 +252,12 @@ namespace http2
       endpoint(endpoint_)
     {
       LOG_TRACE_FMT("Initialise HTTP2 Server Session");
+
+      nghttp2_settings_entry iv[1] = {
+        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100}};
+      auto rv =
+        nghttp2_submit_settings(session, NGHTTP2_FLAG_NONE, iv, ARRLEN(iv));
+      LOG_TRACE_FMT("Submitted settings: {}", rv);
     }
 
     virtual void send(const uint8_t* data, size_t length) override
