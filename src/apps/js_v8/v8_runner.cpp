@@ -333,6 +333,8 @@ namespace ccf
     v8::HandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = v8::Context::New(isolate_);
     context->SetAlignedPointerInEmbedderData(kContextEmbedderDataField, this);
+    context->SetAlignedPointerInEmbedderData(kFinalizerEmbedderDataField, nullptr);
+    context->SetAlignedPointerInEmbedderData(kModuleEmbedderDataField, nullptr);
     context->Enter();
     context_.Reset(isolate_, context);
   }
@@ -378,7 +380,48 @@ namespace ccf
     v8::Local<v8::Context> context = get_context();
     context->Global()
       ->Set(context, v8_util::to_v8_istr(isolate_, name), value)
-      .FromJust();
+      .Check();
+  }
+
+  void V8Context::freeze_global()
+  {
+    v8::HandleScope handle_scope(isolate_);
+    v8::Local<v8::Context> context = get_context();
+
+    auto code = R"JS(
+      (function() {
+        const visited = new WeakSet();
+        const q = [[globalThis, 'globalThis']];
+        while (q.length) {
+          const [cur, cur_name] = q.pop();
+          if (cur instanceof Object && !visited.has(cur)) {
+            visited.add(cur);
+            if (cur_name === 'globalThis.ccf') {
+              continue;
+            }
+            //console.log(`freezing ${cur_name}`);
+            Object.freeze(cur);
+            q.push([Object.getPrototypeOf(cur), `${cur_name}.[[Prototype]]`]);
+            for (const [name, value] of Object.entries(Object.getOwnPropertyDescriptors(cur)))
+            {
+              for (const p of Object.values(value))
+                q.push([p, `${cur_name}.${name}`]);
+            }
+          }
+        }
+        //console.log('freezing globalThis.ccf');
+        Object.freeze(globalThis.ccf);
+      })();)JS";
+
+    v8::Local<v8::String> source = v8_util::to_v8_str(isolate_, code);
+    v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
+
+    v8::TryCatch try_catch(isolate_);
+    v8::MaybeLocal<v8::Value> result = script->Run(context);
+    if (try_catch.HasCaught()) {
+      v8_util::report_exception(isolate_, &try_catch);
+      throw std::runtime_error("Failed to freeze global object");
+    }
   }
 
   v8::Local<v8::Value> V8Context::run(

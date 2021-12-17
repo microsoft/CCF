@@ -34,14 +34,15 @@ namespace ccf::v8_tmpl
   }
 
   template <class T>
-  void set_internal_field_count(v8::Local<v8::ObjectTemplate> tmpl)
+  static void set_internal_field_count(v8::Local<v8::ObjectTemplate> tmpl)
   {
     static_assert(std::is_enum_v<T>, "T must be an enum class");
-    tmpl->SetInternalFieldCount(static_cast<int>(T::END));
+    int count = static_cast<int>(T::END);
+    tmpl->SetInternalFieldCount(count);
   }
 
   template <class T, size_t N = static_cast<size_t>(T::END)>
-  void set_internal_fields(
+  static void set_internal_fields(
     v8::Local<v8::Object> obj, const std::array<std::pair<T, void*>, N>& fields)
   {
     static_assert(std::is_enum_v<T>, "T must be an enum value");
@@ -53,7 +54,7 @@ namespace ccf::v8_tmpl
   }
 
   template <class T>
-  void* get_internal_field(v8::Local<v8::Object> obj, T enum_value)
+  static void* get_internal_field(v8::Local<v8::Object> obj, T enum_value)
   {
     static_assert(std::is_enum_v<T>, "T must be an enum value");
     return obj->GetAlignedPointerFromInternalField(

@@ -158,6 +158,8 @@ namespace ccf
 
     void install_global(const std::string& name, v8::Local<v8::Value> value);
 
+    void freeze_global();
+
     v8::Local<v8::Value> run(
       const std::string& module_name,
       const std::string& exported_function_name,

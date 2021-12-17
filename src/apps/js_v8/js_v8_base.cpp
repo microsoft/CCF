@@ -74,20 +74,13 @@ namespace ccfapp
       // Isolates are re-used across requests
       thread_local V8Isolate isolate;
 
-      // Each request is executed in a new context.
-      // A context is used in a browser to separate different
-      // origins of a page, for example iframes.
-      // No state is shared between contexts, except when
-      // explicitly allowed through security tokens, which
-      // are not used here.
-      V8Context ctx(isolate);
+      // Contexts are re-used across requests.
+      // This is secure because the global object is frozen
+      // and loaded modules are not re-used across requests.
+      thread_local V8Context ctx(isolate);
 
       // Make sure handles are cleaned up at request end
       v8::HandleScope handle_scope(isolate);
-
-      // Run finalizers at the end of the request
-      // no matter whether a context is re-used or not.
-      V8Context::FinalizerScope finalizer_scope(ctx);
 
       // set a callback that loads modules from the KV
       ctx.set_module_load_callback(
@@ -96,19 +89,35 @@ namespace ccfapp
       v8::Local<v8::Context> context = ctx.get_context();
       v8::TryCatch try_catch(isolate);
 
-      // Populate globals
-      v8::Local<v8::Value> console_global =
-        v8_tmpl::ConsoleGlobal::wrap(context);
-      ctx.install_global("console", console_global);
+      thread_local v8_tmpl::GlobalFields global_fields;
 
       v8_tmpl::TxContext txctx{&endpoint_ctx.tx, v8_tmpl::TxAccess::APP};
-      v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(
-        context,
-        &txctx,
-        &historical_state,
-        this,
-        &node_context.get_historical_state());
-      ctx.install_global("ccf", ccf_global);
+      global_fields.tx_ctx = &txctx;
+      global_fields.historical_state = &historical_state;
+      global_fields.endpoint_registry = this;
+      global_fields.state_cache = &node_context.get_historical_state();
+
+      thread_local bool is_first_run = true;
+      if (is_first_run)
+      {
+        // Populate globals
+        v8::Local<v8::Value> console_global =
+          v8_tmpl::ConsoleGlobal::wrap(context);
+        ctx.install_global("console", console_global);
+
+        v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(
+          context, &global_fields);
+        ctx.install_global("ccf", ccf_global);
+
+        // Freeze globalThis to prevent further modifications
+        ctx.freeze_global();
+
+        is_first_run = false;
+      }
+
+      // Run finalizers at the end of the request
+      // no matter whether a context is re-used or not.
+      V8Context::FinalizerScope finalizer_scope(ctx);
 
       // Call exported function
       v8::Local<v8::Value> request =

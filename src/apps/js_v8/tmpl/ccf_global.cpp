@@ -13,38 +13,37 @@ namespace ccf::v8_tmpl
 {
   enum class InternalField
   {
-    TxContext,
-    HistoricalStatePtr,
-    EndpointRegistry,
-    StateCache,
+    GlobalFields,
     END
   };
 
+  static GlobalFields* unwrap_global_fields(v8::Local<v8::Object> obj)
+  {
+    return static_cast<GlobalFields*>(
+      get_internal_field(obj, InternalField::GlobalFields));
+  }
+
   static TxContext* unwrap_tx_ctx(v8::Local<v8::Object> obj)
   {
-    return static_cast<TxContext*>(
-      get_internal_field(obj, InternalField::TxContext));
+    return unwrap_global_fields(obj)->tx_ctx;
   }
 
   static ccf::historical::StatePtr* unwrap_historical_state(
     v8::Local<v8::Object> obj)
   {
-    return static_cast<ccf::historical::StatePtr*>(
-      get_internal_field(obj, InternalField::HistoricalStatePtr));
+    return unwrap_global_fields(obj)->historical_state;
   }
 
   static ccf::BaseEndpointRegistry* unwrap_endpoint_registry(
     v8::Local<v8::Object> obj)
   {
-    return static_cast<ccf::BaseEndpointRegistry*>(
-      get_internal_field(obj, InternalField::EndpointRegistry));
+    return unwrap_global_fields(obj)->endpoint_registry;
   }
 
   static ccf::historical::AbstractStateCache* unwrap_state_cache(
     v8::Local<v8::Object> obj)
   {
-    return static_cast<ccf::historical::AbstractStateCache*>(
-      get_internal_field(obj, InternalField::StateCache));
+    return unwrap_global_fields(obj)->state_cache;
   }
 
   static v8::Local<v8::ArrayBuffer> js_str_to_buf_direct(
@@ -272,6 +271,9 @@ namespace ccf::v8_tmpl
 
     set_internal_field_count<InternalField>(tmpl);
 
+    // NOTE: Not using SetLazyDataProperty() at the global level because
+    // we don't want to refer to old native pointers in subobjects.
+
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "strToBuf"),
       v8::FunctionTemplate::New(isolate, js_str_to_buf));
@@ -287,12 +289,12 @@ namespace ccf::v8_tmpl
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "digest"),
       v8::FunctionTemplate::New(isolate, js_digest));
-    tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
-    tmpl->SetLazyDataProperty(
+    tmpl->SetAccessor(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
+    tmpl->SetAccessor(
       v8_util::to_v8_istr(isolate, "historicalState"), get_historical_state);
-    tmpl->SetLazyDataProperty(
+    tmpl->SetAccessor(
       v8_util::to_v8_istr(isolate, "consensus"), get_consensus);
-    tmpl->SetLazyDataProperty(
+    tmpl->SetAccessor(
       v8_util::to_v8_istr(isolate, "historical"), get_historical);
 
     // To be wrapped:
@@ -310,10 +312,7 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> CCFGlobal::wrap(
     v8::Local<v8::Context> context,
-    TxContext* tx_ctx,
-    ccf::historical::StatePtr* historical_state,
-    ccf::BaseEndpointRegistry* endpoint_registry,
-    ccf::historical::AbstractStateCache* state_cache)
+    GlobalFields* global_fields)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -325,10 +324,7 @@ namespace ccf::v8_tmpl
 
     set_internal_fields<InternalField>(
       result,
-      {{{InternalField::TxContext, tx_ctx},
-        {InternalField::HistoricalStatePtr, historical_state},
-        {InternalField::EndpointRegistry, endpoint_registry},
-        {InternalField::StateCache, state_cache}}});
+      {{{InternalField::GlobalFields, global_fields}}});
 
     return handle_scope.Escape(result);
   }
