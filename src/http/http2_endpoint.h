@@ -5,25 +5,22 @@
 #include "ds/logger.h"
 #include "enclave/client_endpoint.h"
 #include "enclave/rpc_map.h"
-#include "http_parser.h"
+#include "http2.h"
 #include "http_rpc_context.h"
-
-#include <nghttp2/nghttp2.h>
 
 namespace http
 {
   class HTTP2Endpoint : public enclave::TLSEndpoint
   {
   protected:
-    http::Parser& p;
+    std::unique_ptr<http2::Session> session;
 
     HTTP2Endpoint(
-      http::Parser& p_,
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_)
+      session(std::make_unique<http2::Session>(session_id))
     {}
 
   public:
@@ -65,10 +62,11 @@ namespace http
 
         try
         {
-          p.execute(data, n_read);
+          LOG_FAIL_FMT("Noop");
+          // p.execute(data, n_read);
 
           // Used all provided bytes - check if more are available
-          n_read = read(buf.data(), buf.size(), false);
+          // n_read = read(buf.data(), buf.size(), false);
         }
         catch (const std::exception& e)
         {
@@ -96,8 +94,6 @@ namespace http
                               public http::RequestProcessor
   {
   private:
-    http::RequestParser request_parser;
-
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
     std::shared_ptr<enclave::SessionContext> session_ctx;
@@ -110,8 +106,7 @@ namespace http
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTP2Endpoint(request_parser, session_id, writer_factory, std::move(ctx)),
-      request_parser(*this),
+      HTTP2Endpoint(session_id, writer_factory, std::move(ctx)),
       rpc_map(rpc_map),
       session_id(session_id)
     {}
@@ -222,17 +217,15 @@ namespace http
                               public http::ResponseProcessor
   {
   private:
-    http::ResponseParser response_parser;
+    // http::ResponseParser response_parser;
 
   public:
     HTTP2ClientEndpoint(
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTP2Endpoint(
-        response_parser, session_id, writer_factory, std::move(ctx)),
-      ClientEndpoint(session_id, writer_factory),
-      response_parser(*this)
+      HTTP2Endpoint(session_id, writer_factory, std::move(ctx)),
+      ClientEndpoint(session_id, writer_factory)
     {}
 
     void send_request(std::vector<uint8_t>&& data) override
