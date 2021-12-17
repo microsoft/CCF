@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/receipt.h"
 #include "crypto/base64.h"
 #include "node/history.h"
 
@@ -28,7 +29,7 @@ namespace ccf
       cert(c_)
     {}
 
-    void describe(ccf::Receipt& r, bool include_root = false)
+    void describe(ccf::Receipt& r, bool include_root = false) const
     {
       r.signature = crypto::b64_from_raw(signature);
       if (include_root)

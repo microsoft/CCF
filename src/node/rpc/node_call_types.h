@@ -62,17 +62,13 @@ namespace ccf
     {
       NodeId node_id;
       crypto::Pem certificate_signing_request;
+      crypto::Pem node_endorsed_certificate;
       crypto::Pem public_key;
       crypto::Pem network_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
-      std::string node_cert_valid_from;
-      size_t initial_node_cert_validity_period_days;
-
-      // Only set if node does _not_ require endorsement by the service
-      std::optional<crypto::Pem> node_cert = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
       std::optional<StartupConfig::Start> genesis_info = std::nullopt;

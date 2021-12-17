@@ -103,18 +103,21 @@ namespace http
     std::shared_ptr<enclave::RpcHandler> handler;
     std::shared_ptr<enclave::SessionContext> session_ctx;
     int64_t session_id;
+    enclave::ListenInterfaceID interface_id;
     size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
       std::shared_ptr<enclave::RPCMap> rpc_map,
       int64_t session_id,
+      const enclave::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
       request_parser(*this),
       rpc_map(rpc_map),
-      session_id(session_id)
+      session_id(session_id),
+      interface_id(interface_id)
     {}
 
     void send(std::vector<uint8_t>&& data) override
@@ -138,8 +141,8 @@ namespace http
       {
         if (session_ctx == nullptr)
         {
-          session_ctx =
-            std::make_shared<enclave::SessionContext>(session_id, peer_cert());
+          session_ctx = std::make_shared<enclave::SessionContext>(
+            session_id, peer_cert(), interface_id);
         }
 
         std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;

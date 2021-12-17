@@ -235,7 +235,8 @@ namespace asynchost
     ringbuffer::WriterPtr to_enclave;
 
     std::optional<std::string> client_interface = std::nullopt;
-    size_t client_connection_timeout;
+    std::optional<std::chrono::milliseconds> client_connection_timeout =
+      std::nullopt;
 
   public:
     NodeConnections(
@@ -244,8 +245,9 @@ namespace asynchost
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service,
-      const std::optional<std::string>& client_interface,
-      size_t client_connection_timeout_) :
+      const std::optional<std::string>& client_interface = std::nullopt,
+      std::optional<std::chrono::milliseconds> client_connection_timeout_ =
+        std::nullopt) :
       ledger(ledger),
       to_enclave(writer_factory.create_writer_to_inside()),
       client_interface(client_interface),

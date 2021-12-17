@@ -21,12 +21,12 @@ def absolute_path_to_existing_file(arg):
 def nodes(args, n):
     return [
         infra.interfaces.HostSpec(
-            rpc_interfaces=[
-                infra.interfaces.RPCInterface(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
                     max_open_sessions_soft=args.max_open_sessions,
                     max_open_sessions_hard=args.max_open_sessions_hard,
                 )
-            ]
+            }
         )
         for _ in range(n)
     ]
@@ -216,10 +216,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=list(infra.network.EllipticCurve),
     )
     parser.add_argument(
-        "--join-timer",
-        help="Timer period when trying to join an existing network (ms)",
+        "--join-timer-s",
+        help="Timer period when trying to join an existing network",
         type=int,
-        default=4000,  # Set higher than cchost default to avoid swamping joinee with requests during slow quote verification
+        default=4,  # Set higher than cchost default to avoid swamping joinee with requests during slow quote verification
     )
     parser.add_argument(
         "--initial-member-count",

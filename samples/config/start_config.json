@@ -4,15 +4,15 @@
     "type": "release"
   },
   "network": {
-    "node_address": "127.0.0.1:8081",
-    "rpc_interfaces": [
-      {
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
+    "rpc_interfaces": {
+      "primary_rpc_interface": {
         "bind_address": "127.0.0.1:8080",
         "published_rpc_address": "ccf.dummy.com:12345",
         "max_open_sessions_soft": 1000,
         "max_open_sessions_hard": 1010
       }
-    ]
+    }
   },
   "node_certificate": {
     "subject_name": "CN=CCF Node",
@@ -22,6 +22,7 @@
   },
   "command": {
     "type": "start",
+    "network_certificate_file": "networkcert.pem",
     "start": {
       "constitution_files": [
         "validate.js",
@@ -39,10 +40,6 @@
         "recovery_threshold": 1,
         "maximum_node_certificate_validity_days": 365
       }
-    },
-    "join": {
-      "timer_ms": 1000,
-      "target_rpc_address": "127.0.0.1:5678"
     }
   },
   "ledger": {
@@ -52,7 +49,7 @@
   },
   "snapshots": {
     "directory": "snapshots",
-    "interval_size": 10000
+    "tx_count": 10000
   },
   "logging": {
     "host_level": "info",
@@ -60,24 +57,25 @@
   },
   "consensus": {
     "type": "CFT",
-    "timeout_ms": 100,
-    "election_timeout_ms": 4000
+    "message_timeout": "100ms",
+    "election_timeout": "4000ms"
   },
-  "intervals": {
-    "signature_interval_size": 5000,
-    "signature_interval_duration_ms": 1000
+  "ledger_signatures": {
+    "tx_count": 5000,
+    "delay": "1s"
   },
   "jwt": {
-    "key_refresh_interval_s": 1800
+    "key_refresh_interval": "30min"
   },
-  "network_certificate_file": "networkcert.pem",
-  "node_certificate_file": "node.pem",
-  "node_pid_file": "node.pid",
-  "node_address_file": "node.node_address",
-  "rpc_addresses_file": "node.rpc_addresses",
-  "tick_period_ms": 1,
-  "io_logging_threshold_ns": 10000000,
-  "client_connection_timeout_ms": 2000,
+  "output_files": {
+    "node_certificate_file": "node.pem",
+    "pid_file": "node.pid",
+    "node_to_node_address_file": "node.node_address",
+    "rpc_addresses_file": "node.rpc_addresses"
+  },
+  "tick_interval": "1ms",
+  "slow_io_logging_threshold": "10000us",
+  "client_connection_timeout": "2000ms",
   "worker_threads": 0,
   "memory": {
     "circuit_size": "4MB",

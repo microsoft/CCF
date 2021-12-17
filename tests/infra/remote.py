@@ -53,7 +53,7 @@ DEFAULT_TAIL_LINES_LEN = 10
 
 
 def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
-    error_filter = ["[fail ]", "[fatal]"]
+    error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
     error_lines = []
     try:
         tail_lines = deque(maxlen=tail_lines_len)
@@ -489,6 +489,10 @@ class LocalRemote(CmdMixin):
         if self.proc:
             self.proc.terminate()
             self.proc.wait(10)
+            exit_code = self.proc.returncode
+            if exit_code is not None and exit_code < 0:
+                signal_str = signal.strsignal(-exit_code)
+                LOG.error(f"{self.hostname} exited with signal: {signal_str}")
             if self.stdout:
                 self.stdout.close()
             if self.stderr:
@@ -557,6 +561,10 @@ class CCFRemote(object):
         major_version=None,
         include_addresses=True,
         config_file=None,
+        join_timer_s=None,
+        sig_ms_interval=None,
+        jwt_key_refresh_interval_s=None,
+        election_timeout_ms=None,
         **kwargs,
     ):
         """
@@ -573,7 +581,7 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
-        self.pub_rpc_host = host.rpc_interfaces[0].public_rpc_host
+        self.pub_host = host.get_primary_interface().public_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
         data_files = []
         exe_files = []
@@ -635,6 +643,10 @@ class CCFRemote(object):
                 snapshots_dir=self.snapshot_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name,
+                join_timer=f"{join_timer_s}s" if join_timer_s else None,
+                signature_interval_duration=f"{sig_ms_interval}ms",
+                jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
+                election_timeout=f"{election_timeout_ms}ms",
                 **kwargs,
             )
 
@@ -665,7 +677,6 @@ class CCFRemote(object):
 
         else:
             consensus = kwargs.get("consensus")
-            election_timeout_ms = kwargs.get("election_timeout_ms")
             node_address = kwargs.get("node_address")
             host_log_level = kwargs.get("host_log_level")
             worker_threads = kwargs.get("worker_threads")
@@ -674,14 +685,12 @@ class CCFRemote(object):
             snapshot_tx_interval = kwargs.get("snapshot_tx_interval")
             max_open_sessions = kwargs.get("max_open_sessions")
             max_open_sessions_hard = kwargs.get("max_open_sessions_hard")
-            jwt_key_refresh_interval_s = kwargs.get("jwt_key_refresh_interval_s")
             curve_id = kwargs.get("curve_id")
             initial_node_cert_validity_days = kwargs.get(
                 "initial_node_cert_validity_days"
             )
             node_client_host = kwargs.get("node_client_host")
             members_info = kwargs.get("members_info")
-            join_timer = kwargs.get("join_timer")
             target_rpc_address = kwargs.get("target_rpc_address")
             maximum_node_certificate_validity_days = kwargs.get(
                 "maximum_node_certificate_validity_days"
@@ -689,15 +698,14 @@ class CCFRemote(object):
             reconfiguration_type = kwargs.get("reconfiguration_type")
             log_format_json = kwargs.get("log_format_json")
             sig_tx_interval = kwargs.get("sig_tx_interval")
-            sig_ms_interval = kwargs.get("sig_ms_interval")
 
-            primary_rpc_interface = host.rpc_interfaces[0]
+            primary_rpc_interface = host.get_primary_interface()
             cmd = [
                 bin_path,
                 f"--enclave-file={self.enclave_file}",
                 f"--enclave-type={enclave_type}",
                 f"--node-address-file={self.node_address_file}",
-                f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.rpc_host, primary_rpc_interface.rpc_port)}",
+                f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.host, primary_rpc_interface.port)}",
                 f"--rpc-address-file={self.rpc_addresses_file}",
                 f"--ledger-dir={self.ledger_dir_name}",
                 f"--snapshot-dir={self.snapshot_dir_name}",
@@ -711,7 +719,7 @@ class CCFRemote(object):
             if include_addresses:
                 cmd += [
                     f"--node-address={node_address}",
-                    f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_rpc_host, primary_rpc_interface.public_rpc_port)}",
+                    f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_host, primary_rpc_interface.public_port)}",
                 ]
 
             if log_format_json:
@@ -800,7 +808,7 @@ class CCFRemote(object):
                     "join",
                     "--network-cert-file=networkcert.pem",
                     f"--target-rpc-address={target_rpc_address}",
-                    f"--join-timer={join_timer}",
+                    f"--join-timer={join_timer_s * 1000}",
                 ]
                 data_files += [os.path.join(self.common_dir, "networkcert.pem")]
 
@@ -822,7 +830,7 @@ class CCFRemote(object):
 
         self.remote = remote_class(
             self.name,
-            self.pub_rpc_host,
+            self.pub_host,
             exe_files,
             data_files,
             cmd,
@@ -909,7 +917,7 @@ class CCFRemote(object):
         return self.remote.get_logs(tail_lines_len=tail_lines_len)
 
     def get_host(self):
-        return self.pub_rpc_host
+        return self.pub_host
 
 
 class StartType(Enum):

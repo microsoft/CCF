@@ -11,6 +11,7 @@ from loguru import logger as LOG
 
 DEFAULT_OUTPUT_PATH = "2_x_config.json"
 DEFAULT_INI_SECTION = "default"
+DEFAULT_RPC_INTERFACE_NAME = "primary_rpc_interface"
 
 
 SECTIONS_2_X = [
@@ -22,9 +23,10 @@ SECTIONS_2_X = [
     "snapshots",
     "logging",
     "consensus",
-    "intervals",
+    "ledger_signatures",
     "jwt",
     "memory",
+    "output_files",
 ]
 
 DEFAULT_MAX_RPC_SESSIONS_SOFT = 1000
@@ -78,8 +80,9 @@ if __name__ == "__main__":
     output: Dict[str, Any] = {}
     for s in SECTIONS_2_X:
         output[s] = {}
-    output["network"]["rpc_interfaces"] = [{}]
-    output["network"]["rpc_interfaces"][0] = {
+    output["network"]["rpc_interfaces"] = {}
+    output["network"]["node_to_node_interface"] = {}
+    output["network"]["rpc_interfaces"][DEFAULT_RPC_INTERFACE_NAME] = {
         "max_open_sessions_soft": DEFAULT_MAX_RPC_SESSIONS_SOFT,
         "max_open_sessions_hard": DEFAULT_MAX_RPC_SESSIONS_SOFT + 10,
     }
@@ -90,7 +93,6 @@ if __name__ == "__main__":
         "maximum_node_certificate_validity_days": 365
     }
     output["command"]["join"] = {}
-
     output["command"]["type"] = "start" if "start" in config.sections() else "join"
 
     LOG.info(f'Command type: {output["command"]["type"]}')
@@ -99,6 +101,9 @@ if __name__ == "__main__":
         for k_, v_ in config.items(s):
             k = make_key_json_compatible(k_)
             v = v_.strip('"')
+            rpc_interface = output["network"]["rpc_interfaces"][
+                DEFAULT_RPC_INTERFACE_NAME
+            ]
 
             # sub-commands
             # start
@@ -113,7 +118,7 @@ if __name__ == "__main__":
             elif k == "target_rpc_address":
                 output["command"][s][k] = v
             elif k == "join_timer":
-                output["command"][s]["timer_ms"] = int(v)
+                output["command"][s]["retry_timeout"] = f"{v}ms"
 
             # enclave
             elif k == "enclave_file":
@@ -123,18 +128,14 @@ if __name__ == "__main__":
 
             # network
             elif k == "rpc_address":
-                output["network"]["rpc_interfaces"][0]["bind_address"] = v
+                rpc_interface["bind_address"] = v
             elif k == "public_rpc_address":
-                output["network"]["rpc_interfaces"][0]["published_address"] = v
+                rpc_interface["published_address"] = v
             elif k == "max_open_sessions":
-                output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = int(
-                    v
-                )
-                output["network"]["rpc_interfaces"][0]["max_open_sessions_soft"] = (
-                    int(v) + 10
-                )
+                rpc_interface["max_open_sessions_soft"] = int(v)
+                rpc_interface["max_open_sessions_soft"] = int(v) + 10
             elif k == "node_address":
-                output["network"]["node_address"] = v
+                output["network"]["node_to_node_interface"]["bind_address"] = v
             elif k == "network_cert_file":
                 output["network_certificate_file"] = v
 
@@ -158,7 +159,7 @@ if __name__ == "__main__":
             elif k == "snapshot_dir":  # plural
                 output["snapshots"]["directory"] = v
             elif k == "snapshot_tx_interval":
-                output["snapshots"]["interval_size"] = int(v)
+                output["snapshots"]["tx_count"] = int(v)
 
             # logging
             elif k == "log_format_json":
@@ -170,16 +171,16 @@ if __name__ == "__main__":
             elif k == "consensus":
                 output["consensus"]["type"] = str.upper(v)
             elif k == "raft_timeout_ms":
-                output["consensus"]["timeout_ms"] = int(v)
+                output["consensus"]["message_timeout"] = f"{v}ms"
             elif k == "raft_election_timeout_ms":
-                output["consensus"]["election_timeout_ms"] = int(v)
+                output["consensus"]["election_timeout"] = f"{v}ms"
 
             elif k == "sig_tx_interval":
-                output["intervals"]["signature_interval_size"] = int(v)
+                output["ledger_signatures"]["tx_count"] = int(v)
             elif k == "sig_ms_interval":
-                output["intervals"]["signature_interval_duration_ms"] = int(v)
+                output["ledger_signatures"]["delay"] = f"{v}ms"
             elif k == "jwt_key_refresh_interval_s":
-                output["jwt"]["key_refresh_interval_s"] = int(v)
+                output["jwt"]["key_refresh_interval"] = f"{v}s"
 
             # memory
             elif "size" in k:
@@ -188,7 +189,20 @@ if __name__ == "__main__":
                 k = k[: -len(suffix)] if k.endswith(suffix) else k
                 output["memory"][k] = f"{human_readable_size(1 << int(v))}"
 
-            elif k in ("worker_threads", "tick_period_ms"):
+            # output files
+            elif k == "node_cert_file":
+                output["output_files"]["node_certificate_file"] = v
+            elif k == "node_pid_file":
+                output["output_files"]["pid_file"] = v
+            elif k == "rpc_address_file":
+                output["output_files"]["rpc_addresses_file"] = v
+            elif k == "node_address_file":
+                output["output_files"]["node_to_node_address_file"] = v
+
+            elif k == "tick_period_ms":
+                output["tick_interval"] = f"{v}ms"
+
+            elif k == "worker_threads":
                 output[k] = int(v)
 
             # all other options are converted at the top level

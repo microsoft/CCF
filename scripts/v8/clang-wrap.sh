@@ -24,6 +24,12 @@ while (( "$#" )); do
       -Wmax-tokens) ;;
       # Prevents -stdlib=libc++ from working
       -no-canonical-prefixes) ;;
+      # Avoid debugging issues by making source paths absolute
+      ../../*.cc)
+        abs_path=$(realpath -s "$arg")
+        out+=("$abs_path")
+        ;;
+      # Pass-through everything else
       *) out+=("$arg") ;;
     esac
 done

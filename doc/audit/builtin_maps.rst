@@ -344,7 +344,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``encrypted_ledger_secrets``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Used to broadcast ledger secrets between nodes during a recovery.
+Used to broadcast ledger secrets between nodes during a recovery and ledger rekey.
 
 While the contents themselves are encrypted, the table is public so as to be accessible by a node bootstrapping a recovery service.
 

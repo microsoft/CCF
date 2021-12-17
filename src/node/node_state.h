@@ -3,7 +3,7 @@
 #pragma once
 
 #include "blit.h"
-#include "consensus/aft/raft_consensus.h"
+#include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "crypto/entropy.h"
@@ -67,9 +67,7 @@ namespace std
 
 namespace ccf
 {
-  using RaftConsensusType =
-    aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
-  using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+  using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
 
   struct NodeCreateInfo
   {
@@ -643,8 +641,8 @@ namespace ccf
           if (msg->data.self.sm.check(State::pending))
           {
             msg->data.self.initiate_join();
-            auto delay =
-              std::chrono::milliseconds(msg->data.self.config.join.timer_ms);
+            auto delay = std::chrono::milliseconds(
+              msg->data.self.config.join.retry_timeout);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
@@ -653,7 +651,7 @@ namespace ccf
         *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(timer_msg), std::chrono::milliseconds(config.join.timer_ms));
+        std::move(timer_msg), config.join.retry_timeout);
     }
 
     void join()
@@ -673,7 +671,7 @@ namespace ccf
         return;
       }
       jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
-        config.jwt.key_refresh_interval_s,
+        config.jwt.key_refresh_interval.count_s(),
         network,
         consensus,
         rpcsessions,
@@ -1511,9 +1509,9 @@ namespace ccf
         // Construct SANs from RPC interfaces, manually detecting whether each
         // is a domain name or IP
         std::vector<crypto::SubjectAltName> sans;
-        for (const auto& interface : config.network.rpc_interfaces)
+        for (const auto& [_, interface] : config.network.rpc_interfaces)
         {
-          auto [host, _] = split_net_address(interface.published_address);
+          auto host = split_net_address(interface.published_address).first;
           sans.push_back({host, is_ip(host)});
         }
         return sans;
@@ -1588,22 +1586,24 @@ namespace ccf
       create_params.node_id = self;
       create_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
+      create_params.node_endorsed_certificate = crypto::create_endorsed_cert(
+        create_params.certificate_signing_request,
+        config.startup_host_time,
+        config.node_certificate.initial_validity_days,
+        network.identity->priv_key,
+        network.identity->cert);
+
+      // Even though endorsed certificate is updated on (global) hook, history
+      // requires it to generate signatures
+      history->set_endorsed_certificate(
+        create_params.node_endorsed_certificate);
+
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.network;
-      create_params.node_cert_valid_from = config.startup_host_time;
-      create_params.initial_node_cert_validity_period_days =
-        config.node_certificate.initial_validity_days;
-
-      // Record self-signed certificate in create request if the node does not
-      // require endorsement by the service (i.e. BFT)
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        create_params.node_cert = self_signed_node_cert;
-      }
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1688,16 +1688,7 @@ namespace ccf
 
     bool create_and_send_boot_request(bool create_consortium = true)
     {
-      const auto create_success =
-        send_create_request(serialize_create_request(create_consortium));
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        return true;
-      }
-      else
-      {
-        return create_success;
-      }
+      return send_create_request(serialize_create_request(create_consortium));
     }
 
     void backup_initiate_private_recovery()
@@ -1793,12 +1784,12 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
-      network.tables->set_map_hook(
+      network.tables->set_global_hook(
         network.node_endorsed_certificates.get_name(),
-        network.node_endorsed_certificates.wrap_map_hook(
+        network.node_endorsed_certificates.wrap_commit_hook(
           [this](
             kv::Version hook_version,
-            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            const NodeEndorsedCertificates::Write& w) {
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
@@ -1820,8 +1811,6 @@ namespace ccf
               open_frontend(ActorsType::members);
               open_user_frontend();
             }
-
-            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
@@ -1957,27 +1946,18 @@ namespace ccf
         kv::MembershipState::Learner :
         kv::MembershipState::Active;
 
-      auto raft = std::make_unique<RaftType>(
-        network.consensus_type,
+      consensus = std::make_shared<RaftType>(
+        consensus_config,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
-        rpcsessions,
-        rpc_map,
         shared_state,
         std::move(resharing_tracker),
         node_client,
-        std::chrono::milliseconds(consensus_config.timeout_ms),
-        std::chrono::milliseconds(consensus_config.election_timeout_ms),
-        std::chrono::milliseconds(consensus_config.election_timeout_ms),
-        sig_tx_interval,
         public_only,
         membership_state,
         reconfiguration_type);
-
-      consensus = std::make_shared<RaftConsensusType>(
-        std::move(raft), network.consensus_type);
 
       network.tables->set_consensus(consensus);
 

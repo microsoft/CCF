@@ -55,6 +55,8 @@ struct EnclaveConfig
   oversized::WriterConfig writer_config = {};
 };
 
+static constexpr auto node_to_node_interface_name = "node_to_node_interface";
+
 struct CCFConfig
 {
   size_t worker_threads = 0;
@@ -72,18 +74,18 @@ struct CCFConfig
   };
   NodeCertificateInfo node_certificate = {};
 
-  struct Intervals
+  struct LedgerSignatures
   {
-    size_t signature_interval_size = 5000;
-    size_t signature_interval_duration_ms = 1000;
+    size_t tx_count = 5000;
+    ds::TimeString delay = std::string("1000ms");
 
-    bool operator==(const Intervals&) const = default;
+    bool operator==(const LedgerSignatures&) const = default;
   };
-  Intervals intervals = {};
+  LedgerSignatures ledger_signatures = {};
 
   struct JWT
   {
-    size_t key_refresh_interval_s = 1800;
+    ds::TimeString key_refresh_interval = std::string("30min");
 
     bool operator==(const JWT&) const = default;
   };
@@ -99,21 +101,23 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   curve_id,
   initial_validity_days);
 
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Intervals);
-DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Intervals);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Intervals,
-  signature_interval_size,
-  signature_interval_duration_ms);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::LedgerSignatures);
+DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures, tx_count, delay);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
-DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval_s);
+DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig, worker_threads, node_certificate, consensus, intervals, jwt);
+  CCFConfig,
+  worker_threads,
+  node_certificate,
+  consensus,
+  ledger_signatures,
+  jwt);
 
 struct StartupConfig : CCFConfig
 {
@@ -137,8 +141,8 @@ struct StartupConfig : CCFConfig
 
   struct Join
   {
-    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    size_t timer_ms = 1000;
+    ccf::NodeInfoNetwork::NetAddress target_rpc_address;
+    ds::TimeString retry_timeout = std::string("1000ms");
     std::vector<uint8_t> network_cert = {};
   };
   Join join = {};
@@ -150,7 +154,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(StartupConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig::Join, target_rpc_address, timer_ms, network_cert);
+  StartupConfig::Join, target_rpc_address, retry_timeout, network_cert);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
