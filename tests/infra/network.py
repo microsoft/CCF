@@ -159,6 +159,8 @@ class Network:
         self.perf_nodes = perf_nodes
         self.version = version
         self.args = None
+        self.service_certificate_valid_from = None
+        self.service_certificate_validity_days = None
 
         # Requires admin privileges
         self.partitioner = (
@@ -438,6 +440,7 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
+        self.verify_service_certificate_validity_period()
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
@@ -515,6 +518,7 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
+        self.verify_service_certificate_validity_period()
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -1104,6 +1108,30 @@ class Network:
                 c.read().encode("ascii"), default_backend()
             )
             return network_cert
+
+    def verify_service_certificate_validity_period(self):
+        # Note: The server does not return the service certificate (root) as part of the TLS connection so
+        # we inspect the service certificate recorded in the store instead
+        primary, _ = self.find_primary()
+        with primary.client() as c:
+            r = c.get("/node/network")
+            valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                r.body.json()["service_certificate"]
+            )
+
+        if self.service_certificate_valid_from is None:
+            # If the service certificate has not been renewed, assume that certificate has
+            # been issued within this test run
+            expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+            if valid_from < expected_valid_from:
+                raise ValueError(
+                    f'Service certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
+                )
+
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
+        LOG.info(
+            f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
+        )
 
 
 @contextmanager
