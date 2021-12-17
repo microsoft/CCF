@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "enclave/endpoint.h" // TODO: Not great!
 #include "http_proc.h"
 
 #include <list>
@@ -71,9 +72,9 @@ namespace http2
 
     virtual void send(const uint8_t* data, size_t length)
     {
-      LOG_TRACE_FMT("http2::Session send");
-      auto rv = nghttp2_session_send(session);
-      LOG_FAIL_FMT("http::Session send rv: {}", rv);
+      LOG_TRACE_FMT("http2::Session send: {}", length);
+      // auto rv = nghttp2_session_send(session);
+      // LOG_FAIL_FMT("http::Session send rv: {}", rv);
     }
 
     void recv(const uint8_t* data, size_t size)
@@ -87,7 +88,7 @@ namespace http2
       }
 
       auto rc = nghttp2_session_send(session);
-      LOG_FAIL_FMT("nghttp2_session_mem_recv: {}", rc);
+      LOG_FAIL_FMT("nghttp2_session_send: {}", rc);
     }
   };
 
@@ -102,7 +103,7 @@ namespace http2
     auto* s = reinterpret_cast<Session*>(user_data);
     s->send(data, length);
 
-    return 0;
+    return length;
   }
 
   static int on_frame_recv_callback(
@@ -147,11 +148,24 @@ namespace http2
   {
   private:
     http::RequestProcessor& proc;
+    enclave::Endpoint& endpoint;
 
   public:
-    ServerSession(http::RequestProcessor& proc_) : proc(proc_)
+    ServerSession(http::RequestProcessor& proc_, enclave::Endpoint& endpoint_) :
+      proc(proc_),
+      endpoint(endpoint_)
     {
       LOG_TRACE_FMT("Initialise HTTP2 Server Session");
+    }
+
+    virtual void send(const uint8_t* data, size_t length) override
+    {
+      LOG_TRACE_FMT("http2::ServerSession send: {}", length);
+      std::vector<uint8_t> resp = {
+        data, data + length}; // TODO: Remove extra copy
+      endpoint.send(std::move(resp));
+      // auto rv = nghttp2_session_send(session);
+      // LOG_FAIL_FMT("http::Session send rv: {}", rv);
     }
   };
 

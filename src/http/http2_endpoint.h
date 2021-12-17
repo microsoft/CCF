@@ -114,7 +114,8 @@ namespace http
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
-      server_session(*this),
+      server_session(*this, *this), // TODO: Ugly! but currently necessary to be
+                                    // able to write back to the ring buffer
       rpc_map(rpc_map),
       session_id(session_id)
     {}
