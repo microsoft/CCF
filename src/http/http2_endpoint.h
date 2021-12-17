@@ -13,14 +13,15 @@ namespace http
   class HTTP2Endpoint : public enclave::TLSEndpoint
   {
   protected:
-    std::unique_ptr<http2::Session> session;
+    http2::Session& session;
 
     HTTP2Endpoint(
+      http2::Session& session_,
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      session(std::make_unique<http2::Session>(session_id))
+      session(session_)
     {}
 
   public:
@@ -62,11 +63,15 @@ namespace http
 
         try
         {
-          LOG_FAIL_FMT("Noop");
+          session.recv(data, n_read);
+
+          // TODO:
+          // Call into http2::session recv
+
           // p.execute(data, n_read);
 
           // Used all provided bytes - check if more are available
-          // n_read = read(buf.data(), buf.size(), false);
+          n_read = read(buf.data(), buf.size(), false);
         }
         catch (const std::exception& e)
         {
@@ -94,6 +99,8 @@ namespace http
                               public http::RequestProcessor
   {
   private:
+    http2::ServerSession server_session;
+
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
     std::shared_ptr<enclave::SessionContext> session_ctx;
@@ -106,7 +113,8 @@ namespace http
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTP2Endpoint(session_id, writer_factory, std::move(ctx)),
+      HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
+      server_session(*this),
       rpc_map(rpc_map),
       session_id(session_id)
     {}
@@ -217,14 +225,14 @@ namespace http
                               public http::ResponseProcessor
   {
   private:
-    // http::ResponseParser response_parser;
+    http2::ClientSession client_session;
 
   public:
     HTTP2ClientEndpoint(
       int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTP2Endpoint(session_id, writer_factory, std::move(ctx)),
+      HTTP2Endpoint(client_session, session_id, writer_factory, std::move(ctx)),
       ClientEndpoint(session_id, writer_factory)
     {}
 

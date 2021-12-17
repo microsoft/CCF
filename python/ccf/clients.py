@@ -319,6 +319,7 @@ class CurlClient:
                 request.http_verb,
                 "-i",
                 f"-m {timeout}",
+                "--http2-prior-knowledge",
             ]
 
             if request.allow_redirects:
