@@ -611,6 +611,71 @@ namespace ccf::js
     return JS_NewString(ctx, endorsed_cert.str().c_str());
   }
 
+  JSValue js_network_generate_certificate(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 3)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 3", argc);
+    }
+
+    auto network =
+      static_cast<ccf::NetworkState*>(JS_GetOpaque(this_val, network_class_id));
+    if (network == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Network state is not set");
+    }
+
+    auto global_obj = Context::JSWrappedValue(ctx, JS_GetGlobalObject(ctx));
+    auto ccf =
+      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
+
+    auto csr_cstr = JS_ToCString(ctx, argv[0]);
+    if (csr_cstr == nullptr)
+    {
+      throw JS_ThrowTypeError(ctx, "csr argument is not a string");
+    }
+    auto csr = crypto::Pem(csr_cstr);
+    JS_FreeCString(ctx, csr_cstr);
+
+    auto valid_from_cstr = JS_ToCString(ctx, argv[1]);
+    if (valid_from_cstr == nullptr)
+    {
+      throw JS_ThrowTypeError(ctx, "valid from argument is not a string");
+    }
+    auto valid_from = std::string(valid_from_cstr);
+    JS_FreeCString(ctx, valid_from_cstr);
+
+    size_t validity_period_days = 0;
+    if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    // TODO: Refactor with identity.h
+    // TODO: Post-XMas:
+    // 1. Add JS action to renew service certificate
+    // 2. Test renewal proposal
+    // 3. Documentation
+    // 4. Pick up new certificate from global hook to be used in RPC sessions
+    // (via accept_network_tls_connections()) + run manual test with expired
+    // cert (since we can't programmatically get server root cert)
+    // 5. open_network action takes additional optional valid_from and
+    // validity_period_days args
+    auto network_cert = create_self_signed_cert(
+      network->identity,
+      "CN=CCF Network",
+      {},
+      valid_from,
+      validity_period_days);
+
+    return JS_NewString(ctx, network_cert.str().c_str());
+  }
+
   JSValue js_network_latest_ledger_secret_seqno(
     JSContext* ctx,
     JSValueConst this_val,
@@ -1483,6 +1548,15 @@ namespace ccf::js
           ctx,
           js_network_generate_endorsed_certificate,
           "generateEndorsedCertificate",
+          0));
+      JS_SetPropertyStr(
+        ctx,
+        network,
+        "generateNetworkCertificate",
+        JS_NewCFunction(
+          ctx,
+          js_network_generate_certificate,
+          "generateNetworkCertificate",
           0));
     }
 
