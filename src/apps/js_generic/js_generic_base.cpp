@@ -34,42 +34,29 @@ namespace ccfapp
     ccfapp::AbstractNodeContext& context;
     metrics::Tracker metrics_tracker;
 
-    static JSValue create_json_obj(const nlohmann::json& j, JSContext* ctx)
-    {
-      const auto buf = j.dump();
-      return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
-    }
-
-    JSValue create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
+    js::JSWrappedValue create_caller_obj(
+      ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
     {
       if (endpoint_ctx.caller == nullptr)
       {
-        return JS_NULL;
+        return ctx.null();
       }
 
-      auto caller = JS_NewObject(ctx);
+      auto caller = ctx.new_obj();
 
       if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
       {
-        JS_SetPropertyStr(
-          ctx,
-          caller,
-          "policy",
-          JS_NewString(ctx, get_policy_name_from_ident(jwt_ident)));
+        caller.set(
+          "policy", ctx.new_string(get_policy_name_from_ident(jwt_ident)));
 
-        auto jwt = JS_NewObject(ctx);
-        JS_SetPropertyStr(
-          ctx,
-          jwt,
+        auto jwt = ctx.new_obj();
+        jwt.set(
           "keyIssuer",
-          JS_NewStringLen(
-            ctx, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
-        JS_SetPropertyStr(
-          ctx, jwt, "header", create_json_obj(jwt_ident->header, ctx));
-        JS_SetPropertyStr(
-          ctx, jwt, "payload", create_json_obj(jwt_ident->payload, ctx));
-        JS_SetPropertyStr(ctx, caller, "jwt", jwt);
+          ctx.new_string_len(
+            jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
+        jwt.set("header", ctx.parse_json(jwt_ident->header));
+        jwt.set("payload", ctx.parse_json(jwt_ident->payload));
+        caller.set("jwt", jwt);
 
         return caller;
       }
@@ -77,11 +64,8 @@ namespace ccfapp
         auto empty_ident =
           endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
       {
-        JS_SetPropertyStr(
-          ctx,
-          caller,
-          "policy",
-          JS_NewString(ctx, get_policy_name_from_ident(empty_ident)));
+        caller.set(
+          "policy", ctx.new_string(get_policy_name_from_ident(empty_ident)));
         return caller;
       }
 
@@ -162,60 +146,50 @@ namespace ccfapp
           fmt::format("Failed to get certificate for caller {}", id));
       }
 
-      JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
-      JS_SetPropertyStr(
-        ctx, caller, "id", JS_NewStringLen(ctx, id.data(), id.size()));
-      JS_SetPropertyStr(ctx, caller, "data", create_json_obj(data, ctx));
-      JS_SetPropertyStr(
-        ctx,
-        caller,
-        "cert",
-        JS_NewStringLen(ctx, cert.str().data(), cert.size()));
+      caller.set("policy", ctx.new_string(policy_name));
+      caller.set("id", ctx.new_string_len(id.data(), id.size()));
+      caller.set("data", ctx.parse_json(data));
+      caller.set("cert", ctx.new_string_len(cert.str().data(), cert.size()));
 
       return caller;
     }
 
-    JSValue create_request_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
+    js::JSWrappedValue create_request_obj(
+      ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
     {
-      auto request = JS_NewObject(ctx);
+      auto request = ctx.new_obj();
 
-      auto headers = JS_NewObject(ctx);
+      auto headers = ctx.new_obj();
       for (auto& [header_name, header_value] :
            endpoint_ctx.rpc_ctx->get_request_headers())
       {
-        JS_SetPropertyStr(
-          ctx,
-          headers,
-          header_name.c_str(),
-          JS_NewStringLen(ctx, header_value.c_str(), header_value.size()));
+        headers.set(
+          header_name,
+          ctx.new_string_len(header_value.c_str(), header_value.size()));
       }
-      JS_SetPropertyStr(ctx, request, "headers", headers);
+      request.set("headers", headers);
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
       auto query_str =
-        JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
-      JS_SetPropertyStr(ctx, request, "query", query_str);
+        ctx.new_string_len(request_query.c_str(), request_query.size());
+      request.set("query", query_str);
 
-      auto params = JS_NewObject(ctx);
+      auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
       {
-        JS_SetPropertyStr(
-          ctx,
-          params,
-          param_name.c_str(),
-          JS_NewStringLen(ctx, param_value.c_str(), param_value.size()));
+        params.set(
+          param_name,
+          ctx.new_string_len(param_value.c_str(), param_value.size()));
       }
-      JS_SetPropertyStr(ctx, request, "params", params);
+      request.set("params", params);
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
-      auto body_ = JS_NewObjectClass(ctx, js::body_class_id);
+      auto body_ = ctx.new_obj_class(js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
-      JS_SetPropertyStr(ctx, request, "body", body_);
+      request.set("body", body_);
 
-      JS_SetPropertyStr(
-        ctx, request, "caller", create_caller_obj(endpoint_ctx, ctx));
+      request.set("caller", create_caller_obj(endpoint_ctx, ctx));
 
       return request;
     }
@@ -282,7 +256,7 @@ namespace ccfapp
         this,
         ctx);
 
-      JSValue export_func;
+      js::JSWrappedValue export_func;
       try
       {
         auto module_val =
@@ -301,11 +275,7 @@ namespace ccfapp
 
       // Call exported function
       auto request = create_request_obj(endpoint_ctx, ctx);
-      int argc = 1;
-      JSValueConst* argv = (JSValueConst*)&request;
-      auto val = ctx(JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv));
-      JS_FreeValue(ctx, request);
-      JS_FreeValue(ctx, export_func);
+      auto val = ctx.call(export_func, {request});
 
       if (JS_IsException(val))
       {
@@ -329,15 +299,14 @@ namespace ccfapp
 
       // Response body (also sets a default response content-type header)
       {
-        auto response_body_js = ctx(JS_GetPropertyStr(ctx, val, "body"));
-
+        auto response_body_js = val["body"];
         if (!JS_IsUndefined(response_body_js))
         {
           std::vector<uint8_t> response_body;
           size_t buf_size;
           size_t buf_offset;
-          JSValue typed_array_buffer = JS_GetTypedArrayBuffer(
-            ctx, response_body_js, &buf_offset, &buf_size, nullptr);
+          auto typed_array_buffer = ctx.get_typed_array_buffer(
+            response_body_js, &buf_offset, &buf_size, nullptr);
           uint8_t* array_buffer;
           if (!JS_IsException(typed_array_buffer))
           {
@@ -345,7 +314,6 @@ namespace ccfapp
             array_buffer =
               JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
             array_buffer += buf_offset;
-            JS_FreeValue(ctx, typed_array_buffer);
           }
           else
           {
@@ -361,21 +329,20 @@ namespace ccfapp
           }
           else
           {
-            const char* cstr = nullptr;
+            std::optional<std::string> str;
             if (JS_IsString(response_body_js))
             {
               endpoint_ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::TEXT);
-              cstr = JS_ToCString(ctx, response_body_js);
+              str = ctx.to_str(response_body_js);
             }
             else
             {
               endpoint_ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::JSON);
-              JSValue rval =
-                JS_JSONStringify(ctx, response_body_js, JS_NULL, JS_NULL);
+              auto rval = ctx.json_stringify(response_body_js);
               if (JS_IsException(rval))
               {
                 js::js_dump_error(ctx);
@@ -386,10 +353,10 @@ namespace ccfapp
                   "conversion of body).");
                 return;
               }
-              cstr = JS_ToCString(ctx, rval);
-              JS_FreeValue(ctx, rval);
+              str = ctx.to_str(rval);
             }
-            if (!cstr)
+
+            if (!str)
             {
               js::js_dump_error(ctx);
               endpoint_ctx.rpc_ctx->set_error(
@@ -399,35 +366,37 @@ namespace ccfapp
                 "conversion of body).");
               return;
             }
-            std::string str(cstr);
-            JS_FreeCString(ctx, cstr);
 
-            response_body = std::vector<uint8_t>(str.begin(), str.end());
+            response_body = std::vector<uint8_t>(str->begin(), str->end());
           }
           endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
         }
       }
       // Response headers
       {
-        auto response_headers_js = ctx(JS_GetPropertyStr(ctx, val, "headers"));
+        auto response_headers_js = val["headers"];
         if (JS_IsObject(response_headers_js))
         {
           uint32_t prop_count = 0;
-          JSPropertyEnum* props = nullptr;
+          JSPropertyEnum* prop_enum = nullptr;
           JS_GetOwnPropertyNames(
             ctx,
-            &props,
+            &prop_enum,
             &prop_count,
             response_headers_js,
             JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
           for (size_t i = 0; i < prop_count; i++)
           {
-            auto prop_name = props[i].atom;
-            auto prop_name_cstr = ctx(JS_AtomToCString(ctx, prop_name));
-            auto prop_val =
-              ctx(JS_GetProperty(ctx, response_headers_js, prop_name));
-            auto prop_val_cstr = JS_ToCString(ctx, prop_val);
-            if (!prop_val_cstr)
+            auto prop_name = prop_enum[i].atom;
+            auto prop_name_str = ctx.to_str(prop_name);
+            if (!prop_name_str)
+            {
+              js::js_dump_error(ctx);
+              return;
+            }
+            auto prop_val = response_headers_js[*prop_name_str];
+            auto prop_val_str = ctx.to_str(prop_val);
+            if (!prop_val_str)
             {
               endpoint_ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -436,12 +405,11 @@ namespace ccfapp
               return;
             }
             endpoint_ctx.rpc_ctx->set_response_header(
-              prop_name_cstr, prop_val_cstr);
-            JS_FreeCString(ctx, prop_val_cstr);
+              *prop_name_str, *prop_val_str);
           }
           for (uint32_t i = 0; i < prop_count; i++)
-            JS_FreeAtom(ctx, props[i].atom);
-          js_free(ctx, props);
+            JS_FreeAtom(ctx, prop_enum[i].atom);
+          js_free(ctx, prop_enum);
         }
       }
 

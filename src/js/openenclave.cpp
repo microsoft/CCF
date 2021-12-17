@@ -41,22 +41,20 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 2 or 3", argc);
 
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
     oe_uuid_t format_;
     oe_uuid_t* format = nullptr;
     if (!JS_IsUndefined(argv[0]))
     {
-      auto format_cstr = auto_free(JS_ToCString(ctx, argv[0]));
-      if (!format_cstr)
+      auto format_str = jsctx.to_str(argv[0]);
+      if (!format_str)
       {
         js::js_dump_error(ctx);
         return JS_EXCEPTION;
       }
-      std::string format_str(format_cstr);
-      format_str = std::regex_replace(format_str, std::regex("-"), "");
-      if (format_str.size() != 32)
+      format_str = std::regex_replace(*format_str, std::regex("-"), "");
+      if (format_str->size() != 32)
       {
         JS_ThrowRangeError(
           ctx, "format contains an invalid number of hex characters");
@@ -67,7 +65,7 @@ namespace ccf::js
       std::vector<uint8_t> format_v;
       try
       {
-        format_v = ds::from_hex(format_str);
+        format_v = ds::from_hex(*format_str);
       }
       catch (std::exception& exc)
       {
@@ -190,12 +188,10 @@ namespace ccf::js
     return openenclave;
   }
 
-  static void populate_global_openenclave(JSContext* ctx)
+  static void populate_global_openenclave(Context& ctx)
   {
-    auto global_obj = JS_GetGlobalObject(ctx);
-    JS_SetPropertyStr(
-      ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
-    JS_FreeValue(ctx, global_obj);
+    auto global_obj = ctx.get_global_obj();
+    global_obj.set("openenclave", create_openenclave_obj(ctx));
   }
 
   FFIPlugin openenclave_plugin = {

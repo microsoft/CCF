@@ -57,6 +57,105 @@ namespace ccf::js
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
+  class Context;
+
+  struct JSWrappedValue
+  {
+    JSWrappedValue() : ctx(NULL), val(JS_NULL) {}
+    JSWrappedValue(JSContext* ctx, JSValue&& val) :
+      ctx(ctx),
+      val(std::move(val))
+    {}
+    JSWrappedValue(JSContext* ctx, const JSValue& value) : ctx(ctx)
+    {
+      val = JS_DupValue(ctx, value);
+    }
+    JSWrappedValue(const JSWrappedValue& other) : ctx(other.ctx)
+    {
+      val = JS_DupValue(ctx, other.val);
+    }
+    JSWrappedValue(JSWrappedValue&& other) : ctx(other.ctx)
+    {
+      val = other.val;
+      other.val = JS_NULL;
+    }
+    ~JSWrappedValue()
+    {
+      if (ctx && JS_VALUE_GET_TAG(val) != JS_TAG_MODULE)
+      {
+        JS_FreeValue(ctx, val);
+      }
+    }
+
+    operator const JSValue&() const
+    {
+      return val;
+    }
+
+    JSWrappedValue& operator=(const JSWrappedValue& other)
+    {
+      ctx = other.ctx;
+      val = JS_DupValue(ctx, other.val);
+      return *this;
+    }
+
+    JSWrappedValue operator[](const char* prop) const
+    {
+      return JSWrappedValue(ctx, JS_GetPropertyStr(ctx, val, prop));
+    }
+
+    JSWrappedValue operator[](const std::string& prop) const
+    {
+      return (*this)[prop.c_str()];
+    }
+
+    JSWrappedValue operator[](uint32_t i) const
+    {
+      return JSWrappedValue(ctx, JS_GetPropertyUint32(ctx, val, i));
+    }
+
+    void set(const char* prop, const JSWrappedValue& value) const
+    {
+      JS_SetPropertyStr(ctx, val, prop, JS_DupValue(ctx, value.val));
+    }
+
+    void set(const char* prop, JSWrappedValue&& value) const
+    {
+      JS_SetPropertyStr(ctx, val, prop, value.val);
+      value.val = JS_NULL;
+    }
+
+    void set(const std::string& prop, const JSWrappedValue& value) const
+    {
+      set(prop.c_str(), value);
+    }
+
+    void set(const std::string& prop, JSWrappedValue&& value) const
+    {
+      set(prop.c_str(), value);
+    }
+
+    void set(const std::string& prop, JSValue&& value) const
+    {
+      JS_SetPropertyStr(ctx, val, prop.c_str(), value);
+    }
+
+    void set(const std::string& prop, const JSValue& value) const
+    {
+      JS_SetPropertyStr(ctx, val, prop.c_str(), JS_DupValue(ctx, value));
+    }
+
+    JSValue steal()
+    {
+      JSValue r = val;
+      val = JS_NULL;
+      return r;
+    }
+
+    JSContext* ctx;
+    JSValue val;
+  };
+
   void register_ffi_plugins(const std::vector<ccf::js::FFIPlugin>& plugins);
   void register_class_ids();
   void register_request_body_class(JSContext* ctx);
@@ -71,12 +170,12 @@ namespace ccf::js
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
-    JSContext* ctx);
+    Context& ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   void js_dump_error(JSContext* ctx);
   std::pair<std::string, std::optional<std::string>> js_error_message(
-    JSContext* ctx);
+    Context& ctx);
 
   JSValue js_body_text(
     JSContext* ctx,
@@ -99,14 +198,15 @@ namespace ccf::js
   JSModuleDef* js_app_module_loader(
     JSContext* ctx, const char* module_name, void* opaque);
 
-  JSValue load_app_module(JSContext* ctx, const char* module_name, kv::Tx* tx);
+  JSWrappedValue load_app_module(
+    JSContext* ctx, const char* module_name, kv::Tx* tx);
 
   class Runtime
   {
     JSRuntime* rt;
 
   public:
-    inline Runtime(
+    Runtime(
       size_t max_stack_size = 1024 * 1024,
       size_t max_heap_size = 100 * 1024 * 1024)
     {
@@ -119,12 +219,12 @@ namespace ccf::js
       JS_SetMemoryLimit(rt, max_heap_size);
     }
 
-    inline ~Runtime()
+    ~Runtime()
     {
       JS_FreeRuntime(rt);
     }
 
-    inline operator JSRuntime*() const
+    operator JSRuntime*() const
     {
       return rt;
     }
@@ -135,9 +235,10 @@ namespace ccf::js
   class Context
   {
     JSContext* ctx;
+    bool ok_to_free = true;
 
   public:
-    inline Context(JSRuntime* rt)
+    Context(JSRuntime* rt)
     {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -147,79 +248,264 @@ namespace ccf::js
       JS_SetContextOpaque(ctx, this);
     }
 
-    inline ~Context()
+    Context(JSContext* other)
     {
-      JS_FreeContext(ctx);
+      ctx = other;
+      ok_to_free = false;
     }
 
-    inline operator JSContext*() const
+    ~Context()
+    {
+      if (ok_to_free)
+      {
+        JS_FreeContext(ctx);
+      }
+    }
+
+    operator JSContext*() const
     {
       return ctx;
     }
 
-    struct JSWrappedValue
+    JSWrappedValue operator()(JSValue&& val) const
     {
-      inline JSWrappedValue(JSContext* ctx, JSValue&& val) :
-        ctx(ctx),
-        val(std::move(val))
-      {}
-      inline ~JSWrappedValue()
-      {
-        JS_FreeValue(ctx, val);
-      }
-      inline operator const JSValue&() const
-      {
-        return val;
-      }
-      JSContext* ctx;
-      JSValue val;
+      return W(std::move(val));
     };
 
-    struct JSWrappedCString
+    JSWrappedValue new_obj() const
     {
-      inline JSWrappedCString(JSContext* ctx, const char* cstr) :
-        ctx(ctx),
-        cstr(cstr)
-      {}
-      inline ~JSWrappedCString()
-      {
-        JS_FreeCString(ctx, cstr);
-      }
-      inline operator const char*() const
-      {
-        return cstr;
-      }
-      inline operator std::string() const
-      {
-        return std::string(cstr);
-      }
-      inline operator std::string_view() const
-      {
-        return std::string_view(cstr);
-      }
-      JSContext* ctx;
-      const char* cstr;
-    };
+      return W(JS_NewObject(ctx));
+    }
 
-    inline JSWrappedValue operator()(JSValue&& val)
+    JSWrappedValue new_obj_class(JSClassID class_id) const
     {
-      return JSWrappedValue(ctx, std::move(val));
-    };
+      return W(JS_NewObjectClass(ctx, class_id));
+    }
 
-    inline JSWrappedCString operator()(const char* cstr)
+    JSWrappedValue get_global_obj() const
     {
-      return JSWrappedCString(ctx, cstr);
-    };
+      return W(JS_GetGlobalObject(ctx));
+    }
 
-    JSValue default_function(const std::string& code, const std::string& path);
-    JSValue function(
+    JSWrappedValue stringify(
+      const JSWrappedValue& obj,
+      const JSWrappedValue& replacer,
+      const JSWrappedValue& space0) const
+    {
+      return W(JS_JSONStringify(ctx, obj, replacer, space0));
+    }
+
+    JSWrappedValue json_stringify(const JSWrappedValue& obj) const
+    {
+      return W(JS_JSONStringify(ctx, obj, JS_NULL, JS_NULL));
+    }
+
+    JSWrappedValue new_array() const
+    {
+      return W(JS_NewArray(ctx));
+    }
+
+    JSWrappedValue new_array_buffer(
+      uint8_t* buf,
+      size_t len,
+      JSFreeArrayBufferDataFunc* free_func,
+      void* opaque,
+      bool is_shared) const
+    {
+      return JSWrappedValue(
+        ctx,
+        JS_NewArrayBuffer(
+          ctx, (uint8_t*)buf, len, free_func, opaque, is_shared));
+    }
+
+    JSWrappedValue new_array_buffer_copy(
+      const uint8_t* buf, size_t buf_len) const
+    {
+      return JSWrappedValue(ctx, JS_NewArrayBufferCopy(ctx, buf, buf_len));
+    }
+
+    JSWrappedValue new_array_buffer_copy(const char* buf, size_t buf_len) const
+    {
+      return JSWrappedValue(
+        ctx, JS_NewArrayBufferCopy(ctx, (uint8_t*)buf, buf_len));
+    }
+
+    JSWrappedValue new_string(const char* str) const
+    {
+      return W(JS_NewString(ctx, str));
+    }
+
+    JSWrappedValue new_string_len(const char* buf, size_t buf_len) const
+    {
+      return W(JS_NewStringLen(ctx, buf, buf_len));
+    }
+
+    JSWrappedValue new_type_error(const char* fmt, ...) const
+    {
+      va_list ap;
+      va_start(ap, fmt);
+      auto r = W(JS_ThrowTypeError(ctx, fmt, ap));
+      va_end(ap);
+      return r;
+    }
+
+    JSWrappedValue new_tag_value(int tag, int32_t val = 0) const
+    {
+      return W((JSValue){(JSValueUnion){.int32 = val}, tag});
+    }
+
+    JSWrappedValue null() const
+    {
+      return W(JS_NULL);
+    }
+
+    JSWrappedValue undefined() const
+    {
+      return W(JS_UNDEFINED);
+    }
+
+    JSWrappedValue new_c_function(
+      JSCFunction* func, const char* name, int length) const
+    {
+      return W(JS_NewCFunction(ctx, func, name, length));
+    }
+
+    JSWrappedValue eval(
+      const char* input,
+      size_t input_len,
+      const char* filename,
+      int eval_flags) const
+    {
+      return W(JS_Eval(ctx, input, input_len, filename, eval_flags));
+    }
+
+    JSWrappedValue eval_function(const JSWrappedValue& module) const
+    {
+      return W(JS_EvalFunction(ctx, module));
+    }
+
+    JSWrappedValue default_function(
+      const std::string& code, const std::string& path);
+
+    JSWrappedValue function(
       const std::string& code,
       const std::string& func,
       const std::string& path);
-    JSValue function(
-      JSValue module, const std::string& func, const std::string& path);
+
+    JSWrappedValue function(
+      const JSWrappedValue& module,
+      const std::string& func,
+      const std::string& path);
+
+    JSWrappedValue get_module_export_entry(JSModuleDef* m, int idx) const
+    {
+      return W(JS_GetModuleExportEntry(ctx, m, idx));
+    }
+
+    JSWrappedValue read_object(
+      const uint8_t* buf, size_t buf_len, int flags) const
+    {
+      return W(JS_ReadObject(ctx, buf, buf_len, flags));
+    }
+
+    JSWrappedValue get_exception() const
+    {
+      return W(JS_GetException(ctx));
+    }
+
+    JSWrappedValue call(
+      const JSWrappedValue& f,
+      const std::vector<js::JSWrappedValue>& argv) const
+    {
+      std::vector<JSValue> argvn;
+      argvn.reserve(argv.size());
+      for (auto& a : argv)
+      {
+        argvn.push_back(a.val);
+      }
+      return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
+    }
+
+    JSWrappedValue parse_json(const nlohmann::json& j) const
+    {
+      const auto buf = j.dump();
+      return W(JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>"));
+    }
+
+    JSWrappedValue parse_json(
+      const char* buf, size_t buf_len, const char* filename) const
+    {
+      return W(JS_ParseJSON(ctx, buf, buf_len, filename));
+    }
+
+    JSWrappedValue get_typed_array_buffer(
+      const JSWrappedValue& obj,
+      size_t* pbyte_offset,
+      size_t* pbyte_length,
+      size_t* pbytes_per_element) const
+    {
+      return W(JS_GetTypedArrayBuffer(
+        ctx, obj, pbyte_offset, pbyte_length, pbytes_per_element));
+    }
+
+    std::optional<std::string> to_str(const JSWrappedValue& x) const
+    {
+      auto val = JS_ToCString(ctx, x);
+      if (!val)
+      {
+        new_type_error("value is not a string");
+        return std::nullopt;
+      }
+      std::string r(val);
+      JS_FreeCString(ctx, val);
+      return r;
+    }
+
+    std::optional<std::string> to_str(const JSValue& x) const
+    {
+      auto val = JS_ToCString(ctx, x);
+      if (!val)
+      {
+        new_type_error("value is not a string");
+        return std::nullopt;
+      }
+      std::string r(val);
+      JS_FreeCString(ctx, val);
+      return r;
+    }
+
+    std::optional<std::string> to_str(const JSValue& x, size_t& len) const
+    {
+      auto val = JS_ToCStringLen(ctx, &len, x);
+      if (!val)
+      {
+        new_type_error("value is not a string");
+        return std::nullopt;
+      }
+      std::string r(val);
+      JS_FreeCString(ctx, val);
+      return r;
+    }
+
+    std::optional<std::string> to_str(const JSAtom& atom) const
+    {
+      auto val = JS_AtomToCString(ctx, atom);
+      if (!val)
+      {
+        new_type_error("atom is not a string");
+        return std::nullopt;
+      }
+      std::string r(val);
+      JS_FreeCString(ctx, val);
+      return r;
+    }
+
+  protected:
+    JSWrappedValue W(JSValue&& x) const
+    {
+      return JSWrappedValue(ctx, std::move(x));
+    }
   };
 
 #pragma clang diagnostic pop
-
 }

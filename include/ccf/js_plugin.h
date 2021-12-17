@@ -3,15 +3,16 @@
 #pragma once
 
 #include <functional>
-#include <quickjs/quickjs.h>
 #include <string>
 
 namespace ccf::js
 {
+  class Context;
+
   struct FFIPlugin
   {
     std::string name;
     std::string ccf_version;
-    std::function<void(JSContext* ctx)> extend;
+    std::function<void(Context& ctx)> extend;
   };
 }
