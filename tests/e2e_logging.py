@@ -1492,7 +1492,16 @@ def run(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+    cr = ConcurrentRunner()
+
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     # Is there a better way to do this?
     if os.path.exists(
@@ -1516,7 +1525,3 @@ if __name__ == "__main__":
         initial_user_count=4,
         initial_member_count=2,
     )
-
-    args.nodes = ["local://localhost"]
-    with infra.network.network(args.nodes) as network:
-        network.start_and_join(args)
