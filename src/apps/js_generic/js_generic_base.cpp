@@ -394,7 +394,7 @@ namespace ccfapp
               js::js_dump_error(ctx);
               return;
             }
-            auto prop_val = response_headers_js[*prop_name_str];
+            auto prop_val = response_headers_js.get_property(prop_name);
             auto prop_val_str = ctx.to_str(prop_val);
             if (!prop_val_str)
             {

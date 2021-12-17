@@ -114,9 +114,9 @@ namespace ccf::js
       return JSWrappedValue(ctx, JS_GetPropertyUint32(ctx, val, i));
     }
 
-    JSWrappedValue get_property(JSAtom a) const
+    JSWrappedValue get_property(JSAtom prop) const
     {
-      return JSWrappedValue(ctx, JS_GetProperty(ctx, val, a));
+      return JSWrappedValue(ctx, JS_GetProperty(ctx, val, prop));
     }
 
     void set(const char* prop, const JSWrappedValue& value) const
