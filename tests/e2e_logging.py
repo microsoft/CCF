@@ -1525,3 +1525,5 @@ if __name__ == "__main__":
         initial_user_count=4,
         initial_member_count=2,
     )
+
+    cr.run()
