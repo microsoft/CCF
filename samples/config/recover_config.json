@@ -22,7 +22,10 @@
   },
   "command": {
     "type": "recover",
-    "network_certificate_file": "networkcert.pem"
+    "network_certificate_file": "networkcert.pem",
+    "recover": {
+      "network_certificate_initial_validity_days": 1
+    }
   },
   "ledger": {
     "directory": "ledger",

@@ -127,6 +127,7 @@ struct StartupConfig : CCFConfig
   std::string startup_host_time;
   size_t snapshot_tx_interval = 10'000;
 
+  // Only if starting or recovering
   size_t initial_network_certificate_validity_days = 1;
 
   struct Start

@@ -378,6 +378,8 @@ int main(int argc, char** argv)
         config.command.start.service_configuration;
       startup_config.start.service_configuration.recovery_threshold =
         recovery_threshold;
+      startup_config.initial_network_certificate_validity_days =
+        config.command.start.initial_network_certificate_validity_days;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
@@ -398,6 +400,8 @@ int main(int argc, char** argv)
     else if (config.command.type == StartType::Recover)
     {
       LOG_INFO_FMT("Creating new node - recover");
+      startup_config.initial_network_certificate_validity_days =
+        config.command.recover.initial_network_certificate_validity_days;
     }
     else
     {

@@ -309,7 +309,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=1,
     )
     parser.add_argument(
-        "--initial-service-cert-validity-days",
+        "--initial-network-cert-validity-days",
         help="Initial validity period in days for service certificate before the first certificate renewal",
         type=int,
         default=1,

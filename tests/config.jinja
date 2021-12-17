@@ -25,12 +25,16 @@
         "recovery_threshold": {{ recovery_threshold or 0 }},
         "maximum_node_certificate_validity_days": {{ maximum_node_certificate_validity_days }},
         "reconfiguration_type": "{{ reconfiguration_type }}"
-      }
+      },
+      "network_certificate_initial_validity_days": {{ initial_network_cert_validity_days }}
     },
     "join":
     {
       "retry_timeout": "{{ join_timer }}",
       "target_rpc_address": "{{ target_rpc_address }}"
+    },
+    "recover": {
+      "network_certificate_initial_validity_days": {{ initial_network_cert_validity_days }}
     }
   },
   "ledger":

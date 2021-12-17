@@ -39,7 +39,8 @@
       "service_configuration": {
         "recovery_threshold": 1,
         "maximum_node_certificate_validity_days": 365
-      }
+      },
+      "network_certificate_initial_validity_days": 1
     }
   },
   "ledger": {

@@ -106,6 +106,7 @@ class Network:
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",
+        "initial_network_cert_validity_days",
         "maximum_node_certificate_validity_days",
         "reconfiguration_type",
         "config_file",

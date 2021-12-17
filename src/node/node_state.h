@@ -273,14 +273,11 @@ namespace ccf
 
     void initialise_network_identity()
     {
-      // TODO: Validity period is not right for recovery!
       network.identity = std::make_unique<ReplicatedNetworkIdentity>(
         "CN=CCF Network",
         curve_id,
         config.startup_host_time,
-        config.start.service_configuration
-          .maximum_service_certificate_validity_days.value_or(
-            default_service_cert_validity_period_days));
+        config.initial_network_certificate_validity_days);
     }
 
     //
