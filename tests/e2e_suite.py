@@ -62,8 +62,7 @@ def run(args):
         random.shuffle(chosen_suite)
     s.validate_tests_signature(chosen_suite)
 
-    # Throws TestRequirementsNotMet if test requirements are not met
-    args.enforce_reqs = True
+    args.throws_if_reqs_not_met = True
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
 
