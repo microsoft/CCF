@@ -56,10 +56,10 @@ namespace ccf::js
       format_str = std::regex_replace(*format_str, std::regex("-"), "");
       if (format_str->size() != 32)
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx, "format contains an invalid number of hex characters");
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
 
       std::vector<uint8_t> format_v;
@@ -69,10 +69,10 @@ namespace ccf::js
       }
       catch (std::exception& exc)
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx, "format could not be parsed as hex: %s", exc.what());
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
 
       std::memcpy(format_.b, format_v.data(), format_v.size());
@@ -103,10 +103,10 @@ namespace ccf::js
       &claims.length);
     if (rc != OE_OK)
     {
-      JS_ThrowRangeError(
+      auto e = JS_ThrowRangeError(
         ctx, "Failed to verify evidence: %s", oe_result_str(rc));
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
 
     std::unordered_map<std::string, std::vector<uint8_t>> out_claims,
@@ -127,10 +127,10 @@ namespace ccf::js
           &custom_claims.length);
         if (rc != OE_OK)
         {
-          JS_ThrowRangeError(
+          auto e = JS_ThrowRangeError(
             ctx, "Failed to deserialise custom claims: %s", oe_result_str(rc));
           js::js_dump_error(ctx);
-          return JS_EXCEPTION;
+          return e;
         }
 
         for (size_t j = 0; j < custom_claims.length; j++)

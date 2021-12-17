@@ -30,9 +30,9 @@ namespace ccf::js
     // Supported key sizes for AES.
     if (key_size != 128 && key_size != 192 && key_size != 256)
     {
-      JS_ThrowRangeError(ctx, "invalid key size");
+      auto e = JS_ThrowRangeError(ctx, "invalid key size");
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
 
     std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
@@ -98,10 +98,10 @@ namespace ccf::js
 
     if (*digest_algo_name_str != "SHA-256")
     {
-      JS_ThrowRangeError(
+      auto e = JS_ThrowRangeError(
         ctx, "unsupported digest algorithm, supported: SHA-256");
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
 
     size_t data_size;
@@ -335,25 +335,25 @@ namespace ccf::js
       }
       else
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx,
           "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
           "RSA-OAEP-AES-KWP");
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
     }
     catch (std::exception& ex)
     {
-      JS_ThrowRangeError(ctx, "%s", ex.what());
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
     catch (...)
     {
-      JS_ThrowRangeError(ctx, "caught unknown exception");
+      auto e = JS_ThrowRangeError(ctx, "caught unknown exception");
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
   }
 
@@ -364,7 +364,8 @@ namespace ccf::js
 
     if (argc != 4)
     {
-      return jsctx.new_type_error("Passed %d arguments, but expected 4", argc);
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 4", argc);
     }
 
     // API loosely modeled after
@@ -423,20 +424,20 @@ namespace ccf::js
       }
       else
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx, "Unsupported hash algorithm, supported: SHA-256");
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
 
       if (algo_name != "RSASSA-PKCS1-v1_5" && algo_name != "ECDSA")
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx,
           "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
           "ECDSA");
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
 
       std::vector<uint8_t> sig(signature, signature + signature_size);
@@ -467,12 +468,11 @@ namespace ccf::js
     }
     catch (std::exception& ex)
     {
-      JS_ThrowRangeError(ctx, "%s", ex.what());
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
   }
 
 #pragma clang diagnostic pop
-
 }
