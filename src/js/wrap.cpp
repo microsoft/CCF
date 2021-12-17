@@ -1,7 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "js/wrap.h"
-
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
@@ -13,6 +11,7 @@
 #include "js/crypto.cpp"
 #include "js/historical.cpp"
 #include "js/no_plugins.cpp"
+#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -900,7 +899,7 @@ namespace ccf::js
     std::vector<std::string> process_args;
 
     auto len_atom = JS_NewAtom(ctx, "length");
-    auto len_val = args[len_atom];
+    auto len_val = args.get_property(len_atom);
     JS_FreeAtom(ctx, len_atom);
     uint32_t len = 0;
     JS_ToUint32(ctx, &len, len_val);
