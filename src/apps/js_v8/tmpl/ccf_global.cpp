@@ -5,6 +5,7 @@
 #include "consensus.h"
 #include "crypto.h"
 #include "crypto/entropy.h"
+#include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
 #include "ds/logger.h"
 #include "historical.h"
@@ -425,6 +426,152 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(v8::Boolean::New(isolate, valid));
   }
 
+  static void js_wrap_key(const v8::FunctionCallbackInfo<v8::Value>& info)
+  {
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+
+    if (info.Length() != 3)
+    {
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 3", info.Length()));
+      return;
+    }
+
+    // API loosely modeled after
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
+
+    v8::Local<v8::Value> arg_key = info[0];
+    if (!arg_key->IsArrayBuffer())
+    {
+      v8_util::throw_type_error(isolate, "Argument 1 must be an ArrayBuffer");
+      return;
+    }
+    auto key = v8_util::get_array_buffer_data(arg_key.As<v8::ArrayBuffer>());
+
+    v8::Local<v8::Value> arg_wrapping_key = info[1];
+    if (!arg_wrapping_key->IsArrayBuffer())
+    {
+      v8_util::throw_type_error(isolate, "Argument 2 must be an ArrayBuffer");
+      return;
+    }
+    auto wrapping_key =
+      v8_util::get_array_buffer_data(arg_wrapping_key.As<v8::ArrayBuffer>());
+
+    v8::Local<v8::Value> arg_parameters = info[2];
+    if (!arg_parameters->IsObject())
+    {
+      v8_util::throw_type_error(isolate, "Argument 3 must be an object");
+      return;
+    }
+    v8::Local<v8::Object> parameters_obj = arg_parameters.As<v8::Object>();
+
+    v8::Local<v8::Value> algo_name_val;
+    if (
+      !parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "name"))
+         .ToLocal(&algo_name_val) ||
+      !algo_name_val->IsString())
+    {
+      v8_util::throw_type_error(
+        isolate, "Argument 3 must have a 'name' property that is a string");
+      return;
+    }
+    auto algo_name = v8_util::to_str(isolate, algo_name_val.As<v8::String>());
+
+    try
+    {
+      if (algo_name == "RSA-OAEP")
+      {
+        // key can in principle be arbitrary data (see note on maximum size
+        // in rsa_key_pair.h). wrapping_key is a public RSA key.
+
+        v8::Local<v8::Value> label_val;
+        if (
+          !parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
+             .ToLocal(&label_val) ||
+          !label_val->IsArrayBuffer())
+        {
+          v8_util::throw_type_error(
+            isolate,
+            "Argument 3 must have a 'label' property that is an ArrayBuffer");
+          return;
+        }
+        auto label =
+          v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
+
+        auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
+          crypto::Pem(wrapping_key),
+          {key.p, key.p + key.n},
+          {label.p, label.p + label.n});
+
+        info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
+          isolate, wrapped_key.data(), wrapped_key.size()));
+        return;
+      }
+      else if (algo_name == "AES-KWP")
+      {
+        std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
+          {wrapping_key.p, wrapping_key.p + wrapping_key.n},
+          {key.p, key.p + key.n});
+
+        info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
+          isolate, wrapped_key.data(), wrapped_key.size()));
+        return;
+      }
+      else if (algo_name == "RSA-OAEP-AES-KWP")
+      {
+        v8::Local<v8::Value> aes_key_size_val;
+        int32_t aes_key_size;
+        if (
+          !parameters_obj
+             ->Get(context, v8_util::to_v8_istr(isolate, "aesKeySize"))
+             .ToLocal(&aes_key_size_val) ||
+          !aes_key_size_val->Int32Value(context).To(&aes_key_size))
+        {
+          v8_util::throw_type_error(
+            isolate,
+            "Argument 3 must have an 'aesKeySize' property that is a number");
+          return;
+        }
+
+        v8::Local<v8::Value> label_val;
+        Buffer label;
+        if (
+          !parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
+             .ToLocal(&label_val) ||
+          !label_val->IsArrayBuffer())
+        {
+          v8_util::throw_type_error(
+            isolate,
+            "Argument 3 must have a 'label' property that is an ArrayBuffer");
+        }
+        label = v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
+
+        auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
+          aes_key_size,
+          crypto::Pem(wrapping_key),
+          {key.p, key.p + key.n},
+          {label.p, label.p + label.n});
+
+        info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
+          isolate, wrapped_key.data(), wrapped_key.size()));
+      }
+      else
+      {
+        v8_util::throw_range_error(
+          isolate,
+          "Argument 3 must have a 'name' property that is one of 'RSA-OAEP', "
+          "'AES-KWP', or 'RSA-OAEP-AES-KWP'");
+        return;
+      }
+    }
+    catch (std::exception& ex)
+    {
+      v8_util::throw_range_error(isolate, ex.what());
+    }
+  }
+
   static void get_kv_store(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
@@ -528,6 +675,9 @@ namespace ccf::v8_tmpl
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "isValidX509CertChain"),
       v8::FunctionTemplate::New(isolate, js_is_valid_x509_cert_chain));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "wrapKey"),
+      v8::FunctionTemplate::New(isolate, js_wrap_key));
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historicalState"), get_historical_state);
@@ -541,7 +691,6 @@ namespace ccf::v8_tmpl
 
     // To be wrapped:
     // ccf.host
-    // ccf.wrapKey()
 
     return handle_scope.Escape(tmpl);
   }
