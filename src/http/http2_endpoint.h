@@ -105,19 +105,22 @@ namespace http
     std::shared_ptr<enclave::RpcHandler> handler;
     std::shared_ptr<enclave::SessionContext> session_ctx;
     int64_t session_id;
+    enclave::ListenInterfaceID interface_id;
     size_t request_index = 0;
 
   public:
     HTTP2ServerEndpoint(
       std::shared_ptr<enclave::RPCMap> rpc_map,
       int64_t session_id,
+      const enclave::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTP2Endpoint(server_session, session_id, writer_factory, std::move(ctx)),
       server_session(*this, *this), // TODO: Ugly! but currently necessary to be
                                     // able to write back to the ring buffer
       rpc_map(rpc_map),
-      session_id(session_id)
+      session_id(session_id),
+      interface_id(interface_id)
     {}
 
     void send(std::vector<uint8_t>&& data) override

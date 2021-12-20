@@ -3,6 +3,7 @@
 #pragma once
 
 #include "enclave/endpoint.h" // TODO: Not great!
+#include "http_builder.h"
 #include "http_proc.h"
 
 #include <list>
@@ -22,6 +23,8 @@ namespace http2
   struct Stream
   {
     uint32_t id;
+    http::HeaderMap headers;
+    std::string url;
 
     Stream(uint32_t id_) : id(id_) {}
   };
@@ -227,6 +230,28 @@ namespace http2
       "on_header_callback: {}:{}",
       std::string(name, name + namelen),
       std::string(value, value + valuelen));
+
+    auto* s = reinterpret_cast<Session*>(user_data);
+    auto* stream = reinterpret_cast<Stream*>(
+      nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+
+    auto k = std::string(name, name + namelen);
+    auto v = std::string(value, value + valuelen);
+
+    if (k == ":path")
+    {
+      stream->url = v;
+    }
+    else if (k == ":method")
+    {
+      // stream->
+      // TODO: Support method!
+    }
+    else
+    {
+      stream->headers.emplace(k, v);
+    }
+
     return 0;
   }
 
@@ -266,8 +291,6 @@ namespace http2
       std::vector<uint8_t> resp = {
         data, data + length}; // TODO: Remove extra copy
       endpoint.send(std::move(resp));
-      // auto rv = nghttp2_session_send(session);
-      // LOG_FAIL_FMT("http::Session send rv: {}", rv);
     }
   };
 
