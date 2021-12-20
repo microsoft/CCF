@@ -501,14 +501,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --enforce-reqs
-      --test-suite
-      rekey_recovery
-      --test-suite
-      membership_recovery
+    ADDITIONAL_ARGS --test-duration 150 --test-suite rekey_recovery
+                    --test-suite membership_recovery
   )
 
   add_e2e_test(
@@ -516,8 +510,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS --test-duration 200 --enforce-reqs --test-suite
-                    reconfiguration
+    ADDITIONAL_ARGS --test-duration 200 --test-suite reconfiguration
   )
 
   add_e2e_test(
@@ -532,7 +525,6 @@ if(BUILD_TESTS)
       20
       --test-duration
       200
-      --enforce-reqs
       --test-suite
       all
   )
