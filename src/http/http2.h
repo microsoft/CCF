@@ -108,6 +108,9 @@ namespace http2
       auto rc = nghttp2_session_send(session);
       LOG_FAIL_FMT("nghttp2_session_send: {}", rc);
     }
+
+    virtual void handle_request(
+      const std::string& url, http::HeaderMap&& headers) = 0;
   };
 
   static ssize_t send_callback(
@@ -151,6 +154,10 @@ namespace http2
 
     std::string resp = "Hello there";
 
+    // TODO:
+    // 1. Call handle_request(verb, url, headers, body)
+    // 2.
+
     nghttp2_data_provider prov;
     prov.source.ptr = (void*)resp.data();
     prov.read_callback = read_callback;
@@ -192,7 +199,8 @@ namespace http2
             LOG_FAIL_FMT("No stream!");
             return 0;
           }
-          return on_request_recv(session, s, stream);
+          // return on_request_recv(session, s, stream);
+          s->handle_request(stream->url, std::move(stream->headers));
         }
         break;
       default:
@@ -292,6 +300,15 @@ namespace http2
         data, data + length}; // TODO: Remove extra copy
       endpoint.send(std::move(resp));
     }
+
+    virtual void handle_request(
+      const std::string& url, http::HeaderMap&& headers) override
+    {
+      LOG_TRACE_FMT("http2::ServerSession: handle_request");
+
+      // TODO: Support HTTP method and body
+      proc.handle_request(HTTP_GET, url, std::move(headers), {});
+    }
   };
 
   class ClientSession : public Session
@@ -299,6 +316,12 @@ namespace http2
     // TODO: Unimplemented
   public:
     ClientSession() = default;
+
+    virtual void handle_request(
+      const std::string& url, http::HeaderMap&& headers) override
+    {
+      throw std::logic_error("Unimplemented");
+    }
   };
 
 }
