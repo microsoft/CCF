@@ -371,6 +371,105 @@ def run_content_types(args):
         network = test_unknown_path(network, args)
 
 
+@reqs.description("Test that modifications to the module state are local to a request")
+def test_fresh_module_state(network, args):
+    primary, _ = network.find_nodes()
+
+    # See js-isolation/src/a.js
+    initial_state = {"value": 42}
+
+    with primary.client("user0") as c:
+        new_state = {"value": 24}
+        r = c.post("/app/set_module_state", body=new_state)
+        assert r.status_code == HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/get_module_state")
+        assert r.status_code == HTTPStatus.OK, r.status_code
+        state = r.body.json()
+        assert state == initial_state
+
+    return network
+
+
+@reqs.description("Test that modifications to the global object are local to a request")
+@reqs.installed_package("libjs_generic")
+def test_fresh_global(network, args):
+    if args.package != "libjs_generic":
+        LOG.warning("Skipping")
+        return network
+
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as c:
+        new_state = {"value": 42}
+        r = c.post("/app/set_global_state", body=new_state)
+        assert r.status_code == HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/get_global_state")
+        assert r.status_code == HTTPStatus.OK, r.status_code
+        state = r.body.json()
+        assert state == None
+
+    return network
+
+
+@reqs.description("Test that the global object cannot be modified")
+@reqs.installed_package("libjs_v8")
+def test_frozen_global(network, args):
+    if args.package != "libjs_v8":
+        LOG.warning("Skipping")
+        return network
+
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as c:
+        new_state = {"value": 42}
+        r = c.post("/app/set_global_state", body=new_state)
+        assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        assert "Cannot add property" in r.body.json()["error"]["message"]
+
+        r = c.post("/app/override_builtin_property")
+        assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        assert (
+            "Cannot assign to read only property" in r.body.json()["error"]["message"]
+        )
+
+        r = c.post("/app/override_ccf_property")
+        assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        assert (
+            "Cannot assign to read only property" in r.body.json()["error"]["message"]
+        )
+
+        r = c.post("/app/delete_ccf_property")
+        assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        assert "Cannot delete property" in r.body.json()["error"]["message"]
+
+        # 'ccf' properties of child objects can be modified but are fresh
+        # for each request. Ideally everything is frozen but this is harder
+        # to implement given how dynamic the ccf global is (KV, historicState).
+
+        r = c.post("/app/override_ccf_child_property")
+        assert r.status_code == HTTPStatus.OK, r.status_code
+
+        r = c.post("/app/check_ccf_child_property")
+        assert r.status_code == HTTPStatus.OK, r.status_code
+
+    # TODO extend bindings to run npm app tests to see if anything
+    #      breaks when the global object is frozen
+
+    return network
+
+
+def run_isolation(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        network = test_fresh_module_state(network, args)
+        network = test_fresh_global(network, args)
+        network = test_frozen_global(network, args)
+
+
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
@@ -407,5 +506,24 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
     )
+
+    cr.add(
+        "isolation",
+        run_isolation,
+        package="libjs_generic",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-isolation"),
+    )
+
+    if os.path.exists(
+        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
+    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
+        cr.add(
+            "isolation_v8",
+            run_isolation,
+            package="libjs_v8",
+            nodes=infra.e2e_args.nodes(cr.args, 1),
+            js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-isolation"),
+        )
 
     cr.run()

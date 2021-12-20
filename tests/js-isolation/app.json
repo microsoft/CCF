@@ -1,0 +1,94 @@
+{
+  "endpoints": {
+    "/set_module_state": {
+      "post": {
+        "js_module": "isolation.js",
+        "js_function": "set_module_state",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/get_module_state": {
+      "get": {
+        "js_module": "isolation.js",
+        "js_function": "get_module_state",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/set_global_state": {
+      "post": {
+        "js_module": "isolation.js",
+        "js_function": "set_global_state",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/get_global_state": {
+      "get": {
+        "js_module": "isolation.js",
+        "js_function": "get_global_state",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/override_builtin_property": {
+      "post": {
+        "js_module": "isolation.js",
+        "js_function": "override_builtin_property",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/override_ccf_property": {
+      "post": {
+        "js_module": "isolation.js",
+        "js_function": "override_ccf_property",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/delete_ccf_property": {
+      "post": {
+        "js_module": "isolation.js",
+        "js_function": "delete_ccf_property",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/override_ccf_child_property": {
+      "post": {
+        "js_module": "isolation.js",
+        "js_function": "override_ccf_child_property",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/check_ccf_child_property": {
+      "post": {
+        "js_module": "isolation.js",
+        "js_function": "check_ccf_child_property",
+        "forwarding_required": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    }
+  }
+}
