@@ -5,6 +5,7 @@
 #include "consensus.h"
 #include "crypto.h"
 #include "crypto/entropy.h"
+#include "crypto/rsa_key_pair.h"
 #include "ds/logger.h"
 #include "historical.h"
 #include "historical_state.h"
@@ -261,6 +262,62 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(value);
   }
 
+  static void js_generate_rsa_key_pair(
+    const v8::FunctionCallbackInfo<v8::Value>& info)
+  {
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    if (info.Length() != 1 && info.Length() != 2)
+    {
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 1 or 2", info.Length()));
+      return;
+    }
+
+    uint32_t key_size = 0;
+    uint32_t key_exponent = 0;
+
+    if (!info[0]->Uint32Value(context).To(&key_size))
+    {
+      v8_util::throw_type_error(isolate, "Argument 1 must be a number");
+      return;
+    }
+
+    if (info.Length() == 2)
+    {
+      if (!info[1]->Uint32Value(context).To(&key_exponent))
+      {
+        v8_util::throw_type_error(isolate, "Argument 2 must be a number");
+        return;
+      }
+    }
+
+
+    std::shared_ptr<crypto::RSAKeyPair> k;
+    if (info.Length() == 1)
+    {
+      k = crypto::make_rsa_key_pair(key_size);
+    }
+    else
+    {
+      k = crypto::make_rsa_key_pair(key_size, key_exponent);
+    }
+
+    crypto::Pem prv = k->private_key_pem();
+    crypto::Pem pub = k->public_key_pem();
+
+    v8::Local<v8::Object> value = v8::Object::New(isolate);
+    value->Set(context,
+      v8_util::to_v8_str(isolate, "privateKey"),
+      v8_util::to_v8_str(isolate, prv.str()));
+    value->Set(context,
+      v8_util::to_v8_str(isolate, "publicKey"),
+      v8_util::to_v8_str(isolate, pub.str()));
+
+    info.GetReturnValue().Set(value);
+  }
+
   static void get_kv_store(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
@@ -355,6 +412,9 @@ namespace ccf::v8_tmpl
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "generateAesKey"),
       v8::FunctionTemplate::New(isolate, js_generate_aes_key));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "generateRsaKeyPair"),
+      v8::FunctionTemplate::New(isolate, js_generate_rsa_key_pair));
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historicalState"), get_historical_state);
@@ -368,7 +428,6 @@ namespace ccf::v8_tmpl
 
     // To be wrapped:
     // ccf.host
-    // ccf.generateRsaKeyPair()
     // ccf.isValidX509CertBundle()
     // ccf.isValidX509CertChain()
     // ccf.wrapKey()
