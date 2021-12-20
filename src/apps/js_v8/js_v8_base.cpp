@@ -105,8 +105,8 @@ namespace ccfapp
           v8_tmpl::ConsoleGlobal::wrap(context);
         ctx.install_global("console", console_global);
 
-        v8::Local<v8::Value> ccf_global = v8_tmpl::CCFGlobal::wrap(
-          context, &global_fields);
+        v8::Local<v8::Value> ccf_global =
+          v8_tmpl::CCFGlobal::wrap(context, &global_fields);
         ctx.install_global("ccf", ccf_global);
 
         // Freeze globalThis to prevent further modifications

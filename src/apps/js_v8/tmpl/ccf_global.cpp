@@ -292,8 +292,7 @@ namespace ccf::v8_tmpl
     tmpl->SetAccessor(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
     tmpl->SetAccessor(
       v8_util::to_v8_istr(isolate, "historicalState"), get_historical_state);
-    tmpl->SetAccessor(
-      v8_util::to_v8_istr(isolate, "consensus"), get_consensus);
+    tmpl->SetAccessor(v8_util::to_v8_istr(isolate, "consensus"), get_consensus);
     tmpl->SetAccessor(
       v8_util::to_v8_istr(isolate, "historical"), get_historical);
 
@@ -311,8 +310,7 @@ namespace ccf::v8_tmpl
   }
 
   v8::Local<v8::Object> CCFGlobal::wrap(
-    v8::Local<v8::Context> context,
-    GlobalFields* global_fields)
+    v8::Local<v8::Context> context, GlobalFields* global_fields)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -323,8 +321,7 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Object> result = tmpl->NewInstance(context).ToLocalChecked();
 
     set_internal_fields<InternalField>(
-      result,
-      {{{InternalField::GlobalFields, global_fields}}});
+      result, {{{InternalField::GlobalFields, global_fields}}});
 
     return handle_scope.Escape(result);
   }

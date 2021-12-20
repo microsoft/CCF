@@ -333,7 +333,8 @@ namespace ccf
     v8::HandleScope handle_scope(isolate_);
     v8::Local<v8::Context> context = v8::Context::New(isolate_);
     context->SetAlignedPointerInEmbedderData(kContextEmbedderDataField, this);
-    context->SetAlignedPointerInEmbedderData(kFinalizerEmbedderDataField, nullptr);
+    context->SetAlignedPointerInEmbedderData(
+      kFinalizerEmbedderDataField, nullptr);
     context->SetAlignedPointerInEmbedderData(kModuleEmbedderDataField, nullptr);
     context->Enter();
     context_.Reset(isolate_, context);
@@ -414,11 +415,13 @@ namespace ccf
       })();)JS";
 
     v8::Local<v8::String> source = v8_util::to_v8_str(isolate_, code);
-    v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
+    v8::Local<v8::Script> script =
+      v8::Script::Compile(context, source).ToLocalChecked();
 
     v8::TryCatch try_catch(isolate_);
     v8::MaybeLocal<v8::Value> result = script->Run(context);
-    if (try_catch.HasCaught()) {
+    if (try_catch.HasCaught())
+    {
       v8_util::report_exception(isolate_, &try_catch);
       throw std::runtime_error("Failed to freeze global object");
     }
