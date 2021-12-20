@@ -1,7 +1,7 @@
 // Use a different module than the entry module for state testing
 // to avoid cases where the entry module is re-loaded
 // but not other modules.
-import * as a from './a.js';
+import * as a from "./a.js";
 
 export function set_module_state(request) {
   a.set_module_state(request.body.json());
@@ -11,7 +11,7 @@ export function set_module_state(request) {
 export function get_module_state(request) {
   const state = a.get_module_state();
   return {
-    body: state
+    body: state,
   };
 }
 
@@ -23,7 +23,7 @@ export function set_global_state(request) {
 export function get_global_state(request) {
   const state = globalThis.my_state || null;
   return {
-    body: state
+    body: state,
   };
 }
 
