@@ -16,12 +16,11 @@ from loguru import logger as LOG
 # This test starts from a given number of nodes (hosts), commits
 # a transaction, stops the current primary, waits for an election and repeats
 # this process until no progress can be made (i.e. no primary can be elected
-# as F > N/2).
+# as F > N/2).+
 
 
-@reqs.description("Stopping current primary and waiting for a new one to be elected")
-@reqs.can_kill_n_nodes(1)
-def test_kill_primary(network, args):
+@reqs.description("Stop current primary and wait for a new one to be elected")
+def test_kill_primary_no_reqs(network, args):
     primary, _ = network.find_primary_and_any_backup()
     primary.stop()
     network.wait_for_new_primary(primary)
@@ -36,6 +35,12 @@ def test_kill_primary(network, args):
             c.wait_for_commit(r)
 
     return network
+
+
+# Called by test suite. Election test deliberately makes service unusable.
+@reqs.can_kill_n_nodes(1)
+def test_kill_primary(network, args):
+    return test_kill_primary_no_reqs(network, args)
 
 
 def run(args):
@@ -77,7 +82,7 @@ def run(args):
             network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
 
             try:
-                test_kill_primary(network, args)
+                test_kill_primary_no_reqs(network, args)
             except PrimaryNotFound:
                 if node_to_stop < nodes_to_stop - 1:
                     raise
