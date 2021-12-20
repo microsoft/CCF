@@ -4,6 +4,7 @@
 
 #include "consensus.h"
 #include "crypto.h"
+#include "crypto/entropy.h"
 #include "ds/logger.h"
 #include "historical.h"
 #include "historical_state.h"
@@ -224,6 +225,42 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(value);
   }
 
+  static void js_generate_aes_key(
+    const v8::FunctionCallbackInfo<v8::Value>& info)
+  {
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    if (info.Length() != 1)
+    {
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 1", info.Length()));
+      return;
+    }
+    v8::Local<v8::Value> arg1 = info[0];
+    int32_t key_size;
+    if (!arg1->Int32Value(context).To(&key_size))
+    {
+      v8_util::throw_type_error(isolate, "Argument 1 must be a number");
+      return;
+    }
+
+    // Supported key sizes for AES.
+    if (key_size != 128 && key_size != 192 && key_size != 256)
+    {
+      v8_util::throw_range_error(
+        isolate, "unsupported key size, supported: 128, 192, 256");
+      return;
+    }
+
+    std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
+
+    v8::Local<v8::Value> value =
+      v8_util::to_v8_array_buffer_copy(isolate, key.data(), key.size());
+
+    info.GetReturnValue().Set(value);
+  }
+
   static void get_kv_store(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
@@ -315,6 +352,9 @@ namespace ccf::v8_tmpl
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "digest"),
       v8::FunctionTemplate::New(isolate, js_digest));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "generateAesKey"),
+      v8::FunctionTemplate::New(isolate, js_generate_aes_key));
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historicalState"), get_historical_state);
@@ -328,7 +368,6 @@ namespace ccf::v8_tmpl
 
     // To be wrapped:
     // ccf.host
-    // ccf.generateAesKey()
     // ccf.generateRsaKeyPair()
     // ccf.isValidX509CertBundle()
     // ccf.isValidX509CertChain()
