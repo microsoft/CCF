@@ -12,12 +12,15 @@
 
 namespace http2
 {
-#define ARRLEN(x) (sizeof(x) / sizeof(x[0]))
-
-#define MAKE_NV(NAME, VALUE) \
-  { \
-    (uint8_t*)NAME, (uint8_t*)VALUE, sizeof(NAME) - 1, sizeof(VALUE) - 1, \
-      NGHTTP2_NV_FLAG_NONE \
+  static nghttp2_nv make_nv(const std::string& key, const std::string& value)
+  {
+    // TODO: Investigate no copy flags here
+    return {
+      (uint8_t*)key.c_str(), // TODO: ugly cast
+      (uint8_t*)value.c_str(),
+      key.size(),
+      value.size(),
+      NGHTTP2_NV_FLAG_NONE};
   }
 
   struct Stream
@@ -109,8 +112,7 @@ namespace http2
       LOG_FAIL_FMT("nghttp2_session_send: {}", rc);
     }
 
-    virtual void handle_request(
-      const std::string& url, http::HeaderMap&& headers) = 0;
+    virtual void handle_request(Stream* stream) = 0;
   };
 
   static ssize_t send_callback(
@@ -140,6 +142,10 @@ namespace http2
 
     std::string resp = "Hello there";
 
+    // auto resp_body = reinterpret_cast<std::vector<uint8_t>*>(source);
+
+    // LOG_FAIL_FMT("resp body size: {}", resp_body->size());
+
     memcpy(buf, resp.data(), resp.size());
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     return resp.size();
@@ -150,20 +156,14 @@ namespace http2
   {
     LOG_TRACE_FMT("on_request_recv");
 
-    nghttp2_nv hdrs[] = {MAKE_NV(":status", "200")};
-
-    std::string resp = "Hello there";
-
-    // TODO:
-    // 1. Call handle_request(verb, url, headers, body)
-    // 2.
+    std::vector<nghttp2_nv> hdrs;
+    hdrs.emplace_back(make_nv(":status", "200"));
 
     nghttp2_data_provider prov;
-    prov.source.ptr = (void*)resp.data();
     prov.read_callback = read_callback;
 
     int rv = nghttp2_submit_response(
-      session, stream_data->id, hdrs, ARRLEN(hdrs), &prov);
+      session, stream_data->id, hdrs.data(), hdrs.size(), &prov);
     LOG_FAIL_FMT("nghttp2_submit_response: {}", rv);
     if (rv != 0)
     {
@@ -190,6 +190,7 @@ namespace http2
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
         {
           LOG_FAIL_FMT("End of stream flag");
+          LOG_FAIL_FMT("Stream id: {}", frame->hd.stream_id);
           stream = reinterpret_cast<Stream*>(
             nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
           /* For DATA and HEADERS frame, this callback may be called after
@@ -200,7 +201,7 @@ namespace http2
             return 0;
           }
           // return on_request_recv(session, s, stream);
-          s->handle_request(stream->url, std::move(stream->headers));
+          s->handle_request(stream);
         }
         break;
       default:
@@ -286,11 +287,34 @@ namespace http2
     {
       LOG_TRACE_FMT("Initialise HTTP2 Server Session");
 
-      nghttp2_settings_entry iv[1] = {
+      // TODO: Should be configurable by operator
+      std::vector<nghttp2_settings_entry> settings = {
         {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100}};
-      auto rv =
-        nghttp2_submit_settings(session, NGHTTP2_FLAG_NONE, iv, ARRLEN(iv));
-      LOG_TRACE_FMT("Submitted settings: {}", rv);
+      auto rv = nghttp2_submit_settings(
+        session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
+    }
+
+    void send_response(
+      const http::HeaderMap& headers, const std::vector<uint8_t>& body)
+    {
+      LOG_TRACE_FMT(
+        "http2::send_response: {} - {}", headers.size(), body.size());
+
+      std::vector<nghttp2_nv> hdrs;
+      // (headers.size() + 1);
+      hdrs.emplace_back(make_nv(":status", "200"));
+      // for (auto& [k, v] : headers)
+      // {
+      //   hdrs.emplace_back(make_nv(k, v));
+      // }
+
+      nghttp2_data_provider prov;
+      prov.source.ptr = (void*)&body; // TODO: Ugly cast!
+      prov.read_callback = read_callback;
+
+      // TODO: stream ID is hardcoded! :(
+      int rv =
+        nghttp2_submit_response(session, 1, hdrs.data(), hdrs.size(), &prov);
     }
 
     virtual void send(const uint8_t* data, size_t length) override
@@ -301,13 +325,13 @@ namespace http2
       endpoint.send(std::move(resp));
     }
 
-    virtual void handle_request(
-      const std::string& url, http::HeaderMap&& headers) override
+    virtual void handle_request(Stream* stream) override
     {
       LOG_TRACE_FMT("http2::ServerSession: handle_request");
 
       // TODO: Support HTTP method and body
-      proc.handle_request(HTTP_GET, url, std::move(headers), {});
+      proc.handle_request(
+        HTTP_GET, stream->url, std::move(stream->headers), {});
     }
   };
 
@@ -317,11 +341,9 @@ namespace http2
   public:
     ClientSession() = default;
 
-    virtual void handle_request(
-      const std::string& url, http::HeaderMap&& headers) override
+    virtual void handle_request(Stream* stream) override
     {
       throw std::logic_error("Unimplemented");
     }
   };
-
 }

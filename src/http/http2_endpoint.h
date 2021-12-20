@@ -65,11 +65,6 @@ namespace http
         {
           session.recv(data, n_read);
 
-          // TODO:
-          // Call into http2::session recv
-
-          // p.execute(data, n_read);
-
           // Used all provided bytes - check if more are available
           n_read = read(buf.data(), buf.size(), false);
         }
@@ -148,7 +143,7 @@ namespace http
             std::make_shared<enclave::SessionContext>(session_id, peer_cert());
         }
 
-        std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;
+        std::shared_ptr<http::HttpRpcContext> rpc_ctx = nullptr;
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
@@ -195,6 +190,9 @@ namespace http
         }
 
         auto response = search.value()->process(rpc_ctx);
+
+        server_session.send_response(
+          rpc_ctx->response_headers, rpc_ctx->response_body);
 
         if (!response.has_value())
         {

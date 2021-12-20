@@ -76,10 +76,12 @@ namespace http
 
     std::vector<uint8_t> serialised_request = {};
 
+  public: // TODO: Fix!
     http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
 
+  private:
     bool serialised = false;
 
     std::optional<bool> explicit_apply_writes = std::nullopt;

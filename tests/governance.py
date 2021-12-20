@@ -330,37 +330,37 @@ if __name__ == "__main__":
         "session_auth",
         gov,
         package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=3,
         authenticate_session=True,
     )
 
-    cr.add(
-        "session_noauth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=False,
-    )
+    # cr.add(
+    #     "session_noauth",
+    #     gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=False,
+    # )
 
-    cr.add(
-        "js",
-        js_gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
+    # cr.add(
+    #     "js",
+    #     js_gov,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=3,
+    #     authenticate_session=True,
+    # )
 
-    cr.add(
-        "history",
-        governance_history.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        # Higher snapshot interval as snapshots trigger new ledger chunks, which
-        # may result in latest chunk being partially written
-        snapshot_tx_interval=10000,
-    )
+    # cr.add(
+    #     "history",
+    #     governance_history.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     # Higher snapshot interval as snapshots trigger new ledger chunks, which
+    #     # may result in latest chunk being partially written
+    #     snapshot_tx_interval=10000,
+    # )
 
     cr.run(2)
