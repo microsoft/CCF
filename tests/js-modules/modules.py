@@ -54,11 +54,8 @@ def test_module_import(network, args):
 
 
 @reqs.description("Test dynamic module import")
+@reqs.installed_package("libjs_v8")
 def test_dynamic_module_import(network, args):
-    if args.package != "libjs_v8":
-        LOG.warning("Skipping test_dynamic_endpoints, requires V8")
-        return network
-
     primary, _ = network.find_nodes()
 
     # Update JS app, deploying modules _and_ app script that imports module
@@ -74,11 +71,8 @@ def test_dynamic_module_import(network, args):
 
 
 @reqs.description("Test module bytecode caching")
+@reqs.installed_package("libjs_generic")
 def test_bytecode_cache(network, args):
-    if args.package == "libjs_v8":
-        LOG.warning("Skipping test_bytecode_cache, not supported on V8")
-        return network
-
     primary, _ = network.find_nodes()
 
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
@@ -267,11 +261,8 @@ def test_dynamic_endpoints(network, args):
 
 
 @reqs.description("Test basic Node.js/npm app")
+@reqs.installed_package("libjs_generic")
 def test_npm_app(network, args):
-    if args.package == "libjs_v8":
-        LOG.warning("Skipping test_npm_app, V8 still misses some bindings")
-        return network
-
     primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
