@@ -487,18 +487,21 @@ namespace ccf::v8_tmpl
         // in rsa_key_pair.h). wrapping_key is a public RSA key.
 
         v8::Local<v8::Value> label_val;
-        if (
-          !parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
-             .ToLocal(&label_val) ||
-          !label_val->IsArrayBuffer())
+        Buffer label;
+        if (parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
+              .ToLocal(&label_val))
         {
-          v8_util::throw_type_error(
-            isolate,
-            "Argument 3 must have a 'label' property that is an ArrayBuffer");
-          return;
+          if (!label_val->IsArrayBuffer())
+          {
+            v8_util::throw_type_error(
+              isolate,
+              "'label' property of argument 3, if existing, must be an "
+              "ArrayBuffer");
+            return;
+          }
+          label =
+            v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
         }
-        auto label =
-          v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
 
         auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
           crypto::Pem(wrapping_key),
@@ -537,16 +540,20 @@ namespace ccf::v8_tmpl
 
         v8::Local<v8::Value> label_val;
         Buffer label;
-        if (
-          !parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
-             .ToLocal(&label_val) ||
-          !label_val->IsArrayBuffer())
+        if (parameters_obj->Get(context, v8_util::to_v8_istr(isolate, "label"))
+              .ToLocal(&label_val))
         {
-          v8_util::throw_type_error(
-            isolate,
-            "Argument 3 must have a 'label' property that is an ArrayBuffer");
+          if (!label_val->IsArrayBuffer())
+          {
+            v8_util::throw_type_error(
+              isolate,
+              "'label' property of argument 3, if existing, must be an "
+              "ArrayBuffer");
+            return;
+          }
+          label =
+            v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
         }
-        label = v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
 
         auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
           aes_key_size,
