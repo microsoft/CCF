@@ -354,6 +354,77 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(v8::Boolean::New(isolate, valid));
   }
 
+  static std::vector<crypto::Pem> split_x509_cert_bundle(
+    const std::string_view& pem)
+  {
+    std::string separator("-----END CERTIFICATE-----");
+    std::vector<crypto::Pem> pems;
+    auto separator_end = 0;
+    auto next_separator_start = pem.find(separator);
+    while (next_separator_start != std::string_view::npos)
+    {
+      pems.emplace_back(std::string(
+        pem.substr(separator_end, next_separator_start + separator.size())));
+      separator_end = next_separator_start + separator.size();
+      next_separator_start = pem.find(separator, separator_end);
+    }
+    return pems;
+  }
+
+  static void js_is_valid_x509_cert_chain(
+    const v8::FunctionCallbackInfo<v8::Value>& info)
+  {
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    if (info.Length() != 2)
+    {
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 2", info.Length()));
+      return;
+    }
+    v8::Local<v8::Value> arg1 = info[0];
+    v8::Local<v8::Value> arg2 = info[1];
+    if (!arg1->IsString() || !arg2->IsString())
+    {
+      v8_util::throw_type_error(isolate, "Arguments 1 and 2 must be strings");
+      return;
+    }
+    std::string chain = v8_util::to_str(isolate, arg1.As<v8::String>());
+    std::string trusted = v8_util::to_str(isolate, arg2.As<v8::String>());
+
+    bool valid = false;
+
+    try
+    {
+      auto chain_vec = split_x509_cert_bundle(chain);
+      auto trusted_vec = split_x509_cert_bundle(trusted);
+      if (chain_vec.empty() || trusted_vec.empty())
+        throw std::logic_error(
+          "chain/trusted arguments must contain at least one certificate");
+
+      auto& target_pem = chain_vec[0];
+      std::vector<const crypto::Pem*> chain_ptr;
+      for (auto it = chain_vec.begin() + 1; it != chain_vec.end(); it++)
+        chain_ptr.push_back(&*it);
+      std::vector<const crypto::Pem*> trusted_ptr;
+      for (auto& pem : trusted_vec)
+        trusted_ptr.push_back(&pem);
+
+      auto verifier = crypto::make_unique_verifier(target_pem);
+      if (!verifier->verify_certificate(trusted_ptr, chain_ptr))
+        throw std::logic_error("certificate chain is invalid");
+
+      valid = true;
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
+    }
+
+    info.GetReturnValue().Set(v8::Boolean::New(isolate, valid));
+  }
+
   static void get_kv_store(
     v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
   {
@@ -454,6 +525,9 @@ namespace ccf::v8_tmpl
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "isValidX509CertBundle"),
       v8::FunctionTemplate::New(isolate, js_is_valid_x509_cert_bundle));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "isValidX509CertChain"),
+      v8::FunctionTemplate::New(isolate, js_is_valid_x509_cert_chain));
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historicalState"), get_historical_state);
@@ -467,7 +541,6 @@ namespace ccf::v8_tmpl
 
     // To be wrapped:
     // ccf.host
-    // ccf.isValidX509CertChain()
     // ccf.wrapKey()
 
     return handle_scope.Escape(tmpl);
