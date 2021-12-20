@@ -12,6 +12,7 @@
 #include "kv_store.h"
 #include "rpc.h"
 #include "template.h"
+#include "tls/ca.h"
 
 namespace ccf::v8_tmpl
 {
@@ -293,7 +294,6 @@ namespace ccf::v8_tmpl
       }
     }
 
-
     std::shared_ptr<crypto::RSAKeyPair> k;
     if (info.Length() == 1)
     {
@@ -308,14 +308,50 @@ namespace ccf::v8_tmpl
     crypto::Pem pub = k->public_key_pem();
 
     v8::Local<v8::Object> value = v8::Object::New(isolate);
-    value->Set(context,
+    value->Set(
+      context,
       v8_util::to_v8_str(isolate, "privateKey"),
       v8_util::to_v8_str(isolate, prv.str()));
-    value->Set(context,
+    value->Set(
+      context,
       v8_util::to_v8_str(isolate, "publicKey"),
       v8_util::to_v8_str(isolate, pub.str()));
 
     info.GetReturnValue().Set(value);
+  }
+
+  static void js_is_valid_x509_cert_bundle(
+    const v8::FunctionCallbackInfo<v8::Value>& info)
+  {
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    if (info.Length() != 1)
+    {
+      v8_util::throw_type_error(
+        isolate,
+        fmt::format("Passed {} arguments, but expected 1", info.Length()));
+      return;
+    }
+    v8::Local<v8::Value> arg1 = info[0];
+    if (!arg1->IsString())
+    {
+      v8_util::throw_type_error(isolate, "Argument 1 must be a string");
+      return;
+    }
+    std::string pem = v8_util::to_str(isolate, arg1.As<v8::String>());
+
+    bool valid = false;
+    try
+    {
+      tls::CA ca(pem);
+      valid = true;
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_DEBUG_FMT("isValidX509Bundle: {}", e.what());
+    }
+
+    info.GetReturnValue().Set(v8::Boolean::New(isolate, valid));
   }
 
   static void get_kv_store(
@@ -415,6 +451,9 @@ namespace ccf::v8_tmpl
     tmpl->Set(
       v8_util::to_v8_istr(isolate, "generateRsaKeyPair"),
       v8::FunctionTemplate::New(isolate, js_generate_rsa_key_pair));
+    tmpl->Set(
+      v8_util::to_v8_istr(isolate, "isValidX509CertBundle"),
+      v8::FunctionTemplate::New(isolate, js_is_valid_x509_cert_bundle));
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "kv"), get_kv_store);
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historicalState"), get_historical_state);
@@ -428,7 +467,6 @@ namespace ccf::v8_tmpl
 
     // To be wrapped:
     // ccf.host
-    // ccf.isValidX509CertBundle()
     // ccf.isValidX509CertChain()
     // ccf.wrapKey()
 
