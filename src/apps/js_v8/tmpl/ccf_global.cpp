@@ -3,10 +3,12 @@
 #include "ccf_global.h"
 
 #include "consensus.h"
+#include "crypto.h"
 #include "ds/logger.h"
 #include "historical.h"
 #include "historical_state.h"
 #include "kv_store.h"
+#include "rpc.h"
 #include "template.h"
 
 namespace ccf::v8_tmpl
@@ -17,6 +19,7 @@ namespace ccf::v8_tmpl
     HistoricalStatePtr,
     EndpointRegistry,
     StateCache,
+    RpcContext,
     END
   };
 
@@ -45,6 +48,12 @@ namespace ccf::v8_tmpl
   {
     return static_cast<ccf::historical::AbstractStateCache*>(
       get_internal_field(obj, InternalField::StateCache));
+  }
+
+  static enclave::RpcContext* unwrap_rpc_context(v8::Local<v8::Object> obj)
+  {
+    return static_cast<enclave::RpcContext*>(
+      get_internal_field(obj, InternalField::RpcContext));
   }
 
   static v8::Local<v8::ArrayBuffer> js_str_to_buf_direct(
@@ -264,6 +273,25 @@ namespace ccf::v8_tmpl
     info.GetReturnValue().Set(value);
   }
 
+  static void get_rpc(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    enclave::RpcContext* rpc_ctx = unwrap_rpc_context(info.Holder());
+    v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
+
+    v8::Local<v8::Value> value = Rpc::wrap(context, rpc_ctx);
+    info.GetReturnValue().Set(value);
+  }
+
+  static void get_crypto(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
+
+    v8::Local<v8::Value> value = Crypto::wrap(context);
+    info.GetReturnValue().Set(value);
+  }
+
   v8::Local<v8::ObjectTemplate> CCFGlobal::create_template(v8::Isolate* isolate)
   {
     v8::EscapableHandleScope handle_scope(isolate);
@@ -294,11 +322,12 @@ namespace ccf::v8_tmpl
       v8_util::to_v8_istr(isolate, "consensus"), get_consensus);
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "historical"), get_historical);
+    tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "rpc"), get_rpc);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "crypto"), get_crypto);
 
     // To be wrapped:
-    // ccf.rpc
     // ccf.host
-    // ccf.crypto
     // ccf.generateAesKey()
     // ccf.generateRsaKeyPair()
     // ccf.isValidX509CertBundle()
@@ -313,7 +342,8 @@ namespace ccf::v8_tmpl
     TxContext* tx_ctx,
     ccf::historical::StatePtr* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
-    ccf::historical::AbstractStateCache* state_cache)
+    ccf::historical::AbstractStateCache* state_cache,
+    enclave::RpcContext* rpc_ctx)
   {
     v8::Isolate* isolate = context->GetIsolate();
     v8::EscapableHandleScope handle_scope(isolate);
@@ -328,7 +358,8 @@ namespace ccf::v8_tmpl
       {{{InternalField::TxContext, tx_ctx},
         {InternalField::HistoricalStatePtr, historical_state},
         {InternalField::EndpointRegistry, endpoint_registry},
-        {InternalField::StateCache, state_cache}}});
+        {InternalField::StateCache, state_cache},
+        {InternalField::RpcContext, rpc_ctx}}});
 
     return handle_scope.Escape(result);
   }
