@@ -529,6 +529,8 @@ def test_npm_app(network, args):
         primary_quote_info = r.body.json()
         if not primary_quote_info["raw"]:
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, virtual mode")
+        elif args.package == "libjs_v8":
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, V8")
         else:
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
             OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
