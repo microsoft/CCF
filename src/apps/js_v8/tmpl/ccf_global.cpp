@@ -306,14 +306,18 @@ namespace ccf::v8_tmpl
     crypto::Pem pub = k->public_key_pem();
 
     v8::Local<v8::Object> value = v8::Object::New(isolate);
-    value->Set(
-      context,
-      v8_util::to_v8_str(isolate, "privateKey"),
-      v8_util::to_v8_str(isolate, prv.str()));
-    value->Set(
-      context,
-      v8_util::to_v8_str(isolate, "publicKey"),
-      v8_util::to_v8_str(isolate, pub.str()));
+    value
+      ->Set(
+        context,
+        v8_util::to_v8_str(isolate, "privateKey"),
+        v8_util::to_v8_str(isolate, prv.str()))
+      .Check();
+    value
+      ->Set(
+        context,
+        v8_util::to_v8_str(isolate, "publicKey"),
+        v8_util::to_v8_str(isolate, pub.str()))
+      .Check();
 
     info.GetReturnValue().Set(value);
   }
@@ -692,8 +696,7 @@ namespace ccf::v8_tmpl
     tmpl->SetAccessor(
       v8_util::to_v8_istr(isolate, "historical"), get_historical);
     tmpl->SetAccessor(v8_util::to_v8_istr(isolate, "rpc"), get_rpc);
-    tmpl->SetAccessor(
-      v8_util::to_v8_istr(isolate, "crypto"), get_crypto);
+    tmpl->SetAccessor(v8_util::to_v8_istr(isolate, "crypto"), get_crypto);
 
     // To be wrapped:
     // ccf.host
