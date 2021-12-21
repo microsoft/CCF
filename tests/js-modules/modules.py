@@ -268,10 +268,6 @@ def test_dynamic_endpoints(network, args):
 
 @reqs.description("Test basic Node.js/npm app")
 def test_npm_app(network, args):
-    if args.package == "libjs_v8":
-        LOG.warning("Skipping test_npm_app, V8 still misses some bindings")
-        return network
-
     primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
@@ -533,6 +529,8 @@ def test_npm_app(network, args):
         primary_quote_info = r.body.json()
         if not primary_quote_info["raw"]:
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, virtual mode")
+        elif args.package == "libjs_v8":
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, V8")
         else:
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
             OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
@@ -578,27 +576,30 @@ def test_npm_app(network, args):
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-    LOG.info("Calling jwt endpoint after storing keys")
-    with primary.client("user0") as c:
-        jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"] == "jwt validation failed", r.body
+    if args.package == "libjs_v8":
+        LOG.info("Skipping /app/jwt test, V8 needs patch for Date.parse() for SGX")
+    else:
+        LOG.info("Calling jwt endpoint after storing keys")
+        with primary.client("user0") as c:
+            jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+            jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
+            r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+            body = r.body.json()
+            assert body["msg"] == "jwt validation failed", r.body
 
-        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"] == "jwt invalid, sub claim missing", r.body
+            jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+            r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+            body = r.body.json()
+            assert body["msg"] == "jwt invalid, sub claim missing", r.body
 
-        user_id = "user0"
-        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        body = r.body.json()
-        assert body["userId"] == user_id, r.body
+            user_id = "user0"
+            jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
+            r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["userId"] == user_id, r.body
 
     return network
 
