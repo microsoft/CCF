@@ -19,6 +19,7 @@ namespace http
   {
   public:
     virtual void handle_request(
+      int32_t stream_id, // TODO: Only used in HTTP2
       llhttp_method method,
       const std::string_view& url,
       HeaderMap&& headers,

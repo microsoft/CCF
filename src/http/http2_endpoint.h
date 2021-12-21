@@ -124,6 +124,7 @@ namespace http
     }
 
     void handle_request(
+      int32_t stream_id,
       llhttp_method verb,
       const std::string_view& url,
       http::HeaderMap&& headers,
@@ -192,7 +193,9 @@ namespace http
         auto response = search.value()->process(rpc_ctx);
 
         server_session.send_response(
-          rpc_ctx->response_headers, std::move(rpc_ctx->response_body));
+          stream_id,
+          rpc_ctx->response_headers,
+          std::move(rpc_ctx->response_body));
 
         // if (!response.has_value())
         // {

@@ -85,6 +85,7 @@ namespace http
     std::queue<Request> received;
 
     virtual void handle_request(
+      int32_t stream_id,
       llhttp_method method,
       const std::string_view& url,
       http::HeaderMap&& headers,
@@ -374,6 +375,7 @@ namespace http
       if (url.empty())
       {
         proc.handle_request(
+          0,
           llhttp_method(parser.method),
           {},
           std::move(headers),
@@ -382,6 +384,7 @@ namespace http
       else
       {
         proc.handle_request(
+          0,
           llhttp_method(parser.method),
           url,
           std::move(headers),

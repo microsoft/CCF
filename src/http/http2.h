@@ -13,6 +13,8 @@
 
 namespace http2
 {
+  using StreamId = int32_t;
+
   static ssize_t send_callback(
     nghttp2_session* session,
     const uint8_t* data,
@@ -35,13 +37,13 @@ namespace http2
   static int on_data_callback(
     nghttp2_session* session,
     uint8_t flags,
-    int32_t stream_id,
+    StreamId stream_id,
     const uint8_t* data,
     size_t len,
     void* user_data);
   static int on_stream_close_callback(
     nghttp2_session* session,
-    int32_t stream_id,
+    StreamId stream_id,
     uint32_t error_code,
     void* user_data);
 
@@ -58,14 +60,14 @@ namespace http2
 
   struct StreamData
   {
-    uint32_t id;
+    StreamId id;
     http::HeaderMap headers;
     std::string url;
     ccf::RESTVerb verb;
     std::vector<uint8_t> request_body;
     std::vector<uint8_t> response_body;
 
-    StreamData(uint32_t id_) : id(id_) {}
+    StreamData(StreamId id_) : id(id_) {}
   };
 
   class Session
@@ -145,7 +147,7 @@ namespace http2
 
   static ssize_t read_callback(
     nghttp2_session* session,
-    int32_t stream_id,
+    StreamId stream_id,
     uint8_t* buf,
     size_t length,
     uint32_t* data_flags,
@@ -154,9 +156,8 @@ namespace http2
   {
     LOG_TRACE_FMT("read_callback: {}", length);
 
-    // TODO: stream_data ID is hardcoded! :(
     auto* stream_data = reinterpret_cast<StreamData*>(
-      nghttp2_session_get_stream_user_data(session, 1));
+      nghttp2_session_get_stream_user_data(session, stream_id));
 
     auto& response_body = stream_data->response_body;
 
@@ -264,7 +265,7 @@ namespace http2
   static int on_data_callback(
     nghttp2_session* session,
     uint8_t flags,
-    int32_t stream_id,
+    StreamId stream_id,
     const uint8_t* data,
     size_t len,
     void* user_data)
@@ -283,7 +284,7 @@ namespace http2
 
   static int on_stream_close_callback(
     nghttp2_session* session,
-    int32_t stream_id,
+    StreamId stream_id,
     uint32_t error_code,
     void* user_data)
   {
@@ -314,7 +315,9 @@ namespace http2
     }
 
     void send_response(
-      const http::HeaderMap& headers, std::vector<uint8_t>&& body)
+      StreamId stream_id,
+      const http::HeaderMap& headers,
+      std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
         "http2::send_response: {} - {}", headers.size(), body.size());
@@ -329,9 +332,8 @@ namespace http2
         hdrs.emplace_back(make_nv(k, v));
       }
 
-      // TODO: stream_data ID is hardcoded! :(
       auto* stream_data = reinterpret_cast<StreamData*>(
-        nghttp2_session_get_stream_user_data(session, 1));
+        nghttp2_session_get_stream_user_data(session, stream_id));
       if (stream_data == nullptr)
       {
         LOG_FAIL_FMT("StreamData not found!");
@@ -344,8 +346,8 @@ namespace http2
       nghttp2_data_provider prov;
       prov.read_callback = read_callback;
 
-      int rv =
-        nghttp2_submit_response(session, 1, hdrs.data(), hdrs.size(), &prov);
+      int rv = nghttp2_submit_response(
+        session, stream_id, hdrs.data(), hdrs.size(), &prov);
       if (rv != 0)
       {
         throw std::logic_error(
@@ -367,6 +369,7 @@ namespace http2
 
       // TODO: Support HTTP method and body
       proc.handle_request(
+        stream_data->id,
         stream_data->verb.get_http_method().value(),
         stream_data->url,
         std::move(stream_data->headers),

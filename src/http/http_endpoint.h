@@ -126,6 +126,7 @@ namespace http
     }
 
     void handle_request(
+      int32_t stream_id,
       llhttp_method verb,
       const std::string_view& url,
       http::HeaderMap&& headers,
