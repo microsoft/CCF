@@ -301,15 +301,14 @@ namespace http2
         "http2::send_response: {} - {}", headers.size(), body.size());
 
       std::vector<nghttp2_nv> hdrs;
-      // (headers.size() + 1);
       hdrs.emplace_back(make_nv(":status", "200"));
-      // for (auto& [k, v] : headers)
-      // {
-      //   hdrs.emplace_back(make_nv(k, v));
-      // }
+      for (auto& [k, v] : headers)
+      {
+        hdrs.emplace_back(make_nv(k, v));
+      }
 
       nghttp2_data_provider prov;
-      prov.source.ptr = (void*)&body; // TODO: Ugly cast!
+      // prov.source.ptr = (void*)&body; // TODO: Ugly cast!
       prov.read_callback = read_callback;
 
       // TODO: stream ID is hardcoded! :(

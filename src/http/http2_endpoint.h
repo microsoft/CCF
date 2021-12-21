@@ -194,17 +194,17 @@ namespace http
         server_session.send_response(
           rpc_ctx->response_headers, rpc_ctx->response_body);
 
-        if (!response.has_value())
-        {
-          // If the RPC is pending, hold the connection.
-          LOG_TRACE_FMT("Pending");
-          return;
-        }
-        else
-        {
-          send_buffered(response.value());
-          flush();
-        }
+        // if (!response.has_value())
+        // {
+        //   // If the RPC is pending, hold the connection.
+        //   LOG_TRACE_FMT("Pending");
+        //   return;
+        // }
+        // else
+        // {
+        //   send_buffered(response.value());
+        //   flush();
+        // }
       }
       catch (const std::exception& e)
       {
