@@ -454,9 +454,6 @@ def test_frozen_global(network, args):
         r = c.post("/app/check_ccf_child_property")
         assert r.status_code == HTTPStatus.OK, r.status_code
 
-    # TODO extend bindings to run npm app tests to see if anything
-    #      breaks when the global object is frozen
-
     return network
 
 

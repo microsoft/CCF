@@ -261,7 +261,6 @@ def test_dynamic_endpoints(network, args):
 
 
 @reqs.description("Test basic Node.js/npm app")
-@reqs.installed_package("libjs_generic")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
 
