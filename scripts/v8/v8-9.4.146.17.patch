@@ -63,8 +63,29 @@ index 9bfc2a55af..8e9a020db8 100644
    memcpy(vendor_, "Unknown", 8);
  
  #if defined(V8_OS_STARBOARD)
+diff --git src/base/platform/platform-posix-time.cc src/base/platform/platform-posix-time.cc
+index 28e6431baf..c0d1e2f12d 100644
+--- src/base/platform/platform-posix-time.cc
++++ src/base/platform/platform-posix-time.cc
+@@ -21,12 +21,16 @@ const char* PosixDefaultTimezoneCache::LocalTimezone(double time) {
+ double PosixDefaultTimezoneCache::LocalTimeOffset(double time_ms, bool is_utc) {
+   // Preserve the old behavior for non-ICU implementation by ignoring both
+   // time_ms and is_utc.
++#if V8_OS_OPENENCLAVE
++  return 0;
++#else
+   time_t tv = time(nullptr);
+   struct tm tm;
+   struct tm* t = localtime_r(&tv, &tm);
+   // tm_gmtoff includes any daylight savings offset, so subtract it.
+   return static_cast<double>(t->tm_gmtoff * msPerSecond -
+                              (t->tm_isdst > 0 ? 3600 * msPerSecond : 0));
++#endif
+ }
+ 
+ }  // namespace base
 diff --git src/base/platform/platform-posix.cc src/base/platform/platform-posix.cc
-index 179a17cc0f..26518bc6cf 100644
+index 179a17cc0f..278b275e17 100644
 --- src/base/platform/platform-posix.cc
 +++ src/base/platform/platform-posix.cc
 @@ -259,12 +259,16 @@ int OS::ActivationFrameAlignment() {
@@ -118,6 +139,23 @@ index 179a17cc0f..26518bc6cf 100644
  }
  
  // static
+@@ -666,11 +682,16 @@ double OS::TimeCurrentMillis() {
+ 
+ double PosixTimezoneCache::DaylightSavingsOffset(double time) {
+   if (std::isnan(time)) return std::numeric_limits<double>::quiet_NaN();
++#if V8_OS_OPENENCLAVE
++  USE(time);
++  return 0;
++#else
+   time_t tv = static_cast<time_t>(std::floor(time/msPerSecond));
+   struct tm tm;
+   struct tm* t = localtime_r(&tv, &tm);
+   if (nullptr == t) return std::numeric_limits<double>::quiet_NaN();
+   return t->tm_isdst > 0 ? 3600 * msPerSecond : 0;
++#endif
+ }
+ 
+ 
 diff --git src/base/platform/semaphore.cc src/base/platform/semaphore.cc
 index 2fc748da87..e07fd489d3 100644
 --- src/base/platform/semaphore.cc
