@@ -268,10 +268,6 @@ def test_dynamic_endpoints(network, args):
 
 @reqs.description("Test basic Node.js/npm app")
 def test_npm_app(network, args):
-    if args.package == "libjs_v8":
-        LOG.warning("Skipping test_npm_app, V8 still misses some bindings")
-        return network
-
     primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
@@ -533,6 +529,8 @@ def test_npm_app(network, args):
         primary_quote_info = r.body.json()
         if not primary_quote_info["raw"]:
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, virtual mode")
+        elif args.package == "libjs_v8":
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, V8")
         else:
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
             OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
