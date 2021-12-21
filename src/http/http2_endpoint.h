@@ -192,7 +192,7 @@ namespace http
         auto response = search.value()->process(rpc_ctx);
 
         server_session.send_response(
-          rpc_ctx->response_headers, rpc_ctx->response_body);
+          rpc_ctx->response_headers, std::move(rpc_ctx->response_body));
 
         // if (!response.has_value())
         // {

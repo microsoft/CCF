@@ -5,6 +5,7 @@
 #include "enclave/endpoint.h" // TODO: Not great!
 #include "http_builder.h"
 #include "http_proc.h"
+#include "http_rpc_context.h"
 
 #include <list>
 #include <memory>
@@ -12,26 +13,6 @@
 
 namespace http2
 {
-  static nghttp2_nv make_nv(const std::string& key, const std::string& value)
-  {
-    // TODO: Investigate no copy flags here
-    return {
-      (uint8_t*)key.c_str(), // TODO: ugly cast
-      (uint8_t*)value.c_str(),
-      key.size(),
-      value.size(),
-      NGHTTP2_NV_FLAG_NONE};
-  }
-
-  struct Stream
-  {
-    uint32_t id;
-    http::HeaderMap headers;
-    std::string url;
-
-    Stream(uint32_t id_) : id(id_) {}
-  };
-
   static ssize_t send_callback(
     nghttp2_session* session,
     const uint8_t* data,
@@ -56,6 +37,27 @@ namespace http2
     int32_t stream_id,
     uint32_t error_code,
     void* user_data);
+
+  static nghttp2_nv make_nv(const std::string& key, const std::string& value)
+  {
+    // TODO: Investigate no copy flags here
+    return {
+      (uint8_t*)key.c_str(), // TODO: ugly cast
+      (uint8_t*)value.c_str(),
+      key.size(),
+      value.size(),
+      NGHTTP2_NV_FLAG_NONE};
+  }
+
+  struct Stream
+  {
+    uint32_t id;
+    http::HeaderMap headers;
+    std::string url;
+    std::vector<uint8_t> response_body;
+
+    Stream(uint32_t id_) : id(id_) {}
+  };
 
   class Session
   {
@@ -140,15 +142,19 @@ namespace http2
   {
     LOG_TRACE_FMT("read_callback: {}", length);
 
-    // std::string resp = "Hello there";
+    // TODO: stream ID is hardcoded! :(
+    auto* stream = reinterpret_cast<Stream*>(
+      nghttp2_session_get_stream_user_data(session, 1));
 
-    auto resp_body = reinterpret_cast<std::vector<uint8_t>*>(source);
+    LOG_FAIL_FMT("stream: {}", (void*)stream);
 
-    LOG_FAIL_FMT("resp body size: {}", resp_body->size());
+    auto& response_body = stream->response_body;
 
-    memcpy(buf, resp_body->data(), resp_body->size());
+    LOG_FAIL_FMT("resp body size: {}", response_body.size());
+
+    memcpy(buf, response_body.data(), response_body.size());
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-    return resp_body->size();
+    return response_body.size();
   }
 
   static int on_request_recv(
@@ -219,8 +225,13 @@ namespace http2
 
     auto stream = std::make_shared<Stream>(frame->hd.stream_id);
     s->add_stream(stream);
-    nghttp2_session_set_stream_user_data(
+    auto rc = nghttp2_session_set_stream_user_data(
       session, frame->hd.stream_id, stream.get());
+    if (rc != 0)
+    {
+      throw std::logic_error(
+        fmt::format("Could not set stream user data: {}", frame->hd.stream_id));
+    }
 
     return 0;
   }
@@ -241,6 +252,8 @@ namespace http2
     auto* s = reinterpret_cast<Session*>(user_data);
     auto* stream = reinterpret_cast<Stream*>(
       nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
+
+    LOG_FAIL_FMT("stream: {}", (void*)stream);
 
     LOG_TRACE_FMT("on_header_callback: {}:{}", k, v);
 
@@ -292,23 +305,31 @@ namespace http2
     }
 
     void send_response(
-      const http::HeaderMap& headers, const std::vector<uint8_t>& body)
+      const http::HeaderMap& headers, std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
         "http2::send_response: {} - {}", headers.size(), body.size());
 
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(make_nv(":status", "200"));
+      hdrs.emplace_back(
+        make_nv(http::headers::CONTENT_LENGTH, fmt::format("{}", body.size())));
       for (auto& [k, v] : headers)
       {
         hdrs.emplace_back(make_nv(k, v));
       }
 
+      // // TODO: stream ID is hardcoded! :(
+      auto* stream = reinterpret_cast<Stream*>(
+        nghttp2_session_get_stream_user_data(session, 1));
+      stream->response_body = std::move(body);
+
+      // LOG_FAIL_FMT("stream: {}", (void*)stream);
+
       nghttp2_data_provider prov;
-      prov.source.ptr = (void*)&body; // TODO: Ugly cast!
+      prov.source.ptr = (void*)stream; // TODO: Ugly cast!
       prov.read_callback = read_callback;
 
-      // TODO: stream ID is hardcoded! :(
       int rv =
         nghttp2_submit_response(session, 1, hdrs.data(), hdrs.size(), &prov);
       LOG_FAIL_FMT("http2::nghttp2_submit_response: {}", rv);

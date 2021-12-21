@@ -411,7 +411,9 @@ class RequestClient:
         cert = None
         if self.session_auth:
             cert = (self.session_auth.cert, self.session_auth.key)
-        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
+        self.session = httpx.Client(
+            verify=self.ca, cert=cert, http1=False, http2=True, **kwargs
+        )
         if self.signing_auth:
             with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
