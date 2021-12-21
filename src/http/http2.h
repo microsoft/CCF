@@ -56,7 +56,7 @@ namespace http2
       NGHTTP2_NV_FLAG_NONE};
   }
 
-  struct Stream
+  struct StreamData
   {
     uint32_t id;
     http::HeaderMap headers;
@@ -65,14 +65,14 @@ namespace http2
     std::vector<uint8_t> request_body;
     std::vector<uint8_t> response_body;
 
-    Stream(uint32_t id_) : id(id_) {}
+    StreamData(uint32_t id_) : id(id_) {}
   };
 
   class Session
   {
   protected:
     nghttp2_session* session;
-    std::list<std::shared_ptr<Stream>> streams;
+    std::list<std::shared_ptr<StreamData>> streams;
 
   public:
     Session()
@@ -100,9 +100,9 @@ namespace http2
       nghttp2_session_callbacks_del(callbacks);
     }
 
-    void add_stream(const std::shared_ptr<Stream>& stream)
+    void add_stream(const std::shared_ptr<StreamData>& stream_data)
     {
-      streams.push_back(stream);
+      streams.push_back(stream_data);
     }
 
     virtual void send(const uint8_t* data, size_t length)
@@ -126,7 +126,7 @@ namespace http2
       LOG_FAIL_FMT("nghttp2_session_send: {}", rc);
     }
 
-    virtual void handle_request(Stream* stream) = 0;
+    virtual void handle_request(StreamData* stream_data) = 0;
   };
 
   static ssize_t send_callback(
@@ -154,11 +154,11 @@ namespace http2
   {
     LOG_TRACE_FMT("read_callback: {}", length);
 
-    // TODO: stream ID is hardcoded! :(
-    auto* stream = reinterpret_cast<Stream*>(
+    // TODO: stream_data ID is hardcoded! :(
+    auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, 1));
 
-    auto& response_body = stream->response_body;
+    auto& response_body = stream_data->response_body;
 
     LOG_FAIL_FMT("resp body size: {}", response_body.size());
 
@@ -172,7 +172,7 @@ namespace http2
   {
     LOG_TRACE_FMT("on_frame_recv_callback, type: {}", frame->hd.type);
     auto* s = reinterpret_cast<Session*>(user_data);
-    auto* stream = reinterpret_cast<Stream*>(
+    auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
 
     switch (frame->hd.type)
@@ -182,19 +182,19 @@ namespace http2
       {
         LOG_TRACE_FMT("Headers/Data frame");
         // For DATA and HEADERS frame, this callback may be called after
-        // on_stream_close_callback. Check that stream still alive.
-        if (!stream)
+        // on_stream_close_callback. Check that stream_data still alive.
+        if (!stream_data)
         {
-          LOG_FAIL_FMT("No stream");
+          LOG_FAIL_FMT("No stream_data");
           return 0;
         }
 
         /* Check that the client request has finished */
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
         {
-          LOG_FAIL_FMT("End of stream flag");
-          LOG_FAIL_FMT("Stream id: {}", frame->hd.stream_id);
-          s->handle_request(stream);
+          LOG_FAIL_FMT("End of stream_data flag");
+          LOG_FAIL_FMT("StreamData id: {}", frame->hd.stream_id);
+          s->handle_request(stream_data);
         }
         break;
       }
@@ -213,14 +213,14 @@ namespace http2
     LOG_TRACE_FMT("on_begin_headers_callback");
     auto* s = reinterpret_cast<Session*>(user_data);
 
-    auto stream = std::make_shared<Stream>(frame->hd.stream_id);
-    s->add_stream(stream);
+    auto stream_data = std::make_shared<StreamData>(frame->hd.stream_id);
+    s->add_stream(stream_data);
     auto rc = nghttp2_session_set_stream_user_data(
-      session, frame->hd.stream_id, stream.get());
+      session, frame->hd.stream_id, stream_data.get());
     if (rc != 0)
     {
-      throw std::logic_error(
-        fmt::format("Could not set stream user data: {}", frame->hd.stream_id));
+      throw std::logic_error(fmt::format(
+        "Could not set stream_data user data: {}", frame->hd.stream_id));
     }
 
     return 0;
@@ -240,22 +240,22 @@ namespace http2
     auto v = std::string(value, value + valuelen);
 
     auto* s = reinterpret_cast<Session*>(user_data);
-    auto* stream = reinterpret_cast<Stream*>(
+    auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
 
     LOG_TRACE_FMT("on_header_callback: {}:{}", k, v);
 
     if (k == http2::headers::PATH)
     {
-      stream->url = v;
+      stream_data->url = v;
     }
     else if (k == http2::headers::METHOD)
     {
-      stream->verb = v;
+      stream_data->verb = v;
     }
     else
     {
-      stream->headers.emplace(k, v);
+      stream_data->headers.emplace(k, v);
     }
 
     return 0;
@@ -271,14 +271,13 @@ namespace http2
   {
     LOG_TRACE_FMT("on_data_callback: {}", stream_id);
 
-    auto* stream = reinterpret_cast<Stream*>(
+    auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, stream_id));
 
-    // TODO: Check content length?
+    stream_data->request_body.insert(
+      stream_data->request_body.end(), data, data + len);
 
-    stream->request_body.insert(stream->request_body.end(), data, data + len);
-
-    LOG_FAIL_FMT("request body size: {}", stream->request_body.size());
+    LOG_FAIL_FMT("request body size: {}", stream_data->request_body.size());
     return 0;
   }
 
@@ -289,7 +288,7 @@ namespace http2
     void* user_data)
   {
     LOG_TRACE_FMT("on_stream_close_callback: {}", stream_id);
-    // TODO: Close stream correctly
+    // TODO: Close stream_data correctly
     return 0;
   }
 
@@ -330,12 +329,17 @@ namespace http2
         hdrs.emplace_back(make_nv(k, v));
       }
 
-      // TODO: stream ID is hardcoded! :(
-      auto* stream = reinterpret_cast<Stream*>(
+      // TODO: stream_data ID is hardcoded! :(
+      auto* stream_data = reinterpret_cast<StreamData*>(
         nghttp2_session_get_stream_user_data(session, 1));
-      stream->response_body = std::move(body);
+      if (stream_data == nullptr)
+      {
+        LOG_FAIL_FMT("StreamData not found!");
+        return;
+      }
+      stream_data->response_body = std::move(body);
 
-      // Note: response body is currently stored in Stream, accessible from
+      // Note: response body is currently stored in StreamData, accessible from
       // read_callback
       nghttp2_data_provider prov;
       prov.read_callback = read_callback;
@@ -357,16 +361,16 @@ namespace http2
       endpoint.send(std::move(resp));
     }
 
-    virtual void handle_request(Stream* stream) override
+    virtual void handle_request(StreamData* stream_data) override
     {
       LOG_TRACE_FMT("http2::ServerSession: handle_request");
 
       // TODO: Support HTTP method and body
       proc.handle_request(
-        stream->verb.get_http_method().value(),
-        stream->url,
-        std::move(stream->headers),
-        std::move(stream->request_body));
+        stream_data->verb.get_http_method().value(),
+        stream_data->url,
+        std::move(stream_data->headers),
+        std::move(stream_data->request_body));
     }
   };
 
@@ -376,7 +380,7 @@ namespace http2
   public:
     ClientSession() = default;
 
-    virtual void handle_request(Stream* stream) override
+    virtual void handle_request(StreamData* stream_data) override
     {
       throw std::logic_error("Unimplemented");
     }
