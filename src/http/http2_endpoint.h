@@ -156,10 +156,10 @@ namespace http
         }
         catch (std::exception& e)
         {
-          send_raw(http::error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            e.what()));
+          // send_raw(http::error(
+          //   HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          //   ccf::errors::InternalError,
+          //   e.what()));
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -172,7 +172,7 @@ namespace http
               "Request path must contain '/[actor]/[method]'. Unable to parse "
               "'{}'.",
               rpc_ctx->get_method()));
-          send_raw(rpc_ctx->serialise_response());
+          // send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -185,7 +185,7 @@ namespace http
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
             fmt::format("Unknown actor '{}'.", actor_s));
-          send_raw(rpc_ctx->serialise_response());
+          // send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -208,10 +208,10 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        send_raw(http::error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())));
+        // send_raw(http::error(
+        //   HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        //   ccf::errors::InternalError,
+        //   fmt::format("Exception: {}", e.what())));
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");

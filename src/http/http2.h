@@ -140,15 +140,15 @@ namespace http2
   {
     LOG_TRACE_FMT("read_callback: {}", length);
 
-    std::string resp = "Hello there";
+    // std::string resp = "Hello there";
 
-    // auto resp_body = reinterpret_cast<std::vector<uint8_t>*>(source);
+    auto resp_body = reinterpret_cast<std::vector<uint8_t>*>(source);
 
-    // LOG_FAIL_FMT("resp body size: {}", resp_body->size());
+    LOG_FAIL_FMT("resp body size: {}", resp_body->size());
 
-    memcpy(buf, resp.data(), resp.size());
+    memcpy(buf, resp_body->data(), resp_body->size());
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-    return resp.size();
+    return resp_body->size();
   }
 
   static int on_request_recv(
@@ -235,17 +235,14 @@ namespace http2
     uint8_t flags,
     void* user_data)
   {
-    LOG_TRACE_FMT(
-      "on_header_callback: {}:{}",
-      std::string(name, name + namelen),
-      std::string(value, value + valuelen));
+    auto k = std::string(name, name + namelen);
+    auto v = std::string(value, value + valuelen);
 
     auto* s = reinterpret_cast<Session*>(user_data);
     auto* stream = reinterpret_cast<Stream*>(
       nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
 
-    auto k = std::string(name, name + namelen);
-    auto v = std::string(value, value + valuelen);
+    LOG_TRACE_FMT("on_header_callback: {}:{}", k, v);
 
     if (k == ":path")
     {
@@ -253,7 +250,6 @@ namespace http2
     }
     else if (k == ":method")
     {
-      // stream->
       // TODO: Support method!
     }
     else
@@ -271,6 +267,7 @@ namespace http2
     void* user_data)
   {
     LOG_TRACE_FMT("on_stream_close_callback: {}", stream_id);
+    // TODO: Close stream correctly
     return 0;
   }
 
@@ -308,12 +305,13 @@ namespace http2
       }
 
       nghttp2_data_provider prov;
-      // prov.source.ptr = (void*)&body; // TODO: Ugly cast!
+      prov.source.ptr = (void*)&body; // TODO: Ugly cast!
       prov.read_callback = read_callback;
 
       // TODO: stream ID is hardcoded! :(
       int rv =
         nghttp2_submit_response(session, 1, hdrs.data(), hdrs.size(), &prov);
+      LOG_FAIL_FMT("http2::nghttp2_submit_response: {}", rv);
     }
 
     virtual void send(const uint8_t* data, size_t length) override
