@@ -43,6 +43,8 @@ if(ENABLE_V8)
       ${js_v8_dir}/tmpl/receipt.cpp
       ${js_v8_dir}/tmpl/consensus.cpp
       ${js_v8_dir}/tmpl/historical.cpp
+      ${js_v8_dir}/tmpl/rpc.cpp
+      ${js_v8_dir}/tmpl/crypto.cpp
   )
 
   if("virtual" IN_LIST COMPILE_TARGETS)

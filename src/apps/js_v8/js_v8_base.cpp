@@ -96,6 +96,7 @@ namespace ccfapp
       global_fields.historical_state = &historical_state;
       global_fields.endpoint_registry = this;
       global_fields.state_cache = &node_context.get_historical_state();
+      global_fields.rpc_ctx = endpoint_ctx.rpc_ctx.get();
 
       thread_local bool is_first_run = true;
       if (is_first_run)

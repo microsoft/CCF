@@ -15,6 +15,7 @@ namespace ccf::v8_tmpl
     ccf::historical::StatePtr* historical_state;
     ccf::BaseEndpointRegistry* endpoint_registry;
     ccf::historical::AbstractStateCache* state_cache;
+    enclave::RpcContext* rpc_ctx;
   };
 
   class CCFGlobal
