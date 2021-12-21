@@ -316,15 +316,24 @@ namespace http2
 
     void send_response(
       StreamId stream_id,
+      http_status status,
       const http::HeaderMap& headers,
       std::vector<uint8_t>&& body)
     {
       LOG_TRACE_FMT(
         "http2::send_response: {} - {}", headers.size(), body.size());
 
+      LOG_FAIL_FMT(
+        "status: {}",
+        fmt::format(
+          "{}", static_cast<std::underlying_type<http_status>::type>(status)));
+
+      // TODO: Use macro in http_status.h instead?
       std::vector<nghttp2_nv> hdrs;
-      hdrs.emplace_back(
-        make_nv(http2::headers::STATUS, "200")); // TODO: Support status
+      hdrs.emplace_back(make_nv(
+        http2::headers::STATUS,
+        fmt::format(
+          "{}", static_cast<std::underlying_type<http_status>::type>(status))));
       hdrs.emplace_back(
         make_nv(http::headers::CONTENT_LENGTH, fmt::format("{}", body.size())));
       for (auto& [k, v] : headers)
