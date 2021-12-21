@@ -54,6 +54,7 @@ namespace http2
     uint32_t id;
     http::HeaderMap headers;
     std::string url;
+    ccf::RESTVerb verb;
     std::vector<uint8_t> response_body;
 
     Stream(uint32_t id_) : id(id_) {}
@@ -257,13 +258,13 @@ namespace http2
 
     LOG_TRACE_FMT("on_header_callback: {}:{}", k, v);
 
-    if (k == ":path")
+    if (k == http2::headers::PATH)
     {
       stream->url = v;
     }
-    else if (k == ":method")
+    else if (k == http2::headers::METHOD)
     {
-      // TODO: Support method!
+      stream->verb = v;
     }
     else
     {
@@ -311,7 +312,8 @@ namespace http2
         "http2::send_response: {} - {}", headers.size(), body.size());
 
       std::vector<nghttp2_nv> hdrs;
-      hdrs.emplace_back(make_nv(":status", "200"));
+      hdrs.emplace_back(
+        make_nv(http2::headers::STATUS, "200")); // TODO: Support status
       hdrs.emplace_back(
         make_nv(http::headers::CONTENT_LENGTH, fmt::format("{}", body.size())));
       for (auto& [k, v] : headers)
@@ -319,20 +321,23 @@ namespace http2
         hdrs.emplace_back(make_nv(k, v));
       }
 
-      // // TODO: stream ID is hardcoded! :(
+      // TODO: stream ID is hardcoded! :(
       auto* stream = reinterpret_cast<Stream*>(
         nghttp2_session_get_stream_user_data(session, 1));
       stream->response_body = std::move(body);
 
-      // LOG_FAIL_FMT("stream: {}", (void*)stream);
-
+      // Note: prov source.ptr is required to invoke callback
       nghttp2_data_provider prov;
       prov.source.ptr = (void*)stream; // TODO: Ugly cast!
       prov.read_callback = read_callback;
 
       int rv =
         nghttp2_submit_response(session, 1, hdrs.data(), hdrs.size(), &prov);
-      LOG_FAIL_FMT("http2::nghttp2_submit_response: {}", rv);
+      if (rv != 0)
+      {
+        throw std::logic_error(
+          fmt::format("nghttp2_submit_response error: {}", rv));
+      }
     }
 
     virtual void send(const uint8_t* data, size_t length) override
@@ -349,7 +354,10 @@ namespace http2
 
       // TODO: Support HTTP method and body
       proc.handle_request(
-        HTTP_GET, stream->url, std::move(stream->headers), {});
+        stream->verb.get_http_method().value(),
+        stream->url,
+        std::move(stream->headers),
+        {});
     }
   };
 
