@@ -11,6 +11,23 @@
 #include <memory>
 #include <nghttp2/nghttp2.h>
 
+// TODO: State of things as of 21/12/2021
+//
+// - HTTP works up to service opening (and a little more)
+// - Overall flow is sound and most callback are correctly set
+// - What isn't clear is how http2::Session fits with HTTPEndpoint, in
+// particular, many fields are copied in StreamData but are also in the
+// `rpc_ctx` object (which should really be created in http2.h and passed to
+// handle_request() but it seems to break compilation, probably because of
+// nested includes).
+// - A larger refactoring is required as HTTP/1 is easy enough that
+// ctx->serialised_response() is called very early on (frontend.h), but we
+// cannot serialise the response early with HTTP/2 (as response headers and body
+// are passed separately). Also, http2.h needs to be able to write to the
+// endpoint directly, whereas http_parser only consumes input data but never
+// writes to ring buffer. Note that it's probably wise to implement join
+// protocol before doing this refactoring.
+
 namespace http2
 {
   using StreamId = int32_t;
@@ -107,25 +124,22 @@ namespace http2
       streams.push_back(stream_data);
     }
 
-    virtual void send(const uint8_t* data, size_t length)
-    {
-      LOG_TRACE_FMT("http2::Session send: {}", length);
-      // auto rv = nghttp2_session_send(session);
-      // LOG_FAIL_FMT("http::Session send rv: {}", rv);
-    }
+    virtual void send(const uint8_t* data, size_t length) {}
 
     void recv(const uint8_t* data, size_t size)
     {
       LOG_TRACE_FMT("http2::Session recv: {}", size);
       auto readlen = nghttp2_session_mem_recv(session, data, size);
-      LOG_FAIL_FMT("http::Session recv readlen: {}", readlen);
       if (readlen < 0)
       {
         return;
       }
 
       auto rc = nghttp2_session_send(session);
-      LOG_FAIL_FMT("nghttp2_session_send: {}", rc);
+      if (rc < 0)
+      {
+        throw std::logic_error(fmt::format("nghttp2_session_send: {}", rc));
+      }
     }
 
     virtual void handle_request(StreamData* stream_data) = 0;
@@ -139,9 +153,9 @@ namespace http2
     void* user_data)
   {
     LOG_TRACE_FMT("send_callback: {}", length);
+
     auto* s = reinterpret_cast<Session*>(user_data);
     s->send(data, length);
-
     return length;
   }
 
@@ -161,8 +175,7 @@ namespace http2
 
     auto& response_body = stream_data->response_body;
 
-    LOG_FAIL_FMT("resp body size: {}", response_body.size());
-
+    // TODO: Explore zero-copy alternative
     memcpy(buf, response_body.data(), response_body.size());
     *data_flags |= NGHTTP2_DATA_FLAG_EOF;
     return response_body.size();
@@ -172,6 +185,7 @@ namespace http2
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
     LOG_TRACE_FMT("on_frame_recv_callback, type: {}", frame->hd.type);
+
     auto* s = reinterpret_cast<Session*>(user_data);
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
@@ -194,7 +208,6 @@ namespace http2
         if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
         {
           LOG_FAIL_FMT("End of stream_data flag");
-          LOG_FAIL_FMT("StreamData id: {}", frame->hd.stream_id);
           s->handle_request(stream_data);
         }
         break;
@@ -212,8 +225,8 @@ namespace http2
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
     LOG_TRACE_FMT("on_begin_headers_callback");
-    auto* s = reinterpret_cast<Session*>(user_data);
 
+    auto* s = reinterpret_cast<Session*>(user_data);
     auto stream_data = std::make_shared<StreamData>(frame->hd.stream_id);
     s->add_stream(stream_data);
     auto rc = nghttp2_session_set_stream_user_data(
@@ -239,12 +252,11 @@ namespace http2
   {
     auto k = std::string(name, name + namelen);
     auto v = std::string(value, value + valuelen);
+    LOG_TRACE_FMT("on_header_callback: {}:{}", k, v);
 
     auto* s = reinterpret_cast<Session*>(user_data);
     auto* stream_data = reinterpret_cast<StreamData*>(
       nghttp2_session_get_stream_user_data(session, frame->hd.stream_id));
-
-    LOG_TRACE_FMT("on_header_callback: {}:{}", k, v);
 
     if (k == http2::headers::PATH)
     {
@@ -278,7 +290,6 @@ namespace http2
     stream_data->request_body.insert(
       stream_data->request_body.end(), data, data + len);
 
-    LOG_FAIL_FMT("request body size: {}", stream_data->request_body.size());
     return 0;
   }
 
@@ -289,6 +300,7 @@ namespace http2
     void* user_data)
   {
     LOG_TRACE_FMT("on_stream_close_callback: {}", stream_id);
+
     // TODO: Close stream_data correctly
     return 0;
   }
@@ -323,11 +335,6 @@ namespace http2
       LOG_TRACE_FMT(
         "http2::send_response: {} - {}", headers.size(), body.size());
 
-      LOG_FAIL_FMT(
-        "status: {}",
-        fmt::format(
-          "{}", static_cast<std::underlying_type<http_status>::type>(status)));
-
       // TODO: Use macro in http_status.h instead?
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(make_nv(
@@ -345,7 +352,7 @@ namespace http2
         nghttp2_session_get_stream_user_data(session, stream_id));
       if (stream_data == nullptr)
       {
-        LOG_FAIL_FMT("StreamData not found!");
+        LOG_FAIL_FMT("stream not found!");
         return;
       }
       stream_data->response_body = std::move(body);
@@ -367,6 +374,7 @@ namespace http2
     virtual void send(const uint8_t* data, size_t length) override
     {
       LOG_TRACE_FMT("http2::ServerSession send: {}", length);
+
       std::vector<uint8_t> resp = {
         data, data + length}; // TODO: Remove extra copy
       endpoint.send(std::move(resp));
