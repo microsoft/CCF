@@ -309,14 +309,18 @@ namespace ccf::v8_tmpl
     crypto::Pem pub = k->public_key_pem();
 
     v8::Local<v8::Object> value = v8::Object::New(isolate);
-    value->Set(
-      context,
-      v8_util::to_v8_str(isolate, "privateKey"),
-      v8_util::to_v8_str(isolate, prv.str()));
-    value->Set(
-      context,
-      v8_util::to_v8_str(isolate, "publicKey"),
-      v8_util::to_v8_str(isolate, pub.str()));
+    value
+      ->Set(
+        context,
+        v8_util::to_v8_str(isolate, "privateKey"),
+        v8_util::to_v8_str(isolate, prv.str()))
+      .Check();
+    value
+      ->Set(
+        context,
+        v8_util::to_v8_str(isolate, "publicKey"),
+        v8_util::to_v8_str(isolate, pub.str()))
+      .Check();
 
     info.GetReturnValue().Set(value);
   }
