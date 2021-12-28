@@ -20,7 +20,8 @@ namespace ccf::v8_tmpl
       TxContext* tx_ctx,
       ccf::historical::StatePtr* historical_state,
       ccf::BaseEndpointRegistry* endpoint_registry,
-      ccf::historical::AbstractStateCache* state_cache);
+      ccf::historical::AbstractStateCache* state_cache,
+      enclave::RpcContext* rpc_ctx);
   };
 
 } // namespace ccf::v8_tmpl

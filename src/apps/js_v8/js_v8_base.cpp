@@ -107,7 +107,8 @@ namespace ccfapp
         &txctx,
         &historical_state,
         this,
-        &node_context.get_historical_state());
+        &node_context.get_historical_state(),
+        endpoint_ctx.rpc_ctx.get());
       ctx.install_global("ccf", ccf_global);
 
       // Call exported function
