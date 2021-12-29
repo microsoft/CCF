@@ -168,6 +168,18 @@ if __name__ == "__main__":
             help="Path to ledger tutorial file",
             type=str,
         )
+        parser.add_argument(
+            "--config-samples-dir",
+            help="Configuration samples directory",
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            "--config-file-1x",
+            help="Path to 1.x configuration file",
+            type=str,
+            default=None,
+        )
 
     cr = ConcurrentRunner(add)
 
@@ -199,7 +211,7 @@ if __name__ == "__main__":
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=1,
-        ledger_chunk_bytes="1",  # Chunk ledger at every signature transaction
+        ledger_chunk_bytes="1B",  # Chunk ledger at every signature transaction
     )
 
     cr.run()

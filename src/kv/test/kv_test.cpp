@@ -15,6 +15,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #undef FAIL
+#include <random>
 #include <set>
 #include <string>
 #include <vector>
@@ -25,6 +26,7 @@ struct MapTypes
   using NumNum = kv::Map<size_t, size_t>;
   using NumString = kv::Map<size_t, std::string>;
   using StringNum = kv::Map<std::string, size_t>;
+  using UntypedMap = kv::untyped::Map;
 };
 
 TEST_CASE("Map name parsing")
@@ -629,7 +631,8 @@ TEST_CASE("serialisation of Unit type")
     std::vector<uint8_t> entry_a;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store(consensus);
+      kv::Store kv_store;
+      kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueA>(value_name);
       val_handle->put(v1);
@@ -646,7 +649,8 @@ TEST_CASE("serialisation of Unit type")
     std::vector<uint8_t> entry_b;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store(consensus);
+      kv::Store kv_store;
+      kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueB>(value_name);
       val_handle->put(v1);
@@ -663,7 +667,8 @@ TEST_CASE("serialisation of Unit type")
     std::vector<uint8_t> entry_c;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store(consensus);
+      kv::Store kv_store;
+      kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueC>(value_name);
       val_handle->put(v1);
@@ -2296,201 +2301,6 @@ std::string rand_string(size_t i)
   return fmt::format("{}: {}", i, rand());
 }
 
-TEST_CASE("Max conflict version tracks execution order")
-{
-  struct TxInfo
-  {
-    std::string id;
-    std::string value;
-    kv::Version primary_committed_version;
-    kv::Version replicated_max_conflict_version;
-  };
-  MapTypes::StringString map("public:map");
-  size_t tx_count = 5;
-  const auto fixed_key = rand_string(0);
-
-  for (bool dependencies_between_transactions : {false, true})
-  {
-    std::vector<TxInfo> txs;
-
-    // Execute on primary
-    {
-      kv::Store kv_store_primary;
-      for (uint32_t i = 0; i < tx_count; ++i)
-      {
-        TxInfo info;
-        auto tx = kv_store_primary.create_tx();
-        auto handle = tx.rw(map);
-        if (!dependencies_between_transactions)
-        {
-          // Each transaction reads and writes independent keys - there is no
-          // dependency between transactions
-          info.id = rand_string(i);
-          info.value = rand_string(i);
-          REQUIRE(!handle->has(info.id));
-        }
-        else
-        {
-          // Each transaction reads the same key, and tries to write (at the
-          // same key) a value derived from the previous value
-          info.id = fixed_key;
-          const auto prev_value = handle->get(info.id);
-          info.value =
-            fmt::format("{} | {}", info.id, prev_value.value_or("NONE"));
-        }
-        handle->put(info.id, info.value);
-        REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
-        info.primary_committed_version = tx.commit_version();
-        info.replicated_max_conflict_version = tx.get_max_conflict_version();
-        txs.push_back(info);
-      }
-    }
-
-    REQUIRE(tx_count == txs.size());
-
-    // Execute on backup
-    {
-      kv::Store kv_store_backup;
-      kv::Version map_creation_version;
-
-      // create the map on the backup
-      {
-        TxInfo& info = txs[0];
-        auto tx = kv_store_backup.create_tx();
-        auto handle = tx.rw(map);
-        REQUIRE(!handle->has(info.id));
-        handle->put(info.id, info.value);
-        auto version_resolver = [&](bool) {
-          kv_store_backup.next_txid();
-          return std::make_tuple(info.primary_committed_version, kv::NoVersion);
-        };
-        REQUIRE(
-          tx.commit(
-            true, version_resolver, info.replicated_max_conflict_version) ==
-          kv::CommitResult::SUCCESS);
-        map_creation_version = tx.commit_version();
-      }
-
-      SUBCASE("Primary can construct correct execution order")
-      {
-        for (uint32_t i = 1; i < txs.size(); ++i)
-        {
-          TxInfo& info = txs[i];
-          auto tx = kv_store_backup.create_tx();
-          auto handle = tx.rw(map);
-          REQUIRE(!handle->has(info.id));
-          handle->put(info.id, info.value);
-          auto version_resolver = [&](bool) {
-            kv_store_backup.next_txid();
-            return std::make_tuple(
-              info.primary_committed_version, map_creation_version);
-          };
-          REQUIRE(
-            tx.commit(
-              true, version_resolver, info.replicated_max_conflict_version) ==
-            kv::CommitResult::SUCCESS);
-        }
-
-        // Verify that the values can be read back
-        for (const TxInfo& info : txs)
-        {
-          auto tx = kv_store_backup.create_tx();
-          auto handle = tx.rw(map);
-          auto ret_value = handle->get(info.id);
-          REQUIRE(ret_value.has_value());
-          const auto value = ret_value.value();
-          REQUIRE(value == info.value);
-        }
-      }
-
-      SUBCASE("Byzantine execution order is refused by backup")
-      {
-        {
-          INFO(
-            "Reverse remaining transactions to produce different execution "
-            "order");
-          std::reverse(txs.begin() + 1, txs.end());
-        }
-
-        if (!dependencies_between_transactions)
-        {
-          // If there are no dependencies, the re-ordering doesn't matter -
-          // these transactions can still be executed successfully out-of-order
-          for (auto it = txs.begin() + 1; it != txs.end(); ++it)
-          {
-            TxInfo& info = *it;
-            auto tx = kv_store_backup.create_tx();
-            auto handle = tx.rw(map);
-            REQUIRE(!handle->has(info.id));
-            handle->put(info.id, info.value);
-            auto version_resolver = [&](bool) {
-              kv_store_backup.next_txid();
-              return std::make_tuple(
-                info.primary_committed_version, map_creation_version);
-            };
-            REQUIRE(
-              tx.commit(
-                true, version_resolver, info.replicated_max_conflict_version) ==
-              kv::CommitResult::SUCCESS);
-          }
-
-          // Verify that the values can be read back
-          for (const TxInfo& info : txs)
-          {
-            auto tx = kv_store_backup.create_tx();
-            auto handle = tx.rw(map);
-            auto ret_value = handle->get(info.id);
-            REQUIRE(ret_value.has_value());
-            const auto value = ret_value.value();
-            REQUIRE(value == info.value);
-          }
-        }
-        else
-        {
-          {
-            // Run the final transaction first, so any of the other transactions
-            // (whith a version before this one) will produce a
-            // linearilizability violation
-            TxInfo& info = txs[1];
-            auto tx = kv_store_backup.create_tx();
-            auto handle = tx.rw(map);
-            handle->get(info.id);
-            handle->put(info.id, info.value);
-            auto version_resolver = [&](bool) {
-              kv_store_backup.next_txid();
-              return std::make_tuple(
-                info.primary_committed_version, map_creation_version);
-            };
-            REQUIRE(
-              tx.commit(
-                true, version_resolver, info.replicated_max_conflict_version) ==
-              kv::CommitResult::SUCCESS);
-          }
-
-          // Validate the incorrectly created tx order cannot commit
-          for (auto it = txs.begin() + 2; it != txs.end(); ++it)
-          {
-            TxInfo& info = *it;
-            auto tx = kv_store_backup.create_tx();
-            auto handle = tx.rw(map);
-            handle->get(info.id);
-            handle->put(info.id, info.value);
-            auto version_resolver = [&](bool) {
-              kv_store_backup.next_txid();
-              return std::make_tuple(
-                info.primary_committed_version, map_creation_version);
-            };
-            REQUIRE(
-              tx.commit(
-                true, version_resolver, info.replicated_max_conflict_version) ==
-              kv::CommitResult::FAIL_CONFLICT);
-          }
-        }
-      }
-    }
-  }
-}
-
 TEST_CASE("Mid-tx compaction")
 {
   kv::Store kv_store;
@@ -2835,5 +2645,170 @@ TEST_CASE("Reported TxID after commit")
     REQUIRE(tx_id->term == store_read_term);
     REQUIRE(tx_id->version == store_last_seqno - 1);
     REQUIRE(tx_id.value() == kv_store.current_txid());
+  }
+}
+
+template <typename T>
+std::map<T, T> std_map_range(const std::map<T, T>& map, T from, T to)
+{
+  if (to < from || to == from)
+  {
+    return {};
+  }
+
+  std::map<T, T> ret = {};
+  auto f = map.lower_bound(from);
+  auto t = map.upper_bound(to);
+
+  for (auto it = f; it != std::prev(t); it++)
+  {
+    ret.emplace(*it);
+  }
+
+  return ret;
+}
+
+template <typename T>
+T get_map_get_factor(const std::map<T, T>& map, size_t factor)
+{
+  auto middle_it = map.begin();
+  std::advance(middle_it, map.size() / factor);
+  return middle_it->first;
+}
+
+template <class H, class T>
+std::map<T, T> kv_map_range(H& h, const T& from, const T& to)
+{
+  std::map<T, T> range;
+  auto f = [&range](const T& k, const T& v) { range.emplace(k, v); };
+  h->range(f, from, to);
+  return range;
+}
+
+TEST_CASE("Range")
+{
+  using KVMap = kv::untyped::Map;
+  using KeyType = KVMap::K;
+  using ValueType = KVMap::V;
+  using RefMap = std::map<KeyType, ValueType>;
+  using Serialiser = kv::serialisers::JsonSerialiser<size_t>;
+
+  size_t size = 100;
+  size_t entries_space_size = size * 10;
+  const auto map_name = "public:map";
+  const ValueType empty_value = {};
+
+  kv::Store kv_store;
+  RefMap ref;
+
+  INFO("Populate map randomly");
+  {
+    std::random_device rand_dev;
+    auto seed = rand_dev();
+    LOG_INFO_FMT("Seed: {}", seed);
+    std::mt19937 gen(seed);
+    std::uniform_int_distribution<> distrib(0, entries_space_size);
+
+    auto tx = kv_store.create_tx();
+    auto h = tx.rw<KVMap>(map_name);
+
+    for (int i = 0; i < size; i++)
+    {
+      auto key = distrib(gen);
+      auto serialised_key = Serialiser::to_serialised(key);
+      h->put(serialised_key, empty_value);
+      ref[serialised_key] = empty_value;
+    }
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  INFO("Compare ranges between KV map and reference");
+  {
+    auto tx = kv_store.create_tx();
+    auto h = tx.rw<KVMap>(map_name);
+
+    // Test variety of ranges, with some expected to return nothing
+    auto first = ref.begin()->first;
+    auto last = ref.rbegin()->first;
+    auto middle = get_map_get_factor(ref, 2);
+    std::vector<std::pair<KeyType, KeyType>> ranges = {
+      {first, first},
+      {last, last},
+      {last, first},
+      {last, middle},
+      {first, last},
+      {first, middle},
+      {middle, last},
+      {first, last}};
+
+    for (const auto& range : ranges)
+    {
+      auto std_range = std_map_range(ref, range.first, range.second);
+      auto kv_range = kv_map_range(h, range.first, range.second);
+      REQUIRE(std_range == kv_range);
+    }
+  }
+
+  auto key_to_remove = get_map_get_factor(ref, 2);
+
+  INFO("Deleted keys are not returned");
+  {
+    INFO("Remove key");
+    {
+      auto tx = kv_store.create_tx();
+      auto h = tx.rw<KVMap>(map_name);
+
+      // Check key exists before deletion
+      REQUIRE_NOTHROW(kv_map_range(h, ref.begin()->first, ref.rbegin()->first)
+                        .at(key_to_remove));
+
+      {
+        REQUIRE(h->remove(key_to_remove));
+        REQUIRE(ref.erase(key_to_remove) == 1);
+      }
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    INFO("Range does not include key");
+    {
+      // Fresh tx/handle
+      auto tx = kv_store.create_tx();
+      auto h = tx.rw<KVMap>(map_name);
+
+      auto kv_range = kv_map_range(h, ref.begin()->first, ref.rbegin()->first);
+      REQUIRE_THROWS_AS(kv_range.at(key_to_remove), std::out_of_range);
+    }
+  }
+
+  INFO("Return own writes too");
+  {
+    auto tx = kv_store.create_tx();
+    auto h = tx.rw<KVMap>(map_name);
+
+    INFO("Re-insert removed key");
+    {
+      REQUIRE(!h->get(key_to_remove).has_value());
+      h->put(key_to_remove, empty_value);
+      ref[key_to_remove] = empty_value;
+      REQUIRE(h->get(key_to_remove).has_value());
+    }
+
+    ValueType well_known_value = {42};
+    auto existing_key = get_map_get_factor(ref, 4);
+
+    INFO("Modify existing key");
+    {
+      h->put(existing_key, well_known_value);
+      ref[existing_key] = well_known_value;
+    }
+
+    // Do not commit transaction
+
+    auto first = ref.begin()->first;
+    auto last = ref.rbegin()->first;
+    auto std_range = std_map_range(ref, first, last);
+    auto kv_range = kv_map_range(h, first, last);
+    REQUIRE(std_range == kv_range);
+    REQUIRE(kv_range.at(existing_key) == well_known_value);
   }
 }

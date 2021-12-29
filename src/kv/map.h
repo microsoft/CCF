@@ -45,6 +45,11 @@ namespace kv
 
     using NamedHandleMixin::NamedHandleMixin;
 
+    using Key = K;
+    using Value = V;
+    using KeySerialiser = KSerialiser;
+    using ValueSerialiser = VSerialiser;
+
   private:
     static Write deserialise_write(const kv::untyped::Write& w)
     {

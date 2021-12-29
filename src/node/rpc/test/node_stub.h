@@ -192,6 +192,36 @@ namespace ccf
       return {};
     }
 
+    std::vector<historical::StorePtr> get_stores_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos,
+      historical::ExpiryDuration seconds_until_expiry)
+    {
+      return {};
+    }
+
+    std::vector<historical::StorePtr> get_stores_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos)
+    {
+      return {};
+    }
+
+    std::vector<historical::StatePtr> get_states_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos,
+      historical::ExpiryDuration seconds_until_expiry)
+    {
+      return {};
+    }
+
+    std::vector<historical::StatePtr> get_states_for(
+      historical::RequestHandle handle,
+      const historical::SeqNoCollection& seqnos)
+    {
+      return {};
+    }
+
     bool drop_cached_states(historical::RequestHandle handle)
     {
       return true;

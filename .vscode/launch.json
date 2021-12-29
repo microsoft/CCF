@@ -11,7 +11,7 @@
   ],
   "configurations": [
     {
-      "name": "Debug node",
+      "name": "Debug node (virtual via gdb)",
       "type": "cppdbg",
       "request": "launch",
       "program": "/bin/bash",
@@ -20,6 +20,61 @@
       "cwd": "${workspaceFolder}",
       "additionalSOLibSearchPath": "${workspaceFolder}/build",
       "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "logging": {
+        "engineLogging": true
+      },
+      "setupCommands": [
+        {
+          "description": "Follow fork",
+          "text": "set follow-fork-mode child",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Ignore SIGILL",
+          "text": "handle SIGILL nostop",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Enable pretty-printing",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      // This launch configuration relies on the CodeLLDB VS Code extension.
+      "name": "Debug node (virtual via CodeLLDB)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "/bin/bash",
+      "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
+      "cwd": "${workspaceFolder}",
+      "terminal": "console",
+      "stopOnEntry": false,
+      "initCommands": ["settings set target.process.stop-on-exec false"],
+      "postRunCommands": [
+        "process handle --pass true --stop false --notify true SIGILL"
+      ]
+    },
+    {
+      "name": "Debug node (SGX via gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/bin/bash",
+      "miDebuggerPath": "/opt/openenclave/bin/oegdb",
+      "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "additionalSOLibSearchPath": "${workspaceFolder}/build",
+      "sourceFileMap": {
+        "/source/openenclave": "${workspaceFolder}/../openenclave"
+      },
+      "environment": [{ "name": "OE_LOG_LEVEL", "value": "WARNING" }],
+      "logging": {
+        "engineLogging": true
+      },
       "externalConsole": false,
       "MIMode": "gdb",
       "setupCommands": [
@@ -38,6 +93,36 @@
           "text": "-enable-pretty-printing",
           "ignoreFailures": true
         }
+      ]
+    },
+    {
+      // This launch configuration relies on the CodeLLDB VS Code extension.
+      // NOTE: This configuration only works when the following VS Code
+      // setting is set:
+      // "lldb.adapterEnv": {
+      //   "LD_PRELOAD": "/opt/openenclave/lib/openenclave/debugger/liboe_ptrace.so"
+      // }
+      // https://github.com/vadimcn/vscode-lldb/issues/577
+      "name": "Debug node (SGX via CodeLLDB)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "/bin/bash",
+      "args": ["/tmp/vscode-gdb.sh", "${input:node}"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OE_LOG_LEVEL": "WARNING"
+      },
+      "sourceMap": {
+        "/source/openenclave": "${workspaceFolder}/../openenclave"
+      },
+      "terminal": "console",
+      "stopOnEntry": false,
+      "initCommands": ["settings set target.process.stop-on-exec false"],
+      "preRunCommands": [
+        "command script import /opt/openenclave/lib/openenclave/debugger/lldb-sgx-plugin/lldb_sgx_plugin.py"
+      ],
+      "postRunCommands": [
+        "process handle --pass true --stop false --notify true SIGILL"
       ]
     }
   ]

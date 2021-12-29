@@ -110,37 +110,11 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare(
-        bool track_read_versions, kv::Version& max_conflict_version) override
+      bool prepare(bool track_read_versions) override
       {
         auto& roll = map.get_roll();
         if (change_set.writes.empty())
         {
-          if (track_read_versions && map.include_conflict_read_version)
-          {
-            auto state = roll.commits->get_tail()->state;
-            for (auto it = change_set.reads.begin();
-                 it != change_set.reads.end();
-                 ++it)
-            {
-              auto search = state.get(it->first);
-              if (search.has_value())
-              {
-                max_conflict_version = std::max(
-                  max_conflict_version,
-                  static_cast<kv::Version>(abs(search->version)));
-              }
-              else
-              {
-                // If the key does not exist set the conflict version to version
-                // NoVersion as dependency tracking does not work for keys that
-                // do not exist. The appropriate max_conflict_version will be
-                // set when this transaction's version is assigned.
-                max_conflict_version = kv::NoVersion;
-                break;
-              }
-            }
-          }
           return true;
         }
 
@@ -188,46 +162,6 @@ namespace kv::untyped
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
-            }
-          }
-
-          if (track_read_versions && map.include_conflict_read_version)
-          {
-            if (search.has_value() && max_conflict_version != kv::NoVersion)
-            {
-              max_conflict_version = std::max(
-                max_conflict_version,
-                static_cast<kv::Version>(abs(search->version)));
-            }
-            else
-            {
-              max_conflict_version = kv::NoVersion;
-            }
-          }
-        }
-
-        if (track_read_versions && map.include_conflict_read_version)
-        {
-          for (auto it = change_set.writes.begin();
-               it != change_set.writes.end();
-               ++it)
-          {
-            auto search = current->state.get(it->first);
-            if (search.has_value() && max_conflict_version != kv::NoVersion)
-            {
-              max_conflict_version = std::max(
-                max_conflict_version,
-                static_cast<kv::Version>(abs(search->version)));
-              max_conflict_version =
-                std::max(max_conflict_version, search->read_version);
-            }
-            else
-            {
-              // If the key does not exist set the conflict version to version
-              // NoVersion as dependency tracking does not work for keys that do
-              // not exist. The appropriate max_conflict_version will be set
-              // when this transaction's version is assigned.
-              max_conflict_version = kv::NoVersion;
             }
           }
         }
@@ -326,14 +260,14 @@ namespace kv::untyped
       const SecurityDomain security_domain;
       const kv::Version version;
 
-      StateSnapshot map_snapshot;
+      std::unique_ptr<StateSnapshot> map_snapshot;
 
     public:
       Snapshot(
         const std::string& name_,
         SecurityDomain security_domain_,
         kv::Version version_,
-        StateSnapshot&& map_snapshot_) :
+        std::unique_ptr<StateSnapshot>&& map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
         version(version_),
@@ -345,8 +279,8 @@ namespace kv::untyped
         s.start_map(name, security_domain);
         s.serialise_entry_version(version);
 
-        std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
-        map_snapshot.serialize(ret.data());
+        std::vector<uint8_t> ret(map_snapshot->get_serialized_size());
+        map_snapshot->serialize(ret.data());
         s.serialise_raw(ret);
       }
 
@@ -356,7 +290,9 @@ namespace kv::untyped
       }
     };
 
-    // Public typedef for external consumption
+    // Public typedefs for external consumption
+    using ReadOnlyHandle = kv::untyped::MapHandle;
+    using WriteOnlyHandle = kv::untyped::MapHandle;
     using Handle = kv::untyped::MapHandle;
 
     Map(
@@ -475,7 +411,7 @@ namespace kv::untyped
         return true;
       }
 
-      bool prepare(bool, kv::Version&) override
+      bool prepare(bool) override
       {
         // Snapshots never conflict
         return true;
@@ -526,7 +462,7 @@ namespace kv::untyped
       auto map_snapshot = d.deserialise_raw();
 
       return std::make_unique<SnapshotChangeSet>(
-        State::deserialize_map(map_snapshot), v);
+        map::deserialize_map<State>(map_snapshot), v);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)
@@ -728,7 +664,7 @@ namespace kv::untyped
       }
 
       return std::make_unique<Snapshot>(
-        name, security_domain, r->version, StateSnapshot(r->state));
+        name, security_domain, r->version, r->state.make_snapshot());
     }
 
     void compact(Version v) override

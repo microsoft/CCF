@@ -126,13 +126,13 @@ extern "C"
 
     oe_lfence();
 
-    CCFConfig cc =
+    StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
 #ifndef ENABLE_BFT
     // As BFT consensus is currently experimental, disable it in release
     // enclaves
-    if (cc.consensus_config.consensus_type != ConsensusType::CFT)
+    if (cc.consensus.type != ConsensusType::CFT)
     {
       return CreateNodeStatus::ConsensusNotAllowed;
     }
@@ -141,7 +141,10 @@ extern "C"
 #ifndef ENABLE_2TX_RECONFIG
     // 2-tx reconfiguration is currently experimental, disable it in release
     // enclaves
-    if (cc.genesis.reconfiguration_type != ReconfigurationType::ONE_TRANSACTION)
+    if (
+      cc.start.service_configuration.reconfiguration_type.has_value() &&
+      cc.start.service_configuration.reconfiguration_type.value() !=
+        ReconfigurationType::ONE_TRANSACTION)
     {
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
@@ -152,7 +155,11 @@ extern "C"
     try
     {
       enclave = new enclave::Enclave(
-        ec, cc.signature_intervals, cc.consensus_config, cc.curve_id);
+        ec,
+        cc.ledger_signatures.tx_count,
+        cc.ledger_signatures.delay.count_ms(),
+        cc.consensus,
+        cc.node_certificate.curve_id);
     }
     catch (const ccf::ccf_oe_attester_init_error&)
     {

@@ -18,7 +18,8 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
   auto source_consensus = std::make_shared<kv::test::StubConsensus>();
-  kv::Store source_store(source_consensus);
+  kv::Store source_store;
+  source_store.set_consensus(source_consensus);
 
   ccf::NodeId source_node_id = kv::test::PrimaryNodeId;
   auto source_node_kp = crypto::make_key_pair();

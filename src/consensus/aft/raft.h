@@ -29,8 +29,8 @@ namespace aft
 {
   using Configuration = kv::Configuration;
 
-  template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft : public kv::ConfigurableConsensus
+  template <class LedgerProxy, class SnapshotterProxy>
+  class Aft : public kv::Consensus
   {
   private:
     struct NodeState
@@ -65,7 +65,7 @@ namespace aft
     std::optional<ccf::NodeId> leader_id = std::nullopt;
     std::unordered_set<ccf::NodeId> votes_for_me;
 
-    // Replicas start in state Follower. Apart from a single forced
+    // Replicas start in leadership state Follower. Apart from a single forced
     // transition from Follower to Leader on the initial node at startup,
     // the state machine is made up of the following transitions:
     //
@@ -77,7 +77,9 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    kv::ReplicaState replica_state;
+    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
+    kv::MembershipState membership_state;
+    std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
     // used to decide when to start issuing signatures. While commit_idx
@@ -103,8 +105,6 @@ namespace aft
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
-    std::chrono::milliseconds view_change_timeout;
-    size_t sig_tx_interval;
     bool ticking = false;
 
     // Configurations
@@ -150,43 +150,33 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
     std::shared_ptr<SnapshotterProxy> snapshotter;
-    std::shared_ptr<enclave::RPCSessions> rpc_sessions;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
     std::set<ccf::NodeId> backup_nodes;
 
   public:
     Aft(
-      ConsensusType consensus_type_,
+      const consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<SnapshotterProxy> snapshotter_,
-      std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
-      std::chrono::milliseconds request_timeout_,
-      std::chrono::milliseconds election_timeout_,
-      std::chrono::milliseconds view_change_timeout_,
-      size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
-      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower,
+      kv::MembershipState initial_membership_state_ =
+        kv::MembershipState::Active,
       ReconfigurationType reconfiguration_type_ =
         ReconfigurationType::ONE_TRANSACTION) :
-      consensus_type(consensus_type_),
+      consensus_type(settings_.type),
       store(std::move(store_)),
 
-      replica_state(initial_state_),
+      membership_state(initial_membership_state_),
       timeout_elapsed(0),
 
       state(state_),
 
-      request_timeout(request_timeout_),
-      election_timeout(election_timeout_),
-      view_change_timeout(view_change_timeout_),
-
-      sig_tx_interval(sig_tx_interval_),
+      request_timeout(settings_.message_timeout),
+      election_timeout(settings_.election_timeout),
 
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
@@ -194,14 +184,12 @@ namespace aft
 
       public_only(public_only_),
 
-      distrib(0, (int)election_timeout_.count() / 2),
+      distrib(0, (int)election_timeout.count() / 2),
       rand((int)(uintptr_t)this),
 
       ledger(std::move(ledger_)),
       channels(channels_),
-      snapshotter(snapshotter_),
-      rpc_sessions(rpc_sessions_),
-      rpc_map(rpc_map_)
+      snapshotter(snapshotter_)
 
     {
       LOG_DEBUG_FMT(
@@ -228,12 +216,12 @@ namespace aft
 
     virtual ~Aft() = default;
 
-    std::optional<ccf::NodeId> leader()
+    std::optional<ccf::NodeId> primary() override
     {
       return leader_id;
     }
 
-    bool view_change_in_progress()
+    bool view_change_in_progress() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
@@ -243,11 +231,11 @@ namespace aft
       }
       else
       {
-        return (replica_state == kv::ReplicaState::Candidate);
+        return (leadership_state == kv::LeadershipState::Candidate);
       }
     }
 
-    std::set<ccf::NodeId> active_nodes()
+    std::set<ccf::NodeId> active_nodes() override
     {
       // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
@@ -264,41 +252,41 @@ namespace aft
       return backup_nodes;
     }
 
-    ccf::NodeId id()
+    ccf::NodeId id() override
     {
       return state->my_node_id;
     }
 
-    bool is_primary()
+    bool is_primary() override
     {
-      return replica_state == kv::ReplicaState::Leader;
+      return leadership_state == kv::LeadershipState::Leader;
     }
 
-    bool can_replicate()
+    bool can_replicate() override
     {
       std::unique_lock<std::mutex> guard(state->lock);
-      return replica_state == kv::ReplicaState::Leader &&
+      return leadership_state == kv::LeadershipState::Leader &&
         !retirement_committable_idx.has_value();
     }
 
-    bool is_follower() const
+    bool is_backup() override
     {
-      return replica_state == kv::ReplicaState::Follower;
+      return leadership_state == kv::LeadershipState::Follower;
     }
 
     bool is_learner() const
     {
-      return replica_state == kv::ReplicaState::Learner;
+      return membership_state == kv::MembershipState::Learner;
     }
 
     bool is_retired() const
     {
-      return replica_state == kv::ReplicaState::Retired;
+      return membership_state == kv::MembershipState::Retired;
     }
 
     bool is_retiring() const
     {
-      return replica_state == kv::ReplicaState::Retiring;
+      return membership_state == kv::MembershipState::RetirementInitiated;
     }
 
     ccf::NodeId get_primary(ccf::View view)
@@ -318,7 +306,7 @@ namespace aft
                                            committable_indices.back();
     }
 
-    void enable_all_domains()
+    void enable_all_domains() override
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
@@ -326,7 +314,12 @@ namespace aft
       public_only = false;
     }
 
-    void force_become_leader()
+    ConsensusType type() override
+    {
+      return consensus_type;
+    }
+
+    void force_become_primary() override
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -341,11 +334,11 @@ namespace aft
       become_leader(true);
     }
 
-    void force_become_leader(
+    void force_become_primary(
       Index index,
       Term term,
       const std::vector<Index>& terms,
-      Index commit_idx_)
+      Index commit_idx_) override
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -365,8 +358,8 @@ namespace aft
       become_leader(true);
     }
 
-    void init_as_follower(
-      Index index, Term term, const std::vector<Index>& term_history)
+    void init_as_backup(
+      Index index, Term term, const std::vector<Index>& term_history) override
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
@@ -388,27 +381,26 @@ namespace aft
       return state->last_idx;
     }
 
-    Index get_commit_idx()
+    Index get_committed_seqno() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_commit_idx_unsafe();
     }
 
-    Term get_term()
+    Term get_view() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return state->current_view;
     }
 
-    std::pair<Term, Index> get_commit_term_and_idx()
+    std::pair<Term, Index> get_committed_txid() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       ccf::SeqNo commit_idx = get_commit_idx_unsafe();
       return {get_term_internal(commit_idx), commit_idx};
     }
 
-    std::optional<kv::Consensus::SignableTxIndices>
-    get_signable_commit_term_and_idx()
+    std::optional<kv::Consensus::SignableTxIndices> get_signable_txid() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       if (
@@ -427,22 +419,23 @@ namespace aft
       }
     }
 
-    Term get_term(Index idx)
+    Term get_view(Index idx) override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
-    std::vector<Index> get_term_history(Index idx)
+    std::vector<Index> get_view_history(Index idx) override
     {
       // This should only be called when the spin lock is held.
       return state->view_history.get_history_until(idx);
     }
 
-    void initialise_term_history(const std::vector<Index>& term_history)
+    void initialise_view_history(
+      const std::vector<Index>& view_history) override
     {
       // This should only be called when the spin lock is held.
-      return state->view_history.initialise(term_history);
+      return state->view_history.initialise(view_history);
     }
 
   private:
@@ -456,14 +449,14 @@ namespace aft
     void add_configuration(
       Index idx,
       const kv::Configuration::Nodes& conf,
-      const std::unordered_set<ccf::NodeId>& new_learners = {},
-      const std::unordered_set<ccf::NodeId>& new_retired_nodes = {})
+      const std::unordered_set<ccf::NodeId>& new_learner_nodes = {},
+      const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
     {
       LOG_DEBUG_FMT("Configurations: add {{{}}}", conf);
 
       if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
-        assert(new_learners.empty());
+        assert(new_learner_nodes.empty());
 
         // Detect when we are retired by observing a configuration
         // from which we are absent following a configuration in which
@@ -475,22 +468,29 @@ namespace aft
             configurations.back().nodes.end() &&
           conf.find(state->my_node_id) == conf.end())
         {
-          CCF_ASSERT_FMT(
-            !retirement_idx.has_value(),
-            "retirement_idx already set to {}",
-            retirement_idx.value());
-          retirement_idx = idx;
-          LOG_INFO_FMT("Node retiring at {}", idx);
+          become_retired(idx, kv::RetirementPhase::Ordered);
         }
       }
       else
       {
-        if (!new_learners.empty())
+        if (
+          !configurations.empty() &&
+          configurations.back().nodes.find(state->my_node_id) ==
+            configurations.back().nodes.end() &&
+          conf.find(state->my_node_id) == conf.end() &&
+          (is_retiring() ||
+           (is_retired() &&
+            retirement_phase == kv::RetirementPhase::Committed)))
+        {
+          become_retired(idx, kv::RetirementPhase::Ordered);
+        }
+
+        if (!new_learner_nodes.empty())
         {
           LOG_DEBUG_FMT(
             "Configurations: new learners: {{{}}}",
-            fmt::join(new_learners, ", "));
-          for (auto& id : new_learners)
+            fmt::join(new_learner_nodes, ", "));
+          for (auto& id : new_learner_nodes)
           {
             if (learner_nodes.find(id) == learner_nodes.end())
             {
@@ -520,7 +520,7 @@ namespace aft
             if (
               nodes.find(nid) != nodes.end() &&
               learner_nodes.find(nid) != learner_nodes.end() &&
-              new_learners.find(nid) == new_learners.end())
+              new_learner_nodes.find(nid) == new_learner_nodes.end())
             {
               // Promotion of known learner
               learner_nodes.erase(nid);
@@ -528,8 +528,10 @@ namespace aft
             if (is_learner() && nid == state->my_node_id)
             {
               LOG_DEBUG_FMT(
-                "Configurations: observing own promotion, becoming a follower");
-              replica_state = kv::ReplicaState::Follower;
+                "Configurations: observing own promotion, becoming an active "
+                "follower");
+              leadership_state = kv::LeadershipState::Follower;
+              membership_state = kv::MembershipState::Active;
             }
           }
         }
@@ -557,19 +559,19 @@ namespace aft
       kv::Version version,
       const std::vector<uint8_t>& sig,
       const ccf::NodeId& node_id,
-      const crypto::Pem& node_cert)
+      const crypto::Pem& node_cert) override
     {
       snapshotter->record_signature(version, sig, node_id, node_cert);
     }
 
     void record_serialised_tree(
-      kv::Version version, const std::vector<uint8_t>& tree)
+      kv::Version version, const std::vector<uint8_t>& tree) override
     {
       snapshotter->record_serialised_tree(version, tree);
     }
 
     void reconfigure(
-      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig)
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig) override
     {
       LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
 
@@ -601,7 +603,7 @@ namespace aft
     void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
-      const ccf::ResharingResult& result)
+      const ccf::ResharingResult& result) override
     {
       if (
         reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
@@ -631,7 +633,7 @@ namespace aft
     // guaranteed that we will eventually receive all of them, since all
     // nodes keep re-submitting ORCs until they are able to switch to the next
     // pending configuration.
-    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id)
+    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
@@ -652,10 +654,13 @@ namespace aft
       const auto& ncnodes = ncit->second.nodes;
       if (ncnodes.find(node_id) == ncnodes.end())
       {
-        throw std::logic_error(fmt::format("Unknown node {}", node_id));
+        LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
+      }
+      else
+      {
+        oit->second.insert(node_id);
       }
 
-      oit->second.insert(node_id);
       LOG_DEBUG_FMT(
         "Configurations: have {} ORCs out of {} for configuration #{}",
         oit->second.size(),
@@ -670,7 +675,7 @@ namespace aft
       return oit->second.size() >= get_quorum(ncnodes.size());
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const
+    Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       if (configurations.empty())
       {
@@ -680,17 +685,22 @@ namespace aft
       return configurations.back().nodes;
     }
 
-    Configuration::Nodes get_latest_configuration()
+    Configuration::Nodes get_latest_configuration() override
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
     }
 
-    kv::ConsensusDetails get_details()
+    kv::ConsensusDetails get_details() override
     {
       kv::ConsensusDetails details;
       std::lock_guard<std::mutex> guard(state->lock);
-      details.state = replica_state;
+      details.leadership_state = leadership_state;
+      details.membership_state = membership_state;
+      if (is_retired())
+      {
+        details.retirement_phase = retirement_phase;
+      }
       for (auto& config : configurations)
       {
         details.configs.push_back(config);
@@ -699,6 +709,7 @@ namespace aft
       {
         details.acks[k] = v.match_idx;
       }
+      details.reconfiguration_type = reconfiguration_type;
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         details.learners = learner_nodes;
@@ -706,16 +717,11 @@ namespace aft
       return details;
     }
 
-    template <typename T>
-    bool replicate(
-      const std::vector<
-        std::tuple<Index, T, bool, std::shared_ptr<kv::ConsensusHookPtrs>>>&
-        entries,
-      Term term)
+    bool replicate(const kv::BatchVector& entries, Term term) override
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
-      if (replica_state != kv::ReplicaState::Leader)
+      if (leadership_state != kv::LeadershipState::Leader)
       {
         LOG_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -767,15 +773,15 @@ namespace aft
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          if (retirement_idx.has_value())
+          LOG_DEBUG_FMT(
+            "membership: {} leadership: {}",
+            membership_state,
+            leadership_state_string());
+          if (
+            membership_state == kv::MembershipState::Retired &&
+            retirement_phase == kv::RetirementPhase::Ordered)
           {
-            CCF_ASSERT_FMT(
-              index >= retirement_idx.value(),
-              "Index {} unexpectedly lower than retirement_idx {}",
-              index,
-              retirement_idx.value());
-            retirement_committable_idx = index;
-            LOG_INFO_FMT("Node retirement committable at {}", index);
+            become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
 
@@ -819,7 +825,8 @@ namespace aft
       return true;
     }
 
-    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
+    void recv_message(
+      const ccf::NodeId& from, const uint8_t* data, size_t size) override
     {
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
@@ -880,7 +887,7 @@ namespace aft
       }
     }
 
-    void periodic(std::chrono::milliseconds elapsed)
+    void periodic(std::chrono::milliseconds elapsed) override
     {
       {
         std::unique_lock<std::mutex> guard(state->lock);
@@ -893,7 +900,7 @@ namespace aft
     {
       std::unique_lock<std::mutex> guard(state->lock);
 
-      if (replica_state == kv::ReplicaState::Leader)
+      if (leadership_state == kv::LeadershipState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -1047,7 +1054,9 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (is_retired() && start_idx >= end_idx)
+      if (
+        is_retired() && retirement_phase > kv::RetirementPhase::Signed &&
+        start_idx >= end_idx)
       {
         // Continue to replicate, but do not send heartbeats if we are retired
         return;
@@ -1116,7 +1125,7 @@ namespace aft
       // follower if necessary
       if (
         state->current_view == r.term &&
-        replica_state == kv::ReplicaState::Candidate)
+        leadership_state == kv::LeadershipState::Candidate)
       {
         become_aware_of_new_term(r.term);
       }
@@ -1174,12 +1183,14 @@ namespace aft
       }
 
       // Then check if those append entries extend past our retirement
-      if (
-        retirement_committable_idx.has_value() &&
-        r.idx > retirement_committable_idx && !is_retiring())
+      if (is_retired() && retirement_phase >= kv::RetirementPhase::Completed)
       {
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
-        return;
+        assert(retirement_committable_idx.has_value());
+        if (r.idx > retirement_committable_idx)
+        {
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          return;
+        }
       }
 
       // If the terms match up, it is sufficient to convince us that the sender
@@ -1353,15 +1364,11 @@ namespace aft
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
-            if (retirement_idx.has_value())
+            if (
+              membership_state == kv::MembershipState::Retired &&
+              retirement_phase == kv::RetirementPhase::Ordered)
             {
-              CCF_ASSERT_FMT(
-                i >= retirement_idx.value(),
-                "Index {} unexpectedly lower than retirement_idx {}",
-                i,
-                retirement_idx.value());
-              retirement_committable_idx = i;
-              LOG_INFO_FMT("Node retirement committable at {}", i);
+              become_retired(i, kv::RetirementPhase::Signed);
             }
             committable_indices.push_back(i);
 
@@ -1481,7 +1488,7 @@ namespace aft
       std::lock_guard<std::mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
-      if (replica_state != kv::ReplicaState::Leader)
+      if (leadership_state != kv::LeadershipState::Leader)
       {
         return;
       }
@@ -1692,7 +1699,7 @@ namespace aft
     {
       std::lock_guard<std::mutex> guard(state->lock);
 
-      if (replica_state != kv::ReplicaState::Candidate)
+      if (leadership_state != kv::LeadershipState::Candidate)
       {
         LOG_INFO_FMT(
           "Recv request vote response to {}: we aren't a candidate",
@@ -1761,7 +1768,7 @@ namespace aft
 
     void become_candidate()
     {
-      replica_state = kv::ReplicaState::Candidate;
+      leadership_state = kv::LeadershipState::Candidate;
       leader_id.reset();
       clear_orc_sets();
 
@@ -1811,7 +1818,7 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      replica_state = kv::ReplicaState::Leader;
+      leadership_state = kv::LeadershipState::Leader;
       leader_id = state->my_node_id;
 
       using namespace std::chrono_literals;
@@ -1842,14 +1849,14 @@ namespace aft
 
     bool can_advance_watermark()
     {
-      return replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Learner;
+      return membership_state != kv::MembershipState::Retired &&
+        membership_state != kv::MembershipState::Learner;
     }
 
     bool can_endorse_primary()
     {
-      return replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Learner;
+      return membership_state != kv::MembershipState::Retired &&
+        membership_state != kv::MembershipState::Learner;
     }
 
   public:
@@ -1858,6 +1865,7 @@ namespace aft
     // becomes a follower in the new term.
     void become_aware_of_new_term(Term term)
     {
+      LOG_DEBUG_FMT("Becoming aware of new term {}", term);
       leader_id.reset();
       restart_election_timeout();
 
@@ -1870,9 +1878,11 @@ namespace aft
 
       is_new_follower = true;
 
-      if (can_endorse_primary() && replica_state != kv::ReplicaState::Retiring)
+      if (
+        can_endorse_primary() &&
+        membership_state != kv::MembershipState::RetirementInitiated)
       {
-        replica_state = kv::ReplicaState::Follower;
+        leadership_state = kv::LeadershipState::Follower;
         LOG_INFO_FMT(
           "Becoming follower {}: {}.{}",
           state->my_node_id,
@@ -1881,32 +1891,68 @@ namespace aft
       }
     }
 
+    std::string leadership_state_string()
+    {
+      if (leadership_state.has_value())
+        return fmt::format("{}", leadership_state.value());
+      else
+        return "none";
+    }
+
   private:
     void become_retiring()
     {
+      membership_state = kv::MembershipState::RetirementInitiated;
       LOG_INFO_FMT(
-        "Becoming retiring {}: {} at {}",
+        "Becoming retiring {} (while {}): {}",
         state->my_node_id,
-        state->current_view,
-        state->commit_idx);
-
-      replica_state = kv::ReplicaState::Retiring;
-      leader_id.reset();
-
-      CCF_ASSERT_FMT(
-        !retirement_idx.has_value(),
-        "retirement_idx already set to {}",
-        retirement_idx.value());
-      retirement_idx = state->commit_idx;
+        leadership_state_string(),
+        state->current_view);
     }
 
-    void become_retired()
+    void become_retired(Index idx, kv::RetirementPhase phase)
     {
-      replica_state = kv::ReplicaState::Retired;
-      leader_id.reset();
-
       LOG_INFO_FMT(
-        "Becoming retired {}: {}", state->my_node_id, state->current_view);
+        "Becoming retired, phase {} (leadership {}): {}: {} at {}",
+        phase,
+        leadership_state_string(),
+        state->my_node_id,
+        state->current_view,
+        idx);
+
+      if (phase == kv::RetirementPhase::Committed)
+      {
+        assert(membership_state == kv::MembershipState::RetirementInitiated);
+        assert(retirement_phase == std::nullopt);
+      }
+      else if (phase == kv::RetirementPhase::Ordered)
+      {
+        CCF_ASSERT_FMT(
+          !retirement_idx.has_value(),
+          "retirement_idx already set to {}",
+          retirement_idx.value());
+        retirement_idx = idx;
+        LOG_INFO_FMT("Node retiring at {}", idx);
+      }
+      else if (phase == kv::RetirementPhase::Signed)
+      {
+        assert(retirement_idx.has_value());
+        CCF_ASSERT_FMT(
+          idx >= retirement_idx.value(),
+          "Index {} unexpectedly lower than retirement_idx {}",
+          idx,
+          retirement_idx.value());
+        retirement_committable_idx = idx;
+        LOG_INFO_FMT("Node retirement committable at {}", idx);
+      }
+      else if (phase == kv::RetirementPhase::Completed)
+      {
+        leader_id.reset();
+        leadership_state = std::nullopt;
+      }
+
+      membership_state = kv::MembershipState::Retired;
+      retirement_phase = phase;
     }
 
     void add_vote_for_me(const ccf::NodeId& from)
@@ -2119,18 +2165,18 @@ namespace aft
 
       state->commit_idx = idx;
       if (
+        is_retired() && retirement_phase == kv::RetirementPhase::Signed &&
         retirement_committable_idx.has_value() &&
-        idx >= retirement_committable_idx.value() &&
-        reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
+        idx >= retirement_committable_idx.value())
       {
-        become_retired();
+        become_retired(idx, kv::RetirementPhase::Completed);
       }
 
       LOG_DEBUG_FMT("Compacting...");
       // Snapshots are not yet supported with BFT
       snapshotter->commit(
         idx,
-        replica_state == kv::ReplicaState::Leader &&
+        leadership_state == kv::LeadershipState::Leader &&
           consensus_type == ConsensusType::CFT);
 
       store->compact(idx);
@@ -2178,24 +2224,18 @@ namespace aft
         }
         else
         {
-          bool retiring_primary = false;
-
           if (
             !is_retired() &&
             conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
             next->nodes.find(state->my_node_id) == next->nodes.end())
           {
-            auto rit = retired_nodes.find(state->my_node_id);
-            if (
-              is_retiring() && rit != retired_nodes.end() && rit->second <= idx)
+            if (!is_retiring())
             {
-              retiring_primary = is_primary();
-              become_retired();
-            }
-            else if (!is_retiring())
-            {
-              retiring_primary = is_primary();
               become_retiring();
+            }
+            else
+            {
+              become_retired(idx, kv::RetirementPhase::Committed);
             }
           }
 
@@ -2214,6 +2254,18 @@ namespace aft
               num_retired_nodes,
               next->rid);
 
+            if (
+              is_learner() &&
+              next->nodes.find(state->my_node_id) != next->nodes.end())
+            {
+              LOG_INFO_FMT(
+                "Becoming follower {}: {}",
+                state->my_node_id,
+                state->current_view);
+              leadership_state = kv::LeadershipState::Follower;
+              membership_state = kv::MembershipState::Active;
+            }
+
             for (auto& [nid, _] : next->nodes)
             {
               learner_nodes.erase(nid);
@@ -2225,17 +2277,6 @@ namespace aft
               {
                 retired_nodes.erase(nid);
               }
-            }
-
-            if (
-              is_learner() &&
-              next->nodes.find(state->my_node_id) != next->nodes.end())
-            {
-              LOG_INFO_FMT(
-                "Becoming follower {}: {}",
-                state->my_node_id,
-                state->current_view);
-              replica_state = kv::ReplicaState::Follower;
             }
 
             configurations.pop_front();
@@ -2251,17 +2292,13 @@ namespace aft
               num_retired_nodes,
               num_required_retired_nodes);
             if (
-              node_client && !is_learner() && !is_retired() &&
-              ((next->nodes.find(state->my_node_id) != next->nodes.end()) ||
+              node_client && !is_learner() &&
+              (next->nodes.find(state->my_node_id) != next->nodes.end() ||
                (is_retiring() &&
                 next->nodes.find(state->my_node_id) == next->nodes.end())))
             {
               schedule_submit_orc(
-                node_client,
-                state->my_node_id,
-                next->rid,
-                retiring_primary ? 2 * election_timeout :
-                                   std::chrono::milliseconds(0));
+                node_client, state->my_node_id, next->rid, 2 * request_timeout);
             }
             break;
           }
@@ -2339,16 +2376,35 @@ namespace aft
         committable_indices.pop_back();
       }
 
-      if (retirement_idx.has_value() && retirement_idx.value() > idx)
+      if (
+        membership_state == kv::MembershipState::Retired &&
+        retirement_phase == kv::RetirementPhase::Signed)
       {
-        retirement_idx = std::nullopt;
+        assert(retirement_committable_idx.has_value());
+        if (retirement_committable_idx.value() > idx)
+        {
+          retirement_committable_idx = std::nullopt;
+          retirement_phase = kv::RetirementPhase::Ordered;
+        }
       }
 
       if (
-        retirement_committable_idx.has_value() &&
-        retirement_committable_idx.value() > idx)
+        membership_state == kv::MembershipState::Retired &&
+        retirement_phase == kv::RetirementPhase::Ordered)
       {
-        retirement_committable_idx = std::nullopt;
+        assert(retirement_idx.has_value());
+        if (retirement_idx.value() > idx)
+        {
+          retirement_idx = std::nullopt;
+          retirement_phase = std::nullopt;
+          membership_state = reconfiguration_type == ONE_TRANSACTION ?
+            kv::MembershipState::Active :
+            kv::MembershipState::RetirementInitiated;
+          LOG_DEBUG_FMT(
+            "Becoming {} after rollback",
+            reconfiguration_type == ONE_TRANSACTION ? "Active" :
+                                                      "RetirementInitiated");
+        }
       }
 
       // Rollback configurations.
@@ -2449,7 +2505,7 @@ namespace aft
           channels->associate_node_address(
             node_info.first, node_info.second.hostname, node_info.second.port);
 
-          if (replica_state == kv::ReplicaState::Leader)
+          if (leadership_state == kv::LeadershipState::Leader)
           {
             send_append_entries(node_info.first, index);
           }
@@ -2461,6 +2517,17 @@ namespace aft
             node_info.second.port);
         }
       }
+    }
+
+  public:
+    void update_parameters(kv::ConsensusParameters& params) override
+    {
+      // This should only be called when the state->lock is held, so we do not
+      // acquire the lock here.
+      CCF_ASSERT_FMT(
+        params.reconfiguration_type != TWO_TRANSACTION || node_client,
+        "Bug; all enclaves that support 2tx reconfig must have node_clients");
+      reconfiguration_type = params.reconfiguration_type;
     }
   };
 }

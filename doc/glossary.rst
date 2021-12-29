@@ -25,7 +25,6 @@ Glossary
   CFT
     Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
     a given limit. CFT however does not account for any nodes behaving maliciously (in contrast to :term:`BFT`). Read more on CFT :ref:`here <overview/consensus/index:CFT Consensus Protocol>`.
-    
 
   FLC
     `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.
@@ -41,6 +40,9 @@ Glossary
 
   Microsoft Azure
     `Microsoft Azure <https://azure.microsoft.com>`_ is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers.
+
+  Observed Reconfiguration Commit (ORC)
+    A particular kind of remote procedure call submitted by a replica when it has observed the commit of a transaction that changes the network configuration. See :ref:`Two-transaction Reconfiguration <overview/consensus/2tx-reconfig:Two-transaction Reconfiguration>`.
 
   Open Enclave
     `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.

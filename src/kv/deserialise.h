@@ -19,7 +19,6 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
-      kv::Version& max_conflict_version,
       kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
@@ -64,16 +63,8 @@ namespace kv
 
     ApplyResult apply() override
     {
-      kv::Version max_conflict_version = 0;
       if (!store->fill_maps(
-            data,
-            public_only,
-            version,
-            max_conflict_version,
-            term,
-            changes,
-            new_maps,
-            true))
+            data, public_only, version, term, changes, new_maps, true))
       {
         return ApplyResult::FAIL;
       }
@@ -163,21 +154,6 @@ namespace kv
     kv::Version get_index() override
     {
       return version;
-    }
-
-    ccf::PrimarySignature& get_signature() override
-    {
-      throw std::logic_error("get_signature not implemented");
-    }
-
-    aft::Request& get_request() override
-    {
-      throw std::logic_error("get_request not implemented");
-    }
-
-    kv::Version get_max_conflict_version() override
-    {
-      return version - 1;
     }
 
     bool support_async_execution() override

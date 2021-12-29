@@ -1,15 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "common/configuration.h"
 #include "ds/json_schema.h"
-#include "enclave/reconfiguration_type.h"
+#include "enclave/interface.h"
 #include "node/config.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "node/service.h"
-#include "tls/base64.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>
@@ -62,33 +62,16 @@ namespace ccf
     {
       NodeId node_id;
       crypto::Pem certificate_signing_request;
+      crypto::Pem node_endorsed_certificate;
       crypto::Pem public_key;
       crypto::Pem network_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
-      std::string node_cert_valid_from;
-      size_t initial_node_cert_validity_period_days;
-
-      // Only set if node does _not_ require endorsement by the service
-      std::optional<crypto::Pem> node_cert = std::nullopt;
 
       // Only set on genesis transaction, but not on recovery
-      struct GenesisInfo
-      {
-        std::vector<NewMember> members_info;
-        std::string constitution;
-        ServiceConfiguration configuration;
-
-        bool operator==(const GenesisInfo& other) const
-        {
-          return members_info == other.members_info &&
-            constitution == other.constitution &&
-            configuration == other.configuration;
-        }
-      };
-      std::optional<GenesisInfo> genesis_info = std::nullopt;
+      std::optional<StartupConfig::Start> genesis_info = std::nullopt;
     };
   };
 

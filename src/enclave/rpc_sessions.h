@@ -22,11 +22,12 @@ namespace enclave
   using ServerEndpointImpl = http::HTTPServerEndpoint;
   using ClientEndpointImpl = http::HTTPClientEndpoint;
 
+  static constexpr size_t max_open_sessions_soft_default = 1000;
+  static constexpr size_t max_open_sessions_hard_default = 1010;
+
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    using ListenInterfaceID = std::string;
-
     struct ListenInterface
     {
       size_t open_sessions;
@@ -144,18 +145,23 @@ namespace enclave
     {
       std::lock_guard<std::mutex> guard(lock);
 
-      for (const auto& interface : node_info.rpc_interfaces)
+      for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
-        const auto interface_name = fmt::format(
-          "{}:{}", interface.rpc_address.hostname, interface.rpc_address.port);
+        auto& li = listening_interfaces[name];
+
+        li.max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
+          max_open_sessions_soft_default);
+
+        li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
+          max_open_sessions_hard_default);
+
         LOG_INFO_FMT(
-          "Setting max open sessions on interface {} to [{}, {}]",
-          interface_name,
-          interface.max_open_sessions_soft,
-          interface.max_open_sessions_hard);
-        auto& li = listening_interfaces[interface_name];
-        li.max_open_sessions_soft = interface.max_open_sessions_soft;
-        li.max_open_sessions_hard = interface.max_open_sessions_hard;
+          "Setting max open sessions on interface \"{}\" ({}) to [{}, "
+          "{}]",
+          name,
+          interface.bind_address,
+          li.max_open_sessions_soft,
+          li.max_open_sessions_hard);
       }
     }
 
@@ -253,13 +259,13 @@ namespace enclave
       else
       {
         LOG_DEBUG_FMT(
-          "Accepting a session {} inside the enclave from interface {}",
+          "Accepting a session {} inside the enclave from interface \"{}\"",
           id,
           listen_interface_id);
         auto ctx = std::make_unique<tls::Server>(cert);
 
         auto session = std::make_shared<ServerEndpointImpl>(
-          rpc_map, id, writer_factory, std::move(ctx));
+          rpc_map, id, listen_interface_id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(session))));
         per_listen_interface.open_sessions++;

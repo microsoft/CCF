@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "626e7d61e44dee32887126c8f437dd077dec09cf"
+          "commitHash": "4bfeb625ce4961bd539c95593529936503be7db4"
         }
       }
     },
@@ -32,7 +32,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "0d06d21b56eadef9dcb24907ee2866b2b6f0babe"
+          "commitHash": "70f8072f9dd2292fd0b9f9e5f58e279f60483ed3"
         }
       }
     },
@@ -95,7 +95,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "a4aa7a70e8b9a67f378b53264c61bb044a224366"
+          "commitHash": "4bfeb625ce4961bd539c95593529936503be7db4"
         }
       }
     },
@@ -114,6 +114,24 @@
         "git": {
           "repositoryUrl": "https://github.com/evanj/tpccbench",
           "commitHash": "715f394ade83e545ffc0aa79c14fefc1c0987f21"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/nghttp2/nghttp2",
+          "commitHash": "7af0c508be9cbec407268e2f546f597d268c104e"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/v8/v8",
+          "commitHash": "f7528051b26ebd074f5695e7c412e1fc30f514c6"
         }
       }
     }

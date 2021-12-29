@@ -50,6 +50,15 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
+option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
+if(KV_STATE_RB)
+  add_compile_definitions(KV_STATE_RB)
+endif()
+option(ENABLE_HTTP2 "Enable experimental support for HTTP2" OFF)
+if(ENABLE_HTTP2)
+  message(STATUS "Enabling experimental support for HTTP2")
+  add_compile_definitions(ENABLE_HTTP2)
+endif()
 
 option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
 if(ENABLE_BFT)
@@ -61,11 +70,6 @@ option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
 )
 if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
-endif()
-
-option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
-if(USE_NLJSON_KV_SERIALISER)
-  add_compile_definitions(USE_NLJSON_KV_SERIALISER)
 endif()
 
 enable_language(ASM)
@@ -121,8 +125,14 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
-                       test_install.sh test_python_cli.sh docker_wrap.sh
+set(CCF_TEST_UTILITIES
+    tests.sh
+    cimetrics_env.sh
+    upload_pico_metrics.py
+    test_install.sh
+    test_python_cli.sh
+    docker_wrap.sh
+    config.jinja
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -132,6 +142,7 @@ endforeach()
 
 # Install additional utilities
 install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
+install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(
@@ -179,6 +190,9 @@ endif()
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
+if(ENABLE_HTTP2)
+  include(${CCF_DIR}/cmake/nghttp2.cmake)
+endif()
 
 # Unit test wrapper
 function(add_unit_test name)
@@ -433,6 +447,8 @@ sign_app_library(
 )
 # SNIPPET_END: JS generic application
 
+include(${CCF_DIR}/cmake/js_v8.cmake)
+
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
         DESTINATION samples/logging
 )
@@ -485,12 +501,13 @@ function(add_e2e_test)
       set(PYTHON_WRAPPER ${PYTHON})
     endif()
 
+    string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        --consensus ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -559,59 +576,6 @@ function(add_e2e_test)
   endif()
 endfunction()
 
-# Helper for building end-to-end function tests using the sandbox
-function(add_e2e_sandbox_test)
-  cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS "" "NAME;SCRIPT;LABEL;CONSENSUS;"
-    "ADDITIONAL_ARGS;CONFIGURATIONS"
-  )
-
-  if(BUILD_END_TO_END_TESTS)
-    add_test(NAME ${PARSED_ARGS_NAME} COMMAND ${PARSED_ARGS_SCRIPT})
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS e2e
-    )
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS e2e
-    )
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS ${PARSED_ARGS_LABEL}
-    )
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "CONSENSUS=${PARSED_ARGS_CONSENSUS}"
-    )
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
-    )
-
-    if(DEFINED DEFAULT_ENCLAVE_TYPE)
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-      )
-    else()
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "ENCLAVE_TYPE=release"
-      )
-    endif()
-  endif()
-endfunction()
-
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
 
@@ -653,11 +617,12 @@ function(add_perf_test)
     set(LABEL_ARG "${TEST_NAME}^")
   endif()
 
+  string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
       ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
       ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
       ${NODES}

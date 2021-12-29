@@ -174,8 +174,6 @@ namespace kv
       replicated_tables(replicated_tables_)
     {}
 
-    Store(std::shared_ptr<Consensus> consensus_) : consensus(consensus_) {}
-
     Store(const Store& that) = delete;
 
     std::shared_ptr<Consensus> get_consensus() override
@@ -408,7 +406,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return ApplyResult::FAIL;
       }
-      auto [v, _] = v_.value();
+      auto v = v_.value();
 
       std::lock_guard<std::mutex> mguard(maps_lock);
 
@@ -675,7 +673,6 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
-      kv::Version& max_conflict_version,
       kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
@@ -699,7 +696,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return false;
       }
-      std::tie(v, max_conflict_version) = v_.value();
+      v = v_.value();
 
       // Throw away any local commits that have not propagated via the
       // consensus.

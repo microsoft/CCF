@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "crypto/base64.h"
 #include "crypto/csr.h"
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
@@ -18,7 +19,6 @@
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-#include "tls/base64.h"
 
 #include <chrono>
 #include <cstring>
@@ -27,7 +27,6 @@
 #include <optional>
 
 using namespace std;
-using namespace tls;
 using namespace crypto;
 
 static const string contents_ =
@@ -393,7 +392,7 @@ void create_csr_and_extract_pubk()
 {
   T kp(CurveID::SECP384R1);
   auto pk = kp.public_key_pem();
-  auto csr = kp.create_csr({"CN=name"});
+  auto csr = kp.create_csr("CN=name", {});
   auto pubk = public_key_pem_from_csr(csr);
   REQUIRE(pk == pubk);
 }
@@ -421,7 +420,7 @@ void run_csr(bool corrupt_csr = false)
     subject_alternative_names.push_back({"192.168.0.1", true});
   }
 
-  auto csr = kpm.create_csr({subject_name, subject_alternative_names});
+  auto csr = kpm.create_csr(subject_name, subject_alternative_names);
 
   if (corrupt_csr)
   {

@@ -8,6 +8,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
+#include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
 #include "node/resharing_types.h"
 #include "serialiser_declare.h"
@@ -139,24 +140,48 @@ namespace kv
     schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
   }
 
-  enum class ReplicaState
+  enum class LeadershipState
   {
     Leader,
     Follower,
     Candidate,
-    Retired,
-    Learner,
-    Retiring
   };
 
   DECLARE_JSON_ENUM(
-    ReplicaState,
-    {{ReplicaState::Leader, "Leader"},
-     {ReplicaState::Follower, "Follower"},
-     {ReplicaState::Candidate, "Candidate"},
-     {ReplicaState::Retired, "Retired"},
-     {ReplicaState::Learner, "Learner"},
-     {ReplicaState::Retiring, "Retiring"}});
+    LeadershipState,
+    {{LeadershipState::Leader, "Leader"},
+     {LeadershipState::Follower, "Follower"},
+     {LeadershipState::Candidate, "Candidate"}});
+
+  enum class MembershipState
+  {
+    Learner,
+    Active,
+    RetirementInitiated,
+    Retired
+  };
+
+  DECLARE_JSON_ENUM(
+    MembershipState,
+    {{MembershipState::Learner, "Learner"},
+     {MembershipState::Active, "Active"},
+     {MembershipState::RetirementInitiated, "RetirementInitiated"},
+     {MembershipState::Retired, "Retired"}});
+
+  enum class RetirementPhase
+  {
+    Committed = 0,
+    Ordered = 1,
+    Signed = 2,
+    Completed = 3
+  };
+
+  DECLARE_JSON_ENUM(
+    RetirementPhase,
+    {{RetirementPhase::Committed, "Committed"},
+     {RetirementPhase::Ordered, "Ordered"},
+     {RetirementPhase::Signed, "Signed"},
+     {RetirementPhase::Completed, "Completed"}});
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
@@ -166,13 +191,22 @@ namespace kv
   {
     std::vector<Configuration> configs = {};
     std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
-    ReplicaState state;
+    MembershipState membership_state;
+    std::optional<LeadershipState> leadership_state;
+    std::optional<RetirementPhase> retirement_phase;
     std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
+    std::optional<ReconfigurationType> reconfiguration_type;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
-  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
-  DECLARE_JSON_OPTIONAL_FIELDS(ConsensusDetails, learners);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ConsensusDetails, configs, acks, membership_state);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    ConsensusDetails,
+    reconfiguration_type,
+    learners,
+    leadership_state,
+    retirement_phase);
 
   struct NetworkConfiguration
   {
@@ -187,6 +221,11 @@ namespace kv
 
   DECLARE_JSON_TYPE(kv::NetworkConfiguration);
   DECLARE_JSON_REQUIRED_FIELDS(kv::NetworkConfiguration, rid, nodes);
+
+  struct ConsensusParameters
+  {
+    ReconfigurationType reconfiguration_type;
+  };
 
   class ConfigurableConsensus
   {
@@ -213,6 +252,7 @@ namespace kv
       const crypto::Pem& node_cert) = 0;
     virtual void record_serialised_tree(
       kv::Version version, const std::vector<uint8_t>& tree) = 0;
+    virtual void update_parameters(ConsensusParameters& params) = 0;
   };
 
   class ConsensusHook
@@ -251,6 +291,16 @@ namespace kv
     GOVERNANCE,
     APPLICATION
   };
+
+  enum class EntryType : uint8_t
+  {
+    WriteSet = 0,
+    Snapshot = 1
+  };
+
+  // EntryType must be backwards compatible with the older
+  // bool is_snapshot field
+  static_assert(sizeof(EntryType) == sizeof(bool));
 
   constexpr auto public_domain_prefix = "public:";
 
@@ -401,57 +451,19 @@ namespace kv
 
   class Consensus : public ConfigurableConsensus
   {
-  protected:
-    enum State
-    {
-      Primary,
-      Backup,
-      Candidate
-    };
-
-    State state;
-    NodeId local_id;
-
   public:
-    Consensus(const NodeId& id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
-    virtual NodeId id()
-    {
-      return local_id;
-    }
+    virtual NodeId id() = 0;
+    virtual bool is_primary() = 0;
+    virtual bool is_backup() = 0;
+    virtual bool can_replicate() = 0;
 
-    virtual bool is_primary()
-    {
-      return state == Primary;
-    }
-
-    virtual bool can_replicate()
-    {
-      return state == Primary;
-    }
-
-    virtual bool is_backup()
-    {
-      return state == Backup;
-    }
-
-    virtual void force_become_primary()
-    {
-      state = Primary;
-    }
-
+    virtual void force_become_primary() = 0;
     virtual void force_become_primary(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo)
-    {
-      state = Primary;
-    }
-
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo) = 0;
     virtual void init_as_backup(
-      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&)
-    {
-      state = Backup;
-    }
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) = 0;
 
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
@@ -481,7 +493,6 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
 
@@ -538,7 +549,7 @@ namespace kv
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
       const TxID& tx_id,
-      bool is_snapshot = false) = 0;
+      EntryType entry_type = EntryType::WriteSet) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -570,7 +581,7 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(bool track_commits, Version& max_conflict_version) = 0;
+    virtual bool prepare(bool track_commits) = 0;
     virtual void commit(Version v, bool track_read_versions) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
@@ -645,9 +656,6 @@ namespace kv
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;
     virtual kv::Version get_index() = 0;
-    virtual ccf::PrimarySignature& get_signature() = 0;
-    virtual aft::Request& get_request() = 0;
-    virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
 

@@ -20,18 +20,72 @@ namespace kv::test
 
   class StubConsensus : public Consensus
   {
-  private:
+  public:
     std::vector<BatchVector::value_type> replica;
     ConsensusType consensus_type;
+    ccf::TxID committed_txid = {};
+    ccf::View current_view = 0;
 
-  public:
+    ccf::SeqNo last_signature = 0;
+
     aft::ViewHistory view_history;
 
+    enum State
+    {
+      Primary,
+      Backup,
+      Candidate
+    };
+
+    State state;
+    NodeId local_id;
+
     StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
-      Consensus(PrimaryNodeId),
       replica(),
-      consensus_type(consensus_type_)
+      consensus_type(consensus_type_),
+      state(Backup),
+      local_id(PrimaryNodeId)
     {}
+
+    virtual NodeId id() override
+    {
+      return local_id;
+    }
+
+    virtual bool is_primary() override
+    {
+      return state == Primary;
+    }
+
+    virtual bool can_replicate() override
+    {
+      return state == Primary;
+    }
+
+    virtual bool is_backup() override
+    {
+      return state == Backup;
+    }
+
+    virtual void force_become_primary() override
+    {
+      state = Primary;
+    }
+
+    virtual void force_become_primary(
+      ccf::SeqNo,
+      ccf::View,
+      const std::vector<ccf::SeqNo>&,
+      ccf::SeqNo) override
+    {
+      state = Primary;
+    }
+
+    virtual void init_as_backup(
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&) override
+    {
+      state = Backup;
+    }
 
     bool replicate(const BatchVector& entries, ccf::View view) override
     {
@@ -39,9 +93,18 @@ namespace kv::test
       {
         replica.push_back(entry);
 
+        const auto& [v, data, committable, hooks] = entry;
+
         // Simplification: all entries are replicated in the same term
-        view_history.update(std::get<0>(entry), view);
+        view_history.update(v, view);
+
+        if (committable)
+        {
+          // All committable indices are instantly committed
+          committed_txid = {view, v};
+        }
       }
+      current_view = view;
       return true;
     }
 
@@ -83,7 +146,7 @@ namespace kv::test
 
     std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
     {
-      return {0, 0};
+      return {committed_txid.view, committed_txid.seqno};
     }
 
     std::optional<SignableTxIndices> get_signable_txid() override
@@ -92,13 +155,13 @@ namespace kv::test
       SignableTxIndices r;
       r.term = txid.first;
       r.version = txid.second;
-      r.previous_version = 0;
+      r.previous_version = last_signature;
       return r;
     }
 
     ccf::SeqNo get_committed_seqno() override
     {
-      return 0;
+      return committed_txid.seqno;
     }
 
     std::optional<NodeId> primary() override
@@ -116,11 +179,6 @@ namespace kv::test
       return {PrimaryNodeId};
     }
 
-    NodeId id() override
-    {
-      return PrimaryNodeId;
-    }
-
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);
@@ -128,7 +186,7 @@ namespace kv::test
 
     ccf::View get_view() override
     {
-      return 0;
+      return current_view;
     }
 
     std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo seqno) override
@@ -183,9 +241,11 @@ namespace kv::test
       return {};
     }
 
+    virtual void update_parameters(kv::ConsensusParameters& params) override {}
+
     ConsensusDetails get_details() override
     {
-      return ConsensusDetails{{}, {}, ReplicaState::Candidate};
+      return ConsensusDetails{{}, {}, MembershipState::Active};
     }
 
     void add_resharing_result(
@@ -194,14 +254,14 @@ namespace kv::test
       const ccf::ResharingResult& result) override
     {}
 
-    void emit_signature() override
-    {
-      return;
-    }
-
     ConsensusType type() override
     {
       return consensus_type;
+    }
+
+    void set_last_signature_at(ccf::SeqNo seqno)
+    {
+      last_signature = seqno;
     }
   };
 

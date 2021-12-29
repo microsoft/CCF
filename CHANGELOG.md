@@ -5,11 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0-dev7]
+
+### Added
+
+- Added endpoint to obtain service configuration via `/node/service/configuration` (#3251)
+
+### Changed
+
+- Breaking change: Configuration for CCF node is now a JSON configuration file passed in to `cchost` via `--config /path/to/config/file/` CLI argument. Existing CLI arguments have been removed. The `migrate_1_x_config.py` script (included in `ccf` Python package) should be used to migrate existing `.ini` configuration files to `.json` format (#3209).
+- Format of node output RPC and node-to-node addresses files is now JSON (#3300).
+- Schema of `GET /network/nodes/{node_id}` and `GET /network/nodes` endpoints has been modified to include all RPC interfaces (#3300).
 
 ### Renamed
 
-- `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()`
+- `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()` (#3187).
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.17.2 to 0.17.5
 
 ## [2.0.0-dev6]
 
@@ -1023,6 +1037,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev7
 [ccf-2.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev6
 [ccf-2.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev5
 [ccf-2.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev4

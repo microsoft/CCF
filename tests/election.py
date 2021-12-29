@@ -16,12 +16,11 @@ from loguru import logger as LOG
 # This test starts from a given number of nodes (hosts), commits
 # a transaction, stops the current primary, waits for an election and repeats
 # this process until no progress can be made (i.e. no primary can be elected
-# as F > N/2).
+# as F > N/2).+
 
 
-@reqs.description("Stopping current primary and waiting for a new one to be elected")
-@reqs.can_kill_n_nodes(1)
-def test_kill_primary(network, args):
+@reqs.description("Stop current primary and wait for a new one to be elected")
+def test_kill_primary_no_reqs(network, args):
     primary, _ = network.find_primary_and_any_backup()
     primary.stop()
     network.wait_for_new_primary(primary)
@@ -38,6 +37,12 @@ def test_kill_primary(network, args):
     return network
 
 
+# Called by test suite. Election test deliberately makes service unusable.
+@reqs.can_kill_n_nodes(1)
+def test_kill_primary(network, args):
+    return test_kill_primary_no_reqs(network, args)
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -50,7 +55,7 @@ def run(args):
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(args.nodes) / 2)
-        if args.consensus == "bft":
+        if args.consensus == "BFT":
             nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
         primary_is_known = True
@@ -77,7 +82,7 @@ def run(args):
             network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
 
             try:
-                test_kill_primary(network, args)
+                test_kill_primary_no_reqs(network, args)
             except PrimaryNotFound:
                 if node_to_stop < nodes_to_stop - 1:
                     raise
@@ -94,25 +99,25 @@ if __name__ == "__main__":
 
     args = copy.deepcopy(cr.args)
 
-    if cr.args.consensus in ("cft", "all"):
-        args.consensus = "cft"
+    if cr.args.consensus in ("CFT", "ALL"):
+        args.consensus = "CFT"
         cr.add(
             "cft",
             run,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(args, f=1),
-            raft_election_timeout_ms=1000,
-            consensus="cft",
+            election_timeout_ms=1000,
+            consensus="CFT",
         )
 
-    if cr.args.consensus in ("bft", "all"):
-        args.consensus = "bft"
+    if cr.args.consensus in ("BFT", "ALL"):
+        args.consensus = "BFT"
         cr.add(
             "bft",
             run,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(args, f=1),
-            consensus="bft",
+            consensus="BFT",
         )
 
     cr.run(1)

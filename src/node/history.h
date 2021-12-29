@@ -14,7 +14,6 @@
 #include "node_signature_verify.h"
 #include "nodes.h"
 #include "signatures.h"
-#include "tls/tls.h"
 
 #include <array>
 #include <deque>
@@ -56,7 +55,11 @@ namespace ccf
     COMPACT
   };
 
+#ifdef OVERRIDE_MAX_HISTORY_LEN
+  constexpr int MAX_HISTORY_LEN = OVERRIDE_MAX_HISTORY_LEN;
+#else
   constexpr int MAX_HISTORY_LEN = 1000;
+#endif
 
   static std::ostream& operator<<(std::ostream& os, HashOp flag)
   {
@@ -781,8 +784,8 @@ namespace ccf
 
     bool verify_proof(const std::vector<uint8_t>& v) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
       Proof proof(v);
+      std::lock_guard<std::mutex> guard(state_lock);
       return replicated_state_tree.verify(proof);
     }
 
@@ -795,9 +798,9 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& data) override
     {
-      std::lock_guard<std::mutex> guard(state_lock);
       crypto::Sha256Hash rh({data.data(), data.size()});
       log_hash(rh, APPEND);
+      std::lock_guard<std::mutex> guard(state_lock);
       replicated_state_tree.append(rh);
     }
 

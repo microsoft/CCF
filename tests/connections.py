@@ -5,6 +5,7 @@ import time
 import infra.network
 import infra.proc
 import infra.checker
+import infra.interfaces
 import contextlib
 import resource
 import psutil
@@ -37,23 +38,26 @@ def get_session_metrics(node, timeout=3):
 
 def interface_caps(i):
     return {
-        f"127.{i}.0.1": 2,
-        f"127.{i}.0.2": 5,
+        "first_interface": {
+            "bind_address": f"127.{i}.0.1",
+            "max_open_sessions_soft": 2,
+        },
+        "second_interface": {
+            "bind_address": f"127.{i}.0.2",
+            "max_open_sessions_soft": 5,
+        },
     }
 
 
 def run(args):
-    # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
-    args.max_open_sessions = 40
-    args.max_open_sessions_hard = args.max_open_sessions + 5
-
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
-        additional_args = []
         caps = interface_caps(i)
-        for address, cap in caps.items():
-            additional_args.append(f"--rpc-interface={address},,{cap}")
-        node_spec.additional_raw_node_args = additional_args
+        for interface_name, interface in caps.items():
+            node_spec.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
+                host=interface["bind_address"],
+                max_open_sessions_soft=interface["max_open_sessions_soft"],
+            )
 
     # Chunk often, so that new fds are regularly requested
     args.ledger_chunk_bytes = "500B"
@@ -79,15 +83,11 @@ def run(args):
 
         initial_metrics = get_session_metrics(primary)
         assert initial_metrics["active"] <= initial_metrics["peak"], initial_metrics
-        main_session_metrics = initial_metrics["interfaces"][
-            f"{primary.rpc_host}:{primary.rpc_port}"
-        ]
-        assert (
-            main_session_metrics["soft_cap"] == args.max_open_sessions
-        ), initial_metrics
-        assert (
-            main_session_metrics["hard_cap"] == args.max_open_sessions_hard
-        ), initial_metrics
+
+        for interface_name, rpc_interface in primary.host.rpc_interfaces.items():
+            metrics = initial_metrics["interfaces"][interface_name]
+            assert metrics["soft_cap"] == rpc_interface.max_open_sessions_soft, metrics
+            assert metrics["hard_cap"] == rpc_interface.max_open_sessions_hard, metrics
 
         max_fds = args.max_open_sessions + (initial_fds * 2)
 
@@ -213,11 +213,11 @@ def run(args):
         to_create = max_fds - num_fds + 1
         num_fds = create_connections_until_exhaustion(to_create)
 
-        # Check that lower caps are enforced on each interface
-        for i, (address, cap) in enumerate(caps.items()):
+        LOG.info("Check that lower caps are enforced on each interface")
+        for (name, interface) in caps.items():
             create_connections_until_exhaustion(
-                cap + 1,
-                client_fn=functools.partial(primary.client, interface_idx=i + 1),
+                interface["max_open_sessions_soft"] + 1,
+                client_fn=functools.partial(primary.client, interface_name=name),
             )
 
         try:
@@ -236,7 +236,9 @@ def run(args):
         assert final_metrics["peak"] >= args.max_open_sessions, final_metrics
         assert final_metrics["peak"] < args.max_open_sessions_hard, final_metrics
 
-        # Now set a low fd limit, so network sessions completely exhaust them - expect this to cause failures
+        LOG.info(
+            "Set a low fd limit, so network sessions completely exhaust them - expect this to cause node failures"
+        )
         max_fds = args.max_open_sessions // 2
         resource.prlimit(primary_pid, resource.RLIMIT_NOFILE, (max_fds, max_fds))
         LOG.success(f"Setting max fds to dangerously low {max_fds} on {primary_pid}")
@@ -257,6 +259,11 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "samples/apps/logging/liblogging"
+
+    # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
+    args.max_open_sessions = 40
+    args.max_open_sessions_hard = args.max_open_sessions + 5
+
     args.nodes = infra.e2e_args.nodes(args, 1)
     args.initial_user_count = 1
     run(args)

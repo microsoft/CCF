@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "crypto/base64.h"
 #include "json_schema.h"
-#include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -64,7 +64,7 @@ namespace std
   {
     if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j = tls::b64_from_raw(t);
+      j = crypto::b64_from_raw(t);
     }
     else
     {
@@ -85,7 +85,7 @@ namespace std
       {
         try
         {
-          t = tls::raw_from_b64(j.get<std::string>());
+          t = crypto::raw_from_b64(j.get<std::string>());
           return;
         }
         catch (const std::exception& e)

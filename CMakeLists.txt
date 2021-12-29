@@ -96,6 +96,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
                        sss.enclave ccf_endpoints.enclave
   )
 
+  if(ENABLE_HTTP2)
+    target_link_libraries(ccf.enclave PUBLIC nghttp2.enclave)
+  endif()
+
   enable_quote_code(ccf.enclave)
 
   add_lvi_mitigations(ccf.enclave)
@@ -144,6 +148,10 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
+
+  if(ENABLE_HTTP2)
+    target_link_libraries(ccf.virtual PUBLIC nghttp2.host)
+  endif()
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -268,6 +276,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -344,8 +354,15 @@ if(BUILD_TESTS)
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
-    add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
-    target_link_libraries(cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+    add_unit_test(
+      base64_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
+    )
+    target_link_libraries(base64_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+    add_test_bin(
+      kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
+    )
+    target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
@@ -417,7 +434,7 @@ if(BUILD_TESTS)
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
     add_test(NAME csr_test COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py
-                                   ./cert_test
+                                   ./kp_cert_test
     )
     set_property(
       TEST csr_test
@@ -449,7 +466,6 @@ if(BUILD_TESTS)
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
-    add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
   endif()
 
   set(CONSTITUTION_ARGS
@@ -485,14 +501,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --enforce-reqs
-      --test-suite
-      rekey_recovery
-      --test-suite
-      membership_recovery
+    ADDITIONAL_ARGS --test-duration 150 --test-suite rekey_recovery
+                    --test-suite membership_recovery
   )
 
   add_e2e_test(
@@ -500,8 +510,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS --test-duration 200 --enforce-reqs --test-suite
-                    reconfiguration
+    ADDITIONAL_ARGS --test-duration 200 --test-suite reconfiguration
   )
 
   add_e2e_test(
@@ -516,7 +525,6 @@ if(BUILD_TESTS)
       20
       --test-duration
       200
-      --enforce-reqs
       --test-suite
       all
   )
@@ -535,7 +543,7 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/src/apps/batched
-      --raft-election-timeout-ms
+      --election-timeout-ms
       10000 # Larger election timeout as recording large JS applications may
             # trigger leadership changes
   )
@@ -545,10 +553,22 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --raft-election-timeout-ms 10000 # Larger election timeout as recording
-                                       # large JS applications may trigger
-                                       # leadership changes
+      --package libjs_generic --election-timeout-ms
+      10000 # Larger election timeout as recording
+      # large JS applications may trigger leadership changes
   )
+
+  if(ENABLE_V8)
+    add_e2e_test(
+      NAME modules_v8_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS
+        --package libjs_v8 --election-timeout-ms 10000 # Larger election timeout
+                                                       # as recording
+        # large JS applications may trigger leadership changes
+    )
+  endif()
 
   add_e2e_test(
     NAME auth
@@ -655,9 +675,16 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --client-tutorial
-      ${CMAKE_SOURCE_DIR}/python/tutorial.py --ledger-tutorial
+      --schema-dir
+      ${CMAKE_SOURCE_DIR}/doc/schemas
+      --client-tutorial
+      ${CMAKE_SOURCE_DIR}/python/tutorial.py
+      --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
+      --config-samples-dir
+      ${CMAKE_SOURCE_DIR}/samples/config
+      --config-file-1x
+      ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
   list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
@@ -787,6 +814,27 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
+  if(ENABLE_V8)
+    add_perf_test(
+      NAME ls_v8
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --package
+        libjs_v8
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --msg-ser-fmt
+        text
+    )
+  endif()
 
   add_perf_test(
     NAME ls_full_js
@@ -805,6 +853,27 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
+  if(ENABLE_V8)
+    add_perf_test(
+      NAME ls_full_v8
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --package
+        libjs_v8
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --msg-ser-fmt
+        text
+    )
+  endif()
 
   add_perf_test(
     NAME ls_js_jwt

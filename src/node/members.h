@@ -75,7 +75,7 @@ namespace ccf
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 
   using MemberCerts = kv::RawCopySerialisedMap<MemberId, crypto::Pem>;
-  using MmeberPublicEncryptionKeys =
+  using MemberPublicEncryptionKeys =
     kv::RawCopySerialisedMap<MemberId, crypto::Pem>;
 
   /** Records a signed signature containing the last state digest and the

@@ -65,17 +65,26 @@
           "configs": {
             "$ref": "#/components/schemas/Configuration_array"
           },
+          "leadership_state": {
+            "$ref": "#/components/schemas/LeadershipState"
+          },
           "learners": {
             "$ref": "#/components/schemas/EntityId_to_uint64"
           },
-          "state": {
-            "$ref": "#/components/schemas/ReplicaState"
+          "membership_state": {
+            "$ref": "#/components/schemas/MembershipState"
+          },
+          "reconfiguration_type": {
+            "$ref": "#/components/schemas/ReconfigurationType"
+          },
+          "retirement_phase": {
+            "$ref": "#/components/schemas/RetirementPhase"
           }
         },
         "required": [
           "configs",
           "acks",
-          "state"
+          "membership_state"
         ],
         "type": "object"
       },
@@ -89,6 +98,13 @@
           "address"
         ],
         "type": "object"
+      },
+      "ConsensusType": {
+        "enum": [
+          "CFT",
+          "BFT"
+        ],
+        "type": "string"
       },
       "EndpointMetrics": {
         "properties": {
@@ -223,23 +239,14 @@
       },
       "GetNode__NodeInfo": {
         "properties": {
-          "host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "local_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "local_port": {
-            "$ref": "#/components/schemas/string"
-          },
           "node_id": {
             "$ref": "#/components/schemas/EntityId"
           },
-          "port": {
-            "$ref": "#/components/schemas/string"
-          },
           "primary": {
             "$ref": "#/components/schemas/boolean"
+          },
+          "rpc_interfaces": {
+            "$ref": "#/components/schemas/string_to_NodeInfoNetwork_v2__NetInterface"
           },
           "status": {
             "$ref": "#/components/schemas/NodeStatus"
@@ -248,11 +255,8 @@
         "required": [
           "node_id",
           "status",
-          "host",
-          "port",
-          "local_host",
-          "local_port",
-          "primary"
+          "primary",
+          "rpc_interfaces"
         ],
         "type": "object"
       },
@@ -358,6 +362,23 @@
         ],
         "type": "object"
       },
+      "LeadershipState": {
+        "enum": [
+          "Leader",
+          "Follower",
+          "Candidate"
+        ],
+        "type": "string"
+      },
+      "MembershipState": {
+        "enum": [
+          "Learner",
+          "Active",
+          "RetirementInitiated",
+          "Retired"
+        ],
+        "type": "string"
+      },
       "MemoryUsage__Out": {
         "properties": {
           "current_allocated_heap_size": {
@@ -374,6 +395,26 @@
           "max_total_heap_size",
           "current_allocated_heap_size",
           "peak_allocated_heap_size"
+        ],
+        "type": "object"
+      },
+      "NodeInfoNetwork_v2__NetInterface": {
+        "properties": {
+          "bind_address": {
+            "$ref": "#/components/schemas/string"
+          },
+          "max_open_sessions_hard": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "max_open_sessions_soft": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "published_address": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "bind_address"
         ],
         "type": "object"
       },
@@ -485,16 +526,41 @@
         },
         "type": "array"
       },
-      "ReplicaState": {
+      "ReconfigurationType": {
         "enum": [
-          "Leader",
-          "Follower",
-          "Candidate",
-          "Retired",
-          "Learner",
-          "Retiring"
+          "OneTransaction",
+          "TwoTransaction"
         ],
         "type": "string"
+      },
+      "RetirementPhase": {
+        "enum": [
+          "Committed",
+          "Ordered",
+          "Signed",
+          "Completed"
+        ],
+        "type": "string"
+      },
+      "ServiceConfiguration": {
+        "properties": {
+          "consensus": {
+            "$ref": "#/components/schemas/ConsensusType"
+          },
+          "maximum_node_certificate_validity_days": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "reconfiguration_type": {
+            "$ref": "#/components/schemas/ReconfigurationType"
+          },
+          "recovery_threshold": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "recovery_threshold"
+        ],
+        "type": "object"
       },
       "ServiceStatus": {
         "enum": [
@@ -590,6 +656,12 @@
         },
         "type": "object"
       },
+      "string_to_NodeInfoNetwork_v2__NetInterface": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/NodeInfoNetwork_v2__NetInterface"
+        },
+        "type": "object"
+      },
       "string_to_SessionMetrics__PerInterface": {
         "additionalProperties": {
           "$ref": "#/components/schemas/SessionMetrics__PerInterface"
@@ -611,7 +683,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.5.0"
+    "version": "2.8.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -946,6 +1018,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/service/configuration": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceConfiguration"
                 }
               }
             },

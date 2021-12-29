@@ -1,0 +1,67 @@
+{
+  "enclave": {
+    "file": "lib_jsgeneric.enclave.so.signed",
+    "type": "release"
+  },
+  "network": {
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
+    "rpc_interfaces": {
+      "primary_rpc_interface": {
+        "bind_address": "127.0.0.1:8080",
+        "published_rpc_address": "ccf.dummy.com:12345",
+        "max_open_sessions_soft": 1000,
+        "max_open_sessions_hard": 1010
+      }
+    }
+  },
+  "node_certificate": {
+    "subject_name": "CN=CCF Node",
+    "subject_alt_names": ["iPAddress:127.0.0.1", "dNSName:ccf.dummy.com"],
+    "curve_id": "secp384r1",
+    "initial_validity_days": 1
+  },
+  "command": {
+    "type": "recover",
+    "network_certificate_file": "networkcert.pem"
+  },
+  "ledger": {
+    "directory": "ledger",
+    "read_only_directories": [],
+    "chunk_size": "5MB"
+  },
+  "snapshots": {
+    "directory": "snapshots",
+    "tx_count": 10000
+  },
+  "logging": {
+    "host_level": "info",
+    "format": "text"
+  },
+  "consensus": {
+    "type": "CFT",
+    "message_timeout": "100ms",
+    "election_timeout": "4000ms"
+  },
+  "ledger_signatures": {
+    "tx_count": 5000,
+    "delay": "1s"
+  },
+  "jwt": {
+    "key_refresh_interval": "30min"
+  },
+  "output_files": {
+    "node_certificate_file": "node.pem",
+    "pid_file": "node.pid",
+    "node_to_node_address_file": "node.node_address",
+    "rpc_addresses_file": "node.rpc_addresses"
+  },
+  "tick_interval": "1ms",
+  "slow_io_logging_threshold": "10000us",
+  "client_connection_timeout": "2000ms",
+  "worker_threads": 0,
+  "memory": {
+    "circuit_size": "4MB",
+    "max_msg_size": "16MB",
+    "max_fragment_size": "64KB"
+  }
+}

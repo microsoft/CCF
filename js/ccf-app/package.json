@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/chai": "^4.2.15",
     "@types/mocha": "^9.0.0",
-    "@types/node": "16.11.7",
+    "@types/node": "17.0.5",
     "@types/node-forge": "^0.10.9",
     "chai": "^4.3.4",
     "cross-env": "^7.0.3",

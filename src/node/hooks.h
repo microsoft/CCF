@@ -3,7 +3,10 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "enclave/reconfiguration_type.h"
+#include "node/config.h"
 #include "node/signatures.h"
+#include "node_info_network.h"
 
 namespace ccf
 {
@@ -27,6 +30,8 @@ namespace ccf
       for (const auto& [node_id, opt_ni] : w)
       {
         const auto& ni = opt_ni.value();
+        const auto [host, port] =
+          split_net_address(ni.node_to_node_interface.bind_address);
         switch (ni.status)
         {
           case NodeStatus::PENDING:
@@ -37,9 +42,7 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(
-              node_id,
-              NodeAddr{ni.node_address.hostname, ni.node_address.port});
+            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
             break;
           }
           case NodeStatus::RETIRED:
@@ -50,9 +53,7 @@ namespace ccf
           }
           case NodeStatus::LEARNER:
           {
-            cfg_delta.try_emplace(
-              node_id,
-              NodeAddr{ni.node_address.hostname, ni.node_address.port});
+            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
             learners.insert(node_id);
             break;
           }
@@ -169,4 +170,17 @@ namespace ccf
     }
   };
 
+  inline void service_configuration_commit_hook(
+    kv::Version version,
+    const ccf::Configuration::Write& w,
+    const std::shared_ptr<kv::Consensus>& consensus)
+  {
+    LOG_DEBUG_FMT("Service configuration update hook");
+    assert(w.has_value());
+    auto new_service_config = w.value();
+    kv::ConsensusParameters cp;
+    cp.reconfiguration_type = new_service_config.reconfiguration_type.value_or(
+      ReconfigurationType::ONE_TRANSACTION);
+    consensus->update_parameters(cp);
+  }
 }
