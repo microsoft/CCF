@@ -145,16 +145,6 @@ namespace kv
     APPLICATION
   };
 
-  enum class EntryType : uint8_t
-  {
-    WriteSet = 0,
-    Snapshot = 1
-  };
-
-  // EntryType must be backwards compatible with the older
-  // bool is_snapshot field
-  static_assert(sizeof(EntryType) == sizeof(bool));
-
   constexpr auto public_domain_prefix = "public:";
 
   static inline SecurityDomain get_security_domain(const std::string& name)
