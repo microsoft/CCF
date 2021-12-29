@@ -74,6 +74,10 @@ namespace kv
           serialise_vector(entry);
         }
       }
+      else if constexpr (std::is_same_v<T, EntryType>)
+      {
+        serialise_entry(static_cast<uint8_t>(entry));
+      }
       else if constexpr (std::is_same_v<T, std::string>)
       {
         serialise_string(entry);

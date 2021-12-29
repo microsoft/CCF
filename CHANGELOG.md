@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [1.0.16]
+
+### Changed
+
+- Internally, CCF now interprets the former `bool is_snapshot` field in ledger transactions as an `enum EntryType entry_type`. The values and their semantics remain identical for now, but will be extended in 2.0. This change is back-ported to provide a user-friendly error in the event that 1.x nodes attempt to read a ledger produced by 2.x nodes (#3275).
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.17.2 to 0.17.5
+
+## [1.0.15]
 
 ### Changed
 
@@ -13,7 +23,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Fixed issue where a new joiner could attempt to call an election before observing itself in an active configuration.
 - Removed erroneous "Start command should be start|join|recover" message on node startup.
+- Fixed issue with join nodes which could get stuck if an election was triggered while catching up (#3169).
+- Nodes will now correctly participate in elections with unknown nodes, since they may be in a future configuration.
 
 ## [1.0.14]
 
@@ -969,6 +982,8 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.15
+[1.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.15
 [1.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.14
 [1.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.13
 [1.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.12

@@ -168,23 +168,21 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
   kv::Version version = 10;
   kv::Term term = 1;
 
-  bool is_snapshot = true;
   encryptor.encrypt(
     plain,
     additional_data,
     serialised_header,
     cipher,
     {term, version},
-    is_snapshot);
+    kv::EntryType::Snapshot);
 
-  is_snapshot = !is_snapshot;
   encryptor.encrypt(
     plain,
     additional_data,
     serialised_header2,
     cipher2,
     {term, version},
-    is_snapshot);
+    kv::EntryType::WriteSet);
 
   // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
@@ -356,6 +354,18 @@ TEST_CASE("Backup catchup from many ledger secrets")
         backup_store
           .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
           ->apply() == kv::ApplyResult::PASS);
+
+      auto tx_id = backup_store.current_txid();
+      tx_id.version--;
+      // While catching up, assume the backup rolls back (e.g. because of an
+      // election)
+      backup_store.rollback(tx_id, backup_store.commit_view());
+
+      REQUIRE(
+        backup_store
+          .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
+          ->apply() == kv::ApplyResult::PASS);
+
       next_entry = consensus->pop_oldest_entry();
     }
   }
