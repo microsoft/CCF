@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/claims_digest.h"
 #include "ccf/entity_id.h"
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
-#include "enclave/claims.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"

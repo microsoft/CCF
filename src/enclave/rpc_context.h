@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/claims_digest.h"
 #include "ccf/tx_id.h"
-#include "claims.h"
 #include "http/http_builder.h"
 #include "http/http_consts.h"
 #include "node/client_signatures.h"
