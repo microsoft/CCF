@@ -60,7 +60,8 @@ namespace kv
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
       const Version& max_conflict_version_,
-      EntryType entry_type_ = EntryType::WriteSet) :
+      EntryType entry_type_ = EntryType::WriteSet,
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       max_conflict_version(max_conflict_version_),
       entry_type(entry_type_),
@@ -69,6 +70,10 @@ namespace kv
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
       serialise_internal(tx_id.version);
+      if (entry_type == EntryType::WriteSetWithClaims)
+      {
+        serialise_internal(claims_digest_.value());
+      }
       serialise_internal(max_conflict_version);
     }
 
