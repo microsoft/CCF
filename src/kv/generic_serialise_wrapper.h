@@ -5,6 +5,7 @@
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
 #include "kv_types.h"
+#include "node/rpc/claims.h"
 #include "serialised_entry.h"
 #include "serialised_entry_format.h"
 
@@ -223,7 +224,8 @@ namespace kv
     R private_reader;
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
-    bool is_snapshot;
+    EntryType entry_type;
+    ccf::ClaimsDigest claims_digest = ccf::no_claims();
     Version version;
     Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
@@ -233,8 +235,16 @@ namespace kv
     // domain have been read
     void read_public_header()
     {
-      is_snapshot = public_reader.template read_next<bool>();
+      entry_type = public_reader.template read_next<EntryType>();
       version = public_reader.template read_next<Version>();
+      if (entry_type == EntryType::WriteSetWithClaims)
+      {
+        auto digest_array =
+          public_reader
+            .template read_next<ccf::ClaimsDigest::Digest::Representation>();
+        claims_digest.set(std::move(digest_array));
+      }
+
       max_conflict_version = public_reader.template read_next<Version>();
     }
 
@@ -245,6 +255,11 @@ namespace kv
       crypto_util(e),
       domain_restriction(domain_restriction)
     {}
+
+    ccf::ClaimsDigest&& consume_claims_digest()
+    {
+      return std::move(claims_digest);
+    }
 
     std::optional<std::tuple<Version, Version>> init(
       const uint8_t* data,

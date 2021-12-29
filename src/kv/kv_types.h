@@ -8,6 +8,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
+#include "node/rpc/claims.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -210,6 +211,13 @@ namespace kv
     SOME
   };
 
+  enum class EntryType : uint8_t
+  {
+    WriteSet = 0,
+    Snapshot = 1,
+    WriteSetWithClaims = 2
+  };
+
   class KvSerialiserException : public std::exception
   {
   private:
@@ -285,6 +293,7 @@ namespace kv
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void append_entry(const crypto::Sha256Hash& digest) = 0;
     virtual void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
@@ -544,6 +553,7 @@ namespace kv
     virtual aft::Request& get_request() = 0;
     virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
+    virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
   };
 
   class AbstractStore
