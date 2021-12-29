@@ -4,9 +4,9 @@
 
 #include "apply_changes.h"
 #include "ccf/tx.h"
-#include "enclave/claims.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
+#include "node/rpc/claims.h"
 
 #include <list>
 
