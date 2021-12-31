@@ -11,6 +11,5 @@ fi
 
 source env/bin/activate
 pip install -q -U cimetrics
-pip list
 
 "$@"
