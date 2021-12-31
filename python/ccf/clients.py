@@ -478,7 +478,7 @@ class RequestClient:
                 url=f"https://{self.host}:{self.port}{request.path}",
                 auth=auth,
                 headers=extra_headers,
-                allow_redirects=request.allow_redirects,
+                follow_redirects=request.allow_redirects,
                 timeout=timeout,
                 content=request_body,
             )
