@@ -271,16 +271,6 @@ namespace ccf
       }
     }
 
-    void initialise_network_identity()
-    {
-      LOG_FAIL_FMT("{}", config.initial_network_certificate_validity_days);
-      network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-        "CN=CCF Network",
-        curve_id,
-        config.startup_host_time,
-        config.initial_network_certificate_validity_days);
-    }
-
     //
     // funcs in state "initialized"
     //
@@ -325,7 +315,10 @@ namespace ccf
       {
         case StartType::Start:
         {
-          initialise_network_identity();
+          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            curve_id,
+            config.startup_host_time,
+            config.initial_network_certificate_validity_days);
 
           network.ledger_secrets->init();
 
@@ -383,7 +376,10 @@ namespace ccf
         }
         case StartType::Recover:
         {
-          initialise_network_identity();
+          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            curve_id,
+            config.startup_host_time,
+            config.initial_network_certificate_validity_days);
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();

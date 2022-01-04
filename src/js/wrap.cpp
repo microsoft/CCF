@@ -665,15 +665,16 @@ namespace ccf::js
     // (via accept_network_tls_connections()) + run manual test with expired
     // cert (since we can't programmatically get server root cert)
     // 5. open_network action takes additional optional valid_from and
-    // validity_period_days args
-    auto network_cert = create_self_signed_cert(
-      network->identity,
-      "CN=CCF Network",
-      {},
-      valid_from,
-      validity_period_days);
+    // validity_period_days args - really necessary?
+    // auto network_cert = create_self_signed_cert(
+    //   network->identity,
+    //   "CN=CCF Network",
+    //   {},
+    //   valid_from,
+    //   validity_period_days);
 
-    return JS_NewString(ctx, network_cert.str().c_str());
+    // return JS_NewString(ctx, network_cert.str().c_str());
+    return JS_NewString(ctx, "");
   }
 
   JSValue js_network_latest_ledger_secret_seqno(

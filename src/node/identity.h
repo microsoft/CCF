@@ -39,10 +39,11 @@ namespace ccf
   class ReplicatedNetworkIdentity : public NetworkIdentity
   {
   public:
+    static constexpr auto subject_name = "CN=CCF Network";
+
     ReplicatedNetworkIdentity() : NetworkIdentity(IdentityType::REPLICATED) {}
 
     ReplicatedNetworkIdentity(
-      const std::string& name,
       crypto::CurveID curve_id,
       const std::string& valid_from,
       size_t validity_period_days) :
@@ -52,7 +53,7 @@ namespace ccf
         std::make_shared<crypto::KeyPair_OpenSSL>(curve_id);
       cert = crypto::create_self_signed_cert(
         identity_key_pair,
-        name,
+        subject_name,
         {} /* SAN */,
         valid_from,
         validity_period_days);

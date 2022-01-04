@@ -294,6 +294,8 @@ def test_service_cert_renewal(network, args):
                 )
                 LOG.error(f"{valid_from} - {valid_to}")
 
+            # TODO: Update service certificate!
+
 
 @reqs.description("Update certificates of all nodes, one by one")
 def test_all_nodes_cert_renewal(network, args):
