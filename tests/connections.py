@@ -38,8 +38,14 @@ def get_session_metrics(node, timeout=3):
 
 def interface_caps(i):
     return {
-        f"127.{i}.0.1": 2,
-        f"127.{i}.0.2": 5,
+        "first_interface": {
+            "bind_address": f"127.{i}.0.1",
+            "max_open_sessions_soft": 2,
+        },
+        "second_interface": {
+            "bind_address": f"127.{i}.0.2",
+            "max_open_sessions_soft": 5,
+        },
     }
 
 
@@ -47,13 +53,14 @@ def run(args):
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
         caps = interface_caps(i)
-        for host, cap in caps.items():
-            node_spec.rpc_interfaces.append(
-                infra.interfaces.RPCInterface(rpc_host=host, max_open_sessions_soft=cap)
+        for interface_name, interface in caps.items():
+            node_spec.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
+                host=interface["bind_address"],
+                max_open_sessions_soft=interface["max_open_sessions_soft"],
             )
 
     # Chunk often, so that new fds are regularly requested
-    args.ledger_chunk_bytes = "500"
+    args.ledger_chunk_bytes = "500B"
 
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -77,10 +84,8 @@ def run(args):
         initial_metrics = get_session_metrics(primary)
         assert initial_metrics["active"] <= initial_metrics["peak"], initial_metrics
 
-        for rpc_interface in primary.host.rpc_interfaces:
-            metrics = initial_metrics["interfaces"][
-                f"{rpc_interface.rpc_host}:{rpc_interface.rpc_port}"
-            ]
+        for interface_name, rpc_interface in primary.host.rpc_interfaces.items():
+            metrics = initial_metrics["interfaces"][interface_name]
             assert metrics["soft_cap"] == rpc_interface.max_open_sessions_soft, metrics
             assert metrics["hard_cap"] == rpc_interface.max_open_sessions_hard, metrics
 
@@ -209,10 +214,10 @@ def run(args):
         num_fds = create_connections_until_exhaustion(to_create)
 
         LOG.info("Check that lower caps are enforced on each interface")
-        for i, (_, cap) in enumerate(caps.items()):
+        for (name, interface) in caps.items():
             create_connections_until_exhaustion(
-                cap + 1,
-                client_fn=functools.partial(primary.client, interface_idx=i + 1),
+                interface["max_open_sessions_soft"] + 1,
+                client_fn=functools.partial(primary.client, interface_name=name),
             )
 
         try:

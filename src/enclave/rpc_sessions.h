@@ -28,8 +28,6 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    using ListenInterfaceID = std::string;
-
     struct ListenInterface
     {
       size_t open_sessions;
@@ -147,9 +145,9 @@ namespace enclave
     {
       std::lock_guard<std::mutex> guard(lock);
 
-      for (const auto& interface : node_info.rpc_interfaces)
+      for (const auto& [name, interface] : node_info.rpc_interfaces)
       {
-        auto& li = listening_interfaces[interface.bind_address];
+        auto& li = listening_interfaces[name];
 
         li.max_open_sessions_soft = interface.max_open_sessions_soft.value_or(
           max_open_sessions_soft_default);
@@ -158,7 +156,9 @@ namespace enclave
           max_open_sessions_hard_default);
 
         LOG_INFO_FMT(
-          "Setting max open sessions on interface {} to [{}, {}]",
+          "Setting max open sessions on interface \"{}\" ({}) to [{}, "
+          "{}]",
+          name,
           interface.bind_address,
           li.max_open_sessions_soft,
           li.max_open_sessions_hard);
@@ -259,13 +259,13 @@ namespace enclave
       else
       {
         LOG_DEBUG_FMT(
-          "Accepting a session {} inside the enclave from interface {}",
+          "Accepting a session {} inside the enclave from interface \"{}\"",
           id,
           listen_interface_id);
         auto ctx = std::make_unique<tls::Server>(cert);
 
         auto session = std::make_shared<ServerEndpointImpl>(
-          rpc_map, id, writer_factory, std::move(ctx));
+          rpc_map, id, listen_interface_id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(session))));
         per_listen_interface.open_sessions++;

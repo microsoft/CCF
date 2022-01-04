@@ -132,7 +132,6 @@ def run_to_destruction(args):
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "libjs_generic"
-    args.enforce_reqs = True
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     run(args)

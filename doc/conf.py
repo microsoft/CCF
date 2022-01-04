@@ -296,7 +296,7 @@ def typedoc_role(
     pkg_name, *element_path = text_without_hash.split("/")
     typedoc_path = f"js/{pkg_name}"
     if not is_kind_package:
-        element_path = ".".join(element_path).lower()
+        element_path = ".".join(element_path)
         typedoc_path += f"/{kind_name}/{element_path}.html{url_hash}"
 
     # construct final url relative to current page

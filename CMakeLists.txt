@@ -506,14 +506,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --enforce-reqs
-      --test-suite
-      rekey_recovery
-      --test-suite
-      membership_recovery
+    ADDITIONAL_ARGS --test-duration 150 --test-suite rekey_recovery
+                    --test-suite membership_recovery
   )
 
   add_e2e_test(
@@ -521,8 +515,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS --test-duration 200 --enforce-reqs --test-suite
-                    reconfiguration
+    ADDITIONAL_ARGS --test-duration 200 --test-suite reconfiguration
   )
 
   add_e2e_test(
@@ -537,7 +530,6 @@ if(BUILD_TESTS)
       20
       --test-duration
       200
-      --enforce-reqs
       --test-suite
       all
   )
@@ -566,9 +558,22 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
     ADDITIONAL_ARGS
-      --election-timeout-ms 10000 # Larger election timeout as recording
+      --package libjs_generic --election-timeout-ms
+      10000 # Larger election timeout as recording
       # large JS applications may trigger leadership changes
   )
+
+  if(ENABLE_V8)
+    add_e2e_test(
+      NAME modules_v8_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS
+        --package libjs_v8 --election-timeout-ms 10000 # Larger election timeout
+                                                       # as recording
+        # large JS applications may trigger leadership changes
+    )
+  endif()
 
   add_e2e_test(
     NAME auth
@@ -814,6 +819,27 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
+  if(ENABLE_V8)
+    add_perf_test(
+      NAME ls_v8
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --package
+        libjs_v8
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --msg-ser-fmt
+        text
+    )
+  endif()
 
   add_perf_test(
     NAME ls_full_js
@@ -832,6 +858,27 @@ if(BUILD_TESTS)
       --msg-ser-fmt
       text
   )
+  if(ENABLE_V8)
+    add_perf_test(
+      NAME ls_full_v8
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --package
+        libjs_v8
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --msg-ser-fmt
+        text
+    )
+  endif()
 
   add_perf_test(
     NAME ls_js_jwt

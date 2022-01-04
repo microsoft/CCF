@@ -252,7 +252,7 @@ namespace ccf
   inline jsonhandler::JsonAdapterResponse make_success(
     const nlohmann::json& result_payload)
   {
-    return result_payload;
+    return jsonhandler::JsonAdapterResponse(result_payload);
   }
 
   inline jsonhandler::JsonAdapterResponse make_error(

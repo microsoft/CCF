@@ -83,11 +83,13 @@ namespace asynchost
 
         parent.sockets.emplace(client_id, peer);
 
-        const auto listen_address = parent.get_address(id);
-        LOG_DEBUG_FMT("rpc accept {} on {}", client_id, listen_address);
+        const auto interface_name = parent.get_interface_listen_name(id);
+
+        LOG_DEBUG_FMT(
+          "rpc accept {} on interface \"{}\"", client_id, interface_name);
 
         RINGBUFFER_WRITE_MESSAGE(
-          tls::tls_start, parent.to_enclave, client_id, listen_address);
+          tls::tls_start, parent.to_enclave, client_id, interface_name);
       }
 
       void cleanup()
@@ -112,7 +114,11 @@ namespace asynchost
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
-    bool listen(tls::ConnID id, std::string& host, std::string& service)
+    bool listen(
+      tls::ConnID id,
+      std::string& host,
+      std::string& service,
+      const std::string& name)
     {
       if (id == 0)
       {
@@ -128,7 +134,7 @@ namespace asynchost
       TCP s;
       s->set_behaviour(std::make_unique<RPCServerBehaviour>(*this, id));
 
-      if (!s->listen(host, service))
+      if (!s->listen(host, service, name))
       {
         return false;
       }
@@ -287,7 +293,7 @@ namespace asynchost
       return id < 0;
     }
 
-    std::string get_address(tls::ConnID id)
+    std::string get_interface_listen_name(tls::ConnID id)
     {
       const auto it = sockets.find(id);
       if (it == sockets.end())
@@ -295,8 +301,14 @@ namespace asynchost
         throw std::logic_error(fmt::format("No socket with id {}", id));
       }
 
-      return fmt::format(
-        "{}:{}", it->second->get_host(), it->second->get_service());
+      auto listen_name = it->second->get_listen_name();
+      if (!listen_name.has_value())
+      {
+        throw std::logic_error(
+          fmt::format("Interface {} has no listen name", id));
+      }
+
+      return listen_name.value();
     }
   };
 }

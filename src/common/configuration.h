@@ -55,6 +55,8 @@ struct EnclaveConfig
   oversized::WriterConfig writer_config = {};
 };
 
+static constexpr auto node_to_node_interface_name = "node_to_node_interface";
+
 struct CCFConfig
 {
   size_t worker_threads = 0;
@@ -139,8 +141,8 @@ struct StartupConfig : CCFConfig
 
   struct Join
   {
-    ccf::NodeInfoNetwork_v2::NetAddress target_rpc_address;
-    ds::TimeString retry_timeout = {"1000ms"};
+    ccf::NodeInfoNetwork::NetAddress target_rpc_address;
+    ds::TimeString retry_timeout = std::string("1000ms");
     std::vector<uint8_t> network_cert = {};
   };
   Join join = {};

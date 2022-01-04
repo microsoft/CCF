@@ -321,7 +321,7 @@ def test_node_replacement(network, args):
     LOG.info("Adding one node on same address as retired node")
     replacement_node = network.create_node(
         f"local://{node_to_replace.get_public_rpc_host()}:{node_to_replace.get_public_rpc_port()}",
-        node_port=node_to_replace.node_port,
+        node_port=node_to_replace.n2n_interface.port,
     )
     network.join_node(replacement_node, args.package, args, from_snapshot=False)
     network.trust_node(replacement_node, args)
@@ -330,7 +330,7 @@ def test_node_replacement(network, args):
     assert (
         replacement_node.get_public_rpc_host() == node_to_replace.get_public_rpc_host()
     )
-    assert replacement_node.node_port == node_to_replace.node_port
+    assert replacement_node.n2n_interface.port == node_to_replace.n2n_interface.port
     assert (
         replacement_node.get_public_rpc_port() == node_to_replace.get_public_rpc_port()
     )

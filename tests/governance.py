@@ -7,7 +7,6 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.net
-from ccf.ledger import NodeStatus
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -160,22 +159,6 @@ def test_member_data(network, args):
     return network
 
 
-@reqs.description("Check network/nodes endpoint")
-def test_node_ids(network, args):
-    nodes = network.find_nodes()
-    for node in nodes:
-        with node.client() as c:
-            r = c.get(
-                f"/node/network/nodes?host={node.get_public_rpc_host()}&port={node.get_public_rpc_port()}"
-            )
-            assert r.status_code == http.HTTPStatus.OK.value
-            info = r.body.json()["nodes"]
-            assert len(info) == 1
-            assert info[0]["node_id"] == node.node_id
-            assert info[0]["status"] == NodeStatus.TRUSTED.value
-        return network
-
-
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
     for node in network.get_joined_nodes():
@@ -269,6 +252,9 @@ def test_each_node_cert_renewal(network, args):
                         expected_exception is None
                     ), "Proposal should have not succeeded"
 
+                # Node certificate is updated on global commit hook
+                network.wait_for_all_nodes_to_commit(primary)
+
                 node_cert_tls_after = node.get_tls_certificate_pem()
                 assert (
                     node_cert_tls_before != node_cert_tls_after
@@ -309,7 +295,6 @@ def gov(args):
         network.consortium.set_authenticate_session(args.authenticate_session)
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
-        test_node_ids(network, args)
         test_member_data(network, args)
         test_quote(network, args)
         test_user(network, args)
