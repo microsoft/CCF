@@ -142,7 +142,7 @@ struct StartupConfig : CCFConfig
   struct Join
   {
     ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-    ds::TimeString retry_timeout = std::string("1000ms");
+    ds::TimeString retry_timeout = {"1000ms"};
     std::vector<uint8_t> network_cert = {};
   };
   Join join = {};

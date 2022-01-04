@@ -129,7 +129,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-        ds::TimeString retry_timeout = std::string("1000ms");
+        ds::TimeString retry_timeout = {"1000ms"};
 
         bool operator==(const Join&) const = default;
       };
