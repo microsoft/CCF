@@ -98,9 +98,11 @@ def run_tls_san_checks(args):
 
         new_node = network.create_node(
             infra.interfaces.HostSpec(
-                rpc_interfaces=[
-                    infra.interfaces.RPCInterface(public_rpc_host=dummy_public_rpc_host)
-                ]
+                rpc_interfaces={
+                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                        public_host=dummy_public_rpc_host
+                    )
+                }
             )
         )
         network.join_node(new_node, args.package, args)

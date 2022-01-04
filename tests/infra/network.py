@@ -289,7 +289,7 @@ class Network:
             raise ValueError("A package name must be specified.")
 
         self.status = ServiceStatus.OPENING
-        LOG.info("Opening CCF service on {}".format(hosts))
+        LOG.debug(f"Opening CCF service on {hosts}")
 
         forwarded_args = {
             arg: getattr(args, arg)
@@ -819,9 +819,7 @@ class Network:
         if tx_id == None:
             while time.time() < end_time:
                 with primary.client() as c:
-                    resp = c.get(
-                        "/node/network/nodes/self"
-                    )  # Well-known read-only endpoint
+                    resp = c.get("/node/state")  # Well-known read-only endpoint
                     tx_id = TxID(resp.view, resp.seqno)
                     if tx_id.valid():
                         break

@@ -1517,9 +1517,9 @@ namespace ccf
         // Construct SANs from RPC interfaces, manually detecting whether each
         // is a domain name or IP
         std::vector<crypto::SubjectAltName> sans;
-        for (const auto& interface : config.network.rpc_interfaces)
+        for (const auto& [_, interface] : config.network.rpc_interfaces)
         {
-          auto [host, _] = split_net_address(interface.published_address);
+          auto host = split_net_address(interface.published_address).first;
           sans.push_back({host, is_ip(host)});
         }
         return sans;

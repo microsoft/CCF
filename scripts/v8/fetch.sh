@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# Fetches the Universal Artifact from Azire that was built and published with
+# Fetches the Universal Artifact from Azure that was built and published with
 # build.sh. Doesn't fetch if the tarball already exists.
 
 SYNTAX="fetch.sh <version (ex. 9.4.146.17)> <mode (debug|release)> <target (virtual|sgx)> [-f(orce)]"

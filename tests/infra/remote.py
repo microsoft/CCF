@@ -53,7 +53,7 @@ DEFAULT_TAIL_LINES_LEN = 10
 
 
 def log_errors(out_path, err_path, tail_lines_len=DEFAULT_TAIL_LINES_LEN):
-    error_filter = ["[fail ]", "[fatal]"]
+    error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
     error_lines = []
     try:
         tail_lines = deque(maxlen=tail_lines_len)
@@ -489,6 +489,10 @@ class LocalRemote(CmdMixin):
         if self.proc:
             self.proc.terminate()
             self.proc.wait(10)
+            exit_code = self.proc.returncode
+            if exit_code is not None and exit_code < 0:
+                signal_str = signal.strsignal(-exit_code)
+                LOG.error(f"{self.hostname} exited with signal: {signal_str}")
             if self.stdout:
                 self.stdout.close()
             if self.stderr:
@@ -577,7 +581,7 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
         self.common_dir = common_dir
-        self.pub_rpc_host = host.rpc_interfaces[0].public_rpc_host
+        self.pub_host = host.get_primary_interface().public_host
         self.enclave_file = os.path.join(".", os.path.basename(enclave_file))
         data_files = []
         exe_files = []
@@ -695,13 +699,13 @@ class CCFRemote(object):
             log_format_json = kwargs.get("log_format_json")
             sig_tx_interval = kwargs.get("sig_tx_interval")
 
-            primary_rpc_interface = host.rpc_interfaces[0]
+            primary_rpc_interface = host.get_primary_interface()
             cmd = [
                 bin_path,
                 f"--enclave-file={self.enclave_file}",
                 f"--enclave-type={enclave_type}",
                 f"--node-address-file={self.node_address_file}",
-                f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.rpc_host, primary_rpc_interface.rpc_port)}",
+                f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.host, primary_rpc_interface.port)}",
                 f"--rpc-address-file={self.rpc_addresses_file}",
                 f"--ledger-dir={self.ledger_dir_name}",
                 f"--snapshot-dir={self.snapshot_dir_name}",
@@ -715,7 +719,7 @@ class CCFRemote(object):
             if include_addresses:
                 cmd += [
                     f"--node-address={node_address}",
-                    f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_rpc_host, primary_rpc_interface.public_rpc_port)}",
+                    f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_host, primary_rpc_interface.public_port)}",
                 ]
 
             if log_format_json:
@@ -826,7 +830,7 @@ class CCFRemote(object):
 
         self.remote = remote_class(
             self.name,
-            self.pub_rpc_host,
+            self.pub_host,
             exe_files,
             data_files,
             cmd,
@@ -913,7 +917,7 @@ class CCFRemote(object):
         return self.remote.get_logs(tail_lines_len=tail_lines_len)
 
     def get_host(self):
-        return self.pub_rpc_host
+        return self.pub_host
 
 
 class StartType(Enum):

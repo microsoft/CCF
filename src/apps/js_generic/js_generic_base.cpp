@@ -439,6 +439,8 @@ namespace ccfapp
               prop_name_cstr, prop_val_cstr);
             JS_FreeCString(ctx, prop_val_cstr);
           }
+          for (uint32_t i = 0; i < prop_count; i++)
+            JS_FreeAtom(ctx, props[i].atom);
           js_free(ctx, props);
         }
       }

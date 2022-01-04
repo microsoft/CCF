@@ -53,7 +53,25 @@ def test_module_import(network, args):
     return network
 
 
+@reqs.description("Test dynamic module import")
+@reqs.installed_package("libjs_v8")
+def test_dynamic_module_import(network, args):
+    primary, _ = network.find_nodes()
+
+    # Update JS app, deploying modules _and_ app script that imports module
+    bundle_dir = os.path.join(THIS_DIR, "dynamic-module-import")
+    network.consortium.set_js_app(primary, bundle_dir)
+
+    with primary.client("user0") as c:
+        r = c.post("/app/test_module", {})
+        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
+        assert r.body.text() == "Hello world!"
+
+    return network
+
+
 @reqs.description("Test module bytecode caching")
+@reqs.installed_package("libjs_generic")
 def test_bytecode_cache(network, args):
     primary, _ = network.find_nodes()
 
@@ -505,6 +523,8 @@ def test_npm_app(network, args):
         primary_quote_info = r.body.json()
         if not primary_quote_info["raw"]:
             LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, virtual mode")
+        elif args.package == "libjs_v8":
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, V8")
         else:
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
             OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
@@ -581,6 +601,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_module_import(network, args)
+        network = test_dynamic_module_import(network, args)
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
@@ -590,6 +611,5 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     run(args)
