@@ -12,12 +12,7 @@
 namespace ccf::indexing
 {
   // This is responsible for managing a collection of strategies, and ensuring
-  // each has been given every transaction up to the commit point, in-order. It
-  // is informed of new entries commit progress by the consensus, and if it sees
-  // any holes (for instance because a strategy is installed after some
-  // transactions are run, or because this node started from existing state and
-  // not all entries were received through consensus) then it fetches them and
-  // passes them onto each strategy.
+  // each has been given every transaction up to the commit point, in-order.
   class Indexer : public IndexingStrategies
   {
   public:
