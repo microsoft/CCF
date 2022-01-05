@@ -327,6 +327,16 @@ def set_all_nodes_certificate_validity(
     return build_proposal("set_all_nodes_certificate_validity", args, **kwargs)
 
 
+@cli_proposal
+def set_service_certificate_validity(
+    valid_from: str, validity_period_days: Optional[int] = None, **kwargs
+):
+    args = {"valid_from": valid_from}
+    if validity_period_days is not None:
+        args["validity_period_days"] = validity_period_days  # type: ignore
+    return build_proposal("set_service_certificate_validity", args, **kwargs)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 

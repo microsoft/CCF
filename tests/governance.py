@@ -280,21 +280,28 @@ def test_service_cert_renewal(network, args):
 
     test_vectors = [
         (now, validity_period_allowed, None),
-        (now, None, None),  # Omit validity period (deduced from service configuration)
-        (now, -1, infra.proposal.ProposalNotCreated),
-        (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
+        # (now, None, None),  # Omit validity period (deduced from service configuration)
+        # (now, -1, infra.proposal.ProposalNotCreated),
+        # (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
     for (valid_from, validity_period_days, expected_exception) in test_vectors:
-        for node in network.get_joined_nodes():
-            with node.client() as c:
-                r = c.get("/node/network")
-                valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
-                    r.body.json()["service_certificate"]
-                )
-                LOG.error(f"{valid_from} - {valid_to}")
+        with primary.client() as c:
 
-            # TODO: Update service certificate!
+            valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
+            network.consortium.set_service_certificate_validity(
+                primary,
+                valid_from=valid_from_x509,
+                validity_period_days=validity_period_days,
+            )
+
+            r = c.get("/node/network")
+            valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                r.body.json()["service_certificate"]
+            )
+            LOG.error(f"{valid_from} - {valid_to}")
+
+        # TODO: Update service certificate!
 
 
 @reqs.description("Update certificates of all nodes, one by one")

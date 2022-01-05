@@ -617,9 +617,9 @@ namespace ccf::js
     int argc,
     [[maybe_unused]] JSValueConst* argv)
   {
-    if (argc != 3)
+    if (argc != 2)
     {
-      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 3", argc);
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
     }
 
     auto network =
@@ -633,15 +633,7 @@ namespace ccf::js
     auto ccf =
       Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
 
-    auto csr_cstr = JS_ToCString(ctx, argv[0]);
-    if (csr_cstr == nullptr)
-    {
-      throw JS_ThrowTypeError(ctx, "csr argument is not a string");
-    }
-    auto csr = crypto::Pem(csr_cstr);
-    JS_FreeCString(ctx, csr_cstr);
-
-    auto valid_from_cstr = JS_ToCString(ctx, argv[1]);
+    auto valid_from_cstr = JS_ToCString(ctx, argv[0]);
     if (valid_from_cstr == nullptr)
     {
       throw JS_ThrowTypeError(ctx, "valid from argument is not a string");
@@ -650,7 +642,7 @@ namespace ccf::js
     JS_FreeCString(ctx, valid_from_cstr);
 
     size_t validity_period_days = 0;
-    if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
+    if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
@@ -666,15 +658,10 @@ namespace ccf::js
     // cert (since we can't programmatically get server root cert)
     // 5. open_network action takes additional optional valid_from and
     // validity_period_days args - really necessary?
-    // auto network_cert = create_self_signed_cert(
-    //   network->identity,
-    //   "CN=CCF Network",
-    //   {},
-    //   valid_from,
-    //   validity_period_days);
 
-    // return JS_NewString(ctx, network_cert.str().c_str());
-    return JS_NewString(ctx, "");
+    network->identity->renew_certificate(valid_from, validity_period_days);
+
+    return JS_NewString(ctx, network->identity->cert.str().c_str());
   }
 
   JSValue js_network_latest_ledger_secret_seqno(

@@ -33,6 +33,10 @@ namespace ccf
     NetworkIdentity() : type(IdentityType::REPLICATED) {}
     NetworkIdentity(IdentityType type) : type(type) {}
 
+    virtual void renew_certificate(
+      const std::string& valid_from, size_t validity_period_days)
+    {}
+
     virtual ~NetworkIdentity() {}
   };
 
@@ -51,13 +55,14 @@ namespace ccf
     {
       auto identity_key_pair =
         std::make_shared<crypto::KeyPair_OpenSSL>(curve_id);
+      priv_key = identity_key_pair->private_key_pem();
+
       cert = crypto::create_self_signed_cert(
         identity_key_pair,
         subject_name,
         {} /* SAN */,
         valid_from,
         validity_period_days);
-      priv_key = identity_key_pair->private_key_pem();
     }
 
     ReplicatedNetworkIdentity(const NetworkIdentity& other) :
@@ -69,6 +74,22 @@ namespace ccf
       }
       priv_key = other.priv_key;
       cert = other.cert;
+    }
+
+    void renew_certificate(
+      const std::string& valid_from, size_t validity_period_days) override
+    {
+      auto identity_key_pair =
+        std::make_shared<crypto::KeyPair_OpenSSL>(priv_key);
+
+      cert = crypto::create_self_signed_cert(
+        identity_key_pair,
+        subject_name,
+        {} /* SAN */,
+        valid_from,
+        validity_period_days);
+
+      LOG_FAIL_FMT("Network identity renewed: {}", valid_from);
     }
 
     ~ReplicatedNetworkIdentity() override
