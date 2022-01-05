@@ -44,10 +44,6 @@ def issue_activity_on_live_service(network, args):
     )
     # At least one transaction that will require historical fetching
     network.txs.issue(network, number_txs=1, repeat=True)
-    # At least one transaction that contains additional claims
-    spec = inspect.signature(network.txs.issue)
-    if "record_claims" in spec.parameters:
-        network.txs.issue(network, number_txs=1, record_claims=True)
 
 
 def get_new_constitution_for_install(args, install_path):
@@ -241,6 +237,10 @@ def run_code_upgrade_from(
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
+                    spec = inspect.signature(network.txs.issue)
+                    if "record_claim" in spec.parameters:
+                        LOG.info("Run transactions with additional claim")
+                        network.txs.issue(network, number_txs=1, record_claim=True)
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
