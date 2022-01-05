@@ -57,7 +57,8 @@ if [ ! -f "scripts/env/bin/activate" ]
 fi
 
 source scripts/env/bin/activate
-pip --disable-pip-version-check install -U wheel black pylint mypy 1>/dev/null
+pip install -U -q pip
+pip install -U wheel black pylint mypy 1>/dev/null
 
 echo "Python format"
 if [ $FIX -ne 0 ]; then
@@ -67,8 +68,8 @@ else
 fi
 
 # Install test dependencies before linting
-pip --disable-pip-version-check install -U -r tests/requirements.txt 1>/dev/null
-pip --disable-pip-version-check install -U -r python/requirements.txt 1>/dev/null
+pip install -U -r tests/requirements.txt 1>/dev/null
+pip install -U -r python/requirements.txt 1>/dev/null
 
 echo "Python lint"
 git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint

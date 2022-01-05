@@ -24,6 +24,7 @@ namespace kv
       kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
+      ccf::ClaimsDigest& claims_digest,
       bool ignore_strict_versions = false) = 0;
 
     virtual bool commit_deserialised(
@@ -46,6 +47,7 @@ namespace kv
     OrderedChanges changes;
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
+    ccf::ClaimsDigest claims_digest;
 
   public:
     CFTExecutionWrapper(
@@ -71,6 +73,7 @@ namespace kv
             view,
             changes,
             new_maps,
+            claims_digest,
             true))
       {
         return ApplyResult::FAIL;
@@ -122,7 +125,14 @@ namespace kv
 
       if (history)
       {
-        history->append(data);
+        if (claims_digest.empty())
+        {
+          history->append(data);
+        }
+        else
+        {
+          history->append_entry(ccf::entry_leaf(data, claims_digest.value()));
+        }
       }
       return success;
     }
@@ -165,6 +175,11 @@ namespace kv
     {
       return false;
     }
+
+    ccf::ClaimsDigest&& consume_claims_digest() override
+    {
+      return std::move(claims_digest);
+    }
   };
 
   class BFTExecutionWrapper : public AbstractExecutionWrapper
@@ -184,6 +199,7 @@ namespace kv
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
     aft::Request req;
+    ccf::ClaimsDigest claims_digest;
 
   public:
     BFTExecutionWrapper(
@@ -247,6 +263,11 @@ namespace kv
     virtual bool support_async_execution() override
     {
       return false;
+    }
+
+    ccf::ClaimsDigest&& consume_claims_digest() override
+    {
+      return std::move(claims_digest);
     }
   };
 

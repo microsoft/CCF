@@ -237,10 +237,16 @@ namespace aft
     {
     private:
       const std::vector<uint8_t>& data;
+      ccf::ClaimsDigest claims_digest;
       kv::ConsensusHookPtrs hooks;
 
     public:
       ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
+
+      ccf::ClaimsDigest&& consume_claims_digest() override
+      {
+        return std::move(claims_digest);
+      }
 
       kv::ApplyResult apply() override
       {

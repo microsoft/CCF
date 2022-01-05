@@ -1256,7 +1256,7 @@ TEST_CASE("Deserialising from other Store")
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
-  auto [success, data, hooks] = tx1.commit_reserved();
+  auto [success, data, claims_digest, hooks] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitResult::SUCCESS);
 
   kv::Store clone;
@@ -1288,7 +1288,7 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_txid());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1303,7 +1303,7 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     tree_handle->put(0, {});
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1319,7 +1319,7 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
-    auto [success, data, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1681,7 +1681,7 @@ TEST_CASE("Max conflict version tracks execution order")
             fmt::format("{} | {}", info.id, prev_value.value_or("NONE"));
         }
         handle->put(info.id, info.value);
-        REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
+        REQUIRE(tx.commit(ccf::no_claims(), true) == kv::CommitResult::SUCCESS);
         info.primary_committed_version = tx.commit_version();
         info.replicated_max_conflict_version = tx.get_max_conflict_version();
         txs.push_back(info);
@@ -1708,8 +1708,10 @@ TEST_CASE("Max conflict version tracks execution order")
         };
         REQUIRE(
           tx.commit(
-            true, version_resolver, info.replicated_max_conflict_version) ==
-          kv::CommitResult::SUCCESS);
+            ccf::no_claims(),
+            true,
+            version_resolver,
+            info.replicated_max_conflict_version) == kv::CommitResult::SUCCESS);
         map_creation_version = tx.commit_version();
       }
 
@@ -1729,7 +1731,10 @@ TEST_CASE("Max conflict version tracks execution order")
           };
           REQUIRE(
             tx.commit(
-              true, version_resolver, info.replicated_max_conflict_version) ==
+              ccf::no_claims(),
+              true,
+              version_resolver,
+              info.replicated_max_conflict_version) ==
             kv::CommitResult::SUCCESS);
         }
 
@@ -1772,7 +1777,10 @@ TEST_CASE("Max conflict version tracks execution order")
             };
             REQUIRE(
               tx.commit(
-                true, version_resolver, info.replicated_max_conflict_version) ==
+                ccf::no_claims(),
+                true,
+                version_resolver,
+                info.replicated_max_conflict_version) ==
               kv::CommitResult::SUCCESS);
           }
 
@@ -1805,7 +1813,10 @@ TEST_CASE("Max conflict version tracks execution order")
             };
             REQUIRE(
               tx.commit(
-                true, version_resolver, info.replicated_max_conflict_version) ==
+                ccf::no_claims(),
+                true,
+                version_resolver,
+                info.replicated_max_conflict_version) ==
               kv::CommitResult::SUCCESS);
           }
 
@@ -1824,7 +1835,10 @@ TEST_CASE("Max conflict version tracks execution order")
             };
             REQUIRE(
               tx.commit(
-                true, version_resolver, info.replicated_max_conflict_version) ==
+                ccf::no_claims(),
+                true,
+                version_resolver,
+                info.replicated_max_conflict_version) ==
               kv::CommitResult::FAIL_CONFLICT);
           }
         }

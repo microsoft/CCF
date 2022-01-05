@@ -54,13 +54,27 @@ namespace crypto
   {
   public:
     static constexpr size_t SIZE = 256 / 8;
+    using Representation = std::array<uint8_t, SIZE>;
+    Representation h;
+
     Sha256Hash() : h{0} {}
     Sha256Hash(const CBuffer& data) : h{0}
     {
       default_sha256(data, h.data());
     }
 
-    std::array<uint8_t, SIZE> h;
+    Sha256Hash(const Sha256Hash& left, const Sha256Hash& right)
+    {
+      std::vector<uint8_t> data(left.h.size() + right.h.size());
+      std::copy(left.h.begin(), left.h.end(), data.begin());
+      std::copy(right.h.begin(), right.h.end(), data.begin() + left.h.size());
+      default_sha256(data, h.data());
+    }
+
+    inline void set(Representation&& r)
+    {
+      h = std::move(r);
+    }
 
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)
@@ -77,6 +91,30 @@ namespace crypto
     {
       return ds::to_hex(h);
     };
+
+    static inline Sha256Hash from_string(const std::string& str)
+    {
+      CBuffer cb(str);
+      return Sha256Hash(cb);
+    }
+
+    static inline Sha256Hash from_hex_string(const std::string& str)
+    {
+      Sha256Hash digest;
+      ds::from_hex(str, digest.h);
+      return digest;
+    }
+
+    // Workaround for the lack of std::span in C++17
+    static inline Sha256Hash from_cbuffer(const CBuffer& cb)
+    {
+      if (cb.n != crypto::Sha256Hash::SIZE)
+        throw std::logic_error(
+          "Can only Sha256Hash::from_cbuffer with a 32 byte CBuffer");
+      Sha256Hash digest;
+      std::copy(cb.p, cb.p + cb.n, digest.h.begin());
+      return digest;
+    }
   };
 
   inline void to_json(nlohmann::json& j, const Sha256Hash& hash)
