@@ -2,7 +2,7 @@ Research
 ========
 
 :doc:`TLA+ model of CCF's Raft modifications <raft-tla>`
-  CCF implements some modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were signed by the primary can be committed. Any other entry that has not been globally committed is rolled back. Additionally, the CCF implementation introduced a variant of the reconfiguration that is different from the one proposed by the original Raft paper. In CCF CFT, reconfigurations are  done via one transaction (as described :doc:`here </overview/consensus>`).
+  CCF implements some modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were signed by the primary can be committed. Any other entry that has not been globally committed is rolled back. Additionally, the CCF implementation introduced a variant of the reconfiguration that is different from the one proposed by the original Raft paper. In CCF CFT, reconfigurations are  done via one transaction (as described :doc:`here </overview/consensus/1tx-reconfig>`).
 
   The TLA+ model of CCF's Raft changes can be found in the `CCF GitHub repository <https://github.com/microsoft/CCF/tree/main/tla>`_.
 
@@ -18,8 +18,10 @@ Research
   leverages trust in a consortium of governing members and in a network of replicated hardware-protected execution
   environments to achieve high throughput, low latency, strong integrity and strong confidentiality for application data
   and code executing on the ledger.
-  
+
 .. toctree::
+  :hidden:
+
   raft-tla
   PAC: Practical Accountability for CCF <https://arxiv.org/abs/2105.13116>
   CCF whitepaper <https://github.com/microsoft/CCF/blob/main/CCF-TECHNICAL-REPORT.pdf>
