@@ -1,7 +1,7 @@
 TLA+ model of CCF's Raft modifications
 ======================================
 
-The TLA+ specification models the intended behavior of Raft as it is modified for CCF. Below, we explain several core parts of the specification in more detail. 
+The TLA+ specification models the intended behavior of Raft as it is modified for CCF. Below, we explain several core parts of the specification in more detail.
 
 You can find the full specification in the `CCF GitHub repository <https://github.com/microsoft/CCF/tree/main/tla>`_ and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is `this guide <https://www.learntla.com/introduction/about-this-guide/>`_.
 
@@ -63,7 +63,7 @@ In CCF, the leader periodically signs the latest log prefix. Only these signatur
 Reconfiguration steps
 ---------------------
 
-The one transaction reconfiguration is already described :doc:`here </overview/consensus>`. In the TLA model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log. This also triggers a change in the ``Configurations`` variable which keeps track of all running configurations.
+The one transaction reconfiguration is already described :doc:`here </overview/consensus/1tx-reconfig>`. In the TLA model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log. This also triggers a change in the ``Configurations`` variable which keeps track of all running configurations.
 
 In the following, this ``Configurations`` variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
 
