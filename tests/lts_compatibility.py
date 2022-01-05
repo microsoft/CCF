@@ -15,6 +15,7 @@ import json
 import time
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal
+import inspect
 
 
 from loguru import logger as LOG
@@ -43,6 +44,10 @@ def issue_activity_on_live_service(network, args):
     )
     # At least one transaction that will require historical fetching
     network.txs.issue(network, number_txs=1, repeat=True)
+    # At least one transaction that contains additional claims
+    spec = inspect.signature(network.txs.issue)
+    if "record_claims" in spec.parameters:
+        network.txs.issue(network, number_txs=1, record_claims=True)
 
 
 def get_new_constitution_for_install(args, install_path):
