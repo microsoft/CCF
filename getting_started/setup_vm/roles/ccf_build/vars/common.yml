@@ -32,6 +32,6 @@ mbedtls_ver: "2.16.8"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
 mbedtls_src: "{{ mbedtls_dir }}.tar.gz"
 
-doxygen_ver: "1.9.1"
+doxygen_ver: "1.9.3"
 doxygen_bin: "doxygen-{{ doxygen_ver }}.linux.bin.tar.gz"
 doxygen_url: "https://doxygen.nl/files/{{ doxygen_bin }}"
