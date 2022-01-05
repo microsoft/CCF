@@ -421,7 +421,7 @@ class Network:
         self.consortium.activate(self.find_random_node())
 
         if args.js_app_bundle:
-            self.consortium.set_js_app(
+            self.consortium.set_js_app_from_dir(
                 remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
             )
 

@@ -43,7 +43,7 @@ def test_module_import(network, args):
 
     # Update JS app, deploying modules _and_ app script that imports module
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
-    network.consortium.set_js_app(primary, bundle_dir)
+    network.consortium.set_js_app_from_dir(primary, bundle_dir)
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -60,7 +60,7 @@ def test_dynamic_module_import(network, args):
 
     # Update JS app, deploying modules _and_ app script that imports module
     bundle_dir = os.path.join(THIS_DIR, "dynamic-module-import")
-    network.consortium.set_js_app(primary, bundle_dir)
+    network.consortium.set_js_app_from_dir(primary, bundle_dir)
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -78,7 +78,9 @@ def test_bytecode_cache(network, args):
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
 
     LOG.info("Verifying that app works without bytecode cache")
-    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=True)
+    network.consortium.set_js_app_from_dir(
+        primary, bundle_dir, disable_bytecode_cache=True
+    )
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
@@ -92,7 +94,9 @@ def test_bytecode_cache(network, args):
         assert r.body.text() == "Hello world!"
 
     LOG.info("Verifying that app works with bytecode cache")
-    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=False)
+    network.consortium.set_js_app_from_dir(
+        primary, bundle_dir, disable_bytecode_cache=False
+    )
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
@@ -106,7 +110,9 @@ def test_bytecode_cache(network, args):
         assert r.body.text() == "Hello world!"
 
     LOG.info("Verifying that redeploying app cleans bytecode cache")
-    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=True)
+    network.consortium.set_js_app_from_dir(
+        primary, bundle_dir, disable_bytecode_cache=True
+    )
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
@@ -146,7 +152,7 @@ def test_app_bundle(network, args):
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
         )
-        set_js_proposal = network.consortium.set_js_app(primary, bundle_path)
+        set_js_proposal = network.consortium.set_js_app_from_dir(primary, bundle_path)
 
         assert (
             raw_module_name
@@ -197,7 +203,7 @@ def test_dynamic_endpoints(network, args):
     bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
 
     LOG.info("Deploying initial js app bundle archive")
-    network.consortium.set_js_app(primary, bundle_dir)
+    network.consortium.set_js_app_from_dir(primary, bundle_dir)
 
     valid_body = {"op": "sub", "left": 82, "right": 40}
     expected_response = {"result": 42}
@@ -238,7 +244,7 @@ def test_dynamic_endpoints(network, args):
         ]
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
-        network.consortium.set_js_app(primary, modified_bundle_dir)
+        network.consortium.set_js_app_from_dir(primary, modified_bundle_dir)
 
     LOG.info("Checking modified endpoint is accessible without auth")
     with primary.client() as c:
@@ -281,7 +287,7 @@ def test_npm_app(network, args):
 
     LOG.info("Deploying npm app")
     bundle_dir = os.path.join(app_dir, "dist")
-    network.consortium.set_js_app(primary, bundle_dir)
+    network.consortium.set_js_app_from_dir(primary, bundle_dir)
 
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:

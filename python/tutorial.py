@@ -91,11 +91,8 @@ r = member_client.post("/gov/ack/update_state_digest")
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: signed_request
 
-# SNIPPET: import_proposal_generator
-import ccf.proposal_generator
-
 # SNIPPET_START: dict_proposal
-proposal, vote = ccf.proposal_generator.transition_service_to_open()
+proposal = {"actions": [{"name": "transition_service_to_open", "args": {}}]}
 
 member_client = ccf.clients.CCFClient(
     host,

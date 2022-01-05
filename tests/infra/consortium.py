@@ -17,11 +17,33 @@ import infra.member
 from ccf.ledger import NodeStatus
 import ccf.ledger
 from infra.proposal import ProposalState
+import shutil
+import tempfile
+import glob
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 
 from loguru import logger as LOG
+
+
+def slurp_file(path):
+    return open(path, encoding="utf-8").read()
+
+
+def slurp_json(path):
+    return json.load(open(path, encoding="utf-8"))
+
+
+def read_modules(modules_path):
+    modules = []
+    for path in glob.glob(f"{modules_path}/**/*", recursive=True):
+        if not os.path.isfile(path):
+            continue
+        rel_module_name = os.path.relpath(path, modules_path)
+        rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
+        modules.append({"name": rel_module_name, "module": slurp_file(path)})
+    return modules
 
 
 class Consortium:
@@ -175,12 +197,12 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "set_member",
-            cert=open(
+            cert=slurp_file(
                 os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem")
-            ).read(),
-            encryption_pub_key=open(
+            ),
+            encryption_pub_key=slurp_file(
                 os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
-            ).read()
+            )
             if recovery_member
             else None,
             member_data=member_data,
@@ -366,7 +388,7 @@ class Consortium:
     def add_user(self, remote_node, user_id, user_data=None):
         proposal, careful_vote = self.make_proposal(
             "set_user",
-            cert=open(self.user_cert_path(user_id)).read(),
+            cert=slurp_file(self.user_cert_path(user_id)),
             user_data=user_data,
         )
 
@@ -376,8 +398,7 @@ class Consortium:
     def add_users_and_transition_service_to_open(self, remote_node, users):
         proposal = {"actions": []}
         for user_id in users:
-            with open(self.user_cert_path(user_id), encoding="utf-8") as cf:
-                cert = cf.read()
+            cert = slurp_file(self.user_cert_path(user_id))
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
         proposal["actions"].append({"name": "transition_service_to_open"})
         proposal = self.get_any_active_member().propose(remote_node, proposal)
@@ -394,7 +415,7 @@ class Consortium:
         """
         proposal, _ = self.make_proposal(
             "set_user",
-            cert=open(self.user_cert_path("user0")).read(),
+            cert=slurp_file(self.user_cert_path("user0")),
             user_data={"padding": "x" * 4096 * 5},
         )
         m = self.get_any_active_member()
@@ -430,20 +451,42 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_constitution(self, remote_node, constitution_paths):
-        concatenated = "\n".join(
-            open(path, "r", encoding="utf-8").read() for path in constitution_paths
-        )
+        concatenated = "\n".join(slurp_file(path) for path in constitution_paths)
         proposal_body, careful_vote = self.make_proposal(
             "set_constitution", constitution=concatenated
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_js_app(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
-        # TODO
-        raise ValueError("set_js_app unimplemented")
+    def set_js_app_from_dir(
+        self, remote_node, bundle_path, disable_bytecode_cache=False
+    ):
+        if os.path.isfile(bundle_path):
+            tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
+            shutil.unpack_archive(bundle_path, tmp_dir.name)
+            bundle_path = tmp_dir.name
+        modules_path = os.path.join(bundle_path, "src")
+        modules = read_modules(modules_path)
+
+        # read metadata
+        metadata_path = os.path.join(bundle_path, "app.json")
+        with open(metadata_path, encoding="utf-8") as f:
+            metadata = json.load(f)
+
+        # sanity checks
+        module_paths = set(module["name"] for module in modules)
+        for url, methods in metadata["endpoints"].items():
+            for method, endpoint in methods.items():
+                module_path = endpoint["js_module"]
+                if module_path not in module_paths:
+                    raise ValueError(
+                        f"{method} {url}: module '{module_path}' not found in bundle"
+                    )
+
         proposal_body, careful_vote = self.make_proposal(
-            "set_js_app", app_bundle_path, disable_bytecode_cache
+            "set_js_app",
+            bundle={"metadata": metadata, "modules": modules},
+            disable_bytecode_cache=disable_bytecode_cache,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
@@ -474,8 +517,7 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_jwt_issuer(self, remote_node, json_path):
-        with open(json_path, encoding="utf-8") as f:
-            obj = json.load(f)
+        obj = slurp_json(json_path)
         args = {
             "issuer": obj["issuer"],
             "key_filter": obj.get("key_filter", "all"),
@@ -496,8 +538,7 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_jwt_public_signing_keys(self, remote_node, issuer, jwks_path):
-        with open(jwks_path, encoding="utf-8") as f:
-            obj = json.load(f)
+        obj = slurp_json(jwks_path)
         proposal_body, careful_vote = self.make_proposal(
             "set_jwt_public_signing_keys", issuer=issuer, jwks=obj
         )
@@ -508,8 +549,7 @@ class Consortium:
         self, remote_node, cert_name, cert_bundle_path, skip_checks=False
     ):
         if not skip_checks:
-            with open(cert_bundle_path, encoding="utf-8") as f:
-                cert_bundle_pem = f.read()
+            cert_bundle_pem = slurp_file(cert_bundle_path)
             delim = "-----END CERTIFICATE-----"
             for cert_pem in cert_bundle_pem.split(delim):
                 if not cert_pem.strip():
@@ -525,7 +565,7 @@ class Consortium:
         proposal_body, careful_vote = self.make_proposal(
             "set_ca_cert_bundle",
             name=cert_name,
-            cert_bundle=open(cert_bundle_path).read(),
+            cert_bundle=slurp_file(cert_bundle_path),
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -637,9 +677,7 @@ class Consortium:
             current_status = r.body.json()["service_status"]
             current_cert = r.body.json()["service_certificate"]
 
-            expected_cert = open(
-                os.path.join(self.common_dir, "networkcert.pem"), "rb"
-            ).read()
+            expected_cert = slurp_file(os.path.join(self.common_dir, "networkcert.pem"))
 
             assert (
                 current_cert == expected_cert[:-1].decode()
