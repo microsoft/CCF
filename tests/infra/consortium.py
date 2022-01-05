@@ -15,7 +15,6 @@ import infra.node
 import infra.crypto
 import infra.member
 from ccf.ledger import NodeStatus
-import ccf.proposal_generator
 import ccf.ledger
 from infra.proposal import ProposalState
 
@@ -116,26 +115,34 @@ class Consortium:
         for member in self.members:
             member.authenticate_session = flag
 
-    def make_proposal(self, proposal_name, *args, **kwargs):
-        func = getattr(ccf.proposal_generator, proposal_name)
-        proposal, vote = func(*args, **kwargs)
+    def make_proposal(self, proposal_name, **kwargs):
+        action = {
+            "name": proposal_name,
+            "args": { **kwargs },
+        }
+        proposal_body = {
+            "actions": [action]
+        }
+
+        trivial_vote_for = "export function vote (rawProposal, proposerId) { return true }"
+        ballot_body = {"ballot": trivial_vote_for}
 
         proposal_output_path = os.path.join(
             self.common_dir, f"{proposal_name}_proposal.json"
         )
-        vote_output_path = os.path.join(
+        ballot_output_path = os.path.join(
             self.common_dir, f"{proposal_name}_vote_for.json"
         )
 
         LOG.debug(f"Writing proposal to {proposal_output_path}")
         with open(proposal_output_path, "w", encoding="utf-8") as f:
-            f.write(proposal)
+            f.write(proposal_body)
 
-        LOG.debug(f"Writing vote to {vote_output_path}")
-        with open(vote_output_path, "w", encoding="utf-8") as f:
-            f.write(vote)
+        LOG.debug(f"Writing ballot to {ballot_output_path}")
+        with open(ballot_output_path, "w", encoding="utf-8") as f:
+            f.write(ballot_body)
 
-        return f"@{proposal_output_path}", f"@{vote_output_path}"
+        return f"@{proposal_output_path}", f"@{ballot_output_path}"
 
     def activate(self, remote_node):
         for m in self.members:
