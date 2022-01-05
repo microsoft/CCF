@@ -31,15 +31,15 @@ The procedure that operators and members should follow is summarised in the foll
 
     section Node 0
     Initial Validity Period (24h default): done, 01-01/00:00, 1d
-    Post Service Open Validity           : 01-01/15:00, 5d
+    Post Service Open Validity Period    : 01-01/15:00, 5d
 
     section Node 1
     Initial Validity Period (24h default): done, 01-01/01:00, 1d
-    Post Service Open Validity           : 01-01/15:00, 5d
+    Post Service Open Validity Period    : 01-01/15:00, 5d
 
     section Node 2
     Initial Validity Period (24h default): done, 01-01/02:00, 1d
-    Post Service Open Validity           : 01-01/15:00, 5d
+    Post Service Open Validity Period    : 01-01/15:00, 5d
 
     section Node 3
     Initial Validity Period (24h default)      : done, 01-03/00:00, 1d
