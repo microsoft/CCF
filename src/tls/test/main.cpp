@@ -175,6 +175,24 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name)
   return make_unique<Cert>(move(ca), crt, pk);
 }
 
+/// Helper to write past the maximum buffer (16k)
+int write_helper(Context& handler, const uint8_t* buf, size_t len)
+{
+  int rc = handler.write(buf, len);
+  if (rc <= 0 || (size_t)rc == len)
+    return rc;
+  return rc + handler.write(buf + rc, len - rc);
+}
+
+/// Helper to read past the maximum buffer (16k)
+int read_helper(Context& handler, uint8_t* buf, size_t len)
+{
+  int rc = handler.read(buf, len);
+  if (rc <= 0 || (size_t)rc == len)
+    return rc;
+  return rc + handler.read(buf + rc, len - rc);
+}
+
 /// Test runner, with various options for different kinds of tests.
 void run_test_case(
   int dgram,
@@ -200,11 +218,6 @@ void run_test_case(
     &pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>, nullptr);
   client.set_bio(
     &pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>, nullptr);
-
-  // There could be multiple communications between client/server while
-  // doing the handshake, and they won't return an error until there's
-  // nothing more to read/write, so we put them in separate threads.
-  LOG_INFO_FMT("Starting test");
 
   // Create a thread for the client handshake
   thread client_thread([&client]() {
@@ -239,11 +252,11 @@ void run_test_case(
 
   // Send the first message
   LOG_INFO_FMT("Client sending message [{}]", string((const char*)message));
-  int written = client.write(message, message_length);
+  int written = write_helper(client, message, message_length);
   REQUIRE(written == message_length);
 
   // Receive the first message
-  int read = server.read(buf, message_length);
+  int read = read_helper(server, buf, message_length);
   REQUIRE(read == message_length);
   buf[message_length] = '\0';
   LOG_INFO_FMT("Server message received [{}]", string((const char*)buf));
@@ -251,11 +264,11 @@ void run_test_case(
 
   // Send the response
   LOG_INFO_FMT("Server sending message [{}]", string((const char*)response));
-  written = server.write(response, response_length);
+  written = write_helper(server, response, response_length);
   REQUIRE(written == response_length);
 
   // Receive the response
-  read = client.read(buf, response_length);
+  read = read_helper(client, buf, response_length);
   REQUIRE(read == response_length);
   buf[response_length] = '\0';
   LOG_INFO_FMT("Client message received [{}]", string((const char*)buf));
@@ -275,6 +288,8 @@ TEST_CASE("unverified handshake")
   // Create bogus certificate
   auto server_cert = get_dummy_cert(ca, "server");
   auto client_cert = get_dummy_cert(ca, "client");
+
+  LOG_INFO_FMT("unverified handshake");
 
   // Just testing handshake, does not verify certificates, no communication.
   run_test_case(
@@ -302,6 +317,8 @@ TEST_CASE("unverified communication")
   auto server_cert = get_dummy_cert(ca, "server");
   auto client_cert = get_dummy_cert(ca, "client");
 
+  LOG_INFO_FMT("unverified communication");
+
   // Just testing communication channel, does not verify certificates.
   run_test_case(
     0,
@@ -322,6 +339,8 @@ TEST_CASE("verified handshake")
   // Create bogus certificate
   auto server_cert = get_dummy_cert(ca, "server");
   auto client_cert = get_dummy_cert(ca, "client");
+
+  LOG_INFO_FMT("verified handshake");
 
   // Just testing handshake, no communication, but verifies certificates.
   run_test_case(
@@ -349,6 +368,8 @@ TEST_CASE("verified communication")
   auto server_cert = get_dummy_cert(ca, "server");
   auto client_cert = get_dummy_cert(ca, "client");
 
+  LOG_INFO_FMT("verified communication");
+
   // Testing communication channel, verifying certificates.
   run_test_case(
     0,
@@ -374,6 +395,36 @@ TEST_CASE("large message")
   // Create bogus certificate
   auto server_cert = get_dummy_cert(ca, "server");
   auto client_cert = get_dummy_cert(ca, "client");
+
+  LOG_INFO_FMT("large message");
+
+  // Testing communication channel, verifying certificates.
+  run_test_case(
+    0,
+    (const uint8_t*)message.data(),
+    message.size(),
+    (const uint8_t*)message.data(),
+    message.size(),
+    move(server_cert),
+    move(client_cert),
+    true);
+}
+
+TEST_CASE("very large message")
+{
+  // Uninitialised on purpose, we don't care what's in here
+  size_t len = 16 * 1024; // 16k, base64 will be more
+  uint8_t buf[len];
+  auto message = crypto::b64_from_raw(buf, len);
+
+  // Create a CA
+  auto ca = get_ca();
+
+  // Create bogus certificate
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
+
+  LOG_INFO_FMT("very large message");
 
   // Testing communication channel, verifying certificates.
   run_test_case(
