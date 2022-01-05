@@ -24,6 +24,7 @@
       {
         "recovery_threshold": {{ recovery_threshold or 0 }},
         "maximum_node_certificate_validity_days": {{ maximum_node_certificate_validity_days }},
+        "maximum_service_certificate_validity_days": {{ maximum_network_certificate_validity_days }},
         "reconfiguration_type": "{{ reconfiguration_type }}"
       },
       "initial_network_certificate_validity_days": {{ initial_network_cert_validity_days }}

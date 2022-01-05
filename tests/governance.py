@@ -275,33 +275,35 @@ def test_service_cert_renewal(network, args):
     primary, _ = network.find_primary()
     now = datetime.now()
 
-    validity_period_allowed = args.maximum_service_certificate_validity_days - 1
-    validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
+    validity_period_allowed = args.maximum_network_certificate_validity_days - 1
+    validity_period_forbidden = args.maximum_network_certificate_validity_days + 1
 
     test_vectors = [
         (now, validity_period_allowed, None),
-        # (now, None, None),  # Omit validity period (deduced from service configuration)
-        # (now, -1, infra.proposal.ProposalNotCreated),
-        # (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
+        (now, None, None),  # Omit validity period (deduced from service configuration)
+        (now, -1, infra.proposal.ProposalNotCreated),
+        (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
     for (valid_from, validity_period_days, expected_exception) in test_vectors:
         with primary.client() as c:
 
             valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
-            network.consortium.set_service_certificate_validity(
-                primary,
-                valid_from=valid_from_x509,
-                validity_period_days=validity_period_days,
-            )
+            try:
+                network.consortium.set_service_certificate_validity(
+                    primary,
+                    valid_from=valid_from_x509,
+                    validity_period_days=validity_period_days,
+                )
+            except Exception as e:
+                assert isinstance(e, expected_exception)
+                continue
+            else:
+                assert expected_exception is None, "Proposal should have not succeeded"
 
-            r = c.get("/node/network")
-            valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
-                r.body.json()["service_certificate"]
+            network.verify_service_certificate_validity_period(
+                validity_period_days or args.maximum_network_certificate_validity_days
             )
-            LOG.error(f"{valid_from} - {valid_to}")
-
-        # TODO: Update service certificate!
 
 
 @reqs.description("Update certificates of all nodes, one by one")

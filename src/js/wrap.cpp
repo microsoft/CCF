@@ -633,13 +633,8 @@ namespace ccf::js
     auto ccf =
       Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
 
-    auto valid_from_cstr = JS_ToCString(ctx, argv[0]);
-    if (valid_from_cstr == nullptr)
-    {
-      throw JS_ThrowTypeError(ctx, "valid from argument is not a string");
-    }
-    auto valid_from = std::string(valid_from_cstr);
-    JS_FreeCString(ctx, valid_from_cstr);
+    auto valid_from =
+      Context::JSWrappedCString(ctx, JS_ToCString(ctx, argv[0]));
 
     size_t validity_period_days = 0;
     if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)

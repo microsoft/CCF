@@ -151,6 +151,7 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
   });
 }
 
+// TODO: Refactor with setNodeCertificateValidityPeriod
 function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
   const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
     getSingletonKvKey()
@@ -162,7 +163,7 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
 
   const default_validity_period_days = 365;
   const max_allowed_cert_validity_period_days =
-    serviceConfig.maximum_node_certificate_validity_days ??
+    serviceConfig.maximum_service_certificate_validity_days ??
     default_validity_period_days;
 
   if (
@@ -173,6 +174,9 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
       `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
     );
   }
+
+  validityPeriodDays =
+    validityPeriodDays ?? max_allowed_cert_validity_period_days;
 
   const renewed_service_certificate = ccf.network.generateNetworkCertificate(
     validFrom,
@@ -187,7 +191,6 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
   const serviceInfo = ccf.bufToJsonCompatible(rawServiceInfo);
 
   serviceInfo.cert = renewed_service_certificate;
-
   ccf.kv[serviceInfoTable].set(
     getSingletonKvKey(),
     ccf.jsonCompatibleToBuf(serviceInfo)

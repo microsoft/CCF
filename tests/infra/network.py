@@ -108,6 +108,7 @@ class Network:
         "initial_node_cert_validity_days",
         "initial_network_cert_validity_days",
         "maximum_node_certificate_validity_days",
+        "maximum_network_certificate_validity_days",
         "reconfiguration_type",
         "config_file",
     ]

@@ -321,7 +321,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=365,
     )
     parser.add_argument(
-        "--maximum-service-certificate-validity-days",
+        "--maximum-network-certificate-validity-days",
         help="Maximum allowed validity period in days for service certificate",
         type=int,
         default=365,
