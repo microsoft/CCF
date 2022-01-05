@@ -18,6 +18,9 @@ from ccf.ledger import NodeStatus
 import ccf.ledger
 from infra.proposal import ProposalState
 
+from cryptography import x509
+import cryptography.hazmat.backends as crypto_backends
+
 from loguru import logger as LOG
 
 
@@ -459,15 +462,14 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
 
     def remove_js_app(self, remote_node):
-        proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
+        proposal_body, careful_vote = self.make_proposal("remove_js_app")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def refresh_js_app_bytecode_cache(self, remote_node):
-        (
-            proposal_body,
-            careful_vote,
-        ) = ccf.proposal_generator.refresh_js_app_bytecode_cache()
+        proposal_body, careful_vote = self.make_proposal(
+            "refresh_js_app_bytecode_cache"
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 

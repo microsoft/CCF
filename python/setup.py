@@ -39,7 +39,6 @@ setup(
     python_requires=">=3.8",
     install_requires=requirements,
     scripts=[
-        path.join(PACKAGE_NAME, "proposal_generator.py"),
         path.join(PACKAGE_NAME, "read_ledger.py"),
         path.join(PACKAGE_NAME, "ledger_viz.py"),
         path.join(PACKAGE_NAME, "split_ledger.py"),
