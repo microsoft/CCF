@@ -245,6 +245,8 @@ def test_each_node_cert_renewal(network, args):
                         or args.maximum_node_certificate_validity_days,
                     )
                 except Exception as e:
+                    if expected_exception is None:
+                        raise e
                     assert isinstance(e, expected_exception)
                     continue
                 else:
