@@ -5,7 +5,7 @@ Since 2.x releases, the validity period of certificates is no longer hardcoded. 
 
 .. note:: The granularity for the validity period of nodes and service certificates is one day.
 
-.. tip:: See :ref:`overview/cryptography:Identity Keys and Certificates` for a detailed explanation of the relationship between certificates in CCF.
+.. tip:: See :ref:`overview/cryptography:Identity Keys and Certificates` for a detailed explanation of the relationship between keys and certificates in CCF.
 
 Node Certificates
 -----------------
@@ -51,11 +51,14 @@ The procedure that operators and members should follow is summarised in the foll
 Service Certificate
 -------------------
 
-The service certificate (also referred to as "network certificate") is output by the first node of a service at startup at the location specified by the ``command.network_certificate_file`` :doc:`configuration entry </operations/configuration>`. Operators can set the validity period for the service certificate using the ``command.start.network_certificate_initial_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 2 days (TODO: 2 days???) and it is expected that members will issue a proposal to renew the certificate before it expires, when the service is open. The initial service certificate is valid from the current system time when the ``cchost`` executable is launched.
+The service certificate (also referred to as network certificate) is output by the first node of a service at startup at the location specified by the ``command.network_certificate_file`` :doc:`configuration entry </operations/configuration>`. Operators can set the validity period for this certificate using the ``command.start.network_certificate_initial_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 1 day and it is expected that members will issue :ref:`proposal to renew the certificate before it expires <governance/common_member_operations:Renewing Service Certificate>`, when the service is open. The initial service certificate is valid from the current system time when the ``cchost`` executable is launched.
 
 The ``command.start.service_configuration.maximum_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>` (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when the service certificate is renewed but the validity period is omitted.
 
-.. tip:: The current service certificate (PEM) can be retrieved by operators via the ``GET /node/network`` endpoint (``"service_certificate"`` field).
+.. tip::
+
+- The current service certificate (PEM) can be retrieved by operators via the ``GET /node/network`` endpoint (``"service_certificate"`` field).
+- Once renewed, the service certificate should be distributed to clients to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network.
 
 The procedure that operators and members should follow is summarised in the following diagram:
 

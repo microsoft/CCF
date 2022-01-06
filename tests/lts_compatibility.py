@@ -112,8 +112,6 @@ def test_new_service(
     test_all_nodes_cert_renewal(network, args)
     test_service_cert_renewal(network, args)
 
-    # TODO: test service certificate renewal
-
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
     test_random_receipts(network, args, lts=True)
