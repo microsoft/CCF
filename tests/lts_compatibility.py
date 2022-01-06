@@ -273,7 +273,11 @@ def run_code_upgrade_from(
                         if index + 1 < len(old_nodes):
                             next_node = old_nodes[index + 1]
                             test_random_receipts(
-                                network, args, lts=True, node=next_node
+                                network,
+                                args,
+                                lts=True,
+                                additional_seqnos={txid.seqno: None},
+                                node=next_node,
                             )
                 node.stop()
 
