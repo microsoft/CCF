@@ -1117,6 +1117,10 @@ class Network:
         # Note: The server does not return the service certificate (root) as part of the TLS connection so
         # we inspect the service certificate recorded in the store instead
         primary, _ = self.find_primary()
+        if primary.major_version and primary.major_version <= 1:
+            LOG.warning("Skipping service certificate validity check for 1.x service")
+            return
+
         with primary.client() as c:
             r = c.get("/node/network")
             valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(

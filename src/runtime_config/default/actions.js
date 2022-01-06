@@ -151,7 +151,6 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
   });
 }
 
-// TODO: Refactor with setNodeCertificateValidityPeriod
 function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
   const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
     getSingletonKvKey()
@@ -175,12 +174,9 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
     );
   }
 
-  validityPeriodDays =
-    validityPeriodDays ?? max_allowed_cert_validity_period_days;
-
   const renewed_service_certificate = ccf.network.generateNetworkCertificate(
     validFrom,
-    validityPeriodDays
+    validityPeriodDays ?? max_allowed_cert_validity_period_days
   );
 
   const serviceInfoTable = "public:ccf.gov.service.info";
@@ -229,13 +225,10 @@ function setNodeCertificateValidityPeriod(
     );
   }
 
-  validityPeriodDays =
-    validityPeriodDays ?? max_allowed_cert_validity_period_days;
-
   const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
     nodeInfo.certificate_signing_request,
     validFrom,
-    validityPeriodDays
+    validityPeriodDays ?? max_allowed_cert_validity_period_days
   );
   ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
     ccf.strToBuf(nodeId),
@@ -1166,18 +1159,6 @@ const actions = new Map([
           args.valid_from,
           args.validity_period_days
         );
-        // ccf.kv["public:ccf.gov.nodes.info"].forEach((v, k) => {
-        //   const nodeId = ccf.bufToStr(k);
-        //   const nodeInfo = ccf.bufToJsonCompatible(v);
-        //   if (nodeInfo.status === "Trusted") {
-        //     setNodeCertificateValidityPeriod(
-        //       nodeId,
-        //       nodeInfo,
-        //       args.valid_from,
-        //       args.validity_period_days
-        //     );
-        //   }
-        // });
       }
     ),
   ],

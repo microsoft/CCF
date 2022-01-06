@@ -14,7 +14,7 @@ import os
 import json
 import time
 from e2e_logging import test_random_receipts
-from governance import test_all_nodes_cert_renewal
+from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 
 
 from loguru import logger as LOG
@@ -110,6 +110,7 @@ def test_new_service(
         node.stop()
 
     test_all_nodes_cert_renewal(network, args)
+    test_service_cert_renewal(network, args)
 
     # TODO: test service certificate renewal
 
