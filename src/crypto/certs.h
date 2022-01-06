@@ -28,10 +28,10 @@ namespace crypto
   {
     return key_pair->self_sign(
       subject_name,
-      subject_alt_names,
-      true /* CA */,
       valid_from,
-      compute_cert_valid_to_string(valid_from, validity_period_days));
+      compute_cert_valid_to_string(valid_from, validity_period_days),
+      subject_alt_names,
+      true /* CA */);
   }
 
   static Pem create_endorsed_cert(
@@ -42,14 +42,14 @@ namespace crypto
     const Pem& issuer_cert)
   {
     return make_key_pair(issuer_key_pair)
-      ->sign_csr(issuer_cert, csr, false /* Not CA */, valid_from, valid_to);
+      ->sign_csr(issuer_cert, csr, valid_from, valid_to, false /* Not CA */);
   }
 
   static Pem create_endorsed_cert(
     const Pem& csr,
     const std::string& valid_from,
     size_t validity_period_days,
-    const Pem& issuer_key_pair,
+    const Pem& issuer_key_pair, // TODO: Type seems wrong here!
     const Pem& issuer_cert)
   {
     return create_endorsed_cert(

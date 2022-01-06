@@ -19,8 +19,15 @@ using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
+constexpr size_t certificate_validity_period_days = 365;
+auto valid_from =
+  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+    std::chrono::system_clock::now())); // now
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
+
 auto kp = crypto::make_key_pair();
-auto member_cert = kp -> self_sign("CN=name_member");
+auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
 auto node_id = 0;
 
 void check_error(const TResponse& r, http_status expected)
@@ -104,7 +111,7 @@ TEST_CASE("Add a node to an opening service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign("CN=Joiner");
+  const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
   const auto node_public_encryption_key =
     crypto::make_key_pair()->public_key_pem();
 
@@ -199,7 +206,8 @@ TEST_CASE("Add a node to an opening service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(kp->self_sign("CN=Other Joiner"));
+    auto v = crypto::make_verifier(
+      kp->self_sign("CN=Other Joiner", valid_from, valid_to));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -244,7 +252,7 @@ TEST_CASE("Add a node to an open service")
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();
-  const auto caller = kp->self_sign("CN=Joiner");
+  const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
 
   std::optional<NodeInfo> node_info;
   auto tx = network.tables->create_tx();
@@ -275,7 +283,8 @@ TEST_CASE("Add a node to an open service")
     "Adding a different node with the same node network details should fail");
   {
     crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(kp->self_sign("CN=Joiner"));
+    auto v =
+      crypto::make_verifier(kp->self_sign("CN=Joiner", valid_from, valid_to));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -305,8 +314,8 @@ TEST_CASE("Add a node to an open service")
     GenesisGenerator g(network, tx);
     auto joining_node_id = ccf::compute_node_id_from_kp(kp);
     g.trust_node(joining_node_id, network.ledger_secrets->get_latest(tx).first);
-    const auto dummy_endorsed_certificate =
-      crypto::make_key_pair()->self_sign("CN=dummy endorsed certificate");
+    const auto dummy_endorsed_certificate = crypto::make_key_pair()->self_sign(
+      "CN=dummy endorsed certificate", valid_from, valid_to);
     auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);
     endorsed_certificate->put(joining_node_id, {dummy_endorsed_certificate});
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);

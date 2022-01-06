@@ -55,6 +55,39 @@ static NodeId nid2 = std::string("nid2");
 
 static constexpr auto default_curve = crypto::CurveID::SECP384R1;
 
+static crypto::Pem generate_self_signed_cert(
+  const crypto::KeyPairPtr& kp, const std::string& name)
+{
+  constexpr size_t certificate_validity_period_days = 365;
+  auto valid_from =
+    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+      std::chrono::system_clock::now())); // now
+
+  return crypto::create_self_signed_cert(
+    kp, name, {}, valid_from, certificate_validity_period_days);
+}
+
+static crypto::Pem generate_endorsed_cert(
+  const crypto::KeyPairPtr& kp,
+  const std::string& name,
+  const crypto::KeyPairPtr& issuer_kp,
+  const crypto::Pem& issuer_cert)
+{
+  constexpr size_t certificate_validity_period_days = 365;
+  auto valid_from =
+    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+      std::chrono::system_clock::now())); // now
+
+  return crypto::create_endorsed_cert(
+    kp,
+    name,
+    {},
+    valid_from,
+    certificate_validity_period_days,
+    issuer_kp->private_key_pem(),
+    issuer_cert);
+}
+
 template <typename T>
 struct NodeOutboundMsg
 {
@@ -173,15 +206,15 @@ NodeOutboundMsg<MsgType> get_first(
 TEST_CASE("Client/Server key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto network_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, network_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, network_cert);
 
   auto v = crypto::make_verifier(channel1_cert);
   REQUIRE(v->verify_certificate({&network_cert}));
@@ -383,15 +416,15 @@ TEST_CASE("Client/Server key exchange")
 TEST_CASE("Replay and out-of-order")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto network_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, network_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, network_cert);
 
   auto channels1 = NodeToNodeChannelManager(wf1);
   channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
@@ -558,11 +591,11 @@ TEST_CASE("Replay and out-of-order")
 TEST_CASE("Host connections")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto network_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel_kp = crypto::make_key_pair(default_curve);
-  auto channel_csr = channel_kp->create_csr("CN=Node");
-  auto channel_cert = network_kp->sign_csr(network_cert, channel_csr, {});
+  auto channel_cert =
+    generate_endorsed_cert(channel_kp, "CN=Node", network_kp, network_cert);
 
   auto channel_manager = NodeToNodeChannelManager(wf1);
   channel_manager.initialize(nid1, network_cert, channel_kp, channel_cert);
@@ -607,15 +640,15 @@ static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
 TEST_CASE("Concurrent key exchange init")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto network_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, network_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, network_cert);
 
   auto channels1 = NodeToNodeChannelManager(wf1);
   channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
@@ -732,17 +765,17 @@ TEST_CASE("Full NodeToNode test")
     LOG_DEBUG_FMT("Iteration: {}", i++);
 
     auto network_kp = crypto::make_key_pair(curves.network);
-    auto network_cert = network_kp->self_sign("CN=Network");
+    auto network_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
     auto ni1 = std::string("N1");
     auto channel1_kp = crypto::make_key_pair(curves.node_1);
-    auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-    auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+    auto channel1_cert =
+      generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, network_cert);
 
     auto ni2 = std::string("N2");
     auto channel2_kp = crypto::make_key_pair(curves.node_2);
-    auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-    auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+    auto channel2_cert =
+      generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, network_cert);
 
     size_t message_limit = 32;
 
@@ -825,15 +858,15 @@ TEST_CASE("Full NodeToNode test")
 TEST_CASE("Interrupted key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto network_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, network_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, network_cert);
 
   auto channels1 = NodeToNodeChannelManager(wf1);
   channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
@@ -974,15 +1007,15 @@ TEST_CASE("Interrupted key exchange")
 TEST_CASE("Robust key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
-  auto network_cert = network_kp->self_sign("CN=Network");
+  auto network_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, network_cert);
 
   auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, network_cert);
 
   const NodeId nid3 = std::string("nid3");
 

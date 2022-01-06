@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "crypto/base64.h"
+#include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
@@ -54,6 +55,18 @@ static constexpr CurveID supported_curves[] = {
   CurveID::SECP384R1, CurveID::SECP256R1};
 
 static constexpr char const* labels[] = {"secp384r1", "secp256r1"};
+
+crypto::Pem generate_self_signed_cert(
+  const KeyPairPtr& kp, const std::string& name)
+{
+  constexpr size_t certificate_validity_period_days = 365;
+  auto valid_from =
+    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+      std::chrono::system_clock::now())); // now
+
+  return crypto::create_self_signed_cert(
+    kp, name, {}, valid_from, certificate_validity_period_days);
+}
 
 TEST_CASE("Sign, verify, with KeyPair")
 {
@@ -190,7 +203,7 @@ TEST_CASE("Sign, verify with certificate")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
-    auto cert = kp->self_sign("CN=name");
+    auto cert = generate_self_signed_cert(kp, "CN=name");
     auto verifier = make_verifier(cert);
     CHECK(verifier->verify(contents, signature));
   }
@@ -205,7 +218,7 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
-    auto cert = kp->self_sign("CN=name");
+    auto cert = generate_self_signed_cert(kp, "CN=name");
     auto verifier = make_verifier(cert);
     CHECK(verifier->verify(contents, signature));
     corrupt(contents);
@@ -256,7 +269,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     crypto::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
-    auto cert = kp->self_sign("CN=name");
+    auto cert = generate_self_signed_cert(kp, "CN=name");
     auto verifier = make_verifier(cert);
     CHECK(verifier->verify_hash(hash, signature));
     corrupt(hash);
@@ -380,7 +393,7 @@ TEST_CASE("Extract public key from cert")
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_key_pair(curve);
     auto pk = kp->public_key_der();
-    auto cert = kp->self_sign("CN=name");
+    auto cert = generate_self_signed_cert(kp, "CN=name");
     auto cert_der = make_verifier(cert.raw())->cert_der();
     auto pubk = public_key_der_from_cert(cert_der);
     REQUIRE(pk == pubk);
@@ -409,6 +422,7 @@ void run_csr(bool corrupt_csr = false)
   T kpm(CurveID::SECP384R1);
 
   const char* subject_name = "CN=myname";
+  std::string valid_from, valid_to;
 
   std::vector<SubjectAltName> subject_alternative_names;
 
@@ -418,6 +432,13 @@ void run_csr(bool corrupt_csr = false)
     subject_alternative_names.push_back({"email:my-other-name", false});
     subject_alternative_names.push_back({"www.microsoft.com", false});
     subject_alternative_names.push_back({"192.168.0.1", true});
+    valid_from = "20210311000000Z";
+    valid_to = "20230611235959Z";
+  }
+  else
+  {
+    valid_from = "20210311000000";
+    valid_to = "20230611235959";
   }
 
   auto csr = kpm.create_csr(subject_name, subject_alternative_names);
@@ -429,24 +450,24 @@ void run_csr(bool corrupt_csr = false)
     corrupt_byte++;
   }
 
-  auto icrt = kpm.self_sign("CN=issuer");
+  auto icrt = kpm.self_sign("CN=issuer", valid_from, valid_to);
 
   if (corrupt_csr)
   {
-    REQUIRE_THROWS(kpm.sign_csr(icrt, csr));
+    REQUIRE_THROWS(kpm.sign_csr(icrt, csr, valid_from, valid_to));
     return;
   }
 
-  auto crt = kpm.sign_csr(icrt, csr);
+  auto crt = kpm.sign_csr(icrt, csr, valid_from, valid_to);
   std::vector<uint8_t> content = {0, 1, 2, 3, 4};
   auto signature = kpm.sign(content);
 
   S v(crt.raw());
   REQUIRE(v.verify(content, signature));
 
-  auto [valid_from, valid_to] = v.validity_period();
-  REQUIRE(valid_from == "20210311000000Z");
-  REQUIRE(valid_to == "20230611235959Z");
+  auto [valid_from_, valid_to_] = v.validity_period();
+  REQUIRE(valid_from_.find(valid_from) != std::string::npos);
+  REQUIRE(valid_to_.find(valid_to) != std::string::npos);
 }
 
 TEST_CASE("Create sign and verify certificates")

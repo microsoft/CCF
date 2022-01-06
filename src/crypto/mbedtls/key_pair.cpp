@@ -279,9 +279,9 @@ namespace crypto
   Pem KeyPair_mbedTLS::sign_csr(
     const Pem& issuer_cert,
     const Pem& signing_request,
-    bool ca,
-    const std::optional<std::string>& valid_from,
-    const std::optional<std::string>& valid_to) const
+    const std::string& valid_from,
+    const std::string& valid_to,
+    bool ca) const
   {
     auto entropy = create_entropy();
     auto csr = mbedtls::make_unique<mbedtls::X509Csr>();
@@ -327,15 +327,11 @@ namespace crypto
     MCHK(mbedtls_x509write_crt_set_subject_name(crt.get(), subject));
     MCHK(mbedtls_x509write_crt_set_serial(crt.get(), serial.get()));
 
-    // Note: 825-day validity range
-    // https://support.apple.com/en-us/HT210176
     // Note: For the mbedtls implementation, we do not check that valid_from and
     // valid_to are valid or chronological. See OpenSSL equivalent call for a
     // safer implementation.
     MCHK(mbedtls_x509write_crt_set_validity(
-      crt.get(),
-      valid_from.value_or("20210311000000").c_str(),
-      valid_to.value_or("20230611235959").c_str()));
+      crt.get(), valid_from.c_str(), valid_to.c_str()));
 
     MCHK(mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0, 0));
     MCHK(mbedtls_x509write_crt_set_subject_key_identifier(crt.get()));

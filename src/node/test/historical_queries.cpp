@@ -24,6 +24,13 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 using NumToString = kv::Map<size_t, std::string>;
 
+constexpr size_t certificate_validity_period_days = 365;
+auto valid_from =
+  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+    std::chrono::system_clock::now())); // now
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
+
 struct StubWriter : public ringbuffer::AbstractWriter
 {
 public:
@@ -99,7 +106,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto tx = ts.kv_store->create_tx();
     auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
     ccf::NodeInfo ni;
-    ni.cert = ts.node_kp->self_sign("CN=Test node");
+    ni.cert = ts.node_kp->self_sign("CN=Test node", valid_from, valid_to);
     ni.status = ccf::NodeStatus::TRUSTED;
     nodes->put(node_id, ni);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
@@ -128,7 +135,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
     auto kp = crypto::make_key_pair();
-    auto cert = kp->self_sign("CN=member");
+    auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
 
