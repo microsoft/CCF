@@ -481,7 +481,7 @@ namespace ccfapp
           {
             for (const auto& [k, v] : properties.openapi.items())
             {
-              LOG_INFO_FMT("Inserting field {}", k);
+              LOG_TRACE_FMT("Inserting field {}", k);
             }
             path_op.insert(
               properties.openapi.cbegin(), properties.openapi.cend());
