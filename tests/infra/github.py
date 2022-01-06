@@ -238,7 +238,7 @@ class Repository:
                 get_release_branch_from_branch_name(branch)
             )
             if tags:
-                return tags[0]
+                return tags[1]
             else:
                 try:
                     prior_release_branch = self.get_release_branch_name_before(branch)
