@@ -1188,7 +1188,7 @@ def test_receipts(network, args):
 @reqs.description("Validate random receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_random_receipts(network, args, lts=True):
+def test_random_receipts(network, args, lts=True, additional=None):
     primary, _ = network.find_primary_and_any_backup()
 
     common = os.listdir(network.common_dir)
@@ -1216,7 +1216,7 @@ def test_random_receipts(network, args, lts=True):
         seqnos = range(len(interesting_prefix) + 1, max_seqno)
         for s in (
             interesting_prefix
-            + sorted(random.sample(seqnos, min(50, len(seqnos))))
+            + sorted(random.sample(seqnos, min(50, len(seqnos))) + (additional or []))
             + [last_sig_seqno]
         ):
             start_time = time.time()

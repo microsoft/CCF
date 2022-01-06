@@ -148,6 +148,7 @@ class LoggingTxs:
             network.wait_for_all_nodes_to_commit(
                 tx_id=TxID(wait_point.view, wait_point.seqno)
             )
+        return TxID(wait_point.view, wait_point.seqno)
 
     def verify(
         self,

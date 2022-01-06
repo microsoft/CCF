@@ -239,8 +239,16 @@ def run_code_upgrade_from(
                     primary, _ = network.wait_for_new_primary(primary)
                     spec = inspect.signature(network.txs.issue)
                     if "record_claim" in spec.parameters:
-                        LOG.info("Run transactions with additional claim")
-                        network.txs.issue(network, number_txs=1, record_claim=True)
+                        LOG.info("Run transaction with additional claim")
+                        txid = network.txs.issue(
+                            network, number_txs=1, record_claim=True
+                        )
+                        LOG.info(
+                            "Check receipts are fine, including transaction with claims"
+                        )
+                        test_random_receipts(
+                            network, args, lts=True, additional=[txid.seqno]
+                        )
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")
