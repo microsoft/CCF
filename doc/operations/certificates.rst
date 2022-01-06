@@ -3,14 +3,16 @@ Certificates
 
 Since 2.x releases, the validity period of certificates is no longer hardcoded. This page describes how the validity period can instead be set by operators, and renewed by members.
 
-.. note:: The granularity for the validity period of nodes certificates is one day.
+.. note:: The granularity for the validity period of nodes and service certificates is one day.
+
+.. tip:: See :ref:`overview/cryptography:Identity Keys and Certificates` for a detailed explanation of the relationship between certificates in CCF.
 
 Node Certificates
 -----------------
 
-At startup, operators can set the validity period for a node using the ``node_certificate.initial_validity_days`` configuration entry. The default value is set to 1 day and it is expected that members will issue a proposal to renew the certificate before it expires, when the service is open. Initial nodes certificates are valid from the current system time when the ``cchost`` executable is launched.
+At startup, operators can set the validity period for a node using the ``node_certificate.initial_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 1 day and it is expected that members will issue a proposal to renew the certificate before it expires, when the service is open. Initial nodes certificates are valid from the current system time when the ``cchost`` executable is launched.
 
-The ``command.start.service_configuration.maximum_node_certificate_validity_days`` configuration entry (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when a node certificate is renewed but the validity period is omitted.
+The ``command.start.service_configuration.maximum_node_certificate_validity_days`` :doc:`configuration entry </operations/configuration>` (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when a node certificate is renewed but the validity period is omitted.
 
 .. tip:: Once a node certificate has expired, clients will no longer trust the node serving their request. It is expected that operators and members will monitor the certificate validity dates with regards to current time and renew the node certificate before expiration. See :ref:`governance/common_member_operations:Renewing Node Certificate` for more details.
 
@@ -44,3 +46,32 @@ The procedure that operators and members should follow is summarised in the foll
     section Node 3
     Initial Validity Period (24h default)      : done, 01-03/00:00, 1d
     New Joiner Validity Period                 : 01-03/15:00, 4d
+
+
+Service Certificate
+-------------------
+
+The service certificate (also referred to as "network certificate") is output by the first node of a service at startup at the location specified by the ``command.network_certificate_file`` :doc:`configuration entry </operations/configuration>`. Operators can set the validity period for the service certificate using the ``command.start.network_certificate_initial_validity_days`` :doc:`configuration entry </operations/configuration>`. The default value is set to 2 days (TODO: 2 days???) and it is expected that members will issue a proposal to renew the certificate before it expires, when the service is open. The initial service certificate is valid from the current system time when the ``cchost`` executable is launched.
+
+The ``command.start.service_configuration.maximum_service_certificate_validity_days`` :doc:`configuration entry </operations/configuration>` (defaults to 365 days) can be used to set the maximum allowed validity period for nodes certificates when they are renewed by members. It is used as the default value for the validity period when the service certificate is renewed but the validity period is omitted.
+
+.. tip:: The current service certificate (PEM) can be retrieved by operators via the ``GET /node/network`` endpoint (``"service_certificate"`` field).
+
+The procedure that operators and members should follow is summarised in the following diagram:
+
+.. mermaid::
+
+    gantt
+
+    dateFormat  MM-DD/HH:mm
+    axisFormat  %d/%m
+    todayMarker off
+
+    section Members
+    Service Open By Members + set_service_certificate_validity :milestone, 01-01/15:00, 0d
+    Members must renew certs before expiry (set_service_certificate_validity)              :crit, 01-05/15:00, 1d
+
+    section Service <br> Certificate
+    Initial Validity Period (24h default): done, 01-01/00:00, 1d
+    Post Service Open Validity Period    : 01-01/15:00, 5d
+
