@@ -643,17 +643,6 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    // TODO: Refactor with identity.h
-    // TODO: Post-XMas:
-    // 1. Add JS action to renew service certificate
-    // 2. Test renewal proposal
-    // 3. Documentation
-    // 4. Pick up new certificate from global hook to be used in RPC sessions
-    // (via accept_network_tls_connections()) + run manual test with expired
-    // cert (since we can't programmatically get server root cert)
-    // 5. open_network action takes additional optional valid_from and
-    // validity_period_days args - really necessary?
-
     network->identity->renew_certificate(valid_from, validity_period_days);
 
     return JS_NewString(ctx, network->identity->cert.str().c_str());

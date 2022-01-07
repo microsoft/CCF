@@ -1114,10 +1114,9 @@ class Network:
             return network_cert
 
     def verify_service_certificate_validity_period(self, expected_validity_days):
-        # Note: The server does not return the service certificate (root) as part of the TLS connection so
-        # we inspect the service certificate recorded in the store instead
         primary, _ = self.find_primary()
         if primary.major_version and primary.major_version <= 1:
+            # Service certificate validity period is hardcoded in 1.x
             LOG.warning("Skipping service certificate validity check for 1.x service")
             return
 
