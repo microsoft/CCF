@@ -271,6 +271,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 /// Helper to write past the maximum buffer (16k)
 int write_helper(Context& handler, const uint8_t* buf, size_t len)
 {
+  LOG_DEBUG_FMT("WRITE {} bytes", len);
   int rc = handler.write(buf, len);
   if (rc <= 0 || (size_t)rc == len)
     return rc;
@@ -280,6 +281,7 @@ int write_helper(Context& handler, const uint8_t* buf, size_t len)
 /// Helper to read past the maximum buffer (16k)
 int read_helper(Context& handler, uint8_t* buf, size_t len)
 {
+  LOG_DEBUG_FMT("READ {} bytes", len);
   int rc = handler.read(buf, len);
   if (rc <= 0 || (size_t)rc == len)
     return rc;
@@ -291,7 +293,7 @@ std::string truncate_message(const uint8_t* msg, size_t len)
 {
   const size_t MAX_LEN = 32;
   if (len < MAX_LEN)
-    return std::string((const char*)msg, len);
+    return std::string((const char*)msg);
   std::string str((const char*)msg, MAX_LEN);
   str += "... + " + std::to_string(len - MAX_LEN);
   return str;
