@@ -21,15 +21,13 @@ namespace tls
   protected:
     crypto::OpenSSL::Unique_SSL_CTX cfg;
     crypto::OpenSSL::Unique_SSL ssl;
-    crypto::EntropyPtr entropy;
 
   public:
     Context(bool client, bool dtls) :
       cfg(
         dtls ? (client ? DTLS_client_method() : DTLS_server_method()) :
                (client ? TLS_client_method() : TLS_server_method())),
-      ssl(cfg),
-      entropy(crypto::create_entropy())
+      ssl(cfg)
     {
       // Require at least TLS 1.2, support up to 1.3
       SSL_CTX_set_min_proto_version(
@@ -41,8 +39,6 @@ namespace tls
         SSL_set_connect_state(ssl);
       else
         SSL_set_accept_state(ssl);
-
-      // FIXME: Plug the entropy source somewhere
     }
 
     virtual ~Context() {}
