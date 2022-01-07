@@ -74,14 +74,14 @@ Each endpoint object contains the following information:
   the ``js_module``.
 - ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth/index:User Authentication>` to be applied before the endpoint
   is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
-  
+
   - ``"user_cert"``
   - ``"user_signature"``
   - ``"member_cert"``
   - ``"member_signature"``
   - ``"jwt"``
   - ``"no_auth"``
-  
+
 - ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
 
   - ``"always"``
@@ -94,7 +94,7 @@ Each endpoint object contains the following information:
   - ``"readonly"``
   - ``"historical"``
 
-- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ 
+- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
   without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
   enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
   types of the endpoint's requests or responses.
@@ -155,4 +155,4 @@ If CCF is updated and introduces a newer JavaScript engine version, then any pre
     SUCCESS | Writing proposal to ./refresh_js_app_bytecode_cache_proposal.json
     SUCCESS | Wrote vote to ./refresh_js_app_bytecode_cache_vote_for.json
 
-.. note:: The operator RPC ``/node/js_metrics`` returns the size of the bytecode and whether it is used. If it is not used, then either no bytecode is stored or it needs to be re-compiled due to a CCF update.
+.. note:: The operator RPC :http:GET:`/js_metrics` returns the size of the bytecode and whether it is used. If it is not used, then either no bytecode is stored or it needs to be re-compiled due to a CCF update.
