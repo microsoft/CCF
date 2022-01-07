@@ -47,7 +47,6 @@ The procedure that operators and members should follow is summarised in the foll
     Initial Validity Period (24h default)      : done, 01-03/00:00, 1d
     New Joiner Validity Period                 : 01-03/15:00, 4d
 
-
 Service Certificate
 -------------------
 
@@ -77,4 +76,3 @@ The procedure that operators and members should follow is summarised in the foll
     section Service <br> Certificate
     Initial Validity Period (24h default): done, 01-01/00:00, 1d
     Post Service Open Validity Period    : 01-01/15:00, 5d
-
