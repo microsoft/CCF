@@ -9,7 +9,7 @@
 #include "enclave/endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
-// FIXME: These headers are temporary, until we have a single TLS implementation
+// These headers are temporary, until we have a single TLS implementation
 #include "tls/mbedtls/tls.h"
 #include "tls/openssl/tls.h"
 
@@ -71,7 +71,7 @@ namespace enclave
     {
       execution_thread =
         threading::ThreadMessaging::get_execution_thread(session_id);
-      // FIXME: The functions we pass are different so this can only be done
+      // The functions we pass are different so this can only be done
       // with an ifdef. Remove once we get rid of mbedTLS.
 #ifdef TLS_PROVIDER_IS_MBEDTLS
       ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
@@ -683,7 +683,7 @@ namespace enclave
 
 #endif
 
-    // FIXME: Remove this function once MbedTLS is gone.
+    // Remove this function once MbedTLS is gone.
     static void dbg_callback(
       void*, int, const char* file, int line, const char* str)
     {

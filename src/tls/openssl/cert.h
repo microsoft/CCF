@@ -88,8 +88,8 @@ namespace tls
 
       if (pw.n)
       {
-        // FIXME: We don't seem to be using PW anywhere in CCF, so we should
-        // really remove this option.
+        // We don't seem to be using PW anywhere in CCF, so we should
+        // really remove this option once MbedTLS is gone.
         LOG_FAIL_FMT("Cert::ctor: Unused password");
         throw std::logic_error(
           "Unused password: " + std::string((const char*)pw.p));
@@ -137,11 +137,13 @@ namespace tls
           (void)st;
           return 1;
         });
-      // FIXME: The MBedTLS implementation adds some verification, but any
+      // The MBedTLS implementation adds some verification, but any
       // further flags in OpenSSL's set_verify fail when MBedTLS doesn't.
       // We still need to request the peer cert every time, even if it's empty,
       // but it would be good to have some more strict checks on the actual
       // certificate at this level without leaving it for later.
+      // This would probably be done after we remove MbedTLS and refactor
+      // OpenSSL TLS to match OpenSSL's behaviour.
 
       if (has_own_cert)
       {

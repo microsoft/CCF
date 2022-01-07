@@ -44,15 +44,16 @@ namespace tls
         // checks, so we keep it simple here. Some code uses this as a
         // "certificate check" not necessarily a CA check, so we need to keep it
         // compatible.
-        // FIXME: Create a generic helper in crypto to do the certificate check
-        // and add X509_check_ca() here to be more robust on our verification.
+        // To cater to that usage, we should create a generic helper in crypto
+        // to do the certificate check and add X509_check_ca() here to be more
+        // robust on our verification.
         tmp_ca.reset(res);
       }
 
       if (crl_.n > 0)
       {
-        // FIXME: We don't seem to be using CRL anywhere in CCF, so we should
-        // really remove this option.
+        // We don't seem to be using CRL anywhere in CCF, so we should
+        // really remove this option once MbedTLS is gone.
         LOG_FAIL_FMT("CA::ctor: Using CRL in OpenSSL CA");
         throw std::logic_error("Using CRL in OpenSSL CA");
       }

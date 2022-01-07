@@ -66,7 +66,7 @@ namespace tls
       BIO_set_callback_ex(wbio, send);
       SSL_set0_wbio(ssl, wbio);
 
-      // FIXME: We don't need debug callbacks and the other two already have
+      // We don't need debug callbacks and the other two already have
       // enough debug messages. Once we get rid of MbedTLS, we can remove this
       // argument.
       (void)dbg;
@@ -158,7 +158,7 @@ namespace tls
       return SSL_shutdown(ssl);
     }
 
-    // FIXME: This is a hack to make it work like MBedTLS (with negative return
+    // This is a hack to make it work like MBedTLS (with negative return
     // values as error), and to differentiate in get_verify_error if the error
     // is because we don't have a peer cert or something else.
     // We may find that this is unnecessary (alongside all of the error messages
