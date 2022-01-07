@@ -83,6 +83,7 @@ The ``command`` section includes configuration for the type of node (start, join
 Only set when ``type`` is ``start``.
 
 - ``constitution_files``: List of constitution files. These typically include ``actions.js``, ``validate.js``, ``resolve.js`` and ``apply.js``.
+- ``network_certificate_initial_validity_days``: Initial validity period (days) for network certificate. Default value: ``1`` day.
 
 - ``members``: List of initial consortium members files, including identity certificates, public encryption keys and member data files.
 
@@ -114,6 +115,7 @@ Example:
         {
             "recovery_threshold": 0,
             "maximum_node_certificate_validity_days": 365,
+            "maximum_service_certificate_validity_days": 365,
             "reconfiguration_type": "OneTransaction"
         }
     }
@@ -136,6 +138,15 @@ Example:
         "retry_timeout": "1000ms",
         "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
     }
+
+
+``recover``
++++++++++++
+
+Only set when ``type`` is ``recover``.
+
+- ``network_certificate_initial_validity_days``: Initial validity period (days) for network certificate. Default value: ``1`` day.
+
 
 ``node_certificate``
 ~~~~~~~~~~~~~~~~~~~~
