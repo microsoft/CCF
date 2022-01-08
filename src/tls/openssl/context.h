@@ -34,6 +34,14 @@ namespace tls
         cfg, dtls ? DTLS1_2_VERSION : TLS1_2_VERSION);
       SSL_set_min_proto_version(ssl, dtls ? DTLS1_2_VERSION : TLS1_2_VERSION);
 
+      // Set cipher for TLS 1.2 (TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
+      SSL_CTX_set_cipher_list(cfg, "ECDHE-ECDSA-AES128-GCM-SHA256");
+      SSL_set_cipher_list(ssl, "ECDHE-ECDSA-AES128-GCM-SHA256");
+
+      // Set cipher for TLS 1.3 (same as above)
+      SSL_CTX_set_ciphersuites(cfg, "TLS_AES_128_GCM_SHA256");
+      SSL_set_ciphersuites(ssl, "TLS_AES_128_GCM_SHA256");
+
       // Initialise connection
       if (client)
         SSL_set_connect_state(ssl);
