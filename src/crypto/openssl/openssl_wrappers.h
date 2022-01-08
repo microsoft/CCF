@@ -189,6 +189,9 @@ namespace crypto
           X509_free,
           /*check_null=*/false)
       {}
+      Unique_X509(X509* cert, bool check_null) :
+        Unique_SSL_OBJECT(cert, X509_free, check_null)
+      {}
     };
 
     struct Unique_X509_STORE

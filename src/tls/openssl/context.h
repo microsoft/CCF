@@ -633,43 +633,38 @@ namespace tls
     std::vector<uint8_t> peer_cert()
     {
       // Get the certificate into a BIO as DER
-      X509* cert = SSL_get_peer_certificate(ssl);
+      crypto::OpenSSL::Unique_X509 cert(
+        SSL_get_peer_certificate(ssl), /*check_null=*/false);
       if (!cert)
       {
         LOG_TRACE_FMT("Empty peer cert");
         return {};
       }
-      BIO* bio = BIO_new(BIO_s_mem());
+      crypto::OpenSSL::Unique_BIO bio;
       if (!i2d_X509_bio(bio, cert))
       {
         LOG_TRACE_FMT("Can't convert X509 to DER");
-        X509_free(cert);
         return {};
       }
-      X509_free(cert);
 
       // Get the total length of the DER representation
       auto len = BIO_get_mem_data(bio, nullptr);
       if (!len)
       {
         LOG_TRACE_FMT("Null X509 peer cert");
-        BIO_free(bio);
         return {};
       }
 
       // Get the BIO memory pointer
-      BUF_MEM* ptr;
+      BUF_MEM* ptr = nullptr;
       if (!BIO_get_mem_ptr(bio, &ptr))
       {
         LOG_TRACE_FMT("Invalid X509 peer cert");
         return {};
       }
-      BIO_set_close(bio, BIO_NOCLOSE); // Need to free ptr later
-      BIO_free(bio);
 
       // Return its contents as a vector
       auto ret = std::vector<uint8_t>(ptr->data, ptr->data + len);
-      free(ptr);
       return ret;
     }
   };
