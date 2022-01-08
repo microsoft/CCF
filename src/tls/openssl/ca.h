@@ -33,6 +33,7 @@ namespace tls
         BIO* certBio = BIO_new(BIO_s_mem());
         BIO_write(certBio, pem_ca.data(), pem_ca.size());
         X509* res = PEM_read_bio_X509(certBio, NULL, NULL, NULL);
+        BIO_free(certBio);
         if (!res)
         {
           auto err_str = crypto::OpenSSL::error_string(ERR_get_error());

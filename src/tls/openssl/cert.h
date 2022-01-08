@@ -61,6 +61,7 @@ namespace tls
         BIO* certBio = BIO_new(BIO_s_mem());
         BIO_write(certBio, own_cert_->data(), own_cert_->size());
         X509* cert = PEM_read_bio_X509(certBio, NULL, NULL, NULL);
+        BIO_free(certBio);
         if (!cert)
         {
           auto err_str = tls::error_string(ERR_get_error());
@@ -72,6 +73,7 @@ namespace tls
         BIO* pkBio = BIO_new(BIO_s_mem());
         BIO_write(pkBio, own_pkey_->data(), own_pkey_->size());
         EVP_PKEY* pk = PEM_read_bio_PrivateKey(pkBio, NULL, NULL, NULL);
+        BIO_free(pkBio);
         if (!pk)
         {
           auto err_str = tls::error_string(ERR_get_error());
