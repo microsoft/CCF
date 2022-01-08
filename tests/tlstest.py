@@ -7,6 +7,25 @@ import suite.test_requirements as reqs
 import infra.e2e_args
 import subprocess
 import os
+import difflib
+
+
+def compare_golden():
+    script_path = os.path.realpath(__file__)
+    script_dir = os.path.dirname(script_path)
+    golden_file = os.path.join(script_dir, "tls_report.html")
+    print("Comparing output to golden file " + golden_file)
+    with open(golden_file) as g:
+        golden = g.readlines()
+    with open("tls_report.html") as o:
+        output = o.readlines()
+    success = True
+    for line in difflib.unified_diff(
+        golden, output, fromfile="Golden", tofile="Output", lineterm=""
+    ):
+        print(line)
+        success = False
+    return success
 
 
 def cond_removal(file):
@@ -27,6 +46,7 @@ def test(network, args):
         ["testssl/testssl.sh", "--outfile", "tls_report", endpoint], check=False
     )
     assert r.returncode == 0
+    assert compare_golden()
 
 
 def run(args):
