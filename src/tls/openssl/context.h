@@ -201,428 +201,263 @@ namespace tls
       return TLS_ERR_X509_INVALID_RESULT;
     }
 
-    void get_verify_error(char* buf, size_t size)
+    std::string get_verify_error()
     {
       int rc = verify_result();
       if (rc == TLS_ERR_X509_NO_PEER_CERT)
       {
-        memcpy(buf, "Certificate verify error: No peer certificate", size);
-        return;
+        return "Certificate verify error: No peer certificate";
       }
 
       switch (rc)
       {
         case X509_V_ERR_UNSPECIFIED:
-          memcpy(buf, "Unspecified error; should not happen.", size);
-          return;
+          return "Unspecified error; should not happen.";
 
         case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
-          memcpy(
-            buf,
-            "The issuer certificate of a looked up certificate could not be "
-            "found. This normally means the list of trusted certificates is "
-            "not complete.",
-            size);
-          return;
+          return "The issuer certificate of a looked up certificate could not "
+                 "be found. This normally means the list of trusted "
+                 "certificates is not complete.";
 
         case X509_V_ERR_UNABLE_TO_GET_CRL:
-          memcpy(buf, "The CRL of a certificate could not be found.", size);
-          return;
+          return "The CRL of a certificate could not be found.";
 
         case X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE:
-          memcpy(
-            buf,
-            "The certificate signature could not be decrypted. This means that "
-            "the actual signature value could not be determined rather than it "
-            "not matching the expected value, this is only meaningful for RSA "
-            "keys.",
-            size);
-          return;
+          return "The certificate signature could not be decrypted. This means "
+                 "that the actual signature value could not be determined "
+                 "rather than it not matching the expected value";
 
         case X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE:
-          memcpy(
-            buf,
-            "The CRL signature could not be decrypted: this means that the "
-            "actual signature value could not be determined rather than it not "
-            "matching the expected value. Unused.",
-            size);
-          return;
+          return "The CRL signature could not be decrypted: this means that "
+                 "the actual signature value could not be determined rather "
+                 "than it not matching the expected value. Unused.";
 
         case X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY:
-          memcpy(
-            buf,
-            "The public key in the certificate SubjectPublicKeyInfo could not "
-            "be read.",
-            size);
-          return;
+          return "The public key in the certificate SubjectPublicKeyInfo could "
+                 "not be read.";
 
         case X509_V_ERR_CERT_SIGNATURE_FAILURE:
-          memcpy(buf, "The signature of the certificate is invalid.", size);
-          return;
+          return "The signature of the certificate is invalid.";
 
         case X509_V_ERR_CRL_SIGNATURE_FAILURE:
-          memcpy(buf, "The signature of the certificate is invalid.", size);
-          return;
+          return "The signature of the certificate is invalid.";
 
         case X509_V_ERR_CERT_NOT_YET_VALID:
-          memcpy(
-            buf,
-            "The certificate is not yet valid: the notBefore date is after the "
-            "current time.",
-            size);
-          return;
+          return "The certificate is not yet valid: the notBefore date is "
+                 "after the current time.";
 
         case X509_V_ERR_CERT_HAS_EXPIRED:
-          memcpy(
-            buf,
-            "The certificate has expired: that is the notAfter date is before "
-            "the current time.",
-            size);
-          return;
+          return "The certificate has expired: that is the notAfter date is "
+                 "before the current time.";
 
         case X509_V_ERR_CRL_NOT_YET_VALID:
-          memcpy(buf, "The CRL is not yet valid.", size);
-          return;
+          return "The CRL is not yet valid.";
 
         case X509_V_ERR_CRL_HAS_EXPIRED:
-          memcpy(buf, "The CRL has expired.", size);
-          return;
+          return "The CRL has expired.";
 
         case X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD:
-          memcpy(
-            buf,
-            "The certificate notBefore field contains an invalid time.",
-            size);
-          return;
+          return "The certificate notBefore field contains an invalid time.";
 
         case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD:
-          memcpy(
-            buf,
-            "The certificate notAfter field contains an invalid time.",
-            size);
-          return;
+          return "The certificate notAfter field contains an invalid time.";
 
         case X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD:
-          memcpy(
-            buf, "The CRL lastUpdate field contains an invalid time.", size);
-          return;
+          return "The CRL lastUpdate field contains an invalid time.";
 
         case X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD:
-          memcpy(
-            buf, "The CRL nextUpdate field contains an invalid time.", size);
-          return;
+          return "The CRL nextUpdate field contains an invalid time.";
 
         case X509_V_ERR_OUT_OF_MEM:
-          memcpy(
-            buf,
-            "An error occurred trying to allocate memory. This should never "
-            "happen.",
-            size);
-          return;
+          return "An error occurred trying to allocate memory. This should "
+                 "never happen.";
 
         case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
-          memcpy(
-            buf,
-            "The passed certificate is self-signed and the same certificate "
-            "cannot be found in the list of trusted certificates.",
-            size);
-          return;
+          return "The passed certificate is self-signed and the same "
+                 "certificate cannot be found in the list of trusted "
+                 "certificates.";
 
         case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
-          memcpy(
-            buf,
-            "The certificate chain could be built up using the untrusted "
-            "certificates but the root could not be found locally.",
-            size);
-          return;
+          return "The certificate chain could be built up using the untrusted "
+                 "certificates but the root could not be found locally.";
 
         case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
-          memcpy(
-            buf,
-            "The issuer certificate could not be found: this occurs if the "
-            "issuer certificate of an untrusted certificate cannot be found.",
-            size);
-          return;
+          return "The issuer certificate could not be found: this occurs if "
+                 "the issuer certificate of an untrusted certificate cannot be "
+                 "found.";
 
         case X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE:
-          memcpy(
-            buf,
-            "No signatures could be verified because the chain contains only "
-            "one certificate and it is not self signed.",
-            size);
-          return;
+          return "No signatures could be verified because the chain contains "
+                 "only one certificate and it is not self signed.";
 
         case X509_V_ERR_CERT_CHAIN_TOO_LONG:
-          memcpy(
-            buf,
-            "The certificate chain length is greater than the supplied maximum "
-            "depth. Unused.",
-            size);
-          return;
+          return "The certificate chain length is greater than the supplied "
+                 "maximum depth. Unused.";
 
         case X509_V_ERR_CERT_REVOKED:
-          memcpy(buf, "The certificate has been revoked.", size);
-          return;
+          return "The certificate has been revoked.";
 
         case X509_V_ERR_INVALID_CA:
-          memcpy(
-            buf,
-            "A CA certificate is invalid. Either it is not a CA or its "
-            "extensions are not consistent with the supplied purpose.",
-            size);
-          return;
+          return "A CA certificate is invalid. Either it is not a CA or its "
+                 "extensions are not consistent with the supplied purpose.";
 
         case X509_V_ERR_PATH_LENGTH_EXCEEDED:
-          memcpy(
-            buf,
-            "The basicConstraints pathlength parameter has been exceeded.",
-            size);
-          return;
+          return "The basicConstraints pathlength parameter has been exceeded.";
 
         case X509_V_ERR_INVALID_PURPOSE:
-          memcpy(
-            buf,
-            "The supplied certificate cannot be used for the specified "
-            "purpose.",
-            size);
-          return;
+          return "The supplied certificate cannot be used for the specified "
+                 "purpose.";
 
         case X509_V_ERR_CERT_UNTRUSTED:
-          memcpy(
-            buf,
-            "The root CA is not marked as trusted for the specified purpose.",
-            size);
-          return;
+          return "The root CA is not marked as trusted for the specified "
+                 "purpose.";
 
         case X509_V_ERR_CERT_REJECTED:
-          memcpy(
-            buf,
-            "The root CA is marked to reject the specified purpose.",
-            size);
-          return;
+          return "The root CA is marked to reject the specified purpose.";
 
         case X509_V_ERR_SUBJECT_ISSUER_MISMATCH:
-          memcpy(
-            buf,
-            "Not used as of OpenSSL 1.1.0 as a result of the deprecation of "
-            "the -issuer_checks option.",
-            size);
-          return;
+          return "Not used as of OpenSSL 1.1.0 as a result of the deprecation "
+                 "of the -issuer_checks option.";
 
         case X509_V_ERR_AKID_SKID_MISMATCH:
-          memcpy(
-            buf,
-            "Not used as of OpenSSL 1.1.0 as a result of the deprecation of "
-            "the -issuer_checks option.",
-            size);
-          return;
+          return "Not used as of OpenSSL 1.1.0 as a result of the deprecation "
+                 "of the -issuer_checks option.";
 
         case X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH:
-          memcpy(
-            buf,
-            "Not used as of OpenSSL 1.1.0 as a result of the deprecation of "
-            "the -issuer_checks option.",
-            size);
-          return;
+          return "Not used as of OpenSSL 1.1.0 as a result of the deprecation "
+                 "of the -issuer_checks option.";
 
         case X509_V_ERR_KEYUSAGE_NO_CERTSIGN:
-          memcpy(
-            buf,
-            "Not used as of OpenSSL 1.1.0 as a result of the deprecation of "
-            "the -issuer_checks option.",
-            size);
-          return;
+          return "Not used as of OpenSSL 1.1.0 as a result of the deprecation "
+                 "of the -issuer_checks option.";
 
         case X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER:
-          memcpy(buf, "Unable to get CRL issuer certificate.", size);
-          return;
+          return "Unable to get CRL issuer certificate.";
 
         case X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION:
-          memcpy(buf, "Unhandled critical extension.", size);
-          return;
+          return "Unhandled critical extension.";
 
         case X509_V_ERR_KEYUSAGE_NO_CRL_SIGN:
-          memcpy(buf, "Key usage does not include CRL signing.", size);
-          return;
+          return "Key usage does not include CRL signing.";
 
         case X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION:
-          memcpy(buf, "Unhandled critical CRL extension.", size);
-          return;
+          return "Unhandled critical CRL extension.";
 
         case X509_V_ERR_INVALID_NON_CA:
-          memcpy(buf, "Invalid non-CA certificate has CA markings.", size);
-          return;
+          return "Invalid non-CA certificate has CA markings.";
 
         case X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED:
-          memcpy(buf, "Proxy path length constraint exceeded.", size);
-          return;
+          return "Proxy path length constraint exceeded.";
 
         case X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE:
-          memcpy(buf, "Key usage does not include digital signature.", size);
-          return;
+          return "Key usage does not include digital signature.";
 
         case X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED:
-          memcpy(
-            buf,
-            "Proxy certificates not allowed, please use -allow_proxy_certs.",
-            size);
-          return;
+          return "Proxy certificates not allowed";
 
         case X509_V_ERR_INVALID_EXTENSION:
-          memcpy(buf, "Invalid or inconsistent certificate extension.", size);
-          return;
+          return "Invalid or inconsistent certificate extension.";
 
         case X509_V_ERR_INVALID_POLICY_EXTENSION:
-          memcpy(
-            buf, "Invalid or inconsistent certificate policy extension.", size);
-          return;
+          return "Invalid or inconsistent certificate policy extension.";
 
         case X509_V_ERR_NO_EXPLICIT_POLICY:
-          memcpy(buf, "No explicit policy.", size);
-          return;
+          return "No explicit policy.";
 
         case X509_V_ERR_DIFFERENT_CRL_SCOPE:
-          memcpy(buf, "Different CRL scope.", size);
-          return;
+          return "Different CRL scope.";
 
         case X509_V_ERR_UNSUPPORTED_EXTENSION_FEATURE:
-          memcpy(buf, "Unsupported extension feature.", size);
-          return;
+          return "Unsupported extension feature.";
 
         case X509_V_ERR_UNNESTED_RESOURCE:
-          memcpy(
-            buf, "RFC 3779 resource not subset of parent's resources.", size);
-          return;
+          return "RFC 3779 resource not subset of parent's resources.";
 
         case X509_V_ERR_PERMITTED_VIOLATION:
-          memcpy(buf, "Permitted subtree violation.", size);
-          return;
+          return "Permitted subtree violation.";
 
         case X509_V_ERR_EXCLUDED_VIOLATION:
-          memcpy(buf, "Excluded subtree violation.", size);
-          return;
+          return "Excluded subtree violation.";
 
         case X509_V_ERR_SUBTREE_MINMAX:
-          memcpy(
-            buf, "Name constraints minimum and maximum not supported.", size);
-          return;
+          return "Name constraints minimum and maximum not supported.";
 
         case X509_V_ERR_APPLICATION_VERIFICATION:
-          memcpy(buf, "Application verification failure. Unused.", size);
-          return;
+          return "Application verification failure. Unused.";
 
         case X509_V_ERR_UNSUPPORTED_CONSTRAINT_TYPE:
-          memcpy(buf, "Unsupported name constraint type.", size);
-          return;
+          return "Unsupported name constraint type.";
 
         case X509_V_ERR_UNSUPPORTED_CONSTRAINT_SYNTAX:
-          memcpy(buf, "Unsupported or invalid name constraint syntax.", size);
-          return;
+          return "Unsupported or invalid name constraint syntax.";
 
         case X509_V_ERR_UNSUPPORTED_NAME_SYNTAX:
-          memcpy(buf, "Unsupported or invalid name syntax.", size);
-          return;
+          return "Unsupported or invalid name syntax.";
 
         case X509_V_ERR_CRL_PATH_VALIDATION_ERROR:
-          memcpy(buf, "CRL path validation error.", size);
-          return;
+          return "CRL path validation error.";
 
         case X509_V_ERR_PATH_LOOP:
-          memcpy(buf, "Path loop.", size);
-          return;
+          return "Path loop.";
 
         case X509_V_ERR_SUITE_B_INVALID_VERSION:
-          memcpy(buf, "Suite B: certificate version invalid.", size);
-          return;
+          return "Suite B: certificate version invalid.";
 
         case X509_V_ERR_SUITE_B_INVALID_ALGORITHM:
-          memcpy(buf, "Suite B: invalid public key algorithm.", size);
-          return;
+          return "Suite B: invalid public key algorithm.";
 
         case X509_V_ERR_SUITE_B_INVALID_CURVE:
-          memcpy(buf, "Suite B: invalid ECC curve.", size);
-          return;
+          return "Suite B: invalid ECC curve.";
 
         case X509_V_ERR_SUITE_B_INVALID_SIGNATURE_ALGORITHM:
-          memcpy(buf, "Suite B: invalid signature algorithm.", size);
-          return;
+          return "Suite B: invalid signature algorithm.";
 
         case X509_V_ERR_SUITE_B_LOS_NOT_ALLOWED:
-          memcpy(buf, "Suite B: curve not allowed for this LOS.", size);
-          return;
+          return "Suite B: curve not allowed for this LOS.";
 
         case X509_V_ERR_SUITE_B_CANNOT_SIGN_P_384_WITH_P_256:
-          memcpy(buf, "Suite B: cannot sign P-384 with P-256.", size);
-          return;
+          return "Suite B: cannot sign P-384 with P-256.";
 
         case X509_V_ERR_HOSTNAME_MISMATCH:
-          memcpy(buf, "Hostname mismatch.", size);
-          return;
+          return "Hostname mismatch.";
 
         case X509_V_ERR_EMAIL_MISMATCH:
-          memcpy(buf, "Email address mismatch.", size);
-          return;
+          return "Email address mismatch.";
 
         case X509_V_ERR_IP_ADDRESS_MISMATCH:
-          memcpy(buf, "IP address mismatch.", size);
-          return;
+          return "IP address mismatch.";
 
         case X509_V_ERR_DANE_NO_MATCH:
-          memcpy(
-            buf,
-            "DANE TLSA authentication is enabled, but no TLSA records matched "
-            "the certificate chain. This error is only possible in "
-            "s_client(1).",
-            size);
-          return;
+          return "DANE TLSA authentication is enabled";
 
         case X509_V_ERR_EE_KEY_TOO_SMALL:
-          memcpy(buf, "EE certificate key too weak.", size);
-          return;
+          return "EE certificate key too weak.";
 
         case X509_V_ERR_INVALID_CALL:
-          memcpy(buf, "nvalid certificate verification context.", size);
-          return;
+          return "nvalid certificate verification context.";
 
         case X509_V_ERR_STORE_LOOKUP:
-          memcpy(buf, "Issuer certificate lookup error.", size);
-          return;
+          return "Issuer certificate lookup error.";
 
         case X509_V_ERR_NO_VALID_SCTS:
-          memcpy(
-            buf,
-            "Certificate Transparency required, but no valid SCTs found.",
-            size);
-          return;
+          return "Certificate Transparency required";
 
         case X509_V_ERR_PROXY_SUBJECT_NAME_VIOLATION:
-          memcpy(buf, "Proxy subject name violation.", size);
-          return;
+          return "Proxy subject name violation.";
 
         case X509_V_ERR_OCSP_VERIFY_NEEDED:
-          memcpy(
-            buf,
-            "Returned by the verify callback to indicate an OCSP verification "
-            "is needed.",
-            size);
-          return;
+          return "Returned by the verify callback to indicate an OCSP "
+                 "verification is needed.";
 
         case X509_V_ERR_OCSP_VERIFY_FAILED:
-          memcpy(
-            buf,
-            "Returned by the verify callback to indicate OCSP verification "
-            "failed.",
-            size);
-          return;
+          return "Returned by the verify callback to indicate OCSP "
+                 "verification failed.";
 
         case X509_V_ERR_OCSP_CERT_UNKNOWN:
-          memcpy(
-            buf,
-            "Returned by the verify callback to indicate that the certificate "
-            "is not recognized by the OCSP responder.",
-            size);
-          return;
+          return "Returned by the verify callback to indicate that the "
+                 "certificate is not recognized by the OCSP responder.";
       }
+      return "";
     }
 
     virtual std::string host()

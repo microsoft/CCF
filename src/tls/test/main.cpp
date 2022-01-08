@@ -211,12 +211,8 @@ int handshake(Context* ctx)
 
       case TLS_ERR_X509_VERIFY:
       {
-        std::vector<char> buf(512);
-        ctx->get_verify_error(buf.data(), buf.size());
-        LOG_FAIL_FMT(
-          "Handshake error: {} [{}]",
-          std::string(buf.data(), buf.size()),
-          tls::error_string(rc));
+        auto err = ctx->get_verify_error();
+        LOG_FAIL_FMT("Handshake error: {} [{}]", err, tls::error_string(rc));
         return 1;
       }
 

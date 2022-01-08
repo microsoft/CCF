@@ -105,10 +105,12 @@ namespace tls
       return mbedtls_ssl_get_verify_result(ssl.get());
     }
 
-    void get_verify_error(char* buf, size_t size)
+    std::string get_verify_error()
     {
+      std::vector<char> buf(512);
       mbedtls_x509_crt_verify_info(
-        buf, size, "Certificate verify failed: ", verify_result());
+        buf.data(), buf.size(), "Certificate verify failed: ", verify_result());
+      return std::string(buf.data(), buf.size());
     }
 
     virtual std::string host()

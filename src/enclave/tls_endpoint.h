@@ -425,13 +425,12 @@ namespace enclave
 
         case TLS_ERR_X509_VERIFY:
         {
-          std::vector<char> buf(512);
-          ctx->get_verify_error(buf.data(), buf.size());
+          auto err = ctx->get_verify_error();
 
           LOG_TRACE_FMT(
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
-            std::string(buf.data(), buf.size()),
+            err,
             tls::error_string(rc));
           stop(authfail);
           return;
