@@ -6,6 +6,12 @@ import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
 import subprocess
+import os
+
+
+def cond_removal(file):
+    if os.path.exists(file):
+        os.remove(file)
 
 
 @reqs.description("Running TLS test against CCF")
@@ -13,6 +19,10 @@ import subprocess
 def test(network, args):
     node = network.nodes[0]
     endpoint = f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}"
+    cond_removal("tls_report.csv")
+    cond_removal("tls_report.html")
+    cond_removal("tls_report.json")
+    cond_removal("tls_report.log")
     r = subprocess.run(
         ["testssl/testssl.sh", "--outfile", "tls_report", endpoint], check=False
     )
