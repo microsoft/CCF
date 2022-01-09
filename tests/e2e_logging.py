@@ -31,11 +31,14 @@ import infra.crypto
 from infra.runner import ConcurrentRunner
 from hashlib import sha256
 import e2e_common_endpoints
+from types import MappingProxyType
 
 from loguru import logger as LOG
 
 
-def verify_receipt(receipt, network_cert, check_endorsement=True, claims=None):
+def verify_receipt(
+    receipt, network_cert, check_endorsement=True, claims=None, generic=True
+):
     """
     Raises an exception on failure
     """
@@ -44,8 +47,10 @@ def verify_receipt(receipt, network_cert, check_endorsement=True, claims=None):
         ccf.receipt.check_endorsement(node_cert, network_cert)
     if claims is not None:
         assert "leaf_components" in receipt
-        assert "claims_digest" not in receipt["leaf_components"]
+        if not generic:
+            assert "claims_digest" not in receipt["leaf_components"]
         claims_digest = sha256(claims).digest()
+
         leaf = (
             sha256(
                 bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
@@ -1188,8 +1193,11 @@ def test_receipts(network, args):
 @reqs.description("Validate random receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_random_receipts(network, args, lts=True):
-    primary, _ = network.find_primary_and_any_backup()
+def test_random_receipts(
+    network, args, lts=True, additional_seqnos=MappingProxyType({}), node=None
+):
+    if node is None:
+        node, _ = network.find_primary_and_any_backup()
 
     common = os.listdir(network.common_dir)
     cert_paths = [
@@ -1203,7 +1211,7 @@ def test_random_receipts(network, args, lts=True):
             cert = c.read()
         certs[infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)] = cert
 
-    with primary.client("user0") as c:
+    with node.client("user0") as c:
         r = c.get("/app/commit")
         max_view, max_seqno = [
             int(e) for e in r.body.json()["transaction_id"].split(".")
@@ -1216,7 +1224,10 @@ def test_random_receipts(network, args, lts=True):
         seqnos = range(len(interesting_prefix) + 1, max_seqno)
         for s in (
             interesting_prefix
-            + sorted(random.sample(seqnos, min(50, len(seqnos))))
+            + sorted(
+                random.sample(seqnos, min(50, len(seqnos)))
+                + list(additional_seqnos.keys())
+            )
             + [last_sig_seqno]
         ):
             start_time = time.time()
@@ -1226,7 +1237,13 @@ def test_random_receipts(network, args, lts=True):
                     receipt = rc.body.json()
                     if lts and not receipt.get("cert"):
                         receipt["cert"] = certs[receipt["node_id"]]
-                    verify_receipt(receipt, network.cert, not lts)
+                    verify_receipt(
+                        receipt,
+                        network.cert,
+                        not lts,
+                        claims=additional_seqnos.get(s),
+                        generic=True,
+                    )
                     if s == max_seqno:
                         # Always a signature receipt
                         assert receipt["proof"] == [], receipt
