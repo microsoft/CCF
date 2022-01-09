@@ -29,7 +29,7 @@ validity of actually signing other certificates, while OpenSSL has extensive
 checks, which can fail functionality that was previously passing.
 
 For this reason, a number of extra checks in the OpenSSL side were disabled.
-Once we get rid ob MbedTLS we should revisit those checks again and improve
+Once we get rid of MbedTLS we should revisit those checks again and improve
 CCF's usage of TLS, and perhaps also creating weaker checks for non-CA
 certificates, etc.
 

@@ -101,7 +101,7 @@ namespace crypto
       {
         return p.get();
       }
-      /// Reset pointer, free old if ayn
+      /// Reset pointer, free old if any
       void reset(T* other)
       {
         p.reset(other);
