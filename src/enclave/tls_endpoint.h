@@ -9,9 +9,7 @@
 #include "enclave/endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
-// These headers are temporary, until we have a single TLS implementation
-#include "tls/mbedtls/tls.h"
-#include "tls/openssl/tls.h"
+#include "tls/tls.h"
 
 #include <exception>
 

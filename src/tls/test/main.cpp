@@ -3,9 +3,7 @@
 #include "crypto/certs.h"
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
-// These headers are temporary, until we have a single TLS implementation
-#include "tls/mbedtls/tls.h"
-#include "tls/openssl/tls.h"
+#include "tls/tls.h"
 
 #include <openssl/err.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN

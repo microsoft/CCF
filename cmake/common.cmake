@@ -60,12 +60,6 @@ if(ENABLE_HTTP2)
   add_compile_definitions(ENABLE_HTTP2)
 endif()
 
-option(TLS_PROVIDER_IS_MBEDTLS "Force TLS provider to MbedTLS" OFF)
-if(TLS_PROVIDER_IS_MBEDTLS)
-  message(STATUS "Using MbedTLS for TLS")
-  add_compile_definitions(TLS_PROVIDER_IS_MBEDTLS)
-endif()
-
 option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
 if(ENABLE_BFT)
   add_compile_definitions(ENABLE_BFT)
