@@ -7,7 +7,6 @@
 #include "entities.h"
 #include "service_map.h"
 
-#include <mbedtls/md.h>
 #include <vector>
 
 namespace ccf

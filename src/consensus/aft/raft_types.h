@@ -4,12 +4,12 @@
 
 #include "ccf/entity_id.h"
 #include "consensus/consensus_types.h"
+#include "crypto/ecdsa.h"
 #include "crypto/hash.h"
 #include "ds/ring_buffer_types.h"
 #include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
-#include "mbedtls/ecdsa.h"
 
 #include <array>
 #include <chrono>
@@ -157,7 +157,7 @@ namespace aft
     Index last_log_idx;
     Nonce hashed_nonce;
     uint32_t signature_size;
-    std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
+    std::array<uint8_t, crypto::ECDSA_MAX_LEN> sig;
   };
 
   struct SignaturesReceivedAck : RaftHeader

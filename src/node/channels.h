@@ -18,7 +18,6 @@
 
 #include <iostream>
 #include <map>
-#include <mbedtls/ecdh.h>
 #include <openssl/crypto.h>
 
 // -Wpedantic flags token pasting of __VA_ARGS__
