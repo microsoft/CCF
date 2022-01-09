@@ -60,6 +60,12 @@ if(ENABLE_HTTP2)
   add_compile_definitions(ENABLE_HTTP2)
 endif()
 
+option(TLS_PROVIDER_IS_MBEDTLS "Force TLS provider to MbedTLS" OFF)
+if(TLS_PROVIDER_IS_MBEDTLS)
+  message(STATUS "Using MbedTLS for TLS")
+  add_compile_definitions(TLS_PROVIDER_IS_MBEDTLS)
+endif()
+
 option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
 if(ENABLE_BFT)
   add_compile_definitions(ENABLE_BFT)
@@ -178,6 +184,7 @@ set(CCF_ENDPOINTS_SOURCES
 )
 
 find_library(CRYPTO_LIBRARY crypto)
+find_library(TLS_LIBRARY ssl)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
@@ -240,6 +247,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     cchost
     PRIVATE uv
             ${CRYPTO_LIBRARY}
+            ${TLS_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
@@ -286,6 +294,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     PRIVATE uv
             ${SNMALLOC_LIB}
             ${CRYPTO_LIBRARY}
+            ${TLS_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
