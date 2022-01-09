@@ -201,3 +201,32 @@ Historical state always contains a receipt. Users wishing to implement a receipt
     :start-after: SNIPPET_START: get_historical_with_receipt
     :end-before: SNIPPET_END: get_historical_with_receipt
     :dedent:
+
+User-Defined Claims in Receipts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A user wanting to tie transaction-specific values to a receipt can do so by attaching a claims digest to their transaction:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: set_claims_digest
+    :end-before: SNIPPET_END: set_claims_digest
+    :dedent:
+
+CCF will then record the digest of the transaction as the combined digest of the write set, plus this claims digest.
+
+Receipts for transactions that have set a claims digest expose a ``leaf_components``, rather than an opaque ``leaf``,
+which means that a receipt endpoint can choose to reveal the claims and remove their digest from the receipt.
+
+The receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
+``leaf`` that correctly combines with the ``proof`` to form the ``root`` that the signature covers. Receipt verification
+therefore establishes the authenticity of the claims.
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: claims_digest_in_receipt
+    :end-before: SNIPPET_END: claims_digest_in_receipt
+    :dedent:
+
+A client consuming the output of this endpoint can then digest the claims themselves, combine the digest with the other leaf component
+(``write_set_digest``) to obtain the equivalent ``leaf``.

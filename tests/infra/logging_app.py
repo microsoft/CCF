@@ -81,6 +81,7 @@ class LoggingTxs:
         log_capture=None,
         send_private=True,
         send_public=True,
+        record_claim=False,
     ):
         self.network = network
         remote_node, _ = network.find_primary(log_capture=log_capture)
@@ -124,12 +125,15 @@ class LoggingTxs:
 
                 if send_public:
                     pub_msg = f"Public message at idx {target_idx} [{len(self.pub[target_idx])}]"
+                    payload = {
+                        "id": target_idx,
+                        "msg": pub_msg,
+                    }
+                    if record_claim:
+                        payload["record_claim"] = True
                     rep_pub = c.post(
                         "/app/log/public",
-                        {
-                            "id": target_idx,
-                            "msg": pub_msg,
-                        },
+                        payload,
                         headers=self._get_headers_base(),
                         log_capture=log_capture,
                     )
@@ -144,6 +148,7 @@ class LoggingTxs:
             network.wait_for_all_nodes_to_commit(
                 tx_id=TxID(wait_point.view, wait_point.seqno)
             )
+        return TxID(wait_point.view, wait_point.seqno)
 
     def verify(
         self,
@@ -267,9 +272,9 @@ class LoggingTxs:
                 f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
 
-    def get_receipt(self, node, idx, seqno, view, timeout=3):
+    def get_receipt(self, node, idx, seqno, view, timeout=3, domain="private"):
 
-        cmd = "/app/log/private/historical_receipt"
+        cmd = f"/app/log/{domain}/historical_receipt"
         headers = self._get_headers_base()
         headers.update(
             {
