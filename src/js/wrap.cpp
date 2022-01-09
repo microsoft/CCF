@@ -21,6 +21,7 @@
 #include <memory>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
+#include <span>
 
 namespace ccf::js
 {
@@ -675,6 +676,40 @@ namespace ccf::js
     }
 
     rpc_ctx->set_apply_writes(val);
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_rpc_set_claims_digest(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    auto rpc_ctx =
+      static_cast<enclave::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
+
+    if (rpc_ctx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "RPC context is not set");
+    }
+
+    size_t digest_size;
+    uint8_t* digest = JS_GetArrayBuffer(ctx, &digest_size, argv[0]);
+
+    if (!digest)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    if (digest_size != ccf::ClaimsDigest::Digest::SIZE)
+      return JS_ThrowTypeError(
+        ctx, "Argument must be an ArrayBuffer of the right size");
+
+    std::span<uint8_t, ccf::ClaimsDigest::Digest::SIZE> digest_bytes(
+      digest, ccf::ClaimsDigest::Digest::SIZE);
+    rpc_ctx->set_claims_digest(
+      ccf::ClaimsDigest::Digest::from_span(digest_bytes));
+
     return JS_UNDEFINED;
   }
 
@@ -1496,6 +1531,11 @@ namespace ccf::js
         rpc,
         "setApplyWrites",
         JS_NewCFunction(ctx, js_rpc_set_apply_writes, "setApplyWrites", 1));
+      JS_SetPropertyStr(
+        ctx,
+        rpc,
+        "setClaimsDigest",
+        JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
     }
 
     // All high-level public helper functions are exposed through

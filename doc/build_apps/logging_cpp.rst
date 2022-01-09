@@ -73,9 +73,9 @@ Each function is installed as the handler for a specific HTTP resource, defined 
     :end-before: SNIPPET_END: install_record
     :dedent:
 
-This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning ``POST /app/log/private``.
+This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning :http:POST:`/log/private`.
 
-The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``/log/private`` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the ``/api`` endpoint to populate the relevant parts of the OpenAPI document. There are other endpoints installed for the URI path ``/log/private`` with different verbs, to handle ``GET`` and ``DELETE`` requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
+The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for :http:POST:`/log/private` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the ``/api`` endpoint to populate the relevant parts of the OpenAPI document. There are other endpoints installed for the URI path ``/log/private`` with different verbs, to handle ``GET`` and ``DELETE`` requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
@@ -201,3 +201,32 @@ Historical state always contains a receipt. Users wishing to implement a receipt
     :start-after: SNIPPET_START: get_historical_with_receipt
     :end-before: SNIPPET_END: get_historical_with_receipt
     :dedent:
+
+User-Defined Claims in Receipts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A user wanting to tie transaction-specific values to a receipt can do so by attaching a claims digest to their transaction:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: set_claims_digest
+    :end-before: SNIPPET_END: set_claims_digest
+    :dedent:
+
+CCF will then record the digest of the transaction as the combined digest of the write set, plus this claims digest.
+
+Receipts for transactions that have set a claims digest expose a ``leaf_components``, rather than an opaque ``leaf``,
+which means that a receipt endpoint can choose to reveal the claims and remove their digest from the receipt.
+
+The receipt verification can then only succeed if the revealed claims are digested and their digest combined into a
+``leaf`` that correctly combines with the ``proof`` to form the ``root`` that the signature covers. Receipt verification
+therefore establishes the authenticity of the claims.
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: claims_digest_in_receipt
+    :end-before: SNIPPET_END: claims_digest_in_receipt
+    :dedent:
+
+A client consuming the output of this endpoint can then digest the claims themselves, combine the digest with the other leaf component
+(``write_set_digest``) to obtain the equivalent ``leaf``.

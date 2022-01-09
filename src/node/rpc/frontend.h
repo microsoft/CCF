@@ -300,11 +300,12 @@ namespace ccf
               return std::make_tuple(prescribed_commit_version, kv::NoVersion);
             };
             tx.set_view(replicated_view);
-            result = tx.commit(track_read_versions, version_resolver);
+            result =
+              tx.commit(ctx->claims, track_read_versions, version_resolver);
           }
           else
           {
-            result = tx.commit(track_read_versions);
+            result = tx.commit(ctx->claims, track_read_versions);
           }
 
           switch (result)

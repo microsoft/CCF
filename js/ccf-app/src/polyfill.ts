@@ -114,6 +114,9 @@ class CCFPolyfill implements CCF {
     setApplyWrites(force: boolean) {
       throw new Error("Not implemented");
     },
+    setClaimsDigest(digest: ArrayBuffer) {
+      throw new Error("Not implemented");
+    },
   };
 
   crypto = {

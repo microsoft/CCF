@@ -15,18 +15,24 @@ namespace ccf
     std::shared_ptr<ccf::HistoryTree::Path> path = {};
     ccf::NodeId node_id = {};
     std::optional<crypto::Pem> cert = std::nullopt;
+    std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
+    ccf::ClaimsDigest claims_digest = {};
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
       const HistoryTree::Hash& r_,
       std::shared_ptr<ccf::HistoryTree::Path> p_,
       const NodeId& n_,
-      const std::optional<crypto::Pem>& c_) :
+      const std::optional<crypto::Pem>& c_,
+      const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       signature(s_),
       root(r_),
       path(p_),
       node_id(n_),
-      cert(c_)
+      cert(c_),
+      write_set_digest(write_set_digest_),
+      claims_digest(claims_digest_)
     {}
 
     void describe(ccf::Receipt& r, bool include_root = false) const
@@ -51,17 +57,35 @@ namespace ccf
           }
           r.proof.emplace_back(std::move(n));
         }
-        r.leaf = path->leaf().to_string();
-      }
-      else
-      {
-        r.leaf = root.to_string();
       }
       r.node_id = node_id;
 
       if (cert.has_value())
       {
         r.cert = cert->str();
+      }
+
+      if (claims_digest.empty())
+      {
+        if (path)
+        {
+          r.leaf = path->leaf().to_string();
+        }
+        else
+        {
+          // Signature transaction
+          r.leaf = root.to_string();
+        }
+      }
+      else
+      {
+        std::optional<std::string> write_set_digest_str = std::nullopt;
+        if (write_set_digest.has_value())
+          write_set_digest_str = write_set_digest->hex_str();
+        std::optional<std::string> claims_digest_str =
+          claims_digest.value().hex_str();
+        r.leaf_components =
+          Receipt::LeafComponents{write_set_digest_str, claims_digest_str};
       }
     }
   };

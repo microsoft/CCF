@@ -121,6 +121,16 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/log/public/historical_receipt": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_historical_public_with_receipt",
+        "forwarding_required": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "historical",
+        "openapi": {}
+      }
     }
   }
 }

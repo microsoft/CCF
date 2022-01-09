@@ -85,3 +85,9 @@ Handles
 
 .. doxygenclass:: kv::SetHandle
    :project: CCF
+
+Serialisation
+-------------
+
+.. doxygenenum:: kv::EntryType
+   :project: CCF
