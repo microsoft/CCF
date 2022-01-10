@@ -34,9 +34,16 @@ This section describes how :term:`Operators` manage the different nodes constitu
     ---
 
     :fa:`stamp` :doc:`certificates`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Set and renew nodes and service x509 certificates.
+
+    ---
+
+    :fa:`sync-alt` :doc:`code_upgrade`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Upgrade a live service with minimal downtime.
 
     ---
 
