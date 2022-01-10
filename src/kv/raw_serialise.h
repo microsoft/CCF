@@ -5,6 +5,7 @@
 #include "ds/serialized.h"
 #include "generic_serialise_wrapper.h"
 
+#include <array>
 #include <small_vector/SmallVector.h>
 #include <type_traits>
 
@@ -47,6 +48,22 @@ namespace kv
         entry_size_bytes);
     }
 
+    template <typename T, size_t SIZE>
+    void serialise_array(const std::array<T, SIZE>& array)
+    {
+      constexpr size_t array_size = SIZE * sizeof(T);
+      size_t size_before = buf.size();
+      buf.resize(buf.size() + array_size);
+
+      auto data_ = buf.data() + size_before;
+      auto size_ = buf.size() - size_before;
+      serialized::write(
+        data_,
+        size_,
+        reinterpret_cast<const uint8_t*>(array.data()),
+        array_size);
+    }
+
     void serialise_string(const std::string& str)
     {
       size_t size_before = buf.size();
@@ -72,6 +89,10 @@ namespace kv
         {
           serialise_vector(entry);
         }
+      }
+      else if constexpr (std::is_same_v<T, crypto::Sha256Hash>)
+      {
+        serialise_array(entry.h);
       }
       else if constexpr (std::is_same_v<T, EntryType>)
       {
@@ -175,10 +196,21 @@ namespace kv
 
         return ret;
       }
+      else if constexpr (nonstd::is_std_array<T>::value)
+      {
+        T ret;
+        auto data_ = reinterpret_cast<uint8_t*>(ret.data());
+        constexpr size_t size = ret.size() * sizeof(typename T::value_type);
+        auto size_ = size;
+        serialized::write(data_, size_, data_ptr + data_offset, size);
+        data_offset += size;
+
+        return ret;
+      }
       else if constexpr (std::is_same_v<T, kv::EntryType>)
       {
         uint8_t entry_type = read_entry<uint8_t>();
-        if (entry_type > 1)
+        if (entry_type > 2)
           throw std::logic_error(
             fmt::format("Invalid EntryType: {}", entry_type));
 

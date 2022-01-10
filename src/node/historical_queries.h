@@ -92,6 +92,7 @@ namespace ccf::historical
     {
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_digest = {};
+      ccf::ClaimsDigest claims_digest = {};
       StorePtr store = nullptr;
       bool is_signature = false;
       TxReceiptPtr receipt = nullptr;
@@ -267,7 +268,9 @@ namespace ccf::historical
                     proof.get_root(),
                     proof.get_path(),
                     sig->node,
-                    sig->cert);
+                    sig->cert,
+                    details->entry_digest,
+                    details->claims_digest);
                   details->transaction_id = {sig->view, seqno};
                   HISTORICAL_LOG(
                     "Assigned a sig for {} after given signature at {}",
@@ -351,7 +354,9 @@ namespace ccf::historical
                           proof.get_root(),
                           proof.get_path(),
                           sig->node,
-                          sig->cert);
+                          sig->cert,
+                          new_details->entry_digest,
+                          new_details->claims_digest);
                         new_details->transaction_id = {sig->view, new_seqno};
                         return std::nullopt;
                       }
@@ -395,7 +400,9 @@ namespace ccf::historical
                         proof.get_root(),
                         proof.get_path(),
                         sig->node,
-                        sig->cert);
+                        sig->cert,
+                        new_details->entry_digest,
+                        new_details->claims_digest);
                       new_details->transaction_id = {sig->view, new_seqno};
                     }
                   }
@@ -505,7 +512,8 @@ namespace ccf::historical
       const StorePtr& store,
       const crypto::Sha256Hash& entry_digest,
       ccf::SeqNo seqno,
-      bool is_signature)
+      bool is_signature,
+      ccf::ClaimsDigest&& claims_digest)
     {
       auto request_it = requests.begin();
       while (request_it != requests.end())
@@ -563,6 +571,8 @@ namespace ccf::historical
           details->current_stage = RequestStage::Trusted;
 
           details->entry_digest = entry_digest;
+          if (!claims_digest.empty())
+            details->claims_digest = std::move(claims_digest);
 
           CCF_ASSERT_FMT(
             details->store == nullptr,
@@ -941,6 +951,7 @@ namespace ccf::historical
       }
 
       kv::ApplyResult deserialise_result;
+      ccf::ClaimsDigest claims_digest;
 
       try
       {
@@ -968,6 +979,7 @@ namespace ccf::historical
         }
 
         deserialise_result = exec->apply();
+        claims_digest = std::move(exec->consume_claims_digest());
       }
       catch (const std::exception& e)
       {
@@ -1027,7 +1039,8 @@ namespace ccf::historical
         seqno,
         (size_t)deserialise_result);
       const auto entry_digest = crypto::Sha256Hash({data, size});
-      process_deserialised_store(store, entry_digest, seqno, is_signature);
+      process_deserialised_store(
+        store, entry_digest, seqno, is_signature, std::move(claims_digest));
 
       return true;
     }

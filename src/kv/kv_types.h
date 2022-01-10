@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/claims_digest.h"
 #include "ccf/entity_id.h"
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
@@ -295,7 +296,8 @@ namespace kv
   enum class EntryType : uint8_t
   {
     WriteSet = 0,
-    Snapshot = 1
+    Snapshot = 1,
+    WriteSetWithClaims = 2
   };
 
   // EntryType must be backwards compatible with the older
@@ -439,8 +441,8 @@ namespace kv
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
-
     virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void append_entry(const crypto::Sha256Hash& digest) = 0;
     virtual void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
@@ -500,14 +502,17 @@ namespace kv
   {
     CommitResult success;
     std::vector<uint8_t> data;
+    ccf::ClaimsDigest claims_digest;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
       std::vector<uint8_t>&& data_,
+      ccf::ClaimsDigest&& claims_digest_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       data(std::move(data_)),
+      claims_digest(claims_digest_),
       hooks(std::move(hooks_))
     {}
   };
@@ -523,18 +528,26 @@ namespace kv
   {
   private:
     std::vector<uint8_t> data;
+    ccf::ClaimsDigest claims_digest;
     ConsensusHookPtrs hooks;
 
   public:
-    MovePendingTx(std::vector<uint8_t>&& data_, ConsensusHookPtrs&& hooks_) :
+    MovePendingTx(
+      std::vector<uint8_t>&& data_,
+      ccf::ClaimsDigest&& claims_digest_,
+      ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
+      claims_digest(claims_digest_),
       hooks(std::move(hooks_))
     {}
 
     PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitResult::SUCCESS, std::move(data), std::move(hooks));
+        CommitResult::SUCCESS,
+        std::move(data),
+        std::move(claims_digest),
+        std::move(hooks));
     }
   };
 
@@ -658,6 +671,7 @@ namespace kv
     virtual kv::Version get_index() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
+    virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
 
     // Setting a short rollback is a work around that should be fixed
     // shortly. In BFT mode when we deserialize and realize we need to

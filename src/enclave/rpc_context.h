@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/claims_digest.h"
 #include "ccf/tx_id.h"
 #include "http/http_builder.h"
 #include "http/http_consts.h"
@@ -142,6 +143,8 @@ namespace enclave
     bool is_create_request = false;
     bool execute_on_node = false;
 
+    ccf::ClaimsDigest claims;
+
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
     RpcContext(
@@ -211,5 +214,10 @@ namespace enclave
     virtual void reset_response() = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
+
+    virtual void set_claims_digest(ccf::ClaimsDigest::Digest&& digest)
+    {
+      claims.set(std::move(digest));
+    }
   };
 }
