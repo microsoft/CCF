@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for network certificate.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
 
+## [2.0.0-dev8]
+
+### Added
+
+- Added `set_claims_digest()` API to `RpcContext`, see [documentation](https://microsoft.github.io/CCF/main/build_apps/logging_cpp.html#user-defined-claims-in-receipts) on how to use it to attach application-defined claims to transaction receipts.
+
 ## [2.0.0-dev7]
 
 ### Added

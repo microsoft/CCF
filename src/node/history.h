@@ -87,7 +87,7 @@ namespace ccf
 
   static inline void log_hash(const crypto::Sha256Hash& h, HashOp flag)
   {
-    LOG_DEBUG_FMT("History [{}] {}", flag, h);
+    LOG_TRACE_FMT("History [{}] {}", flag, h);
   }
 
   class NullTxHistoryPendingTx : public kv::PendingTx
@@ -135,6 +135,11 @@ namespace ccf
     {}
 
     void append(const std::vector<uint8_t>&) override
+    {
+      version++;
+    }
+
+    void append_entry(const crypto::Sha256Hash& digest) override
     {
       version++;
     }
@@ -369,7 +374,7 @@ namespace ccf
       tree = new HistoryTree(serialised);
     }
 
-    void append(crypto::Sha256Hash& hash)
+    void append(const crypto::Sha256Hash& hash)
     {
       tree->insert(merkle::Hash(hash.h));
     }
@@ -802,6 +807,13 @@ namespace ccf
       log_hash(rh, APPEND);
       std::lock_guard<std::mutex> guard(state_lock);
       replicated_state_tree.append(rh);
+    }
+
+    void append_entry(const crypto::Sha256Hash& digest) override
+    {
+      log_hash(digest, APPEND);
+      std::lock_guard<std::mutex> guard(state_lock);
+      replicated_state_tree.append(digest);
     }
 
     void set_endorsed_certificate(const crypto::Pem& cert) override

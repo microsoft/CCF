@@ -126,7 +126,7 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
     )
 
 
-def set_js_args(args, from_install_path):
+def set_js_args(args, from_install_path, to_install_path=None):
     # Use from_version's app and constitution as new JS features may not be available
     # on older versions, but upgrade to the new constitution once the new network is ready
     js_app_directory = (
@@ -135,6 +135,10 @@ def set_js_args(args, from_install_path):
         else "samples/logging/js"
     )
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
+    if to_install_path:
+        args.new_js_app_bundle = os.path.join(
+            to_install_path, "../samples/apps/logging/js"
+        )
 
     get_new_constitution_for_install(args, from_install_path)
 
@@ -153,7 +157,7 @@ def run_code_upgrade_from(
         to_install_path
     )
 
-    set_js_args(args, from_install_path)
+    set_js_args(args, from_install_path, to_install_path)
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
@@ -233,10 +237,49 @@ def run_code_upgrade_from(
             primary, _ = network.find_primary()
             network.consortium.retire_code(primary, old_code_id)
 
-            for node in old_nodes:
+            for index, node in enumerate(old_nodes):
                 network.retire_node(primary, node)
                 if primary == node:
                     primary, _ = network.wait_for_new_primary(primary)
+                    # This block is here to test the transition period from a network that
+                    # does not support custom claims to one that does. It can be removed after
+                    # the transition is complete.
+                    #
+                    # The new build, being unreleased, doesn't have a version at all
+                    if not primary.major_version:
+                        LOG.info("Upgrade to new JS app")
+                        # Upgrade to a version of the app containing an endpoint that
+                        # registers custom claims
+                        network.consortium.set_js_app(primary, args.new_js_app_bundle)
+                        LOG.info("Run transaction with additional claim")
+                        # With wait_for_sync, the client checks that all nodes, including
+                        # the minority of old ones, have acked the transaction
+                        msg_idx = network.txs.idx + 1
+                        txid = network.txs.issue(
+                            network, number_txs=1, record_claim=True, wait_for_sync=True
+                        )
+                        assert len(network.txs.pub[msg_idx]) == 1
+                        claims = network.txs.pub[msg_idx][-1]["msg"]
+
+                        LOG.info(
+                            "Check receipts are fine, including transaction with claims"
+                        )
+                        test_random_receipts(
+                            network,
+                            args,
+                            lts=True,
+                            additional_seqnos={txid.seqno: claims.encode()},
+                        )
+                        # Also check receipts on an old node
+                        if index + 1 < len(old_nodes):
+                            next_node = old_nodes[index + 1]
+                            test_random_receipts(
+                                network,
+                                args,
+                                lts=True,
+                                additional_seqnos={txid.seqno: None},
+                                node=next_node,
+                            )
                 node.stop()
 
             LOG.info("Service is now made of new nodes only")

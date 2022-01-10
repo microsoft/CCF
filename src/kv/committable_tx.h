@@ -6,6 +6,7 @@
 #include "ccf/tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
+#include "node/rpc/claims.h"
 
 #include <list>
 
@@ -21,7 +22,9 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    std::vector<uint8_t> serialise(bool include_reads = false)
+    std::vector<uint8_t> serialise(
+      const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
+      bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
@@ -41,7 +44,14 @@ namespace kv
       }
 
       auto e = store->get_encryptor();
-      KvStoreSerialiser replicated_serialiser(e, {commit_view, version});
+      auto entry_type = claims_digest.empty() ? EntryType::WriteSet :
+                                                EntryType::WriteSetWithClaims;
+      LOG_TRACE_FMT(
+        "Serialising claim digest {} {}",
+        claims_digest.value(),
+        claims_digest.empty());
+      KvStoreSerialiser replicated_serialiser(
+        e, {commit_view, version}, entry_type, claims_digest);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -80,6 +90,7 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
+      const ccf::ClaimsDigest& claims = ccf::no_claims(),
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr)
@@ -141,16 +152,19 @@ namespace kv
         // recover.
         try
         {
-          auto data = serialise();
+          auto data = serialise(claims);
 
           if (data.empty())
           {
             return CommitResult::SUCCESS;
           }
 
+          auto claims_ = claims;
+
           return store->commit(
             {commit_view, version},
-            std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
+            std::make_unique<MovePendingTx>(
+              std::move(data), std::move(claims_), std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -319,7 +333,8 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitResult::SUCCESS, serialise(), std::move(hooks)};
+      return {
+        CommitResult::SUCCESS, serialise(), ccf::no_claims(), std::move(hooks)};
     }
   };
 }

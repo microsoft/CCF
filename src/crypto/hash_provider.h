@@ -6,8 +6,10 @@
 #include "ds/hex.h"
 #include "ds/json.h"
 
+#include <array>
 #include <cstdint>
 #include <iostream>
+#include <span>
 #include <vector>
 
 namespace crypto
@@ -54,15 +56,21 @@ namespace crypto
   {
   public:
     static constexpr size_t SIZE = 256 / 8;
+    using Representation = std::array<uint8_t, SIZE>;
+    Representation h;
+
     Sha256Hash() : h{0} {}
+
+    inline void set(Representation&& r)
+    {
+      h = std::move(r);
+    }
+
     Sha256Hash(const CBuffer& data) : h{0}
     {
       default_sha256(data, h.data());
     }
-    Sha256Hash(const std::string& s)
-    {
-      ds::from_hex(s, h);
-    }
+
     Sha256Hash(const Sha256Hash& left, const Sha256Hash& right)
     {
       std::vector<uint8_t> data(left.h.size() + right.h.size());
@@ -70,8 +78,6 @@ namespace crypto
       std::copy(right.h.begin(), right.h.end(), data.begin() + left.h.size());
       default_sha256(data, h.data());
     }
-
-    std::array<uint8_t, SIZE> h;
 
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)
@@ -88,6 +94,26 @@ namespace crypto
     {
       return ds::to_hex(h);
     };
+
+    static inline Sha256Hash from_string(const std::string& str)
+    {
+      CBuffer cb(str);
+      return Sha256Hash(cb);
+    }
+
+    static inline Sha256Hash from_hex_string(const std::string& str)
+    {
+      Sha256Hash digest;
+      ds::from_hex(str, digest.h);
+      return digest;
+    }
+
+    static inline Sha256Hash from_span(const std::span<uint8_t, SIZE>& sp)
+    {
+      Sha256Hash digest;
+      std::copy(sp.begin(), sp.end(), digest.h.begin());
+      return digest;
+    }
   };
 
   inline void to_json(nlohmann::json& j, const Sha256Hash& hash)

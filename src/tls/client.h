@@ -2,21 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "context.h"
-
-namespace tls
-{
-  class Client : public Context
-  {
-  private:
-    std::shared_ptr<Cert> cert;
-
-  public:
-    Client(std::shared_ptr<Cert> cert_, bool dtls = false) :
-      Context(true, dtls),
-      cert(cert_)
-    {
-      cert->use(ssl.get(), cfg.get());
-    }
-  };
-}
+#ifdef TLS_PROVIDER_IS_MBEDTLS
+#  include "mbedtls/client.h"
+#else
+#  include "openssl/client.h"
+#endif

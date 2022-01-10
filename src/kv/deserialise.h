@@ -22,6 +22,7 @@ namespace kv
       kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
+      ccf::ClaimsDigest& claims_digest,
       bool ignore_strict_versions = false) = 0;
 
     virtual bool commit_deserialised(
@@ -44,6 +45,7 @@ namespace kv
     OrderedChanges changes;
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
+    ccf::ClaimsDigest claims_digest;
 
     const std::optional<TxID> expected_txid;
 
@@ -61,10 +63,22 @@ namespace kv
       expected_txid(expected_txid_)
     {}
 
+    ccf::ClaimsDigest&& consume_claims_digest() override
+    {
+      return std::move(claims_digest);
+    }
+
     ApplyResult apply() override
     {
       if (!store->fill_maps(
-            data, public_only, version, term, changes, new_maps, true))
+            data,
+            public_only,
+            version,
+            term,
+            changes,
+            new_maps,
+            claims_digest,
+            true))
       {
         return ApplyResult::FAIL;
       }
@@ -131,7 +145,14 @@ namespace kv
 
       if (history)
       {
-        history->append(data);
+        if (claims_digest.empty())
+        {
+          history->append(data);
+        }
+        else
+        {
+          history->append_entry(ccf::entry_leaf(data, claims_digest.value()));
+        }
       }
       return success;
     }
