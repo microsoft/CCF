@@ -12,6 +12,10 @@
 #include "ccf/http_query.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
+// FIXME: The header below is used for a single check of the certificate and
+// could be done using OpenSSL. For now, we keep it as is, but we should make
+// the change once we deprecate, and remove, mbedTLS.
+#include "crypto/mbedtls/mbedtls_wrappers.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
