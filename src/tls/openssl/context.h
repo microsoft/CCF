@@ -54,12 +54,10 @@ namespace tls
       SSL_CTX_set_ciphersuites(
         cfg,
         "TLS_AES_256_GCM_SHA384:"
-        "TLS_CHACHA20_POLY1305_SHA256:"
         "TLS_AES_128_GCM_SHA256");
       SSL_set_ciphersuites(
         ssl,
         "TLS_AES_256_GCM_SHA384:"
-        "TLS_CHACHA20_POLY1305_SHA256:"
         "TLS_AES_128_GCM_SHA256");
 
       // Restrict the curves to approved ones
