@@ -16,8 +16,11 @@
 static std::mutex create_lock;
 static std::atomic<enclave::Enclave*> e;
 
+#ifdef INSIDE_ENCLAVE
 std::atomic<std::chrono::microseconds> logger::config::us =
   std::chrono::microseconds::zero();
+#endif
+
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
