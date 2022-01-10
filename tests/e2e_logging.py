@@ -150,8 +150,12 @@ def test_large_messages(network, args):
         check = infra.checker.Checker()
 
         with primary.client("user0") as c:
-            log_id = 44
-            for p in range(14, 20) if args.consensus == "CFT" else range(10, 13):
+            # TLS libraries usually have 16K intrernal buffers, so we start at
+            # 1K and move up to 1M and make sure they can cope with it.
+            # Starting below 16K also helps identify problems (by seeing some
+            # pass but not others, and finding where does it fail).
+            log_id = 40
+            for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
