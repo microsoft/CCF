@@ -377,21 +377,17 @@ namespace ccfapp
         auto response_headers_js = val["headers"];
         if (JS_IsObject(response_headers_js))
         {
-          uint32_t prop_count = 0;
-          JSPropertyEnum* prop_enum = nullptr;
-          JS_GetOwnPropertyNames(
-            ctx,
-            &prop_enum,
-            &prop_count,
-            response_headers_js,
-            JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
-          for (size_t i = 0; i < prop_count; i++)
+          js::JSWrappedPropertyEnum prop_enum(ctx, response_headers_js);
+          for (size_t i = 0; i < prop_enum.size(); i++)
           {
-            auto prop_name = prop_enum[i].atom;
+            auto prop_name = prop_enum[i];
             auto prop_name_str = ctx.to_str(prop_name);
             if (!prop_name_str)
             {
-              js::js_dump_error(ctx);
+              endpoint_ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Invalid endpoint function return value (header type).");
               return;
             }
             auto prop_val = response_headers_js.get_property(prop_name);
@@ -407,9 +403,6 @@ namespace ccfapp
             endpoint_ctx.rpc_ctx->set_response_header(
               *prop_name_str, *prop_val_str);
           }
-          for (uint32_t i = 0; i < prop_count; i++)
-            JS_FreeAtom(ctx, prop_enum[i].atom);
-          js_free(ctx, prop_enum);
         }
       }
 

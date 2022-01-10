@@ -512,5 +512,88 @@ namespace ccf::js
     }
   };
 
+  class JSWrappedAtom
+  {
+  public:
+    JSWrappedAtom() : ctx(NULL), val(JS_ATOM_NULL) {}
+    JSWrappedAtom(JSContext* ctx, JSAtom&& val) : ctx(ctx), val(std::move(val))
+    {}
+    JSWrappedAtom(JSContext* ctx, const JSAtom& value) : ctx(ctx)
+    {
+      val = JS_DupAtom(ctx, value);
+    }
+    JSWrappedAtom(const JSWrappedAtom& other) : ctx(other.ctx)
+    {
+      val = JS_DupAtom(ctx, other.val);
+    }
+    JSWrappedAtom(JSWrappedAtom&& other) : ctx(other.ctx)
+    {
+      val = other.val;
+      other.val = JS_ATOM_NULL;
+    }
+    ~JSWrappedAtom()
+    {
+      if (ctx)
+      {
+        JS_FreeAtom(ctx, val);
+      }
+    }
+
+    operator const JSAtom&() const
+    {
+      return val;
+    }
+
+    JSContext* ctx;
+    JSAtom val;
+  };
+
+  class JSWrappedPropertyEnum
+  {
+  public:
+    JSWrappedPropertyEnum(JSContext* ctx, const JSWrappedValue& value)
+    {
+      if (!JS_IsObject(value))
+      {
+        throw std::logic_error(
+          fmt::format("object value required for property enum"));
+      }
+
+      JSPropertyEnum* prop_enum;
+      uint32_t prop_count;
+
+      if (
+        JS_GetOwnPropertyNames(
+          ctx,
+          &prop_enum,
+          &prop_count,
+          value,
+          JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == -1)
+      {
+        throw std::logic_error(
+          fmt::format("Could not extract property names of enum"));
+      }
+      for (size_t i = 0; i < prop_count; i++)
+        properties.push_back(JSWrappedAtom(ctx, prop_enum[i].atom));
+      for (uint32_t i = 0; i < prop_count; i++)
+        JS_FreeAtom(ctx, prop_enum[i].atom);
+      js_free(ctx, prop_enum);
+    }
+    ~JSWrappedPropertyEnum() {}
+
+    JSWrappedAtom operator[](size_t i) const
+    {
+      return properties[i];
+    }
+
+    size_t size() const
+    {
+      return properties.size();
+    }
+
+    JSContext* ctx;
+    std::vector<JSWrappedAtom> properties;
+  };
+
 #pragma clang diagnostic pop
 }
