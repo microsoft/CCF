@@ -30,6 +30,8 @@ namespace consensus
      * @param globally_committable True if entry is signature transaction
      * @param force_chunk Force new ledger chunk to be created after this entry
      * (only if globally_committable)
+     * @param term Consensus term of entry
+     * @param index Index (seqno) of entry
      */
     void put_entry(
       const std::vector<uint8_t>& entry,
@@ -55,6 +57,8 @@ namespace consensus
      * @param globally_committable True if entry is signature transaction
      * @param force_chunk Force new ledger chunk to be created after this entry
      * (only if globally_committable)
+     * @param term Consensus term of entry
+     * @param index Index (seqno) of entry
      *
      * Note: The entry should already contain its own header.
      */
