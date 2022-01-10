@@ -492,11 +492,10 @@ class Consortium:
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
 
-    def set_js_app2(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
-        bundle_path = os.path.join(app_bundle_path, "bundle.json")
+    def set_js_app_from_json(self, remote_node, json_path, disable_bytecode_cache=False):
         proposal_body, careful_vote = self.make_proposal(
             "set_js_app",
-            bundle=("-j", "@" + bundle_path),
+            bundle=slurp_file(json_path),
             disable_bytecode_cache=disable_bytecode_cache,
         )
 
