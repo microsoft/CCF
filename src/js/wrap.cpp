@@ -1180,7 +1180,7 @@ namespace ccf::js
       }
     }
 
-    JS_Throw(ctx, exception_val.steal());
+    JS_Throw(ctx, exception_val.take());
   }
 
   std::pair<std::string, std::optional<std::string>> js_error_message(

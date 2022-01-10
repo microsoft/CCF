@@ -150,7 +150,7 @@ namespace ccf::js
       JS_SetPropertyStr(ctx, val, prop.c_str(), JS_DupValue(ctx, value));
     }
 
-    JSValue steal()
+    JSValue take()
     {
       JSValue r = val;
       val = JS_NULL;

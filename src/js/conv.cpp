@@ -40,7 +40,7 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    return buf.steal();
+    return buf.take();
   }
 
   static JSValue js_buf_to_str(
@@ -70,7 +70,7 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    return str.steal();
+    return str.take();
   }
 
   static JSValue js_json_compatible_to_buf(
@@ -89,7 +89,7 @@ namespace ccf::js
     if (JS_IsException(str))
     {
       js::js_dump_error(ctx);
-      return str.steal();
+      return str.take();
     }
 
     return js_str_to_buf(ctx, JS_NULL, 1, &str.val);
@@ -127,7 +127,7 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    return obj.steal();
+    return obj.take();
   }
 
 #pragma clang diagnostic pop
