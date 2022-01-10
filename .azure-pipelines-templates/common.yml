@@ -42,6 +42,7 @@ jobs:
           - template: metrics.yml
 
       - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
+          - template: cg.yml
           - template: publish_tls_report.yml
           - template: publish_compatibility_report.yml
           - template: install.yml
