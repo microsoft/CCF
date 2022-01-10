@@ -37,11 +37,13 @@ namespace tls
       // Disable renegotiation to avoid DoS
       SSL_CTX_set_options(
         cfg,
-        SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
+        SSL_OP_CIPHER_SERVER_PREFERENCE |
+          SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
           SSL_OP_NO_RENEGOTIATION);
       SSL_set_options(
         ssl,
-        SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
+        SSL_OP_CIPHER_SERVER_PREFERENCE |
+          SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
           SSL_OP_NO_RENEGOTIATION);
 
       // Set cipher for TLS 1.2 (TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
@@ -49,8 +51,20 @@ namespace tls
       SSL_set_cipher_list(ssl, "ECDHE-ECDSA-AES128-GCM-SHA256");
 
       // Set cipher for TLS 1.3 (same as above)
-      SSL_CTX_set_ciphersuites(cfg, "TLS_AES_128_GCM_SHA256");
-      SSL_set_ciphersuites(ssl, "TLS_AES_128_GCM_SHA256");
+      SSL_CTX_set_ciphersuites(
+        cfg,
+        "TLS_AES_256_GCM_SHA384:"
+        "TLS_CHACHA20_POLY1305_SHA256:"
+        "TLS_AES_128_GCM_SHA256");
+      SSL_set_ciphersuites(
+        ssl,
+        "TLS_AES_256_GCM_SHA384:"
+        "TLS_CHACHA20_POLY1305_SHA256:"
+        "TLS_AES_128_GCM_SHA256");
+
+      // Restrict the curves to approved ones
+      SSL_CTX_set1_curves_list(cfg, "P-521:P-384");
+      SSL_set1_curves_list(ssl, "P-521:P-384");
 
       // Initialise connection
       if (client)
