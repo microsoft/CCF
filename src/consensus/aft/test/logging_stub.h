@@ -281,7 +281,7 @@ namespace aft
       aft::Term term;
       kv::Version index;
       std::vector<uint8_t> entry;
-
+      ccf::ClaimsDigest claims_digest;
       kv::ApplyResult result;
 
     public:
@@ -305,6 +305,11 @@ namespace aft
             result = kv::ApplyResult::FAIL;
           }
         }
+      }
+
+      ccf::ClaimsDigest&& consume_claims_digest() override
+      {
+        return std::move(claims_digest);
       }
 
       kv::ApplyResult apply() override

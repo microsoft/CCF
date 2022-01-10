@@ -15,6 +15,7 @@ namespace loggingapp
     {
       size_t id;
       std::string msg;
+      bool record_claim = false;
     };
   };
 
@@ -45,8 +46,9 @@ namespace loggingapp
     };
   };
 
-  DECLARE_JSON_TYPE(LoggingRecord::In);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
+  DECLARE_JSON_OPTIONAL_FIELDS(LoggingRecord::In, record_claim);
 
   DECLARE_JSON_TYPE(LoggingGet::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);

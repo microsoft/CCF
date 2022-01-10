@@ -8,7 +8,7 @@ Checking for Commit
 
 Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.
 
-To guarantee that their request is successfully committed to the ledger, a user should issue a ``GET /tx`` request, specifying the version received in the response. This version is constructed from a view and a sequence number.
+To guarantee that their request is successfully committed to the ledger, a user should issue a :http:GET:`/tx` request, specifying the version received in the response. This version is constructed from a view and a sequence number.
 
 .. code-block:: bash
 
@@ -22,7 +22,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
 
 This example queries the status of transaction ID ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests and changed view (``x-ms-ccf-transaction-id: 5.42``).
 
-The possible statuses returned by ``GET /tx`` are:
+The possible statuses returned by :http:GET:`/tx` are:
 
 - ``UNKNOWN`` - this node has not received a transaction with the given ID
 - ``PENDING`` - this node has received a transaction with the given ID, but does not yet know if the transaction has been committed
@@ -56,7 +56,7 @@ This means that the request may return ``202 Accepted`` at first, with a suggest
 .. code-block:: bash
 
     $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
-    
+
     {'leaf': 'fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec',
      'node_id': '682c161e1bc0aec694cac58a6ea456e1caa6c9c56d8dd873da9455c341947065',
      'proof': [{'left': 'f847e5efe3965b0dacb5c15c666602807a11fdecd465d0976779eed27121ffa3'},
@@ -73,7 +73,7 @@ Note that receipts over signature transactions are a special case, for example:
 .. code-block:: bash
 
     $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.35" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
-    
+
     {'leaf': 'fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec',
      'node_id': '06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78',
      'proof': [],

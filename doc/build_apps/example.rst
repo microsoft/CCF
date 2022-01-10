@@ -9,7 +9,7 @@ The repository contains a C++ implementation of a simple example application for
 
 The Logging application implements a trivial protocol, made up of four transaction types:
 
-- ``POST /app/log/private``, which writes a private log message at a given index. Note that the log message will be encrypted on the ledger and only readable by nodes on the network.
+- :http:POST:`/log/private`, which writes a private log message at a given index. Note that the log message will be encrypted on the ledger and only readable by nodes on the network.
 
     Log a private message:
 
@@ -20,7 +20,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "msg": "A sample private log message"
         }
 
-- ``GET /app/log/private``, which retrieves a private log message from a given index written by a previous ``POST /app/log/private`` call.
+- :http:GET:`/log/private`, which retrieves a private log message from a given index written by a previous :http:POST:`/log/private` call.
 
     Get a private message:
 
@@ -30,7 +30,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "id": 42
         }
 
-- ``POST /app/log/public``, which writes a public log message at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
+- :http:POST:`/log/public`, which writes a public log message at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
 
     Log a public message:
 
@@ -41,7 +41,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "msg": "A sample public log message"
         }
 
-- ``GET /app/log/public``, which retrieves a public public log from a given index written by a previous ``POST /app/log/public`` call.
+- :http:GET:`/log/public`, which retrieves a public public log from a given index written by a previous :http:POST:`/log/public` call.
 
     Get a public message:
 

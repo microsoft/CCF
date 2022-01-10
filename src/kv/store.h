@@ -676,6 +676,7 @@ namespace kv
       kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
+      ccf::ClaimsDigest& claims_digest,
       bool ignore_strict_versions = false) override
     {
       // This will return FAILED if the serialised transaction is being
@@ -697,6 +698,11 @@ namespace kv
         return false;
       }
       v = v_.value();
+      claims_digest = std::move(d.consume_claims_digest());
+      LOG_TRACE_FMT(
+        "Deserialised claim digest {} {}",
+        claims_digest.value(),
+        claims_digest.empty());
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -917,7 +923,7 @@ namespace kv
           }
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, data_, hooks_] = pending_tx_->call();
+          auto [success_, data_, claims_digest_, hooks_] = pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
@@ -934,7 +940,15 @@ namespace kv
 
           if (h)
           {
-            h->append(*data_shared);
+            if (claims_digest_.empty())
+            {
+              h->append(*data_shared);
+            }
+            else
+            {
+              h->append_entry(
+                ccf::entry_leaf(*data_shared, claims_digest_.value()));
+            }
           }
 
           LOG_DEBUG_FMT(
