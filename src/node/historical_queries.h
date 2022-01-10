@@ -943,8 +943,9 @@ namespace ccf::historical
       pending_fetches.erase(it);
 
       kv::ApplyResult deserialise_result;
-      auto store =
-        deserialise_ledger_entry(seqno, data, size, deserialise_result);
+      ccf::ClaimsDigest claims_digest;
+      auto store = deserialise_ledger_entry(
+        seqno, data, size, deserialise_result, claims_digest);
 
       if (deserialise_result == kv::ApplyResult::FAIL)
       {
@@ -1062,7 +1063,8 @@ namespace ccf::historical
       ccf::SeqNo seqno,
       const uint8_t* data,
       size_t size,
-      kv::ApplyResult& result)
+      kv::ApplyResult& result,
+      ccf::ClaimsDigest& claims_digest)
     {
       // Create a new store and try to deserialise this entry into it
       StorePtr store = std::make_shared<kv::Store>(
@@ -1107,6 +1109,7 @@ namespace ccf::historical
         }
 
         result = exec->apply();
+        claims_digest = std::move(exec->consume_claims_digest());
       }
       catch (const std::exception& e)
       {

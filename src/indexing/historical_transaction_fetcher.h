@@ -23,8 +23,9 @@ namespace ccf::indexing
       ccf::SeqNo seqno, const uint8_t* data, size_t size) override
     {
       kv::ApplyResult result;
-      auto store =
-        historical_cache->deserialise_ledger_entry(seqno, data, size, result);
+      ccf::ClaimsDigest claims_digest;
+      auto store = historical_cache->deserialise_ledger_entry(
+        seqno, data, size, result, claims_digest);
       if (store != nullptr && result != kv::ApplyResult::FAIL)
       {
         return store;
