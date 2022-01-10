@@ -75,4 +75,4 @@ echo "Python lint"
 git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint
 
 echo "Python types"
-git ls-files python/ | grep -e '\.py$' | xargs mypy
+git ls-files python/ | grep -e '\.py$' | xargs python -m mypy
