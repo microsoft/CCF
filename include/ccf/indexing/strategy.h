@@ -28,7 +28,38 @@ namespace ccf::indexing
       const ccf::TxID& tx_id, const std::shared_ptr<kv::Store>& store) = 0;
 
     virtual void tick() {}
+
+    // Returns highest tx ID for which this index should be populated, or
+    // nullopt if it wants all Txs. Allows indexes to be populate
+    // lazily on-demand.
+    virtual std::optional<ccf::TxID> highest_requested()
+    {
+      return std::nullopt;
+    }
   };
 
   using StrategyPtr = std::shared_ptr<Strategy>;
+
+  template <typename Base>
+  class LazyStrategy : public Base
+  {
+  protected:
+    ccf::TxID requested_txid = {};
+
+  public:
+    using Base::Base;
+
+    virtual std::optional<ccf::TxID> highest_requested()
+    {
+      return requested_txid;
+    }
+
+    void extend_index_to(ccf::TxID to_txid)
+    {
+      if (to_txid.seqno > requested_txid.seqno)
+      {
+        requested_txid = to_txid;
+      }
+    }
+  };
 }

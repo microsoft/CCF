@@ -27,6 +27,7 @@ using MapA = kv::Map<std::string, std::string>;
 using MapB = kv::Map<size_t, size_t>;
 kv::Map<std::string, std::string> map_a("private_map_a");
 using IndexA = ccf::indexing::strategies::SeqnosByKey<decltype(map_a)>;
+using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;
 
 kv::Map<size_t, size_t> map_b("private_map_b");
 using IndexB = ccf::indexing::strategies::SeqnosByKey<decltype(map_b)>;
@@ -183,6 +184,7 @@ void create_transactions(
   }
 }
 
+template <typename AA>
 void run_tests(
   const std::function<void()>& tick_until_caught_up,
   kv::Store& kv_store,
@@ -191,11 +193,16 @@ void run_tests(
   ExpectedSeqNos& seqnos_saluton,
   ExpectedSeqNos& seqnos_1,
   ExpectedSeqNos& seqnos_2,
-  const std::shared_ptr<IndexA> index_a,
+  const std::shared_ptr<AA> index_a,
   const std::shared_ptr<IndexB> index_b)
 {
   REQUIRE(index_a != nullptr);
   REQUIRE(index_b != nullptr);
+
+  if constexpr (std::is_same_v<AA, LazyIndexA>)
+  {
+    index_a->extend_index_to(kv_store.current_txid());
+  }
 
   tick_until_caught_up();
 
@@ -257,6 +264,11 @@ void run_tests(
     INFO("Both indexes continue to be updated with new entries");
     create_transactions(
       kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100);
+
+    if constexpr (std::is_same_v<AA, LazyIndexA>)
+    {
+      index_a->extend_index_to(kv_store.current_txid());
+    }
 
     tick_until_caught_up();
 
@@ -407,7 +419,7 @@ aft::LedgerStubProxy* add_raft_consensus(
 }
 
 // Uses the real classes, to test their interaction with indexing
-TEST_CASE("integrated indexing")
+TEST_CASE_TEMPLATE("integrated indexing", AA, IndexA, LazyIndexA)
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
@@ -424,7 +436,7 @@ TEST_CASE("integrated indexing")
   auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
   auto& indexer = *indexer_p;
 
-  auto index_a = std::make_shared<IndexA>(map_a);
+  auto index_a = std::make_shared<AA>(map_a);
   REQUIRE(indexer.install_strategy(index_a));
 
   auto ledger = add_raft_consensus(kv_store_p, indexer_p);
@@ -506,6 +518,20 @@ TEST_CASE("integrated indexing")
   };
 
   tick_until_caught_up();
+
+  if constexpr (std::is_same_v<AA, LazyIndexA>)
+  {
+    INFO("Lazy indexes require an additional prod to be populated");
+
+    REQUIRE(index_a->get_all_write_txs("hello").empty());
+    REQUIRE(index_a->get_all_write_txs("saluton").empty());
+
+    index_a->extend_index_to(kv_store.current_txid());
+    tick_until_caught_up();
+
+    REQUIRE(!index_a->get_all_write_txs("hello").empty());
+    REQUIRE(!index_a->get_all_write_txs("saluton").empty());
+  }
 
   {
     INFO("Confirm that pre-existing strategy was populated already");

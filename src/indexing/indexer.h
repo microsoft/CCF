@@ -65,25 +65,37 @@ namespace ccf::indexing
     {
       update_commit(newly_committed);
 
-      std::optional<ccf::TxID> min_provided = std::nullopt;
+      std::optional<ccf::TxID> min_requested = std::nullopt;
       for (auto& [strategy, last_provided] : strategies)
       {
         strategy->tick();
 
+        const auto max_requested = strategy->highest_requested();
         if (
-          !min_provided.has_value() || tx_id_less(last_provided, *min_provided))
+          max_requested.has_value() &&
+          !tx_id_less(last_provided, *max_requested))
         {
-          min_provided = last_provided;
+          // If this strategy has an upper-bound on Txs it cares about, and
+          // we've already provided that, don't consider advancing it any
+          // further
+          continue;
+        }
+
+        if (
+          !min_requested.has_value() ||
+          tx_id_less(last_provided, *min_requested))
+        {
+          min_requested = last_provided;
         }
       }
 
-      if (min_provided.has_value())
+      if (min_requested.has_value())
       {
-        if (tx_id_less(*min_provided, committed))
+        if (tx_id_less(*min_requested, committed))
         {
           // Request a prefix of the missing entries. Cap the requested range,
           // so we don't overload the node with a huge historical request
-          const auto first_requested = min_provided->seqno + 1;
+          const auto first_requested = min_requested->seqno + 1;
           auto additional = std::min(
             MAX_REQUESTABLE - uncommitted_entries.size(),
             committed.seqno - first_requested);
@@ -98,7 +110,11 @@ namespace ccf::indexing
 
             for (auto& [strategy, last_provided] : strategies)
             {
-              if (tx_id.seqno == last_provided.seqno + 1)
+              const auto max_requested = strategy->highest_requested();
+              if (
+                tx_id.seqno == last_provided.seqno + 1 &&
+                (!max_requested.has_value() ||
+                 max_requested->seqno >= tx_id.seqno))
               {
                 strategy->handle_committed_transaction(tx_id, store);
                 last_provided = tx_id;

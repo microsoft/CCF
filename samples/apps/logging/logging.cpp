@@ -37,8 +37,8 @@ namespace loggingapp
   using FirstWritesMap = kv::Map<size_t, ccf::SeqNo>;
   static constexpr auto FIRST_WRITES = "first_write_version";
 
-  using RecordsIndexingStrategy =
-    ccf::indexing::strategies::SeqnosByKey<RecordsMap>;
+  using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
+    ccf::indexing::strategies::SeqnosByKey<RecordsMap>>;
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -1037,6 +1037,8 @@ namespace loggingapp
           index_per_private_key->get_indexed_watermark();
         if (indexed_txid.seqno < to_seqno)
         {
+          index_per_private_key->extend_index_to(
+            {view_of_final_seqno, to_seqno});
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
           ctx.rpc_ctx->set_response_header(
