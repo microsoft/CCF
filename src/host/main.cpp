@@ -75,11 +75,8 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
-
-  std::string config_str = files::slurp_string(config_file_path);
-
   host::CCHostConfig config = {};
+  std::string config_str = files::slurp_string(config_file_path);
   try
   {
     config = nlohmann::json::parse(config_str);
@@ -90,6 +87,17 @@ int main(int argc, char** argv)
       "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
 
+  if (config.logging.format == host::LogFormat::JSON)
+  {
+    logger::config::add_json_console_logger();
+  }
+  else
+  {
+    logger::config::add_text_console_logger();
+  }
+
+  LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
+
   if (check_config_only)
   {
     LOG_INFO_FMT("Configuration file successfully verified");
@@ -97,10 +105,6 @@ int main(int argc, char** argv)
   }
 
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
-  if (config.logging.format == host::LogFormat::JSON)
-  {
-    logger::config::initialize_with_json_console();
-  }
 
   uint32_t oe_flags = 0;
   size_t recovery_threshold = 0;

@@ -24,6 +24,38 @@
 
 namespace enclave
 {
+  class RingbufferLogger : public logger::AbstractLogger
+  {
+  protected:
+    ringbuffer::WriterPtr writer;
+
+    // Current time, as us duration since epoch (from system_clock). Used to
+    // produce offsets to host time when logging from inside the enclave
+    std::atomic<std::chrono::microseconds> us;
+
+  public:
+    RingbufferLogger(const ringbuffer::WriterPtr& writer_) : writer(writer_) {}
+
+    void write(
+      const logger::LogLine& line,
+      const std::optional<double>& enclave_offset = std::nullopt) override
+    {
+      writer->write(
+        AdminMessage::log_msg,
+        us.load().count(),
+        line.file_name,
+        line.line_number,
+        line.log_level,
+        line.thread_id,
+        line.msg);
+    }
+
+    void set_time(std::chrono::microseconds us_)
+    {
+      us.exchange(us_);
+    }
+  };
+
   class Enclave
   {
   private:
@@ -38,6 +70,7 @@ namespace enclave
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
     ENGINE* rdrand_engine = nullptr;
+    RingbufferLogger* ringbuffer_logger = nullptr;
 
     StartType start_type;
 
@@ -87,8 +120,10 @@ namespace enclave
     {
       ccf::initialize_oe();
 
-      logger::config::msg() = AdminMessage::log_msg;
-      logger::config::writer() = writer_factory.create_writer_to_outside();
+      auto new_logger = std::make_unique<RingbufferLogger>(
+        writer_factory.create_writer_to_outside());
+      ringbuffer_logger = new_logger.get();
+      logger::config::loggers().push_back(std::move(new_logger));
 
       // From
       // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
@@ -241,7 +276,7 @@ namespace enclave
               AdminMessage::work_stats, to_host, j.dump());
 
             const auto time_now = enclave::get_enclave_time();
-            logger::config::set_time(time_now);
+            ringbuffer_logger->set_time(time_now);
 
             const auto elapsed_ms =
               std::chrono::duration_cast<std::chrono::milliseconds>(

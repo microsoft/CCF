@@ -38,299 +38,56 @@ namespace logger
 
   static constexpr Level MOST_VERBOSE = static_cast<Level>(0);
 
+  static constexpr const char* LevelNames[] = {
+#ifdef VERBOSE_LOGGING
+    "trace",
+    "debug",
+#endif
+    "info",
+    "fail",
+    "fatal"};
+
+  static const char* to_string(Level l)
+  {
+    return LevelNames[static_cast<int>(l)];
+  }
+
   static constexpr long int ns_per_s = 1'000'000'000;
 
-  class AbstractLogger
-  {
-  protected:
-    std::string log_path;
-    std::ofstream f;
-
-  public:
-    AbstractLogger() = default;
-    AbstractLogger(std::string log_path_) : log_path(log_path_)
-    {
-      f.open(log_path, std::ios_base::app);
-    }
-    virtual ~AbstractLogger() = default;
-
-    std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
-    {
-      // Sample: "2019-07-19 18:53:25.690267"
-      return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
-    }
-
-    virtual std::string format(
-      const std::string& file_name,
-      size_t line_number,
-      const std::string& log_level,
-      const std::string& msg,
-      const std::tm& host_tm,
-      const ::timespec& host_ts,
-      uint16_t thread_id,
-      const std::optional<float>& enclave_offset = std::nullopt) = 0;
-
-    virtual void write(const std::string& log_line) = 0;
-
-    void dump(const std::string& msg)
-    {
-      f << msg << std::endl;
-    }
-
-    virtual std::ostream& get_stream()
-    {
-      return f;
-    }
-  };
-
-  class JsonConsoleLogger : public AbstractLogger
+  struct LogLine
   {
   public:
-    std::string format(
-      const std::string& file_name,
-      size_t line_number,
-      const std::string& log_level,
-      const std::string& msg,
-      const std::tm& host_tm,
-      const ::timespec& host_ts,
-      uint16_t thread_id,
-      const std::optional<float>& enclave_offset = std::nullopt) override
-    {
-      nlohmann::json j;
-      j["m"] = msg;
-
-      if (enclave_offset.has_value())
-      {
-        ::timespec enc_ts = host_ts;
-        enc_ts.tv_sec += (size_t)enclave_offset.value();
-        enc_ts.tv_nsec +=
-          (long long)(enclave_offset.value() * ns_per_s) % ns_per_s;
-
-        if (enc_ts.tv_nsec > ns_per_s)
-        {
-          enc_ts.tv_sec += 1;
-          enc_ts.tv_nsec -= ns_per_s;
-        }
-
-        std::tm enclave_tm;
-        gmtime_r(&enc_ts.tv_sec, &enclave_tm);
-
-        return fmt::format(
-          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
-          "}\",\"file\":\"{}\","
-          "\"number\":\"{}\","
-          "\"msg\":{}}}",
-          get_timestamp(host_tm, host_ts),
-          get_timestamp(enclave_tm, enc_ts),
-          thread_id,
-          log_level,
-          file_name,
-          line_number,
-          j["m"].dump());
-      }
-
-      return fmt::format(
-        "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"file\":\"{}"
-        "\",\"number\":\"{}\","
-        "\"msg\":{}}}",
-        get_timestamp(host_tm, host_ts),
-        thread_id,
-        log_level,
-        file_name,
-        line_number,
-        j["m"].dump());
-    }
-
-    virtual void write(const std::string& log_line) override
-    {
-      std::cout << log_line;
-    }
-
-    std::ostream& get_stream() override
-    {
-      return std::cout;
-    }
-  };
-
-  class ConsoleLogger : public AbstractLogger
-  {
-  public:
-    std::string format(
-      const std::string& file_name,
-      size_t line_number,
-      const std::string& log_level,
-      const std::string& msg,
-      const std::tm& host_tm,
-      const ::timespec& host_ts,
-      uint16_t thread_id,
-      const std::optional<float>& enclave_offset = std::nullopt) override
-    {
-      auto file_line = fmt::format("{}:{}", file_name, line_number);
-      auto file_line_data = file_line.data();
-
-      // Truncate to final characters - if too long, advance char*
-      constexpr auto max_len = 36u;
-
-      const auto len = file_line.size();
-      if (len > max_len)
-        file_line_data += len - max_len;
-
-      if (enclave_offset.has_value())
-      {
-        // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
-        // that the time inside the enclave was 130 milliseconds earlier than
-        // the host timestamp printed on the line
-        return fmt::format(
-          "{} {:+01.3f} {:<3} [{:<5}] {:<36} | {}",
-          get_timestamp(host_tm, host_ts),
-          enclave_offset.value(),
-          thread_id,
-          log_level,
-          file_line_data,
-          msg);
-      }
-      else
-      {
-        // Padding on the right to align the rest of the message
-        // with lines that contain enclave time offsets
-        return fmt::format(
-          "{}        {:<3} [{:<5}] {:<36} | {}",
-          get_timestamp(host_tm, host_ts),
-          thread_id,
-          log_level,
-          file_line_data,
-          msg);
-      }
-    }
-
-    void write(const std::string& log_line) override
-    {
-      std::cout << log_line << std::flush;
-    }
-
-    std::ostream& get_stream() override
-    {
-      return std::cout;
-    }
-  };
-
-  class config
-  {
-  public:
-    static constexpr const char* LevelNames[] = {
-#ifdef VERBOSE_LOGGING
-      "trace",
-      "debug",
-#endif
-      "info",
-      "fail",
-      "fatal"};
-
-    static const char* to_string(Level l)
-    {
-      return LevelNames[static_cast<int>(l)];
-    }
-
-    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
-    {
-      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
-      try_initialize();
-      return the_loggers;
-    }
-
-    static inline void initialize_with_json_console()
-    {
-      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
-      if (the_loggers.size() > 0)
-      {
-        the_loggers.front() = std::make_unique<JsonConsoleLogger>();
-      }
-      else
-      {
-        the_loggers.emplace_back(std::make_unique<JsonConsoleLogger>());
-      }
-    }
-
-    static inline Level& level()
-    {
-      static Level the_level = MOST_VERBOSE;
-
-      return the_level;
-    }
-
-#ifdef INSIDE_ENCLAVE
-    static inline int& msg()
-    {
-      static int the_msg = ringbuffer::Const::msg_none;
-      return the_msg;
-    }
-
-    static inline ringbuffer::WriterPtr& writer()
-    {
-      static ringbuffer::WriterPtr the_writer;
-      return the_writer;
-    }
-
-    // Current time, as us duration since epoch (from system_clock). Used to
-    // produce offsets to host time when logging from inside the enclave
-    static std::atomic<std::chrono::microseconds> us;
-
-    static void set_time(std::chrono::microseconds us_)
-    {
-      us.exchange(us_);
-    }
-
-    static std::chrono::microseconds elapsed_us()
-    {
-      return us;
-    }
-#endif
-
-    static inline bool ok(Level l)
-    {
-      return l >= level();
-    }
-
-  private:
-    static inline void try_initialize()
-    {
-      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
-      if (the_loggers.size() == 0)
-      {
-        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
-      }
-    }
-
-    static inline std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
-    {
-      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
-      return the_loggers;
-    }
-  };
-
-  class LogLine
-  {
-  private:
     friend struct Out;
-    std::ostringstream ss;
     Level log_level;
     std::string file_name;
     size_t line_number;
-    std::string ll_str;
-    std::string msg;
     uint16_t thread_id;
 
-  public:
-    LogLine(Level ll, const char* file_name, size_t line_number) :
-      log_level(ll),
+    std::ostringstream ss;
+    std::string msg;
+
+    LogLine(
+      Level level,
+      const char* file_name,
+      size_t line_number,
+      std::optional<uint16_t> thread_id_ = std::nullopt) :
+      log_level(level),
       file_name(file_name),
-      line_number(line_number),
+      line_number(line_number)
+    {
+      if (thread_id_.has_value())
+      {
+        thread_id = *thread_id_;
+      }
+      else
+      {
 #ifdef INSIDE_ENCLAVE
-      thread_id(threading::get_current_thread_id())
+        thread_id = threading::get_current_thread_id();
 #else
-      thread_id(100)
+        thread_id = 100;
 #endif
-    {}
+      }
+    }
 
     template <typename T>
     LogLine& operator<<(const T& item)
@@ -351,146 +108,214 @@ namespace logger
     }
   };
 
-#ifdef INSIDE_ENCLAVE
-  struct Out
+  static std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
   {
-    bool operator==(LogLine& line)
-    {
-      line.finalize();
-      config::writer()->write(
-        config::msg(),
-        config::elapsed_us().count(),
-        line.file_name,
-        line.line_number,
-        line.log_level,
-        line.thread_id,
-        line.msg);
+    // Sample: "2019-07-19 18:53:25.690267"
+    return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
+  }
 
-      return true;
+  class AbstractLogger
+  {
+  public:
+    AbstractLogger() = default;
+    virtual ~AbstractLogger() = default;
+
+    virtual void emit(const std::string& s, std::ostream& os = std::cout)
+    {
+      os << s << std::flush;
+    }
+
+    virtual void write(
+      const LogLine& ll,
+      const std::optional<double>& enclave_offset = std::nullopt) = 0;
+  };
+
+#ifndef INSIDE_ENCLAVE
+  class JsonConsoleLogger : public AbstractLogger
+  {
+  public:
+    void write(
+      const LogLine& ll,
+      const std::optional<double>& enclave_offset = std::nullopt) override
+    {
+      // Fetch time
+      ::timespec host_ts;
+      ::timespec_get(&host_ts, TIME_UTC);
+      std::tm host_tm;
+      ::gmtime_r(&host_ts.tv_sec, &host_tm);
+
+      const auto escaped_msg = nlohmann::json(ll.msg).dump();
+
+      std::string s;
+      if (enclave_offset.has_value())
+      {
+        ::timespec enc_ts = host_ts;
+        enc_ts.tv_sec += (size_t)enclave_offset.value();
+        enc_ts.tv_nsec +=
+          (long long)(enclave_offset.value() * ns_per_s) % ns_per_s;
+
+        if (enc_ts.tv_nsec > ns_per_s)
+        {
+          enc_ts.tv_sec += 1;
+          enc_ts.tv_nsec -= ns_per_s;
+        }
+
+        std::tm enclave_tm;
+        gmtime_r(&enc_ts.tv_sec, &enclave_tm);
+
+        s = fmt::format(
+          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
+          "}\",\"file\":\"{}\","
+          "\"number\":\"{}\","
+          "\"msg\":{}}}\n",
+          get_timestamp(host_tm, host_ts),
+          get_timestamp(enclave_tm, enc_ts),
+          ll.thread_id,
+          to_string(ll.log_level),
+          ll.file_name,
+          ll.line_number,
+          escaped_msg);
+      }
+      else
+      {
+        s = fmt::format(
+          "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"file\":\"{"
+          "}"
+          "\",\"number\":\"{}\","
+          "\"msg\":{}}}\n",
+          get_timestamp(host_tm, host_ts),
+          ll.thread_id,
+          to_string(ll.log_level),
+          ll.file_name,
+          ll.line_number,
+          escaped_msg);
+      }
+
+      emit(s);
     }
   };
-#else
-  struct Out
+
+  static std::string format_to_text(
+    const LogLine& ll,
+    const std::optional<double>& enclave_offset = std::nullopt)
   {
-    bool operator==(LogLine& line)
-    {
-      line.finalize();
-      write(
-        line.file_name,
-        line.line_number,
-        line.log_level,
-        line.thread_id,
-        line.msg);
+    // Fetch time
+    ::timespec host_ts;
+    ::timespec_get(&host_ts, TIME_UTC);
+    std::tm host_tm;
+    ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-      return true;
+    auto file_line = fmt::format("{}:{}", ll.file_name, ll.line_number);
+    auto file_line_data = file_line.data();
+
+    // Truncate to final characters - if too long, advance char*
+    constexpr auto max_len = 36u;
+
+    const auto len = file_line.size();
+    if (len > max_len)
+      file_line_data += len - max_len;
+
+    if (enclave_offset.has_value())
+    {
+      // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
+      // that the time inside the enclave was 130 milliseconds earlier than
+      // the host timestamp printed on the line
+      return fmt::format(
+        "{} {:+01.3f} {:<3} [{:<5}] {:<36} | {}",
+        get_timestamp(host_tm, host_ts),
+        enclave_offset.value(),
+        ll.thread_id,
+        to_string(ll.log_level),
+        file_line_data,
+        ll.msg);
     }
-
-    static void write(
-      const std::string& file_name,
-      size_t line_number,
-      const Level& log_level,
-      uint16_t thread_id,
-      const std::string& msg)
+    else
     {
-      // When logging from host code, print local time.
-      ::timespec ts;
-      ::timespec_get(&ts, TIME_UTC);
-      std::tm now;
-      ::gmtime_r(&ts.tv_sec, &now);
-
-      for (auto const& logger : config::loggers())
-      {
-        logger->write(logger->format(
-          file_name,
-          line_number,
-          config::to_string(log_level),
-          msg,
-          now,
-          ts,
-          thread_id));
-      }
-
-      if (log_level == Level::FATAL)
-      {
-        throw std::logic_error(
-          "Fatal: " +
-          config::loggers().front()->format(
-            file_name,
-            line_number,
-            config::to_string(log_level),
-            msg,
-            now,
-            ts,
-            thread_id));
-      }
+      // Padding on the right to align the rest of the message
+      // with lines that contain enclave time offsets
+      return fmt::format(
+        "{}        {:<3} [{:<5}] {:<36} | {}",
+        get_timestamp(host_tm, host_ts),
+        ll.thread_id,
+        to_string(ll.log_level),
+        file_line_data,
+        ll.msg);
     }
+  }
 
-    static void write(
-      const std::string& file_name,
-      size_t line_number,
-      const Level& log_level,
-      uint16_t thread_id,
-      const std::string& msg,
-      size_t enclave_time_us)
+  class TextConsoleLogger : public AbstractLogger
+  {
+  public:
+    void write(
+      const LogLine& ll,
+      const std::optional<double>& enclave_offset = std::nullopt) override
     {
-      // When logging messages received from the enclave, print local time,
-      // and the offset to time inside the enclave at the time the message
-      // was logged there.
-      // Not thread-safe (uses std::localtime)
-      ::timespec ts;
-      ::timespec_get(&ts, TIME_UTC);
-      std::tm now;
-      ::gmtime_r(&ts.tv_sec, &now);
-
-      // Represent offset as a real (counting seconds) to handle both small
-      // negative _and_ positive numbers. Since the system clock used is not
-      // monotonic, the offset we calculate could go in either direction, and tm
-      // can't represent small negative values.
-      std::optional<double> offset_time = std::nullopt;
-
-      // If enclave doesn't know the
-      // current time yet, don't try to produce an offset, just give them the
-      // host's time (producing offset of 0)
-      if (enclave_time_us != 0)
-      {
-        // Enclave time is recomputed every time. If multiple threads
-        // log inside the enclave, offsets may not always increase
-        const double enclave_time_s = enclave_time_us / 1'000'000.0;
-        const double host_time_s = ts.tv_sec + (ts.tv_nsec / (double)ns_per_s);
-
-        offset_time = enclave_time_s - host_time_s;
-      }
-
-      for (auto const& logger : config::loggers())
-      {
-        logger->write(logger->format(
-          file_name,
-          line_number,
-          config::to_string(log_level),
-          msg,
-          now,
-          ts,
-          thread_id,
-          offset_time));
-      }
-
-      if (log_level == Level::FATAL)
-      {
-        throw std::logic_error(
-          "Fatal: " +
-          config::loggers().front()->format(
-            file_name,
-            line_number,
-            config::to_string(log_level),
-            msg,
-            now,
-            ts,
-            thread_id,
-            offset_time));
-      }
+      emit(format_to_text(ll, enclave_offset));
     }
   };
 #endif
+
+  class config
+  {
+  public:
+    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
+    {
+      return get_loggers();
+    }
+
+#ifndef INSIDE_ENCLAVE
+    static inline void add_text_console_logger()
+    {
+      get_loggers().emplace_back(std::make_unique<TextConsoleLogger>());
+    }
+
+    static inline void add_json_console_logger()
+    {
+      get_loggers().emplace_back(std::make_unique<JsonConsoleLogger>());
+    }
+#endif
+
+    static inline Level& level()
+    {
+      static Level the_level = MOST_VERBOSE;
+
+      return the_level;
+    }
+
+    static inline bool ok(Level l)
+    {
+      return l >= level();
+    }
+
+  private:
+    static inline std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
+    {
+      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
+      return the_loggers;
+    }
+  };
+
+  struct Out
+  {
+    bool operator==(LogLine& line)
+    {
+      line.finalize();
+
+      for (auto const& logger : config::loggers())
+      {
+        logger->write(line);
+      }
+
+#ifndef INSIDE_ENCLAVE
+      if (line.log_level == Level::FATAL)
+      {
+        throw std::logic_error("Fatal: " + format_to_text(line));
+      }
+#endif
+
+      return true;
+    }
+  };
 
   // The == operator is being used to:
   // 1. Be a lower precedence than <<, such that using << on the LogLine will
