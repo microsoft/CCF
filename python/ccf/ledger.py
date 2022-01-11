@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric import utils, ec
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
 import ccf.receipt
+from hashlib import sha256
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -671,7 +672,18 @@ class Snapshot(Entry):
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
             receipt = json.loads(receipt_bytes.decode("utf-8"))
-            root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+            if "leaf" in receipt:
+                leaf = receipt["leaf"]
+            else:
+                assert "leaf_components" in receipt
+                write_set_digest = bytes.fromhex(
+                    receipt["leaf_components"]["write_set_digest"]
+                )
+                claims_digest = bytes.fromhex(
+                    receipt["leaf_components"]["claims_digest"]
+                )
+                leaf = sha256(write_set_digest + claims_digest).digest().hex()
+            root = ccf.receipt.root(leaf, receipt["proof"])
             node_cert = load_pem_x509_certificate(
                 receipt["cert"].encode(), default_backend()
             )
