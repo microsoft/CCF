@@ -47,8 +47,14 @@ namespace tls
           SSL_OP_NO_RENEGOTIATION);
 
       // Set cipher for TLS 1.2 (TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
-      SSL_CTX_set_cipher_list(cfg, "ECDHE-ECDSA-AES128-GCM-SHA256");
-      SSL_set_cipher_list(ssl, "ECDHE-ECDSA-AES128-GCM-SHA256");
+      SSL_CTX_set_cipher_list(
+        cfg,
+        "ECDHE-ECDSA-AES256-GCM-SHA384:"
+        "ECDHE-ECDSA-AES128-GCM-SHA256");
+      SSL_set_cipher_list(
+        ssl,
+        "ECDHE-ECDSA-AES256-GCM-SHA384:"
+        "ECDHE-ECDSA-AES128-GCM-SHA256");
 
       // Set cipher for TLS 1.3 (same as above)
       SSL_CTX_set_ciphersuites(

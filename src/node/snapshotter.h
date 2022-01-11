@@ -37,14 +37,23 @@ namespace ccf
       consensus::Index idx;
       consensus::Index evidence_idx;
 
+      crypto::Sha256Hash write_set_digest;
+      crypto::Sha256Hash snapshot_digest;
+
       std::optional<NodeId> node_id = std::nullopt;
       std::optional<crypto::Pem> node_cert = std::nullopt;
       std::optional<std::vector<uint8_t>> sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
-      SnapshotInfo(consensus::Index idx, consensus::Index evidence_idx) :
+      SnapshotInfo(
+        consensus::Index idx,
+        consensus::Index evidence_idx,
+        const crypto::Sha256Hash& write_set_digest_,
+        const crypto::Sha256Hash& snapshot_digest_) :
         idx(idx),
-        evidence_idx(evidence_idx)
+        evidence_idx(evidence_idx),
+        write_set_digest(write_set_digest_),
+        snapshot_digest(snapshot_digest_)
       {}
     };
     // Queue of pending snapshots that have been generated, but are not yet
@@ -102,7 +111,17 @@ namespace ccf
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
       evidence->put({snapshot_hash, snapshot_version});
 
-      auto rc = tx.commit();
+      ccf::ClaimsDigest cd;
+      cd.set(std::move(snapshot_hash));
+
+      crypto::Sha256Hash ws_digest;
+      auto capture_ws_digest =
+        [&ws_digest](const std::vector<uint8_t>& write_set) {
+          new (&ws_digest)
+            crypto::Sha256Hash({write_set.data(), write_set.size()});
+        };
+
+      auto rc = tx.commit(cd, false, nullptr, capture_ws_digest);
       if (rc != kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
@@ -119,15 +138,17 @@ namespace ccf
         static_cast<consensus::Index>(snapshot_version);
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
-      pending_snapshots.emplace_back(snapshot_idx, snapshot_evidence_idx);
+      pending_snapshots.emplace_back(
+        snapshot_idx, snapshot_evidence_idx, ws_digest, cd.value());
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "
         "{}: "
-        "{}",
+        "{}, ws digest: {}",
         snapshot_idx,
         snapshot_evidence_idx,
-        snapshot_hash);
+        cd.value(),
+        ws_digest);
     }
 
     void update_indices(consensus::Index idx)
@@ -147,7 +168,9 @@ namespace ccf
             it->tree.value(),
             it->node_id.value(),
             it->node_cert.value(),
-            it->evidence_idx);
+            it->evidence_idx,
+            it->write_set_digest,
+            std::move(it->snapshot_digest));
           commit_snapshot(it->idx, serialised_receipt);
           auto it_ = it;
           ++it;

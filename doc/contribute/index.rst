@@ -9,17 +9,17 @@ The CCF team welcome contributions to any part of the framework, including this 
 .. panels::
 
 
-    :fa:`cloud` :doc:`/build_apps/create_vm`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`cloud` :doc:`create_vm`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Create a SGX-enabled Azure Virtual Machine.
 
     ---
 
-    :fa:`laptop-code` :doc:`/build_apps/build_setup`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`laptop-code` :doc:`build_setup`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Setup CCF environment to CCF from source.
+    Setup CCF environment to build CCF from source.
 
     ---
 
@@ -53,8 +53,8 @@ The CCF team welcome contributions to any part of the framework, including this 
     :maxdepth: 1
     :hidden:
 
-    /build_apps/create_vm
-    /build_apps/build_setup
+    create_vm
+    build_setup
     build_ccf
     release_ccf
     design/index
