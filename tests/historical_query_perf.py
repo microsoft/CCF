@@ -108,6 +108,12 @@ def test_historical_query_range(network, args):
     entries = {}
     node = network.find_node_by_role(role=infra.network.NodeRole.BACKUP, log_capture=[])
     with node.client(common_headers={"authorization": f"Bearer {jwt}"}) as c:
+        # Index is currently built lazily to avoid impacting other perf tests using the same app
+        # So pre-fetch to ensure index is fully constructed
+        get_all_entries(c, id_a, timeout=timeout)
+        get_all_entries(c, id_b, timeout=timeout)
+        get_all_entries(c, id_c, timeout=timeout)
+
         entries[id_a], duration_a = get_all_entries(c, id_a, timeout=timeout)
         entries[id_b], duration_b = get_all_entries(c, id_b, timeout=timeout)
         entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
