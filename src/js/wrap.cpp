@@ -642,6 +642,8 @@ namespace ccf::js
     int argc,
     [[maybe_unused]] JSValueConst* argv)
   {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
     if (argc != 2)
     {
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
@@ -654,12 +656,13 @@ namespace ccf::js
       return JS_ThrowInternalError(ctx, "Network state is not set");
     }
 
-    auto global_obj = Context::JSWrappedValue(ctx, JS_GetGlobalObject(ctx));
-    auto ccf =
-      Context::JSWrappedValue(ctx, JS_GetPropertyStr(ctx, global_obj, "ccf"));
-
-    auto valid_from =
-      Context::JSWrappedCString(ctx, JS_ToCString(ctx, argv[0]));
+    auto valid_from_str = jsctx.to_str(argv[0]);
+    if (!valid_from_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    auto valid_from = *valid_from_str;
 
     size_t validity_period_days = 0;
     if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
