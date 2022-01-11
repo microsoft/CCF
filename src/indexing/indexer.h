@@ -16,7 +16,7 @@ namespace ccf::indexing
   class Indexer : public IndexingStrategies
   {
   public:
-    static constexpr size_t MAX_REQUESTABLE = 100;
+    static constexpr size_t MAX_REQUESTABLE = 500;
 
   protected:
     std::shared_ptr<TransactionFetcher> transaction_fetcher;
