@@ -1,6 +1,8 @@
 Code Upgrade
 ============
 
+.. note:: Refer to :doc:`/operations/code_upgrade_1x` for specific guidelines on how to upgrade a 1.x CCF service to 2.0.
+
 This page describes how operators/members can upgrade a live CCF service to a new version with minimal downtime.
 
 Reasons for running the code upgrade procedure include:
@@ -13,9 +15,10 @@ Reasons for running the code upgrade procedure include:
     - Note that there is no need to run the code upgrade procedure detailed on this page if `only` the JavaScript/TypeScript application needs updating (see :ref:`JavaScript/TypeScript bundle deployment procedure <build_apps/js_app_bundle:Deployment>`).
     - If more than a majority of nodes have failed, the disaster recovery procedure should be run by operators instead (see :doc:`/operations/recovery`).
 
+.. note:: CCF guarantees specific live compatibility across different LTS versions. See :ref:`overview/release_policy:Operations compatibility` for more details.
+
 Procedure
 ---------
-
 
 1. Let's assume that the to-be-upgraded service is made of 3 nodes (tolerates up to one fault, i.e. ``f = 1``), with ``Node 1`` as the primary node (the code upgrade procedure can be run from any number of nodes):
 
