@@ -292,10 +292,16 @@ namespace ccf::js
         size_t label_buf_size = 0;
         uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
 
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label_buf_size > 0)
+        {
+          label_opt = {label_buf, label_buf + label_buf_size};
+        }
+
         auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
           crypto::Pem(wrapping_key, wrapping_key_size),
           {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
+          label_opt);
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
@@ -324,11 +330,17 @@ namespace ccf::js
         size_t label_buf_size = 0;
         uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
 
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label_buf_size > 0)
+        {
+          label_opt = {label_buf, label_buf + label_buf_size};
+        }
+
         auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
           aes_key_size,
           crypto::Pem(wrapping_key, wrapping_key_size),
           {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
+          label_opt);
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
