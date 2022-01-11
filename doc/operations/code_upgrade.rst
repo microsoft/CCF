@@ -1,15 +1,11 @@
 Code Upgrade
 ============
 
-TODO:
-- Constitution update
-- JS/TS app update
-
 This page describes how operators/members can upgrade a live CCF service to a new version with minimal downtime.
 
 Reasons for running the code upgrade procedure include:
 
-- Upgrading nodes to a new version of a C++ application or JavaScript runtime.
+- Upgrading nodes to a new version of a C++ application or JavaScript runtime (i.e. ``libjs_generic.enclave.so.signed``).
 - Upgrading nodes to a new version of CCF.
 
 .. tip::
@@ -21,7 +17,7 @@ Procedure
 ---------
 
 
-1. Let's assume that the to-be-upgraded service is made of 3 nodes (tolerates up to one fault, i.e. ``f = 1``), with ``Node 1`` as the primary node (the code upgrade procedure can of course be run from any number of nodes):
+1. Let's assume that the to-be-upgraded service is made of 3 nodes (tolerates up to one fault, i.e. ``f = 1``), with ``Node 1`` as the primary node (the code upgrade procedure can be run from any number of nodes):
 
 .. mermaid::
 
@@ -99,7 +95,7 @@ Procedure
             end
         end
 
-- ``Node 1`` (primary) is retired, 4 nodes remaining, ``f = 1``. ``Node 4`` becomes primary after election phase (service cannot process write requests):
+- ``Node 1`` (primary) is retired, 4 nodes remaining, ``f = 1``. ``Node 4`` becomes primary after election phase (during which service cannot temporarily process requests that mutate the state of the key-value store):
 
 .. mermaid::
 
@@ -160,7 +156,7 @@ Procedure
             end
         end
 
-5. Finally, operators can safely stop the old nodes ``0``, ``1`` and ``2``:
+5. Once all old nodes ``0``, ``1`` and ``2`` have been retired, operators can safely stop them:
 
 .. mermaid::
 
@@ -178,6 +174,10 @@ Procedure
             class Node5 NewNode
         end
 
+6. Finally and if necessary, the constitution scripts and JavaScript/TypeScript application bundles should be updated via governance:
+
+- Members should be use the ``set_constitution`` proposal action to update the constitution scripts.
+- See :ref:`bundle deployment procedure <build_apps/js_app_bundle:Deployment>` to update the JavaScript/TypeScript application.
 
 Notes
 -----
