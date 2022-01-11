@@ -454,7 +454,7 @@ int main(int argc, char** argv)
 #endif
     }
 
-    enclave.create_node(
+    auto create_status = enclave.create_node(
       enclave_config,
       startup_config,
       node_cert,
@@ -462,6 +462,26 @@ int main(int argc, char** argv)
       config.command.type,
       config.worker_threads,
       time_updater->behaviour.get_value());
+
+    if (create_status != CreateNodeStatus::OK)
+    {
+      LOG_FAIL_FMT(
+        "An error occurred when creating CCF node: {}",
+        create_node_result_to_str(create_status));
+
+      // Pull all logs from the enclave via BufferProcessor `bp`
+      // and show any logs that came from the ring buffer during setup.
+      // 64 is an arbitrary number of log entries, `read_n` will stop
+      // before if there aren't any more to read.
+      while (bp.read_n(64, circuit.read_from_inside()))
+      {
+        // Do nothing here, read_n should process the left-over messages using
+        // the already registered handler for log entrie and print on out/err.
+      }
+
+      // This returns from main, stopping the program
+      return create_status;
+    }
 
     LOG_INFO_FMT("Created new node");
 

@@ -142,7 +142,18 @@ extern "C"
       start_type,
       num_worker_thread,
       time_location);
-    return OE_OK;
+
+    // Only return OE_OK when the error isn't OE related
+    switch (*status)
+    {
+      case CreateNodeStatus::OEAttesterInitFailed:
+      case CreateNodeStatus::OEVerifierInitFailed:
+      case CreateNodeStatus::EnclaveInitFailed:
+      case CreateNodeStatus::MemoryNotOutsideEnclave:
+        return OE_FAILURE;
+      default:
+        return OE_OK;
+    }
   }
 
   inline oe_result_t enclave_run(oe_enclave_t*, bool* _retval)

@@ -129,6 +129,24 @@ extern "C"
 
     oe_lfence();
 
+    // Setup logger to allow enclave logs to reach the host before node is
+    // actually created
+    ringbuffer::Circuit circuit(
+      ringbuffer::BufferDef{
+        ec.to_enclave_buffer_start,
+        ec.to_enclave_buffer_size,
+        ec.to_enclave_buffer_offsets},
+      ringbuffer::BufferDef{
+        ec.from_enclave_buffer_start,
+        ec.from_enclave_buffer_size,
+        ec.from_enclave_buffer_offsets});
+    ringbuffer::WriterFactory basic_writer_factory(circuit);
+    oversized::WriterFactory writer_factory(
+      basic_writer_factory, ec.writer_config);
+
+    logger::config::msg() = AdminMessage::log_msg;
+    logger::config::writer() = writer_factory.create_writer_to_outside();
+
     StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
@@ -159,6 +177,9 @@ extern "C"
     {
       enclave = new enclave::Enclave(
         ec,
+        std::move(circuit),
+        std::move(basic_writer_factory),
+        std::move(writer_factory),
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,
@@ -181,17 +202,19 @@ extern "C"
       return CreateNodeStatus::EnclaveInitFailed;
     }
 
-    if (!enclave->create_new_node(
-          start_type,
-          std::move(cc),
-          node_cert,
-          node_cert_size,
-          node_cert_len,
-          network_cert,
-          network_cert_size,
-          network_cert_len))
+    auto status = enclave->create_new_node(
+      start_type,
+      std::move(cc),
+      node_cert,
+      node_cert_size,
+      node_cert_len,
+      network_cert,
+      network_cert_size,
+      network_cert_len);
+
+    if (status != CreateNodeStatus::OK)
     {
-      return CreateNodeStatus::InternalError;
+      return status;
     }
 
     e.store(enclave);
