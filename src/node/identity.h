@@ -88,8 +88,6 @@ namespace ccf
         {} /* SAN */,
         valid_from,
         validity_period_days);
-
-      LOG_FAIL_FMT("Network identity renewed: {}", valid_from);
     }
 
     ~ReplicatedNetworkIdentity() override
