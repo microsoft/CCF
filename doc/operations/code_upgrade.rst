@@ -20,7 +20,7 @@ Reasons for running the code upgrade procedure include:
 Procedure
 ---------
 
-1. Let's assume that the to-be-upgraded service is made of 3 nodes (tolerates up to one fault, i.e. ``f = 1``), with ``Node 1`` as the primary node (the code upgrade procedure can be run from any number of nodes):
+0. Let's assume that the to-be-upgraded service is made of 3 nodes (tolerates up to one fault, i.e. ``f = 1``), with ``Node 1`` as the primary node (the code upgrade procedure can be run from any number of nodes):
 
 .. mermaid::
 
@@ -35,6 +35,7 @@ Procedure
         end
 
 1. First, operators/members should register the new code version corresponding to the new enclave measurement using the ``add_node_code`` proposal action (see :ref:`governance/common_member_operations:Updating Code Version`).
+
 
 2. The set of new nodes running the enclave registered in the previous step should be added to the service (see :ref:`operations/start_network:Adding a New Node to the Network`) and trusted by members (see :ref:`governance/common_member_operations:Trusting a New Node`). Typically, the same number of nodes than were originally present should be added to the service. In this example, the service is now made of 6 nodes (``f = 2``).
 
@@ -63,11 +64,7 @@ Procedure
         end
 
 
-3. The old code version (i.e. the code version run by nodes 0, 1 and 2) can be removed using the ``remove_node_code`` proposal action.
-
-.. note:: Once the ``remove_node_code`` proposal has successfully been applied, nodes 0, 1 and 2 which run this version of the code will still be running and actively part of the service.
-
-4. The original nodes (``Node 0``, ``Node 1`` and ``Node 2``) can then safely be retired.
+3. The original nodes (``Node 0``, ``Node 1`` and ``Node 2``) can then safely be retired.
 
 - ``Node 0`` is retired, 5 nodes remaining, ``f = 2``:
 
@@ -159,7 +156,7 @@ Procedure
             end
         end
 
-5. Once all old nodes ``0``, ``1`` and ``2`` have been retired, operators can safely stop them:
+4. Once all old nodes ``0``, ``1`` and ``2`` have been retired (and their retirement committed, as per :ref:`use_apps/verify_tx:Checking for Commit`), operators can safely stop them:
 
 .. mermaid::
 
@@ -177,13 +174,15 @@ Procedure
             class Node5 NewNode
         end
 
-6. Finally and if necessary, the constitution scripts and JavaScript/TypeScript application bundles should be updated via governance:
+5. If necessary, the constitution scripts and JavaScript/TypeScript application bundles should be updated via governance:
 
 - Members should be use the ``set_constitution`` proposal action to update the constitution scripts.
 - See :ref:`bundle deployment procedure <build_apps/js_app_bundle:Deployment>` to update the JavaScript/TypeScript application.
+
+6. Finally, once the code upgrade process has been successful, the old code version (i.e. the code version run by nodes 0, 1 and 2) can be removed using the ``remove_node_code`` proposal action.
 
 Notes
 -----
 
 - The :http:GET:`/version` endpoint can be used by operators to check which version of CCF a specific node is running.
-- A code upgrade procedure provides very little service downtime compared to a disaster recovery. The service is only unavailable to process write transactions while the primary-ship changes (typically a few seconds) but can still process read-only transactions throughout the whole procedure.
+- A code upgrade procedure provides very little service downtime compared to a disaster recovery. The service is only unavailable to process write transactions while the primary-ship changes (typically a few seconds) but can still process read-only transactions throughout the whole procedure. Note that this is true during any primary-ship change, and not just during the code upgrade procedure.

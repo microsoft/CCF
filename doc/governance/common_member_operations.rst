@@ -17,7 +17,7 @@ Removing an Existing Node
 
 A node that is already part of the service can safely be retired using the ``remove_node`` proposal.
 
-.. note:: If the now-retired node was the primary node, once the proposal successfully completes, a new primary node may have to be elected.
+.. note:: If the now-retired node was the primary node, once the proposal successfully completes, a new primary node will have to be elected.
 
 
 Updating Code Version

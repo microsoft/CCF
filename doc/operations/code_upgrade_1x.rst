@@ -34,7 +34,7 @@ Upgrade to Latest 1.x LTS before 2.0
 
 During the code upgrade process, the service will temporarily be made of nodes from different CCF versions. This means that breaking changes introduced in 2.0 (e.g. ledger format for application claims) introduce incompatibility with the ledger format that 1.x nodes can apply.
 
-To prevent this, operators should first complete the :ref:`code upgrade procedure <operations/code_upgrade:Procedure>` from the current 1.x version the service is running on (e.g. ``1.0.10``) to a version of the 1.x LTS as least as high as `1.0.16 <https://github.com/microsoft/CCF/releases/tag/ccf-1.0.16>`_. Once this is done, the service can be safely upgraded to 2.0.
+To prevent this, operators should first complete the :ref:`code upgrade procedure <operations/code_upgrade:Procedure>` from the current 1.x version the service is running on (e.g. ``1.0.10``) to latest version of the 1.x LTS. Once this is done, the service can be safely upgraded to 2.0.
 
 Cycle 2.x Nodes Once
 --------------------
