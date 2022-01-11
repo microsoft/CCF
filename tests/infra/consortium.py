@@ -577,12 +577,12 @@ class Consortium:
             current_cert = r.body.json()["service_certificate"]
 
             expected_cert = open(
-                os.path.join(self.common_dir, "networkcert.pem"), "rb"
+                os.path.join(self.common_dir, "service_cert.pem"), "rb"
             ).read()
 
             assert (
                 current_cert == expected_cert[:-1].decode()
-            ), "Current service certificate did not match with networkcert.pem"
+            ), "Current service certificate did not match with service_cert.pem"
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"

@@ -27,7 +27,7 @@ common_dir = sys.argv[1]
 # Assumes sandbox started with at least one node
 host = "127.0.0.1"
 port = 8000
-ca = os.path.join(common_dir, "networkcert.pem")
+ca = os.path.join(common_dir, "service_cert.pem")
 cert = os.path.join(common_dir, "user0_cert.pem")
 key = os.path.join(common_dir, "user0_privk.pem")
 # User client info loaded.

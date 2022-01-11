@@ -25,9 +25,9 @@ The unique identifier of a CCF node is the hex-encoded string of the SHA-256 dig
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then a ``dNSName`` subject alternative name should be specified as part of the ``node_certificate.subject_alt_names`` configuration entry. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
-When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry. The certificate of the freshly-created CCF network is also output at the location specified by the ``network_certificate_file`` configuration entry.
+When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry. The certificate of the freshly-created CCF network is also output at the location specified by the ``service_certificate_file`` configuration entry.
 
-.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
+.. note:: The service certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
 
 The initial constitution scripts, member certificates, public encryption keys and data files as well as the initial service configuration should be set in the :ref:`start configuration` section of the JSON configuration.
 
@@ -52,7 +52,7 @@ To add a new node to an existing opening network, other nodes should be started 
         Pending-- poll status -->Pending;
         Pending-- trusted -->PartOfNetwork;
 
-The joining node takes the certificate of the existing network to join via ``network_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
+The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
 
 The join configuration option should be set in the :ref:`join configuration` section of the JSON configuration.
 
@@ -78,7 +78,7 @@ The following diagram summarises the steps that operators and members should fol
 
         Note over Node 0: Already "PartOfNetwork" (rpc-address=ip0:port0)
 
-        Operators->>+Node 1: cchost join (config: network_certificate_file=Network Certificate target_rpc_address=ip0:port0)
+        Operators->>+Node 1: cchost join (config: service_certificate_file=Service Certificate target_rpc_address=ip0:port0)
 
         Node 1->>+Node 0: Join request (includes quote)
         Node 0->>+Node 0: Verify Node 1 attestation

@@ -84,7 +84,7 @@ def test_quote(network, args):
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
 
-            cafile = os.path.join(network.common_dir, "networkcert.pem")
+            cafile = os.path.join(network.common_dir, "service_cert.pem")
             assert (
                 infra.proc.ccall(
                     "verify_quote.sh",
@@ -174,7 +174,7 @@ def test_invalid_client_signature(network, args):
         r = requests.post(
             f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/gov/proposals",
             headers=headers,
-            verify=os.path.join(node.common_dir, "networkcert.pem"),
+            verify=os.path.join(node.common_dir, "service_cert.pem"),
         ).json()
         assert r["error"]["code"] == "InvalidAuthenticationInfo"
         assert (
@@ -279,24 +279,25 @@ def renew_service_certificate(network, args, valid_from, validity_period_days):
         validity_period_days=validity_period_days,
     )
     network.verify_service_certificate_validity_period(
-        validity_period_days or args.maximum_network_certificate_validity_days
+        validity_period_days or args.maximum_service_certificate_validity_days
     )
+    return network
 
 
 @reqs.description("Renew service certificate")
 def test_service_cert_renewal(network, args):
-    renew_service_certificate(
+    return renew_service_certificate(
         network,
         args,
         valid_from=datetime.now(),
-        validity_period_days=args.maximum_network_certificate_validity_days - 1,
+        validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
 
 @reqs.description("Renew service certificate - extended")
 def test_service_cert_renewal_extended(network, args):
 
-    validity_period_forbidden = args.maximum_network_certificate_validity_days + 1
+    validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
     now = datetime.now()
     test_vectors = [
@@ -313,6 +314,8 @@ def test_service_cert_renewal_extended(network, args):
             continue
         else:
             assert expected_exception is None, "Proposal should have not succeeded"
+
+    return network
 
 
 @reqs.description("Update certificates of all nodes, one by one")

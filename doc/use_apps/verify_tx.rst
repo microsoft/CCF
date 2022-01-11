@@ -12,7 +12,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
 
 .. code-block:: bash
 
-    $ curl -X GET "https://<ccf-node-address>/app/tx?transaction_id=2.18" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -i
+    $ curl -X GET "https://<ccf-node-address>/app/tx?transaction_id=2.18" --cacert service_cert.pem --key user0_privk.pem --cert user0_cert.pem -i
     HTTP/1.1 200 OK
     content-length: 23
     content-type: application/json
@@ -55,7 +55,7 @@ This means that the request may return ``202 Accepted`` at first, with a suggest
 
 .. code-block:: bash
 
-    $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.23" --cacert service_cert.pem --key user0_privk.pem --cert user0_cert.pem
 
     {'leaf': 'fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec',
      'node_id': '682c161e1bc0aec694cac58a6ea456e1caa6c9c56d8dd873da9455c341947065',
@@ -72,7 +72,7 @@ Note that receipts over signature transactions are a special case, for example:
 
 .. code-block:: bash
 
-    $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.35" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.35" --cacert service_cert.pem --key user0_privk.pem --cert user0_cert.pem
 
     {'leaf': 'fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec',
      'node_id': '06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78',

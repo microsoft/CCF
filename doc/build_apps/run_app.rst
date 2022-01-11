@@ -106,7 +106,7 @@ Performance Tests
                      --format json --duration 10s \
                      --cert $SCDIR/user0_cert.pem \
                      --key $SCDIR/user0_privk.pem \
-                     --root-certs $SCDIR/networkcert.pem | /opt/vegeta/vegeta report
+                     --root-certs $SCDIR/service_cert.pem | /opt/vegeta/vegeta report
 
 Where ``sample_targets.json`` is a file containing some sample requests to be sent as load testing, for example:
 

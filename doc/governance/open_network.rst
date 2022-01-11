@@ -25,7 +25,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
         ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -42,7 +42,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "ballot": "export function vote (proposal, proposerId) { return true }"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -55,7 +55,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "ballot": "export function vote (proposal, proposerId) { return proposerId == \"2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0\" }"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -104,7 +104,7 @@ Once this proposal is accepted, the newly added user (with ID ``529d0f48287923e7
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/app/log/private/admin_only --key user0_privk.pem --cert user0_cert.pem --cacert networkcert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
+    $ curl https://<ccf-node-address>/app/log/private/admin_only --key user0_privk.pem --cert user0_cert.pem --cacert service_cert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
     HTTP/1.1 200 OK
 
     true
@@ -113,7 +113,7 @@ All other users have empty or non-matching user-data, so will receive a HTTP err
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/app/log/private/admin_only --key user1_privk.pem --cert user1_cert.pem --cacert networkcert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
+    $ curl https://<ccf-node-address>/app/log/private/admin_only --key user1_privk.pem --cert user1_cert.pem --cacert service_cert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
     HTTP/1.1 403 Forbidden
 
     {"error":{"code":"AuthorizationFailed","message":"Only admins may access this endpoint."}}
@@ -135,7 +135,7 @@ Once users are added to the opening network, members should create a proposal to
         ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert --key member0_privk --cert member0_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",

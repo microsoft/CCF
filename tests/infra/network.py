@@ -106,9 +106,9 @@ class Network:
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",
-        "initial_network_cert_validity_days",
+        "initial_service_cert_validity_days",
         "maximum_node_certificate_validity_days",
-        "maximum_network_certificate_validity_days",
+        "maximum_service_certificate_validity_days",
         "reconfiguration_type",
         "config_file",
     ]
@@ -443,7 +443,7 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
         self.verify_service_certificate_validity_period(
-            args.initial_network_cert_validity_days
+            args.initial_service_cert_validity_days
         )
         LOG.success("***** Network is now open *****")
 
@@ -523,7 +523,7 @@ class Network:
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
         self.verify_service_certificate_validity_period(
-            args.initial_network_cert_validity_days
+            args.initial_service_cert_validity_days
         )
         LOG.success("***** Recovered network is now open *****")
 
@@ -1106,12 +1106,12 @@ class Network:
 
     @functools.cached_property
     def cert(self):
-        cert_path = os.path.join(self.common_dir, "networkcert.pem")
+        cert_path = os.path.join(self.common_dir, "service_cert.pem")
         with open(cert_path, encoding="utf-8") as c:
-            network_cert = load_pem_x509_certificate(
+            service_cert = load_pem_x509_certificate(
                 c.read().encode("ascii"), default_backend()
             )
-            return network_cert
+            return service_cert
 
     def verify_service_certificate_validity_period(self, expected_validity_days):
         primary, _ = self.find_primary()

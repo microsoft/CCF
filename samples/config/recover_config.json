@@ -22,9 +22,9 @@
   },
   "command": {
     "type": "recover",
-    "network_certificate_file": "networkcert.pem",
+    "service_certificate_file": "service_cert.pem",
     "recover": {
-      "network_certificate_initial_validity_days": 1
+      "initial_service_certificate_validity_days": 1
     }
   },
   "ledger": {

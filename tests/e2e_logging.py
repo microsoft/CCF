@@ -37,14 +37,14 @@ from loguru import logger as LOG
 
 
 def verify_receipt(
-    receipt, network_cert, check_endorsement=True, claims=None, generic=True
+    receipt, service_cert, check_endorsement=True, claims=None, generic=True
 ):
     """
     Raises an exception on failure
     """
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
-        ccf.receipt.check_endorsement(node_cert, network_cert)
+        ccf.receipt.check_endorsement(node_cert, service_cert)
     if claims is not None:
         assert "leaf_components" in receipt
         if not generic:
@@ -99,7 +99,7 @@ def test_illegal(network, args):
 
     def send_bad_raw_content(content):
         # Send malformed HTTP traffic and check the connection is closed
-        cafile = os.path.join(network.common_dir, "networkcert.pem")
+        cafile = os.path.join(network.common_dir, "service_cert.pem")
         context = ssl.create_default_context(cafile=cafile)
         context.load_cert_chain(
             certfile=os.path.join(network.common_dir, "user0_cert.pem"),

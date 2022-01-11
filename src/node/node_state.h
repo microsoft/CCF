@@ -72,7 +72,7 @@ namespace ccf
   struct NodeCreateInfo
   {
     crypto::Pem self_signed_node_cert;
-    crypto::Pem network_cert;
+    crypto::Pem service_cert;
   };
 
   void reset_data(std::vector<uint8_t>& data)
@@ -318,7 +318,7 @@ namespace ccf
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             curve_id,
             config.startup_host_time,
-            config.initial_network_certificate_validity_days);
+            config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
 
@@ -379,7 +379,7 @@ namespace ccf
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
             curve_id,
             config.startup_host_time,
-            config.initial_network_certificate_validity_days);
+            config.initial_service_certificate_validity_days);
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
@@ -408,7 +408,7 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.join.network_cert);
+      auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
 
@@ -1603,7 +1603,7 @@ namespace ccf
         create_params.node_endorsed_certificate);
 
       create_params.public_key = node_sign_kp->public_key_pem();
-      create_params.network_cert = network.identity->cert;
+      create_params.service_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;

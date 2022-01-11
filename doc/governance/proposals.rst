@@ -139,7 +139,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
     {
       "ballot_count": 0,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -163,7 +163,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
 
 
     # Member 1 approves the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
       "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -173,7 +173,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
 
 
     # Member 2 rejects the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
     {
       "ballot_count": 2,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -182,7 +182,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
     }
 
     # Member 3 accepts the proposal (votes in favour: 2/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
       "ballot_count": 3,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -203,7 +203,7 @@ The details of pending proposals, can be queried from the service by calling ``G
 
 .. code-block:: bash
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --cacert networkcert.pem --key member3_privk.pem --cert member3_cert.pem -H "content-type: application/json" -X GET
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --cacert service_cert.pem --key member3_privk.pem --cert member3_cert.pem -H "content-type: application/json" -X GET
     {
       "ballots": {
         "0d8866bf4623a685963f3c087cd6fdcdf48fc483d774f7fc28bf428e31755aaa": "export function vote (proposal, proposerId) { return true }",
@@ -226,7 +226,7 @@ At any stage during the voting process, before the proposal is accepted, the pro
 
 .. code-block:: bash
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert networkcert.pem --key member1_privk.pem --cert member1_cert.pem -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert service_cert.pem --key member1_privk.pem --cert member1_cert.pem -H "content-type: application/json"
     {
       "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",

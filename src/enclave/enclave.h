@@ -154,11 +154,11 @@ namespace enclave
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
-      uint8_t* network_cert,
-      size_t network_cert_size,
-      size_t* network_cert_len)
+      uint8_t* service_cert,
+      size_t service_cert_size,
+      size_t* service_cert_len)
     {
-      // node_cert_size and network_cert_size are ignored here, but we pass them
+      // node_cert_size and service_cert_size are ignored here, but we pass them
       // in because it allows us to set EDL an annotation so that node_cert_len
       // <= node_cert_size is checked by the EDL-generated wrapper
 
@@ -177,7 +177,7 @@ namespace enclave
         return false;
       }
 
-      // Copy node and network certs out
+      // Copy node and service certs out
       if (r.self_signed_node_cert.size() > node_cert_size)
       {
         LOG_FAIL_FMT(
@@ -196,16 +196,16 @@ namespace enclave
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
-        if (r.network_cert.size() > network_cert_size)
+        if (r.service_cert.size() > service_cert_size)
         {
           LOG_FAIL_FMT(
-            "Insufficient space ({}) to copy network_cert out ({})",
-            network_cert_size,
-            r.network_cert.size());
+            "Insufficient space ({}) to copy service_cert out ({})",
+            service_cert_size,
+            r.service_cert.size());
           return false;
         }
-        ::memcpy(network_cert, r.network_cert.data(), r.network_cert.size());
-        *network_cert_len = r.network_cert.size();
+        ::memcpy(service_cert, r.service_cert.data(), r.service_cert.size());
+        *service_cert_len = r.service_cert.size();
       }
 
       return true;

@@ -137,7 +137,7 @@ if __name__ == "__main__":
             elif k == "node_address":
                 output["network"]["node_to_node_interface"]["bind_address"] = v
             elif k == "network_cert_file":
-                output["network_certificate_file"] = v
+                output["service_certificate_file"] = v
 
             # node certificate
             elif k == "san":

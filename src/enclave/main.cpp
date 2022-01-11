@@ -39,9 +39,9 @@ extern "C"
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
-    uint8_t* network_cert,
-    size_t network_cert_size,
-    size_t* network_cert_len,
+    uint8_t* service_cert,
+    size_t service_cert_size,
+    size_t* service_cert_len,
     uint8_t* enclave_version,
     size_t enclave_version_size,
     size_t* enclave_version_len,
@@ -187,9 +187,9 @@ extern "C"
           node_cert,
           node_cert_size,
           node_cert_len,
-          network_cert,
-          network_cert_size,
-          network_cert_len))
+          service_cert,
+          service_cert_size,
+          service_cert_len))
     {
       return CreateNodeStatus::InternalError;
     }

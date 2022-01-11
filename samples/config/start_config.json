@@ -22,7 +22,7 @@
   },
   "command": {
     "type": "start",
-    "network_certificate_file": "networkcert.pem",
+    "service_certificate_file": "service_cert.pem",
     "start": {
       "constitution_files": [
         "validate.js",
@@ -40,7 +40,7 @@
         "recovery_threshold": 1,
         "maximum_node_certificate_validity_days": 365
       },
-      "network_certificate_initial_validity_days": 1
+      "initial_service_certificate_validity_days": 1
     }
   },
   "ledger": {

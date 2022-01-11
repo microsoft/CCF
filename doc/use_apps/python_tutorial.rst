@@ -52,7 +52,7 @@ Set the following CCF node variables:
 
     host = "<node-host>"            # Node address or domain (str)
     port = <node-port>              # Node port (int)
-    ca = "<path/to/network/cert>"   # Network certificate path
+    ca = "<path/to/service/cert>"   # Service certificate path
 
 .. note:: :doc:`When starting a CCF sandbox </build_apps/run_app>`, use any node's IP address and port number. All certificates and keys can be found in the associated ``common_dir`` folder.
 
