@@ -507,10 +507,14 @@ namespace ccf::v8_tmpl
             v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
         }
 
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label.n > 0)
+        {
+          label_opt = {label.p, label.p + label.n};
+        }
+
         auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
-          crypto::Pem(wrapping_key),
-          {key.p, key.p + key.n},
-          {label.p, label.p + label.n});
+          crypto::Pem(wrapping_key), {key.p, key.p + key.n}, label_opt);
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
           isolate, wrapped_key.data(), wrapped_key.size()));
@@ -559,11 +563,17 @@ namespace ccf::v8_tmpl
             v8_util::get_array_buffer_data(label_val.As<v8::ArrayBuffer>());
         }
 
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label.n > 0)
+        {
+          label_opt = {label.p, label.p + label.n};
+        }
+
         auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
           aes_key_size,
           crypto::Pem(wrapping_key),
           {key.p, key.p + key.n},
-          {label.p, label.p + label.n});
+          label_opt);
 
         info.GetReturnValue().Set(v8_util::to_v8_array_buffer_copy(
           isolate, wrapped_key.data(), wrapped_key.size()));
