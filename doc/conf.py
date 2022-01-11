@@ -337,6 +337,11 @@ def config_inited(app, config):
             check=True,
         )
         subprocess.run(
+            ["npm", "install", "colors@1.4.0"],
+            cwd=js_pkg_dir,
+            check=True,
+        )
+        subprocess.run(
             ["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
             cwd=js_pkg_dir,
             check=True,
