@@ -59,12 +59,10 @@ if poll_for_service_open ${network_live_time}; then
     exit 1
 fi
 
-# Issue tutorial transactions to ephemeral network
 python3.8 -m venv env
 # shellcheck source=/dev/null
 source env/bin/activate
 python -m pip install -e ../../../python
-python ../../../python/tutorial.py ./workspace/sandbox_common/
 
 # Test Python package CLI
 ../../../tests/test_python_cli.sh > test_python_cli.out

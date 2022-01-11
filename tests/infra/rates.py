@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import json
 from statistics import mean, harmonic_mean, median, pstdev
-from infra.tx_id import TxID
+from ccf.tx_id import TxID
 
 from loguru import logger as LOG
 

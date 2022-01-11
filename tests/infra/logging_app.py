@@ -9,7 +9,7 @@ import random
 import infra.clients
 import infra.commit
 from collections import defaultdict
-from infra.tx_id import TxID
+from ccf.tx_id import TxID
 
 
 from loguru import logger as LOG

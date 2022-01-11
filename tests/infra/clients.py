@@ -21,7 +21,7 @@ import struct
 import base64
 import re
 from typing import Union, Optional, List, Any
-from infra.tx_id import TxID
+from ccf.tx_id import TxID
 
 import httpx
 from loguru import logger as LOG  # type: ignore

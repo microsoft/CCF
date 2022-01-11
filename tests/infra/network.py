@@ -12,7 +12,7 @@ import infra.node
 import infra.consortium
 from ccf.ledger import NodeStatus, Ledger, COMMITTED_FILE_SUFFIX
 from infra.tx_status import TxStatus
-from infra.tx_id import TxID
+from ccf.tx_id import TxID
 import random
 from dataclasses import dataclass
 from math import ceil

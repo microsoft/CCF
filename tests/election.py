@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from infra.tx_id import TxID
+from ccf.tx_id import TxID
 from infra.network import PrimaryNotFound
 import math
 import infra.network

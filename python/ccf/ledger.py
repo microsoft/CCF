@@ -19,7 +19,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import utils, ec
 
 from ccf.merkletree import MerkleTree
-from infra.tx_id import TxID
+from ccf.tx_id import TxID
 import ccf.receipt
 
 GCM_SIZE_TAG = 16
@@ -879,11 +879,11 @@ class Ledger:
 
     def last_verified_txid(self) -> TxID:
         """
-        Return the :py:class:`infra.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
+        Return the :py:class:`ccf.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
 
         Note: The ledger should first be parsed before calling this function.
 
-        :return: :py:class:`infra.tx_id.TxID`
+        :return: :py:class:`ccf.tx_id.TxID`
         """
         return TxID(
             self._ledger_validator.last_verified_view,

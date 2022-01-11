@@ -20,7 +20,7 @@ import hashlib
 import infra.clients
 from infra.log_capture import flush_info
 import ccf.receipt
-from infra.tx_id import TxID
+from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
