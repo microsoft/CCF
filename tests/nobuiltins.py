@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from ccf.tx_id import TxID
+from infra.tx_id import TxID
 from http import HTTPStatus
 import openapi_spec_validator
 from datetime import datetime, timezone

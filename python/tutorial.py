@@ -15,7 +15,7 @@ LOG.add(
 )
 
 # SNIPPET: import_clients
-import ccf.clients
+import infra.clients
 
 # Load client info file.
 if len(sys.argv) < 2:
@@ -39,7 +39,7 @@ member_key = os.path.join(common_dir, "member0_privk.pem")
 # Tutorial starts below.
 
 # SNIPPET: anonymous_client
-anonymous_client = ccf.clients.CCFClient(host, port, ca)
+anonymous_client = infra.clients.CCFClient(host, port, ca)
 
 # SNIPPET_START: anonymous_requests
 r = anonymous_client.get("/node/state")
@@ -49,8 +49,8 @@ assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: anonymous_requests
 
 # SNIPPET_START: session_authenticated_client
-user_client = ccf.clients.CCFClient(
-    host, port, ca, session_auth=ccf.clients.Identity(key, cert, "session client")
+user_client = infra.clients.CCFClient(
+    host, port, ca, session_auth=infra.clients.Identity(key, cert, "session client")
 )
 # SNIPPET_END: session_authenticated_client
 
@@ -77,12 +77,12 @@ assert r.body.json() == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
 
 # SNIPPET_START: signature_authenticated_client
-member_client = ccf.clients.CCFClient(
+member_client = infra.clients.CCFClient(
     host,
     port,
     ca,
     session_auth=None,
-    signing_auth=ccf.clients.Identity(member_key, member_cert, "sign member client"),
+    signing_auth=infra.clients.Identity(member_key, member_cert, "sign member client"),
 )
 # SNIPPET_END: signature_authenticated_client
 
@@ -97,12 +97,12 @@ import ccf.proposal_generator
 # SNIPPET_START: dict_proposal
 proposal, vote = ccf.proposal_generator.transition_service_to_open()
 
-member_client = ccf.clients.CCFClient(
+member_client = infra.clients.CCFClient(
     host,
     port,
     ca,
-    session_auth=ccf.clients.Identity(member_key, member_cert, "member"),
-    signing_auth=ccf.clients.Identity(member_key, member_cert, "member"),
+    session_auth=infra.clients.Identity(member_key, member_cert, "member"),
+    signing_auth=infra.clients.Identity(member_key, member_cert, "member"),
 )
 response = member_client.post(
     "/gov/proposals",

@@ -10,7 +10,7 @@ from contextlib import AbstractContextManager
 import tempfile
 import json
 import time
-from ccf.log_capture import flush_info
+from infra.log_capture import flush_info
 from loguru import logger as LOG
 
 
