@@ -1,5 +1,5 @@
-CCF release and support policy
-==============================
+Release and compatibility policy
+================================
 
 API stability and versioning
 -----------------------------

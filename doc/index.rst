@@ -69,13 +69,6 @@ CCF Documentation
 
     ---
 
-    :fa:`book` :doc:`glossary`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Common terms used throughout the documentation and their definitions.
-
-    ---
-
     :fa:`flask` :doc:`research/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -92,6 +85,5 @@ CCF Documentation
     governance/index.rst
     audit/index.rst
     contribute/index.rst
-    glossary
     research/index.rst
     GitHub Repository <https://github.com/microsoft/CCF>
