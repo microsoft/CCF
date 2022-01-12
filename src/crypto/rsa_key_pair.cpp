@@ -1,20 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "mbedtls/rsa_key_pair.h"
-
 #include "openssl/rsa_key_pair.h"
 #include "rsa_key_pair.h"
 
 namespace crypto
 {
-#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-  using RSAPublicKeyImpl = RSAPublicKey_mbedTLS;
-  using RSAKeyPairImpl = RSAKeyPair_mbedTLS;
-#else
   using RSAPublicKeyImpl = RSAPublicKey_OpenSSL;
   using RSAKeyPairImpl = RSAKeyPair_OpenSSL;
-#endif
 
   RSAPublicKeyPtr make_rsa_public_key(const Pem& public_pem)
   {

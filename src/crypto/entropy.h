@@ -35,8 +35,8 @@ namespace crypto
     Entropy() = default;
     virtual ~Entropy() = default;
 
-    virtual void* get_data() = 0;
-    virtual rng_func_t get_rng() = 0;
+    // virtual void* get_data() = 0;
+    // virtual rng_func_t get_rng() = 0;
 
     /// Generate @p len random bytes
     /// @param len Number of random bytes to generate
@@ -328,15 +328,15 @@ namespace crypto
       return 0;
     }
 
-    rng_func_t get_rng() override
-    {
-      return &rng;
-    }
+    // rng_func_t get_rng() override
+    // {
+    //   return &rng;
+    // }
 
-    void* get_data() override
-    {
-      return this;
-    }
+    // void* get_data() override
+    // {
+    //   return this;
+    // }
 
     static bool is_drng_supported()
     {

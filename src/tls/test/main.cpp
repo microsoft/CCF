@@ -92,8 +92,6 @@ int recv(void* ctx, uint8_t* buf, size_t len)
   return rc;
 }
 
-#ifndef TLS_PROVIDER_IS_MBEDTLS
-
 // These are OpenSSL callbacks that call onto the MbedTLS ones. They have the
 // same name but different signatures, so when using OpenSSL, these are the ones
 // that set_bio() will take, and call the ones above by using the correct
@@ -172,8 +170,6 @@ long recv(
   // original operation.
   return ret;
 }
-
-#endif
 
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.

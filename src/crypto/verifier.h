@@ -197,6 +197,9 @@ namespace crypto
 
     /** The validity period of the certificate */
     virtual std::pair<std::string, std::string> validity_period() const = 0;
+
+    /** The subject name of the certificate */
+    virtual std::string subject() const = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
@@ -234,5 +237,5 @@ namespace crypto
 
   crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der);
 
-  void check_is_cert(const CBuffer& der);
+  void check_is_cert(const CBuffer& der);  
 }

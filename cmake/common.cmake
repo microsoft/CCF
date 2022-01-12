@@ -84,11 +84,6 @@ set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
 include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
 include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
 
-find_package(MbedTLS REQUIRED)
-
-set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
-set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
@@ -326,7 +321,6 @@ install(
 
 # CCF endpoints libs
 add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
-use_oe_mbedtls(ccf_endpoints.enclave)
 add_warning_checks(ccf_endpoints.enclave)
 install(
   TARGETS ccf_endpoints.enclave
@@ -334,7 +328,6 @@ install(
   DESTINATION lib
 )
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
-use_client_mbedtls(ccf_endpoints.host)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 install(
@@ -365,7 +358,6 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
-  use_oe_mbedtls(js_openenclave.enclave)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_openenclave.enclave)
   install(
@@ -385,8 +377,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  use_client_mbedtls(js_openenclave.virtual)
+  )  
   install(
     TARGETS js_openenclave.virtual
     EXPORT ccf
@@ -397,8 +388,7 @@ endif()
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )
-  use_oe_mbedtls(js_generic_base.enclave)
+  )  
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_generic_base.enclave)
   install(
@@ -422,8 +412,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  use_client_mbedtls(js_generic_base.virtual)
+  )  
   install(
     TARGETS js_generic_base.virtual
     EXPORT ccf

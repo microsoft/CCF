@@ -13,10 +13,7 @@
 #include "ccf/indexing/seqnos_by_key.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
-// FIXME: The header below is used for a single check of the certificate and
-// could be done using OpenSSL. For now, we keep it as is, but we should make
-// the change once we deprecate, and remove, mbedTLS.
-#include "crypto/mbedtls/mbedtls_wrappers.h"
+#include "crypto/verifier.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -438,22 +435,21 @@ namespace loggingapp
             "Cannot record an empty log message");
           return;
         }
-
-        auto cert = mbedtls::make_unique<mbedtls::X509Crt>();
-
-        const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
-        const auto ret = mbedtls_x509_crt_parse(
-          cert.get(), cert_data.data(), cert_data.size());
-        if (ret != 0)
-        {
+        
+        std::shared_ptr<Verifier> verifier;
+        try {
+          const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
+          verifier = make_verifier(cert_data);
+        }
+        catch (const std::exception &ex) {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Cannot parse x509 caller certificate");
           return;
-        }
+        }        
 
-        const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
+        const auto log_line = fmt::format("{}: {}", verifier->subject(), in.msg);
         auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
         update_first_write(ctx.tx, in.id);

@@ -59,14 +59,6 @@ benchmark_specs = {
             "D": "2048",
         },
     ],
-    "digest_bench.csv": [
-        {
-            "_name": "mbedtls sha256 (/s)^",
-            "Suite": "mbedtls_digest_sha256",
-            "Benchmark": "SHA-256",
-            "D": "524288",
-        },
-    ],
 }
 
 if __name__ == "__main__":

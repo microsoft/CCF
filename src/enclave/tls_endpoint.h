@@ -71,11 +71,7 @@ namespace enclave
         threading::ThreadMessaging::get_execution_thread(session_id);
       // The functions we pass are different so this can only be done
       // with an ifdef. Remove once we get rid of mbedTLS.
-#ifdef TLS_PROVIDER_IS_MBEDTLS
-      ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
-#else
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl, nullptr);
-#endif
     }
 
     ~TLSEndpoint()
@@ -563,7 +559,6 @@ namespace enclave
     // emulate MbedTLS.
     // Once we get rid of MbedTLS we can move the callbacks above to handle BIOs
     // directly and hopefully remove the complexity below.
-#ifndef TLS_PROVIDER_IS_MBEDTLS
     static long send_callback_openssl(
       BIO* b,
       int oper,
@@ -677,8 +672,6 @@ namespace enclave
       // original operation.
       return ret;
     }
-
-#endif
 
     // Remove this function once MbedTLS is gone.
     static void dbg_callback(

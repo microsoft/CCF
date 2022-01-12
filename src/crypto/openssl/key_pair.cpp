@@ -100,6 +100,17 @@ namespace crypto
     return PublicKey_OpenSSL::public_key_der();
   }
 
+  std::vector<uint8_t> KeyPair_OpenSSL::private_key_der() const
+  {
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(i2d_PrivateKey_bio(buf, key));
+
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {bptr->data, bptr->data + bptr->length};
+  }
+
   bool KeyPair_OpenSSL::verify(
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {
@@ -342,5 +353,25 @@ namespace crypto
       X509_free(icrt);
 
     return result;
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(const PublicKey &peer_key)
+  {     
+    auto peer_der = peer_key.public_key_der();
+
+    Unique_BIO mem(peer_der);    
+    EVP_PKEY *peer_pub = NULL;    
+    d2i_PUBKEY_bio(mem, &peer_pub);    
+
+    std::vector<uint8_t> shared_secret;
+    size_t shared_secret_length = 0;      
+    Unique_EVP_PKEY_CTX ctx(key);
+    CHECK1(EVP_PKEY_derive_init(ctx));
+    CHECK1(EVP_PKEY_derive_set_peer(ctx, peer_pub));    
+    CHECK1(EVP_PKEY_derive(ctx, NULL, &shared_secret_length));    
+    shared_secret.resize(shared_secret_length);    
+    CHECK1(EVP_PKEY_derive(ctx, shared_secret.data(), &shared_secret_length));
+
+    return shared_secret;
   }
 }

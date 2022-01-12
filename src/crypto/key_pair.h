@@ -23,6 +23,7 @@ namespace crypto
     virtual Pem private_key_pem() const = 0;
     virtual Pem public_key_pem() const = 0;
     virtual std::vector<uint8_t> public_key_der() const = 0;
+    virtual std::vector<uint8_t> private_key_der() const = 0;
 
     virtual bool verify(
       const std::vector<uint8_t>& contents,
@@ -87,6 +88,8 @@ namespace crypto
       auto csr = create_csr(subject_name, subject_alt_names);
       return sign_csr(Pem(0), csr, ca, valid_from, valid_to);
     }
+
+    virtual std::vector<uint8_t> derive_shared_secret(const PublicKey &peer_key) = 0;
   };
 
   using PublicKeyPtr = std::shared_ptr<PublicKey>;

@@ -78,12 +78,7 @@ namespace tls
       BIO_set_mem_eof_return(wbio, -1);
       BIO_set_callback_arg(wbio, (char*)cb_obj);
       BIO_set_callback_ex(wbio, send);
-      SSL_set0_wbio(ssl, wbio);
-
-      // We don't need debug callbacks and the other two already have
-      // enough debug messages. Once we get rid of MbedTLS, we can remove this
-      // argument.
-      (void)dbg;
+      SSL_set0_wbio(ssl, wbio);      
     }
 
     int handshake()

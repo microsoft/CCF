@@ -34,41 +34,7 @@
   become: yes
   when: "'moby-buildx' not in ansible_facts.packages"
 
-- name: Download mbedtls
-  get_url:
-    url: https://github.com/ARMmbed/mbedtls/archive/{{ mbedtls_src }}
-    dest: "{{ workspace }}/{{ mbedtls_src }}"
-  become: true
-
-- name: Remove existing mbedtls checkout
-  file:
-    path: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}"
-    state: absent
-
-- name: Expand mbedtls
-  unarchive:
-    src: "{{ workspace }}/{{ mbedtls_src }}"
-    dest: "{{ workspace }}"
-    copy: no
-    creates: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/CMakeLists.txt"
-
-- name: Make mbedtls build dir
-  file:
-    path: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
-    state: directory
-
-- name: Build mbedtls
-  shell: |
-    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
-    make
-  args:
-    chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
-
-- name: Install mbedtls
-  command: make install
-  args:
-    chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
-  become: true
+# TODO: Find OpenSSL?
 
 - name: Remove doxygen debian package
   apt:

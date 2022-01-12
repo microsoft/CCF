@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// Macros provided to interface MbedTLS and OpenSSL on the same implementation.
-#ifndef TLS_PROVIDER_IS_MBEDTLS
 // These macros setup return values for when the connection is reading/writing
 // and needs more data or has an error.
 //
@@ -28,16 +26,13 @@
 #  define TLS_ERR_PEER_VERIFY INT_MIN + 1
 #  define TLS_ERR_X509_VERIFY INT_MIN + 2
 
-#  include <openssl/err.h>
 #  include <string>
+
+#include "crypto/openssl/openssl_wrappers.h"
 
 namespace tls
 {
-  /// Returns the error string from an error code
-  /// this is a copy of crypto's to allow control via TLS_PROVIDER_IS_MBEDTLS
-  inline std::string error_string(int ec)
-  {
-    return ERR_error_string((unsigned long)ec, nullptr);
-  }
+  inline std::string error_string(int ec) {
+    return crypto::OpenSSL::error_string(ec);
+  }  
 }
-#endif
