@@ -33,7 +33,21 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
-    :fa:`scroll` :doc:`certificates`
+    :fa:`sync-alt` :doc:`code_upgrade`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Upgrade a live service with minimal downtime.
+
+    ---
+
+    :fa:`sync-alt` :doc:`code_upgrade_1x`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Specific guidelines to upgrade a service from CCF 1.x to 2.0.
+
+    ---
+
+    :fa:`stamp` :doc:`certificates`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Set and renew nodes and service x509 certificates.

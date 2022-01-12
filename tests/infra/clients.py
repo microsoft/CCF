@@ -26,8 +26,8 @@ from ccf.tx_id import TxID
 import httpx
 from loguru import logger as LOG  # type: ignore
 
-import ccf.commit
-from ccf.log_capture import flush_info
+import infra.commit
+from infra.log_capture import flush_info
 
 
 class HttpSig(httpx.Auth):
@@ -115,7 +115,7 @@ class Request:
 @dataclass
 class Identity:
     """
-    Identity (as private key and corresponding certificate) for a :py:class:`ccf.clients.CCFClient` client.
+    Identity (as private key and corresponding certificate) for a :py:class:`infra.clients.CCFClient` client.
     """
 
     #: Path to file containing private key
@@ -191,7 +191,7 @@ class RawResponseBody(ResponseBody):
 @dataclass
 class Response:
     """
-    Response to request sent via :py:class:`ccf.clients.CCFClient`
+    Response to request sent via :py:class:`infra.clients.CCFClient`
     """
 
     #: Response HTTP status code
@@ -268,7 +268,7 @@ def human_readable_size(n):
 
 class CCFConnectionException(Exception):
     """
-    Exception raised if a :py:class:`ccf.clients.CCFClient` instance cannot successfully establish
+    Exception raised if a :py:class:`infra.clients.CCFClient` instance cannot successfully establish
     a connection with a target CCF node.
     """
 
@@ -590,7 +590,7 @@ class CCFClient:
         :param list log_capture: Rather than emit to default handler, capture log lines to list (optional).
         :param bool allow_redirects: Select whether redirects are followed.
 
-        :return: :py:class:`ccf.clients.Response`
+        :return: :py:class:`infra.clients.Response`
         """
         if not path.startswith("/"):
             raise ValueError(f"URL path '{path}' is invalid, must start with /")
@@ -629,9 +629,9 @@ class CCFClient:
     def get(self, *args, **kwargs) -> Response:
         """
         Issue ``GET`` request.
-        See :py:meth:`ccf.clients.CCFClient.call`.
+        See :py:meth:`infra.clients.CCFClient.call`.
 
-        :return: :py:class:`ccf.clients.Response`
+        :return: :py:class:`infra.clients.Response`
         """
         if "http_verb" in kwargs:
             raise ValueError('"http_verb" should not be specified')
@@ -642,9 +642,9 @@ class CCFClient:
     def post(self, *args, **kwargs) -> Response:
         """
         Issue ``POST`` request.
-        See :py:meth:`ccf.clients.CCFClient.call`.
+        See :py:meth:`infra.clients.CCFClient.call`.
 
-        :return: :py:class:`ccf.clients.Response`
+        :return: :py:class:`infra.clients.Response`
         """
         if "http_verb" in kwargs:
             raise ValueError('"http_verb" should not be specified')
@@ -655,9 +655,9 @@ class CCFClient:
     def put(self, *args, **kwargs) -> Response:
         """
         Issue ``PUT`` request.
-        See :py:meth:`ccf.clients.CCFClient.call`.
+        See :py:meth:`infra.clients.CCFClient.call`.
 
-        :return: :py:class:`ccf.clients.Response`
+        :return: :py:class:`infra.clients.Response`
         """
         if "http_verb" in kwargs:
             raise ValueError('"http_verb" should not be specified')
@@ -668,9 +668,9 @@ class CCFClient:
     def delete(self, *args, **kwargs) -> Response:
         """
         Issue ``DELETE`` request.
-        See :py:meth:`ccf.clients.CCFClient.call`.
+        See :py:meth:`infra.clients.CCFClient.call`.
 
-        :return: :py:class:`ccf.clients.Response`
+        :return: :py:class:`infra.clients.Response`
         """
         if "http_verb" in kwargs:
             raise ValueError('"http_verb" should not be specified')
@@ -681,9 +681,9 @@ class CCFClient:
     def head(self, *args, **kwargs) -> Response:
         """
         Issue ``HEAD`` request.
-        See :py:meth:`ccf.clients.CCFClient.call`.
+        See :py:meth:`infra.clients.CCFClient.call`.
 
-        :return: :py:class:`ccf.clients.Response`
+        :return: :py:class:`infra.clients.Response`
         """
         if "http_verb" in kwargs:
             raise ValueError('"http_verb" should not be specified')
@@ -694,9 +694,9 @@ class CCFClient:
     def options(self, *args, **kwargs) -> Response:
         """
         Issue ``OPTIONS`` request.
-        See :py:meth:`ccf.clients.CCFClient.call`.
+        See :py:meth:`infra.clients.CCFClient.call`.
 
-        :return: :py:class:`ccf.clients.Response`
+        :return: :py:class:`infra.clients.Response`
         """
         if "http_verb" in kwargs:
             raise ValueError('"http_verb" should not be specified')
@@ -708,12 +708,12 @@ class CCFClient:
         self, response: Response, timeout: int = DEFAULT_COMMIT_TIMEOUT_SEC
     ):
         """
-        Given a :py:class:`ccf.clients.Response`, this functions waits
+        Given a :py:class:`infra.clients.Response`, this functions waits
         for the associated sequence number and view to be committed by the CCF network.
 
         The client will poll the ``/node/tx`` endpoint until ``COMMITTED`` is returned.
 
-        :param ccf.clients.Response response: Response returned by :py:meth:`ccf.clients.CCFClient.call`
+        :param infra.clients.Response response: Response returned by :py:meth:`infra.clients.CCFClient.call`
         :param int timeout: Maximum time (secs) to wait for commit before giving up.
 
         A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.
@@ -721,7 +721,7 @@ class CCFClient:
         if response.seqno is None or response.view is None:
             raise ValueError("Response seqno and view should not be None")
 
-        ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
+        infra.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
     def close(self):
         self.client_impl.close()

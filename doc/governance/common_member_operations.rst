@@ -6,11 +6,19 @@ Trusting a New Node
 
 As opposed to an opening network in which nodes are trusted automatically, new nodes added to an open network must become trusted through a governance proposal and vote before becoming part of the network.
 
-When an operator starts a new node with the ``join`` option (see :ref:`operations/start_network:Adding a New Node to the Network`), the node is recorded in state ``Pending``. Then, members can vote to accept the new node, using the unique node id (hex-encoded string of the SHA-256 digest of the node's identity public key). See :ref:`governance/proposals:Proposing and Voting for a Proposal` for more detail.
+When an operator starts a new node with the ``join`` option (see :ref:`operations/start_network:Adding a New Node to the Network`), the node is recorded in state ``Pending``. Then, members can propose and vote to accept the new node via the ``transition_node_to_trusted`` proposal, using the unique node id (hex-encoded string of the SHA-256 digest of the node's identity public key). See :ref:`governance/proposals:Proposing and Voting for a Proposal` for more detail.
 
 Once the proposal successfully completes, the new node automatically becomes part of the network.
 
 .. note:: Once trusted, it may take some time for the new node to update its ledger and replay the transactions run on the network before it joined (from the beginning of time, or from the snapshot it started from).
+
+Removing an Existing Node
+-------------------------
+
+A node that is already part of the service can safely be retired using the ``remove_node`` proposal.
+
+.. note:: If the now-retired node was the primary node, once the proposal successfully completes, a new primary node will have to be elected.
+
 
 Updating Code Version
 ---------------------

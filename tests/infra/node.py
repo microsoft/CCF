@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import infra.net
 import infra.path
 import infra.interfaces
-import ccf.clients
+import infra.clients
 import ccf.ledger
 import os
 import socket
@@ -417,7 +417,7 @@ class Node:
                     rep.status_code == 200
                 ), f"An error occured after node {self.local_node_id} joined the network: {rep.body}"
                 self.network_state = infra.node.NodeNetworkState.joined
-        except ccf.clients.CCFConnectionException as e:
+        except infra.clients.CCFConnectionException as e:
             raise TimeoutError(
                 f"Node {self.local_node_id} failed to join the network"
             ) from e
@@ -472,7 +472,7 @@ class Node:
 
     def identity(self, name=None):
         if name is not None:
-            return ccf.clients.Identity(
+            return infra.clients.Identity(
                 os.path.join(self.common_dir, f"{name}_privk.pem"),
                 os.path.join(self.common_dir, f"{name}_cert.pem"),
                 name,
@@ -528,7 +528,7 @@ class Node:
             )
             raise
 
-        return ccf.clients.client(
+        return infra.clients.client(
             rpc_interface.public_host, rpc_interface.public_port, **akwargs
         )
 

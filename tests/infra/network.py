@@ -5,13 +5,13 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from ccf.clients import CCFConnectionException, flush_info
+from infra.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
 from ccf.ledger import NodeStatus, Ledger, COMMITTED_FILE_SUFFIX
-from ccf.tx_status import TxStatus
+from infra.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
 from dataclasses import dataclass

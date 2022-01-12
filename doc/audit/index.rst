@@ -24,7 +24,13 @@ Audit
 
     ---
 
-    :fa:`code` :doc:`python_library`
+    .. image:: ../img/python.svg
+      :width: 22
+      :alt: Python
+      :align: left
+
+
+    :doc:`python_library`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Utility library that can be used to write ledger audit scripts quickly and easily.

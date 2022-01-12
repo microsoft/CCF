@@ -1,7 +1,9 @@
 Python Library
 ==============
 
-This page describes the Python API of the :py:class:`ccf.ledger` module which can be used by auditors to parse a CCF ledger. To install the ``ccf`` Python package, run:
+This page describes the Python API of the :py:class:`ccf.ledger` module which can be used by auditors to parse a CCF ledger.
+
+The latest version of the CCF Python tools package is `available on PyPi <https://pypi.org/project/ccf/>`_ and can be installed as follows:
 
 .. code-block:: bash
 
@@ -22,7 +24,7 @@ First, the paths to the ledger directories should be set:
 
     ledger_dirs = ["</path/to/ledger/dir>"] # List of a single ledger directory
 
-.. note:: By default, ledger directories are created under the node directory.
+.. note:: By default, ledger directories are created under the node directory (See :ref:`operations/configuration:``ledger``` configuration entry).
 
 Then, import the ledger module and instantiate a :py:class:`ccf.ledger` object:
 
