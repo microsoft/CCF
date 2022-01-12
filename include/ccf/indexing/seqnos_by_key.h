@@ -38,7 +38,7 @@ namespace ccf::indexing::strategies
     {
       // NB: Don't use M, instead get an untyped view over the map with the same
       // name. This saves deserialisation here, where we work with the raw key.
-      auto tx = store->create_tx();
+      auto tx = store->create_read_only_tx();
       auto handle = tx.ro<kv::untyped::Map>(map_name);
       handle->foreach(
         [this, seqno = tx_id.seqno](const auto& k, const auto& v) {
@@ -62,7 +62,7 @@ namespace ccf::indexing::strategies
         return it->second;
       }
 
-      return {};
+      return SeqNoCollection();
     }
 
     std::optional<SeqNoCollection> get_write_txs_in_range(

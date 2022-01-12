@@ -673,9 +673,7 @@ def get_all_entries(
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
     )
-    logs = []
-    if log_on_success:
-        logs = None
+    logs = None if log_on_success else []
 
     start_time = time.time()
     end_time = start_time + timeout

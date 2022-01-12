@@ -30,7 +30,7 @@ namespace ccf::indexing
     virtual void tick() {}
 
     // Returns highest tx ID for which this index should be populated, or
-    // nullopt if it wants all Txs. Allows indexes to be populate
+    // nullopt if it wants all Txs. Allows indexes to be populatep
     // lazily on-demand.
     virtual std::optional<ccf::TxID> highest_requested()
     {
