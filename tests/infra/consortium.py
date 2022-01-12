@@ -303,7 +303,7 @@ class Consortium:
         # Wait for proposal completion to be committed, even if no votes are issued
         if wait_for_global_commit:
             with remote_node.client() as c:
-                ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
+                infra.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
         if proposal.state == ProposalState.ACCEPTED:
             proposal.set_completed(seqno, view)

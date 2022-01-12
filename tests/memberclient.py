@@ -40,7 +40,7 @@ def test_missing_signature_header(network, args):
 
 
 def make_signature_corrupter(fn):
-    class SignatureCorrupter(ccf.clients.HttpSig):
+    class SignatureCorrupter(infra.clients.HttpSig):
         def auth_flow(self, request):
             yield fn(next(super(SignatureCorrupter, self).auth_flow(request)))
 
