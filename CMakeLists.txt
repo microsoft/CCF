@@ -682,8 +682,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --schema-dir
       ${CMAKE_SOURCE_DIR}/doc/schemas
-      --client-tutorial
-      ${CMAKE_SOURCE_DIR}/python/tutorial.py
       --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
       --config-samples-dir
