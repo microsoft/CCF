@@ -12,6 +12,10 @@
 #include "ccf/http_query.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
+// FIXME: The header below is used for a single check of the certificate and
+// could be done using OpenSSL. For now, we keep it as is, but we should make
+// the change once we deprecate, and remove, mbedTLS.
+#include "crypto/mbedtls/mbedtls_wrappers.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -298,6 +302,13 @@ namespace loggingapp
         // SNIPPET: public_table_access
         auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         records_handle->put(params["id"], in.msg);
+        // SNIPPET_START: set_claims_digest
+        if (in.record_claim)
+        {
+          ctx.rpc_ctx->set_claims_digest(
+            ccf::ClaimsDigest::Digest::from_string(in.msg));
+        }
+        // SNIPPET_END: set_claims_digest
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -801,6 +812,66 @@ namespace loggingapp
         HTTP_GET,
         ccf::historical::adapter_v2(
           get_historical_with_receipt,
+          context.get_historical_state(),
+          is_tx_committed),
+        auth_policies)
+        .set_auto_schema<void, LoggingGetReceipt::Out>()
+        .add_query_parameter<size_t>("id")
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+      // SNIPPET_END: get_historical_with_receipt
+
+      auto get_historical_with_receipt_and_claims =
+        [this](
+          ccf::endpoints::EndpointContext& ctx,
+          ccf::historical::StatePtr historical_state) {
+          const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
+
+          // Parse id from query
+          const auto parsed_query =
+            http::parse_query(ctx.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          size_t id;
+          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
+
+          auto historical_tx = historical_state->store->create_read_only_tx();
+          auto records_handle =
+            historical_tx.template ro<RecordsMap>(PUBLIC_RECORDS);
+          const auto v = records_handle->get(id);
+
+          if (v.has_value())
+          {
+            LoggingGetReceipt::Out out;
+            out.msg = v.value();
+            assert(historical_state->receipt);
+            // SNIPPET_START: claims_digest_in_receipt
+            historical_state->receipt->describe(out.receipt);
+            // Claims are expanded as out.msg, so the claims digest is removed
+            // from the receipt to force verification to re-compute it.
+            out.receipt.leaf_components->claims_digest = std::nullopt;
+            // SNIPPET_END: claims_digest_in_receipt
+            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
+          }
+          else
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+        };
+      make_endpoint(
+        "/log/public/historical_receipt",
+        HTTP_GET,
+        ccf::historical::adapter_v2(
+          get_historical_with_receipt_and_claims,
           context.get_historical_state(),
           is_tx_committed),
         auth_policies)
@@ -1370,7 +1441,7 @@ namespace loggingapp
         "This CCF sample app implements a simple logging application, securely "
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "1.3.0";
+      logger_handlers.openapi_info.document_version = "1.6.0";
     }
   };
 }

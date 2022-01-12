@@ -25,7 +25,8 @@ namespace crypto
 
     virtual std::vector<uint8_t> rsa_oaep_unwrap(
       const std::vector<uint8_t>& input,
-      std::optional<std::vector<std::uint8_t>> label = std::nullopt) override;
+      const std::optional<std::vector<std::uint8_t>>& label =
+        std::nullopt) override;
 
     virtual Pem private_key_pem() const override;
     virtual Pem public_key_pem() const override;

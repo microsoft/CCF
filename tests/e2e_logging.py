@@ -29,19 +29,47 @@ import random
 import re
 import infra.crypto
 from infra.runner import ConcurrentRunner
+from hashlib import sha256
 import e2e_common_endpoints
+from types import MappingProxyType
 
 from loguru import logger as LOG
 
 
-def verify_receipt(receipt, network_cert, check_endorsement=True):
+def verify_receipt(
+    receipt, network_cert, check_endorsement=True, claims=None, generic=True
+):
     """
     Raises an exception on failure
     """
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, network_cert)
-    root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+    if claims is not None:
+        assert "leaf_components" in receipt
+        if not generic:
+            assert "claims_digest" not in receipt["leaf_components"]
+        claims_digest = sha256(claims).digest()
+
+        leaf = (
+            sha256(
+                bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+                + claims_digest
+            )
+            .digest()
+            .hex()
+        )
+    else:
+        if "leaf" in receipt:
+            leaf = receipt["leaf"]
+        else:
+            assert "leaf_components" in receipt
+            write_set_digest = bytes.fromhex(
+                receipt["leaf_components"]["write_set_digest"]
+            )
+            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+            leaf = sha256(write_set_digest + claims_digest).digest().hex()
+    root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
@@ -122,8 +150,12 @@ def test_large_messages(network, args):
         check = infra.checker.Checker()
 
         with primary.client("user0") as c:
-            log_id = 44
-            for p in range(14, 20) if args.consensus == "CFT" else range(10, 13):
+            # TLS libraries usually have 16K intrernal buffers, so we start at
+            # 1K and move up to 1M and make sure they can cope with it.
+            # Starting below 16K also helps identify problems (by seeing some
+            # pass but not others, and finding where does it fail).
+            log_id = 40
+            for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
@@ -582,8 +614,9 @@ def test_historical_query(network, args):
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
-    network.txs.issue(network, number_txs=5)
-    for idx in range(1, TXS_COUNT + 1):
+    start_idx = network.txs.idx + 1
+    network.txs.issue(network, number_txs=TXS_COUNT)
+    for idx in range(start_idx, TXS_COUNT + start_idx):
         for node in [primary, backups[0]]:
             first_msg = network.txs.priv[idx][0]
             first_receipt = network.txs.get_receipt(
@@ -591,6 +624,35 @@ def test_historical_receipts(network, args):
             )
             r = first_receipt.json()["receipt"]
             verify_receipt(r, network.cert)
+
+    # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
+    verified = True
+    try:
+        ccf.receipt.verify(
+            hashlib.sha256(b"").hexdigest(), r["signature"], network.cert
+        )
+    except InvalidSignature:
+        verified = False
+    assert not verified
+
+    return network
+
+
+@reqs.description("Read historical receipts with claims")
+@reqs.supports_methods("log/public", "log/public/historical_receipt")
+def test_historical_receipts_with_claims(network, args):
+    primary, backups = network.find_nodes()
+    TXS_COUNT = 5
+    start_idx = network.txs.idx + 1
+    network.txs.issue(network, number_txs=TXS_COUNT, record_claim=True)
+    for idx in range(start_idx, TXS_COUNT + start_idx):
+        for node in [primary, backups[0]]:
+            first_msg = network.txs.pub[idx][0]
+            first_receipt = network.txs.get_receipt(
+                node, idx, first_msg["seqno"], first_msg["view"], domain="public"
+            )
+            r = first_receipt.json()["receipt"]
+            verify_receipt(r, network.cert, True, first_receipt.json()["msg"].encode())
 
     # receipt.verify() and ccf.receipt.check_endorsement() raise if they fail, but do not return anything
     verified = True
@@ -1135,8 +1197,11 @@ def test_receipts(network, args):
 @reqs.description("Validate random receipts")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
-def test_random_receipts(network, args, lts=True):
-    primary, _ = network.find_primary_and_any_backup()
+def test_random_receipts(
+    network, args, lts=True, additional_seqnos=MappingProxyType({}), node=None
+):
+    if node is None:
+        node, _ = network.find_primary_and_any_backup()
 
     common = os.listdir(network.common_dir)
     cert_paths = [
@@ -1150,7 +1215,7 @@ def test_random_receipts(network, args, lts=True):
             cert = c.read()
         certs[infra.crypto.compute_public_key_der_hash_hex_from_pem(cert)] = cert
 
-    with primary.client("user0") as c:
+    with node.client("user0") as c:
         r = c.get("/app/commit")
         max_view, max_seqno = [
             int(e) for e in r.body.json()["transaction_id"].split(".")
@@ -1163,7 +1228,10 @@ def test_random_receipts(network, args, lts=True):
         seqnos = range(len(interesting_prefix) + 1, max_seqno)
         for s in (
             interesting_prefix
-            + sorted(random.sample(seqnos, min(50, len(seqnos))))
+            + sorted(
+                random.sample(seqnos, min(50, len(seqnos)))
+                + list(additional_seqnos.keys())
+            )
             + [last_sig_seqno]
         ):
             start_time = time.time()
@@ -1173,7 +1241,13 @@ def test_random_receipts(network, args, lts=True):
                     receipt = rc.body.json()
                     if lts and not receipt.get("cert"):
                         receipt["cert"] = certs[receipt["node_id"]]
-                    verify_receipt(receipt, network.cert, not lts)
+                    verify_receipt(
+                        receipt,
+                        network.cert,
+                        not lts,
+                        claims=additional_seqnos.get(s),
+                        generic=True,
+                    )
                     if s == max_seqno:
                         # Always a signature receipt
                         assert receipt["proof"] == [], receipt
@@ -1261,6 +1335,8 @@ def run(args):
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
         network = test_historical_receipts(network, args)
+        if "v8" not in args.package:
+            network = test_historical_receipts_with_claims(network, args)
 
 
 if __name__ == "__main__":

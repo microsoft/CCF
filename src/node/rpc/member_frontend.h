@@ -235,16 +235,12 @@ namespace ccf
           fmt::format(
             "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
 
-        JSValue argv[2];
-        auto prop = JS_NewStringLen(
-          context, (const char*)proposal.data(), proposal.size());
-        argv[0] = prop;
-        auto pid = JS_NewStringLen(
-          context, pi_->proposer_id.data(), pi_->proposer_id.size());
-        argv[1] = pid;
+        std::vector<js::JSWrappedValue> argv = {
+          context.new_string_len((const char*)proposal.data(), proposal.size()),
+          context.new_string_len(
+            pi_->proposer_id.data(), pi_->proposer_id.size())};
 
-        auto val =
-          context(JS_Call(context, ballot_func, JS_UNDEFINED, 2, argv));
+        auto val = context.call(ballot_func, argv);
         if (!JS_IsException(val))
         {
           votes.emplace_back(mid, JS_ToBool(context, val));
@@ -258,9 +254,6 @@ namespace ccf
           auto [reason, trace] = js::js_error_message(context);
           vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
         }
-        JS_FreeValue(context, ballot_func);
-        JS_FreeValue(context, prop);
-        JS_FreeValue(context, pid);
       }
 
       {
@@ -282,16 +275,15 @@ namespace ccf
           js_context);
         auto resolve_func = js_context.function(
           constitution, "resolve", "public:ccf.gov.constitution[0]");
-        JSValue argv[3];
-        auto prop = JS_NewStringLen(
-          js_context, (const char*)proposal.data(), proposal.size());
-        argv[0] = prop;
 
-        auto prop_id = JS_NewStringLen(
-          js_context, pi_->proposer_id.data(), pi_->proposer_id.size());
-        argv[1] = prop_id;
+        std::vector<js::JSWrappedValue> argv;
+        argv.push_back(js_context.new_string_len(
+          (const char*)proposal.data(), proposal.size()));
 
-        auto vs = JS_NewArray(js_context);
+        argv.push_back(js_context.new_string_len(
+          pi_->proposer_id.data(), pi_->proposer_id.size()));
+
+        auto vs = js_context.new_array();
         size_t index = 0;
         for (auto& [mid, vote] : votes)
         {
@@ -305,15 +297,9 @@ namespace ccf
           JS_DefinePropertyValueUint32(
             js_context, vs, index++, v, JS_PROP_C_W_E);
         }
-        argv[2] = vs;
+        argv.push_back(vs);
 
-        auto val =
-          js_context(JS_Call(js_context, resolve_func, JS_UNDEFINED, 3, argv));
-
-        JS_FreeValue(js_context, resolve_func);
-        JS_FreeValue(js_context, prop);
-        JS_FreeValue(js_context, prop_id);
-        JS_FreeValue(js_context, vs);
+        auto val = js_context.call(resolve_func, argv);
 
         std::optional<jsgov::Failure> failure = std::nullopt;
         if (JS_IsException(val))
@@ -325,9 +311,7 @@ namespace ccf
         }
         else if (JS_IsString(val))
         {
-          auto s = JS_ToCString(js_context, val);
-          std::string status(s);
-          JS_FreeCString(js_context, s);
+          auto status = js_context.to_str(val).value_or("");
           if (status == "Open")
           {
             pi_.value().state = ProposalState::OPEN;
@@ -397,21 +381,13 @@ namespace ccf
             auto apply_func = js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
 
-            JSValue argv[2];
-            auto prop = JS_NewStringLen(
-              js_context, (const char*)proposal.data(), proposal.size());
-            argv[0] = prop;
+            std::vector<js::JSWrappedValue> argv = {
+              js_context.new_string_len(
+                (const char*)proposal.data(), proposal.size()),
+              js_context.new_string_len(
+                proposal_id.c_str(), proposal_id.size())};
 
-            auto prop_id = JS_NewStringLen(
-              js_context, proposal_id.c_str(), proposal_id.size());
-            argv[1] = prop_id;
-
-            auto val = js_context(
-              JS_Call(js_context, apply_func, JS_UNDEFINED, 2, argv));
-
-            JS_FreeValue(js_context, apply_func);
-            JS_FreeValue(js_context, prop);
-            JS_FreeValue(js_context, prop_id);
+            auto val = js_context.call(apply_func, argv);
 
             if (JS_IsException(val))
             {
@@ -500,7 +476,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.3.0";
+      openapi_info.document_version = "2.5.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -925,14 +901,8 @@ namespace ccf
           reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());
         auto body_len = ctx.rpc_ctx->get_request_body().size();
 
-        auto proposal = JS_NewStringLen(context, body, body_len);
-        JSValueConst* argv = (JSValueConst*)&proposal;
-
-        auto val =
-          context(JS_Call(context, validate_func, JS_UNDEFINED, 1, argv));
-
-        JS_FreeValue(context, proposal);
-        JS_FreeValue(context, validate_func);
+        auto proposal = context.new_string_len(body, body_len);
+        auto val = context.call(validate_func, {proposal});
 
         if (JS_IsException(val))
         {
@@ -957,9 +927,7 @@ namespace ccf
         auto desc = context(JS_GetPropertyStr(context, val, "description"));
         if (JS_IsString(desc))
         {
-          auto cstr = JS_ToCString(context, desc);
-          description = std::string(cstr);
-          JS_FreeCString(context, cstr);
+          description = context.to_str(desc).value_or("");
         }
 
         auto valid = context(JS_GetPropertyStr(context, val, "valid"));
@@ -1316,7 +1284,6 @@ namespace ccf
           js::Context context(rt);
           auto ballot_func =
             context.function(params["ballot"], "vote", "body[\"ballot\"]");
-          JS_FreeValue(context, ballot_func);
         }
 
         pi_->ballots[caller_identity.member_id] = params["ballot"];

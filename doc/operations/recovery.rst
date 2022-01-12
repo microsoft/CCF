@@ -22,7 +22,7 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
 
     $ cchost --config /path/to/config/file
 
-Each node will then immediately restore the public entries of its ledger ("ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``GET /node/state`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+Each node will then immediately restore the public entries of its ledger ("ledger.directory`` and ``ledger.read_only_ledger_dir`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.`
 
@@ -37,7 +37,7 @@ The state machine for the ``recover`` node is as follows:
         PartOfPublicNetwork-- member shares reassembly -->ReadingPrivateLedger;
         ReadingPrivateLedger-->PartOfNetwork;
 
-.. note:: It is possible that the length of the ledgers of each node may differ slightly since some transactions may not have yet been fully replicated. It is preferable to use the ledger of the primary node before the service crashed. If the latest primary node of the defunct service is not known, it is recommended to `concurrently` start as many nodes as previous existed in ``recover`` mode, each recovering one ledger of each defunct node. Once all nodes have completed the public recovery procedure, operators can query the highest recovered signed seqno (as per the response to the ``GET /node/state`` endpoint) and select this ledger to recover the service. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
+.. note:: It is possible that the length of the ledgers of each node may differ slightly since some transactions may not have yet been fully replicated. It is preferable to use the ledger of the primary node before the service crashed. If the latest primary node of the defunct service is not known, it is recommended to `concurrently` start as many nodes as previous existed in ``recover`` mode, each recovering one ledger of each defunct node. Once all nodes have completed the public recovery procedure, operators can query the highest recovered signed seqno (as per the response to the :http:GET:`/state` endpoint) and select this ledger to recover the service. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
 
 Similarly to the normal join protocol (see :ref:`operations/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
 

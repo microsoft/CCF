@@ -5,6 +5,7 @@
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
 #include "kv_types.h"
+#include "node/rpc/claims.h"
 #include "serialised_entry.h"
 #include "serialised_entry_format.h"
 
@@ -57,7 +58,8 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
-      EntryType entry_type_ = EntryType::WriteSet) :
+      EntryType entry_type_ = EntryType::WriteSet,
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       crypto_util(e)
@@ -65,6 +67,10 @@ namespace kv
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
       serialise_internal(tx_id.version);
+      if (entry_type == EntryType::WriteSetWithClaims)
+      {
+        serialise_internal(claims_digest_.value());
+      }
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);
     }
@@ -222,6 +228,7 @@ namespace kv
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
+    ccf::ClaimsDigest claims_digest = ccf::no_claims();
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -232,6 +239,13 @@ namespace kv
     {
       entry_type = public_reader.template read_next<EntryType>();
       version = public_reader.template read_next<Version>();
+      if (entry_type == EntryType::WriteSetWithClaims)
+      {
+        auto digest_array =
+          public_reader
+            .template read_next<ccf::ClaimsDigest::Digest::Representation>();
+        claims_digest.set(std::move(digest_array));
+      }
       // max_conflict_version is included for compatibility, but currently
       // ignored
       const auto _ = public_reader.template read_next<Version>();
@@ -244,6 +258,11 @@ namespace kv
       crypto_util(e),
       domain_restriction(domain_restriction)
     {}
+
+    ccf::ClaimsDigest&& consume_claims_digest()
+    {
+      return std::move(claims_digest);
+    }
 
     std::optional<Version> init(
       const uint8_t* data,

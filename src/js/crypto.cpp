@@ -30,9 +30,9 @@ namespace ccf::js
     // Supported key sizes for AES.
     if (key_size != 128 && key_size != 192 && key_size != 256)
     {
-      JS_ThrowRangeError(ctx, "invalid key size");
+      auto e = JS_ThrowRangeError(ctx, "invalid key size");
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
 
     std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
@@ -88,22 +88,20 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 2", argc);
 
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
-
-    auto digest_algo_name_cstr = auto_free(JS_ToCString(ctx, argv[0]));
-    if (!digest_algo_name_cstr)
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto digest_algo_name_str = jsctx.to_str(argv[0]);
+    if (!digest_algo_name_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
-    if (std::string(digest_algo_name_cstr) != "SHA-256")
+    if (*digest_algo_name_str != "SHA-256")
     {
-      JS_ThrowRangeError(
+      auto e = JS_ThrowRangeError(
         ctx, "unsupported digest algorithm, supported: SHA-256");
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
 
     size_t data_size;
@@ -125,11 +123,10 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto pem_cstr = auto_free(JS_ToCString(ctx, argv[0]));
-    if (!pem_cstr)
+    auto pem_str = jsctx.to_str(argv[0]);
+    if (!pem_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
@@ -137,8 +134,7 @@ namespace ccf::js
 
     try
     {
-      std::string pem(pem_cstr);
-      tls::CA ca(pem);
+      tls::CA ca(*pem_str);
     }
     catch (const std::logic_error& e)
     {
@@ -178,17 +174,16 @@ namespace ccf::js
     auto chain_js = argv[0];
     auto trusted_js = argv[1];
 
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto chain_cstr = auto_free(JS_ToCString(ctx, chain_js));
-    if (!chain_cstr)
+    auto chain_str = jsctx.to_str(chain_js);
+    if (!chain_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
-    auto trusted_cstr = auto_free(JS_ToCString(ctx, trusted_js));
-    if (!trusted_cstr)
+    auto trusted_str = jsctx.to_str(trusted_js);
+    if (!trusted_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
@@ -196,8 +191,8 @@ namespace ccf::js
 
     try
     {
-      auto chain_vec = split_x509_cert_bundle(chain_cstr);
-      auto trusted_vec = split_x509_cert_bundle(trusted_cstr);
+      auto chain_vec = split_x509_cert_bundle(*chain_str);
+      auto trusted_vec = split_x509_cert_bundle(*trusted_str);
       if (chain_vec.empty() || trusted_vec.empty())
         throw std::logic_error(
           "chain/trusted arguments must contain at least one certificate");
@@ -230,17 +225,16 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto pem_cstr = auto_free(JS_ToCString(ctx, argv[0]));
-    if (!pem_cstr)
+    auto pem_str = jsctx.to_str(argv[0]);
+    if (!pem_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
-    auto pem = crypto::Pem(pem_cstr);
+    auto pem = crypto::Pem(*pem_str);
     auto der = crypto::make_verifier(pem)->cert_der();
     auto id = crypto::Sha256Hash(der).hex_str();
 
@@ -273,16 +267,14 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
     auto parameters = argv[2];
     JSValue wrap_algo_name_val =
-      auto_free(JS_GetPropertyStr(ctx, parameters, "name"));
+      jsctx(JS_GetPropertyStr(ctx, parameters, "name"));
 
-    auto wrap_algo_name_cstr = auto_free(JS_ToCString(ctx, wrap_algo_name_val));
-
-    if (!wrap_algo_name_cstr)
+    auto wrap_algo_name_str = jsctx.to_str(wrap_algo_name_val);
+    if (!wrap_algo_name_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
@@ -290,20 +282,26 @@ namespace ccf::js
 
     try
     {
-      auto algo_name = std::string(wrap_algo_name_cstr);
+      auto algo_name = std::string(*wrap_algo_name_str);
       if (algo_name == "RSA-OAEP")
       {
         // key can in principle be arbitrary data (see note on maximum size
         // in rsa_key_pair.h). wrapping_key is a public RSA key.
 
-        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
+        auto label_val = jsctx(JS_GetPropertyStr(ctx, parameters, "label"));
         size_t label_buf_size = 0;
         uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label_buf_size > 0)
+        {
+          label_opt = {label_buf, label_buf + label_buf_size};
+        }
 
         auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
           crypto::Pem(wrapping_key, wrapping_key_size),
           {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
+          label_opt);
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
@@ -320,7 +318,7 @@ namespace ccf::js
       else if (algo_name == "RSA-OAEP-AES-KWP")
       {
         auto aes_key_size_value =
-          auto_free(JS_GetPropertyStr(ctx, parameters, "aesKeySize"));
+          jsctx(JS_GetPropertyStr(ctx, parameters, "aesKeySize"));
         int32_t aes_key_size = 0;
         if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
         {
@@ -328,49 +326,59 @@ namespace ccf::js
           return JS_EXCEPTION;
         }
 
-        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
+        auto label_val = jsctx(JS_GetPropertyStr(ctx, parameters, "label"));
         size_t label_buf_size = 0;
         uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label_buf_size > 0)
+        {
+          label_opt = {label_buf, label_buf + label_buf_size};
+        }
 
         auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
           aes_key_size,
           crypto::Pem(wrapping_key, wrapping_key_size),
           {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
+          label_opt);
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
       }
       else
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx,
           "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
           "RSA-OAEP-AES-KWP");
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
     }
     catch (std::exception& ex)
     {
-      JS_ThrowRangeError(ctx, "%s", ex.what());
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
     catch (...)
     {
-      JS_ThrowRangeError(ctx, "caught unknown exception");
+      auto e = JS_ThrowRangeError(ctx, "caught unknown exception");
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
   }
 
   static JSValue js_verify_signature(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
     if (argc != 4)
+    {
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 4", argc);
+    }
 
     // API loosely modeled after
     // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/verify.
@@ -391,30 +399,25 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
-
     auto algorithm = argv[0];
-    JSValue algo_name_val =
-      auto_free(JS_GetPropertyStr(ctx, algorithm, "name"));
-    JSValue algo_hash_val =
-      auto_free(JS_GetPropertyStr(ctx, algorithm, "hash"));
+    JSValue algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
+    JSValue algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
 
-    auto algo_name_cstr = auto_free(JS_ToCString(ctx, algo_name_val));
-    if (!algo_name_cstr)
+    auto algo_name_str = jsctx.to_str(algo_name_val);
+    if (!algo_name_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
-    auto algo_hash_cstr = auto_free(JS_ToCString(ctx, algo_hash_val));
-    if (!algo_hash_cstr)
+    auto algo_hash_str = jsctx.to_str(algo_hash_val);
+    if (!algo_hash_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
-    auto key_cstr = auto_free(JS_ToCString(ctx, argv[1]));
-    if (!key_cstr)
+    auto key_str = jsctx.to_str(argv[1]);
+    if (!key_str)
     {
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
@@ -422,9 +425,9 @@ namespace ccf::js
 
     try
     {
-      auto algo_name = std::string(algo_name_cstr);
-      auto algo_hash = std::string(algo_hash_cstr);
-      auto key = std::string(key_cstr);
+      auto algo_name = *algo_name_str;
+      auto algo_hash = *algo_hash_str;
+      auto key = *key_str;
 
       crypto::MDType mdtype;
       if (algo_hash == "SHA-256")
@@ -433,20 +436,20 @@ namespace ccf::js
       }
       else
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx, "Unsupported hash algorithm, supported: SHA-256");
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
 
       if (algo_name != "RSASSA-PKCS1-v1_5" && algo_name != "ECDSA")
       {
-        JS_ThrowRangeError(
+        auto e = JS_ThrowRangeError(
           ctx,
           "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
           "ECDSA");
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return e;
       }
 
       std::vector<uint8_t> sig(signature, signature + signature_size);
@@ -477,12 +480,11 @@ namespace ccf::js
     }
     catch (std::exception& ex)
     {
-      JS_ThrowRangeError(ctx, "%s", ex.what());
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return e;
     }
   }
 
 #pragma clang diagnostic pop
-
 }

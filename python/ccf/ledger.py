@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric import utils, ec
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
 import ccf.receipt
+from hashlib import sha256
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -51,6 +52,7 @@ class NodeStatus(Enum):
 class EntryType(Enum):
     WRITE_SET = 0
     SNAPSHOT = 1
+    WRITE_SET_WITH_CLAIMS = 2
 
 
 def to_uint_64(buffer):
@@ -59,6 +61,12 @@ def to_uint_64(buffer):
 
 def is_ledger_chunk_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
+
+
+def digest(algo, data):
+    h = hashes.Hash(algo)
+    h.update(data)
+    return h.finalize()
 
 
 def unpack(stream, fmt):
@@ -112,6 +120,7 @@ class PublicDomain:
     _buffer: io.BytesIO
     _buffer_size: int
     _entry_type: EntryType
+    _claims_digest: bytes
     _version: int
     _max_conflict_version: int
     _tables: dict
@@ -121,6 +130,8 @@ class PublicDomain:
         self._buffer_size = self._buffer.getbuffer().nbytes
         self._entry_type = self._read_entry_type()
         self._version = self._read_version()
+        if self._entry_type == EntryType.WRITE_SET_WITH_CLAIMS:
+            self._claims_digest = self._read_claims_digest()
         self._max_conflict_version = self._read_version()
 
         if self._entry_type == EntryType.SNAPSHOT:
@@ -131,9 +142,10 @@ class PublicDomain:
 
     def _read_entry_type(self):
         val = unpack(self._buffer, "<B")
-        if val > EntryType.SNAPSHOT.value:
-            raise ValueError(f"Invalid EntryType: {val}")
         return EntryType(val)
+
+    def _read_claims_digest(self):
+        return self._buffer.read(hashes.SHA256.digest_size)
 
     def _read_version(self):
         return unpack(self._buffer, "<q")
@@ -239,6 +251,16 @@ class PublicDomain:
         """
         return self._version
 
+    def get_claims_digest(self) -> Optional[bytes]:
+        """
+        Return the claims digest when there is one
+        """
+        return (
+            self._claims_digest
+            if self._entry_type == EntryType.WRITE_SET_WITH_CLAIMS
+            else None
+        )
+
 
 def _byte_read_safe(file, num_of_bytes):
     offset = file.tell()
@@ -290,19 +312,16 @@ class LedgerValidator:
         3) The merkle proof is correct for each set of transactions
     """
 
-    # Constant for the size of a hashed transaction
-    SHA_256_HASH_SIZE = 32
-
     def __init__(self):
         self.node_certificates = {}
         self.node_activity_status = {}
         self.signature_count = 0
         self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
 
-        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of it's merkle tree.
+        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
-        empty_bytes_array = bytearray(self.SHA_256_HASH_SIZE)
+        empty_bytes_array = bytearray(hashes.SHA256.digest_size)
         self.merkle.add_leaf(empty_bytes_array, do_hash=False)
 
         self.last_verified_seqno = 0
@@ -395,7 +414,7 @@ class LedgerValidator:
                 self.last_verified_view = current_view
 
         # Checks complete, add this transaction to tree
-        self.merkle.add_leaf(transaction.get_raw_tx())
+        self.merkle.add_leaf(transaction.get_tx_digest(), False)
 
     def _verify_tx_set(self, tx_info: TxBundleInfo):
         """
@@ -601,6 +620,14 @@ class Transaction(Entry):
             pos=self._tx_offset,
         )
 
+    def get_tx_digest(self) -> bytes:
+        claims_digest = self.get_public_domain().get_claims_digest()
+        write_set_digest = digest(hashes.SHA256(), self.get_raw_tx())
+        if claims_digest is None:
+            return write_set_digest
+        else:
+            return digest(hashes.SHA256(), write_set_digest + claims_digest)
+
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
         self._public_domain = None
@@ -645,7 +672,18 @@ class Snapshot(Entry):
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
             receipt = json.loads(receipt_bytes.decode("utf-8"))
-            root = ccf.receipt.root(receipt["leaf"], receipt["proof"])
+            if "leaf" in receipt:
+                leaf = receipt["leaf"]
+            else:
+                assert "leaf_components" in receipt
+                write_set_digest = bytes.fromhex(
+                    receipt["leaf_components"]["write_set_digest"]
+                )
+                claims_digest = bytes.fromhex(
+                    receipt["leaf_components"]["claims_digest"]
+                )
+                leaf = sha256(write_set_digest + claims_digest).digest().hex()
+            root = ccf.receipt.root(leaf, receipt["proof"])
             node_cert = load_pem_x509_certificate(
                 receipt["cert"].encode(), default_backend()
             )
