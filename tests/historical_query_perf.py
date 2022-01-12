@@ -3,7 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
-import ccf.commit
+import infra.commit
 import http
 from e2e_logging import get_all_entries
 import cimetrics.upload
@@ -87,7 +87,7 @@ def test_historical_query_range(network, args):
     last_seqno = max(res[2] for res in results)
 
     with primary.client("user0") as c:
-        ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
+        infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
     LOG.info(
         f"Total ledger contains {last_seqno} entries, of which we expect our transactions to be spread over a range of ~{last_seqno - first_seqno} transactions"

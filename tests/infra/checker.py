@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from ccf.commit import wait_for_commit
+from infra.commit import wait_for_commit
 import pprint
 
 

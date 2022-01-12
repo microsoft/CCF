@@ -8,7 +8,7 @@ import infra.logging_app as app
 import suite.test_requirements as reqs
 from infra.checker import check_can_progress, check_does_not_progress
 import pprint
-from ccf.tx_status import TxStatus
+from infra.tx_status import TxStatus
 import time
 import http
 import contextlib

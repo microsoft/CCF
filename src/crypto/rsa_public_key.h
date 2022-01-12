@@ -59,7 +59,7 @@ namespace crypto
      */
     virtual std::vector<uint8_t> rsa_oaep_wrap(
       const std::vector<uint8_t>& input,
-      std::optional<std::vector<std::uint8_t>> label = std::nullopt) = 0;
+      const std::optional<std::vector<std::uint8_t>>& label = std::nullopt) = 0;
 
     /**
      * Get the public key in PEM format
