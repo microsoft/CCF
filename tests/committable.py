@@ -5,7 +5,7 @@ import infra.network
 import infra.proc
 import time
 import http
-from ccf.tx_status import TxStatus
+from infra.tx_status import TxStatus
 
 from loguru import logger as LOG
 
