@@ -650,7 +650,13 @@ class Network:
             self.wait_for_all_nodes_to_commit(primary=primary)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
-        self.consortium.retire_node(remote_node, node_to_retire, timeout=timeout)
+        primary, _ = self.find_primary()
+        self.consortium.retire_node(
+            remote_node,
+            node_to_retire,
+            node_to_retire is primary,
+            timeout=timeout,
+        )
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):

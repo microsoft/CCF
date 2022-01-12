@@ -29,6 +29,7 @@
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
+#include "retired_nodes_cleanup.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -1185,6 +1186,38 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(AppMessage::launch_host_process, to_host, json);
     }
 
+    void remove_node(kv::Tx& tx, const NodeId& node_id) override
+    {
+      auto primary_id = consensus->primary();
+      if (!primary_id.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot remove node {} as primary node is unknown", node_id));
+      }
+
+      // TODO: Also remove endorsed certificate
+      auto nodes = tx.rw(network.nodes);
+      if (node_id == primary_id.value())
+      {
+        // Mark the node as retired as it will still issue signature
+        // transactions until its retirement is committed by the service. The
+        // node will be removed from the store once a new primary is elected.
+        auto primary_info = nodes->get(node_id);
+        if (!primary_info.has_value())
+        {
+          // If the node doesn't exist in the store, return with no effect
+          return;
+        }
+        primary_info->status = NodeStatus::RETIRED;
+        nodes->put(node_id, primary_info.value());
+      }
+      else
+      {
+        // Otherwise, remove the backup node straight away.
+        nodes->remove(node_id);
+      }
+    }
+
     void transition_service_to_open(kv::Tx& tx) override
     {
       std::lock_guard<std::mutex> guard(lock);
@@ -1937,6 +1970,9 @@ namespace ccf
           endorsed_node_cert);
       }
 
+      auto retired_node_cleanup = std::make_unique<RetiredNodeCleanup>(
+        rpc_map, node_sign_kp, self_signed_node_cert);
+
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
@@ -1954,6 +1990,7 @@ namespace ccf
         snapshotter,
         shared_state,
         std::move(resharing_tracker),
+        std::move(retired_node_cleanup),
         node_client,
         public_only,
         membership_state,

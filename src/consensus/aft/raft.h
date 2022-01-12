@@ -12,6 +12,7 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/resharing_tracker.h"
+#include "node/retired_nodes_cleanup.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "orc_requests.h"
@@ -123,6 +124,10 @@ namespace aft
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
 
+    // Used to automatically remove retired nodes from ledger when becoming
+    // primary
+    std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
+
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
     // Earliest index at which this node's retirement can be committed
@@ -161,6 +166,7 @@ namespace aft
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
+      std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       bool public_only_ = false,
       kv::MembershipState initial_membership_state_ =
@@ -181,6 +187,7 @@ namespace aft
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
+      retired_node_cleanup(std::move(retired_node_cleanup_)),
 
       public_only(public_only_),
 

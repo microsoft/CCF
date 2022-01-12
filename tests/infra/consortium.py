@@ -282,7 +282,9 @@ class Consortium:
             assert r.status_code == http.HTTPStatus.OK.value
             return r.body.json()
 
-    def retire_node(self, remote_node, node_to_retire, timeout=10):
+    def retire_node(
+        self, remote_node, node_to_retire, node_to_retire_is_primary, timeout=10
+    ):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "remove_node",
@@ -290,8 +292,13 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
+        # While backup nodes are removed from the store on retirement,
+        # the primary node is removed later, once a new primary has been elected
         self.wait_for_node_to_exist_in_store(
-            remote_node, node_to_retire.node_id, timeout, NodeStatus.RETIRED
+            remote_node,
+            node_to_retire.node_id,
+            timeout,
+            node_status=NodeStatus.RETIRED if node_to_retire_is_primary else None,
         )
 
     def trust_node(
@@ -575,22 +582,32 @@ class Consortium:
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
 
-    def _check_node_exists(self, remote_node, node_id, node_status=None):
+    def _check_node_exists(
+        self,
+        remote_node,
+        node_id,
+        node_status,  # None indicates that the node should not be present
+    ):
         with remote_node.client() as c:
             r = c.get(f"/node/network/nodes/{node_id}")
-            if r.status_code != http.HTTPStatus.OK.value or (
-                node_status and r.body.json()["status"] != node_status.value
+            # TODO: Simplify condition
+            if (
+                r.status_code == http.HTTPStatus.OK.value
+                and node_status is not None
+                and r.body.json()["status"] == node_status.value
+            ) or (
+                r.status_code == http.HTTPStatus.NOT_FOUND.value and node_status is None
             ):
-                return False
+                return True
 
-        return True
+        return False
 
     def wait_for_node_to_exist_in_store(
         self,
         remote_node,
         node_id,
         timeout,
-        node_status=None,
+        node_status,
     ):
         exists = False
         end_time = time.time() + timeout
@@ -600,7 +617,8 @@ class Consortium:
                     exists = True
                     break
             except TimeoutError:
-                LOG.warning(f"Node {node_id} has not been recorded in the store yet")
+                # TODO: Re-phrase log to reflect the fact that node might not exist
+                LOG.warning(f"Node {node_id} has not yet been recorded in the store")
             time.sleep(0.5)
         if not exists:
             raise TimeoutError(

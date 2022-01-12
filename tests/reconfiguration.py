@@ -251,7 +251,11 @@ def test_retire_primary(network, args):
     # Query this backup to find the new primary. If we ask any other
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
-    network.wait_for_new_primary(primary, nodes=[backup])
+    new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
+    # TODO: Wait for old primary to be deleted from store
+    network.consortium.wait_for_node_to_exist_in_store(
+        new_primary, primary.node_id, timeout=3, node_status=None
+    )
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
@@ -524,30 +528,30 @@ def run(args):
         test_version(network, args)
 
         if args.consensus != "BFT":
-            test_join_straddling_primary_replacement(network, args)
-            test_node_replacement(network, args)
-            test_add_node_from_backup(network, args)
-            test_add_node(network, args)
-            test_add_node_on_other_curve(network, args)
+            # test_join_straddling_primary_replacement(network, args)
+            # test_node_replacement(network, args)
+            # test_add_node_from_backup(network, args)
+            # test_add_node(network, args)
+            # test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
-            test_add_as_many_pending_nodes(network, args)
+            # test_add_as_many_pending_nodes(network, args)
             test_add_node(network, args)
             test_retire_primary(network, args)
-            test_add_node_with_read_only_ledger(network, args)
+            # test_add_node_with_read_only_ledger(network, args)
 
-            test_add_node_from_snapshot(network, args)
-            test_add_node_from_snapshot(network, args, from_backup=True)
-            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        #     test_add_node_from_snapshot(network, args)
+        #     test_add_node_from_snapshot(network, args, from_backup=True)
+        #     test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
 
-            test_node_filter(network, args)
-            test_retiring_nodes_emit_at_most_one_signature(network, args)
+        #     test_node_filter(network, args)
+        #     test_retiring_nodes_emit_at_most_one_signature(network, args)
 
-        if args.reconfiguration_type == "TwoTransaction":
-            test_learner_catches_up(network, args)
+        # if args.reconfiguration_type == "TwoTransaction":
+        #     test_learner_catches_up(network, args)
 
-        test_service_config_endpoint(network, args)
-        test_node_certificates_validity_period(network, args)
-        test_add_node_invalid_validity_period(network, args)
+        # test_service_config_endpoint(network, args)
+        # test_node_certificates_validity_period(network, args)
+        # test_add_node_invalid_validity_period(network, args)
 
 
 def run_join_old_snapshot(args):
@@ -728,21 +732,21 @@ if __name__ == "__main__":
         reconfiguration_type="OneTransaction",
     )
 
-    if cr.args.include_2tx_reconfig:
-        cr.add(
-            "2tx_reconfig",
-            run,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="TwoTransaction",
-        )
+    # if cr.args.include_2tx_reconfig:
+    #     cr.add(
+    #         "2tx_reconfig",
+    #         run,
+    #         package="samples/apps/logging/liblogging",
+    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #         reconfiguration_type="TwoTransaction",
+    #     )
 
-    cr.add(
-        "migration",
-        run_migration_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="OneTransaction",
-    )
+    # cr.add(
+    #     "migration",
+    #     run_migration_tests,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #     reconfiguration_type="OneTransaction",
+    # )
 
     cr.run()

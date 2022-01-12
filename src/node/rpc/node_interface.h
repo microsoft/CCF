@@ -50,5 +50,6 @@ namespace ccf
       CodeDigest& code_digest) = 0;
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
+    virtual void remove_node(kv::Tx& tx, const NodeId& node_id) = 0;
   };
 }

@@ -344,6 +344,12 @@ class LedgerValidator:
             node_table = tables[NODES_TABLE_NAME]
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
+                if node_info is None:
+                    # Node has been removed from the store
+                    self.node_certificates.pop(node_id)
+                    self.node_activity_status.pop(node_id)
+                    continue
+
                 node_info = json.loads(node_info)
                 # Add the self-signed node certificate (only available in 1.x,
                 # refer to node endorsed certificates table otherwise)
@@ -366,6 +372,7 @@ class LedgerValidator:
                 node_id,
                 endorsed_node_cert,
             ) in node_endorsed_certificates_tables.items():
+                # TODO: Support endorsed node certificate deletion
                 node_id = node_id.decode()
                 assert (
                     node_id not in node_certs
@@ -403,6 +410,7 @@ class LedgerValidator:
                 self._verify_tx_set(tx_info)
 
                 # Forget about nodes whose retirement has been committed
+                # TODO: Fix this - probably not required anymore
                 for node_id, (status, seqno) in list(self.node_activity_status.items()):
                     if (
                         status == NodeStatus.RETIRED.value
