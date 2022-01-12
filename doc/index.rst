@@ -69,6 +69,13 @@ CCF Documentation
 
     ---
 
+    :fa:`shapes` :doc:`architecture/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    CCF design and architecture elements.
+
+    ---
+
     :fa:`flask` :doc:`research/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -85,5 +92,6 @@ CCF Documentation
     governance/index.rst
     audit/index.rst
     contribute/index.rst
+    architecture/index.rst
     research/index.rst
     GitHub Repository <https://github.com/microsoft/CCF>
