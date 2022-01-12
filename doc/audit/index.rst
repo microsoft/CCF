@@ -21,9 +21,19 @@ Audit
 
     Utility library that can be used to write ledger audit scripts quickly and easily.
 
+    ---
+
+    :fa:`scroll` :doc:`receipts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Audit individual transactions on the basis of their receipt.
+
+    ---
+
 
 .. toctree::
     :hidden:
 
     builtin_maps
     python_library
+    receipts
