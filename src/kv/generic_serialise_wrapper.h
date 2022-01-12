@@ -4,8 +4,8 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
-#include "kv_types.h"
 #include "node/rpc/claims.h"
+#include "kv_types.h"
 #include "serialised_entry.h"
 #include "serialised_entry_format.h"
 
@@ -67,9 +67,13 @@ namespace kv
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
       serialise_internal(tx_id.version);
-      if (entry_type == EntryType::WriteSetWithClaims)
+      if (has_claims(entry_type))
       {
         serialise_internal(claims_digest_.value());
+      }
+      if (has_commit_evidence(entry_type))
+      {
+        // serialise_internal(commit_evidence_digest);
       }
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);
@@ -239,12 +243,16 @@ namespace kv
     {
       entry_type = public_reader.template read_next<EntryType>();
       version = public_reader.template read_next<Version>();
-      if (entry_type == EntryType::WriteSetWithClaims)
+      if (has_claims(entry_type))
       {
         auto digest_array =
           public_reader
             .template read_next<ccf::ClaimsDigest::Digest::Representation>();
         claims_digest.set(std::move(digest_array));
+      }
+      if (has_commit_evidence(entry_type))
+      {
+        // read commit evidence digest
       }
       // max_conflict_version is included for compatibility, but currently
       // ignored

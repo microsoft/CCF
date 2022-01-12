@@ -297,8 +297,20 @@ namespace kv
   {
     WriteSet = 0,
     Snapshot = 1,
-    WriteSetWithClaims = 2
+    WriteSetWithClaims = 2,
+    WriteSetWithCommitEvidence = 3,
+    WriteSetWithCommitEvidenceAndClaims = 4,
   };
+
+  static bool has_claims(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithClaims || et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
+
+  static bool has_commit_evidence(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithCommitEvidence || et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
 
   // EntryType must be backwards compatible with the older
   // bool is_snapshot field
