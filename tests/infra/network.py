@@ -422,7 +422,7 @@ class Network:
 
         if args.js_app_bundle:
             self.consortium.set_js_app_from_dir(
-                remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
+                remote_node=self.find_random_node(), bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:

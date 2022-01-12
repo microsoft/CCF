@@ -679,7 +679,7 @@ class Consortium:
             expected_cert = slurp_file(os.path.join(self.common_dir, "networkcert.pem"))
 
             assert (
-                current_cert == expected_cert[:-1].decode()
+                current_cert == expected_cert[:-1]
             ), "Current service certificate did not match with networkcert.pem"
             assert (
                 current_status == status.value
