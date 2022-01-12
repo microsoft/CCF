@@ -80,35 +80,25 @@ namespace ccf
       auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
       auto receipt = j.get<Receipt>();
 
-      auto root = compute_root_from_receipt(receipt);
-      auto raw_sig = crypto::raw_from_b64(receipt.signature);
-    }
+      if (
+        !receipt.leaf_components.has_value() ||
+        !receipt.leaf_components->claims_digest.has_value())
+      {
+        throw std::logic_error(
+          "Snapshot receipt is missing snapshot digest claim");
+      }
 
-    LOG_INFO_FMT(
-      "Deserialising snapshot (size: {}, public only: {})",
-      snapshot.size(),
-      public_only);
-
-    auto rc = store->deserialise_snapshot(
-      snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
-    if (rc != kv::ApplyResult::PASS)
-    {
-      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
-    }
-
-    LOG_INFO_FMT(
-      "Snapshot successfully deserialised at seqno {}",
-      store->current_version());
-
-    // Snapshots without a snapshot evidence seqno specified by the host should
-    // be self-verifiable with embedded receipt
-    if (!evidence_seqno.has_value())
-    {
-      auto receipt_data = data + store_snapshot_size;
-      auto receipt_size = size - store_snapshot_size;
-
-      auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
-      auto receipt = j.get<Receipt>();
+      auto snapshot_digest =
+        crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+      auto snapshot_digest_claim = crypto::Sha256Hash::from_hex_string(
+        receipt.leaf_components->claims_digest.value());
+      if (snapshot_digest != snapshot_digest_claim)
+      {
+        throw std::logic_error(fmt::format(
+          "Snapshot digest ({}) does not match receipt claim ({})",
+          snapshot_digest,
+          snapshot_digest_claim));
+      }
 
       auto root = compute_root_from_receipt(receipt);
       auto raw_sig = crypto::raw_from_b64(receipt.signature);
@@ -126,6 +116,22 @@ namespace ccf
           "Signature verification failed for snapshot receipt");
       }
     }
+
+    LOG_INFO_FMT(
+      "Deserialising snapshot (size: {}, public only: {})",
+      snapshot.size(),
+      public_only);
+
+    auto rc = store->deserialise_snapshot(
+      snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
+    if (rc != kv::ApplyResult::PASS)
+    {
+      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
+    }
+
+    LOG_INFO_FMT(
+      "Snapshot successfully deserialised at seqno {}",
+      store->current_version());
   };
 
   static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
@@ -147,12 +153,22 @@ namespace ccf
     const std::vector<uint8_t>& tree,
     const NodeId& node_id,
     const crypto::Pem& node_cert,
-    kv::Version seqno)
+    kv::Version seqno,
+    const crypto::Sha256Hash& write_set_digest,
+    crypto::Sha256Hash&& claims_digest)
   {
     ccf::MerkleTreeHistory history(tree);
     auto proof = history.get_proof(seqno);
+    ccf::ClaimsDigest cd;
+    cd.set(std::move(claims_digest));
     auto tx_receipt = ccf::TxReceipt(
-      sig, proof.get_root(), proof.get_path(), node_id, node_cert);
+      sig,
+      proof.get_root(),
+      proof.get_path(),
+      node_id,
+      node_cert,
+      write_set_digest,
+      cd);
 
     Receipt receipt;
     tx_receipt.describe(receipt);

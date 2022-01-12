@@ -5,7 +5,7 @@ from enum import Enum
 import infra.proc
 import infra.proposal
 import infra.crypto
-import ccf.clients
+import infra.clients
 import http
 import os
 import base64
@@ -218,4 +218,4 @@ class Member:
             log_output=True,
         )
         res.check_returncode()
-        return ccf.clients.Response.from_raw(res.stdout)
+        return infra.clients.Response.from_raw(res.stdout)

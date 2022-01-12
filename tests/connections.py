@@ -9,8 +9,8 @@ import infra.interfaces
 import contextlib
 import resource
 import psutil
-from ccf.log_capture import flush_info
-from ccf.clients import CCFConnectionException
+from infra.log_capture import flush_info
+from infra.clients import CCFConnectionException
 import random
 import http
 import functools

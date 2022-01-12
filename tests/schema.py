@@ -159,11 +159,6 @@ if __name__ == "__main__":
             action="store_true",
         )
         parser.add_argument(
-            "--client-tutorial",
-            help="Path to client tutorial file",
-            type=str,
-        )
-        parser.add_argument(
             "--ledger-tutorial",
             help="Path to ledger tutorial file",
             type=str,
