@@ -1461,6 +1461,11 @@ namespace ccf::js
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
           0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "removeNode",
+        JS_NewCFunction(ctx, js_node_remove_node, "removeNode", 0));
     }
 
     if (host_node_state != nullptr)
