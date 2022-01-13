@@ -211,7 +211,10 @@ namespace kv
 
   struct NetworkConfiguration
   {
+    /// Configuration unique identifier
     ReconfigurationId rid;
+
+    /// Set of Node IDs that are part of this configuration
     std::unordered_set<NodeId> nodes;
 
     bool operator<(const NetworkConfiguration& other) const

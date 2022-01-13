@@ -111,6 +111,9 @@ def test_new_service(
 
     test_all_nodes_cert_renewal(network, args)
 
+    # TODO: Check that all nodes are eventually removed from the store!
+    # TODO: retire primary, retire backup
+
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
     test_random_receipts(network, args, lts=True)

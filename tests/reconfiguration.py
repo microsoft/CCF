@@ -39,7 +39,7 @@ def count_nodes(configs, network):
     return len(nodes)
 
 
-def wait_for_reconfiguration_to_complete(network, timeout=10):
+def wait_for_reconfiguration_to_complete(network, timeout=3):  # TODO: Revert
     max_num_configs = 0
     max_rid = 0
     all_same_rid = False
@@ -53,6 +53,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
                     r = c.get("/node/consensus")
                     rj = r.body.json()
                     cfgs = rj["details"]["configs"]
+                    LOG.error(cfgs)
                     num_configs = len(cfgs)
                     max_num_configs = max(max_num_configs, num_configs)
                     if num_configs == 1 and cfgs[0]["rid"] != max_rid:
@@ -61,6 +62,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
                 except Exception as ex:
                     # OK, retiring node may be gone or a joining node may not be ready yet
                     LOG.info(f"expected RPC failure because of: {ex}")
+        time.sleep(0.5)
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
         if time.time() > end_time:
             raise Exception("Reconfiguration did not complete in time")
@@ -536,8 +538,8 @@ def run(args):
             # test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             # test_add_as_many_pending_nodes(network, args)
-            test_add_node(network, args)
-            test_retire_primary(network, args)
+            # test_add_node(network, args)
+            # test_retire_primary(network, args)
             # test_add_node_with_read_only_ledger(network, args)
 
         #     test_add_node_from_snapshot(network, args)
@@ -725,22 +727,22 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
 
-    cr.add(
-        "1tx_reconfig",
-        run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="OneTransaction",
-    )
+    # cr.add(
+    #     "1tx_reconfig",
+    #     run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #     reconfiguration_type="OneTransaction",
+    # )
 
-    # if cr.args.include_2tx_reconfig:
-    #     cr.add(
-    #         "2tx_reconfig",
-    #         run,
-    #         package="samples/apps/logging/liblogging",
-    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #         reconfiguration_type="TwoTransaction",
-    #     )
+    if cr.args.include_2tx_reconfig:
+        cr.add(
+            "2tx_reconfig",
+            run,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="TwoTransaction",
+        )
 
     # cr.add(
     #     "migration",

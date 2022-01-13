@@ -1198,25 +1198,53 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
-      if (node_id == primary_id.value())
+      if (true) // node_id == primary_id.value())
       {
         // Mark the node as retired as it will still issue signature
-        // transactions until its retirement is committed by the service. The
+        // transactions until its retirement is committed. The
         // node will be removed from the store once a new primary is elected.
         auto primary_info = nodes->get(node_id);
         if (!primary_info.has_value())
         {
-          // If the node doesn't exist in the store, return with no effect
-          return;
+          throw std::logic_error(
+            fmt::format("Cannot retire unknown primary node {}", node_id));
         }
         primary_info->status = NodeStatus::RETIRED;
         nodes->put(node_id, primary_info.value());
       }
       else
       {
-        // Otherwise, remove the backup node straight away.
+        // Remove backup nodes straight away
         nodes->remove(node_id);
         node_endorsed_certificates->remove(node_id);
+      }
+
+      auto service_config = tx.ro(network.config)->get();
+      // Defaults to ONE_TRANSACTION reconfiguration reconfiguration_type is not
+      // set
+      if (
+        service_config->reconfiguration_type.has_value() &&
+        service_config->reconfiguration_type.value() ==
+          ReconfigurationType::TWO_TRANSACTION)
+      {
+        auto network_configurations = tx.rw(network.network_configurations);
+        auto latest_id = network_configurations->get(CONFIG_COUNT_KEY).value();
+        auto latest_network_configuration =
+          network_configurations->get(latest_id.rid);
+        if (!latest_network_configuration.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Network configuration {} could not be found", latest_id.rid));
+        }
+
+        latest_network_configuration->rid++;
+        latest_network_configuration->nodes.erase(node_id);
+
+        network_configurations->put(
+          latest_network_configuration->rid,
+          latest_network_configuration.value());
+        network_configurations->put(
+          CONFIG_COUNT_KEY, {latest_network_configuration->rid, {}});
       }
     }
 
