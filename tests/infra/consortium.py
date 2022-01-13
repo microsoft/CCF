@@ -15,11 +15,35 @@ import infra.node
 import infra.crypto
 import infra.member
 from ccf.ledger import NodeStatus
-import ccf.proposal_generator
 import ccf.ledger
 from infra.proposal import ProposalState
+import shutil
+import tempfile
+import glob
+
+from cryptography import x509
+import cryptography.hazmat.backends as crypto_backends
 
 from loguru import logger as LOG
+
+
+def slurp_file(path):
+    return open(path, encoding="utf-8").read()
+
+
+def slurp_json(path):
+    return json.load(open(path, encoding="utf-8"))
+
+
+def read_modules(modules_path):
+    modules = []
+    for path in glob.glob(f"{modules_path}/**/*", recursive=True):
+        if not os.path.isfile(path):
+            continue
+        rel_module_name = os.path.relpath(path, modules_path)
+        rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
+        modules.append({"name": rel_module_name, "module": slurp_file(path)})
+    return modules
 
 
 class Consortium:
@@ -116,26 +140,40 @@ class Consortium:
         for member in self.members:
             member.authenticate_session = flag
 
-    def make_proposal(self, proposal_name, *args, **kwargs):
-        func = getattr(ccf.proposal_generator, proposal_name)
-        proposal, vote = func(*args, **kwargs)
+    def make_proposal(self, proposal_name, **kwargs):
+        action = {
+            "name": proposal_name,
+        }
+        if kwargs:
+            args = {}
+            for k, v in kwargs.items():
+                if v is not None:
+                    args[k] = v
+            action["args"] = args
+
+        proposal_body = {"actions": [action]}
+
+        trivial_vote_for = (
+            "export function vote (rawProposal, proposerId) { return true }"
+        )
+        ballot_body = {"ballot": trivial_vote_for}
 
         proposal_output_path = os.path.join(
             self.common_dir, f"{proposal_name}_proposal.json"
         )
-        vote_output_path = os.path.join(
+        ballot_output_path = os.path.join(
             self.common_dir, f"{proposal_name}_vote_for.json"
         )
 
         LOG.debug(f"Writing proposal to {proposal_output_path}")
         with open(proposal_output_path, "w", encoding="utf-8") as f:
-            f.write(proposal)
+            json.dump(proposal_body, f, indent=2)
 
-        LOG.debug(f"Writing vote to {vote_output_path}")
-        with open(vote_output_path, "w", encoding="utf-8") as f:
-            f.write(vote)
+        LOG.debug(f"Writing ballot to {ballot_output_path}")
+        with open(ballot_output_path, "w", encoding="utf-8") as f:
+            json.dump(ballot_body, f, indent=2)
 
-        return f"@{proposal_output_path}", f"@{vote_output_path}"
+        return f"@{proposal_output_path}", f"@{ballot_output_path}"
 
     def activate(self, remote_node):
         for m in self.members:
@@ -159,11 +197,15 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "set_member",
-            os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem"),
-            os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
+            cert=slurp_file(
+                os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem")
+            ),
+            encryption_pub_key=slurp_file(
+                os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
+            )
             if recovery_member
             else None,
-            member_data,
+            member_data=member_data,
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -286,7 +328,7 @@ class Consortium:
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "remove_node",
-            node_to_retire.node_id,
+            node_id=node_to_retire.node_id,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -302,9 +344,9 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "transition_node_to_trusted",
-            node_id,
-            valid_from,
-            validity_period_days,
+            node_id=node_id,
+            valid_from=valid_from,
+            validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
@@ -322,7 +364,7 @@ class Consortium:
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")
         proposal_body, careful_vote = self.make_proposal(
-            "remove_member", member_to_remove.service_id
+            "remove_member", member_id=member_to_remove.service_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -346,8 +388,8 @@ class Consortium:
     def add_user(self, remote_node, user_id, user_data=None):
         proposal, careful_vote = self.make_proposal(
             "set_user",
-            self.user_cert_path(user_id),
-            user_data,
+            cert=slurp_file(self.user_cert_path(user_id)),
+            user_data=user_data,
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
@@ -356,8 +398,7 @@ class Consortium:
     def add_users_and_transition_service_to_open(self, remote_node, users):
         proposal = {"actions": []}
         for user_id in users:
-            with open(self.user_cert_path(user_id), encoding="utf-8") as cf:
-                cert = cf.read()
+            cert = slurp_file(self.user_cert_path(user_id))
             proposal["actions"].append({"name": "set_user", "args": {"cert": cert}})
         proposal["actions"].append({"name": "transition_service_to_open"})
         proposal = self.get_any_active_member().propose(remote_node, proposal)
@@ -373,7 +414,9 @@ class Consortium:
         when trying to use ccf.ledger to read ledger entries.
         """
         proposal, _ = self.make_proposal(
-            "set_user", self.user_cert_path("user0"), {"padding": "x" * 4096 * 5}
+            "set_user",
+            cert=slurp_file(self.user_cert_path("user0")),
+            user_data={"padding": "x" * 4096 * 5},
         )
         m = self.get_any_active_member()
         p = m.propose(remote_node, proposal)
@@ -384,7 +427,7 @@ class Consortium:
             self.add_user(remote_node, u)
 
     def remove_user(self, remote_node, user_id):
-        proposal, careful_vote = self.make_proposal("remove_user", user_id)
+        proposal, careful_vote = self.make_proposal("remove_user", user_id=user_id)
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -392,8 +435,8 @@ class Consortium:
     def set_user_data(self, remote_node, user_id, user_data):
         proposal, careful_vote = self.make_proposal(
             "set_user_data",
-            user_id,
-            user_data,
+            user_id=user_id,
+            user_data=user_data,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -401,69 +444,136 @@ class Consortium:
     def set_member_data(self, remote_node, member_service_id, member_data):
         proposal, careful_vote = self.make_proposal(
             "set_member_data",
-            member_service_id,
-            member_data,
+            member_id=member_service_id,
+            member_data=member_data,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_constitution(self, remote_node, constitution_paths):
+        concatenated = "\n".join(slurp_file(path) for path in constitution_paths)
         proposal_body, careful_vote = self.make_proposal(
-            "set_constitution", constitution_paths
+            "set_constitution", constitution=concatenated
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_js_app(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
+    def set_js_app_from_dir(
+        self, remote_node, bundle_path, disable_bytecode_cache=False
+    ):
+        if os.path.isfile(bundle_path):
+            tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
+            shutil.unpack_archive(bundle_path, tmp_dir.name)
+            bundle_path = tmp_dir.name
+        modules_path = os.path.join(bundle_path, "src")
+        modules = read_modules(modules_path)
+
+        # read metadata
+        metadata_path = os.path.join(bundle_path, "app.json")
+        with open(metadata_path, encoding="utf-8") as f:
+            metadata = json.load(f)
+
+        # sanity checks
+        module_paths = set(module["name"] for module in modules)
+        for url, methods in metadata["endpoints"].items():
+            for method, endpoint in methods.items():
+                module_path = endpoint["js_module"]
+                if module_path not in module_paths:
+                    raise ValueError(
+                        f"{method} {url}: module '{module_path}' not found in bundle"
+                    )
+
         proposal_body, careful_vote = self.make_proposal(
-            "set_js_app", app_bundle_path, disable_bytecode_cache
+            "set_js_app",
+            bundle={"metadata": metadata, "modules": modules},
+            disable_bytecode_cache=disable_bytecode_cache,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
 
+    def set_js_app_from_json(
+        self, remote_node, json_path, disable_bytecode_cache=False
+    ):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_js_app",
+            bundle=slurp_json(json_path),
+            disable_bytecode_cache=disable_bytecode_cache,
+        )
+
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        # Large apps take a long time to process - wait longer than normal for commit
+        return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
+
     def remove_js_app(self, remote_node):
-        proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
+        proposal_body, careful_vote = self.make_proposal("remove_js_app")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def refresh_js_app_bytecode_cache(self, remote_node):
-        (
-            proposal_body,
-            careful_vote,
-        ) = ccf.proposal_generator.refresh_js_app_bytecode_cache()
+        proposal_body, careful_vote = self.make_proposal(
+            "refresh_js_app_bytecode_cache"
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_jwt_issuer(self, remote_node, json_path):
-        proposal_body, careful_vote = self.make_proposal("set_jwt_issuer", json_path)
+        obj = slurp_json(json_path)
+        args = {
+            "issuer": obj["issuer"],
+            "key_filter": obj.get("key_filter", "all"),
+            "key_policy": obj.get("key_policy"),
+            "ca_cert_bundle_name": obj.get("ca_cert_bundle_name"),
+            "auto_refresh": obj.get("auto_refresh", False),
+            "jwks": obj.get("jwks"),
+        }
+        proposal_body, careful_vote = self.make_proposal("set_jwt_issuer", **args)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def remove_jwt_issuer(self, remote_node, issuer):
-        proposal_body, careful_vote = self.make_proposal("remove_jwt_issuer", issuer)
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_jwt_issuer", issuer=issuer
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_jwt_public_signing_keys(self, remote_node, issuer, jwks_path):
+        obj = slurp_json(jwks_path)
         proposal_body, careful_vote = self.make_proposal(
-            "set_jwt_public_signing_keys", issuer, jwks_path
+            "set_jwt_public_signing_keys", issuer=issuer, jwks=obj
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_ca_cert_bundle(
-        self, remote_node, cert_name, cert_pem_path, skip_checks=False
+        self, remote_node, cert_name, cert_bundle_path, skip_checks=False
     ):
+        if not skip_checks:
+            cert_bundle_pem = slurp_file(cert_bundle_path)
+            delim = "-----END CERTIFICATE-----"
+            for cert_pem in cert_bundle_pem.split(delim):
+                if not cert_pem.strip():
+                    continue
+                cert_pem += delim
+                try:
+                    x509.load_pem_x509_certificate(
+                        cert_pem.encode(), crypto_backends.default_backend()
+                    )
+                except Exception as exc:
+                    raise ValueError("Cannot parse PEM certificate") from exc
+
         proposal_body, careful_vote = self.make_proposal(
-            "set_ca_cert_bundle", cert_name, cert_pem_path, skip_checks=skip_checks
+            "set_ca_cert_bundle",
+            name=cert_name,
+            cert_bundle=slurp_file(cert_bundle_path),
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def remove_ca_cert_bundle(self, remote_node, cert_name):
         proposal_body, careful_vote = self.make_proposal(
-            "remove_ca_cert_bundle", cert_name
+            "remove_ca_cert_bundle", name=cert_name
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -511,7 +621,7 @@ class Consortium:
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         proposal_body, careful_vote = self.make_proposal(
-            "set_recovery_threshold", recovery_threshold
+            "set_recovery_threshold", recovery_threshold=recovery_threshold
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
@@ -521,12 +631,16 @@ class Consortium:
         return r
 
     def add_new_code(self, remote_node, new_code_id):
-        proposal_body, careful_vote = self.make_proposal("add_node_code", new_code_id)
+        proposal_body, careful_vote = self.make_proposal(
+            "add_node_code", code_id=new_code_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def retire_code(self, remote_node, code_id):
-        proposal_body, careful_vote = self.make_proposal("remove_node_code", code_id)
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_node_code", code_id=code_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -535,9 +649,9 @@ class Consortium:
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_node_certificate_validity",
-            node_to_renew.node_id,
-            valid_from,
-            validity_period_days,
+            node_id=node_to_renew.node_id,
+            valid_from=valid_from,
+            validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -547,8 +661,8 @@ class Consortium:
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_all_nodes_certificate_validity",
-            valid_from,
-            validity_period_days,
+            valid_from=valid_from,
+            validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         r = self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -564,12 +678,10 @@ class Consortium:
             current_status = r.body.json()["service_status"]
             current_cert = r.body.json()["service_certificate"]
 
-            expected_cert = open(
-                os.path.join(self.common_dir, "networkcert.pem"), "rb"
-            ).read()
+            expected_cert = slurp_file(os.path.join(self.common_dir, "networkcert.pem"))
 
             assert (
-                current_cert == expected_cert[:-1].decode()
+                current_cert == expected_cert[:-1]
             ), "Current service certificate did not match with networkcert.pem"
             assert (
                 current_status == status.value
