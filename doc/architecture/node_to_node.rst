@@ -1,10 +1,5 @@
-Design
-======
-
-.. note:: The design documentation is mostly targeted to CCF contributors. It does not intend to be a comprehensive coverage of the design of CCF and only details some areas of the project.
-
 Node-to-Node Channels
----------------------
+=====================
 
 CCF nodes communicate over channels which terminate in each node’s enclave. Channels are used for two purposes:
 

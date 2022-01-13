@@ -9,7 +9,7 @@ CCF Documentation
     .. image:: img/ccf.svg
       :width: 75
       :align: left
-      :target: concepts.html
+      :target: what_is_ccf.html
 
     Get started with the Confidential Consortium Framework and its core concepts.
 

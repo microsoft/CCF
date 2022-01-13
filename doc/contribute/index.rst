@@ -37,13 +37,6 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     ---
 
-    :fa:`map-marked-alt` :doc:`design/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Design documentation.
-
-    ---
-
     :fa:`cogs` :doc:`build_images`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -57,5 +50,4 @@ The CCF team welcome contributions to any part of the framework, including this 
     build_setup
     build_ccf
     release_ccf
-    design/index
     build_images
