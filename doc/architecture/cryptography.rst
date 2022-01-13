@@ -4,7 +4,7 @@ Cryptography
 Keys
 ----
 
-.. tip:: See the :ref:`overview/cryptography:Summary Diagrams` for a detailed overview of the relationships between cryptographic keys in CCF.
+.. tip:: See the :ref:`architecture/cryptography:Summary Diagrams` for a detailed overview of the relationships between cryptographic keys in CCF.
 
 Service
 ~~~~~~~

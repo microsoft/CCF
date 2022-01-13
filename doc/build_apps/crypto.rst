@@ -84,16 +84,16 @@ Key Wrapping
 
 PKCS11 2.1.8 CKM_RSA_PKCS_OAEP
 
-.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_wrap(RSAPublicKeyPtr, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_wrap(RSAPublicKeyPtr, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
 
-.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_wrap(const Pem&, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_wrap(const Pem&, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
 
-.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_unwrap(RSAKeyPairPtr, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_unwrap(RSAKeyPairPtr, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
 
-.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_unwrap(const Pem&, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_pkcs_oaep_unwrap(const Pem&, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
 
 PKCS11 2.14.3 CKM_AES_KEY_WRAP_PAD (RFC 5649)
@@ -106,14 +106,14 @@ PKCS11 2.14.3 CKM_AES_KEY_WRAP_PAD (RFC 5649)
 
 PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP
 
-.. doxygenfunction:: crypto::ckm_rsa_aes_key_wrap(size_t, RSAPublicKeyPtr, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_aes_key_wrap(size_t, RSAPublicKeyPtr, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
 
-.. doxygenfunction:: crypto::ckm_rsa_aes_key_wrap(size_t, const Pem&, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_aes_key_wrap(size_t, const Pem&, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
 
-.. doxygenfunction:: crypto::ckm_rsa_aes_key_unwrap(RSAKeyPairPtr, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_aes_key_unwrap(RSAKeyPairPtr, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
 
-.. doxygenfunction:: crypto::ckm_rsa_aes_key_unwrap(const Pem&, const std::vector<uint8_t>&, const std::vector<uint8_t>&)
+.. doxygenfunction:: crypto::ckm_rsa_aes_key_unwrap(const Pem&, const std::vector<uint8_t>&, const std::optional<std::vector<uint8_t>>&)
   :project: CCF
