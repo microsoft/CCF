@@ -45,6 +45,13 @@ Architecture
 
     ---
 
+    :fa:`paper-plane` :doc:`node_to_node`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Node to node channel protocol used for consensus and forwarding.
+
+    ---
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -55,3 +62,4 @@ Architecture
     merkle_tree
     ledger
     raft_tla
+    node_to_node

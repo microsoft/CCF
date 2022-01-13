@@ -3,8 +3,8 @@ Overview
 
 .. panels::
 
-    :fa:`lightbulb` :doc:`concepts`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`lightbulb` :doc:`what_is_ccf`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     CCF in a hundred words, and the fundamental concepts it implements. Start Here.
 
@@ -35,7 +35,7 @@ Overview
     :hidden:
     :maxdepth: 1
 
-    concepts
+    what_is_ccf
     governance
     performance
     glossary
