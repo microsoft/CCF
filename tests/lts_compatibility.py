@@ -48,7 +48,7 @@ def issue_activity_on_live_service(network, args):
 def get_new_constitution_for_install(args, install_path):
     constitution_directory = os.path.join(
         install_path,
-        "../src/runtime_config/default"
+        "../samples/constitutions/default"
         if install_path == LOCAL_CHECKOUT_DIRECTORY
         else "bin",
     )
