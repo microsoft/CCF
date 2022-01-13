@@ -157,7 +157,7 @@ def make_attested_cert(network, args):
     pubk = os.path.join(network.common_dir, "attested_enc_pubk.pem")
     der = os.path.join(network.common_dir, "oe_cert.der")
     infra.proc.ccall(
-        oeutil, "generate-evidence", "-f", "cert", privk, pubk, "-o", der
+        oeutil, "generate-evidence", "-f", "cert", privk, pubk, "-o", der, env={} # Unset env, to ensure in-process attestation is always used. This is the only thing we test
     ).check_returncode()
     pem = os.path.join(network.common_dir, "oe_cert.pem")
     infra.proc.ccall(
