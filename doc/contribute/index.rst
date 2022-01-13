@@ -8,6 +8,12 @@ The CCF team welcome contributions to any part of the framework, including this 
 
 .. panels::
 
+    :fa:`user-check` :doc:`onboarding`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Getting started as a CCF contributor.
+
+    ---
 
     :fa:`cloud` :doc:`create_vm`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -46,6 +52,7 @@ The CCF team welcome contributions to any part of the framework, including this 
     :maxdepth: 1
     :hidden:
 
+    onboarding
     create_vm
     build_setup
     build_ccf
