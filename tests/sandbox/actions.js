@@ -1,1 +1,1 @@
-../../src/runtime_config/default/actions.js
+../../samples/constitutions/default/actions.js
