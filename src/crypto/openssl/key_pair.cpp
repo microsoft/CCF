@@ -25,23 +25,6 @@ namespace crypto
 {
   using namespace OpenSSL;
 
-  static inline int get_openssl_group_id(CurveID gid)
-  {
-    switch (gid)
-    {
-      case CurveID::NONE:
-        return NID_undef;
-      case CurveID::SECP384R1:
-        return NID_secp384r1;
-      case CurveID::SECP256R1:
-        return NID_X9_62_prime256v1;
-      default:
-        throw std::logic_error(
-          fmt::format("unsupported OpenSSL CurveID {}", gid));
-    }
-    return MBEDTLS_ECP_DP_NONE;
-  }
-
   static std::map<std::string, std::string> parse_name(const std::string& name)
   {
     std::map<std::string, std::string> result;
@@ -355,22 +338,33 @@ namespace crypto
     return result;
   }
 
-  std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(const PublicKey &peer_key)
-  {     
-    auto peer_der = peer_key.public_key_der();
+  CurveID KeyPair_OpenSSL::get_curve_id() const
+  {
+    return PublicKey_OpenSSL::get_curve_id();
+  }
 
-    Unique_BIO mem(peer_der);    
-    EVP_PKEY *peer_pub = NULL;    
-    d2i_PUBKEY_bio(mem, &peer_pub);    
+  std::vector<uint8_t> KeyPair_OpenSSL::public_key_raw() const
+  {
+    return PublicKey_OpenSSL::public_key_raw();
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(
+    const PublicKey& peer_key)
+  {
+    crypto::CurveID cid = peer_key.get_curve_id();
+    int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
+    auto pk = key_from_raw_ec_point(peer_key.public_key_raw(), nid);
 
     std::vector<uint8_t> shared_secret;
-    size_t shared_secret_length = 0;      
+    size_t shared_secret_length = 0;
     Unique_EVP_PKEY_CTX ctx(key);
     CHECK1(EVP_PKEY_derive_init(ctx));
-    CHECK1(EVP_PKEY_derive_set_peer(ctx, peer_pub));    
-    CHECK1(EVP_PKEY_derive(ctx, NULL, &shared_secret_length));    
-    shared_secret.resize(shared_secret_length);    
+    CHECK1(EVP_PKEY_derive_set_peer(ctx, pk));
+    CHECK1(EVP_PKEY_derive(ctx, NULL, &shared_secret_length));
+    shared_secret.resize(shared_secret_length);
     CHECK1(EVP_PKEY_derive(ctx, shared_secret.data(), &shared_secret_length));
+
+    EVP_PKEY_free(pk);
 
     return shared_secret;
   }

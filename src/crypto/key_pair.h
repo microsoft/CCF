@@ -89,7 +89,12 @@ namespace crypto
       return sign_csr(Pem(0), csr, ca, valid_from, valid_to);
     }
 
-    virtual std::vector<uint8_t> derive_shared_secret(const PublicKey &peer_key) = 0;
+    virtual std::vector<uint8_t> derive_shared_secret(
+      const PublicKey& peer_key) = 0;
+
+    virtual std::vector<uint8_t> public_key_raw() const = 0;
+
+    virtual CurveID get_curve_id() const = 0;
   };
 
   using PublicKeyPtr = std::shared_ptr<PublicKey>;

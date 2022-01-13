@@ -266,5 +266,37 @@ namespace crypto
         Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
       {}
     };
+
+    struct Unique_BN_CTX
+      : public Unique_SSL_OBJECT<BN_CTX, BN_CTX_new, BN_CTX_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_EC_GROUP
+      : public Unique_SSL_OBJECT<EC_GROUP, nullptr, nullptr>
+    {
+      Unique_EC_GROUP(int nid) :
+        Unique_SSL_OBJECT(
+          EC_GROUP_new_by_curve_name(nid), EC_GROUP_free, /*check_null=*/true)
+      {}
+    };
+
+    struct Unique_EC_POINT
+      : public Unique_SSL_OBJECT<EC_POINT, nullptr, nullptr>
+    {
+      Unique_EC_POINT(EC_GROUP* group) :
+        Unique_SSL_OBJECT(
+          EC_POINT_new(group), EC_POINT_free, /*check_null=*/true)
+      {}
+    };
+
+    struct Unique_EC_KEY : public Unique_SSL_OBJECT<EC_KEY, nullptr, nullptr>
+    {
+      Unique_EC_KEY(int nid) :
+        Unique_SSL_OBJECT(
+          EC_KEY_new_by_curve_name(nid), EC_KEY_free, /*check_null=*/true)
+      {}
+    };
   }
 }

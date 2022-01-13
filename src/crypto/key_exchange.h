@@ -4,17 +4,14 @@
 
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
-// #include "crypto/mbedtls/error_string.h"
-// #include "crypto/mbedtls/key_pair.h"
+#include "crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/public_key.h"
 #include "ds/logger.h"
 
 #include <iostream>
 #include <map>
-#include <mbedtls/ecdh.h>
-#include <mbedtls/ecp.h>
-#include <mbedtls/pk.h>
-#include <openenclave/3rdparty/openssl/ossl_typ.h>
 #include <openssl/crypto.h>
+#include <openssl/ec.h>
 #include <openssl/ossl_typ.h>
 #include <stdexcept>
 
@@ -25,31 +22,24 @@ namespace tls
   private:
     crypto::KeyPairPtr own_key;
     crypto::PublicKeyPtr peer_key;
-    
+    crypto::CurveID curve;
+
   public:
-    KeyExchangeContext()
+    KeyExchangeContext() : curve(crypto::CurveID::SECP384R1)
     {
-      own_key = make_key_pair(crypto::CurveID::SECP384R1);      
+      own_key = make_key_pair(curve);
     }
 
     KeyExchangeContext(
       std::shared_ptr<crypto::KeyPair> own_kp,
-      std::shared_ptr<crypto::PublicKey> peer_pubk)
+      std::shared_ptr<crypto::PublicKey> peer_pubk) :
+      curve(own_kp->get_curve_id())
     {
       own_key = own_kp;
       peer_key = peer_pubk;
     }
 
-    void free_ctx()
-    {
-      // Should only be called when shared secret has been computed.
-      own_key.reset();
-      peer_key.reset();
-    }
-
-    ~KeyExchangeContext()
-    {
-    }
+    ~KeyExchangeContext() {}
 
     std::vector<uint8_t> get_own_key_share() const
     {
@@ -57,8 +47,13 @@ namespace tls
       {
         throw std::runtime_error("missing node key");
       }
-      
-      return own_key->public_key_der();
+
+      // For backwards compatability we need to keep the format we used with
+      // mbedTLS, which is the raw EC point with an extra size byte in the
+      // front.
+      auto tmp = own_key->public_key_raw();
+      tmp.insert(tmp.begin(), tmp.size());
+      return tmp;
     }
 
     std::vector<uint8_t> get_peer_key_share() const
@@ -68,13 +63,15 @@ namespace tls
         throw std::runtime_error("missing peer key");
       }
 
-      return peer_key->public_key_der();
+      auto tmp = peer_key->public_key_raw();
+      tmp.insert(tmp.begin(), tmp.size());
+      return tmp;
     }
 
     void reset()
-    {      
+    {
       peer_key.reset();
-      own_key = make_key_pair(crypto::CurveID::SECP384R1);      
+      own_key = make_key_pair(crypto::CurveID::SECP384R1);
     }
 
     void load_peer_key_share(const std::vector<uint8_t>& ks)
@@ -84,22 +81,33 @@ namespace tls
         throw std::runtime_error("Missing peer key share");
       }
 
-      peer_key = crypto::make_public_key(ks);      
+      auto tmp = ks;
+      tmp.erase(tmp.begin());
+
+      int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(curve);
+      auto pk = crypto::key_from_raw_ec_point(tmp, nid);
+
+      if (!pk)
+      {
+        throw std::runtime_error("could not parse peer key share");
+      }
+
+      peer_key = std::make_shared<crypto::PublicKey_OpenSSL>(pk);
     }
 
     void load_peer_key_share(CBuffer ks)
-    {      
+    {
       load_peer_key_share({ks.p, ks.p + ks.n});
     }
 
     std::vector<uint8_t> compute_shared_secret()
-    { 
-      if (!own_key) 
+    {
+      if (!own_key)
       {
         throw std::logic_error("missing own key");
       }
 
-      if (!peer_key) 
+      if (!peer_key)
       {
         throw std::logic_error("missing peer key");
       }

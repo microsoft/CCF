@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../public_key.h"
+#include "openssl_wrappers.h"
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -16,7 +17,6 @@ namespace crypto
   protected:
     EVP_PKEY* key = nullptr;
     PublicKey_OpenSSL();
-    CurveID get_curve_id() const;
 
   public:
     PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
@@ -45,5 +45,14 @@ namespace crypto
 
     virtual Pem public_key_pem() const override;
     virtual std::vector<uint8_t> public_key_der() const override;
+    virtual std::vector<uint8_t> public_key_raw() const override;
+
+    virtual CurveID get_curve_id() const override;
+
+    int get_openssl_group_id() const;
+    static int get_openssl_group_id(CurveID gid);
   };
+
+  OpenSSL::Unique_PKEY key_from_raw_ec_point(
+    const std::vector<uint8_t>& raw, int nid);
 }

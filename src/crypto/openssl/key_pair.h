@@ -60,8 +60,13 @@ namespace crypto
       const Pem& signing_request,
       bool ca = false,
       const std::optional<std::string>& valid_from = std::nullopt,
-      const std::optional<std::string>& valid_to = std::nullopt) const override;    
+      const std::optional<std::string>& valid_to = std::nullopt) const override;
 
-    virtual std::vector<uint8_t> derive_shared_secret(const PublicKey &peer_key) override;
+    virtual std::vector<uint8_t> derive_shared_secret(
+      const PublicKey& peer_key) override;
+
+    virtual CurveID get_curve_id() const override;
+
+    virtual std::vector<uint8_t> public_key_raw() const override;
   };
 }
