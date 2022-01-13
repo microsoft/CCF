@@ -8,7 +8,7 @@ Introduction
 
 Start by reading :doc:`/overview/what_is_ccf`.
 
-If you encounter any terms or acronyms that you don't know, check the :doc:`/overview/glossary`. If the word you are looking for isn't defined, create an `issue <https://github.com/microsoft/CCF/issues/new/choose>`_.
+If you encounter any terms or acronyms that you do not know, check the :doc:`/overview/glossary`. If the word you are looking for is not defined, create an `issue <https://github.com/microsoft/CCF/issues/new/choose>`_.
 
 Create an SGX VM if necessary
 -----------------------------
@@ -76,27 +76,18 @@ Note that this diagram deliberately does not represent host-to-enclave communica
 .. mermaid::
 
     flowchart TB
-        Client[HTTPS/1.1 Client] -- TLS 1.2 or 1.3 --> TLSEndpoint
-        TLSEndpoint[TLS Endpoint] -- PlainText --> HTTPEndpoint
-        HTTPEndpoint[HTTP Endpoint] -- Request --> Endpoint[Application Endpoint]
+        Client[HTTPS/1.1 Client <a href='../build_apps/auth/index.html'>auth</a>] -- TLS 1.2 or 1.3 --> TLSEndpoint
+        TLSEndpoint[TLS Endpoint <a href='https://github.com/microsoft/CCF/blob/main/src/enclave/tls_endpoint.h'>src</a>] -- PlainText --> HTTPEndpoint
+        HTTPEndpoint[HTTP Endpoint <a href='https://github.com/microsoft/CCF/blob/main/src/http/http_endpoint.h'>src</a>] -- Request --> Endpoint[Application Endpoint <a href='../build_apps/api.html#application-endpoint-registration'>doc</a>]
         Endpoint -- Response --> HTTPEndpoint
         HTTPEndpoint --> TLSEndpoint
         TLSEndpoint --> Client
-        Endpoint -- WriteSet --> Store
-        Store -- LedgerEntry --> Ledger[Ledger]
+        Endpoint -- WriteSet --> Store[Store <a href='../build_apps/kv/index.html'>doc</a>]
+        Store -- LedgerEntry --> Ledger[Ledger <a href='../architecture/ledger.html'>doc</a>]
         Ledger -- LedgerEntry --> Disk
-        Store[Key-Value Store] -- Digest --> MerkleTree[Merkle Tree]
-        Store -- LedgerEntry --> Consensus[Consensus]
-        Consensus -- Messages --> OtherNodes[Other Nodes]
+        Store[Key-Value Store] -- Digest --> MerkleTree[Merkle Tree <a href='../architecture/merkle_tree.html'>doc</a>]
+        Store -- LedgerEntry --> Consensus[Consensus <a href='../architecture/consensus/index.html'>doc</a>]
+        Consensus -- Messages --> OtherNodes[Other Nodes <a href='../architecture/node_to_node.html'>doc</a>]
         OtherNodes --> Consensus
         Consensus -- Sign --> MerkleTree
         MerkleTree -- Signature --> Store
-        click Client "../build_apps/auth/index.html"
-        click TLSEndpoint "https://github.com/microsoft/CCF/blob/main/src/enclave/tls_endpoint.h"
-        click HTTPEndpoint "https://github.com/microsoft/CCF/blob/main/src/http/http_endpoint.h"
-        click Endpoint "../build_apps/api.html#application-endpoint-registration"
-        click Store "../build_apps/kv/index.html"
-        click Ledger "../architecture/ledger.html"
-        click MerkleTree "../architecture/merkle_tree.html"
-        click Consensus "../architecture/consensus/index.html"
-        click OtherNodes "../architecture/node_to_node.html"
