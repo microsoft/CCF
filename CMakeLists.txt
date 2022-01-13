@@ -597,7 +597,9 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
     CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+    ADDITIONAL_ARGS
+      --oe-binary ${OE_BINDIR} --initial-operator-count 1
+      --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
   )
 
   add_e2e_test(

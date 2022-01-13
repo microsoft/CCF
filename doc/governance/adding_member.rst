@@ -37,7 +37,7 @@ The CCF unique member identity is the hex-encoded string of the SHA-256 hash of 
     $ identity_cert_path=/path/to/member/cert
     $ openssl x509 -in "$identity_cert_path" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}'
 
-.. note:: See :ref:`overview/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
+.. note:: See :ref:`architecture/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
 
 Registering a New Member
 ------------------------

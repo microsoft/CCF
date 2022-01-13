@@ -6,7 +6,7 @@ import re
 import infra.e2e_args
 import infra.network
 import infra.consortium
-import ccf.proposal_generator
+import infra.clients
 from infra.proposal import ProposalState
 
 import suite.test_requirements as reqs
@@ -178,10 +178,9 @@ def test_governance(network, args):
     LOG.info("New non-active member should get insufficient rights response")
     current_recovery_thresold = network.consortium.recovery_threshold
     try:
-        (
-            proposal_recovery_threshold,
-            careful_vote,
-        ) = ccf.proposal_generator.set_recovery_threshold(current_recovery_thresold)
+        proposal_recovery_threshold, careful_vote = network.consortium.make_proposal(
+            "set_recovery_threshold", recovery_threshold=current_recovery_thresold
+        )
         new_member.propose(node, proposal_recovery_threshold)
         assert False, "New non-active member should get insufficient rights response"
     except infra.proposal.ProposalNotCreated as e:
@@ -199,10 +198,9 @@ def test_governance(network, args):
     assert proposal.state == infra.proposal.ProposalState.ACCEPTED
 
     LOG.info("New member makes a new proposal")
-    (
-        proposal_recovery_threshold,
-        careful_vote,
-    ) = ccf.proposal_generator.set_recovery_threshold(current_recovery_thresold)
+    proposal_recovery_threshold, careful_vote = network.consortium.make_proposal(
+        "set_recovery_threshold", recovery_threshold=current_recovery_thresold
+    )
     proposal = new_member.propose(node, proposal_recovery_threshold)
 
     LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
