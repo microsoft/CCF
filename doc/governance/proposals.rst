@@ -54,55 +54,55 @@ Some examples of proposals which could be sent to the default sample constitutio
 
 .. code-block:: json
 
-      {
-        "actions": [
-          {
-            "name": "set_user",
-            "args": {
-              "cert": "-----BEGIN CERTIFICATE-----\nMIIBszCCATigAwIBAgIUeYsXeSyujwWWSySPlaVxP0pfO/EwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjMwHhcNMjIwMTEyMTAxOTM0WhcNMjMwMTEyMTAxOTM0\nWjAQMQ4wDAYDVQQDDAV1c2VyMzB2MBAGByqGSM49AgEGBSuBBAAiA2IABLWb5TWU\nX9+ldfOZAyEZkbgb7n5CDZcfWXkyL6QXQI7OJb0uF9P6AOuErd/q5Vv2Mqg8LnJs\nmZafY9qZ1Z9XbfOkh5DI08PipIgDBIQ7BYIgstWege/rppcFKuqgjGm1waNTMFEw\nHQYDVR0OBBYEFOhjbOPTvy4iZ7+PFXvYY8Sm1lxcMB8GA1UdIwQYMBaAFOhjbOPT\nvy4iZ7+PFXvYY8Sm1lxcMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaQAw\nZgIxAJHzWMG/CeEg+lfI7gwCv4GEPqc1mZj5PT9uIvFso5NQe36L1UFhMCJDx4g0\nx7rQdwIxAJ5145d33LLc+Row4lOEAiHJpzivurLl4y5Kx6SkY3JMQbmGPJaslPWm\nxfWXoAcGhQ==\n-----END CERTIFICATE-----\n",
-            }
+    {
+      "actions": [
+        {
+          "name": "set_user",
+          "args": {
+            "cert": "-----BEGIN CERTIFICATE-----\nMIIBszCCATigAwIBAgIUeYsXeSyujwWWSySPlaVxP0pfO/EwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjMwHhcNMjIwMTEyMTAxOTM0WhcNMjMwMTEyMTAxOTM0\nWjAQMQ4wDAYDVQQDDAV1c2VyMzB2MBAGByqGSM49AgEGBSuBBAAiA2IABLWb5TWU\nX9+ldfOZAyEZkbgb7n5CDZcfWXkyL6QXQI7OJb0uF9P6AOuErd/q5Vv2Mqg8LnJs\nmZafY9qZ1Z9XbfOkh5DI08PipIgDBIQ7BYIgstWege/rppcFKuqgjGm1waNTMFEw\nHQYDVR0OBBYEFOhjbOPTvy4iZ7+PFXvYY8Sm1lxcMB8GA1UdIwQYMBaAFOhjbOPT\nvy4iZ7+PFXvYY8Sm1lxcMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaQAw\nZgIxAJHzWMG/CeEg+lfI7gwCv4GEPqc1mZj5PT9uIvFso5NQe36L1UFhMCJDx4g0\nx7rQdwIxAJ5145d33LLc+Row4lOEAiHJpzivurLl4y5Kx6SkY3JMQbmGPJaslPWm\nxfWXoAcGhQ==\n-----END CERTIFICATE-----\n",
           }
-        ]
-      }
+        }
+      ]
+    }
 
 .. code-block:: json
 
-      {
-        "actions": [
-          {
-            "name": "set_node_certificate_validity",
-            "args": {
-              "node_id": "ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19",
-              "valid_from": "220112101937Z",
-              "validity_period_days": 366
-            }
+    {
+      "actions": [
+        {
+          "name": "set_node_certificate_validity",
+          "args": {
+            "node_id": "ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19",
+            "valid_from": "220112101937Z",
+            "validity_period_days": 366
           }
-        ]
-      }
+        }
+      ]
+    }
 
 .. code-block:: json
 
-      {
-        "actions": [
-          {
-            "name": "transition_node_to_trusted",
-            "args": {
-              "node_id": "ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19",
-              "valid_from": "220101120000Z"
-            }
-          },
-          {
-            "name": "transition_node_to_trusted",
-            "args": {
-              "node_id": "5d5b09f6dcb2d53a5fffc60c4ac0d55fabdf556069d6631545f42aa6e3500f2e",
-              "valid_from": "220101120000Z"
-            }
-          },
-          {
-            "name": "transition_service_to_open"
+    {
+      "actions": [
+        {
+          "name": "transition_node_to_trusted",
+          "args": {
+            "node_id": "ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19",
+            "valid_from": "220101120000Z"
           }
-        ]
-      }
+        },
+        {
+          "name": "transition_node_to_trusted",
+          "args": {
+            "node_id": "5d5b09f6dcb2d53a5fffc60c4ac0d55fabdf556069d6631545f42aa6e3500f2e",
+            "valid_from": "220101120000Z"
+          }
+        },
+        {
+          "name": "transition_service_to_open"
+        }
+      ]
+    }
 
 Most HTTP client libraries and tools should have functionality for constructing and providing these JSON objects, and constitutions should be written to provide clear validation errors if a proposal is malformed.
 
@@ -113,41 +113,132 @@ Some example ballots which could apply to the proposals above:
 
 .. code-block:: json
 
-        {
-          "ballot": "export function vote (rawProposal, proposerId)\n
-          {\n
-            // Accepts any proposal\n
+    {
+      "ballot": "export function vote (rawProposal, proposerId)\n
+      {\n
+        // Accepts any proposal\n
+        return true;\n
+      }"
+    }
+
+.. code-block:: json
+
+    {
+      "ballot": "export function vote (rawProposal, proposerId)\n
+      {\n
+        // Refuses every proposal\n
+        return false;\n
+      }"
+    }
+
+.. code-block:: json
+
+    {
+      "ballot": "export function vote (rawProposal, proposerId)\n
+      {\n
+        // Accepts 'set_node_certificate_validity' proposals with a max validity period of 1 year\n
+        let proposal = JSON.parse(rawProposal);\n
+        let action = proposal[\"actions\"][0];\n
+        if (action[\"name\"] === \"set_node_certificate_validity\") {\n
+          let action_args = action[\"args\"];\n
+          if (action_args[\"validity_period_days\"] <= 365) {\n
             return true;\n
-          }"
-        }
+          }\n
+        }\n
+        return false;\n
+      }"
+    }
 
-.. code-block:: json
+The CCF repository includes a sample Jinja template which will automatically build a ballot, doing a structural equality check against a target proposal. For example if this was run for the ``set_node_certificate_validity`` proposal above:
 
+.. code-block:: bash
+
+    # Relies on jinja-cli:
+    #   pip install jinja-cli
+    $ jinja ballot_script.js.jinja -d proposal.json
+
+    export function vote (rawProposal, proposerId) {
+      let proposal = JSON.parse(rawProposal);
+      if (!("actions" in proposal))
+      {
+        return false;
+      }
+
+      let actions = proposal["actions"];
+      if (actions.length !== 1 )
+      {
+        return false;
+      }
+
+      // Check that the "set_node_certificate_validity" action is exactly what was expected
+      {
+        let action = actions[0];
+        if (!("name" in action))
         {
-          "ballot": "export function vote (rawProposal, proposerId)\n
-          {\n
-            // Refuses every proposal\n
-            return false;\n
-          }"
+          return false;
         }
 
-.. code-block:: json
-
+        if (action.name !== "set_node_certificate_validity")
         {
-          "ballot": "export function vote (rawProposal, proposerId)\n
-          {\n
-            // Accepts 'set_node_certificate_validity' proposals with a max validity period of 1 year\n
-            let proposal = JSON.parse(rawProposal);\n
-            let action = proposal[\"actions\"][0];\n
-            if (action[\"name\"] === \"set_node_certificate_validity\") {\n
-              let action_args = action[\"args\"];\n
-              if (action_args[\"validity_period_days\"] <= 365) {\n
-                return true;\n
-              }\n
-            }\n
-            return false;\n
-          }"
+          return false;
         }
+
+
+        if (!("args" in action))
+        {
+          return false;
+        }
+
+        let args = action.args;
+
+        // Check each argument
+        {
+          if (!("node_id" in args))
+          {
+            return false;
+          }
+
+          // Compare stringified JSON representation, to cover object equality
+          const expected = JSON.stringify("ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19");
+          if (JSON.stringify(args["node_id"]) !== expected)
+          {
+            return false;
+          }
+        } 
+        // Check each argument
+        {
+          if (!("valid_from" in args))
+          {
+            return false;
+          }
+
+          // Compare stringified JSON representation, to cover object equality
+          const expected = JSON.stringify("220112101937Z");
+          if (JSON.stringify(args["valid_from"]) !== expected)
+          {
+            return false;
+          }
+        } 
+        // Check each argument
+        {
+          if (!("validity_period_days" in args))
+          {
+            return false;
+          }
+
+          // Compare stringified JSON representation, to cover object equality
+          const expected = JSON.stringify(366);
+          if (JSON.stringify(args["validity_period_days"]) !== expected)
+          {
+            return false;
+          }
+        } 
+      }
+
+      return true;
+    }
+
+The ``ballot.json.jinja`` template will additionally embed this script in a JSON object.
 
 These proposals and votes should be sent as the body of HTTP requests as described below.
 
