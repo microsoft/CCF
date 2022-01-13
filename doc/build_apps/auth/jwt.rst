@@ -150,20 +150,26 @@ After the signing certificates have been stored, token validation follows the sa
 
 CCF validates embedded SGX evidence if a key policy is given in the issuer metadata:
 
-.. code-block:: bash
+.. code-block:: json
 
-    $ cat issuer.json
     {
-      "issuer": "https://shareduks.uks.attest.azure.net",
-      "key_filter": "sgx",
-      "key_policy": {
-        "sgx_claims": {
-          "signer_id": "5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526",
-          "attributes": "0300000000000000"
+      "actions": [
+        {
+          "name": "set_jwt_issuer",
+          "args": {
+            "issuer": "https://shareduks.uks.attest.azure.net",
+            "key_filter": "sgx",
+            "key_policy": {
+              "sgx_claims": {
+                "signer_id": "5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526",
+                "attributes": "0300000000000000"
+              }
+            },
+            "auto_refresh": false
+          }
         }
-      }
+      ]
     }
-    $ python -m ccf.proposal_generator set_jwt_issuer issuer.json
 
 All claims contained in ``key_policy.sgx_claims`` must be identical to the ones embedded in the certificate.
 Any attempt to add a certificate with mismatching claims in a ``set_jwt_public_signing_keys`` proposal for that issuer would result in failure.
