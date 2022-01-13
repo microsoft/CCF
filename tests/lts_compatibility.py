@@ -249,7 +249,9 @@ def run_code_upgrade_from(
                         LOG.info("Upgrade to new JS app")
                         # Upgrade to a version of the app containing an endpoint that
                         # registers custom claims
-                        network.consortium.set_js_app_from_dir(primary, args.new_js_app_bundle)
+                        network.consortium.set_js_app_from_dir(
+                            primary, args.new_js_app_bundle
+                        )
                         LOG.info("Run transaction with additional claim")
                         # With wait_for_sync, the client checks that all nodes, including
                         # the minority of old ones, have acked the transaction
