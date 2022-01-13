@@ -60,7 +60,7 @@ After this proposal is accepted, signing keys for an issuer can be updated with 
       ]
     }
 
-The ``"jwks"`` fields contains the signing keys as a JWKS (`JSON Web Key Set <https://tools.ietf.org/html/rfc7517>`_) document.
+The ``"jwks"`` field contains the signing keys as a JWKS (`JSON Web Key Set <https://tools.ietf.org/html/rfc7517>`_) document.
 
 Setting up a token issuer with automatic key refresh
 ----------------------------------------------------

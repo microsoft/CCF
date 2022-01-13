@@ -48,7 +48,7 @@ Creating a Proposal
 
 A proposal's body contains a JSON object with a list of desired actions.
 The actions are identified by name, matching a function from the constitution which should be called to verify and apply this action.
-Each action may associated arguments.
+Each action may have associated arguments.
 The schema of these arguments is determined by the constitution which handles them, so they should be constructed with reference to a target constitution.
 Some examples of proposals which could be sent to the default sample constitution provided with CCF:
 

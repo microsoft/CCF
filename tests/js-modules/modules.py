@@ -286,7 +286,9 @@ def test_npm_app(network, args):
     )
 
     LOG.info("Deploying npm app")
-    bundle_path = os.path.join(app_dir, "dist", "bundle.json") # Produced by build step of test npm-app
+    bundle_path = os.path.join(
+        app_dir, "dist", "bundle.json"
+    )  # Produced by build step of test npm-app
     network.consortium.set_js_app_from_json(primary, bundle_path)
 
     LOG.info("Calling npm app endpoints")

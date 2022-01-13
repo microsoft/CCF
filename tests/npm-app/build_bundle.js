@@ -40,10 +40,11 @@ const modules = allFiles.map(function (filePath) {
 });
 
 const bundlePath = join(args[0], "bundle.json");
-const bundle = 
-{
+const bundle = {
   metadata: metadata,
   modules: modules,
 };
-console.log(`Writing bundle containing ${modules.length} modules to ${bundlePath}`);
+console.log(
+  `Writing bundle containing ${modules.length} modules to ${bundlePath}`
+);
 writeFileSync(bundlePath, JSON.stringify(bundle));

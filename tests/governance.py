@@ -127,8 +127,6 @@ def test_user(network, args, verify=True):
 @reqs.description("Validate sample Jinja templates")
 @reqs.supports_methods("log/private")
 def test_jinja_templates(network, args, verify=True):
-    # Note: This test should not be chained in the test suite as it creates
-    # a new user
     primary, _ = network.find_primary()
 
     new_user_local_id = "bob"

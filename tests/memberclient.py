@@ -6,7 +6,7 @@ import re
 import infra.e2e_args
 import infra.network
 import infra.consortium
-import ccf.clients
+import infra.clients
 from infra.proposal import ProposalState
 
 import suite.test_requirements as reqs
