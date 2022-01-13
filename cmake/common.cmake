@@ -136,7 +136,6 @@ set(CCF_TEST_UTILITIES
     cimetrics_env.sh
     upload_pico_metrics.py
     test_install.sh
-    test_python_cli.sh
     docker_wrap.sh
     config.jinja
 )
