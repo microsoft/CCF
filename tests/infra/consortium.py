@@ -497,7 +497,7 @@ class Consortium:
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_js_app",
-            bundle=slurp_file(json_path),
+            bundle=slurp_json(json_path),
             disable_bytecode_cache=disable_bytecode_cache,
         )
 
