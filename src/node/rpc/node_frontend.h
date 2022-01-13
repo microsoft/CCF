@@ -567,6 +567,8 @@ namespace ccf
         .install();
 
       auto remove_retired_nodes = [this](auto& ctx, nlohmann::json&&) {
+        // This endpoint should only be called internally once it is certain
+        // that all nodes recorded as Retired will no longer issue transactions.
         auto nodes = ctx.tx.rw(network.nodes);
         auto node_endorsed_certificates =
           ctx.tx.rw(network.node_endorsed_certificates);
@@ -587,8 +589,8 @@ namespace ccf
         return make_success();
       };
       make_endpoint(
-        "network/nodes/cleanup",
-        HTTP_POST,
+        "network/nodes/retired",
+        HTTP_DELETE,
         json_adapter(remove_retired_nodes),
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)

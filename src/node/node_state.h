@@ -1198,7 +1198,7 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
-      if (true) // node_id == primary_id.value())
+      if (node_id == primary_id.value())
       {
         // Mark the node as retired as it will still issue signature
         // transactions until its retirement is committed. The
@@ -1209,6 +1209,7 @@ namespace ccf
           throw std::logic_error(
             fmt::format("Cannot retire unknown primary node {}", node_id));
         }
+        // TODO: Retiring instead?
         primary_info->status = NodeStatus::RETIRED;
         nodes->put(node_id, primary_info.value());
       }

@@ -538,8 +538,8 @@ def run(args):
             # test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             # test_add_as_many_pending_nodes(network, args)
-            # test_add_node(network, args)
-            # test_retire_primary(network, args)
+            test_add_node(network, args)
+            test_retire_primary(network, args)
             # test_add_node_with_read_only_ledger(network, args)
 
         #     test_add_node_from_snapshot(network, args)
@@ -727,22 +727,22 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
 
-    # cr.add(
-    #     "1tx_reconfig",
-    #     run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     reconfiguration_type="OneTransaction",
-    # )
+    cr.add(
+        "1tx_reconfig",
+        run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        reconfiguration_type="OneTransaction",
+    )
 
-    if cr.args.include_2tx_reconfig:
-        cr.add(
-            "2tx_reconfig",
-            run,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="TwoTransaction",
-        )
+    # if cr.args.include_2tx_reconfig:
+    #     cr.add(
+    #         "2tx_reconfig",
+    #         run,
+    #         package="samples/apps/logging/liblogging",
+    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #         reconfiguration_type="TwoTransaction",
+    #     )
 
     # cr.add(
     #     "migration",

@@ -346,7 +346,6 @@ class LedgerValidator:
                 node_id = node_id.decode()
                 if node_info is None:
                     # Node has been removed from the store
-                    self.node_certificates.pop(node_id)
                     self.node_activity_status.pop(node_id)
                     continue
 
@@ -372,13 +371,16 @@ class LedgerValidator:
                 node_id,
                 endorsed_node_cert,
             ) in node_endorsed_certificates_tables.items():
-                # TODO: Support endorsed node certificate deletion
                 node_id = node_id.decode()
                 assert (
                     node_id not in node_certs
                 ), f"Only one of node self-signed certificate and endorsed certificate should be recorded for node {node_id}"
-                node_cert = endorsed_node_cert
-                self.node_certificates[node_id] = node_cert
+
+                if endorsed_node_cert is None:
+                    # Node has been removed from the store
+                    self.node_certificates.pop(node_id)
+                else:
+                    self.node_certificates[node_id] = endorsed_node_cert
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:

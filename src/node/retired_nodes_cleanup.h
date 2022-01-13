@@ -31,10 +31,12 @@ namespace ccf
 
     void send_cleanup_retired_nodes()
     {
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "network/nodes/cleanup"));
+      http::Request request(
+        fmt::format(
+          "/{}/{}",
+          ccf::get_actor_prefix(ccf::ActorsType::nodes),
+          "network/nodes/retired"),
+        HTTP_DELETE);
 
       auto node_cert_der = crypto::cert_pem_to_der(node_cert);
       const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();

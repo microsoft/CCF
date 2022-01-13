@@ -959,7 +959,8 @@ const actions = new Map([
         checkEntityId(args.node_id, "node_id");
       },
       function (args) {
-        // ccf.node.removeNode(args.node_id);
+        ccf.node.removeNode(args.node_id);
+        return;
         // TODO: Translate back to C++
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
           getSingletonKvKey()
