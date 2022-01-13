@@ -64,9 +64,6 @@ python3.8 -m venv env
 source env/bin/activate
 python -m pip install -e ../../../python
 
-# Test Python package CLI
-../../../tests/test_python_cli.sh > test_python_cli.out
-
 # Poll until service has died
 while [ "$(service_http_status)" == "200" ]; do
     echo "Waiting for service to close..."
