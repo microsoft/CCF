@@ -92,3 +92,5 @@ This section describes how :term:`Operators` manage the different nodes constitu
     node_output
     resource_usage
     operator_rpc_api
+    code_upgrade
+    code_upgrade_1x

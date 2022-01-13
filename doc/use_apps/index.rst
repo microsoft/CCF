@@ -51,5 +51,4 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     verify_tx
     verify_quote
     python_tutorial
-    python_api
     rpc_api
