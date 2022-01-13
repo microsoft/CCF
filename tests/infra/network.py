@@ -592,7 +592,7 @@ class Network:
 
         primary, _ = self.find_primary()
         try:
-            self.consortium.wait_for_node_to_exist_in_store(
+            self.consortium.wait_for_node_in_store(
                 primary,
                 node.node_id,
                 timeout=timeout,

@@ -568,17 +568,17 @@ namespace ccf
 
       auto remove_retired_nodes = [this](auto& args, nlohmann::json&&) {
         auto nodes = args.tx.rw(network.nodes);
-        // TODO: Re-enable
-        // nodes->foreach(
-        //   [this, &nodes](const auto& node_id, const auto& node_info) {
-        //     if (
-        //       node_info.status == ccf::NodeStatus::RETIRED &&
-        //       node_id != this->context.get_node_state().get_node_id())
-        //     {
-        //       nodes->remove(node_id);
-        //     }
-        //     return true;
-        //   });
+        nodes->foreach(
+          [this, &nodes](const auto& node_id, const auto& node_info) {
+            if (
+              node_info.status == ccf::NodeStatus::RETIRED &&
+              node_id != this->context.get_node_state().get_node_id())
+            {
+              nodes->remove(node_id);
+              LOG_DEBUG_FMT("Removing retired node {}", node_id);
+            }
+            return true;
+          });
 
         return make_success();
       };

@@ -252,8 +252,9 @@ def test_retire_primary(network, args):
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
     new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
-    # TODO: Wait for old primary to be deleted from store
-    network.consortium.wait_for_node_to_exist_in_store(
+    # Once a new primary is elected, the old primary should
+    # automatically be removed from the store
+    network.consortium.wait_for_node_in_store(
         new_primary, primary.node_id, timeout=3, node_status=None
     )
     check_can_progress(backup)
@@ -463,7 +464,7 @@ def test_learner_catches_up(network, args):
         rj = s.body.json()
         assert rj["status"] == "Learner" or rj["status"] == "Trusted"
 
-    network.consortium.wait_for_node_to_exist_in_store(
+    network.consortium.wait_for_node_in_store(
         primary,
         new_node.node_id,
         timeout=3,
@@ -732,14 +733,14 @@ if __name__ == "__main__":
         reconfiguration_type="OneTransaction",
     )
 
-    # if cr.args.include_2tx_reconfig:
-    #     cr.add(
-    #         "2tx_reconfig",
-    #         run,
-    #         package="samples/apps/logging/liblogging",
-    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #         reconfiguration_type="TwoTransaction",
-    #     )
+    if cr.args.include_2tx_reconfig:
+        cr.add(
+            "2tx_reconfig",
+            run,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="TwoTransaction",
+        )
 
     # cr.add(
     #     "migration",
