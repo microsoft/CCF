@@ -32,6 +32,7 @@ namespace ccf
         if (!opt_ni.has_value())
         {
           cfg_delta.emplace(node_id, std::nullopt);
+          retired_nodes.insert(node_id);
           continue;
         }
 

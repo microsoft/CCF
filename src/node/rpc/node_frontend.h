@@ -1445,9 +1445,9 @@ namespace ccf
       auto orc_handler = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<ObservedReconfigurationCommit::In>();
 
+        auto primary_id = consensus->primary();
         if (consensus->type() != ConsensusType::BFT)
         {
-          auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
             return make_error(
@@ -1473,6 +1473,8 @@ namespace ccf
             in.reconfiguration_id);
           auto ncfgs = args.tx.rw(network.network_configurations);
           auto nodes = args.tx.rw(network.nodes);
+          auto node_endorsed_certificates =
+            args.tx.rw(network.node_endorsed_certificates);
           auto nc = ncfgs->get(in.reconfiguration_id);
 
           if (!nc.has_value())
@@ -1484,25 +1486,35 @@ namespace ccf
                 "unknown reconfiguration id: {}", in.reconfiguration_id));
           }
 
-          nodes->foreach([&nodes, &nc](const auto& nid, const auto& node_info) {
-            if (
-              node_info.status == NodeStatus::RETIRING &&
-              nc->nodes.find(nid) == nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::RETIRED;
-              nodes->put(nid, updated_info);
-            }
-            else if (
-              node_info.status == NodeStatus::LEARNER &&
-              nc->nodes.find(nid) != nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::TRUSTED;
-              nodes->put(nid, updated_info);
-            }
-            return true;
-          });
+          nodes->foreach(
+            [&nodes, &nc, &node_endorsed_certificates, &primary_id](
+              const auto& nid, const auto& node_info) {
+              if (
+                node_info.status == NodeStatus::RETIRING &&
+                nc->nodes.find(nid) == nc->nodes.end())
+              {
+                if (nid == primary_id)
+                {
+                  auto updated_info = node_info;
+                  updated_info.status = NodeStatus::RETIRED;
+                  nodes->put(nid, updated_info);
+                }
+                else
+                {
+                  nodes->remove(nid);
+                  node_endorsed_certificates->remove(nid);
+                }
+              }
+              else if (
+                node_info.status == NodeStatus::LEARNER &&
+                nc->nodes.find(nid) != nc->nodes.end())
+              {
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::TRUSTED;
+                nodes->put(nid, updated_info);
+              }
+              return true;
+            });
         }
 
         return make_success(true);

@@ -294,6 +294,7 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal, careful_vote)
         # While backup nodes are removed from the store on retirement,
         # the primary node is removed later, once a new primary has been elected
+        # TODO: Move to network.py
         self.wait_for_node_in_store(
             remote_node,
             node_to_retire.node_id,
@@ -599,6 +600,7 @@ class Consortium:
                 and resp["status"] == node_status.value
             )
 
+    # TODO: Move to network.py
     def wait_for_node_in_store(
         self,
         remote_node,

@@ -1195,38 +1195,55 @@ namespace ccf
           "Cannot remove node {} as primary node is unknown", node_id));
       }
 
+      auto service_config = tx.ro(network.config)->get();
+      // Defaults to ONE_TRANSACTION if reconfiguration reconfiguration_type is
+      // not set
+      auto reconfiguration_type = service_config->reconfiguration_type.value_or(
+        ReconfigurationType::ONE_TRANSACTION);
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
-      if (node_id == primary_id.value())
+      auto node_info = nodes->get(node_id);
+      if (!node_info.has_value())
       {
-        // Mark the node as retired as it will still issue signature
-        // transactions until its retirement is committed. The
-        // node will be removed from the store once a new primary is elected.
-        auto primary_info = nodes->get(node_id);
-        if (!primary_info.has_value())
-        {
-          throw std::logic_error(
-            fmt::format("Cannot retire unknown primary node {}", node_id));
-        }
-        // TODO: Retiring instead?
-        primary_info->status = NodeStatus::RETIRED;
-        nodes->put(node_id, primary_info.value());
+        throw std::logic_error(
+          fmt::format("Cannot retire unknown node {}", node_id));
+      }
+      // TODO:
+      // 1tx:
+      // - Primary: mark as retired
+      // - Backup: remove straight away
+      // 2tx:
+      // - Primary: mark as retiring (Q: does the primary call the /orc on
+      // itself?)
+      // - Backup: mark as retiring
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
+      {
+        node_info->status = (node_info->status == NodeStatus::PENDING) ?
+          NodeStatus::RETIRED :
+          NodeStatus::RETIRING;
+        nodes->put(node_id, node_info.value());
       }
       else
       {
-        // Remove backup nodes straight away
-        nodes->remove(node_id);
-        node_endorsed_certificates->remove(node_id);
+        if (node_id == primary_id.value())
+        {
+          // Mark the node as retired as it will still issue signature
+          // transactions until its retirement is committed. The
+          // node will be removed from the store once a new primary is elected.
+          node_info->status = NodeStatus::RETIRED;
+          nodes->put(node_id, node_info.value());
+        }
+        else
+        {
+          // Remove backup nodes straight away
+          nodes->remove(node_id);
+          node_endorsed_certificates->remove(node_id);
+        }
       }
 
-      auto service_config = tx.ro(network.config)->get();
-      // Defaults to ONE_TRANSACTION reconfiguration reconfiguration_type is not
-      // set
-      if (
-        service_config->reconfiguration_type.has_value() &&
-        service_config->reconfiguration_type.value() ==
-          ReconfigurationType::TWO_TRANSACTION)
+      // TODO: Remove this check
+      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         auto network_configurations = tx.rw(network.network_configurations);
         auto latest_id = network_configurations->get(CONFIG_COUNT_KEY).value();
