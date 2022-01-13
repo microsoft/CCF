@@ -486,18 +486,18 @@ def run_auto(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # test_jwt_endpoint(network, args)
-        # test_jwt_without_key_policy(network, args)
+        test_jwt_endpoint(network, args)
+        test_jwt_without_key_policy(network, args)
         if args.enclave_type != "virtual":
             test_jwt_with_sgx_key_policy(network, args)
-            # test_jwt_with_sgx_key_filter(network, args)
-        # test_jwt_key_auto_refresh(network, args)
+            test_jwt_with_sgx_key_filter(network, args)
+        test_jwt_key_auto_refresh(network, args)
 
-        # # Check that auto refresh also works on backups
-        # primary, _ = network.find_primary()
-        # primary.stop()
-        # network.wait_for_new_primary(primary)
-        # test_jwt_key_auto_refresh(network, args)
+        # Check that auto refresh also works on backups
+        primary, _ = network.find_primary()
+        primary.stop()
+        network.wait_for_new_primary(primary)
+        test_jwt_key_auto_refresh(network, args)
 
 
 def run_manual(args):
