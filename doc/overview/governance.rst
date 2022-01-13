@@ -69,6 +69,6 @@ The constitution can limit or remove the operating members' ability to:
 
 This `operating member constitution`_ shows how some members can be made operators.
 
-.. _simple constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/default/resolve.js
-.. _operating member constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/operator/resolve.js
-.. _simple constitution with veto: https://github.com/microsoft/CCF/blob/main/src/runtime_config/veto/resolve.js
+.. _simple constitution: https://github.com/microsoft/CCF/blob/main/samples/constitutions/default/resolve.js
+.. _operating member constitution: https://github.com/microsoft/CCF/blob/main/samples/constitutions/operator/resolve.js
+.. _simple constitution with veto: https://github.com/microsoft/CCF/blob/main/samples/constitutions/veto/resolve.js
