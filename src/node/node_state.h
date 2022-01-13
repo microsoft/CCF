@@ -1195,8 +1195,9 @@ namespace ccf
           "Cannot remove node {} as primary node is unknown", node_id));
       }
 
-      // TODO: Also remove endorsed certificate
       auto nodes = tx.rw(network.nodes);
+      auto node_endorsed_certificates =
+        tx.rw(network.node_endorsed_certificates);
       if (node_id == primary_id.value())
       {
         // Mark the node as retired as it will still issue signature
@@ -1215,6 +1216,7 @@ namespace ccf
       {
         // Otherwise, remove the backup node straight away.
         nodes->remove(node_id);
+        node_endorsed_certificates->remove(node_id);
       }
     }
 

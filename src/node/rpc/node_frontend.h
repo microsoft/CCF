@@ -566,19 +566,23 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto remove_retired_nodes = [this](auto& args, nlohmann::json&&) {
-        auto nodes = args.tx.rw(network.nodes);
-        nodes->foreach(
-          [this, &nodes](const auto& node_id, const auto& node_info) {
-            if (
-              node_info.status == ccf::NodeStatus::RETIRED &&
-              node_id != this->context.get_node_state().get_node_id())
-            {
-              nodes->remove(node_id);
-              LOG_DEBUG_FMT("Removing retired node {}", node_id);
-            }
-            return true;
-          });
+      auto remove_retired_nodes = [this](auto& ctx, nlohmann::json&&) {
+        auto nodes = ctx.tx.rw(network.nodes);
+        auto node_endorsed_certificates =
+          ctx.tx.rw(network.node_endorsed_certificates);
+        nodes->foreach([this, &nodes, &node_endorsed_certificates](
+                         const auto& node_id, const auto& node_info) {
+          if (
+            node_info.status == ccf::NodeStatus::RETIRED &&
+            node_id != this->context.get_node_state().get_node_id())
+          {
+            nodes->remove(node_id);
+            node_endorsed_certificates->remove(node_id);
+
+            LOG_DEBUG_FMT("Removing retired node {}", node_id);
+          }
+          return true;
+        });
 
         return make_success();
       };
