@@ -1,7 +1,7 @@
 Onboarding
 ==========
 
-This page aims to be a list of resources that should be helpful if you don't know CCF but want to start contributing.
+This page aims to be a list of resources that should be helpful if you want to start contributing to CCF.
 
 Introduction
 ------------
@@ -65,3 +65,38 @@ Review the release and compatibility policy
 -------------------------------------------
 
 :doc:`/build_apps/release_policy` defines what changes are possible in CCF and what timeline they must follow.
+
+Simplified Data Flow Map
+------------------------
+
+This chart is a simplified illustration of the data flow in a running CCF service. Where possible, nodes and edges have been made links to the most relevant documentation page or file.
+
+Note that this diagram deliberately does not represent host-to-enclave communication.
+
+.. mermaid::
+
+    flowchart TB
+        Client[HTTPS/1.1 Client] -- TLS 1.2 or 1.3 --> TLSEndpoint
+        TLSEndpoint[TLS Endpoint] -- PlainText --> HTTPEndpoint
+        HTTPEndpoint[HTTP Endpoint] -- Request --> Endpoint[Application Endpoint]
+        Endpoint -- Response --> HTTPEndpoint
+        HTTPEndpoint --> TLSEndpoint
+        TLSEndpoint --> Client
+        Endpoint -- WriteSet --> Store
+        Store -- LedgerEntry --> Ledger[Ledger]
+        Ledger -- LedgerEntry --> Disk
+        Store[Key-Value Store] -- Digest --> MerkleTree[Merkle Tree]
+        Store -- LedgerEntry --> Consensus[Consensus]
+        Consensus -- Messages --> OtherNodes[Other Nodes]
+        OtherNodes --> Consensus
+        Consensus -- Sign --> MerkleTree
+        MerkleTree -- Signature --> Store
+        click Client "../build_apps/auth/index.html"
+        click TLSEndpoint "https://github.com/microsoft/CCF/blob/main/src/enclave/tls_endpoint.h"
+        click HTTPEndpoint "https://github.com/microsoft/CCF/blob/main/src/http/http_endpoint.h"
+        click Endpoint "../build_apps/api.html#application-endpoint-registration"
+        click Store "../build_apps/kv/index.html"
+        click Ledger "../architecture/ledger.html"
+        click MerkleTree "../architecture/merkle_tree.html"
+        click Consensus "../architecture/consensus/index.html"
+        click OtherNodes "../architecture/node_to_node.html"
