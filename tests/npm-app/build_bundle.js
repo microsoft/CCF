@@ -7,8 +7,7 @@ const getAllFiles = function (dirPath, arrayOfFiles) {
   arrayOfFiles = arrayOfFiles || [];
 
   const files = readdirSync(dirPath);
-  for (const file of files)
-  {
+  for (const file of files) {
     const filePath = join(dirPath, file);
     if (statSync(filePath).isDirectory()) {
       arrayOfFiles = getAllFiles(filePath, arrayOfFiles);
@@ -34,7 +33,7 @@ const allFiles = getAllFiles(srcDir);
 
 // The trailing / is included so that it is trimmed in removePrefix.
 // This produces "foo/bar.js" rather than "/foo/bar.js"
-const toTrim = srcDir + "/"
+const toTrim = srcDir + "/";
 
 const modules = allFiles.map(function (filePath) {
   return {
