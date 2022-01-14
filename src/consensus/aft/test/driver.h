@@ -132,7 +132,7 @@ public:
 
       auto kv = std::make_shared<Store>(node_id);
       const consensus::Configuration settings{
-        ConsensusType::CFT, std::string("10ms"), std::string("100ms")};
+        ConsensusType::CFT, {"10ms"}, {"100ms"}};
       auto raft = std::make_shared<TRaft>(
         settings,
         std::make_unique<Adaptor>(kv),

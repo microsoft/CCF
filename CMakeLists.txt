@@ -336,8 +336,9 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      blob_cache_test ${CMAKE_CURRENT_SOURCE_DIR}/src/scratch_file/test/test.cpp
+      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
     )
+    target_link_libraries(indexing_test PRIVATE sss.host)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
