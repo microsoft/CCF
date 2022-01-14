@@ -213,17 +213,17 @@ def test_add_as_many_pending_nodes(network, args):
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
+    # Stop the retired nodes so they don't linger in the background and interfere
+    # with subsequent tests
+    for new_node in new_nodes:
+        new_node.stop()
+
     check_can_progress(primary)
 
     for new_node in new_nodes:
         network.retire_node(primary, new_node)
 
     wait_for_reconfiguration_to_complete(network)
-
-    # Stop the retired nodes so they don't linger in the background and interfere
-    # with subsequent tests
-    for new_node in new_nodes:
-        new_node.stop()
 
     return network
 
@@ -549,6 +549,8 @@ def run(args):
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
 
+    # TODO: When the test is stopped, make sure we can read all ledgers!
+
 
 def run_join_old_snapshot(args):
     txs = app.LoggingTxs("user0")
@@ -728,14 +730,14 @@ if __name__ == "__main__":
         reconfiguration_type="OneTransaction",
     )
 
-    if cr.args.include_2tx_reconfig:
-        cr.add(
-            "2tx_reconfig",
-            run,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="TwoTransaction",
-        )
+    # if cr.args.include_2tx_reconfig:
+    #     cr.add(
+    #         "2tx_reconfig",
+    #         run,
+    #         package="samples/apps/logging/liblogging",
+    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #         reconfiguration_type="TwoTransaction",
+    #     )
 
     cr.add(
         "migration",
