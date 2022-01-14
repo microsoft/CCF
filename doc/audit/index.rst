@@ -10,30 +10,30 @@ Audit
 
     ---
 
-    :fa:`project-diagram` :doc:`merkle_tree`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. image:: ../img/python.svg
+      :width: 22
+      :alt: Python
+      :align: left
 
-    Transaction integrity guarantees stem from the use of a Merkle Tree data structure over their history.
 
-    ---
-
-    :fa:`book` :doc:`ledger`
-    ^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Transactions are persisted to a ledger for recovery and audit purposes.
-
-    ---
-
-    :fa:`code` :doc:`python_library`
+    :doc:`python_library`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Utility library that can be used to write ledger audit scripts quickly and easily.
+
+    ---
+
+    :fa:`scroll` :doc:`receipts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Audit individual transactions on the basis of their receipt.
+
+    ---
 
 
 .. toctree::
     :hidden:
 
     builtin_maps
-    merkle_tree
-    ledger
     python_library
+    receipts

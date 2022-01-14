@@ -1,5 +1,5 @@
-CCF release and support policy
-==============================
+Release and compatibility policy
+================================
 
 API stability and versioning
 -----------------------------
@@ -14,7 +14,7 @@ As defined under :ref:`use_apps/rpc_api:Built-ins`.
 These endpoints are expected to be quite stable across releases, but it is difficult for CCF itself to version them because its own versioning scheme may not be in-sync with a given application: release dates and numbers will differ.
 It is instead recommended that applications programmatically disable these endpoints as exposed by CCF now, and replace them with their own as illustrated in :ref:`build_apps/logging_cpp:Default Endpoints`. This is currently only supported for C++ applications.
 
-CCF exposes its implementation of the user built-in endpoints as a public, versioned C++ API and application code can dispatch to the chosen implementation for each of its own versions.  
+CCF exposes its implementation of the user built-in endpoints as a public, versioned C++ API and application code can dispatch to the chosen implementation for each of its own versions.
 
 For example:
 
@@ -52,10 +52,19 @@ Operations compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Patches are compatible: nodes built from the same major release but different patch releases can run within the same service (backward and forward compatibility between these).
-- The last patch in a major release (`N.0.final`) is compatible with the first patch of the next major release (`N+1.0.0`): nodes built against both versions can be run within the same service.
-- Open-ended ledger backward compatibility: a ledger produced by version `N.0.x` can be read by all versions `> N.0.x`.
-- Forward compatibility of the ledger across patches: a ledger produced by version `N.0.x` can be read by all `N.0.*` patches in the same major release. 
-- Snapshots are compatible across incremental major releases (going from `N.0.x` to `N+1.0.x`).
+- The last patch in a major release (``N.0.final``) is compatible with the first patch of the next major release (``N+1.0.0``): nodes built against both versions can be run within the same service.
+- Open-ended ledger backward compatibility: a ledger produced by version ``N.0.x``` can be read by all versions ```> N.0.x```.
+- Forward compatibility of the ledger across patches: a ledger produced by version ``N.0.x`` can be read by all ``N.0.*`` patches in the same major release.
+- Snapshots are compatible across incremental major releases (going from ``N.0.x`` to ``N+1.0.x``).
+
+.. tip::
+
+    The ``compatibility_report.json`` file, available `for every release <https://github.com/microsoft/CCF/releases>`_ indicates which other release(s) this release is compatible with.
+
+    - The ``live_compatibility`` section indicates which version this release can be upgraded from/upgrade to (see :doc:`/operations/code_upgrade`).
+    - The ``data_compatibility`` section indicates which version this release can recover from (using the ledger and snapshots) (see :doc:`/operations/recovery`).
+
+    Note that if a version is not listed in the report, it does not necessarily mean that it is not compatible with the release. The report simply indicates that a suite of tests were run with a specific version to guarantee compatibility with this one.
 
 Support policy
 --------------

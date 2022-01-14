@@ -80,12 +80,16 @@ namespace crypto
 
   std::vector<uint8_t> RSAPublicKey_mbedTLS::rsa_oaep_wrap(
     const std::vector<uint8_t>& input,
-    std::optional<std::vector<std::uint8_t>> label)
+    const std::optional<std::vector<std::uint8_t>>& label)
   {
     const unsigned char* label_ = NULL;
     size_t label_size = 0;
     if (label.has_value())
     {
+      if (label->empty())
+      {
+        throw std::logic_error("empty wrapping label");
+      }
       label_ = reinterpret_cast<const unsigned char*>(label->data());
       label_size = label->size();
     }

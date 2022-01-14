@@ -93,7 +93,9 @@ namespace kv
       const ccf::ClaimsDigest& claims = ccf::no_claims(),
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
-        version_resolver = nullptr)
+        version_resolver = nullptr,
+      std::function<void(const std::vector<uint8_t>& write_set)>
+        write_set_observer = nullptr)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -157,6 +159,11 @@ namespace kv
           if (data.empty())
           {
             return CommitResult::SUCCESS;
+          }
+
+          if (write_set_observer != nullptr)
+          {
+            write_set_observer(data);
           }
 
           auto claims_ = claims;

@@ -131,14 +131,8 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES
-    tests.sh
-    cimetrics_env.sh
-    upload_pico_metrics.py
-    test_install.sh
-    test_python_cli.sh
-    docker_wrap.sh
-    config.jinja
+set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
+                       test_install.sh docker_wrap.sh config.jinja
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -363,13 +357,13 @@ set(WORKER_THREADS
 
 set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/actions.js
+    ${CCF_DIR}/samples/constitutions/default/actions.js
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/validate.js
+    ${CCF_DIR}/samples/constitutions/default/validate.js
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/resolve.js
+    ${CCF_DIR}/samples/constitutions/default/resolve.js
     --constitution
-    ${CCF_DIR}/src/runtime_config/default/apply.js
+    ${CCF_DIR}/samples/constitutions/default/apply.js
 )
 set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}

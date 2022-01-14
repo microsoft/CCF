@@ -141,7 +141,7 @@ Applications can extend this system by writing their own authentication policies
     :end-before: SNIPPET_END: custom_identity
     :dedent:
 
-Next it defines the policy itself. The core functionality is the implementation of the ``authenticate()`` method, which looks at each request and returns either a valid new identity if it accepts the request, or ``nullptr`` if it doesn't. In this demo case it is looking for a pair of headers and doing some validation of their values:
+Next it defines the policy itself. The core functionality is the implementation of the ``authenticate()`` method, which looks at each request and returns either a valid new identity if it accepts the request, or ``nullptr`` if it does not. In this demo case it is looking for a pair of headers and doing some validation of their values:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

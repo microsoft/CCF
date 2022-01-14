@@ -20,7 +20,7 @@ namespace crypto
   std::vector<uint8_t> ckm_rsa_pkcs_oaep_wrap(
     RSAPublicKeyPtr wrapping_key,
     const std::vector<uint8_t>& unwrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     return wrapping_key->rsa_oaep_wrap(unwrapped, label);
   }
@@ -28,7 +28,7 @@ namespace crypto
   std::vector<uint8_t> ckm_rsa_pkcs_oaep_wrap(
     const Pem& wrapping_key,
     const std::vector<uint8_t>& unwrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     auto pk = make_rsa_public_key(wrapping_key);
     return ckm_rsa_pkcs_oaep_wrap(pk, unwrapped, label);
@@ -37,7 +37,7 @@ namespace crypto
   std::vector<uint8_t> ckm_rsa_pkcs_oaep_unwrap(
     RSAKeyPairPtr wrapping_key,
     const std::vector<uint8_t>& wrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     return wrapping_key->rsa_oaep_unwrap(wrapped, label);
   }
@@ -45,7 +45,7 @@ namespace crypto
   std::vector<uint8_t> ckm_rsa_pkcs_oaep_unwrap(
     const Pem& wrapping_key,
     const std::vector<uint8_t>& wrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     auto pk = make_rsa_key_pair(wrapping_key);
     return ckm_rsa_pkcs_oaep_unwrap(pk, wrapped, label);
@@ -71,7 +71,7 @@ namespace crypto
     size_t aes_key_size,
     RSAPublicKeyPtr wrapping_key,
     const std::vector<uint8_t>& unwrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     if (aes_key_size != 128 && aes_key_size != 192 && aes_key_size != 256)
       throw std::runtime_error("invalid key size");
@@ -104,7 +104,7 @@ namespace crypto
     size_t aes_key_size,
     const Pem& wrapping_key,
     const std::vector<uint8_t>& unwrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     auto pk = make_rsa_public_key(wrapping_key);
     return ckm_rsa_aes_key_wrap(aes_key_size, pk, unwrapped, label);
@@ -113,7 +113,7 @@ namespace crypto
   std::vector<uint8_t> ckm_rsa_aes_key_unwrap(
     RSAKeyPairPtr wrapping_key,
     const std::vector<uint8_t>& wrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     // - Splits the input into two parts. The first is the wrapped AES key, and
     //   the second is the wrapped target key. The length of the first part is
@@ -152,7 +152,7 @@ namespace crypto
   std::vector<uint8_t> ckm_rsa_aes_key_unwrap(
     const Pem& wrapping_key,
     const std::vector<uint8_t>& wrapped,
-    const std::vector<uint8_t>& label)
+    const std::optional<std::vector<uint8_t>>& label)
   {
     auto pk = make_rsa_key_pair(wrapping_key);
     return ckm_rsa_aes_key_unwrap(pk, wrapped, label);

@@ -48,7 +48,7 @@ def issue_activity_on_live_service(network, args):
 def get_new_constitution_for_install(args, install_path):
     constitution_directory = os.path.join(
         install_path,
-        "../src/runtime_config/default"
+        "../samples/constitutions/default"
         if install_path == LOCAL_CHECKOUT_DIRECTORY
         else "bin",
     )
@@ -249,7 +249,9 @@ def run_code_upgrade_from(
                         LOG.info("Upgrade to new JS app")
                         # Upgrade to a version of the app containing an endpoint that
                         # registers custom claims
-                        network.consortium.set_js_app(primary, args.new_js_app_bundle)
+                        network.consortium.set_js_app_from_dir(
+                            primary, args.new_js_app_bundle
+                        )
                         LOG.info("Run transaction with additional claim")
                         # With wait_for_sync, the client checks that all nodes, including
                         # the minority of old ones, have acked the transaction

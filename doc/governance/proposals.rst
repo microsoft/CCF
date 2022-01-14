@@ -46,76 +46,201 @@ For transparency and auditability, all governance operations (including votes) a
 Creating a Proposal
 -------------------
 
-For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand.
-For simple proposals there is a helper script in the CCF Python package - ``proposal_generator.py``.
-This can be used to create proposals for common operations like adding members and users, without writing any JSON.
-It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected.
-These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
+A proposal's body contains a JSON object with a list of desired actions.
+The actions are identified by name, matching a function from the constitution which should be called to verify and apply this action.
+Each action may have associated arguments.
+The schema of these arguments is determined by the constitution which handles them, so they should be constructed with reference to a target constitution.
+Some examples of proposals which could be sent to the default sample constitution provided with CCF:
 
-Assuming the CCF Python package has been installed in the current Python environment, the proposal generator can be invoked directly as ``ccf.proposal_generator``. With no further argument it will print help text, including the list of possible actions as subcommands:
+.. code-block:: json
 
-.. code-block:: bash
-
-    usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
-                                {add_node_code,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_node,remove_node_code,remove_user,set_ca_cert_bundle,set_constitution,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member,set_member_data,set_recovery_threshold,set_user,set_user_data,transition_node_to_trusted,transition_service_to_open,trigger_ledger_rekey,trigger_recovery_shares_refresh}
-
-Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
-
-.. code-block:: bash
-
-    $ python CCF/python/ccf/proposal_generator.py
-
-Some of these subcommands require additional arguments, such as the node ID or user certificate to add to the service. Additional options allow the generated votes and proposals to be redirected to other files or pretty-printed:
-
-.. code-block:: bash
-
-    $ python -m ccf.proposal_generator transition_node_to_trusted 6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f 211019154318Z
-    SUCCESS | Writing proposal to ./trust_node_proposal.json
-    SUCCESS | Wrote vote to ./trust_node_vote_for.json
-
-    $ cat trust_node_proposal.json
-    {"actions": [{"name": "transition_node_to_trusted", "args": {"node_id": "6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f", "valid_from": "211019154318Z"}}]}
-
-    $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json set_user pedro_cert.pem
-    SUCCESS | Writing proposal to ./add_pedro.json
-    SUCCESS | Wrote vote to ./vote_for_pedro.json
-
-    $ cat add_pedro.json
     {
       "actions": [
         {
           "name": "set_user",
           "args": {
-            "cert": "-----BEGIN CERTIFICATE-----\nMIIBsjCCATigAwIBAgIUOiTU32JZsA0dSv64hW2mrKM0phEwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjIwHhcNMjEwNDE0MTUyODMyWhcNMjIwNDE0MTUyODMy\nWjAQMQ4wDAYDVQQDDAV1c2VyMjB2MBAGByqGSM49AgEGBSuBBAAiA2IABBFf+FD0\nUGIyJubt8j+f8+/BP7IY6G144yF/vBNe7CJpNNRyiMZzEyN6wmEKIjsn3gU36A6E\nqNYBlbYbXD1kzlw4q/Pe/Wl3o237p8Es6LD1e1MDUFp2qUcNA6vari6QLKNTMFEw\nHQYDVR0OBBYEFDuGVragGSHoIrFA44kQRg/SKIcFMB8GA1UdIwQYMBaAFDuGVrag\nGSHoIrFA44kQRg/SKIcFMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\nZQIxAPx54LaqQevKrcZIr7QSCZKGFJgSxfVxovSfEqTMD+sKdWzNTqJtJ1SDav1v\nImA4iwIwBsrdevSQj4U2ynXiTJKljviDnyc47ktJVkg/Ppq5cMcEZHO4Q0H/Wq3H\nlUuVImyR\n-----END CERTIFICATE-----\n"
+            "cert": "-----BEGIN CERTIFICATE-----\nMIIBszCCATigAwIBAgIUeYsXeSyujwWWSySPlaVxP0pfO/EwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjMwHhcNMjIwMTEyMTAxOTM0WhcNMjMwMTEyMTAxOTM0\nWjAQMQ4wDAYDVQQDDAV1c2VyMzB2MBAGByqGSM49AgEGBSuBBAAiA2IABLWb5TWU\nX9+ldfOZAyEZkbgb7n5CDZcfWXkyL6QXQI7OJb0uF9P6AOuErd/q5Vv2Mqg8LnJs\nmZafY9qZ1Z9XbfOkh5DI08PipIgDBIQ7BYIgstWege/rppcFKuqgjGm1waNTMFEw\nHQYDVR0OBBYEFOhjbOPTvy4iZ7+PFXvYY8Sm1lxcMB8GA1UdIwQYMBaAFOhjbOPT\nvy4iZ7+PFXvYY8Sm1lxcMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaQAw\nZgIxAJHzWMG/CeEg+lfI7gwCv4GEPqc1mZj5PT9uIvFso5NQe36L1UFhMCJDx4g0\nx7rQdwIxAJ5145d33LLc+Row4lOEAiHJpzivurLl4y5Kx6SkY3JMQbmGPJaslPWm\nxfWXoAcGhQ==\n-----END CERTIFICATE-----\n",
           }
         }
       ]
     }
 
+.. code-block:: json
+
+    {
+      "actions": [
+        {
+          "name": "set_node_certificate_validity",
+          "args": {
+            "node_id": "ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19",
+            "valid_from": "220112101937Z",
+            "validity_period_days": 366
+          }
+        }
+      ]
+    }
+
+.. code-block:: json
+
+    {
+      "actions": [
+        {
+          "name": "transition_node_to_trusted",
+          "args": {
+            "node_id": "ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19",
+            "valid_from": "220101120000Z"
+          }
+        },
+        {
+          "name": "transition_node_to_trusted",
+          "args": {
+            "node_id": "5d5b09f6dcb2d53a5fffc60c4ac0d55fabdf556069d6631545f42aa6e3500f2e",
+            "valid_from": "220101120000Z"
+          }
+        },
+        {
+          "name": "transition_service_to_open"
+        }
+      ]
+    }
+
+Most HTTP client libraries and tools should have functionality for constructing and providing these JSON objects, and constitutions should be written to provide clear validation errors if a proposal is malformed.
+
+A ballot's body contains a JS function which evaluates a given proposal, embedded inside a JSON object.
+These may try to confirm the precise content equality of the proposal they are considering, or put some constraints on its parameters.
+They could also be simple positive/negative votes, in a model where members fetch and validate a proposal offline before submitting their votes.
+Some example ballots which could apply to the proposals above:
+
+.. code-block:: json
+
+    {
+      "ballot": "export function vote (rawProposal, proposerId)\n
+      {\n
+        // Accepts any proposal\n
+        return true;\n
+      }"
+    }
+
+.. code-block:: json
+
+    {
+      "ballot": "export function vote (rawProposal, proposerId)\n
+      {\n
+        // Refuses every proposal\n
+        return false;\n
+      }"
+    }
+
+.. code-block:: json
+
+    {
+      "ballot": "export function vote (rawProposal, proposerId)\n
+      {\n
+        // Accepts 'set_node_certificate_validity' proposals with a max validity period of 1 year\n
+        let proposal = JSON.parse(rawProposal);\n
+        let action = proposal[\"actions\"][0];\n
+        if (action[\"name\"] === \"set_node_certificate_validity\") {\n
+          let action_args = action[\"args\"];\n
+          if (action_args[\"validity_period_days\"] <= 365) {\n
+            return true;\n
+          }\n
+        }\n
+        return false;\n
+      }"
+    }
+
+The CCF repository includes a sample Jinja template which will automatically build a ballot, doing a structural equality check against a target proposal. For example if this was run for the ``set_node_certificate_validity`` proposal above:
+
+.. code-block:: bash
+
+    # Relies on jinja-cli:
+    #   pip install jinja-cli
+    $ jinja ballot_script.js.jinja -d proposal.json
+
+    export function vote (rawProposal, proposerId) {
+      let proposal = JSON.parse(rawProposal);
+      if (!("actions" in proposal))
+      {
+        return false;
+      }
+
+      let actions = proposal["actions"];
+      if (actions.length !== 1 )
+      {
+        return false;
+      }
+
+      // Check that the "set_node_certificate_validity" action is exactly what was expected
+      {
+        let action = actions[0];
+        if (!("name" in action))
+        {
+          return false;
+        }
+
+        if (action.name !== "set_node_certificate_validity")
+        {
+          return false;
+        }
+
+
+        if (!("args" in action))
+        {
+          return false;
+        }
+
+        let args = action.args;
+
+        // Check each argument
+        {
+          if (!("node_id" in args))
+          {
+            return false;
+          }
+
+          // Compare stringified JSON representation, to cover object equality
+          const expected = JSON.stringify("ba9faac9683f7854c2cf0a97f57e63c260bf8d06f8183772c5655093c0af6e19");
+          if (JSON.stringify(args["node_id"]) !== expected)
+          {
+            return false;
+          }
+        } 
+        // Check each argument
+        {
+          if (!("valid_from" in args))
+          {
+            return false;
+          }
+
+          // Compare stringified JSON representation, to cover object equality
+          const expected = JSON.stringify("220112101937Z");
+          if (JSON.stringify(args["valid_from"]) !== expected)
+          {
+            return false;
+          }
+        } 
+        // Check each argument
+        {
+          if (!("validity_period_days" in args))
+          {
+            return false;
+          }
+
+          // Compare stringified JSON representation, to cover object equality
+          const expected = JSON.stringify(366);
+          if (JSON.stringify(args["validity_period_days"]) !== expected)
+          {
+            return false;
+          }
+        } 
+      }
+
+      return true;
+    }
+
+The ``ballot.json.jinja`` template will additionally embed this script in a JSON object.
+
 These proposals and votes should be sent as the body of HTTP requests as described below.
-
-Creating Proposals in Python
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-``ccf.proposal_generator`` can also be imported and used in a Python application instead of as a command-line tool.
-
-.. literalinclude:: ../../python/tutorial.py
-    :language: py
-    :start-after: SNIPPET: import_proposal_generator
-    :lines: 1
-
-The proposal generation functions return dictionaries that can be submitted to a ``CCFClient``.
-
-.. literalinclude:: ../../python/tutorial.py
-    :language: py
-    :start-after: SNIPPET_START: dict_proposal
-    :end-before: SNIPPET_END: dict_proposal
-
-You may wish to write these proposals to files so they can be examined or modified further. These proposal files can be submitted directly --- ``CCFClient`` will treat string request bodies beginning with an ``@`` as file paths in the same way that ``curl`` does, and use the content of the file when sending.
-
-.. literalinclude:: ../../python/tutorial.py
-    :language: py
-    :start-after: SNIPPET_START: json_proposal_with_file
-    :end-before: SNIPPET_END: json_proposal_with_file
 
 Submitting a New Proposal
 -------------------------
