@@ -53,7 +53,6 @@ def wait_for_reconfiguration_to_complete(network, timeout=3):  # TODO: Revert
                     r = c.get("/node/consensus")
                     rj = r.body.json()
                     cfgs = rj["details"]["configs"]
-                    LOG.error(cfgs)
                     num_configs = len(cfgs)
                     max_num_configs = max(max_num_configs, num_configs)
                     if num_configs == 1 and cfgs[0]["rid"] != max_rid:
@@ -215,17 +214,17 @@ def test_add_as_many_pending_nodes(network, args):
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
+    # Stop the retired nodes so they don't linger in the background and interfere
+    # with subsequent tests
+    for new_node in new_nodes:
+        new_node.stop()
+
     check_can_progress(primary)
 
     for new_node in new_nodes:
         network.retire_node(primary, new_node)
 
     wait_for_reconfiguration_to_complete(network)
-
-    # Stop the retired nodes so they don't linger in the background and interfere
-    # with subsequent tests
-    for new_node in new_nodes:
-        new_node.stop()
 
     return network
 
@@ -531,16 +530,16 @@ def run(args):
         test_version(network, args)
 
         if args.consensus != "BFT":
-            # test_join_straddling_primary_replacement(network, args)
-            # test_node_replacement(network, args)
-            # test_add_node_from_backup(network, args)
-            # test_add_node(network, args)
-            # test_add_node_on_other_curve(network, args)
-            test_retire_backup(network, args)
-            # test_add_as_many_pending_nodes(network, args)
+            test_join_straddling_primary_replacement(network, args)
+            test_node_replacement(network, args)
+            test_add_node_from_backup(network, args)
             test_add_node(network, args)
-            test_retire_primary(network, args)
-            # test_add_node_with_read_only_ledger(network, args)
+            test_add_node_on_other_curve(network, args)
+            test_retire_backup(network, args)
+            test_add_as_many_pending_nodes(network, args)
+        #     test_add_node(network, args)
+        #     test_retire_primary(network, args)
+        #     test_add_node_with_read_only_ledger(network, args)
 
         #     test_add_node_from_snapshot(network, args)
         #     test_add_node_from_snapshot(network, args, from_backup=True)
@@ -555,6 +554,8 @@ def run(args):
         # test_service_config_endpoint(network, args)
         # test_node_certificates_validity_period(network, args)
         # test_add_node_invalid_validity_period(network, args)
+
+    # TODO: When the test is stopped, make sure we can read all ledgers!
 
 
 def run_join_old_snapshot(args):
@@ -727,22 +728,22 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
 
-    # cr.add(
-    #     "1tx_reconfig",
-    #     run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     reconfiguration_type="OneTransaction",
-    # )
+    cr.add(
+        "1tx_reconfig",
+        run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        reconfiguration_type="OneTransaction",
+    )
 
-    if cr.args.include_2tx_reconfig:
-        cr.add(
-            "2tx_reconfig",
-            run,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="TwoTransaction",
-        )
+    # if cr.args.include_2tx_reconfig:
+    #     cr.add(
+    #         "2tx_reconfig",
+    #         run,
+    #         package="samples/apps/logging/liblogging",
+    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #         reconfiguration_type="TwoTransaction",
+    #     )
 
     # cr.add(
     #     "migration",
