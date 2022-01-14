@@ -39,7 +39,7 @@ def count_nodes(configs, network):
     return len(nodes)
 
 
-def wait_for_reconfiguration_to_complete(network, timeout=3):  # TODO: Revert
+def wait_for_reconfiguration_to_complete(network, timeout=10):  # TODO: Revert
     max_num_configs = 0
     max_rid = 0
     all_same_rid = False
@@ -53,6 +53,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=3):  # TODO: Revert
                     r = c.get("/node/consensus")
                     rj = r.body.json()
                     cfgs = rj["details"]["configs"]
+                    LOG.error(cfgs)
                     num_configs = len(cfgs)
                     max_num_configs = max(max_num_configs, num_configs)
                     if num_configs == 1 and cfgs[0]["rid"] != max_rid:
@@ -366,7 +367,7 @@ def test_join_straddling_primary_replacement(network, args):
     primary, _ = network.find_primary()
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
+    LOG.error(f"New pending node {new_node.node_id}")
     proposal_body = {
         "actions": [
             {
@@ -400,7 +401,7 @@ def test_join_straddling_primary_replacement(network, args):
 
     primary.stop()
     network.nodes.remove(primary)
-    wait_for_reconfiguration_to_complete(network)
+    # wait_for_reconfiguration_to_complete(network)
     return network
 
 
@@ -420,6 +421,9 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
             if ccf.ledger.NODES_TABLE_NAME in tables:
                 nodes = tables[ccf.ledger.NODES_TABLE_NAME]
                 for nid, info_ in nodes.items():
+                    if info_ is None:
+                        # Node was removed
+                        continue
                     info = json.loads(info_)
                     if info["status"] == "Retired":
                         retiring_nodes.add(nid)
@@ -537,23 +541,23 @@ def run(args):
             test_add_node_on_other_curve(network, args)
             test_retire_backup(network, args)
             test_add_as_many_pending_nodes(network, args)
-        #     test_add_node(network, args)
-        #     test_retire_primary(network, args)
-        #     test_add_node_with_read_only_ledger(network, args)
+            test_add_node(network, args)
+            test_retire_primary(network, args)
+            test_add_node_with_read_only_ledger(network, args)
 
-        #     test_add_node_from_snapshot(network, args)
-        #     test_add_node_from_snapshot(network, args, from_backup=True)
-        #     test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            test_add_node_from_snapshot(network, args)
+            test_add_node_from_snapshot(network, args, from_backup=True)
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
 
-        #     test_node_filter(network, args)
-        #     test_retiring_nodes_emit_at_most_one_signature(network, args)
+            test_node_filter(network, args)
+            test_retiring_nodes_emit_at_most_one_signature(network, args)
 
-        # if args.reconfiguration_type == "TwoTransaction":
-        #     test_learner_catches_up(network, args)
+        if args.reconfiguration_type == "TwoTransaction":
+            test_learner_catches_up(network, args)
 
-        # test_service_config_endpoint(network, args)
-        # test_node_certificates_validity_period(network, args)
-        # test_add_node_invalid_validity_period(network, args)
+        test_service_config_endpoint(network, args)
+        test_node_certificates_validity_period(network, args)
+        test_add_node_invalid_validity_period(network, args)
 
     # TODO: When the test is stopped, make sure we can read all ledgers!
 

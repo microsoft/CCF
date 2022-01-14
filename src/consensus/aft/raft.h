@@ -1853,6 +1853,7 @@ namespace aft
         send_append_entries(it->first, next);
       }
 
+      // TODO: Should this be when the retirement has been committed for sure?
       if (retired_node_cleanup)
       {
         retired_node_cleanup->cleanup();

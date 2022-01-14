@@ -411,15 +411,6 @@ class LedgerValidator:
                 # throws if ledger validation failed.
                 self._verify_tx_set(tx_info)
 
-                # Forget about nodes whose retirement has been committed
-                # TODO: Fix this - probably not required anymore
-                for node_id, (status, seqno) in list(self.node_activity_status.items()):
-                    if (
-                        status == NodeStatus.RETIRED.value
-                        and signature["commit_seqno"] >= seqno
-                    ):
-                        self.node_activity_status.pop(node_id)
-
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
 

@@ -1209,6 +1209,8 @@ namespace ccf
         throw std::logic_error(
           fmt::format("Cannot retire unknown node {}", node_id));
       }
+
+      LOG_FAIL_FMT("Remove node {}", node_id);
       // TODO:
       // 1tx:
       // - Primary: mark as retired
@@ -1219,10 +1221,19 @@ namespace ccf
       // - Backup: mark as retiring
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
-        node_info->status = (node_info->status == NodeStatus::PENDING) ?
-          NodeStatus::RETIRED :
-          NodeStatus::RETIRING;
-        nodes->put(node_id, node_info.value());
+        // TODO: This doesn't seem right for pending nodes. Should they be
+        // removed straight away too?
+        if (node_info->status == NodeStatus::PENDING)
+        {
+          LOG_FAIL_FMT("2tx pending");
+          nodes->remove(node_id);
+        }
+        else
+        {
+          LOG_FAIL_FMT("2tx other");
+          node_info->status = NodeStatus::RETIRING;
+          nodes->put(node_id, node_info.value());
+        }
       }
       else
       {
@@ -1243,6 +1254,7 @@ namespace ccf
       }
 
       // TODO: Remove this check
+      // TODO: Is this always called?
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         auto network_configurations = tx.rw(network.network_configurations);
