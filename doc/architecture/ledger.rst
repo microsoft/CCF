@@ -13,7 +13,7 @@ Ledger Format
 
 The ledger is split into multiple files (or chunks). Each ledger file starts with an 8-byte offset pointing to the end of file where a vector of positions is stored for fast fetching of transactions (only set when a file is complete, internal use only).
 
-The serialised transactions follow the 8-byte offset, as described in :ref:`audit/ledger:Transaction Format`.
+The serialised transactions follow the 8-byte offset, as described in :ref:`architecture/ledger:Transaction Format`.
 
 .. note:: A complete ledger file always ends on a signature transaction.
 
@@ -84,6 +84,6 @@ Each entry in the ledger corresponds to a transaction committed by the primary n
 
 When a transaction is committed, each ``Store::Map`` containing writes is serialised in different security domains (i.e. public or private), based on the name of the Map when it was created (default is private). A public ``Store::Map`` (i.e. one whose name starts with "public:") is serialised and stored in the ledger as plaintext while a private ``Store::Map`` is serialised and encrypted before being stored.
 
-Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/overview/cryptography`). This key is kept secure inside each enclave. See :ref:`governance/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
+Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/architecture/cryptography`). This key is kept secure inside each enclave. See :ref:`governance/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
 Note that even if a transaction only writes to a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry.

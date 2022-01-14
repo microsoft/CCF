@@ -9,7 +9,7 @@ CCF Documentation
     .. image:: img/ccf.svg
       :width: 75
       :align: left
-      :target: concepts.html
+      :target: what_is_ccf.html
 
     Get started with the Confidential Consortium Framework and its core concepts.
 
@@ -69,10 +69,10 @@ CCF Documentation
 
     ---
 
-    :fa:`book` :doc:`glossary`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`shapes` :doc:`architecture/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Common terms used throughout the documentation and their definitions.
+    CCF design and architecture elements.
 
     ---
 
@@ -92,6 +92,6 @@ CCF Documentation
     governance/index.rst
     audit/index.rst
     contribute/index.rst
-    glossary
+    architecture/index.rst
     research/index.rst
     GitHub Repository <https://github.com/microsoft/CCF>

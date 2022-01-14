@@ -157,7 +157,16 @@ def make_attested_cert(network, args):
     pubk = os.path.join(network.common_dir, "attested_enc_pubk.pem")
     der = os.path.join(network.common_dir, "oe_cert.der")
     infra.proc.ccall(
-        oeutil, "generate-evidence", "-f", "cert", privk, pubk, "-o", der
+        oeutil,
+        "generate-evidence",
+        "-f",
+        "cert",
+        privk,
+        pubk,
+        "-o",
+        der,
+        # To ensure in-process attestation is always used, clear the env to unset the SGX_AESM_ADDR variable
+        env={},
     ).check_returncode()
     pem = os.path.join(network.common_dir, "oe_cert.pem")
     infra.proc.ccall(

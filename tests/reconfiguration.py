@@ -202,7 +202,7 @@ def test_add_node_from_snapshot(
 @reqs.description("Adding as many pending nodes as current number of nodes")
 @reqs.supports_methods("log/private")
 def test_add_as_many_pending_nodes(network, args):
-    # Should not change the raft consensus rules (i.e. majority)
+    # Killing pending nodes should not change the raft consensus rules
     primary, _ = network.find_primary()
     number_new_nodes = len(network.nodes)
     LOG.info(
@@ -215,13 +215,14 @@ def test_add_as_many_pending_nodes(network, args):
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_nodes.append(new_node)
 
-    # Stop the retired nodes so they don't linger in the background and interfere
-    # with subsequent tests
     for new_node in new_nodes:
         new_node.stop()
 
+    # Even though pending nodes (half the number of nodes) are stopped,
+    # service can still make progress
     check_can_progress(primary)
 
+    # Cleanup killed pending nodes
     for new_node in new_nodes:
         network.retire_node(primary, new_node)
 

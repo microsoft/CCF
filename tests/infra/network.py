@@ -81,6 +81,7 @@ def get_common_folder_name(workspace, label):
 class UserInfo:
     local_id: int
     service_id: str
+    cert_path: str
 
 
 class Network:
@@ -421,8 +422,8 @@ class Network:
         self.consortium.activate(self.find_random_node())
 
         if args.js_app_bundle:
-            self.consortium.set_js_app(
-                remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
+            self.consortium.set_js_app_from_dir(
+                remote_node=self.find_random_node(), bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:
@@ -670,11 +671,10 @@ class Network:
             log_output=False,
         ).check_returncode()
 
-        with open(
-            os.path.join(self.common_dir, f"{local_user_id}_cert.pem"), encoding="utf-8"
-        ) as c:
+        cert_path = os.path.join(self.common_dir, f"{local_user_id}_cert.pem")
+        with open(cert_path, encoding="utf-8") as c:
             service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
-        new_user = UserInfo(local_user_id, service_user_id)
+        new_user = UserInfo(local_user_id, service_user_id, cert_path)
         if record:
             self.users.append(new_user)
 
