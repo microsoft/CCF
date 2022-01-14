@@ -281,7 +281,7 @@ void run_tests(
 }
 
 // Uses stub classes to test just indexing logic in isolation
-TEST_CASE("basic indexing")
+TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 {
   kv::Store kv_store;
 
@@ -419,7 +419,11 @@ aft::LedgerStubProxy* add_raft_consensus(
 }
 
 // Uses the real classes, to test their interaction with indexing
-TEST_CASE_TEMPLATE("integrated indexing", AA, IndexA, LazyIndexA)
+TEST_CASE_TEMPLATE(
+  "integrated indexing" * doctest::test_suite("indexing"),
+  AA,
+  IndexA,
+  LazyIndexA)
 {
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
