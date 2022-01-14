@@ -221,7 +221,7 @@ TEST_CASE("Add a node to an open service")
 
   ShareManager share_manager(network);
   StubNodeContext context;
-  context.get_node_state().set_is_public(true);
+  context.state.set_is_public(true);
   NodeRpcFrontend frontend(network, context);
   frontend.open();
 
