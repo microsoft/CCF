@@ -234,14 +234,19 @@ namespace ccf
     StubNodeState state = {};
     StubNodeStateCache cache = {};
 
-    ccf::historical::AbstractStateCache& get_historical_state()
+    ccf::historical::AbstractStateCache& get_historical_state() override
     {
       return cache;
     }
 
-    StubNodeState& get_node_state()
+    ccf::AbstractNodeState& get_node_state() override
     {
       return state;
+    }
+
+    ccf::indexing::IndexingStrategies& get_indexing_strategies() override
+    {
+      throw std::logic_error("Not implemented");
     }
   };
 
