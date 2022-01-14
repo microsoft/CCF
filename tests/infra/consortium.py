@@ -7,7 +7,6 @@ import http
 import json
 import random
 import re
-import uuid
 import infra.network
 import infra.proc
 import infra.checker
