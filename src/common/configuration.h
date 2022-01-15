@@ -77,7 +77,7 @@ struct CCFConfig
   struct LedgerSignatures
   {
     size_t tx_count = 5000;
-    ds::TimeString delay = std::string("1000ms");
+    ds::TimeString delay = {"1000ms"};
 
     bool operator==(const LedgerSignatures&) const = default;
   };
@@ -85,7 +85,7 @@ struct CCFConfig
 
   struct JWT
   {
-    ds::TimeString key_refresh_interval = std::string("30min");
+    ds::TimeString key_refresh_interval = {"30min"};
 
     bool operator==(const JWT&) const = default;
   };
@@ -142,7 +142,7 @@ struct StartupConfig : CCFConfig
   struct Join
   {
     ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-    ds::TimeString retry_timeout = std::string("1000ms");
+    ds::TimeString retry_timeout = {"1000ms"};
     std::vector<uint8_t> network_cert = {};
   };
   Join join = {};

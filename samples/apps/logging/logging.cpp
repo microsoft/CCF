@@ -10,6 +10,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
+#include "ccf/indexing/seqnos_by_key.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 // FIXME: The header below is used for a single check of the certificate and
@@ -35,6 +36,9 @@ namespace loggingapp
   // the _next_ write transaction to that key.
   using FirstWritesMap = kv::Map<size_t, ccf::SeqNo>;
   static constexpr auto FIRST_WRITES = "first_write_version";
+
+  using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
+    ccf::indexing::strategies::SeqnosByKey<RecordsMap>>;
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -137,6 +141,8 @@ namespace loggingapp
 
     metrics::Tracker metrics_tracker;
 
+    std::shared_ptr<RecordsIndexingStrategy> index_per_private_key = nullptr;
+
     static void update_first_write(kv::Tx& tx, size_t id)
     {
       auto first_writes = tx.rw<FirstWritesMap>("first_write_version");
@@ -160,6 +166,10 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      index_per_private_key =
+        std::make_shared<RecordsIndexingStrategy>(PRIVATE_RECORDS);
+      context.get_indexing_strategies().install_strategy(index_per_private_key);
+
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
@@ -1023,11 +1033,48 @@ namespace loggingapp
           return;
         }
 
+        const auto indexed_txid =
+          index_per_private_key->get_indexed_watermark();
+        if (indexed_txid.seqno < to_seqno)
+        {
+          index_per_private_key->extend_index_to(
+            {view_of_final_seqno, to_seqno});
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          ctx.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          ctx.rpc_ctx->set_response_body(fmt::format(
+            "Still constructing index for private records on key {} - indexed "
+            "to {}/{}",
+            id,
+            indexed_txid.seqno,
+            to_seqno));
+          return;
+        }
+
         // Set a maximum range, paginate larger requests
         static constexpr size_t max_seqno_per_page = 2000;
         const auto range_begin = from_seqno;
-        const auto range_end =
-          std::min(to_seqno, range_begin + max_seqno_per_page);
+
+        const auto interesting_seqnos =
+          index_per_private_key->get_write_txs_in_range(
+            id, range_begin, to_seqno, max_seqno_per_page);
+        if (!interesting_seqnos.has_value())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          ctx.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          ctx.rpc_ctx->set_response_body(fmt::format(
+            "Still constructing index for private records at {}", id));
+          return;
+        }
+
+        const auto range_end = interesting_seqnos->back();
 
         // Use hash of request as RequestHandle. WARNING: This means identical
         // requests from different users will collide, and overwrite each
@@ -1049,7 +1096,7 @@ namespace loggingapp
         auto& historical_cache = context.get_historical_state();
 
         auto stores =
-          historical_cache.get_store_range(handle, range_begin, range_end);
+          historical_cache.get_stores_for(handle, interesting_seqnos.value());
         if (stores.empty())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
@@ -1068,11 +1115,8 @@ namespace loggingapp
 
         // Process the fetched Stores
         LoggingGetHistoricalRange::Out response;
-        for (size_t i = 0; i < stores.size(); ++i)
+        for (auto& store : stores)
         {
-          const auto store_seqno = range_begin + i;
-          auto& store = stores[i];
-
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
             historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
@@ -1081,7 +1125,7 @@ namespace loggingapp
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
-            e.seqno = store_seqno;
+            e.seqno = store->current_txid().version;
             e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
@@ -1097,22 +1141,32 @@ namespace loggingapp
         if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
-          const auto next_page_end =
-            std::min(to_seqno, next_page_start + max_seqno_per_page);
+          const auto next_seqnos =
+            index_per_private_key->get_write_txs_in_range(
+              id, next_page_start, to_seqno, max_seqno_per_page);
+          if (next_seqnos.has_value() && !next_seqnos->empty())
+          {
+            const auto next_page_end = next_seqnos->back();
 
-          ccf::historical::RequestHandle next_page_handle =
-            make_handle(next_page_start, next_page_end, id);
-          historical_cache.get_store_range(
-            next_page_handle, next_page_start, next_page_end);
+            ccf::historical::RequestHandle next_page_handle =
+              make_handle(next_page_start, next_page_end, id);
+            historical_cache.get_store_range(
+              next_page_handle, next_page_start, next_page_end);
+          }
 
-          // NB: This path tells the caller to continue to ask until the end of
-          // the range, even if the next response is paginated
-          response.next_link = fmt::format(
-            "/app{}?from_seqno={}&to_seqno={}&id={}",
-            get_historical_range_path,
-            next_page_start,
-            to_seqno,
-            id);
+          // If we don't yet know the next seqnos, or know for sure there are
+          // some, then set a next_link
+          if (!next_seqnos.has_value() || !next_seqnos->empty())
+          {
+            // NB: This path tells the caller to continue to ask until the end
+            // of the range, even if the next response is paginated
+            response.next_link = fmt::format(
+              "/app{}?from_seqno={}&to_seqno={}&id={}",
+              get_historical_range_path,
+              next_page_start,
+              to_seqno,
+              id);
+          }
         }
 
         // Construct the HTTP response

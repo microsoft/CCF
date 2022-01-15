@@ -18,7 +18,9 @@ namespace ds
   public:
     template <class F, typename T>
     static size_t convert(
-      const std::string& input, std::map<std::string, T>& mapping, F&& f)
+      const std::string_view& input,
+      std::map<std::string_view, T>& mapping,
+      F&& f)
     {
       if (input.empty())
       {
@@ -72,9 +74,9 @@ namespace ds
     }
   };
 
-  static size_t convert_size_string(const std::string& input)
+  static size_t convert_size_string(const std::string_view& input)
   {
-    std::map<std::string, size_t> size_suffix_to_power = {
+    std::map<std::string_view, size_t> size_suffix_to_power = {
       {"b", 0}, {"kb", 1}, {"mb", 2}, {"gb", 3}, {"tb", 4}, {"pb", 5}};
 
     return UnitStringConverter::convert(
@@ -83,15 +85,15 @@ namespace ds
       });
   }
 
-  static size_t convert_time_string(const std::string& input)
+  static size_t convert_time_string(const std::string_view& input)
   {
-    std::map<std::string, std::pair<size_t, size_t>> size_suffix_to_power = {
-      {"", {1, 0}},
-      {"us", {1, 0}},
-      {"ms", {1, 3}},
-      {"s", {1, 6}},
-      {"min", {60, 6}},
-      {"h", {36, 8}}};
+    std::map<std::string_view, std::pair<size_t, size_t>> size_suffix_to_power =
+      {{"", {1, 0}},
+       {"us", {1, 0}},
+       {"ms", {1, 3}},
+       {"s", {1, 6}},
+       {"min", {60, 6}},
+       {"h", {36, 8}}};
 
     return UnitStringConverter::convert(
       input,
@@ -106,7 +108,7 @@ namespace ds
     std::string str;
 
     UnitString() = default;
-    UnitString(const std::string& str_) : str(str_) {}
+    UnitString(const std::string_view& str_) : str(str_) {}
 
     bool operator==(const UnitString&) const = default;
   };
@@ -121,7 +123,7 @@ namespace ds
     size_t value;
 
     SizeString() = default;
-    SizeString(const std::string& str_) :
+    SizeString(const std::string_view& str_) :
       UnitString(str_),
       value(convert_size_string(str_))
     {}
@@ -134,7 +136,7 @@ namespace ds
 
   inline void from_json(const nlohmann::json& j, SizeString& s)
   {
-    s = j.get<std::string>();
+    s = j.get<std::string_view>();
   }
 
   struct TimeString : UnitString
@@ -142,7 +144,7 @@ namespace ds
     std::chrono::microseconds value;
 
     TimeString() = default;
-    TimeString(const std::string& str_) :
+    TimeString(const std::string_view& str_) :
       UnitString(str_),
       value(convert_time_string(str_))
     {}
@@ -177,6 +179,6 @@ namespace ds
 
   inline void from_json(const nlohmann::json& j, TimeString& s)
   {
-    s = j.get<std::string>();
+    s = j.get<std::string_view>();
   }
 }
