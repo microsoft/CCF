@@ -669,8 +669,8 @@ class Consortium:
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_service_certificate_validity",
-            valid_from,
-            validity_period_days,
+            valid_from=valid_from,
+            validity_period_days=validity_period_days,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         r = self.vote_using_majority(remote_node, proposal, careful_vote)

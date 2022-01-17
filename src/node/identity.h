@@ -5,6 +5,7 @@
 #include "crypto/certs.h"
 #include "crypto/curve.h"
 #include "crypto/openssl/key_pair.h"
+#include "crypto/verifier.h"
 
 #include <openssl/crypto.h>
 #include <string>
@@ -33,9 +34,13 @@ namespace ccf
     NetworkIdentity() : type(IdentityType::REPLICATED) {}
     NetworkIdentity(IdentityType type) : type(type) {}
 
-    virtual void renew_certificate(
+    virtual crypto::Pem issue_certificate(
       const std::string& valid_from, size_t validity_period_days)
-    {}
+    {
+      return {};
+    }
+
+    virtual void set_certificate(const crypto::Pem& certificate) {}
 
     virtual ~NetworkIdentity() {}
   };
@@ -76,18 +81,23 @@ namespace ccf
       cert = other.cert;
     }
 
-    void renew_certificate(
+    virtual crypto::Pem issue_certificate(
       const std::string& valid_from, size_t validity_period_days) override
     {
       auto identity_key_pair =
         std::make_shared<crypto::KeyPair_OpenSSL>(priv_key);
 
-      cert = crypto::create_self_signed_cert(
+      return crypto::create_self_signed_cert(
         identity_key_pair,
         subject_name,
         {} /* SAN */,
         valid_from,
         validity_period_days);
+    }
+
+    virtual void set_certificate(const crypto::Pem& new_cert) override
+    {
+      cert = new_cert;
     }
 
     ~ReplicatedNetworkIdentity() override

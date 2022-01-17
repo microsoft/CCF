@@ -671,9 +671,10 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    network->identity->renew_certificate(valid_from, validity_period_days);
+    auto renewed_cert =
+      network->identity->issue_certificate(valid_from, validity_period_days);
 
-    return JS_NewString(ctx, network->identity->cert.str().c_str());
+    return JS_NewString(ctx, renewed_cert.str().c_str());
   }
 
   JSValue js_network_latest_ledger_secret_seqno(

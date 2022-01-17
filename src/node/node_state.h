@@ -1074,7 +1074,6 @@ namespace ccf
             "Could not commit transaction when finishing network recovery");
         }
       }
-      open_user_frontend();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
@@ -1240,10 +1239,7 @@ namespace ccf
         }
 
         GenesisGenerator g(network, tx);
-        if (g.open_service())
-        {
-          open_user_frontend();
-        }
+        g.open_service();
         return;
       }
       else
@@ -1823,8 +1819,20 @@ namespace ccf
               accept_network_tls_connections();
 
               open_frontend(ActorsType::members);
-              open_user_frontend();
             }
+          }));
+
+      network.tables->set_global_hook(
+        network.service.get_name(),
+        network.service.wrap_commit_hook(
+          [this](kv::Version hook_version, const Service::Write& w) {
+            if (!w.has_value())
+            {
+              throw std::logic_error("Unexpected deletion in service value");
+            }
+
+            network.identity->set_certificate(w->cert);
+            open_user_frontend();
           }));
     }
 
