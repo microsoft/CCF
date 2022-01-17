@@ -351,7 +351,7 @@ void create_csr_and_extract_pubk()
 }
 
 TEST_CASE("Extract public key from csr")
-{  
+{
   create_csr_and_extract_pubk<KeyPair_OpenSSL>();
 }
 
@@ -580,28 +580,5 @@ TEST_CASE("x509 time")
       auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
       REQUIRE(converted_time_t == adjusted_time_t);
     }
-  }
-}
-
-TEST_CASE("check equality of DER encodings")
-{
-  {
-    KeyPair_OpenSSL key_ossl(CurveID::SECP384R1);
-    auto der_ossl = key_ossl.public_key_der();
-    PublicKey_mbedTLS pub_mbed(der_ossl);
-    auto der_mbed = pub_mbed.public_key_der();
-    REQUIRE(der_ossl == der_mbed);
-    PublicKey_OpenSSL pub_ossl(pub_mbed.public_key_der());
-    REQUIRE(der_mbed == der_ossl);
-  }
-
-  {
-    KeyPair_mbedTLS key_mbed(CurveID::SECP384R1);
-    auto der_mbed = key_mbed.public_key_der();
-    PublicKey_OpenSSL pub_ossl(der_mbed);
-    auto der_ossl = pub_ossl.public_key_der();
-    REQUIRE(der_ossl == der_mbed);
-    PublicKey_mbedTLS pub_mbed(pub_ossl.public_key_der());
-    REQUIRE(der_mbed == der_ossl);
   }
 }

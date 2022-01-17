@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 
 #include "crypto/openssl/symmetric_key.h"
+
 #include "crypto/rsa_key_pair.h"
 #include "symmetric_key.h"
 
 namespace crypto
-{  
+{
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey)
   {
     return std::make_unique<KeyAesGcm_OpenSSL>(rawKey);

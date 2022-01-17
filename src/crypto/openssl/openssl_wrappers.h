@@ -130,6 +130,9 @@ namespace crypto
         Unique_SSL_OBJECT(
           BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
       {}
+      Unique_BIO(SSL_CTX* ctx) :
+        Unique_SSL_OBJECT(BIO_new_ssl_connect(ctx), [](auto x) { BIO_free(x); })
+      {}
     };
 
     struct Unique_SSL_CTX : public Unique_SSL_OBJECT<SSL_CTX, nullptr, nullptr>
@@ -176,18 +179,22 @@ namespace crypto
       : public Unique_SSL_OBJECT<X509_CRL, X509_CRL_new, X509_CRL_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_X509_CRL(BIO* mem) :
+        Unique_SSL_OBJECT(
+          PEM_read_bio_X509_CRL(mem, NULL, NULL, NULL), X509_CRL_free)
+      {}
     };
 
     struct Unique_X509 : public Unique_SSL_OBJECT<X509, X509_new, X509_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
       // p == nullptr is OK (e.g. wrong format)
-      Unique_X509(BIO* mem, bool pem) :
+      Unique_X509(BIO* mem, bool pem, bool check_null = false) :
         Unique_SSL_OBJECT(
           pem ? PEM_read_bio_X509(mem, NULL, NULL, NULL) :
                 d2i_X509_bio(mem, NULL),
           X509_free,
-          /*check_null=*/false)
+          check_null)
       {}
       Unique_X509(X509* cert, bool check_null) :
         Unique_SSL_OBJECT(cert, X509_free, check_null)

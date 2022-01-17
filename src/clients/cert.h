@@ -3,11 +3,12 @@
 #pragma once
 
 #include "ca.h"
-#include "crypto/mbedtls/error_string.h"
-#include "crypto/mbedtls/mbedtls_wrappers.h"
+#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/openssl_wrappers.h"
 
 #include <cstring>
 #include <memory>
+#include <openssl/x509.h>
 #include <optional>
 
 // This is a copy of src/tls/cert.h
@@ -16,6 +17,7 @@
 // come back here and refactor this too.
 
 using namespace crypto;
+using namespace crypto::OpenSSL;
 
 namespace client::tls
 {
@@ -29,12 +31,11 @@ namespace client::tls
   private:
     std::shared_ptr<TlsCA> peer_ca;
     std::optional<std::string> peer_hostname;
-
-    mbedtls::X509Crt own_cert = nullptr;
-    mbedtls::PKContext own_pkey = nullptr;
-    bool has_own_cert;
-
     TlsAuth auth;
+
+    Unique_X509 own_cert;
+    std::shared_ptr<KeyPair_OpenSSL> own_pkey;
+    bool has_own_cert = false;
 
   public:
     TlsCert(
@@ -46,40 +47,20 @@ namespace client::tls
       const std::optional<std::string>& peer_hostname_ = std::nullopt) :
       peer_ca(peer_ca_),
       peer_hostname(peer_hostname_),
-      has_own_cert(false),
       auth(tls_auth_)
     {
-      auto tmp_cert = mbedtls::make_unique<mbedtls::X509Crt>();
-      auto tmp_pkey = mbedtls::make_unique<mbedtls::PKContext>();
-
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
-        int rc = mbedtls_x509_crt_parse(
-          tmp_cert.get(), own_cert_->data(), own_cert_->size());
-
-        if (rc != 0)
-        {
-          throw std::logic_error(
-            "Could not parse certificate: " + error_string(rc));
-        }
-
-        rc = mbedtls_pk_parse_key(
-          tmp_pkey.get(), own_pkey_->data(), own_pkey_->size(), pw.p, pw.n);
-        if (rc != 0)
-        {
-          throw std::logic_error("Could not parse key: " + error_string(rc));
-        }
-
+        Unique_BIO certbio(*own_cert_);
+        own_cert = Unique_X509(certbio, true);
+        own_pkey = std::make_shared<KeyPair_OpenSSL>(*own_pkey_, pw);
         has_own_cert = true;
       }
-
-      own_cert = std::move(tmp_cert);
-      own_pkey = std::move(tmp_pkey);
     }
 
     ~TlsCert() {}
 
-    void use(mbedtls_ssl_context* ssl, mbedtls_ssl_config* cfg)
+    void use(SSL* ssl, SSL_CTX* ssl_ctx)
     {
       if (peer_hostname.has_value())
       {
@@ -88,28 +69,24 @@ namespace client::tls
         // certificates with IPAddress in SAN field (mbedtls does not parse
         // IPAddress in SAN field). This is OK since we check for peer CA
         // endorsement.
-        mbedtls_ssl_set_hostname(ssl, peer_hostname->c_str());
+        SSL_set1_host(ssl, peer_hostname->c_str());
       }
 
       if (peer_ca)
       {
-        peer_ca->use(cfg);
+        peer_ca->use(ssl_ctx);
       }
 
       if (auth != tls_auth_default)
       {
-        mbedtls_ssl_conf_authmode(cfg, authmode(auth));
+        SSL_CTX_set_verify(ssl_ctx, authmode(auth), NULL);
       }
 
       if (has_own_cert)
       {
-        mbedtls_ssl_conf_own_cert(cfg, own_cert.get(), own_pkey.get());
+        CHECK1(SSL_CTX_use_cert_and_key(ssl_ctx, own_cert, *own_pkey, NULL, 1));
+        CHECK1(SSL_use_cert_and_key(ssl, own_cert, *own_pkey, NULL, 1));
       }
-    }
-
-    const mbedtls_x509_crt* raw()
-    {
-      return own_cert.get();
     }
 
   private:
@@ -120,28 +97,17 @@ namespace client::tls
         case tls_auth_none:
         {
           // Peer certificate is not checked
-          return MBEDTLS_SSL_VERIFY_NONE;
+          return SSL_VERIFY_NONE;
         }
 
-        case tls_auth_optional:
-        {
-          // Peer certificate is checked but handshake continues even if
-          // verification fails
-          return MBEDTLS_SSL_VERIFY_OPTIONAL;
-        }
-
+        case tls_auth_optional: // Note: OpenSSL doesn't seem to support
+                                // mbedTLS's optional setting
         case tls_auth_required:
-        {
-          // Peer must present a valid certificate
-          return MBEDTLS_SSL_VERIFY_REQUIRED;
-        }
-
         default:
         {
+          return SSL_VERIFY_PEER;
         }
       }
-
-      return MBEDTLS_SSL_VERIFY_REQUIRED;
     }
   };
 }

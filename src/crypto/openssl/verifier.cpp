@@ -158,8 +158,9 @@ namespace crypto
       to_x509_time_string(X509_get0_notAfter(cert)));
   }
 
-  std::string Verifier_OpenSSL::subject() const {
-    X509_NAME *name = X509_get_subject_name(cert);
+  std::string Verifier_OpenSSL::subject() const
+  {
+    X509_NAME* name = X509_get_subject_name(cert);
     Unique_BIO mem;
     X509_NAME_print_ex(mem, name, 0, 0);
     BUF_MEM* bptr;

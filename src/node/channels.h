@@ -699,7 +699,7 @@ namespace ccf
 
     void establish()
     {
-      auto shared_secret = kex_ctx.compute_shared_secret();      
+      auto shared_secret = kex_ctx.compute_shared_secret();
 
       {
         const std::string label_from = peer_id.value() + self.value();

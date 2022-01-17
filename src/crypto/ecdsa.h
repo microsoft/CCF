@@ -12,7 +12,7 @@ namespace crypto
 {
   // Emulating from mbedtls/ecp.h
   // Used in raft_types.h
-  // FIXME: Can we grow the array at use time?
+  // Renato: Can we grow the array at use time?
   constexpr size_t ECP_MAX_BITS = 521;
   constexpr size_t ECP_MAX_BYTES = (ECP_MAX_BITS + 7) / 8;
   constexpr size_t ECDSA_MAX_LEN = (3 + 2 * (3 + ECP_MAX_BYTES));

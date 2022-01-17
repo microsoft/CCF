@@ -69,8 +69,6 @@ namespace enclave
     {
       execution_thread =
         threading::ThreadMessaging::get_execution_thread(session_id);
-      // The functions we pass are different so this can only be done
-      // with an ifdef. Remove once we get rid of mbedTLS.
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl, nullptr);
     }
 

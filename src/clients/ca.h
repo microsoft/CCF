@@ -2,17 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// #include "crypto/mbedtls/error_string.h"
-// #include "crypto/mbedtls/mbedtls_wrappers.h"
+#include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/pem.h"
 #include "ds/buffer.h"
 
 #include <exception>
 
-// This is a copy of src/tls/ca.h
-// Moving tls to OpenSSL means this different client implementation needs
-// to be isolated while we change tls_endpoint. Once that's done, we can
-// come back here and refactor this too.
+using namespace crypto;
+using namespace crypto::OpenSSL;
 
 namespace client::tls
 {
@@ -27,44 +24,41 @@ namespace client::tls
   class TlsCA
   {
   private:
-    // crypto::mbedtls::X509Crt ca = nullptr;
-    // crypto::mbedtls::X509Crl crl = nullptr;
+    Unique_X509 ca;
+    Unique_X509_CRL crl;
 
   public:
     TlsCA(CBuffer ca_ = nullb, CBuffer crl_ = nullb)
     {
-      // auto tmp_ca = crypto::mbedtls::make_unique<crypto::mbedtls::X509Crt>();
-      // auto tmp_crl = crypto::mbedtls::make_unique<crypto::mbedtls::X509Crl>();
+      if (ca_.n > 0)
+      {
+        Unique_BIO bio(ca_.p, ca_.n);
+        if (!(ca = Unique_X509(bio, true)))
+        {
+          throw std::logic_error(
+            "Could not parse TlsCA: " + error_string(ERR_get_error()));
+        }
+      }
 
-      // if (ca_.n > 0)
-      // {
-      //   crypto::Pem pem_ca(ca_);
-      //   auto ret =
-      //     mbedtls_x509_crt_parse(tmp_ca.get(), pem_ca.data(), pem_ca.size());
-      //   if (ret != 0)
-      //     throw std::logic_error(
-      //       "Could not parse TlsCA: " + crypto::error_string(ret));
-      // }
-
-      // if (crl_.n > 0)
-      // {
-      //   crypto::Pem pem_crl(crl_);
-      //   auto ret =
-      //     mbedtls_x509_crl_parse(tmp_crl.get(), pem_crl.data(), pem_crl.size());
-      //   if (ret != 0)
-      //     throw std::logic_error(
-      //       "Could not parse CRL: " + crypto::error_string(ret));
-      // }
-
-      // ca = std::move(tmp_ca);
-      // crl = std::move(tmp_crl);
+      if (crl_.n > 0)
+      {
+        Unique_BIO bio(ca_.p, ca_.n);
+        if (!(crl = Unique_X509_CRL(bio)))
+        {
+          throw std::logic_error(
+            "Could not parse CRL: " + error_string(ERR_get_error()));
+        }
+      }
     }
 
     ~TlsCA() {}
 
-    // void use(mbedtls_ssl_config* cfg)
-    // {
-    //   mbedtls_ssl_conf_ca_chain(cfg, ca.get(), crl.get());
-    // }
+    void use(SSL_CTX* ssl_ctx)
+    {
+      X509_STORE* store = X509_STORE_new();
+      CHECK1(X509_STORE_add_cert(store, ca));
+      CHECK1(X509_STORE_add_crl(store, crl));
+      SSL_CTX_set_cert_store(ssl_ctx, store);
+    }
   };
 }

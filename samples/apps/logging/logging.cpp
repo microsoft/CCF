@@ -435,21 +435,24 @@ namespace loggingapp
             "Cannot record an empty log message");
           return;
         }
-        
+
         std::shared_ptr<Verifier> verifier;
-        try {
+        try
+        {
           const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
           verifier = make_verifier(cert_data);
         }
-        catch (const std::exception &ex) {
+        catch (const std::exception& ex)
+        {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Cannot parse x509 caller certificate");
           return;
-        }        
+        }
 
-        const auto log_line = fmt::format("{}: {}", verifier->subject(), in.msg);
+        const auto log_line =
+          fmt::format("{}: {}", verifier->subject(), in.msg);
         auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
         update_first_write(ctx.tx, in.id);

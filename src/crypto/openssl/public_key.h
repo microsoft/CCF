@@ -51,6 +51,11 @@ namespace crypto
 
     int get_openssl_group_id() const;
     static int get_openssl_group_id(CurveID gid);
+
+    operator EVP_PKEY*() const
+    {
+      return key;
+    }
   };
 
   OpenSSL::Unique_PKEY key_from_raw_ec_point(

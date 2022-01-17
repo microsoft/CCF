@@ -35,7 +35,7 @@ namespace crypto
 
     virtual std::pair<std::string, std::string> validity_period()
       const override;
-      
+
     virtual std::string subject() const override;
   };
 }

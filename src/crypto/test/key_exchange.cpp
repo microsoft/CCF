@@ -3,6 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "crypto/key_exchange.h"
+
 #include "crypto/openssl/key_pair.h"
 
 #include <doctest/doctest.h>
