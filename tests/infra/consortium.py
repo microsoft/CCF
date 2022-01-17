@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import os
-import time
 import http
 import json
 import random
@@ -13,7 +12,6 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
-from ccf.ledger import NodeStatus
 import ccf.ledger
 from infra.proposal import ProposalState
 import shutil

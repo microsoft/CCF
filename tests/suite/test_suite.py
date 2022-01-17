@@ -100,7 +100,7 @@ all_tests_suite = [
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_retire_backup,
     reconfiguration.test_node_certificates_validity_period,
-    reconfiguration.test_retire_primary,  # TODO: Added, check if it still works
+    reconfiguration.test_retire_primary,
     # recovery:
     recovery.test,
     # rekey:

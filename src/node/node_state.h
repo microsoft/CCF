@@ -30,7 +30,6 @@
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
-#include "retired_nodes_cleanup.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"

@@ -117,7 +117,7 @@ def test_new_service(
         LOG.error(nodes)
 
     # TODO: Check that all nodes are eventually removed from the store!
-    # TODO: retire primary, retire backup
+    # Waiting on https://github.com/microsoft/CCF/pull/3412 and 1.x release
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)

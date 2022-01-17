@@ -562,8 +562,6 @@ def run(args):
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
 
-    # TODO: When the test is stopped, make sure we can read all ledgers!
-
 
 def run_join_old_snapshot(args):
     txs = app.LoggingTxs("user0")
