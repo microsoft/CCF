@@ -669,8 +669,9 @@ namespace aft
       }
 
       LOG_DEBUG_FMT(
-        "Configurations: have {} ORCs out of {} for configuration #{}",
+        "Configurations: have {} ORCs out of {}/{} for configuration #{}",
         oit->second.size(),
+        get_quorum(ncnodes.size()),
         ncnodes.size(),
         rid);
 

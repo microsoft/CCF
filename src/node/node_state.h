@@ -1221,16 +1221,14 @@ namespace ccf
       // - Backup: mark as retiring
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
-        // TODO: This doesn't seem right for pending nodes. Should they be
-        // removed straight away too?
+        // Pending nodes can be removed straight away as they are not part of
+        // consensus.
         if (node_info->status == NodeStatus::PENDING)
         {
-          LOG_FAIL_FMT("2tx pending");
           nodes->remove(node_id);
         }
         else
         {
-          LOG_FAIL_FMT("2tx other");
           node_info->status = NodeStatus::RETIRING;
           nodes->put(node_id, node_info.value());
         }
@@ -1253,8 +1251,6 @@ namespace ccf
         }
       }
 
-      // TODO: Remove this check
-      // TODO: Is this always called?
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
       {
         auto network_configurations = tx.rw(network.network_configurations);

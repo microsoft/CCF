@@ -39,7 +39,7 @@ def count_nodes(configs, network):
     return len(nodes)
 
 
-def wait_for_reconfiguration_to_complete(network, timeout=10):  # TODO: Revert
+def wait_for_reconfiguration_to_complete(network, timeout=10):
     max_num_configs = 0
     max_rid = 0
     all_same_rid = False
@@ -53,7 +53,6 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):  # TODO: Revert
                     r = c.get("/node/consensus")
                     rj = r.body.json()
                     cfgs = rj["details"]["configs"]
-                    LOG.error(cfgs)
                     num_configs = len(cfgs)
                     max_num_configs = max(max_num_configs, num_configs)
                     if num_configs == 1 and cfgs[0]["rid"] != max_rid:
@@ -368,7 +367,7 @@ def test_join_straddling_primary_replacement(network, args):
     primary, _ = network.find_primary()
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args)
-    LOG.error(f"New pending node {new_node.node_id}")
+    network.trust_node(new_node, args)
     proposal_body = {
         "actions": [
             {
@@ -402,7 +401,7 @@ def test_join_straddling_primary_replacement(network, args):
 
     primary.stop()
     network.nodes.remove(primary)
-    # wait_for_reconfiguration_to_complete(network)
+    wait_for_reconfiguration_to_complete(network)
     return network
 
 
@@ -741,21 +740,21 @@ if __name__ == "__main__":
         reconfiguration_type="OneTransaction",
     )
 
-    # if cr.args.include_2tx_reconfig:
-    #     cr.add(
-    #         "2tx_reconfig",
-    #         run,
-    #         package="samples/apps/logging/liblogging",
-    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #         reconfiguration_type="TwoTransaction",
-    #     )
+    if cr.args.include_2tx_reconfig:
+        cr.add(
+            "2tx_reconfig",
+            run,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="TwoTransaction",
+        )
 
-    # cr.add(
-    #     "migration",
-    #     run_migration_tests,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     reconfiguration_type="OneTransaction",
-    # )
+    cr.add(
+        "migration",
+        run_migration_tests,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        reconfiguration_type="OneTransaction",
+    )
 
     cr.run()
