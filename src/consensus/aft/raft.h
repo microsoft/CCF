@@ -897,16 +897,8 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
-      {
-        std::unique_lock<std::mutex> guard(state->lock);
-        timeout_elapsed += elapsed;
-      }
-      do_periodic();
-    }
-
-    void do_periodic()
-    {
       std::unique_lock<std::mutex> guard(state->lock);
+      timeout_elapsed += elapsed;
 
       if (leadership_state == kv::LeadershipState::Leader)
       {
@@ -1350,8 +1342,10 @@ namespace aft
           start_ticking_if_necessary();
         }
 
+        const auto& entry = ds->get_entry();
+
         ledger->put_entry(
-          ds->get_entry(),
+          entry,
           globally_committable,
           force_ledger_chunk,
           ds->get_term(),
@@ -2378,6 +2372,7 @@ namespace aft
 
       snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
+
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;

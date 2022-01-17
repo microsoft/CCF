@@ -141,6 +141,7 @@ def run(get_command, args):
                 remote_client.start()
 
             hard_stop_timeout = 90
+            format_width = len(str(hard_stop_timeout)) + 3
 
             try:
                 with cimetrics.upload.metrics(complete=False) as metrics:
@@ -152,7 +153,7 @@ def run(get_command, args):
                             done = remote_client.check_done()
                             # all the clients need to be done
                             LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:.2f}s / {hard_stop_timeout}s)"
+                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
                             )
                             stop_waiting = stop_waiting and done
                         if stop_waiting:
