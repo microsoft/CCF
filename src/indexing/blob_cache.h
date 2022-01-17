@@ -15,11 +15,27 @@
 // TODO: Settle on a name, move these files under indexing?
 using BlobContents = std::vector<uint8_t>;
 
+struct CacheFetchResult
+{
+  enum
+  {
+    Fetching,
+    Loaded,
+    NotFound,
+    Corrupt,
+  } fetch_result;
+
+  std::vector<uint8_t> contents;
+};
+
+using CacheFetchResultPtr = std::shared_ptr<CacheFetchResult>;
+
 class BlobCache
 {
 protected:
-  std::unordered_map<BlobKey, BlobContents> fetched;
-  std::set<BlobKey> fetching;
+  using PendingResult = std::weak_ptr<CacheFetchResult>;
+
+  std::unordered_map<BlobKey, PendingResult> pending;
 
   ringbuffer::WriterPtr to_host;
 
@@ -45,11 +61,13 @@ protected:
     return gcm.serialise();
   }
 
-  std::optional<BlobContents> verify_and_decrypt(
-    const BlobKey& key, EncryptedBlob&& encrypted_blob)
+  bool verify_and_decrypt(
+    const BlobKey& key,
+    EncryptedBlob&& encrypted,
+    std::vector<uint8_t>& plaintext)
   {
     crypto::GcmCipher gcm;
-    gcm.deserialise(encrypted_blob);
+    gcm.deserialise(encrypted);
 
     const CBuffer given_iv = gcm.hdr.get_iv();
     const auto expected_iv = get_iv(key);
@@ -58,24 +76,25 @@ protected:
       (memcmp(given_iv.p, expected_iv.data(), given_iv.n) != 0))
     {
       LOG_TRACE_FMT(
-        "IV mismatch {:02x} != {:02x}",
+        "IV mismatch for {}: {:02x} != {:02x}",
+        key,
         fmt::join(given_iv.p, given_iv.p + given_iv.n, " "),
         fmt::join(get_iv(key), " "));
-      return std::nullopt;
+      return false;
     }
 
-    std::vector<uint8_t> blob(gcm.cipher.size());
-
+    plaintext.resize(gcm.cipher.size());
     const auto success = encryption_key->decrypt(
-      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, nullb, blob.data());
+      gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, nullb, plaintext.data());
 
     if (success)
     {
-      return std::move(blob);
+      return true;
     }
     else
     {
-      return std::nullopt;
+      LOG_TRACE_FMT("Decryption failed for {}", key);
+      return false;
     }
   }
 
@@ -97,19 +116,41 @@ public:
       [this](const uint8_t* data, size_t size) {
         auto [key, encrypted_blob] =
           ringbuffer::read_message<CacheMessage::response_blob>(data, size);
-        auto it = fetching.find(key);
-        if (it != fetching.end())
+        auto it = pending.find(key);
+        if (it != pending.end())
         {
-          auto decrypted = verify_and_decrypt(key, std::move(encrypted_blob));
-          if (decrypted.has_value())
+          auto result = it->second.lock();
+          if (result != nullptr)
           {
-            fetched.emplace(key, decrypted.value());
+            if (result->fetch_result == CacheFetchResult::Fetching)
+            {
+              const auto success = verify_and_decrypt(
+                key, std::move(encrypted_blob), result->contents);
+              if (success)
+              {
+                result->fetch_result = CacheFetchResult::Loaded;
+              }
+              else
+              {
+                result->fetch_result = CacheFetchResult::Corrupt;
+                LOG_TRACE_FMT("Cache was given invalid blob for {}", key);
+              }
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Retained result for {} in state {}",
+                key,
+                result->fetch_result);
+            }
           }
           else
           {
-            LOG_FAIL_FMT("Cache was given invalid blob for {}", key);
+            LOG_TRACE_FMT(
+              "Received response_blob for {}, but caller has already dropped "
+              "result");
           }
-          fetching.erase(it);
+          pending.erase(it);
         }
         else
         {
@@ -124,12 +165,32 @@ public:
       [this](const uint8_t* data, size_t size) {
         auto [key] =
           ringbuffer::read_message<CacheMessage::no_blob>(data, size);
-        auto it = fetching.find(key);
-        if (it != fetching.end())
+        auto it = pending.find(key);
+        if (it != pending.end())
         {
-          // TODO: Record this claim of no blob somewhere
-          LOG_INFO_FMT("Host claims to have no blob for key {}", key);
-          fetching.erase(it);
+          auto result = it->second.lock();
+          if (result != nullptr)
+          {
+            if (result->fetch_result == CacheFetchResult::Fetching)
+            {
+              result->fetch_result = CacheFetchResult::NotFound;
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Retained result for {} in state {}",
+                key,
+                result->fetch_result);
+            }
+          }
+          else
+          {
+            LOG_TRACE_FMT(
+              "Received response_blob for {}, but caller has already dropped "
+              "result");
+          }
+          LOG_TRACE_FMT("Host has no blob for key {}", key);
+          pending.erase(it);
         }
         else
         {
@@ -149,25 +210,14 @@ public:
 
   // TODO: How do we distinguish blobs that are being fetched, from blobs that
   // we've been told don't exist?
-  std::optional<BlobContents> load(const BlobKey& key)
+  void fetch(const BlobKey& key, const CacheFetchResultPtr& result)
   {
-    auto it = fetched.find(key);
-    if (it != fetched.end())
+    auto it = pending.find(key);
+    if (it == pending.end())
     {
-      return it->second;
-    }
-    else
-    {
-      fetching.insert(key);
+      result->fetch_result = CacheFetchResult::Fetching;
+      pending.emplace(key, result);
       RINGBUFFER_WRITE_MESSAGE(CacheMessage::get_blob, to_host, key);
-      return std::nullopt;
     }
-  }
-
-  // TODO: Maybe only needed for testing? But we need some kind of caching limit
-  // on what we store in fetched
-  void clear()
-  {
-    fetched.clear();
   }
 };

@@ -120,33 +120,28 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
   REQUIRE(2 == host_bp.read_all(outbound_reader));
 
   {
-    INFO("Load one entry");
-    REQUIRE_FALSE(bc.load(key_a).has_value());
+    INFO("Load entries");
+    auto result_a = std::make_shared<CacheFetchResult>();
+    auto result_b = std::make_shared<CacheFetchResult>();
 
-    REQUIRE(1 == host_bp.read_all(outbound_reader));
-    REQUIRE(1 == enclave_bp.read_all(inbound_reader));
+    REQUIRE(result_a->fetch_result == CacheFetchResult::Fetching);
+    REQUIRE(result_b->fetch_result == CacheFetchResult::Fetching);
 
-    const auto loaded_a = bc.load(key_a);
-    REQUIRE(loaded_a.has_value());
-    REQUIRE(*loaded_a == blob_a);
+    bc.fetch(key_a, result_a);
+    REQUIRE(result_a->fetch_result == CacheFetchResult::Fetching);
 
-    // Can it be requested multiple times, or has it been aggressively deleted?
-    REQUIRE(bc.load(key_a).has_value());
+    bc.fetch(key_b, result_b);
+    REQUIRE(result_b->fetch_result == CacheFetchResult::Fetching);
+
+    host_bp.read_all(outbound_reader);
+    enclave_bp.read_all(inbound_reader);
+
+    REQUIRE(result_a->fetch_result == CacheFetchResult::Loaded);
+    REQUIRE(result_a->contents == blob_a);
+
+    REQUIRE(result_b->fetch_result == CacheFetchResult::Loaded);
+    REQUIRE(result_b->contents == blob_b);
   }
-
-  {
-    INFO("Load another entry");
-    REQUIRE_FALSE(bc.load(key_b).has_value());
-
-    REQUIRE(1 == host_bp.read_all(outbound_reader));
-    REQUIRE(1 == enclave_bp.read_all(inbound_reader));
-
-    const auto loaded_b = bc.load(key_b);
-    REQUIRE(loaded_b.has_value());
-    REQUIRE(*loaded_b == blob_b);
-  }
-
-  bc.clear();
 
   {
     INFO("Host cache provides wrong file");
@@ -155,12 +150,14 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
       hc.root_dir / key_a,
       std::filesystem::copy_options::overwrite_existing));
 
-    REQUIRE_FALSE(bc.load(key_a).has_value());
+    auto result = std::make_shared<CacheFetchResult>();
+    bc.fetch(key_a, result);
 
-    REQUIRE(1 == host_bp.read_all(outbound_reader));
-    REQUIRE(1 == enclave_bp.read_all(inbound_reader));
+    host_bp.read_all(outbound_reader);
+    enclave_bp.read_all(inbound_reader);
 
-    REQUIRE_FALSE(bc.load(key_a).has_value());
+    REQUIRE(result->fetch_result == CacheFetchResult::Corrupt);
+    REQUIRE(result->contents != blob_a);
   }
 
   {
@@ -172,12 +169,14 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
     {
       write_file_corrupted_at(b_path, i, original_b_contents);
 
-      REQUIRE_FALSE(bc.load(key_b).has_value());
+      auto result = std::make_shared<CacheFetchResult>();
+      bc.fetch(key_b, result);
 
-      REQUIRE(1 <= host_bp.read_all(outbound_reader));
-      REQUIRE(1 <= enclave_bp.read_all(inbound_reader));
+      host_bp.read_all(outbound_reader);
+      enclave_bp.read_all(inbound_reader);
 
-      REQUIRE_FALSE(bc.load(key_b).has_value());
+      REQUIRE(result->fetch_result == CacheFetchResult::Corrupt);
+      REQUIRE(result->contents != blob_b);
     }
   }
 }
