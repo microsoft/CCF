@@ -53,6 +53,7 @@ Hope your day's going well. :)
 </script>
 
 {% if versions %}
+<label for="versions">Select Version:</label>
 <select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
     {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
     <option value="{{ item.url }}">{{ item.name }} </option>
