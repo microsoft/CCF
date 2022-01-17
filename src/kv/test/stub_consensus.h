@@ -174,11 +174,6 @@ namespace kv::test
       return false;
     }
 
-    std::set<NodeId> active_nodes() override
-    {
-      return {PrimaryNodeId};
-    }
-
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);
