@@ -124,8 +124,7 @@ namespace aft
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
 
-    // Used to automatically remove retired nodes from ledger when becoming
-    // primary
+    // Used to remove retired nodes from store
     std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
 
     // Index at which this node observes its retirement
@@ -2224,7 +2223,7 @@ namespace aft
           backup_nodes.clear();
           changed = true;
 
-          if (retired_node_cleanup)
+          if (retired_node_cleanup && is_primary())
           {
             retired_node_cleanup->cleanup();
           }
@@ -2286,7 +2285,7 @@ namespace aft
               }
             }
 
-            if (retired_node_cleanup)
+            if (retired_node_cleanup && is_primary())
             {
               retired_node_cleanup->cleanup();
             }
