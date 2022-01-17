@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "verifier.h"
+
 #include "crypto/openssl/verifier.h"
 
 namespace crypto
