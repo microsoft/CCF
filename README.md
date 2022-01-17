@@ -17,7 +17,7 @@ and performant applications that focus on multi-party compute and data.
 ## Get Started with CCF
 
 - [Install](https://microsoft.github.io/CCF/main/build_apps/install_bin.html) CCF on Linux
-- Read a [short overview of CCF](https://microsoft.github.io/CCF/main/overview/concepts.html) and get familiar with CCF's core concepts
+- Read a [short overview of CCF](https://microsoft.github.io/CCF/main/overview/what_is_ccf.html) and get familiar with CCF's core concepts
 - [Build new CCF applications](https://microsoft.github.io/CCF/main/build_apps/index.html) in TypeScript/JavaScript or C++
 - [Contribute](https://microsoft.github.io/CCF/main/contribute) to this repository, following the [contribution guidelines](.github/CONTRIBUTING.md)
 - Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=)

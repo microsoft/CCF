@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - The `ccf` Python package no longer provides utilities to issue requests to a running CCF service. This is because CCF supports widely-used client-server protocols (TLS, HTTP) that should already be provided by libraries for all programming languages. The `ccf` Python package can still be used to audit the ledger and snapshot files (#3386).
+- The `proposal_generator` has been removed from the `ccf` Python package. The majority of proposals can be trivially constructed in existing client tooling, without needing to invoke Python. This also introduces parity between the default constitution and custom constitution actions - all should be constructed and called from the same governance client code. Some jinja templates are included in `samples/templates` for constructing careful ballots from existing proposals.
 
 ## [2.0.0-dev8]
 
@@ -215,7 +216,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 The Confidential Consortium Framework CCF is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
 
-This is the first long term support release for CCF. The 1.0 branch will only receive security and critical bug fixes, please see our [release policy](https://microsoft.github.io/CCF/main/overview/release_policy.html) for more detail.
+This is the first long term support release for CCF. The 1.0 branch will only receive security and critical bug fixes, please see our [release policy](https://microsoft.github.io/CCF/main/build_apps/release_policy.html) for more detail.
 
 Active development will continue on the `main` branch, and regular development snapshots including new features will continue to be published.
 
@@ -256,7 +257,7 @@ Browse our [documentation](https://microsoft.github.io/CCF/main/index.html) to g
 
 ### Changed
 
-- The default constitution no longer contains `set_service_principal` or `remove_service_principal` since they are not used by the core framework. Instead any apps which wish to use these tables should add them to their own constitution. A [sample implementation](https://github.com/microsoft/CCF/tree/main/src/runtime_config/test/service_principals/actions.js) is available, and used in the CI tests.
+- The default constitution no longer contains `set_service_principal` or `remove_service_principal` since they are not used by the core framework. Instead any apps which wish to use these tables should add them to their own constitution. A [sample implementation](https://github.com/microsoft/CCF/tree/main/samples/constitutions/test/service_principals/actions.js) is available, and used in the CI tests.
 - Proposal status now includes a `final_votes` and `vote_failures` map, recording the outcome of each vote per member. `failure_reason` and `failure_trace` have been consolidated into a single `failure` object, which is also used for `vote_failures`.
 
 ## [0.99.1]

@@ -11,6 +11,7 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
+import jinja2
 import requests
 import infra.crypto
 from datetime import datetime
@@ -105,7 +106,7 @@ def test_user(network, args, verify=True):
     # Note: This test should not be chained in the test suite as it creates
     # a new user and uses its own LoggingTxs
     primary, _ = network.find_nodes()
-    new_user_local_id = f"user{3}"
+    new_user_local_id = "user3"
     new_user = network.create_user(new_user_local_id, args.participants_curve)
     user_data = {"lifetime": "temporary"}
     network.consortium.add_user(primary, new_user.local_id, user_data)
@@ -120,6 +121,50 @@ def test_user(network, args, verify=True):
     with primary.client(new_user_local_id) as c:
         r = c.get("/app/log/private")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+    return network
+
+
+@reqs.description("Validate sample Jinja templates")
+@reqs.supports_methods("log/private")
+def test_jinja_templates(network, args, verify=True):
+    primary, _ = network.find_primary()
+
+    new_user_local_id = "bob"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+
+    with primary.client(new_user_local_id) as c:
+        r = c.post("/app/log/private", {"id": 42, "msg": "New user test"})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+
+    template_loader = jinja2.ChoiceLoader(
+        [
+            jinja2.FileSystemLoader(args.jinja_templates_path),
+            jinja2.FileSystemLoader(os.path.dirname(new_user.cert_path)),
+        ]
+    )
+    template_env = jinja2.Environment(
+        loader=template_loader, undefined=jinja2.StrictUndefined
+    )
+
+    proposal_template = template_env.get_template("set_user_proposal.json.jinja")
+    proposal_body = proposal_template.render(cert=os.path.basename(new_user.cert_path))
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+
+    ballot_template = template_env.get_template("ballot.json.jinja")
+    ballot_body = ballot_template.render(**json.loads(proposal_body))
+    network.consortium.vote_using_majority(primary, proposal, ballot_body)
+
+    with primary.client(new_user_local_id) as c:
+        r = c.post("/app/log/private", {"id": 42, "msg": "New user test"})
+        assert r.status_code == http.HTTPStatus.OK.value
+
+    network.consortium.remove_user(primary, new_user.service_id)
+    with primary.client(new_user_local_id) as c:
+        r = c.get("/app/log/private")
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+
     return network
 
 
@@ -245,6 +290,8 @@ def test_each_node_cert_renewal(network, args):
                         or args.maximum_node_certificate_validity_days,
                     )
                 except Exception as e:
+                    if expected_exception is None:
+                        raise e
                     assert isinstance(e, expected_exception)
                     continue
                 else:
@@ -346,6 +393,7 @@ def gov(args):
         test_member_data(network, args)
         test_quote(network, args)
         test_user(network, args)
+        test_jinja_templates(network, args)
         test_no_quote(network, args)
         test_ack_state_digest_update(network, args)
         test_invalid_client_signature(network, args)
@@ -374,7 +422,15 @@ def js_gov(args):
 
 
 if __name__ == "__main__":
-    cr = ConcurrentRunner()
+
+    def add(parser):
+        parser.add_argument(
+            "--jinja-templates-path",
+            help="Path to directory containing sample Jinja templates",
+            required=True,
+        )
+
+    cr = ConcurrentRunner(add)
 
     cr.add(
         "session_auth",

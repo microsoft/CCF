@@ -1,1 +1,1 @@
-../../src/runtime_config/default/apply.js
+../../samples/constitutions/default/apply.js

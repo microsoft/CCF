@@ -15,7 +15,7 @@ Reasons for running the code upgrade procedure include:
     - Note that there is no need to run the code upgrade procedure detailed on this page if `only` the JavaScript/TypeScript application needs updating (see :ref:`JavaScript/TypeScript bundle deployment procedure <build_apps/js_app_bundle:Deployment>`).
     - If more than a majority of nodes have failed, the disaster recovery procedure should be run by operators instead (see :doc:`/operations/recovery`).
 
-.. note:: CCF guarantees specific live compatibility across different LTS versions. See :ref:`overview/release_policy:Operations compatibility` for more details.
+.. note:: CCF guarantees specific live compatibility across different LTS versions. See :ref:`build_apps/release_policy:Operations compatibility` for more details.
 
 Procedure
 ---------

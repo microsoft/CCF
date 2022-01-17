@@ -81,7 +81,7 @@ master_doc = "index"
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -337,7 +337,7 @@ def config_inited(app, config):
             check=True,
         )
         subprocess.run(
-            ["npm", "install", "colors@1.4.0"],
+            ["npm", "install", "--save-exact", "colors@1.4.0"],
             cwd=js_pkg_dir,
             check=True,
         )

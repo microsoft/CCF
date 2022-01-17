@@ -1,1 +1,1 @@
-../../src/runtime_config/sandbox/resolve.js
+../../samples/constitutions/default/resolve.js

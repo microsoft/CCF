@@ -31,8 +31,8 @@ namespace crypto
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(const std::vector<uint8_t>& der)
   {
-    const unsigned char* pp = der.data();
-    key = d2i_PublicKey(EVP_PKEY_EC, &key, &pp, der.size());
+    Unique_BIO buf(der);
+    key = d2i_PUBKEY_bio(buf, &key);
     if (!key)
     {
       throw new std::runtime_error("Could not read DER");

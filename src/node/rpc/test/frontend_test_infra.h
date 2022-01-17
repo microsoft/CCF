@@ -46,15 +46,6 @@ auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 constexpr auto default_pack = serdes::Pack::Text;
 
-string get_script_path(string name)
-{
-  auto default_dir = "../src/runtime_config";
-  auto dir = getenv("RUNTIME_CONFIG_DIR");
-  stringstream ss;
-  ss << (dir ? dir : default_dir) << "/" << name;
-  return ss.str();
-}
-
 template <typename T>
 T parse_response_body(const TResponse& r)
 {

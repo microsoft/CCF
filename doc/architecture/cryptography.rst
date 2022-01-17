@@ -4,7 +4,7 @@ Cryptography
 Keys
 ----
 
-.. tip:: See the :ref:`overview/cryptography:Summary Diagrams` for a detailed overview of the relationships between cryptographic keys in CCF.
+.. tip:: See the :ref:`architecture/cryptography:Summary Diagrams` for a detailed overview of the relationships between cryptographic keys in CCF.
 
 Service
 ~~~~~~~
@@ -47,7 +47,7 @@ Summary Diagrams
 Identity Keys and Certificates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The following diagram describes the relationships between identity keys of the service/network and nodes. The shared service identity (``Service Identity Certificate``) is the root of trust for the service and is assumed to be trusted by users who can connect to the service over TLS as well as verify the integrity of :ref:`transaction receipts <use_apps/verify_tx:Transaction Receipts>`.
+The following diagram describes the relationships between identity keys of the service/network and nodes. The shared service identity (``Service Identity Certificate``) is the root of trust for the service and is assumed to be trusted by users who can connect to the service over TLS as well as verify the integrity of :ref:`transaction receipts <audit/receipts:Receipts>`.
 
 The primary node periodically signs the root of the Merkle Tree of all transactions (``Ledger Signature``) using its ``Node Identity Private Key`` and records it in the ledger. All public certificates and attestation reports (``Node Enclave Attestation + Collaterals``) are also recorded in the ledger for audit.
 

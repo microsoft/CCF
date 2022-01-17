@@ -17,8 +17,8 @@ using SigAdaptor = aft::Adaptor<SigStore>;
 
 static std::vector<uint8_t> cert;
 
-static const ds::TimeString request_timeout_ = std::string("10ms");
-static const ds::TimeString election_timeout_ = std::string("100ms");
+static const ds::TimeString request_timeout_ = {"10ms"};
+static const ds::TimeString election_timeout_ = {"100ms"};
 
 static const std::chrono::milliseconds request_timeout = request_timeout_;
 static const std::chrono::milliseconds election_timeout = election_timeout_;
