@@ -240,6 +240,7 @@ namespace messaging
     size_t read_n(size_t max_messages, ringbuffer::Reader& r)
     {
       size_t total_read = 0;
+      size_t previous_read = -1;
 
       while (!finished.load() && total_read < max_messages)
       {
@@ -253,14 +254,34 @@ namespace messaging
 
         total_read += read;
 
+        // Because of padding messages, a single empty read may be seen near the
+        // end of the ringbuffer. Use consecutive empty reads as a sign that
+        // we've actually read everything
+        if (read == 0 && previous_read == 0)
+        {
+          break;
+        }
+
+        previous_read = read;
+      }
+
+      return total_read;
+    }
+
+    size_t read_all(ringbuffer::Reader& r)
+    {
+      size_t total_read = 0;
+      while (true)
+      {
+        const auto read = read_n(1, r);
+        total_read += read;
         if (read == 0)
         {
           break;
         }
       }
-
       return total_read;
-    };
+    }
 
     size_t run(
       ringbuffer::Reader& r, IdleBehaviour idler = default_idle_behaviour)
@@ -270,7 +291,7 @@ namespace messaging
 
       while (!finished.load())
       {
-        auto num_read = read_n(-1, r);
+        auto num_read = read_all(r);
         total_read += num_read;
 
         if (num_read == 0)

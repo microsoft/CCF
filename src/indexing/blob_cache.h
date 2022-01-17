@@ -4,6 +4,7 @@
 
 #include "blob_cache_types.h"
 #include "crypto/entropy.h"
+#include "crypto/hash.h"
 #include "crypto/symmetric_key.h"
 #include "ds/messaging.h"
 
@@ -25,12 +26,18 @@ protected:
   crypto::EntropyPtr entropy_src;
   std::unique_ptr<crypto::KeyAesGcm> encryption_key;
 
-  EncryptedBlob encrypt(BlobContents&& contents)
+  std::vector<uint8_t> get_iv(const BlobKey& key)
+  {
+    auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
+    h.resize(crypto::GCM_SIZE_IV);
+    return h;
+  }
+
+  EncryptedBlob encrypt(const BlobKey& key, BlobContents&& contents)
   {
     crypto::GcmCipher gcm(contents.size());
-    auto iv = entropy_src->random(crypto::GCM_SIZE_IV);
+    auto iv = get_iv(key);
     gcm.hdr.set_iv(iv.data(), iv.size());
-    // TODO: Derive IV-per-key?
 
     encryption_key->encrypt(
       gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
@@ -38,10 +45,24 @@ protected:
     return gcm.serialise();
   }
 
-  std::optional<BlobContents> verify_and_decrypt(EncryptedBlob&& encrypted_blob)
+  std::optional<BlobContents> verify_and_decrypt(
+    const BlobKey& key, EncryptedBlob&& encrypted_blob)
   {
     crypto::GcmCipher gcm;
     gcm.deserialise(encrypted_blob);
+
+    const CBuffer given_iv = gcm.hdr.get_iv();
+    const auto expected_iv = get_iv(key);
+    if (
+      given_iv.n != expected_iv.size() ||
+      (memcmp(given_iv.p, expected_iv.data(), given_iv.n) != 0))
+    {
+      LOG_TRACE_FMT(
+        "IV mismatch {:02x} != {:02x}",
+        fmt::join(given_iv.p, given_iv.p + given_iv.n, " "),
+        fmt::join(get_iv(key), " "));
+      return std::nullopt;
+    }
 
     std::vector<uint8_t> blob(gcm.cipher.size());
 
@@ -79,7 +100,7 @@ public:
         auto it = fetching.find(key);
         if (it != fetching.end())
         {
-          auto decrypted = verify_and_decrypt(std::move(encrypted_blob));
+          auto decrypted = verify_and_decrypt(key, std::move(encrypted_blob));
           if (decrypted.has_value())
           {
             fetched.emplace(key, decrypted.value());
@@ -120,7 +141,10 @@ public:
   void store(const BlobKey& key, BlobContents&& contents)
   {
     RINGBUFFER_WRITE_MESSAGE(
-      CacheMessage::store_blob, to_host, key, encrypt(std::move(contents)));
+      CacheMessage::store_blob,
+      to_host,
+      key,
+      encrypt(key, std::move(contents)));
   }
 
   // TODO: How do we distinguish blobs that are being fetched, from blobs that
@@ -138,5 +162,12 @@ public:
       RINGBUFFER_WRITE_MESSAGE(CacheMessage::get_blob, to_host, key);
       return std::nullopt;
     }
+  }
+
+  // TODO: Maybe only needed for testing? But we need some kind of caching limit
+  // on what we store in fetched
+  void clear()
+  {
+    fetched.clear();
   }
 };
