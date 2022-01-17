@@ -1062,47 +1062,6 @@ const actions = new Map([
     ),
   ],
   [
-    "set_node_certificate_validity",
-    new Action(
-      function (args) {
-        checkEntityId(args.node_id, "node_id");
-        checkType(args.valid_from, "string", "valid_from");
-        if (args.validity_period_days !== undefined) {
-          checkType(
-            args.validity_period_days,
-            "integer",
-            "validity_period_days"
-          );
-          checkBounds(
-            args.validity_period_days,
-            1,
-            null,
-            "validity_period_days"
-          );
-        }
-      },
-      function (args) {
-        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
-          ccf.strToBuf(args.node_id)
-        );
-        if (node === undefined) {
-          throw new Error(`No such node: ${args.node_id}`);
-        }
-        const nodeInfo = ccf.bufToJsonCompatible(node);
-        if (nodeInfo.status !== "Trusted") {
-          throw new Error(`Node ${args.node_id} is not trusted`);
-        }
-
-        setNodeCertificateValidityPeriod(
-          args.node_id,
-          nodeInfo,
-          args.valid_from,
-          args.validity_period_days
-        );
-      }
-    ),
-  ],
-  [
     "set_all_nodes_certificate_validity",
     new Action(
       function (args) {

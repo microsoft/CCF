@@ -1847,12 +1847,6 @@ namespace aft
         // Send an empty append_entries to all nodes.
         send_append_entries(it->first, next);
       }
-
-      // TODO: Should this be when the retirement has been committed for sure?
-      if (retired_node_cleanup)
-      {
-        retired_node_cleanup->cleanup();
-      }
     }
 
     bool can_advance_watermark()
