@@ -2,31 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/tx_id.h"
-#include "http/http_builder.h"
-#include "http/http_rpc_context.h"
-#include "kv/kv_types.h"
-#include "node/rpc/serdes.h"
-
-#include <mutex>
+#include "node_client.h"
 
 namespace ccf
 {
   class RetiredNodeCleanup
   {
   private:
-    std::shared_ptr<enclave::RPCMap> rpc_map;
-    crypto::KeyPairPtr node_sign_kp;
-    crypto::Pem node_cert;
+    std::shared_ptr<NodeClient> node_client;
 
   public:
-    RetiredNodeCleanup(
-      const std::shared_ptr<enclave::RPCMap>& rpc_map,
-      const crypto::KeyPairPtr& node_sign_kp,
-      const crypto::Pem& node_cert) :
-      rpc_map(rpc_map),
-      node_sign_kp(node_sign_kp),
-      node_cert(node_cert)
+    RetiredNodeCleanup(const std::shared_ptr<NodeClient>& node_client_) :
+      node_client(node_client_)
     {}
 
     void send_cleanup_retired_nodes()
@@ -37,37 +24,9 @@ namespace ccf
           ccf::get_actor_prefix(ccf::ActorsType::nodes),
           "network/nodes/retired"),
         HTTP_DELETE);
+      request.set_header(http::headers::CONTENT_LENGTH, fmt::format("{}", 0));
 
-      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
-      auto packed = request.build_request();
-
-      auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
-
-      auto ctx = enclave::make_rpc_context(node_session, packed);
-
-      const auto actor_opt = http::extract_actor(*ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error("Unable to get actor");
-      }
-
-      const auto actor = rpc_map->resolve(actor_opt.value());
-      auto frontend_opt = this->rpc_map->find(actor);
-      if (!frontend_opt.has_value())
-      {
-        throw std::logic_error(
-          "RpcMap::find returned invalid (empty) frontend");
-      }
-      auto& frontend = frontend_opt.value();
-      frontend->process(ctx);
-
-      if (!http::status_success(ctx->get_response_status()))
-      {
-        LOG_FAIL_FMT(
-          "Could not execute retired node cleanup: {}",
-          ctx->get_response_status());
-      }
+      node_client->make_request(request);
     }
 
     struct RetiredNodeCleanupMsg

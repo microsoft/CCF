@@ -1948,9 +1948,6 @@ namespace ccf
           endorsed_node_cert);
       }
 
-      auto retired_node_cleanup = std::make_unique<RetiredNodeCleanup>(
-        rpc_map, node_sign_kp, self_signed_node_cert);
-
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
@@ -1968,7 +1965,6 @@ namespace ccf
         snapshotter,
         shared_state,
         std::move(resharing_tracker),
-        std::move(retired_node_cleanup),
         node_client,
         public_only,
         membership_state,

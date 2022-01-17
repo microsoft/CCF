@@ -166,7 +166,6 @@ namespace aft
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
-      std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       bool public_only_ = false,
       kv::MembershipState initial_membership_state_ =
@@ -187,7 +186,8 @@ namespace aft
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
-      retired_node_cleanup(std::move(retired_node_cleanup_)),
+      retired_node_cleanup(
+        std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
 
       public_only(public_only_),
 
