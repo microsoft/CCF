@@ -237,6 +237,9 @@ def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.retire_node(primary, backup_to_retire)
+    network.wait_for_node_in_store(
+        primary, backup_to_retire.node_id, timeout=3, node_status=None
+    )
     backup_to_retire.stop()
     check_can_progress(primary)
     wait_for_reconfiguration_to_complete(network)
@@ -254,9 +257,9 @@ def test_retire_primary(network, args):
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
     new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
-    # Once a new primary is elected, the old primary should
-    # automatically be removed from the store
-    network.consortium.wait_for_node_in_store(
+    # The old primary should automatically be removed from the store
+    # once a new primary is elected
+    network.wait_for_node_in_store(
         new_primary, primary.node_id, timeout=3, node_status=None
     )
     check_can_progress(backup)
@@ -469,7 +472,7 @@ def test_learner_catches_up(network, args):
         rj = s.body.json()
         assert rj["status"] == "Learner" or rj["status"] == "Trusted"
 
-    network.consortium.wait_for_node_in_store(
+    network.wait_for_node_in_store(
         primary,
         new_node.node_id,
         timeout=3,

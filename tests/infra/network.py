@@ -593,7 +593,7 @@ class Network:
 
         primary, _ = self.find_primary()
         try:
-            self.consortium.wait_for_node_in_store(
+            self.wait_for_node_in_store(
                 primary,
                 node.node_id,
                 timeout=timeout,
@@ -625,12 +625,16 @@ class Network:
                 valid_from = valid_from or str(
                     infra.crypto.datetime_to_X509time(datetime.now())
                 )
+                timeout = ceil(args.join_timer_s * 2)
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=ceil(args.join_timer_s * 2),
+                    timeout=timeout,
+                )
+                self.wait_for_node_in_store(
+                    primary, node.node_id, timeout, NodeStatus.TRUSTED
                 )
             if not no_wait:
                 # Here, quote verification has already been run when the node
@@ -651,11 +655,9 @@ class Network:
             self.wait_for_all_nodes_to_commit(primary=primary)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
-        primary, _ = self.find_primary()
         self.consortium.retire_node(
             remote_node,
             node_to_retire,
-            node_to_retire is primary,
             timeout=timeout,
         )
         self.nodes.remove(node_to_retire)
@@ -886,6 +888,53 @@ class Network:
                     r = c.get("/node/consensus")
                     pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
+
+    def _check_node_status(
+        self,
+        remote_node,
+        node_id,
+        node_status,  # None indicates that the node should not be present
+    ):
+        with remote_node.client() as c:
+            r = c.get(f"/node/network/nodes/{node_id}")
+            resp = r.body.json()
+            return (
+                r.status_code == http.HTTPStatus.NOT_FOUND.value
+                and node_status is None
+                and resp["error"]["message"] == "Node not found"
+            ) or (
+                r.status_code == http.HTTPStatus.OK.value
+                and node_status is not None
+                and resp["status"] == node_status.value
+            )
+
+    def wait_for_node_in_store(
+        self,
+        remote_node,
+        node_id,
+        timeout,
+        node_status,
+    ):
+        success = False
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                if self._check_node_status(remote_node, node_id, node_status):
+                    success = True
+                    break
+            except TimeoutError:
+                pass
+            time.sleep(0.5)
+        if not success:
+            raise TimeoutError(
+                f'Node {node_id} is not in expected state: {node_status or "absent"})'
+            )
+
+    def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
+        for n in nodes:
+            self.wait_for_node_in_store(
+                remote_node, n.node_id, timeout, NodeStatus.TRUSTED
+            )
 
     def wait_for_new_primary(
         self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER

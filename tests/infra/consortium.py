@@ -323,9 +323,7 @@ class Consortium:
             assert r.status_code == http.HTTPStatus.OK.value
             return r.body.json()
 
-    def retire_node(
-        self, remote_node, node_to_retire, node_to_retire_is_primary, timeout=10
-    ):
+    def retire_node(self, remote_node, node_to_retire, timeout=10):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "remove_node",
@@ -333,22 +331,10 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
-        # While backup nodes are removed from the store on retirement,
-        # the primary node is removed later, once a new primary has been elected
-        # TODO: Move to network.py
-        self.wait_for_node_in_store(
-            remote_node,
-            node_to_retire.node_id,
-            timeout,
-            node_status=NodeStatus.RETIRED if node_to_retire_is_primary else None,
-        )
 
     def trust_node(
         self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
     ):
-        if not self._check_node_status(remote_node, node_id, NodeStatus.PENDING):
-            raise ValueError(f"Node {node_id} does not exist in state PENDING")
-
         proposal_body, careful_vote = self.make_proposal(
             "transition_node_to_trusted",
             node_id=node_id,
@@ -363,8 +349,6 @@ class Consortium:
             wait_for_global_commit=True,
             timeout=timeout,
         )
-
-        self.wait_for_node_in_store(remote_node, node_id, timeout, NodeStatus.TRUSTED)
 
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")
@@ -688,54 +672,6 @@ class Consortium:
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
-
-    def _check_node_status(
-        self,
-        remote_node,
-        node_id,
-        node_status,  # None indicates that the node should not be present
-    ):
-        with remote_node.client() as c:
-            r = c.get(f"/node/network/nodes/{node_id}")
-            resp = r.body.json()
-            return (
-                r.status_code == http.HTTPStatus.NOT_FOUND.value
-                and node_status is None
-                and resp["error"]["message"] == "Node not found"
-            ) or (
-                r.status_code == http.HTTPStatus.OK.value
-                and node_status is not None
-                and resp["status"] == node_status.value
-            )
-
-    # TODO: Move to network.py
-    def wait_for_node_in_store(
-        self,
-        remote_node,
-        node_id,
-        timeout,
-        node_status,
-    ):
-        success = False
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                if self._check_node_status(remote_node, node_id, node_status):
-                    success = True
-                    break
-            except TimeoutError:
-                pass
-            time.sleep(0.5)
-        if not success:
-            raise TimeoutError(
-                f'Node {node_id} is not in expected state: {node_status or "absent"})'
-            )
-
-    def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
-        for n in nodes:
-            self.wait_for_node_in_store(
-                remote_node, n.node_id, timeout, NodeStatus.TRUSTED
-            )
 
     def submit_2tx_migration_proposal(self, remote_node, timeout=10):
         proposal_body = {
