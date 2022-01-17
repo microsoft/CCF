@@ -23,6 +23,12 @@ namespace ccf
     {
       for (const auto& [node_id, opt_ni] : w)
       {
+        if (!opt_ni.has_value())
+        {
+          // Deleted node will have already been retired (compatibility for 2.x)
+          continue;
+        }
+
         const auto& ni = opt_ni.value();
         switch (ni.status)
         {
