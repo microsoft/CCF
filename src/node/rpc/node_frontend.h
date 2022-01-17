@@ -1493,17 +1493,9 @@ namespace ccf
                 node_info.status == NodeStatus::RETIRING &&
                 nc->nodes.find(nid) == nc->nodes.end())
               {
-                if (nid == primary_id)
-                {
-                  auto updated_info = node_info;
-                  updated_info.status = NodeStatus::RETIRED;
-                  nodes->put(nid, updated_info);
-                }
-                else
-                {
-                  nodes->remove(nid);
-                  node_endorsed_certificates->remove(nid);
-                }
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::RETIRED;
+                nodes->put(nid, updated_info);
               }
               else if (
                 node_info.status == NodeStatus::LEARNER &&

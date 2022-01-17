@@ -39,9 +39,6 @@ namespace ccf
         HTTP_DELETE);
 
       auto node_cert_der = crypto::cert_pem_to_der(node_cert);
-      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
-      request.set_header(http::headers::CONTENT_LENGTH, "0");
-      http::sign_request(request, node_sign_kp, key_id);
       auto packed = request.build_request();
 
       auto node_session = std::make_shared<enclave::SessionContext>(

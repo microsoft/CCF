@@ -959,7 +959,105 @@ const actions = new Map([
         checkEntityId(args.node_id, "node_id");
       },
       function (args) {
-        ccf.node.removeNode(args.node_id);
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey()
+        );
+        if (rawConfig === undefined) {
+          throw new Error("Service configuration could not be found");
+        }
+        const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node !== undefined) {
+          const node_obj = ccf.bufToJsonCompatible(node);
+          node_obj.status =
+            serviceConfig.reconfiguration_type === "TwoTransaction" &&
+            node_obj.status !== "Pending"
+              ? "Retiring"
+              : "Retired";
+          ccf.kv["public:ccf.gov.nodes.info"].set(
+            ccf.strToBuf(args.node_id),
+            ccf.jsonCompatibleToBuf(node_obj)
+          );
+
+          if (serviceConfig.reconfiguration_type == "TwoTransaction") {
+            const latest_id_raw = ccf.kv[
+              "public:ccf.gov.nodes.network.configurations"
+            ].get(getSingletonKvKey());
+            if (latest_id_raw === undefined) {
+              throw new Error("Network configuration could not be found");
+            }
+            const latest_id = ccf.bufToJsonCompatible(latest_id_raw);
+            const rid_buf = new ArrayBuffer(8);
+            new DataView(rid_buf).setUint32(0, latest_id.rid, true);
+            const latest_config_raw =
+              ccf.kv["public:ccf.gov.nodes.network.configurations"].get(
+                rid_buf
+              );
+            if (latest_config_raw === undefined) {
+              throw new Error("Network configuration could not be found");
+            }
+            const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
+            const idx = latest_config.nodes.indexOf(args.node_id);
+            if (idx > -1) {
+              latest_config.nodes.splice(idx, 1);
+            }
+            latest_config.rid++;
+            new DataView(rid_buf).setUint32(0, latest_config.rid, true);
+            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+              rid_buf,
+              ccf.jsonCompatibleToBuf(latest_config)
+            );
+            latest_config.nodes = {};
+            latest_id.rid = latest_config.rid;
+            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+              getSingletonKvKey(),
+              ccf.jsonCompatibleToBuf(latest_id)
+            );
+          }
+        }
+      }
+    ),
+  ],
+  [
+    "set_node_certificate_validity",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+        checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
+        }
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node === undefined) {
+          throw new Error(`No such node: ${args.node_id}`);
+        }
+        const nodeInfo = ccf.bufToJsonCompatible(node);
+        if (nodeInfo.status !== "Trusted") {
+          throw new Error(`Node ${args.node_id} is not trusted`);
+        }
+
+        setNodeCertificateValidityPeriod(
+          args.node_id,
+          nodeInfo,
+          args.valid_from,
+          args.validity_period_days
+        );
       }
     ),
   ],

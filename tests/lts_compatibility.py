@@ -111,6 +111,11 @@ def test_new_service(
 
     test_all_nodes_cert_renewal(network, args)
 
+    with primary.client() as c:
+        r = c.get("/node/network/nodes")
+        nodes = r.body.json()["nodes"]
+        LOG.error(nodes)
+
     # TODO: Check that all nodes are eventually removed from the store!
     # TODO: retire primary, retire backup
 

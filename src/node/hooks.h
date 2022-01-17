@@ -31,9 +31,7 @@ namespace ccf
       {
         if (!opt_ni.has_value())
         {
-          // Node is removed (equivalent to RETIRED)
-          cfg_delta.emplace(node_id, std::nullopt);
-          retired_nodes.insert(node_id);
+          // Deleted node will have already been retired
           continue;
         }
 

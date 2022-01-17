@@ -880,45 +880,6 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  JSValue js_node_remove_node(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    if (argc != 1)
-    {
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments but expected one", argc);
-    }
-
-    auto node = static_cast<ccf::AbstractNodeState*>(
-      JS_GetOpaque(this_val, node_class_id));
-
-    auto global_obj = jsctx.get_global_obj();
-    auto ccf = global_obj["ccf"];
-    auto kv = ccf["kv"];
-
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
-    {
-      return JS_ThrowInternalError(
-        ctx, "No transaction available to remove node");
-    }
-
-    auto node_id = jsctx.to_str(argv[0]);
-    if (!node_id)
-    {
-      return JS_ThrowTypeError(ctx, "node id argument is not a string");
-    }
-
-    node->remove_node(*tx_ctx_ptr->tx, node_id.value());
-    return JS_UNDEFINED;
-  }
-
   JSValue js_node_trigger_host_process_launch(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -1500,11 +1461,6 @@ namespace ccf::js
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
           0));
-      JS_SetPropertyStr(
-        ctx,
-        node,
-        "removeNode",
-        JS_NewCFunction(ctx, js_node_remove_node, "removeNode", 0));
     }
 
     if (host_node_state != nullptr)

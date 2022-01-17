@@ -2229,6 +2229,11 @@ namespace aft
           configurations.pop_front();
           backup_nodes.clear();
           changed = true;
+
+          if (retired_node_cleanup)
+          {
+            retired_node_cleanup->cleanup();
+          }
         }
         else
         {
@@ -2285,6 +2290,11 @@ namespace aft
               {
                 retired_nodes.erase(nid);
               }
+            }
+
+            if (retired_node_cleanup)
+            {
+              retired_node_cleanup->cleanup();
             }
 
             configurations.pop_front();
