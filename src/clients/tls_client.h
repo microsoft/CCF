@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ca.h"
-#include "cert.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "ds/buffer.h"
 #include "ds/logger.h"
+#include "tls/ca.h"
+#include "tls/cert.h"
 
 #include <cstdint>
 #include <cstring>
@@ -70,8 +70,8 @@ namespace client
   protected:
     std::string host;
     std::string port;
-    std::shared_ptr<tls::TlsCA> node_ca;
-    std::shared_ptr<tls::TlsCert> cert;
+    std::shared_ptr<tls::CA> node_ca;
+    std::shared_ptr<tls::Cert> cert;
     bool connected = false;
 
     Unique_SSL_CTX ctx;
@@ -121,8 +121,8 @@ namespace client
     TlsClient(
       const std::string& host,
       const std::string& port,
-      std::shared_ptr<tls::TlsCA> node_ca = nullptr,
-      std::shared_ptr<tls::TlsCert> cert = nullptr) :
+      std::shared_ptr<tls::CA> node_ca = nullptr,
+      std::shared_ptr<tls::Cert> cert = nullptr) :
       host(host),
       port(port),
       node_ca(node_ca),

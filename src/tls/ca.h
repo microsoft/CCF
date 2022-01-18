@@ -5,59 +5,47 @@
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/pem.h"
 #include "ds/buffer.h"
-#include "ds/logger.h"
 
 #include <exception>
-#include <openssl/ssl.h>
-#include <openssl/x509.h>
-#include <openssl/x509v3.h>
+
+using namespace crypto;
+using namespace crypto::OpenSSL;
 
 namespace tls
 {
+  enum Auth
+  {
+    auth_default,
+    auth_none,
+    auth_required
+  };
+
   class CA
   {
   private:
-    mutable crypto::OpenSSL::Unique_X509 ca;
+    Unique_X509 ca;
 
   public:
     CA(CBuffer ca_ = nullb)
     {
-      crypto::OpenSSL::Unique_X509 tmp_ca;
-
       if (ca_.n > 0)
       {
-        crypto::Pem pem_ca(ca_);
-        LOG_TRACE_FMT("CA::ctor: PEM: {}", pem_ca.str());
-        BIO* certBio = BIO_new(BIO_s_mem());
-        BIO_write(certBio, pem_ca.data(), pem_ca.size());
-        X509* res = PEM_read_bio_X509(certBio, NULL, NULL, NULL);
-        BIO_free(certBio);
-        if (!res)
+        Unique_BIO bio(ca_.p, ca_.n);
+        if (!(ca = Unique_X509(bio, true)))
         {
-          auto err_str = crypto::OpenSSL::error_string(ERR_get_error());
-          LOG_FAIL_FMT("CA::ctor: Could not parse CA: {}", err_str);
-          throw std::logic_error("Could not parse CA: " + err_str);
+          throw std::logic_error(
+            "Could not parse CA: " + error_string(ERR_get_error()));
         }
-        // The PEM_read function above checks the validity of the certificate,
-        // but not if it's a CA or can be used as such. This is what MbedTLS
-        // checks, so we keep it simple here. Some code uses this as a
-        // "certificate check" not necessarily a CA check, so we need to keep it
-        // compatible.
-        // To cater to that usage, we should create a generic helper in crypto
-        // to do the certificate check and add X509_check_ca() here to be more
-        // robust on our verification.
-        tmp_ca.reset(res);
       }
-
-      ca = std::move(tmp_ca);
     }
 
     ~CA() = default;
 
-    void use(SSL* ssl, SSL_CTX* cfg)
+    void use(SSL_CTX* ssl_ctx)
     {
-      SSL_CTX_use_certificate(cfg, ca);
-      SSL_use_certificate(ssl, ca);
+      X509_STORE* store = X509_STORE_new();
+      CHECK1(X509_STORE_add_cert(store, ca));
+      SSL_CTX_set_cert_store(ssl_ctx, store);
     }
   };
 }
