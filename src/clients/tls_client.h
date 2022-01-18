@@ -144,10 +144,7 @@ namespace client
       init();
     }
 
-    virtual ~TlsClient()
-    {
-      SSL_CTX_set_cert_store(ctx, NULL);
-    }
+    virtual ~TlsClient() {}
 
     auto get_ciphersuite_name()
     {

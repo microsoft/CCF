@@ -131,7 +131,8 @@ namespace crypto
           BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
       {}
       Unique_BIO(SSL_CTX* ctx) :
-        Unique_SSL_OBJECT(BIO_new_ssl_connect(ctx), [](auto x) { BIO_free(x); })
+        Unique_SSL_OBJECT(
+          BIO_new_ssl_connect(ctx), [](auto x) { BIO_free_all(x); })
       {}
     };
 
