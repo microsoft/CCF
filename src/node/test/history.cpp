@@ -113,7 +113,7 @@ TEST_CASE("Check signature verification")
     auto txs = primary_store.create_tx();
     auto sigs = txs.rw(signatures);
     ccf::PrimarySignature bogus(kv::test::PrimaryNodeId, 0);
-    bogus.sig = std::vector<uint8_t>(crypto::ECDSA_MAX_LEN, 1);
+    bogus.sig = std::vector<uint8_t>(256, 1);
     sigs->put(bogus);
     REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
   }

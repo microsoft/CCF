@@ -151,15 +151,6 @@ namespace aft
     AppendEntriesResponseType success;
   };
 
-  struct SignedAppendEntriesResponse : RaftHeader
-  {
-    Term term;
-    Index last_log_idx;
-    Nonce hashed_nonce;
-    uint32_t signature_size;
-    std::array<uint8_t, crypto::ECDSA_MAX_LEN> sig;
-  };
-
   struct SignaturesReceivedAck : RaftHeader
   {
     Term term;
