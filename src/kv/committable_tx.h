@@ -46,6 +46,7 @@ namespace kv
       auto e = store->get_encryptor();
       auto entry_type = claims_digest.empty() ? EntryType::WriteSet :
                                                 EntryType::WriteSetWithClaims;
+
       LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
         claims_digest.value(),
@@ -168,10 +169,15 @@ namespace kv
 
           auto claims_ = claims;
 
+          crypto::Sha256Hash commit_evidence_digest;
+
           return store->commit(
             {commit_view, version},
             std::make_unique<MovePendingTx>(
-              std::move(data), std::move(claims_), std::move(hooks)),
+              std::move(data),
+              std::move(claims_),
+              std::move(commit_evidence_digest),
+              std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -339,9 +345,15 @@ namespace kv
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
+      crypto::Sha256Hash commit_evidence_digest;
+
       committed = true;
       return {
-        CommitResult::SUCCESS, serialise(), ccf::no_claims(), std::move(hooks)};
+        CommitResult::SUCCESS,
+        serialise(),
+        ccf::no_claims(),
+        std::move(commit_evidence_digest),
+        std::move(hooks)};
     }
   };
 }

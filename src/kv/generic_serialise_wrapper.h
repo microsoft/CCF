@@ -4,8 +4,8 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
-#include "node/rpc/claims.h"
 #include "kv_types.h"
+#include "node/rpc/claims.h"
 #include "serialised_entry.h"
 #include "serialised_entry_format.h"
 
@@ -73,7 +73,8 @@ namespace kv
       }
       if (has_commit_evidence(entry_type))
       {
-        // serialise_internal(commit_evidence_digest);
+        crypto::Sha256Hash commit_evidence_digest;
+        serialise_internal(commit_evidence_digest);
       }
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);
@@ -233,6 +234,7 @@ namespace kv
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
+    crypto::Sha256Hash commit_evidence_digest = {};
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -252,7 +254,10 @@ namespace kv
       }
       if (has_commit_evidence(entry_type))
       {
-        // read commit evidence digest
+        auto digest_array =
+          public_reader
+            .template read_next<crypto::Sha256Hash::Representation>();
+        commit_evidence_digest.set(std::move(digest_array));
       }
       // max_conflict_version is included for compatibility, but currently
       // ignored

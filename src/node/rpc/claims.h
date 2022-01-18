@@ -23,8 +23,10 @@ namespace ccf
       write_set_digest,
       claims_digest,
       commit_evidence_digest,
-      crypto::Sha256Hash(write_set_digest, claims_digest, commit_evidence_digest));
-    return crypto::Sha256Hash(write_set_digest, claims_digest, commit_evidence_digest);
+      crypto::Sha256Hash(
+        write_set_digest, claims_digest, commit_evidence_digest));
+    return crypto::Sha256Hash(
+      write_set_digest, claims_digest, commit_evidence_digest);
   }
 
   static crypto::Sha256Hash entry_leaf(
@@ -38,5 +40,5 @@ namespace ccf
       commit_evidence_digest,
       crypto::Sha256Hash(write_set_digest, commit_evidence_digest));
     return crypto::Sha256Hash(write_set_digest, commit_evidence_digest);
-  }  
+  }
 }
