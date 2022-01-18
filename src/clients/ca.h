@@ -25,10 +25,9 @@ namespace client::tls
   {
   private:
     Unique_X509 ca;
-    Unique_X509_CRL crl;
 
   public:
-    TlsCA(CBuffer ca_ = nullb, CBuffer crl_ = nullb)
+    TlsCA(CBuffer ca_ = nullb)
     {
       if (ca_.n > 0)
       {
@@ -39,16 +38,6 @@ namespace client::tls
             "Could not parse TlsCA: " + error_string(ERR_get_error()));
         }
       }
-
-      if (crl_.n > 0)
-      {
-        Unique_BIO bio(ca_.p, ca_.n);
-        if (!(crl = Unique_X509_CRL(bio)))
-        {
-          throw std::logic_error(
-            "Could not parse CRL: " + error_string(ERR_get_error()));
-        }
-      }
     }
 
     ~TlsCA() = default;
@@ -57,7 +46,6 @@ namespace client::tls
     {
       X509_STORE* store = X509_STORE_new();
       CHECK1(X509_STORE_add_cert(store, ca));
-      CHECK1(X509_STORE_add_crl(store, crl));
       SSL_CTX_set_cert_store(ssl_ctx, store);
     }
   };

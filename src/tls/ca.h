@@ -18,13 +18,11 @@ namespace tls
   {
   private:
     mutable crypto::OpenSSL::Unique_X509 ca;
-    mutable crypto::OpenSSL::Unique_X509_CRL crl;
 
   public:
-    CA(CBuffer ca_ = nullb, CBuffer crl_ = nullb)
+    CA(CBuffer ca_ = nullb)
     {
       crypto::OpenSSL::Unique_X509 tmp_ca;
-      crypto::OpenSSL::Unique_X509_CRL tmp_crl;
 
       if (ca_.n > 0)
       {
@@ -51,16 +49,7 @@ namespace tls
         tmp_ca.reset(res);
       }
 
-      if (crl_.n > 0)
-      {
-        // We don't seem to be using CRL anywhere in CCF, so we should
-        // really remove this option once MbedTLS is gone.
-        LOG_FAIL_FMT("CA::ctor: Using CRL in OpenSSL CA");
-        throw std::logic_error("Using CRL in OpenSSL CA");
-      }
-
       ca = std::move(tmp_ca);
-      crl = std::move(tmp_crl);
     }
 
     ~CA() = default;
