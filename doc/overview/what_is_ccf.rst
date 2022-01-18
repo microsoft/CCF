@@ -1,5 +1,5 @@
-Concepts
-========
+What is CCF?
+============
 
 This page gives a broad overview of the fundamentals of CCF. This is where you should start if you're new to CCF.
 

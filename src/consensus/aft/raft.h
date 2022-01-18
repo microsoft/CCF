@@ -150,7 +150,6 @@ namespace aft
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
     std::shared_ptr<SnapshotterProxy> snapshotter;
-    std::set<ccf::NodeId> backup_nodes;
 
   public:
     Aft(
@@ -233,23 +232,6 @@ namespace aft
       {
         return (leadership_state == kv::LeadershipState::Candidate);
       }
-    }
-
-    std::set<ccf::NodeId> active_nodes() override
-    {
-      // Find all nodes present in any active configuration.
-      if (backup_nodes.empty())
-      {
-        for (auto& conf : configurations)
-        {
-          for (auto node : conf.nodes)
-          {
-            backup_nodes.insert(node.first);
-          }
-        }
-      }
-
-      return backup_nodes;
     }
 
     ccf::NodeId id() override
@@ -542,7 +524,6 @@ namespace aft
         uint32_t offset = get_bft_offset(conf);
         configurations.push_back({idx, std::move(conf), offset, 0});
 
-        backup_nodes.clear();
         create_and_remove_node_state();
       }
     }
@@ -889,16 +870,8 @@ namespace aft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
-      {
-        std::unique_lock<std::mutex> guard(state->lock);
-        timeout_elapsed += elapsed;
-      }
-      do_periodic();
-    }
-
-    void do_periodic()
-    {
       std::unique_lock<std::mutex> guard(state->lock);
+      timeout_elapsed += elapsed;
 
       if (leadership_state == kv::LeadershipState::Leader)
       {
@@ -1342,8 +1315,10 @@ namespace aft
           start_ticking_if_necessary();
         }
 
+        const auto& entry = ds->get_entry();
+
         ledger->put_entry(
-          ds->get_entry(),
+          entry,
           globally_committable,
           force_ledger_chunk,
           ds->get_term(),
@@ -2219,7 +2194,6 @@ namespace aft
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
           configurations.pop_front();
-          backup_nodes.clear();
           changed = true;
         }
         else
@@ -2364,6 +2338,7 @@ namespace aft
 
       snapshotter->rollback(idx);
       store->rollback({get_term_internal(idx), idx}, state->current_view);
+
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;
@@ -2413,7 +2388,6 @@ namespace aft
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         configurations.pop_back();
-        backup_nodes.clear();
         changed = true;
       }
 

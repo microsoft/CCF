@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
+#include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/wrap.h"
 #include "node/entities.h"
@@ -59,9 +60,9 @@ namespace enclave
   class Enclave
   {
   private:
-    ringbuffer::Circuit circuit;
-    ringbuffer::WriterFactory basic_writer_factory;
-    oversized::WriterFactory writer_factory;
+    std::unique_ptr<ringbuffer::Circuit> circuit;
+    std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
+    std::unique_ptr<oversized::WriterFactory> writer_factory;
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
     std::shared_ptr<RPCMap> rpc_map;
@@ -76,20 +77,42 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      std::unique_ptr<ccf::historical::StateCache> historical_state_cache =
+      std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
         nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
+      std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
 
       NodeContext() {}
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
+        if (historical_state_cache == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_historical_state before NodeContext is initialized");
+        }
         return *historical_state_cache;
       }
 
       ccf::AbstractNodeState& get_node_state() override
       {
+        if (node_state == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_node_state before NodeContext is initialized");
+        }
         return *node_state;
+      }
+
+      ccf::indexing::IndexingStrategies& get_indexing_strategies() override
+      {
+        if (indexer == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_indexing_strategies before NodeContext is "
+            "initialized");
+        }
+        return *indexer;
       }
     };
 
@@ -98,32 +121,22 @@ namespace enclave
   public:
     Enclave(
       const EnclaveConfig& ec,
+      std::unique_ptr<ringbuffer::Circuit> circuit_,
+      std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
+      std::unique_ptr<oversized::WriterFactory> writer_factory_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
       const CurveID& curve_id) :
-      circuit(
-        ringbuffer::BufferDef{
-          ec.to_enclave_buffer_start,
-          ec.to_enclave_buffer_size,
-          ec.to_enclave_buffer_offsets},
-        ringbuffer::BufferDef{
-          ec.from_enclave_buffer_start,
-          ec.from_enclave_buffer_size,
-          ec.from_enclave_buffer_offsets}),
-      basic_writer_factory(circuit),
-      writer_factory(basic_writer_factory, ec.writer_config),
+      circuit(std::move(circuit_)),
+      basic_writer_factory(std::move(basic_writer_factory_)),
+      writer_factory(std::move(writer_factory_)),
       network(consensus_config.type),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
-      rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map))
+      rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
       ccf::initialize_oe();
-
-      auto new_logger = std::make_unique<RingbufferLogger>(
-        writer_factory.create_writer_to_outside());
-      ringbuffer_logger = new_logger.get();
-      logger::config::loggers().push_back(std::move(new_logger));
 
       // From
       // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
@@ -133,26 +146,34 @@ namespace enclave
         ENGINE_init(rdrand_engine) != 1 ||
         ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
       {
+        LOG_FAIL_FMT("Error creating OpenSSL's RDRAND engine");
         ENGINE_free(rdrand_engine);
         throw ccf::ccf_openssl_rdrand_init_error(
           "could not initialize RDRAND engine for OpenSSL");
       }
 
-      to_host = writer_factory.create_writer_to_outside();
+      to_host = writer_factory->create_writer_to_outside();
 
+      LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
+      LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(
-        writer_factory, network, rpcsessions, share_manager, curve_id);
+        *writer_factory, network, rpcsessions, share_manager, curve_id);
 
+      LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>();
       context->historical_state_cache =
-        std::make_unique<ccf::historical::StateCache>(
+        std::make_shared<ccf::historical::StateCache>(
           *network.tables,
           network.ledger_secrets,
-          writer_factory.create_writer_to_outside());
+          writer_factory->create_writer_to_outside());
       context->node_state = node.get();
+      context->indexer = std::make_shared<ccf::indexing::Indexer>(
+        std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
+          context->historical_state_cache));
 
+      LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
           network, *context, share_manager));
@@ -165,10 +186,12 @@ namespace enclave
 
       ccf::js::register_ffi_plugins(ccfapp::get_js_plugins());
 
+      LOG_TRACE_FMT("Initialize node");
       node->initialize(
         consensus_config,
         rpc_map,
         rpcsessions,
+        context->indexer,
         sig_tx_interval,
         sig_ms_interval);
     }
@@ -177,13 +200,15 @@ namespace enclave
     {
       if (rdrand_engine)
       {
+        LOG_TRACE_FMT("Finishing RDRAND engine");
         ENGINE_finish(rdrand_engine);
         ENGINE_free(rdrand_engine);
       }
+      LOG_TRACE_FMT("Shutting down enclave");
       ccf::shutdown_oe();
     }
 
-    bool create_new_node(
+    CreateNodeStatus create_new_node(
       StartType start_type_,
       StartupConfig&& ccf_config_,
       uint8_t* node_cert,
@@ -204,12 +229,14 @@ namespace enclave
       ccf::NodeCreateInfo r;
       try
       {
+        LOG_TRACE_FMT(
+          "Creating node with start_type {}", start_type_to_str(start_type));
         r = node->create(start_type, std::move(ccf_config_));
       }
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Error starting node: {}", e.what());
-        return false;
+        return CreateNodeStatus::InternalError;
       }
 
       // Copy node and network certs out
@@ -219,7 +246,7 @@ namespace enclave
           "Insufficient space ({}) to copy node_cert out ({})",
           node_cert_size,
           r.self_signed_node_cert.size());
-        return false;
+        return CreateNodeStatus::InternalError;
       }
       ::memcpy(
         node_cert,
@@ -237,13 +264,13 @@ namespace enclave
             "Insufficient space ({}) to copy network_cert out ({})",
             network_cert_size,
             r.network_cert.size());
-          return false;
+          return CreateNodeStatus::InternalError;
         }
         ::memcpy(network_cert, r.network_cert.data(), r.network_cert.size());
         *network_cert_len = r.network_cert.size();
       }
 
-      return true;
+      return CreateNodeStatus::OK;
     }
 
     bool run_main()
@@ -428,7 +455,7 @@ namespace enclave
         while (!bp.get_finished())
         {
           // First, read some messages from the ringbuffer
-          auto read = bp.read_n(max_messages, circuit.read_from_outside());
+          auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
           // Then, execute some thread messages
           size_t thread_msg = 0;

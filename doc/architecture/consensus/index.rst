@@ -1,8 +1,6 @@
 Consensus Protocols
 ===================
 
-CCF supports multiple consensus protocols.
-
 The default consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`) and there is an experimental option of enabling Byzantine Fault Tolerance (:term:`BFT`).
 
 Below, we give an overview over the nodes state machine in both settings and the retirement mechanics that apply across the two protocols.

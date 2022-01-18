@@ -208,10 +208,10 @@ install(
 )
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
-install(FILES src/runtime_config/default/actions.js DESTINATION bin)
-install(FILES src/runtime_config/default/validate.js DESTINATION bin)
-install(FILES src/runtime_config/sandbox/resolve.js DESTINATION bin)
-install(FILES src/runtime_config/default/apply.js DESTINATION bin)
+install(FILES samples/constitutions/default/actions.js DESTINATION bin)
+install(FILES samples/constitutions/default/validate.js DESTINATION bin)
+install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
+install(FILES samples/constitutions/default/apply.js DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
 
@@ -334,6 +334,11 @@ if(BUILD_TESTS)
     target_link_libraries(
       historical_queries_test PRIVATE http_parser.host sss.host
     )
+
+    add_unit_test(
+      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+    )
+    target_link_libraries(indexing_test PRIVATE sss.host)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
@@ -470,15 +475,15 @@ if(BUILD_TESTS)
 
   set(CONSTITUTION_ARGS
       --constitution
-      ${CCF_DIR}/src/runtime_config/default/actions.js
+      ${CCF_DIR}/samples/constitutions/default/actions.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/test/test_actions.js
+      ${CCF_DIR}/samples/constitutions/test/test_actions.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/default/validate.js
+      ${CCF_DIR}/samples/constitutions/default/validate.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/test/resolve.js
+      ${CCF_DIR}/samples/constitutions/test/resolve.js
       --constitution
-      ${CCF_DIR}/src/runtime_config/default/apply.js
+      ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
   add_e2e_test(
@@ -592,7 +597,9 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
     CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+    ADDITIONAL_ARGS
+      --oe-binary ${OE_BINDIR} --initial-operator-count 1
+      --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
   )
 
   add_e2e_test(
@@ -677,8 +684,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --schema-dir
       ${CMAKE_SOURCE_DIR}/doc/schemas
-      --client-tutorial
-      ${CMAKE_SOURCE_DIR}/python/tutorial.py
       --ledger-tutorial
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
       --config-samples-dir

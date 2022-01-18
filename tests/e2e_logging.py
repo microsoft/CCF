@@ -4,7 +4,7 @@ import infra.network
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
-from ccf.tx_status import TxStatus
+from infra.tx_status import TxStatus
 import infra.checker
 import infra.jwt_issuer
 import inspect
@@ -17,8 +17,8 @@ from collections import defaultdict
 import time
 import json
 import hashlib
-import ccf.clients
-from ccf.log_capture import flush_info
+import infra.clients
+from infra.log_capture import flush_info
 import ccf.receipt
 from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
@@ -592,7 +592,7 @@ def test_historical_query(network, args):
     with primary.client("user0") as c:
         r = c.get(
             "/app/log/private/historical",
-            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.1"},
+            headers={infra.clients.CCF_TX_ID_HEADER: "99999.1"},
         )
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r
         assert r.body.json()["error"]["code"] == "TransactionInvalid", r
@@ -601,7 +601,7 @@ def test_historical_query(network, args):
     with primary.client("user0") as c:
         r = c.get(
             "/app/log/private/historical",
-            headers={ccf.clients.CCF_TX_ID_HEADER: "99999.999999"},
+            headers={infra.clients.CCF_TX_ID_HEADER: "99999.999999"},
         )
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r
         assert r.body.json()["error"]["code"] == "TransactionPendingOrUnknown", r
@@ -667,11 +667,13 @@ def test_historical_receipts_with_claims(network, args):
     return network
 
 
-def get_all_entries(client, target_id, from_seqno=None, to_seqno=None, timeout=5):
+def get_all_entries(
+    client, target_id, from_seqno=None, to_seqno=None, timeout=5, log_on_success=False
+):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
     )
-    logs = []
+    logs = None if log_on_success else []
 
     start_time = time.time()
     end_time = start_time + timeout
@@ -751,7 +753,7 @@ def test_historical_query_range(network, args):
 
             last_seqno = seqno
 
-        ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
+        infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
         entries_a, _ = get_all_entries(c, id_a)
         entries_b, _ = get_all_entries(c, id_b)
@@ -827,7 +829,7 @@ def test_historical_query_sparse(network, args):
 
             seqnos.append(seqno)
 
-        ccf.commit.wait_for_commit(c, seqno=seqnos[-1], view=view, timeout=3)
+        infra.commit.wait_for_commit(c, seqno=seqnos[-1], view=view, timeout=3)
 
         def get_sparse(client, target_id, seqnos, timeout=3):
             seqnos_s = ",".join(str(n) for n in seqnos)

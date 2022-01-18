@@ -6,8 +6,8 @@ import infra.jwt_issuer
 import time
 import http
 import random
-import ccf.clients
-import ccf.commit
+import infra.clients
+import infra.commit
 from collections import defaultdict
 from ccf.tx_id import TxID
 
@@ -225,7 +225,7 @@ class LoggingTxs:
             cmd = "/app/log/private/historical"
             headers.update(
                 {
-                    ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
+                    infra.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
                 }
             )
 
@@ -233,7 +233,7 @@ class LoggingTxs:
         start_time = time.time()
         while time.time() < (start_time + timeout):
             with node.client(self.user) as c:
-                ccf.commit.wait_for_commit(
+                infra.commit.wait_for_commit(
                     c, seqno, view, timeout, log_capture=log_capture
                 )
 
@@ -278,7 +278,7 @@ class LoggingTxs:
         headers = self._get_headers_base()
         headers.update(
             {
-                ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
+                infra.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
             }
         )
 
@@ -286,7 +286,7 @@ class LoggingTxs:
         start_time = time.time()
         while time.time() < (start_time + timeout):
             with node.client(self.user) as c:
-                ccf.commit.wait_for_commit(c, seqno, view, timeout)
+                infra.commit.wait_for_commit(c, seqno, view, timeout)
 
                 rep = c.get(f"{cmd}?id={idx}", headers=headers)
                 if rep.status_code == http.HTTPStatus.OK:

@@ -80,6 +80,14 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     C++ API reference.
 
+    ---
+
+    :fa:`rocket` :doc:`release_policy`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    CCF release cadence and compatibility committments.
+
+
 .. toctree::
     :hidden:
 
@@ -93,3 +101,4 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     kv/index
     api
     crypto
+    release_policy
