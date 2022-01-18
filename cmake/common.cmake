@@ -30,13 +30,6 @@ if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
-option(NO_STRICT_TLS_CIPHERSUITES
-       "Disable strict list of valid TLS ciphersuites" OFF
-)
-if(NO_STRICT_TLS_CIPHERSUITES)
-  add_compile_definitions(NO_STRICT_TLS_CIPHERSUITES)
-endif()
-
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
        OFF
 )
