@@ -41,7 +41,7 @@ namespace tls
           throw std::logic_error("Could not parse CA: " + err_str);
         }
         // The PEM_read function above checks the validity of the certificate,
-        // but not if it's a CA or cn be used as such. This is what MbedTLS
+        // but not if it's a CA or can be used as such. This is what MbedTLS
         // checks, so we keep it simple here. Some code uses this as a
         // "certificate check" not necessarily a CA check, so we need to keep it
         // compatible.
