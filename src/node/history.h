@@ -20,7 +20,6 @@
 #include <string.h>
 
 #define HAVE_OPENSSL
-#define HAVE_MBEDTLS
 // merklecpp traces are off by default, even when CCF tracing is enabled
 // #include "merklecpp_trace.h"
 #include <merklecpp/merklecpp.h>

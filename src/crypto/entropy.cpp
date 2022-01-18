@@ -3,7 +3,7 @@
 
 #include "entropy.h"
 
-#include "mbedtls/entropy.h"
+#include "openssl/entropy.h"
 
 namespace crypto
 {
@@ -16,6 +16,6 @@ namespace crypto
       return intel_drng_ptr;
     }
 
-    return std::make_shared<Entropy_mbedTLS>();
+    return std::make_shared<Entropy_OpenSSL>();
   }
 }

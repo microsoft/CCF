@@ -3,9 +3,7 @@
 #include "crypto/certs.h"
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
-// These headers are temporary, until we have a single TLS implementation
-#include "tls/mbedtls/tls.h"
-#include "tls/openssl/tls.h"
+#include "tls/tls.h"
 
 #include <openssl/err.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -94,8 +92,6 @@ int recv(void* ctx, uint8_t* buf, size_t len)
   return rc;
 }
 
-#ifndef TLS_PROVIDER_IS_MBEDTLS
-
 // These are OpenSSL callbacks that call onto the MbedTLS ones. They have the
 // same name but different signatures, so when using OpenSSL, these are the ones
 // that set_bio() will take, and call the ones above by using the correct
@@ -174,8 +170,6 @@ long recv(
   // original operation.
   return ret;
 }
-
-#endif
 
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.
@@ -261,7 +255,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk, nullb, auth);
+  return make_unique<Cert>(move(ca), crt, pk, auth);
 }
 
 /// Helper to write past the maximum buffer (16k)
