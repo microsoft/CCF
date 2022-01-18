@@ -4,16 +4,15 @@
 
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
-#include "crypto/mbedtls/error_string.h"
-#include "crypto/mbedtls/key_pair.h"
+#include "crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/public_key.h"
 #include "ds/logger.h"
 
 #include <iostream>
 #include <map>
-#include <mbedtls/ecdh.h>
-#include <mbedtls/ecp.h>
-#include <mbedtls/pk.h>
 #include <openssl/crypto.h>
+#include <openssl/ec.h>
+#include <openssl/ossl_typ.h>
 #include <stdexcept>
 
 namespace tls
@@ -21,182 +20,102 @@ namespace tls
   class KeyExchangeContext
   {
   private:
-    crypto::mbedtls::ECDHContext ctx = nullptr;
-    std::vector<uint8_t> key_share;
-    std::vector<uint8_t> peer_key_share;
-
-    void create_fresh_key_share()
-    {
-      auto tmp_ctx =
-        crypto::mbedtls::make_unique<crypto::mbedtls::ECDHContext>();
-      size_t len = 0;
-
-      int rc = mbedtls_ecp_group_load(&tmp_ctx->grp, domain_parameter);
-
-      if (rc != 0)
-      {
-        throw std::logic_error(crypto::error_string(rc));
-      }
-
-      crypto::EntropyPtr entropy = crypto::create_entropy();
-
-      key_share.resize(len_public);
-
-      rc = mbedtls_ecdh_make_public(
-        tmp_ctx.get(),
-        &len,
-        key_share.data(),
-        key_share.size(),
-        entropy->get_rng(),
-        entropy->get_data());
-
-      if (rc != 0)
-      {
-        throw std::logic_error(crypto::error_string(rc));
-      }
-
-      key_share.resize(len);
-
-      ctx = std::move(tmp_ctx);
-    }
+    crypto::KeyPairPtr own_key;
+    crypto::PublicKeyPtr peer_key;
+    crypto::CurveID curve;
 
   public:
-    static constexpr mbedtls_ecp_group_id domain_parameter =
-      MBEDTLS_ECP_DP_SECP384R1;
-
-    static constexpr size_t len_public = 1024 + 1;
-    static constexpr size_t len_shared_secret = 1024;
-
-    KeyExchangeContext() : key_share(len_public)
+    KeyExchangeContext() : curve(crypto::CurveID::SECP384R1)
     {
-      create_fresh_key_share();
+      own_key = make_key_pair(curve);
     }
 
     KeyExchangeContext(
-      std::shared_ptr<crypto::KeyPair_mbedTLS> own_kp,
-      std::shared_ptr<crypto::PublicKey_mbedTLS> peer_pubk)
+      std::shared_ptr<crypto::KeyPair> own_kp,
+      std::shared_ptr<crypto::PublicKey> peer_pubk) :
+      curve(own_kp->get_curve_id())
     {
-      auto tmp_ctx =
-        crypto::mbedtls::make_unique<crypto::mbedtls::ECDHContext>();
-
-      int rc = mbedtls_ecdh_get_params(
-        tmp_ctx.get(),
-        mbedtls_pk_ec(*own_kp->get_raw_context()),
-        MBEDTLS_ECDH_OURS);
-      if (rc != 0)
-      {
-        throw std::logic_error(crypto::error_string(rc));
-      }
-
-      rc = mbedtls_ecdh_get_params(
-        tmp_ctx.get(),
-        mbedtls_pk_ec(*peer_pubk->get_raw_context()),
-        MBEDTLS_ECDH_THEIRS);
-      if (rc != 0)
-      {
-        throw std::logic_error(crypto::error_string(rc));
-      }
-      ctx = std::move(tmp_ctx);
+      own_key = own_kp;
+      peer_key = peer_pubk;
     }
 
-    void free_ctx()
-    {
-      // Should only be called when shared secret has been computed.
-      ctx.reset();
-    }
+    ~KeyExchangeContext() {}
 
-    ~KeyExchangeContext()
+    std::vector<uint8_t> get_own_key_share() const
     {
-      free_ctx();
-
-      OPENSSL_cleanse(key_share.data(), key_share.size());
-    }
-
-    const std::vector<uint8_t>& get_own_key_share() const
-    {
-      if (!ctx)
+      if (!own_key)
       {
-        throw std::runtime_error("Missing key exchange context");
+        throw std::runtime_error("missing node key");
       }
 
-      if (key_share.empty())
-      {
-        throw std::runtime_error("Missing node key share");
-      }
-
-      // Note that this function returns a vector of bytes
-      // where the first byte represents the
-      // size of the public key
-      return key_share;
+      // For backwards compatibility we need to keep the format we used with
+      // mbedTLS, which is the raw EC point with an extra size byte in the
+      // front.
+      auto tmp = own_key->public_key_raw();
+      tmp.insert(tmp.begin(), tmp.size());
+      return tmp;
     }
 
-    const std::vector<uint8_t>& get_peer_key_share() const
+    std::vector<uint8_t> get_peer_key_share() const
     {
-      return peer_key_share;
+      if (!peer_key)
+      {
+        throw std::runtime_error("missing peer key");
+      }
+
+      auto tmp = peer_key->public_key_raw();
+      tmp.insert(tmp.begin(), tmp.size());
+      return tmp;
     }
 
     void reset()
     {
-      key_share.clear();
-      peer_key_share.clear();
-      ctx.reset();
-      create_fresh_key_share();
+      peer_key.reset();
+      own_key = make_key_pair(crypto::CurveID::SECP384R1);
     }
 
     void load_peer_key_share(const std::vector<uint8_t>& ks)
     {
-      load_peer_key_share({ks.data(), ks.size()});
+      if (ks.size() == 0)
+      {
+        throw std::runtime_error("missing peer key share");
+      }
+
+      auto tmp = ks;
+      tmp.erase(tmp.begin());
+
+      int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(curve);
+      auto pk = crypto::key_from_raw_ec_point(tmp, nid);
+
+      if (!pk)
+      {
+        throw std::runtime_error("could not parse peer key share");
+      }
+
+      peer_key = std::make_shared<crypto::PublicKey_OpenSSL>(pk);
     }
 
     void load_peer_key_share(CBuffer ks)
     {
-      if (!ctx)
-      {
-        throw std::runtime_error(
-          "Missing key exchange context when loading peer key share");
-      }
-
-      if (ks.n == 0)
-      {
-        throw std::runtime_error("Missing peer key share");
-      }
-
-      peer_key_share = {ks.p, ks.p + ks.n};
+      load_peer_key_share({ks.p, ks.p + ks.n});
     }
 
     std::vector<uint8_t> compute_shared_secret()
     {
-      int rc;
-      if (peer_key_share.size() > 0)
+      if (!own_key)
       {
-        rc = mbedtls_ecdh_read_public(
-          ctx.get(), peer_key_share.data(), peer_key_share.size());
-        if (rc != 0)
-        {
-          throw std::logic_error(crypto::error_string(rc));
-        }
+        throw std::logic_error("missing own key");
       }
 
-      crypto::EntropyPtr entropy = crypto::create_entropy();
-
-      // Should only be called once, when peer public has been loaded.
-      std::vector<uint8_t> shared_secret(len_shared_secret);
-      size_t len;
-      rc = mbedtls_ecdh_calc_secret(
-        ctx.get(),
-        &len,
-        shared_secret.data(),
-        shared_secret.size(),
-        entropy->get_rng(),
-        entropy->get_data());
-      if (rc != 0)
+      if (!peer_key)
       {
-        throw std::logic_error(crypto::error_string(rc));
+        throw std::logic_error("missing peer key");
       }
 
-      shared_secret.resize(len);
-
-      return shared_secret;
+      auto r = own_key->derive_shared_secret(*peer_key);
+      own_key.reset();
+      peer_key.reset();
+      return r;
     }
   };
 }

@@ -1,0 +1,11 @@
+{#-
+  This extends page.html from the Furo template to add an Edit on GitHub button to the footer.
+-#}
+{% extends "!page.html" %}
+{% block footer %}
+  {{ super() }}
+  <script>
+    var relatedInfo = document.querySelector(".related-information");
+    relatedInfo.insertAdjacentHTML("beforeend", '| <a class="muted-link" href="https://github.com/microsoft/CCF/edit/main/doc/{{ pagename }}{{ page_source_suffix }}" rel="nofollow">Edit</a>');
+  </script>
+{% endblock %}

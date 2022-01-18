@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "hash.h"
 
-#include "mbedtls/hash.h"
 #include "openssl/hash.h"
 
 #include <openssl/sha.h>
@@ -48,10 +47,6 @@ namespace crypto
     const std::vector<uint8_t>& salt,
     const std::vector<uint8_t>& info)
   {
-#if defined(CRYPTO_PROVIDER_IS_MBEDTLS)
-    return mbedtls::hkdf(md_type, length, ikm, salt, info);
-#else
     return OpenSSL::hkdf(md_type, length, ikm, salt, info);
-#endif
   }
 }

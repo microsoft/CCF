@@ -667,11 +667,13 @@ def test_historical_receipts_with_claims(network, args):
     return network
 
 
-def get_all_entries(client, target_id, from_seqno=None, to_seqno=None, timeout=5):
+def get_all_entries(
+    client, target_id, from_seqno=None, to_seqno=None, timeout=5, log_on_success=False
+):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
     )
-    logs = []
+    logs = None if log_on_success else []
 
     start_time = time.time()
     end_time = start_time + timeout
