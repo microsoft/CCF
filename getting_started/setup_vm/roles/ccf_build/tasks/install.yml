@@ -34,8 +34,6 @@
   become: yes
   when: "'moby-buildx' not in ansible_facts.packages"
 
-# TODO: Find OpenSSL?
-
 - name: Remove doxygen debian package
   apt:
     name: doxygen
