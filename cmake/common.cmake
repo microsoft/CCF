@@ -377,7 +377,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )  
+  )
   install(
     TARGETS js_openenclave.virtual
     EXPORT ccf
@@ -388,7 +388,7 @@ endif()
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )  
+  )
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_generic_base.enclave)
   install(
@@ -412,7 +412,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )  
+  )
   install(
     TARGETS js_generic_base.virtual
     EXPORT ccf

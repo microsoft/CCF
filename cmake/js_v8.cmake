@@ -65,7 +65,7 @@ if(ENABLE_V8)
     set_property(
       TARGET js_v8_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
     )
-        install(
+    install(
       TARGETS js_v8_base.virtual
       EXPORT ccf
       DESTINATION lib
@@ -78,7 +78,7 @@ if(ENABLE_V8)
     )
     add_lvi_mitigations(v8_oe_stubs.enclave)
 
-    add_enclave_library(js_v8_base.enclave ${js_v8_src})    
+    add_enclave_library(js_v8_base.enclave ${js_v8_src})
     target_include_directories(
       js_v8_base.enclave PRIVATE ${js_v8_dir} ${v8_sgx_include_dir}
     )
