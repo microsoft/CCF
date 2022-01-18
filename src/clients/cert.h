@@ -42,7 +42,6 @@ namespace client::tls
       std::shared_ptr<TlsCA> peer_ca_,
       const std::optional<crypto::Pem>& own_cert_ = std::nullopt,
       const std::optional<crypto::Pem>& own_pkey_ = std::nullopt,
-      CBuffer pw = nullb,
       TlsAuth tls_auth_ = tls_auth_default,
       const std::optional<std::string>& peer_hostname_ = std::nullopt) :
       peer_ca(peer_ca_),
@@ -53,7 +52,7 @@ namespace client::tls
       {
         Unique_BIO certbio(*own_cert_);
         own_cert = Unique_X509(certbio, true);
-        own_pkey = std::make_shared<KeyPair_OpenSSL>(*own_pkey_, pw);
+        own_pkey = std::make_shared<KeyPair_OpenSSL>(*own_pkey_);
         has_own_cert = true;
       }
     }

@@ -45,7 +45,6 @@ namespace tls
       std::shared_ptr<CA> peer_ca_,
       const std::optional<crypto::Pem>& own_cert_ = std::nullopt,
       const std::optional<crypto::Pem>& own_pkey_ = std::nullopt,
-      CBuffer pw = nullb,
       Auth auth_ = auth_default,
       const std::optional<std::string>& peer_hostname_ = std::nullopt) :
       peer_ca(peer_ca_),
@@ -87,15 +86,6 @@ namespace tls
 
       own_cert = std::move(tmp_cert);
       own_pkey = std::move(tmp_pkey);
-
-      if (pw.n)
-      {
-        // We don't seem to be using PW anywhere in CCF, so we should
-        // really remove this option once MbedTLS is gone.
-        LOG_FAIL_FMT("Cert::ctor: Unused password");
-        throw std::logic_error(
-          "Unused password: " + std::string((const char*)pw.p));
-      }
     }
 
     ~Cert() = default;

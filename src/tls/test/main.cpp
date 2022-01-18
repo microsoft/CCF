@@ -255,7 +255,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk, nullb, auth);
+  return make_unique<Cert>(move(ca), crt, pk, auth);
 }
 
 /// Helper to write past the maximum buffer (16k)
