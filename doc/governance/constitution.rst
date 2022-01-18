@@ -7,7 +7,7 @@ The constitution for a CCF service is implemented as a set of JS scripts. These 
     - ``resolve``: This takes a proposal and the votes (the results of ballot scripts) which have been submitted against it, and determines whether the proposal should be accepted or rejected. In the simple case this might simply accept proposals after a majority of members have voted in favour. It could also examine member data to give each member a different role or weight, or have different thresholds for each action. This has read-only access to the KV.
     - ``apply``: This takes a proposal which has been accepted by ``resolve``, and should make the proposed changes to the service's state. For instance if the proposal added a new user this should extract their cert and data from the proposal and write them to the appropriate KV tables. This has full read-write access to the KV.
 
-Sample constitutions are available in the `samples/constitutions directory <https://github.com/microsoft/CCF/tree/main/samples/constitutions>`_, for instance the default implementation of ``apply`` which parses a JSON object from the proposal body, and then delegates the application of each action within the proposal to a named entry from ``actions.js``:
+Sample constitutions are available in the :ccf_repo:`samples/constitutions/` folder and include the default implementation of ``apply`` which parses a JSON object from the proposal body, and then delegates the application of each action within the proposal to a named entry from ``actions.js``:
 
 .. literalinclude:: ../../samples/constitutions/default/apply.js
     :language: js
