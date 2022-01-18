@@ -523,8 +523,7 @@ TEST_CASE("Non-blocking" * doctest::test_suite("oversized"))
   {
     const bool done_flushing = non_blocking_factory.flush_all_inbound();
 
-    size_t n_read =
-      processor_inside.read_all(circuit.read_from_outside());
+    size_t n_read = processor_inside.read_all(circuit.read_from_outside());
 
     REQUIRE(n_read > 0);
 
