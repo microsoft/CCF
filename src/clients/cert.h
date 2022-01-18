@@ -99,8 +99,6 @@ namespace client::tls
           return SSL_VERIFY_NONE;
         }
 
-        case tls_auth_optional: // Note: OpenSSL doesn't seem to support
-                                // mbedTLS's optional setting
         case tls_auth_required:
         default:
         {

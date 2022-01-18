@@ -19,7 +19,6 @@ namespace tls
   {
     auth_default,
     auth_none,
-    auth_optional,
     auth_required
   };
 
