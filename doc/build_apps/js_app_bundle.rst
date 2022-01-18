@@ -36,9 +36,7 @@ A bundle has the following folder structure:
 It consists of :ref:`metadata <build_apps/js_app_bundle:Metadata>` (``app.json``) and one or more :ref:`JavaScript modules <build_apps/js_app_bundle:JavaScript API>` (``src/``).
 JavaScript modules can `import <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import>`_ other modules using relative path names.
 
-You can find an example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
-folder of the CCF git repository.
+You can find an example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository.
 
 Metadata
 --------
@@ -74,14 +72,14 @@ Each endpoint object contains the following information:
   the ``js_module``.
 - ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth/index:User Authentication>` to be applied before the endpoint
   is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
-  
+
   - ``"user_cert"``
   - ``"user_signature"``
   - ``"member_cert"``
   - ``"member_signature"``
   - ``"jwt"``
   - ``"no_auth"``
-  
+
 - ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
 
   - ``"always"``
@@ -94,14 +92,12 @@ Each endpoint object contains the following information:
   - ``"readonly"``
   - ``"historical"``
 
-- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ 
+- ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
   without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
   enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
   types of the endpoint's requests or responses.
 
-You can find an example metadata file at
-`tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle/app.json>`_
-in the CCF git repository.
+You can find an example metadata file at :ccf_repo:`tests/js-app-bundle/app.json` in the CCF git repository.
 
 JavaScript API
 --------------
@@ -123,10 +119,7 @@ Endpoint handlers
 
 An endpoint handler is an exported function that receives a :typedoc:interface:`Request <ccf-app/endpoints/Request>` object, returns a :typedoc:interface:`Response <ccf-app/endpoints/Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
-See the following handler from the example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
-folder of the CCF git repository.
-It validates the request body and returns the result of a mathematical operation:
+See the following handler from the example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository. It validates the request body and returns the result of a mathematical operation:
 
 .. literalinclude:: ../../tests/js-app-bundle/src/math.js
    :language: js
