@@ -77,7 +77,7 @@ namespace tls
         SSL_set_accept_state(ssl);
     }
 
-    virtual ~Context() {}
+    virtual ~Context() = default;
 
     void set_bio(
       void* cb_obj,

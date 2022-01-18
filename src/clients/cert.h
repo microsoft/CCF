@@ -58,7 +58,7 @@ namespace client::tls
       }
     }
 
-    ~TlsCert() {}
+    ~TlsCert() = default;
 
     void use(SSL* ssl, SSL_CTX* ssl_ctx)
     {

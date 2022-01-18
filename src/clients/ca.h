@@ -51,7 +51,7 @@ namespace client::tls
       }
     }
 
-    ~TlsCA() {}
+    ~TlsCA() = default;
 
     void use(SSL_CTX* ssl_ctx)
     {

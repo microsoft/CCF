@@ -98,7 +98,7 @@ namespace tls
       }
     }
 
-    ~Cert() {}
+    ~Cert() = default;
 
     void use(SSL* ssl, SSL_CTX* cfg)
     {

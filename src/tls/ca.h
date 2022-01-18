@@ -63,7 +63,7 @@ namespace tls
       crl = std::move(tmp_crl);
     }
 
-    ~CA() {}
+    ~CA() = default;
 
     void use(SSL* ssl, SSL_CTX* cfg)
     {
