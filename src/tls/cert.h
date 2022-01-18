@@ -75,6 +75,27 @@ namespace tls
       {
         SSL_CTX_set_verify(ssl_ctx, authmode(auth), NULL);
       }
+      else
+      {
+        // Calling set_verify with SSL_VERIFY_PEER forces the handshake to
+        // request a peer certificate. The server always sends it to the client
+        // but not the other way around. Some code relies on the server doing
+        // that, so we set this here. We return 1 from the validation callback
+        // (a common pattern in OpenSSL implementations) because we don't want
+        // to verify it here, just request it.
+        SSL_CTX_set_verify(
+          ssl_ctx, SSL_VERIFY_PEER, [](int precheck, x509_store_ctx_st* st) {
+            (void)precheck;
+            (void)st;
+            return 1;
+          });
+        SSL_set_verify(
+          ssl, SSL_VERIFY_PEER, [](int precheck, x509_store_ctx_st* st) {
+            (void)precheck;
+            (void)st;
+            return 1;
+          });
+      }
 
       if (has_own_cert)
       {
