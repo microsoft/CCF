@@ -130,6 +130,9 @@ public:
 
 int main(int argc, char** argv)
 {
+  logger::config::loggers().emplace_back(
+    std::make_unique<logger::TextConsoleLogger>());
+
   CLI::App cli_app{"Scenario Perf Client"};
   ScenarioPerfClientOptions options(cli_app, argv[0]);
   CLI11_PARSE(cli_app, argc, argv);
