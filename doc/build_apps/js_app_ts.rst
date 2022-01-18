@@ -3,10 +3,7 @@ TypeScript Application
 
 This guide shows how to build a TypeScript application using Node.js and npm.
 
-The current source code for the example app can be found in the
-`tests/npm-app <https://github.com/microsoft/CCF/tree/main/tests/npm-app>`_
-folder of the CCF git repository.
-To test against a released version use the same directory within that release, for instance from the `1.0.16 release <https://github.com/microsoft/CCF/tree/ccf-1.0.16/tests/npm-app>`_.
+The source code for the example app can be found in the :ccf_repo:`tests/npm-app/` folder of the CCF git repository.
 
 Prerequisites
 -------------
@@ -91,7 +88,7 @@ An endpoint handler, here named ``abc``, has the following structure:
     export function abc(request: ccfapp.Request<AbcRequest>): ccfapp.Response<AbcResponse> {
         // access request details
         const data = request.body.json();
-        
+
         // process request
         // ...
 
@@ -118,7 +115,7 @@ The example also shows how an external library, here ``lodash``, is imported and
 .. warning::
     Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <build_apps/js_app_ts:Metadata>`,
     CCF does not validate incoming request data against those schemas.
-    It is up to the application to perform any necessary validation. 
+    It is up to the application to perform any necessary validation.
 
 .. tip::
     See the :typedoc:package:`ccf-app` package API documentation for how to access the Key-Value Store and other CCF functionality.
