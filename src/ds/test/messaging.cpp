@@ -593,8 +593,7 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   size_t last_progress = i;
   while (i < target_writes)
   {
-    REQUIRE(
-      processor_inside.read_n(target_writes, circuit.read_from_outside()) > 0);
+    REQUIRE(processor_inside.read_all(circuit.read_from_outside()) > 0);
 
     while (write_to_inside.try_write(big_message, message_body))
     {
@@ -606,8 +605,7 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   }
 
   // Read remaining messages
-  REQUIRE(
-    processor_inside.read_n(target_writes, circuit.read_from_outside()) > 0);
+  REQUIRE(processor_inside.read_all(circuit.read_from_outside()) > 0);
 
   // NonBlockingWriter also avoids deadlock
   ringbuffer::WriterFactory base_factory(circuit);
@@ -636,7 +634,7 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   while (true)
   {
     const size_t n_read =
-      processor_inside.read_n(target_writes, circuit.read_from_outside());
+      processor_inside.read_all(circuit.read_from_outside());
     REQUIRE(n_read > 0);
     total_read += n_read;
 
@@ -647,7 +645,6 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   }
 
   // Read remaining messages
-  const size_t n_read =
-    processor_inside.read_n(target_writes, circuit.read_from_outside());
+  const size_t n_read = processor_inside.read_all(circuit.read_from_outside());
   REQUIRE(n_read > 0);
 }
