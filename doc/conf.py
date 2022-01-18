@@ -200,27 +200,28 @@ breathe_default_project = "CCF"
 # Set up multiversion extension
 
 # Build tags from ccf-1.0.1x
-# smv_tag_whitelist = r"^ccf-(1\.\d+\.1\d+|2.*)$"
-smv_tag_whitelist = r"^ccf-1.0.16$"
+smv_tag_whitelist = r"^ccf-(1\.\d+\.1\d+|2.*)$"
 smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
-# print(os.environ)
-print(sys.argv)
+# Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
+# This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`
+# envvar should be used for further versions (release pending).
 docs_version = "main"
 for arg in sys.argv:
     if "smv_current_version=" in arg:
         docs_version = arg.split("=")[1]
-# docs_version = [arg for arg in sys.argv if "smv_current_version" in arg][0] or "main"
-# docs_version = foo or "main"
-print(f"Docs version: {docs_version}")
 
-# print(sys.flags)
+# :ccf_repo: directive can be used to create a versioned link to GitHub repo
+extlinks = {
+    "ccf_repo": (
+        f"https://github.com/microsoft/CCF/tree/{docs_version}/%s",
+        "%s",
+    )
+}
 
-extlinks = {"repo": (f"https://github.com/microsoft/CCF/tree/{docs_version}/%s", "%s")}
-
-# PyData theme options
+# Theme options
 
 html_logo = "_static/ccf.svg"
 html_favicon = "_static/favicon.ico"
