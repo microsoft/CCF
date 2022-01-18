@@ -1,6 +1,8 @@
 Running a CCF Service
 =====================
 
+Does this work? :repo:`doc/conf.py`
+
 .. note:: Before creating a new network:
 
     - The :ref:`identity of the initial members of the consortium must be created <governance/adding_member:Generating Member Keys and Certificates>`.

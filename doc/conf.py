@@ -60,6 +60,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
     "sphinx_panels",
+    "sphinx.ext.extlinks",
 ]
 
 autosectionlabel_prefix_document = True
@@ -199,10 +200,25 @@ breathe_default_project = "CCF"
 # Set up multiversion extension
 
 # Build tags from ccf-1.0.1x
-smv_tag_whitelist = r"^ccf-(1\.\d+\.1\d+|2.*)$"
+# smv_tag_whitelist = r"^ccf-(1\.\d+\.1\d+|2.*)$"
+smv_tag_whitelist = r"^ccf-1.0.16$"
 smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
+
+# print(os.environ)
+print(sys.argv)
+docs_version = "main"
+for arg in sys.argv:
+    if "smv_current_version=" in arg:
+        docs_version = arg.split("=")[1]
+# docs_version = [arg for arg in sys.argv if "smv_current_version" in arg][0] or "main"
+# docs_version = foo or "main"
+print(f"Docs version: {docs_version}")
+
+# print(sys.flags)
+
+extlinks = {"repo": (f"https://github.com/microsoft/CCF/tree/{docs_version}/%s", "%s")}
 
 # PyData theme options
 
