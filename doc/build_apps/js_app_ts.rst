@@ -55,8 +55,8 @@ Dependencies
 
 The sample uses several runtime and development packages (see ``package.json``).
 One of them is the :typedoc:package:`ccf-app` package.
-This package is referenced locally using ``file:``.
-You should replace this with a reference to a recently published version (adjust the version number accordingly), to match the version of CCF you are running:
+This package references the current branch's version of the ``ccf-app`` package using ``file:``.
+To test against a published version you should adjust the version number accordingly:
 
 .. code-block:: js
 
