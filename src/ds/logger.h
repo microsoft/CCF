@@ -5,21 +5,13 @@
 #include "logger_formatters.h"
 #include "thread_ids.h"
 
-#include <chrono>
-#include <cstring>
-#include <ctime>
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
 #include <fmt/format.h>
-#include <fstream>
 #include <iostream>
-#include <map>
-#include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
-#include <string>
-#include <thread>
 
 namespace logger
 {
