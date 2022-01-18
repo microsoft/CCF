@@ -86,7 +86,7 @@ namespace host
       }
     }
 
-    void create_node(
+    CreateNodeStatus create_node(
       const EnclaveConfig& enclave_config,
       const StartupConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
@@ -124,17 +124,11 @@ namespace host
         num_worker_thread,
         time_location);
 
-      if (err != OE_OK)
+      if (err != OE_OK || status != CreateNodeStatus::OK)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to call in enclave_create_node: {}", oe_result_str(err)));
-      }
-
-      if (status != CreateNodeStatus::OK)
-      {
-        throw std::logic_error(fmt::format(
-          "An error occurred when creating CCF node: {}",
-          create_node_result_to_str(status)));
+        // Logs have described the errors already, we just need to allow the
+        // host to read them (via read_n()).
+        return status;
       }
 
       // Host and enclave versions must match. Otherwise the node may crash much
@@ -144,14 +138,17 @@ namespace host
         enclave_version_buf.begin() + enclave_version_len);
       if (ccf::ccf_version != enclave_version)
       {
-        throw std::logic_error(fmt::format(
+        LOG_FAIL_FMT(
           "Host/Enclave versions mismatch: {} != {}",
           ccf::ccf_version,
-          enclave_version));
+          enclave_version);
+        return CreateNodeStatus::VersionMismatch;
       }
 
       node_cert.resize(node_cert_len);
       network_cert.resize(network_cert_len);
+
+      return CreateNodeStatus::OK;
     }
 
     // Run a processor over this circuit inside the enclave - should be called
