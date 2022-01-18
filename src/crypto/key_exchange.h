@@ -48,7 +48,7 @@ namespace tls
         throw std::runtime_error("missing node key");
       }
 
-      // For backwards compatability we need to keep the format we used with
+      // For backwards compatibility we need to keep the format we used with
       // mbedTLS, which is the raw EC point with an extra size byte in the
       // front.
       auto tmp = own_key->public_key_raw();
