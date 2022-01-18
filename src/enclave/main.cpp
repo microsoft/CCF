@@ -8,6 +8,7 @@
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
+#include "ringbuffer_logger.h"
 
 #include <chrono>
 #include <thread>
@@ -69,8 +70,10 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
-    logger::config::msg() = AdminMessage::log_msg;
-    logger::config::writer() = writer_factory->create_writer_to_outside();
+    auto new_logger = std::make_unique<enclave::RingbufferLogger>(
+      writer_factory->create_writer_to_outside());
+    auto ringbuffer_logger = new_logger.get();
+    logger::config::loggers().push_back(std::move(new_logger));
 
     {
       // Report enclave version to host
@@ -191,6 +194,7 @@ extern "C"
         std::move(circuit),
         std::move(basic_writer_factory),
         std::move(writer_factory),
+        ringbuffer_logger,
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,

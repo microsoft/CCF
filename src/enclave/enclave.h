@@ -18,6 +18,7 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "oe_init.h"
+#include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -25,44 +26,13 @@
 
 namespace enclave
 {
-  class RingbufferLogger : public logger::AbstractLogger
-  {
-  protected:
-    ringbuffer::WriterPtr writer;
-
-    // Current time, as us duration since epoch (from system_clock). Used to
-    // produce offsets to host time when logging from inside the enclave
-    std::atomic<std::chrono::microseconds> us;
-
-  public:
-    RingbufferLogger(const ringbuffer::WriterPtr& writer_) : writer(writer_) {}
-
-    void write(
-      const logger::LogLine& line,
-      const std::optional<double>& enclave_offset = std::nullopt) override
-    {
-      writer->write(
-        AdminMessage::log_msg,
-        us.load().count(),
-        line.file_name,
-        line.line_number,
-        line.log_level,
-        line.thread_id,
-        line.msg);
-    }
-
-    void set_time(std::chrono::microseconds us_)
-    {
-      us.exchange(us_);
-    }
-  };
-
   class Enclave
   {
   private:
     std::unique_ptr<ringbuffer::Circuit> circuit;
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
+    RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
     std::shared_ptr<RPCMap> rpc_map;
@@ -71,7 +41,6 @@ namespace enclave
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
     ENGINE* rdrand_engine = nullptr;
-    RingbufferLogger* ringbuffer_logger = nullptr;
 
     StartType start_type;
 
@@ -124,6 +93,7 @@ namespace enclave
       std::unique_ptr<ringbuffer::Circuit> circuit_,
       std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
       std::unique_ptr<oversized::WriterFactory> writer_factory_,
+      RingbufferLogger* ringbuffer_logger_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
@@ -131,6 +101,7 @@ namespace enclave
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
+      ringbuffer_logger(ringbuffer_logger_),
       network(consensus_config.type),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
