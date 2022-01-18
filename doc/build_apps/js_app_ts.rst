@@ -3,7 +3,7 @@ TypeScript Application
 
 This guide shows how to build a TypeScript application using Node.js and npm.
 
-The source code for the example app can be found in the :ccf_repo:`tests/npm-app` folder of the CCF git repository.
+The source code for the example app can be found in the :ccf_repo:`tests/npm-app/` folder of the CCF git repository.
 
 Prerequisites
 -------------

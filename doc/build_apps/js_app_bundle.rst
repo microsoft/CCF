@@ -36,7 +36,7 @@ A bundle has the following folder structure:
 It consists of :ref:`metadata <build_apps/js_app_bundle:Metadata>` (``app.json``) and one or more :ref:`JavaScript modules <build_apps/js_app_bundle:JavaScript API>` (``src/``).
 JavaScript modules can `import <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import>`_ other modules using relative path names.
 
-You can find an example app bundle in the :ccf_repo:`tests/js-app-bundle` folder of the CCF git repository.
+You can find an example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository.
 
 Metadata
 --------
@@ -119,7 +119,7 @@ Endpoint handlers
 
 An endpoint handler is an exported function that receives a :typedoc:interface:`Request <ccf-app/endpoints/Request>` object, returns a :typedoc:interface:`Response <ccf-app/endpoints/Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
-See the following handler from the example app bundle in the :ccf_repo:`tests/js-app-bundle` folder of the CCF git repository. It validates the request body and returns the result of a mathematical operation:
+See the following handler from the example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository. It validates the request body and returns the result of a mathematical operation:
 
 .. literalinclude:: ../../tests/js-app-bundle/src/math.js
    :language: js
