@@ -33,10 +33,7 @@ namespace crypto
   {
   public:
     Entropy() = default;
-    virtual ~Entropy() = default;
-
-    // virtual void* get_data() = 0;
-    // virtual rng_func_t get_rng() = 0;
+    virtual ~Entropy() = default;    
 
     /// Generate @p len random bytes
     /// @param len Number of random bytes to generate
@@ -326,17 +323,7 @@ namespace crypto
       if (rdrand_get_bytes(len, output) < len)
         throw std::logic_error("Couldn't create random data");
       return 0;
-    }
-
-    // rng_func_t get_rng() override
-    // {
-    //   return &rng;
-    // }
-
-    // void* get_data() override
-    // {
-    //   return this;
-    // }
+    }    
 
     static bool is_drng_supported()
     {
