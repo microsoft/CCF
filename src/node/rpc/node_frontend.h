@@ -1392,7 +1392,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ResharingAlreadyCompleted,
             fmt::format(
-              "resharing for configuration {} already completed", in.rid));
+              "resharing for configuration {} already completed.", in.rid));
         }
 
         // For now, just pretend that we're done.
@@ -1431,7 +1431,7 @@ namespace ccf
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::NodeCannotHandleRequest,
-              "Only the primary accepts ORCs");
+              "Only the primary accepts ORCs.");
           }
         }
 
@@ -1439,19 +1439,18 @@ namespace ccf
         {
           LOG_DEBUG_FMT(
             "Configurations: sufficient number of ORCs, updating nodes in "
-            "configuration #{}",
+            "configuration #{}.",
             in.reconfiguration_id);
-          auto ncfgs = args.tx.rw(network.network_configurations);
+          auto ncfgs = args.tx.rw(network.network_configuration);
           auto nodes = args.tx.rw(network.nodes);
-          auto nc = ncfgs->get(in.reconfiguration_id);
+          auto nc = ncfgs->get();
 
           if (!nc.has_value())
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::ResourceNotFound,
-              fmt::format(
-                "unknown reconfiguration id: {}", in.reconfiguration_id));
+              "No network configuration found.");
           }
 
           nodes->foreach([&nodes, &nc](const auto& nid, const auto& node_info) {

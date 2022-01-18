@@ -902,36 +902,38 @@ const actions = new Map([
             );
           }
 
-          const latest_id_raw = ccf.kv[
-            "public:ccf.gov.nodes.network.configurations"
+          const network_configuration_raw = ccf.kv[
+            "public:ccf.gov.nodes.network.configuration"
           ].get(getSingletonKvKey());
-          if (latest_id_raw === undefined) {
+          if (network_configuration_raw === undefined) {
             throw new Error("Network configuration could not be found");
           }
-          const latest_id = ccf.bufToJsonCompatible(latest_id_raw);
-          const rid_buf = new ArrayBuffer(8);
-          new DataView(rid_buf).setUint32(0, latest_id.rid, true);
-
-          const latest_config_raw =
-            ccf.kv["public:ccf.gov.nodes.network.configurations"].get(rid_buf);
-          if (latest_config_raw === undefined) {
-            throw new Error("Network configuration could not be found");
-          }
-          const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
-
-          latest_config.nodes.push(args.node_id);
-          latest_config.rid++;
-          new DataView(rid_buf).setUint32(0, latest_config.rid, true);
-          ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
-            rid_buf,
-            ccf.jsonCompatibleToBuf(latest_config)
+          const network_configuration = ccf.bufToJsonCompatible(
+            network_configuration_raw
           );
-          latest_config.nodes = {};
-          latest_id.rid = latest_config.rid;
-          ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+          // const rid_buf = new ArrayBuffer(8);
+          // new DataView(rid_buf).setUint32(0, latest_id.rid, true);
+
+          // const latest_config_raw =
+          //   ccf.kv["public:ccf.gov.nodes.network.configuration"].get(rid_buf);
+          // if (latest_config_raw === undefined) {
+          //   throw new Error("Network configuration could not be found");
+          // }
+          // const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
+
+          network_configuration.nodes.push(args.node_id);
+          network_configuration.rid++;
+          // new DataView(rid_buf).setUint32(0, latest_config.rid, true);
+          ccf.kv["public:ccf.gov.nodes.network.configuration"].set(
             getSingletonKvKey(),
-            ccf.jsonCompatibleToBuf(latest_id)
+            ccf.jsonCompatibleToBuf(network_configuration)
           );
+          // latest_config.nodes = {};
+          // latest_id.rid = latest_config.rid;
+          // ccf.kv["public:ccf.gov.nodes.network.configuration"].set(
+          //   getSingletonKvKey(),
+          //   ccf.jsonCompatibleToBuf(latest_id)
+          // );
         }
       }
     ),
@@ -977,37 +979,39 @@ const actions = new Map([
             ccf.jsonCompatibleToBuf(node_obj)
           );
 
-          const latest_id_raw = ccf.kv[
-            "public:ccf.gov.nodes.network.configurations"
+          const network_configuration_raw = ccf.kv[
+            "public:ccf.gov.nodes.network.configuration"
           ].get(getSingletonKvKey());
-          if (latest_id_raw === undefined) {
+          if (network_configuration_raw === undefined) {
             throw new Error("Network configuration could not be found");
           }
-          const latest_id = ccf.bufToJsonCompatible(latest_id_raw);
-          const rid_buf = new ArrayBuffer(8);
-          new DataView(rid_buf).setUint32(0, latest_id.rid, true);
-          const latest_config_raw =
-            ccf.kv["public:ccf.gov.nodes.network.configurations"].get(rid_buf);
-          if (latest_config_raw === undefined) {
-            throw new Error("Network configuration could not be found");
-          }
-          const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
-          const idx = latest_config.nodes.indexOf(args.node_id);
+          const network_configuration = ccf.bufToJsonCompatible(
+            network_configuration_raw
+          );
+          // const rid_buf = new ArrayBuffer(8);
+          // new DataView(rid_buf).setUint32(0, latest_id.rid, true);
+          // const latest_config_raw =
+          //   ccf.kv["public:ccf.gov.nodes.network.configuration"].get(rid_buf);
+          // if (latest_config_raw === undefined) {
+          //   throw new Error("Network configuration could not be found");
+          // }
+          // const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
+          const idx = network_configuration.nodes.indexOf(args.node_id);
           if (idx > -1) {
-            latest_config.nodes.splice(idx, 1);
+            network_configuration.nodes.splice(idx, 1);
           }
-          latest_config.rid++;
-          new DataView(rid_buf).setUint32(0, latest_config.rid, true);
-          ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
-            rid_buf,
-            ccf.jsonCompatibleToBuf(latest_config)
-          );
-          latest_config.nodes = {};
-          latest_id.rid = latest_config.rid;
-          ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
+          network_configuration.rid++;
+          // new DataView(rid_buf).setUint32(0, latest_config.rid, true);
+          ccf.kv["public:ccf.gov.nodes.network.configuration"].set(
             getSingletonKvKey(),
-            ccf.jsonCompatibleToBuf(latest_id)
+            ccf.jsonCompatibleToBuf(network_configuration)
           );
+          // latest_config.nodes = {};
+          // latest_id.rid = latest_config.rid;
+          // ccf.kv["public:ccf.gov.nodes.network.configuration"].set(
+          //   getSingletonKvKey(),
+          //   ccf.jsonCompatibleToBuf(latest_id)
+          // );
         }
       }
     ),

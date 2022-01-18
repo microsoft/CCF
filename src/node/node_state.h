@@ -1982,9 +1982,9 @@ namespace ccf
           }));
 
       network.tables->set_map_hook(
-        network.network_configurations.get_name(),
-        network.network_configurations.wrap_map_hook(
-          [](kv::Version version, const NetworkConfigurations::Write& w)
+        network.network_configuration.get_name(),
+        network.network_configuration.wrap_map_hook(
+          [](kv::Version version, const NetworkConfiguration::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<NetworkConfigurationsHook>(version, w);
           }));

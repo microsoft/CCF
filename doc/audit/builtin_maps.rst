@@ -115,14 +115,14 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 
 **Value** Node service-endorsed certificate, represented as a PEM-encoded string.
 
-``nodes.network.configurations``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``nodes.network.configuration``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The currently valid and in-flight network configurations of the network. The entry at 0 contains a dummy configuration that holds the largest ID used so far.
+The currently valid network configurations of the network.
 
-**Key** Reconfiguration ID: a unique identifier of a configuration, represented as a little-endian 64-bit unsigned integer.
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** A set of node IDs of the nodes in the respective configuration, represented as a JSON array.
+**Value** Represented as JSON.
 
 .. doxygenstruct:: kv::NetworkConfiguration
    :project: CCF

@@ -116,7 +116,7 @@ namespace aft
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
     std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
-      network_configurations;
+      network_configuration;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
       orc_sets;
 
@@ -558,7 +558,7 @@ namespace aft
 
       assert(!configurations.empty());
 
-      network_configurations[netconfig.rid] = netconfig;
+      network_configuration[netconfig.rid] = netconfig;
 
       if (orc_sets.find(netconfig.rid) == orc_sets.end())
       {
@@ -626,8 +626,8 @@ namespace aft
           fmt::format("Missing ORC set for configuration #{}", rid));
       }
 
-      const auto ncit = network_configurations.find(rid);
-      if (ncit == network_configurations.end())
+      const auto ncit = network_configuration.find(rid);
+      if (ncit == network_configuration.end())
       {
         throw std::logic_error(fmt::format("Unknown configuration #{}", rid));
       }

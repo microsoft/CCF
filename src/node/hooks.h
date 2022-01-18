@@ -94,20 +94,20 @@ namespace ccf
   class NetworkConfigurationsHook : public kv::ConsensusHook
   {
     kv::Version version;
-    std::set<kv::NetworkConfiguration> configs;
+    kv::NetworkConfiguration config;
 
   public:
     NetworkConfigurationsHook(
-      kv::Version version_, const NetworkConfigurations::Write& w) :
+      kv::Version version_, const NetworkConfiguration::Write& w) :
       version(version_)
     {
-      for (const auto& [rid, opt_nc] : w)
+      if (!w.has_value())
       {
-        if (rid != CONFIG_COUNT_KEY && opt_nc.has_value())
-        {
-          configs.insert(opt_nc.value());
-        }
+        throw std::logic_error(
+          "Unexpected deletion from network configuration table");
       }
+
+      config = w.value();
     }
 
     void call(kv::ConfigurableConsensus* consensus) override
@@ -115,12 +115,9 @@ namespace ccf
       // This hook is always executed after the hook for the nodes table above,
       // because the hooks are sorted by table name.
       assert(
-        std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATIONS));
+        std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATION));
 
-      for (const auto& nc : configs)
-      {
-        consensus->reconfigure(version, nc);
-      }
+      consensus->reconfigure(version, config);
     }
   };
 

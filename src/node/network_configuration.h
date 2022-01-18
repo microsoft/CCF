@@ -15,6 +15,8 @@
 
 namespace ccf
 {
-  using NetworkConfigurations =
-    ServiceMap<kv::ReconfigurationId, kv::NetworkConfiguration>;
+  // using NetworkConfiguration =
+  //   ServiceMap<kv::ReconfigurationId, kv::NetworkConfiguration>;
+
+  using NetworkConfiguration = ServiceValue<kv::NetworkConfiguration>;
 }
