@@ -59,7 +59,7 @@ Dependencies
 The sample uses several runtime and development packages (see ``package.json``).
 One of them is the :typedoc:package:`ccf-app` package.
 This package references the current branch's version of the ``ccf-app`` package using ``file:``.
-To test against a published version you should adjust the version number accordingly::
+To test against a published version you should adjust the version number accordingly:
 
 .. code-block:: js
 
