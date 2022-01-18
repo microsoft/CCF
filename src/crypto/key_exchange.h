@@ -78,7 +78,7 @@ namespace tls
     {
       if (ks.size() == 0)
       {
-        throw std::runtime_error("Missing peer key share");
+        throw std::runtime_error("missing peer key share");
       }
 
       auto tmp = ks;
