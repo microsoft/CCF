@@ -8,8 +8,6 @@
 
 namespace ccf
 {
-  // kv::ReconfigurationId CONFIG_COUNT_KEY = 0;
-
   inline kv::ReconfigurationId get_next_reconfiguration_id(
     ccf::NetworkTables& tables, kv::ReadOnlyTx& tx)
   {
@@ -30,11 +28,6 @@ namespace ccf
   {
     auto nconfigs = tx.ro(tables.network_configuration);
     return nconfigs->get().value_or(kv::NetworkConfiguration{});
-    // if (e.has_value())
-    // {
-    //   return nconfigs->get(e.value().rid).value();
-    // }
-    // return {};
   }
 
   inline void add_new_network_reconfiguration(
