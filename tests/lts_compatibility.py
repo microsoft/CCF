@@ -116,13 +116,12 @@ def test_new_service(
     test_service_cert_renewal(network, args)
 
     LOG.info("Waiting for retired nodes to be automatically removed")
-    with primary.client() as c:
-        for node in all_nodes:
-            network.wait_for_node_in_store(
-                primary,
-                node.node_id,
-                node_status=ccf.ledger.NodeStatus.TRUSTED if node.is_joined() else None,
-            )
+    for node in all_nodes:
+        network.wait_for_node_in_store(
+            primary,
+            node.node_id,
+            node_status=ccf.ledger.NodeStatus.TRUSTED if node.is_joined() else None,
+        )
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
