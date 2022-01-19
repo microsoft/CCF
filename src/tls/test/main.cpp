@@ -92,10 +92,7 @@ int recv(void* ctx, uint8_t* buf, size_t len)
   return rc;
 }
 
-// These are OpenSSL callbacks that call onto the MbedTLS ones. They have the
-// same name but different signatures, so when using OpenSSL, these are the ones
-// that set_bio() will take, and call the ones above by using the correct
-// signature.
+// OpenSSL callbacks that call onto the pipe's ones
 template <int end>
 long send(
   BIO* b,
@@ -191,7 +188,6 @@ int handshake(Context* ctx)
         break;
 
       case TLS_ERR_NEED_CERT:
-      case TLS_ERR_PEER_VERIFY:
       {
         LOG_FAIL_FMT("Handshake error: {}", tls::error_string(rc));
         return 1;
