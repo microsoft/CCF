@@ -91,37 +91,6 @@ namespace ccf
     }
   };
 
-  class NetworkConfigurationsHook : public kv::ConsensusHook
-  {
-    kv::Version version;
-    kv::NetworkConfiguration config;
-
-  public:
-    NetworkConfigurationsHook(
-      kv::Version version_, const NetworkConfiguration::Write& w) :
-      version(version_)
-    {
-      if (!w.has_value())
-      {
-        throw std::logic_error(
-          "Unexpected deletion from network configuration table");
-      }
-
-      config = w.value();
-    }
-
-    void call(kv::ConfigurableConsensus* consensus) override
-    {
-      // This hook is always executed after the hook for the nodes table above,
-      // because the hooks are sorted by table name.
-      assert(
-        std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATION));
-
-      // TODO: Not called anymore!
-      // consensus->reconfigure(version, config);
-    }
-  };
-
   // Note: The SignaturesHook and SerialisedMerkleTreeHook are separate because
   // the signature and the Merkle tree are recorded in distinct tables (for
   // serialisation performance reasons). However here, they are expected to

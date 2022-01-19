@@ -26,7 +26,6 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
@@ -1979,14 +1978,6 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
-          }));
-
-      network.tables->set_map_hook(
-        network.network_configuration.get_name(),
-        network.network_configuration.wrap_map_hook(
-          [](kv::Version version, const NetworkConfiguration::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<NetworkConfigurationsHook>(version, w);
           }));
 
       network.tables->set_map_hook(

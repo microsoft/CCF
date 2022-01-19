@@ -115,19 +115,6 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 
 **Value** Node service-endorsed certificate, represented as a PEM-encoded string.
 
-``nodes.network.configuration``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The currently valid network configurations of the network.
-
-**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
-
-**Value** Represented as JSON.
-
-.. doxygenstruct:: kv::NetworkConfiguration
-   :project: CCF
-   :members:
-
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 

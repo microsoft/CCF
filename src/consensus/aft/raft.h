@@ -565,37 +565,6 @@ namespace aft
       snapshotter->record_serialised_tree(version, tree);
     }
 
-    void reconfigure(
-      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig) override
-    {
-      LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
-      assert(false);
-
-      // assert(!configurations.empty());
-
-      // if (configurations.back().rid == 0)
-      // {
-      //   configurations.back().rid = seqno;
-      // }
-
-      // network_configuration[seqno] = netconfig;
-
-      // if (orc_sets.find(seqno) == orc_sets.end())
-      // {
-      //   orc_sets[seqno] = {};
-      // }
-
-      // if (resharing_tracker)
-      // {
-      //   assert(resharing_tracker);
-      //   resharing_tracker->add_network_configuration(netconfig);
-      //   if (is_primary())
-      //   {
-      //     resharing_tracker->reshare(netconfig);
-      //   }
-      // }
-    }
-
     void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,

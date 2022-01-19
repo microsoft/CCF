@@ -239,8 +239,6 @@ namespace kv
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
-    virtual void reconfigure(
-      ccf::SeqNo seqno, const NetworkConfiguration& config) = 0;
     virtual void add_resharing_result(
       ccf::SeqNo seqno,
       ReconfigurationId rid,

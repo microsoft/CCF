@@ -16,7 +16,6 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
-#include "node/reconfig_id.h"
 #include "node/rpc/error.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -258,16 +257,6 @@ namespace ccf
       }
 
       nodes->put(joining_node_id, node_info);
-
-      if (
-        node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER)
-      {
-        kv::NetworkConfiguration nc =
-          get_latest_network_configuration(network, tx);
-        nc.nodes.insert(joining_node_id);
-        add_new_network_reconfiguration(network, tx, nc);
-      }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
