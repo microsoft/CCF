@@ -287,10 +287,10 @@ namespace ccf
     }
 
     // Service status should use a state machine, very much like NodeState.
-    void create_service(const crypto::Pem& network_cert)
+    void create_service(const crypto::Pem& service_cert)
     {
       auto service = tx.rw(tables.service);
-      service->put({network_cert, ServiceStatus::OPENING});
+      service->put({service_cert, ServiceStatus::OPENING});
     }
 
     bool is_service_created(const crypto::Pem& expected_service_cert)

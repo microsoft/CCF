@@ -506,7 +506,7 @@ class CCFClient:
 
     :param str host: RPC IP address or domain name of node to connect to.
     :param int port: RPC port number of node to connect to.
-    :param str ca: Path to CCF network certificate.
+    :param str ca: Path to CCF service certificate.
     :param Identity session_auth: Path to private key and certificate to be used as client authentication for the session (optional).
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
