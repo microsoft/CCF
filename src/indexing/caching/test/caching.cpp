@@ -90,8 +90,8 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
   {
     INFO("Host cache provides wrong file");
     REQUIRE(std::filesystem::copy_file(
-      hc.root_dir / key_b,
-      hc.root_dir / key_a,
+      hc.root_dir / obfuscate_key(key_b),
+      hc.root_dir / obfuscate_key(key_a),
       std::filesystem::copy_options::overwrite_existing));
 
     auto result = std::make_shared<FetchResult>();
@@ -106,7 +106,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
 
   {
     INFO("Host cache provides corrupt file");
-    const auto b_path = hc.root_dir / key_b;
+    const auto b_path = hc.root_dir / obfuscate_key(key_b);
     const auto original_b_contents = read_file(b_path);
 
     for (auto i = 0; i < original_b_contents.size(); ++i)

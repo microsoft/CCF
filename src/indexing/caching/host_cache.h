@@ -35,6 +35,8 @@ namespace indexing::caching
 
           const auto blob_path = root_dir / key;
           std::ofstream f(blob_path, std::ios::trunc | std::ios::binary);
+          LOG_TRACE_FMT(
+            "Writing {} byte blob to {}", encrypted_blob.size(), blob_path);
           f.write((char const*)encrypted_blob.data(), encrypted_blob.size());
           f.close();
         });
@@ -49,6 +51,7 @@ namespace indexing::caching
             std::ifstream f(blob_path, std::ios::binary);
             f.seekg(0, f.end);
             const auto size = f.tellg();
+            LOG_TRACE_FMT("Reading {} byte blob from {}", size, blob_path);
             f.seekg(0, f.beg);
 
             EncryptedBlob blob(size);
@@ -58,6 +61,7 @@ namespace indexing::caching
           }
           else
           {
+            LOG_TRACE_FMT("Blob {} not found", blob_path);
             RINGBUFFER_WRITE_MESSAGE(BlobMsg::not_found, writer, key);
           }
         });
