@@ -11,6 +11,7 @@
 namespace ccf
 {
   static constexpr auto default_node_cert_validity_period_days = 365;
+  static constexpr auto default_service_cert_validity_period_days = 365;
 
   struct ServiceConfiguration
   {
@@ -24,6 +25,8 @@ namespace ccf
      */
 
     std::optional<size_t> maximum_node_certificate_validity_days = std::nullopt;
+    std::optional<size_t> maximum_service_certificate_validity_days =
+      std::nullopt;
 
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
@@ -42,7 +45,8 @@ namespace ccf
     ServiceConfiguration,
     consensus,
     reconfiguration_type,
-    maximum_node_certificate_validity_days)
+    maximum_node_certificate_validity_days,
+    maximum_service_certificate_validity_days)
 
   // The there is always only one active configuration, so this is a single
   // Value

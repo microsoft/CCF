@@ -228,7 +228,7 @@ TEST_CASE("Additional data")
     version,
     term));
 
-  // mbedtls 2.16+ does not produce plain text if decryption fails
+  // Check we do not produce plain text if decryption fails
   REQUIRE(decrypted_cipher2.empty());
 }
 

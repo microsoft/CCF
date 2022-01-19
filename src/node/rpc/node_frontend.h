@@ -312,7 +312,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.9.0";
+      openapi_info.document_version = "2.10.0";
     }
 
     void init_handlers() override
@@ -1187,7 +1187,7 @@ namespace ccf
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
         GenesisGenerator g(this->network, ctx.tx);
-        if (g.is_service_created(in.network_cert))
+        if (g.is_service_created(in.service_cert))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1195,7 +1195,7 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.network_cert);
+        g.create_service(in.service_cert);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();

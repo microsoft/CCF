@@ -214,9 +214,9 @@ namespace crypto
   Pem KeyPair_OpenSSL::sign_csr(
     const Pem& issuer_cert,
     const Pem& signing_request,
-    bool ca,
-    const std::optional<std::string>& valid_from,
-    const std::optional<std::string>& valid_to) const
+    const std::string& valid_from,
+    const std::string& valid_to,
+    bool ca) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -255,10 +255,8 @@ namespace crypto
         X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
     }
 
-    // Note: 825-day validity range
-    // https://support.apple.com/en-us/HT210176
-    Unique_X509_TIME not_before(valid_from.value_or("20210311000000Z"));
-    Unique_X509_TIME not_after(valid_to.value_or("20230611235959Z"));
+    Unique_X509_TIME not_before(valid_from);
+    Unique_X509_TIME not_after(valid_to);
     if (!validate_chronological_times(not_before, not_after))
     {
       throw std::logic_error(fmt::format(
