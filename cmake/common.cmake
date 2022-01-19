@@ -30,13 +30,6 @@ if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
-option(NO_STRICT_TLS_CIPHERSUITES
-       "Disable strict list of valid TLS ciphersuites" OFF
-)
-if(NO_STRICT_TLS_CIPHERSUITES)
-  add_compile_definitions(NO_STRICT_TLS_CIPHERSUITES)
-endif()
-
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
        OFF
 )
@@ -58,12 +51,6 @@ option(ENABLE_HTTP2 "Enable experimental support for HTTP2" OFF)
 if(ENABLE_HTTP2)
   message(STATUS "Enabling experimental support for HTTP2")
   add_compile_definitions(ENABLE_HTTP2)
-endif()
-
-option(TLS_PROVIDER_IS_MBEDTLS "Force TLS provider to MbedTLS" OFF)
-if(TLS_PROVIDER_IS_MBEDTLS)
-  message(STATUS "Using MbedTLS for TLS")
-  add_compile_definitions(TLS_PROVIDER_IS_MBEDTLS)
 endif()
 
 option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
@@ -89,11 +76,6 @@ set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
 
 include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
 include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
-
-find_package(MbedTLS REQUIRED)
-
-set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
-set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
@@ -332,7 +314,6 @@ install(
 
 # CCF endpoints libs
 add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
-use_oe_mbedtls(ccf_endpoints.enclave)
 add_warning_checks(ccf_endpoints.enclave)
 install(
   TARGETS ccf_endpoints.enclave
@@ -340,7 +321,6 @@ install(
   DESTINATION lib
 )
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
-use_client_mbedtls(ccf_endpoints.host)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 install(
@@ -371,7 +351,6 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
-  use_oe_mbedtls(js_openenclave.enclave)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_openenclave.enclave)
   install(
@@ -392,7 +371,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
-  use_client_mbedtls(js_openenclave.virtual)
   install(
     TARGETS js_openenclave.virtual
     EXPORT ccf
@@ -404,7 +382,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
-  use_oe_mbedtls(js_generic_base.enclave)
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_generic_base.enclave)
   install(
@@ -429,7 +406,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
-  use_client_mbedtls(js_generic_base.virtual)
   install(
     TARGETS js_generic_base.virtual
     EXPORT ccf

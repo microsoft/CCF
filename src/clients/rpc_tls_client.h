@@ -105,8 +105,8 @@ namespace client
     HttpRpcTlsClient(
       const std::string& host,
       const std::string& port,
-      std::shared_ptr<tls::TlsCA> node_ca = nullptr,
-      std::shared_ptr<tls::TlsCert> cert = nullptr,
+      std::shared_ptr<tls::CA> node_ca = nullptr,
+      std::shared_ptr<tls::Cert> cert = nullptr,
       const std::string& key_id_ = "Invalid") :
       TlsClient(host, port, node_ca, cert),
       parser(*this),
