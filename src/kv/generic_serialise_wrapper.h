@@ -58,7 +58,7 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
-      EntryType entry_type_ = EntryType::WriteSet,
+      EntryType entry_type_ = EntryType::WriteSetWithCommitEvidence,
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       entry_type(entry_type_),
@@ -275,6 +275,11 @@ namespace kv
     ccf::ClaimsDigest&& consume_claims_digest()
     {
       return std::move(claims_digest);
+    }
+
+    crypto::Sha256Hash&& consume_commit_evidence_digest()
+    {
+      return std::move(commit_evidence_digest);
     }
 
     std::optional<Version> init(
