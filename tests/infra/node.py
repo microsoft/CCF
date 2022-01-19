@@ -408,7 +408,7 @@ class Node:
         joined a network and that it is part of the consensus.
         """
         # Until the node has joined, the SSL handshake will fail as the node
-        # is not yet endorsed by the network certificate
+        # is not yet endorsed by the service certificate
 
         try:
             with self.client(connection_timeout=timeout) as nc:
@@ -494,7 +494,7 @@ class Node:
         if self_signed_ok:
             return {"ca": ""}
         else:
-            return {"ca": os.path.join(self.common_dir, "networkcert.pem")}
+            return {"ca": os.path.join(self.common_dir, "service_cert.pem")}
 
     def client(
         self,
@@ -591,7 +591,7 @@ class Node:
         )
         if valid_to != expected_valid_to:
             raise ValueError(
-                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to} but expected "{expected_valid_to}"'
+                f'Validity period for node {self.local_node_id} certiticate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
             )
 
         validity_period = valid_to - valid_from + timedelta(seconds=1)

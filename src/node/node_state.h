@@ -73,7 +73,7 @@ namespace ccf
   struct NodeCreateInfo
   {
     crypto::Pem self_signed_node_cert;
-    crypto::Pem network_cert;
+    crypto::Pem service_cert;
   };
 
   void reset_data(std::vector<uint8_t>& data)
@@ -320,7 +320,9 @@ namespace ccf
         case StartType::Start:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network", curve_id);
+            curve_id,
+            config.startup_host_time,
+            config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
 
@@ -379,7 +381,9 @@ namespace ccf
         case StartType::Recover:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network", curve_id);
+            curve_id,
+            config.startup_host_time,
+            config.initial_service_certificate_validity_days);
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
@@ -408,7 +412,7 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.join.network_cert);
+      auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
 
@@ -1070,7 +1074,6 @@ namespace ccf
             "Could not commit transaction when finishing network recovery");
         }
       }
-      open_user_frontend();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
@@ -1236,10 +1239,7 @@ namespace ccf
         }
 
         GenesisGenerator g(network, tx);
-        if (g.open_service())
-        {
-          open_user_frontend();
-        }
+        g.open_service();
         return;
       }
       else
@@ -1609,7 +1609,7 @@ namespace ccf
         create_params.node_endorsed_certificate);
 
       create_params.public_key = node_sign_kp->public_key_pem();
-      create_params.network_cert = network.identity->cert;
+      create_params.service_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
@@ -1819,8 +1819,20 @@ namespace ccf
               accept_network_tls_connections();
 
               open_frontend(ActorsType::members);
-              open_user_frontend();
             }
+          }));
+
+      network.tables->set_global_hook(
+        network.service.get_name(),
+        network.service.wrap_commit_hook(
+          [this](kv::Version hook_version, const Service::Write& w) {
+            if (!w.has_value())
+            {
+              throw std::logic_error("Unexpected deletion in service value");
+            }
+
+            network.identity->set_certificate(w->cert);
+            open_user_frontend();
           }));
     }
 
