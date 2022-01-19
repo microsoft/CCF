@@ -117,6 +117,7 @@ namespace ccf
       assert(
         std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATION));
 
+      // TODO: Not called anymore!
       // consensus->reconfigure(version, config);
     }
   };
