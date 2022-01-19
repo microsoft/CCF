@@ -210,7 +210,7 @@ namespace kv::test
       ccf::SeqNo seqno, const NetworkConfiguration& config) override
     {}
 
-    virtual std::optional<std::unordered_set<ccf::NodeId>> orc(
+    virtual std::optional<kv::Configuration::Nodes> orc(
       kv::ReconfigurationId rid, const NodeId& node_id) override
     {
       return std::nullopt;

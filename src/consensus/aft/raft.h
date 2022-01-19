@@ -115,8 +115,8 @@ namespace aft
     ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
-    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
-      network_configuration;
+    // std::unordered_map<kv::ReconfigurationId, Configuration>
+    //   network_configuration;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
       orc_sets;
 
@@ -517,12 +517,29 @@ namespace aft
             }
           }
         }
+
+        if (orc_sets.find(idx) == orc_sets.end())
+        {
+          orc_sets[idx] = {};
+        }
+
+        if (resharing_tracker)
+        {
+          kv::NetworkConfiguration netconfig = {idx, {}}; // TODO: Fix
+          resharing_tracker->add_network_configuration(netconfig);
+          if (is_primary())
+          {
+            resharing_tracker->reshare(netconfig);
+          }
+        }
       }
 
       if (conf != configurations.back().nodes)
       {
         uint32_t offset = get_bft_offset(conf);
-        configurations.push_back({idx, std::move(conf), offset, 0});
+        Configuration new_config = {idx, std::move(conf), offset, idx};
+        // network_configuration[idx] = new_config; // TODO: Delete
+        configurations.push_back(new_config);
 
         create_and_remove_node_state();
       }
@@ -555,31 +572,32 @@ namespace aft
       ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig) override
     {
       LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
+      assert(false);
 
-      assert(!configurations.empty());
+      // assert(!configurations.empty());
 
-      if (configurations.back().rid == 0)
-      {
-        configurations.back().rid = seqno;
-      }
+      // if (configurations.back().rid == 0)
+      // {
+      //   configurations.back().rid = seqno;
+      // }
 
       // TODO: Raft don't cleanup
-      network_configuration[seqno] = netconfig;
+      // network_configuration[seqno] = netconfig;
 
-      if (orc_sets.find(seqno) == orc_sets.end())
-      {
-        orc_sets[seqno] = {};
-      }
+      // if (orc_sets.find(seqno) == orc_sets.end())
+      // {
+      //   orc_sets[seqno] = {};
+      // }
 
-      if (resharing_tracker)
-      {
-        assert(resharing_tracker);
-        resharing_tracker->add_network_configuration(netconfig);
-        if (is_primary())
-        {
-          resharing_tracker->reshare(netconfig);
-        }
-      }
+      // if (resharing_tracker)
+      // {
+      //   assert(resharing_tracker);
+      //   resharing_tracker->add_network_configuration(netconfig);
+      //   if (is_primary())
+      //   {
+      //     resharing_tracker->reshare(netconfig);
+      //   }
+      // }
     }
 
     void add_resharing_result(
@@ -616,9 +634,11 @@ namespace aft
     // nodes keep re-submitting ORCs until they are able to switch to the next
     // pending configuration.
 
-    std::optional<std::unordered_set<ccf::NodeId>> orc(
+    std::optional<kv::Configuration::Nodes> orc(
       kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
+      // TODO: What about lock?
+
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
 
@@ -629,42 +649,84 @@ namespace aft
           fmt::format("Missing ORC set for configuration #{}", rid));
       }
 
-      const auto ncit = network_configuration.find(rid);
-      if (ncit == network_configuration.end())
+      for (auto const& conf : configurations)
       {
-        throw std::logic_error(fmt::format("Unknown configuration #{}", rid));
+        if (conf.rid == rid)
+        {
+          const auto& ncnodes = conf.nodes;
+          if (ncnodes.find(node_id) == ncnodes.end())
+          {
+            LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
+            return std::nullopt;
+          }
+          else
+          {
+            oit->second.insert(node_id);
+            LOG_DEBUG_FMT(
+              "Configurations: have {} ORCs out of {} for configuration #{}",
+              oit->second.size(),
+              ncnodes.size(),
+              rid);
+
+            // Note: Learners in the next configuration become trusted when
+            // there is quorum in the next configuration, i.e. they may become
+            // trusted in the nodes table before they are fully caught up and
+            // have submitted their own ORC.
+
+            if (oit->second.size() >= get_quorum(ncnodes.size()))
+            {
+              return ncnodes;
+            }
+            else
+            {
+              return std::nullopt;
+            }
+          }
+          break;
+        }
       }
 
-      const auto& ncnodes = ncit->second.nodes;
-      if (ncnodes.find(node_id) == ncnodes.end())
-      {
-        LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
-        return std::nullopt;
-      }
-      else
-      {
-        oit->second.insert(node_id);
-      }
+      return std::nullopt;
 
-      LOG_DEBUG_FMT(
-        "Configurations: have {} ORCs out of {} for configuration #{}",
-        oit->second.size(),
-        ncnodes.size(),
-        rid);
+      // const auto ncit = network_configuration.find(rid);
+      // if (ncit == network_configuration.end())
+      // {
+      //   throw std::logic_error(fmt::format("Unknown configuration #{}",
+      //   rid));
+      // }
 
-      // Note: Learners in the next configuration become trusted when there is
-      // quorum in the next configuration, i.e. they may become trusted in the
-      // nodes table before they are fully caught up and have submitted their
-      // own ORC.
+      // const auto& ncnodes = ncit->second.nodes;
+      // if (ncnodes.find(node_id) == ncnodes.end())
+      // {
+      //   LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
+      //   return std::nullopt;
+      // }
+      // else
+      // {
+      //   oit->second.insert(node_id);
+      // }
 
-      if (oit->second.size() >= get_quorum(ncnodes.size()))
-      {
-        return ncnodes;
-      }
-      else
-      {
-        return std::nullopt;
-      }
+      // LOG_DEBUG_FMT(
+      //   "Configurations: have {} ORCs out of {} for configuration #{}",
+      //   oit->second.size(),
+      //   ncnodes.size(),
+      //   rid);
+
+      // // Note: Learners in the next configuration become trusted when there
+      // is
+      // // quorum in the next configuration, i.e. they may become trusted in
+      // the
+      // // nodes table before they are fully caught up and have submitted their
+      // // own ORC.
+
+      // if (oit->second.size() >= get_quorum(ncnodes.size()))
+      // {
+      //   return ncnodes;
+      // }
+      // else
+      // {
+      //   return std::nullopt;
+      // }
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override

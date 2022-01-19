@@ -117,7 +117,7 @@ namespace ccf
       assert(
         std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATION));
 
-      consensus->reconfigure(version, config);
+      // consensus->reconfigure(version, config);
     }
   };
 
