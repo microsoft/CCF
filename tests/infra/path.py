@@ -61,7 +61,7 @@ def cert_bytes(cert_file_name):
                 chars.append(c)
             else:
                 break
-        # null-terminated certs, just in case
+        # null-terminated certs, for compatibility
         return chars + [0]
 
 
