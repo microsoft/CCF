@@ -45,7 +45,7 @@ Authentication
 
 When establishing a TLS connection with a CCF service both the service and client must prove their identity.
 
-The service identity is created at startup. The initial node generates a fresh private key which exists solely within the service's enclaves. A certificate of the corresponding public key is emitted (``networkcert.pem``) and used by all subsequent connections to confirm they are communicating with the intended service.
+The service identity is created at startup. The initial node generates a fresh private key which exists solely within the service's enclaves. A certificate of the corresponding public key is emitted (``service_cert.pem``) and used by all subsequent connections to confirm they are communicating with the intended service.
 
 Each member and user is identified by the cert with which they were registered with the service, either at genesis or in a subsequent ``set_member`` or ``set_user`` governance proposal. Access to the corresponding private key allows a client to submit commands as this member or user. For this test network these are all freshly generated and stored in the same common workspace for easy access. In a real deployment only the certificates would be shared; the private keys would be distributed and remain confidential.
 
@@ -66,17 +66,17 @@ Now we can submit a first command, to find the current commit index of the test 
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/commit -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem
+    $ curl https://127.251.192.205:36981/app/commit -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
     {"transaction_id": 2.30}
 
 This should look much like a standard HTTP server, with error codes for missing resources or resources the caller is not authorized to access:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/not/a/real/resource -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -i
+    $ curl https://127.251.192.205:36981/app/not/a/real/resource -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
     HTTP/1.1 404 Not Found
 
-    $ curl https://127.251.192.205:36981/gov/proposals -X POST --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -i
+    $ curl https://127.251.192.205:36981/gov/proposals -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
     HTTP/1.1 403 Forbidden
 
 Logging App Commands
@@ -94,24 +94,24 @@ This is available at the ``/app/log/private`` path:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/log/private -X POST --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to private table"}'
+    $ curl https://127.251.192.205:36981/app/log/private -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to private table"}'
     true
 
 This has written an entry to the CCF KV, which can be retrieved by a future request:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/log/private?id=42 -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem
+    $ curl https://127.251.192.205:36981/app/log/private?id=42 -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
     {"msg":"Logged to private table"}
 
 We can log messages in the public table via the ``/app/log/public`` path:
 
 .. code-block:: bash
 
-    $ curl https://127.251.192.205:36981/app/log/public -X POST --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to public table"}'
+    $ curl https://127.251.192.205:36981/app/log/public -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Logged to public table"}'
     true
 
-    $ curl https://127.251.192.205:36981/app/log/public?id=42 -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem
+    $ curl https://127.251.192.205:36981/app/log/public?id=42 -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
     {"msg":"Logged to public table"}
 
 Note that the paths to these handlers is arbitrary. The names of the endpoints do not affect whether the result works with public or private tables - that is determined entirely by the application code. The logging app contains very simple examples, and real business transactions are likely to read and write from multiple tables. The difference between public and private tables is that private tables are encrypted before being written to the ledger, so their contents are only visible within the service's enclaves, whereas public tables can be read and audited directly from the ledger. This can be crudely checked by grepping the produced ledger files:

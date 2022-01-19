@@ -126,5 +126,15 @@ namespace crypto
      * Get the public key in DER format
      */
     virtual std::vector<uint8_t> public_key_der() const = 0;
+
+    /**
+     * Get the raw bytes of the public key
+     */
+    virtual std::vector<uint8_t> public_key_raw() const = 0;
+
+    /**
+     * The curve ID
+     */
+    virtual CurveID get_curve_id() const = 0;
   };
 }

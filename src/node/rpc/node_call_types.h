@@ -64,7 +64,7 @@ namespace ccf
       crypto::Pem certificate_signing_request;
       crypto::Pem node_endorsed_certificate;
       crypto::Pem public_key;
-      crypto::Pem network_cert;
+      crypto::Pem service_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;

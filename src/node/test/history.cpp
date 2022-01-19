@@ -19,6 +19,13 @@ threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using MapT = kv::Map<size_t, size_t>;
 
+constexpr size_t certificate_validity_period_days = 365;
+auto valid_from =
+  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+    std::chrono::system_clock::now())); // now
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
+
 class DummyConsensus : public kv::test::StubConsensus
 {
 public:
@@ -97,7 +104,7 @@ TEST_CASE("Check signature verification")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp->self_sign("CN=name");
+    ni.cert = kp->self_sign("CN=name", valid_from, valid_to);
     tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
@@ -113,7 +120,7 @@ TEST_CASE("Check signature verification")
     auto txs = primary_store.create_tx();
     auto sigs = txs.rw(signatures);
     ccf::PrimarySignature bogus(kv::test::PrimaryNodeId, 0);
-    bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
+    bogus.sig = std::vector<uint8_t>(256, 1);
     sigs->put(bogus);
     REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
   }
@@ -159,7 +166,7 @@ TEST_CASE("Check signing works across rollback")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp->self_sign("CN=name");
+    ni.cert = kp->self_sign("CN=name", valid_from, valid_to);
     tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }

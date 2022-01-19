@@ -3,9 +3,7 @@
 #include "crypto/certs.h"
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
-// These headers are temporary, until we have a single TLS implementation
-#include "tls/mbedtls/tls.h"
-#include "tls/openssl/tls.h"
+#include "tls/tls.h"
 
 #include <openssl/err.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -94,8 +92,6 @@ int recv(void* ctx, uint8_t* buf, size_t len)
   return rc;
 }
 
-#ifndef TLS_PROVIDER_IS_MBEDTLS
-
 // These are OpenSSL callbacks that call onto the MbedTLS ones. They have the
 // same name but different signatures, so when using OpenSSL, these are the ones
 // that set_bio() will take, and call the ones above by using the correct
@@ -175,8 +171,6 @@ long recv(
   return ret;
 }
 
-#endif
-
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.
 int handshake(Context* ctx)
@@ -231,12 +225,50 @@ struct NetworkCA
   crypto::Pem cert;
 };
 
+static crypto::Pem generate_self_signed_cert(
+  const crypto::KeyPairPtr& kp, const std::string& name)
+{
+  constexpr size_t certificate_validity_period_days = 365;
+  auto valid_from =
+    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+      std::chrono::system_clock::now())); // now
+
+  return crypto::create_self_signed_cert(
+    kp, name, {}, valid_from, certificate_validity_period_days);
+}
+
+static crypto::Pem generate_endorsed_cert(
+  const crypto::KeyPairPtr& kp,
+  const std::string& name,
+  const crypto::KeyPairPtr& issuer_kp,
+  const crypto::Pem& issuer_cert)
+{
+  constexpr size_t certificate_validity_period_days = 365;
+
+  // Because this test verifies the validity of this certificate shortly after
+  // its creation, round down to the closest minute to avoid the validation to
+  // fail because of potential clock drifts.
+  auto valid_from =
+    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+      std::chrono::floor<std::chrono::minutes>(
+        std::chrono::system_clock::now()))); // now
+
+  return crypto::create_endorsed_cert(
+    kp,
+    name,
+    {},
+    valid_from,
+    certificate_validity_period_days,
+    issuer_kp->private_key_pem(),
+    issuer_cert);
+}
+
 /// Get self-signed CA certificate.
 NetworkCA get_ca()
 {
   // Create a CA with a self-signed certificate
   auto kp = crypto::make_key_pair();
-  auto crt = kp->self_sign("CN=issuer");
+  auto crt = generate_self_signed_cert(kp, "CN=issuer");
   LOG_DEBUG_FMT("New self-signed CA certificate:\n{}", crt.str());
   return {kp, crt};
 }
@@ -249,10 +281,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 
   // Create a signing request and sign with the CA
   auto kp = crypto::make_key_pair();
-  auto csr = kp->create_csr("CN=" + name);
-  LOG_DEBUG_FMT("CSR for {} is:\n{}", name, csr.str());
-
-  auto crt = net_ca.kp->sign_csr(net_ca.cert, csr);
+  auto crt = generate_endorsed_cert(kp, "CN=" + name, net_ca.kp, net_ca.cert);
   LOG_DEBUG_FMT("New CA-signed certificate:\n{}", crt.str());
 
   // Verify node certificate with the CA's certificate
@@ -261,7 +290,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk, nullb, auth);
+  return make_unique<Cert>(move(ca), crt, pk, auth);
 }
 
 /// Helper to write past the maximum buffer (16k)

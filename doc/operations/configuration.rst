@@ -71,7 +71,7 @@ Example:
 The ``command`` section includes configuration for the type of node (start, join or recover) and associated information.
 
 - ``type``: Type of CCF node (either ``start``, ``join`` or ``recover``). Default value: ``"start"``.
-- ``network_certificate_file``: For ``start`` and ``recover`` nodes, path to which network certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join. Default value: ``"networkcert.pem"``.
+- ``service_certificate_file``: For ``start`` and ``recover`` nodes, path to which service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join. Default value: ``"service_cert.pem"``.
 
 .. note:: There is no additional ``command`` configuration required when starting a node in ``recover`` mode since all configuration is automatically retrieved from the recovered ledger/snapshot.
 
@@ -83,6 +83,7 @@ The ``command`` section includes configuration for the type of node (start, join
 Only set when ``type`` is ``start``.
 
 - ``constitution_files``: List of constitution files. These typically include ``actions.js``, ``validate.js``, ``resolve.js`` and ``apply.js``.
+- ``initial_service_certificate_validity_days``: Initial validity period (days) for service certificate. Default value: ``1`` day.
 
 - ``members``: List of initial consortium members files, including identity certificates, public encryption keys and member data files.
 
@@ -114,6 +115,7 @@ Example:
         {
             "recovery_threshold": 0,
             "maximum_node_certificate_validity_days": 365,
+            "maximum_service_certificate_validity_days": 365,
             "reconfiguration_type": "OneTransaction"
         }
     }
@@ -136,6 +138,15 @@ Example:
         "retry_timeout": "1000ms",
         "target_rpc_address": {"hostname": "127.0.0.1", "port": "8080"}
     }
+
+
+``recover``
++++++++++++
+
+Only set when ``type`` is ``recover``.
+
+- ``initial_service_certificate_validity_days``: Initial validity period (days) for service certificate. Default value: ``1`` day.
+
 
 ``node_certificate``
 ~~~~~~~~~~~~~~~~~~~~

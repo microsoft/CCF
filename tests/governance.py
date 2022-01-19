@@ -85,7 +85,7 @@ def test_quote(network, args):
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
 
-            cafile = os.path.join(network.common_dir, "networkcert.pem")
+            cafile = os.path.join(network.common_dir, "service_cert.pem")
             assert (
                 infra.proc.ccall(
                     "verify_quote.sh",
@@ -219,7 +219,7 @@ def test_invalid_client_signature(network, args):
         r = requests.post(
             f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/gov/proposals",
             headers=headers,
-            verify=os.path.join(node.common_dir, "networkcert.pem"),
+            verify=os.path.join(node.common_dir, "service_cert.pem"),
         ).json()
         assert r["error"]["code"] == "InvalidAuthenticationInfo"
         assert (
@@ -249,7 +249,7 @@ def test_invalid_client_signature(network, args):
     )
 
 
-@reqs.description("Update certificates of all nodes, one by one")
+@reqs.description("Renew certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
     now = datetime.now()
@@ -317,6 +317,54 @@ def test_each_node_cert_renewal(network, args):
     return network
 
 
+def renew_service_certificate(network, args, valid_from, validity_period_days):
+    primary, _ = network.find_primary()
+    valid_from_x509 = str(infra.crypto.datetime_to_X509time(valid_from))
+    network.consortium.set_service_certificate_validity(
+        primary,
+        valid_from=valid_from_x509,
+        validity_period_days=validity_period_days,
+    )
+    network.verify_service_certificate_validity_period(
+        validity_period_days or args.maximum_service_certificate_validity_days
+    )
+    return network
+
+
+@reqs.description("Renew service certificate")
+def test_service_cert_renewal(network, args):
+    return renew_service_certificate(
+        network,
+        args,
+        valid_from=datetime.now(),
+        validity_period_days=args.maximum_service_certificate_validity_days - 1,
+    )
+
+
+@reqs.description("Renew service certificate - extended")
+def test_service_cert_renewal_extended(network, args):
+
+    validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
+
+    now = datetime.now()
+    test_vectors = [
+        (now, None, None),  # Omit validity period (deduced from service configuration)
+        (now, -1, infra.proposal.ProposalNotCreated),
+        (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
+    ]
+
+    for (valid_from, validity_period_days, expected_exception) in test_vectors:
+        try:
+            renew_service_certificate(network, args, valid_from, validity_period_days)
+        except Exception as e:
+            assert isinstance(e, expected_exception)
+            continue
+        else:
+            assert expected_exception is None, "Proposal should have not succeeded"
+
+    return network
+
+
 @reqs.description("Update certificates of all nodes, one by one")
 def test_all_nodes_cert_renewal(network, args):
     primary, _ = network.find_primary()
@@ -351,6 +399,8 @@ def gov(args):
         test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
         test_all_nodes_cert_renewal(network, args)
+        test_service_cert_renewal(network, args)
+        test_service_cert_renewal_extended(network, args)
 
 
 def js_gov(args):
