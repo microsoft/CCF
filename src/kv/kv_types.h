@@ -209,21 +209,6 @@ namespace kv
     leadership_state,
     retirement_phase);
 
-  // TODO: Delete
-  struct NetworkConfiguration
-  {
-    ReconfigurationId rid;
-    std::unordered_set<NodeId> nodes;
-
-    bool operator<(const NetworkConfiguration& other) const
-    {
-      return rid < other.rid;
-    }
-  };
-
-  DECLARE_JSON_TYPE(kv::NetworkConfiguration);
-  DECLARE_JSON_REQUIRED_FIELDS(kv::NetworkConfiguration, rid, nodes);
-
   struct ConsensusParameters
   {
     ReconfigurationType reconfiguration_type;
@@ -774,24 +759,6 @@ struct formatter<kv::Configuration::Nodes>
       node_ids.insert(nid);
     }
     return format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
-  }
-};
-
-template <>
-struct formatter<kv::NetworkConfiguration>
-{
-  template <typename ParseContext>
-  auto parse(ParseContext& ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const kv::NetworkConfiguration& config, FormatContext& ctx)
-    -> decltype(ctx.out())
-  {
-    return format_to(
-      ctx.out(), "{}:{{{}}}", config.rid, fmt::join(config.nodes, " "));
   }
 };
 
