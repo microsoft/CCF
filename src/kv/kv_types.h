@@ -209,6 +209,7 @@ namespace kv
     leadership_state,
     retirement_phase);
 
+  // TODO: Delete
   struct NetworkConfiguration
   {
     ReconfigurationId rid;

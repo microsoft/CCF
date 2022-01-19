@@ -520,16 +520,6 @@ namespace aft
         {
           orc_sets[idx] = {};
         }
-
-        if (resharing_tracker)
-        {
-          kv::NetworkConfiguration netconfig = {idx, {}}; // TODO: Fix
-          resharing_tracker->add_network_configuration(netconfig);
-          if (is_primary())
-          {
-            resharing_tracker->reshare(netconfig);
-          }
-        }
       }
 
       if (conf != configurations.back().nodes)
@@ -537,6 +527,17 @@ namespace aft
         uint32_t offset = get_bft_offset(conf);
         Configuration new_config = {idx, std::move(conf), offset, idx};
         configurations.push_back(new_config);
+
+        if (
+          reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
+          resharing_tracker)
+        {
+          resharing_tracker->add_network_configuration(new_config);
+          if (is_primary())
+          {
+            resharing_tracker->reshare(new_config);
+          }
+        }
 
         create_and_remove_node_state();
       }
@@ -602,7 +603,6 @@ namespace aft
     std::optional<kv::Configuration::Nodes> orc(
       kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
-      // TODO: What about lock?
       std::lock_guard<std::mutex> guard(state->lock);
 
       LOG_DEBUG_FMT(
