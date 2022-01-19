@@ -155,11 +155,12 @@ namespace kv
       {
         if (claims_digest.empty())
         {
-          history->append(data);
+          history->append_entry(ccf::entry_leaf(data, commit_evidence_digest));
         }
         else
         {
-          history->append_entry(ccf::entry_leaf(data, claims_digest.value()));
+          history->append_entry(ccf::entry_leaf(
+            data, commit_evidence_digest, claims_digest.value()));
         }
       }
       return success;
