@@ -508,7 +508,7 @@ class Network:
         self.consortium.check_for_service(
             self.find_random_node(), status=ServiceStatus.OPENING
         )
-        self.wait_for_all_nodes_to_be_trusted(self.find_random_node(), self.nodes)
+        self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
         self.consortium.transition_service_to_open(self.find_random_node())
         self.consortium.recover_with_shares(self.find_random_node())
 
@@ -602,12 +602,12 @@ class Network:
             self.wait_for_node_in_store(
                 primary,
                 node.node_id,
-                timeout=timeout,
                 node_status=(
                     NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
                     else NodeStatus.TRUSTED
                 ),
+                timeout=timeout,
             )
         except TimeoutError as e:
             LOG.error(f"New pending node {node.node_id} failed to join the network")
@@ -640,7 +640,7 @@ class Network:
                     timeout=timeout,
                 )
                 self.wait_for_node_in_store(
-                    primary, node.node_id, timeout, NodeStatus.TRUSTED
+                    primary, node.node_id, NodeStatus.TRUSTED, timeout
                 )
             if not no_wait:
                 # Here, quote verification has already been run when the node
@@ -918,8 +918,8 @@ class Network:
         self,
         remote_node,
         node_id,
-        timeout,
         node_status,
+        timeout=3,
     ):
         success = False
         end_time = time.time() + timeout
@@ -936,10 +936,10 @@ class Network:
                 f'Node {node_id} is not in expected state: {node_status or "absent"})'
             )
 
-    def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
-        for n in nodes:
+    def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):
+        for n in self.nodes:
             self.wait_for_node_in_store(
-                remote_node, n.node_id, timeout, NodeStatus.TRUSTED
+                remote_node, n.node_id, NodeStatus.TRUSTED, timeout
             )
 
     def wait_for_new_primary(

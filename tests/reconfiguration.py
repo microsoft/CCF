@@ -238,7 +238,7 @@ def test_retire_backup(network, args):
     backup_to_retire = network.find_any_backup()
     network.retire_node(primary, backup_to_retire)
     network.wait_for_node_in_store(
-        primary, backup_to_retire.node_id, timeout=3, node_status=None
+        primary, backup_to_retire.node_id, node_status=None, timeout=3,
     )
     backup_to_retire.stop()
     check_can_progress(primary)
@@ -260,7 +260,7 @@ def test_retire_primary(network, args):
     # The old primary should automatically be removed from the store
     # once a new primary is elected
     network.wait_for_node_in_store(
-        new_primary, primary.node_id, timeout=3, node_status=None
+        new_primary, primary.node_id, node_status=None, timeout=3,
     )
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
@@ -475,8 +475,8 @@ def test_learner_catches_up(network, args):
     network.wait_for_node_in_store(
         primary,
         new_node.node_id,
-        timeout=3,
         node_status=(ccf.ledger.NodeStatus.TRUSTED),
+        timeout=3,
     )
 
     with primary.client() as c:
