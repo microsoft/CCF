@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Service certificate validity period is no longer hardcoded and can instead be set by operators and renewed by members (#3363):
+  - The new `service_certificate_initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the service certificate (valid from the current system time).
+  - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
+  - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
+- Service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
 - Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
 
 ### Removed

@@ -118,6 +118,7 @@ all_tests_suite = [
     jwt_test.test_refresh_jwt_issuer,
     # governance
     governance.test_each_node_cert_renewal,
+    governance.test_service_cert_renewal,
     #
     #
     #

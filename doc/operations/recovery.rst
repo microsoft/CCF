@@ -41,7 +41,7 @@ The state machine for the ``recover`` node is as follows:
 
 Similarly to the normal join protocol (see :ref:`operations/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
 
-.. warning:: After recovery, the identity of the network has changed. The new network certificate ``networkcert.pem`` must be distributed to all existing and new users.
+.. warning:: After recovery, the identity of the network has changed. The new service certificate ``service_cert.pem`` must be distributed to all existing and new users.
 
 The state machine for the ``join`` node is as follows:
 
@@ -67,11 +67,11 @@ Summary Diagram
         participant Node 2
 
         Operators->>+Node 0: cchost recover
-        Node 0-->>Operators: Network Certificate 0
+        Node 0-->>Operators: Service Certificate 0
         Note over Node 0: Reading Public Ledger...
 
         Operators->>+Node 1: cchost recover
-        Node 1-->>Operators: Network Certificate 1
+        Node 1-->>Operators: Service Certificate 1
         Note over Node 1: Reading Public Ledger...
 
         Operators->>+Node 0: GET /node/state

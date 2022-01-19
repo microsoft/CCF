@@ -34,7 +34,7 @@ Alternatively, the SGX quotes of all currently trusted nodes can be retrieved vi
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/node/quotes --cacert networkcert.pem
+    $ curl https://<ccf-node-address>/node/quotes --cacert service_cert.pem
     {"quotes": [
     {"mrenclave":"<measurement_hash>, "node_id":<node_id>, "raw":"<hex_encoded_raw_quote>"},
     {"mrenclave":"<measurement_hash>, "node_id":<node_id>, "raw":"<hex_encoded_raw_quote>"}]}

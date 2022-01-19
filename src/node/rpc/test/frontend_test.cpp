@@ -10,6 +10,7 @@
 #include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "ds/logger.h"
+#include "frontend_test_infra.h"
 #include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -32,8 +33,6 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 using namespace ccf;
 using namespace std;
-
-static constexpr auto default_pack = serdes::Pack::MsgPack;
 
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {
@@ -395,10 +394,6 @@ public:
   }
 };
 
-// used throughout
-auto kp = crypto::make_key_pair();
-auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-
 NetworkState bft_network(ConsensusType::BFT);
 auto history_kp = crypto::make_key_pair();
 
@@ -450,17 +445,16 @@ nlohmann::json parse_response_body(
 }
 
 // callers used throughout
-auto user_caller = kp -> self_sign("CN=name");
+auto user_caller = kp -> self_sign("CN=name", valid_from, valid_to);
 auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
 
-auto member_caller = kp -> self_sign("CN=name_member");
-auto member_caller_der = crypto::make_verifier(member_caller) -> cert_der();
+auto member_caller_der = crypto::make_verifier(member_cert) -> cert_der();
 
-auto node_caller = kp -> self_sign("CN=node");
+auto node_caller = kp -> self_sign("CN=node", valid_from, valid_to);
 auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
 
 auto kp_other = crypto::make_key_pair();
-auto invalid_caller = kp_other -> self_sign("CN=name");
+auto invalid_caller = kp_other -> self_sign("CN=name", valid_from, valid_to);
 auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
@@ -495,7 +489,7 @@ void prepare_callers(NetworkState& network)
   GenesisGenerator g(network, tx);
   g.create_service({});
   user_id = g.add_user({user_caller});
-  member_id = g.add_member(member_caller);
+  member_id = g.add_member(member_cert);
   invalid_member_id = g.add_member(invalid_caller);
   CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 }
@@ -1415,7 +1409,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));
   CHECK(response.status == HTTP_STATUS_OK);
 
-  CHECK(member_frontend_primary.last_caller_cert == member_caller);
+  CHECK(member_frontend_primary.last_caller_cert == member_cert);
   CHECK(member_frontend_primary.last_caller_id.value() == member_id.value());
 }
 

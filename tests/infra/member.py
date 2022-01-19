@@ -214,7 +214,7 @@ class Member:
             "--key",
             os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
             "--cacert",
-            os.path.join(self.common_dir, "networkcert.pem"),
+            os.path.join(self.common_dir, "service_cert.pem"),
             log_output=True,
         )
         res.check_returncode()

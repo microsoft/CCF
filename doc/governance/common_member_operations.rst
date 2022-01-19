@@ -70,7 +70,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @trigger_ledger_rekey.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert --key member1_privk --cert member1_cert --data-binary @trigger_ledger_rekey.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
@@ -78,7 +78,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots --cacert service_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
@@ -86,7 +86,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots --cacert service_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
@@ -119,7 +119,7 @@ The number of member shares required to restore the private ledger (``recovery_t
         ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
@@ -127,7 +127,7 @@ The number of member shares required to restore the private ledger (``recovery_t
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/ballots --cacert service_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
@@ -136,7 +136,7 @@ The number of member shares required to restore the private ledger (``recovery_t
     }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/ballots --cacert service_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
@@ -151,9 +151,10 @@ Renewing Node Certificate
 
 .. note:: Renewing the certificate of a node does not change the identity (public key) of that node but only its validity period.
 
-To renew the soon-to-be-expired certificate of a node, members should issue a ``set_node_certificate_validity`` proposal, specifying the date at which the validity period of the renewed certificate should start (``valid_from``), as well as its validity period in days (``validity_period_days``).
+To renew the soon-to-be-expired certificate of a node, members should issue a ``set_node_certificate_validity`` proposal, specifying the date at which the validity period of the renewed certificate should start (``valid_from``), as well as its validity period in days (``validity_period_days`` -- optional).
 
-The ``valid_from`` date argument should be a ASN1 UTCTime string, i.e. ``"YYMMDDhhmmssZ"``. The ``validity_period_days`` should be less than the validity period set by operators (see :ref:`operations/certificates:Node Certificates`).
+- The ``valid_from`` date argument should be a ASN1 UTCTime string, i.e. ``"YYMMDDhhmmssZ"``.
+- If set, the ``validity_period_days`` should be less than the service-wide maximum validity period configured by operators. If omitted, the ``validity_period_days`` defaults to the service-wide maximum validity period configured by operators (see :ref:`operations/certificates:Node Certificates`).
 
 A sample proposal is:
 
@@ -166,7 +167,7 @@ A sample proposal is:
                 "name": "set_node_certificate_validity",
                 "args": {
                     "node_id": "86c0ccfab4b869abbc779937c51158c9dd2a130d58323643a3119e83b33dcf5c"
-                    "valid_from": "211019154318Z",
+                    "valid_from": "220101143018Z",
                     "validity_period_days": 365
                 }
             }
@@ -174,3 +175,29 @@ A sample proposal is:
     }
 
 .. tip:: All currently trusted nodes certificates can be renewed at once using the ``set_all_nodes_certificate_validity`` proposal (same arguments minus ``node_id``).
+
+Renewing Service Certificate
+----------------------------
+
+.. note:: Renewing the certificate of the service does not change its identity (public key) but only its validity period.
+
+Similarly to node certificates, the service certificate can be renewed via the ``set_service_certificate_validity`` proposal.
+
+If omitted, the ``validity_period_days`` defaults to the service-wide maximum validity period configured by operators (see :ref:`operations/certificates:Service Certificate`).
+
+A sample proposal is:
+
+.. code-block:: bash
+
+    $ cat set_service_certificate_validity.json
+    {
+        "actions": [
+            {
+                "name": "set_service_certificate_validity",
+                "args": {
+                    "valid_from": "220101143018Z",
+                    "validity_period_days": 365
+                }
+            }
+        ]
+    }
