@@ -555,6 +555,7 @@ namespace enclave
     // emulate what MbedTLS used to do.
     // Now that we have removed it from the code, we can move the callbacks
     // above to handle BIOs directly and hopefully remove the complexity below.
+    // This work will be carried out in #3429.
     static long send_callback_openssl(
       BIO* b,
       int oper,
