@@ -539,8 +539,9 @@ namespace asynchost
       assert_status(CONNECTING_RESOLVING, CONNECTING_FAILED);
       delete req;
 
-      LOG_DEBUG_FMT(
-        "unable to connect: all resolved addresses failed: {}:{}",
+      // This should show even when verbose logs are off
+      LOG_INFO_FMT(
+        "Unable to connect: all resolved addresses failed: {}:{}",
         host,
         service);
 
