@@ -502,9 +502,7 @@ class Network:
         self.consortium.check_for_service(
             self.find_random_node(), status=ServiceStatus.OPENING
         )
-        self.wait_for_all_nodes_to_be_trusted(
-            self.find_random_node(), self.nodes
-        )
+        self.wait_for_all_nodes_to_be_trusted(self.find_random_node(), self.nodes)
         self.consortium.transition_service_to_open(self.find_random_node())
         self.consortium.recover_with_shares(self.find_random_node())
 
