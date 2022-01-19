@@ -336,7 +336,8 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/blob_cache.cpp
+      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/caching/test/caching.cpp
     )
     target_link_libraries(indexing_test PRIVATE sss.host)
 
