@@ -13,8 +13,7 @@
 
 namespace crypto
 {
-  // Convenience class ensuring null termination of PEM-encoded certificates as
-  // required by mbedTLS
+  // Convenience class ensuring null termination of PEM-encoded certificates
   class Pem
   {
     std::string s;
