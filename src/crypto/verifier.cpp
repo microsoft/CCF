@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "crypto/mbedtls/verifier.h"
+#include "verifier.h"
 
 #include "crypto/openssl/verifier.h"
-#include "verifier.h"
 
 namespace crypto
 {
@@ -13,20 +12,12 @@ namespace crypto
 
   VerifierUniquePtr make_unique_verifier(const std::vector<uint8_t>& cert)
   {
-#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-    return std::make_unique<Verifier_mbedTLS>(cert);
-#else
     return std::make_unique<Verifier_OpenSSL>(cert);
-#endif
   }
 
   VerifierPtr make_verifier(const std::vector<uint8_t>& cert)
   {
-#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-    return std::make_shared<Verifier_mbedTLS>(cert);
-#else
     return std::make_shared<Verifier_OpenSSL>(cert);
-#endif
   }
 
   VerifierUniquePtr make_unique_verifier(const Pem& pem)

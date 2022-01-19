@@ -3,8 +3,6 @@
 
 #include "key_pair.h"
 
-#include "mbedtls/key_pair.h"
-#include "mbedtls/public_key.h"
 #include "openssl/key_pair.h"
 #include "openssl/public_key.h"
 
@@ -16,13 +14,8 @@
 
 namespace crypto
 {
-#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-  using PublicKeyImpl = PublicKey_mbedTLS;
-  using KeyPairImpl = KeyPair_mbedTLS;
-#else
   using PublicKeyImpl = PublicKey_OpenSSL;
   using KeyPairImpl = KeyPair_OpenSSL;
-#endif
 
   PublicKeyPtr make_public_key(const Pem& pem)
   {
