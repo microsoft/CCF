@@ -4,6 +4,8 @@
 
 #include "crypto/key_exchange.h"
 
+#include "crypto/openssl/key_pair.h"
+
 #include <doctest/doctest.h>
 
 TEST_CASE("Simple key exchange")
@@ -54,9 +56,9 @@ TEST_CASE("Simple key exchange")
 
 TEST_CASE("Key exchange from static shares")
 {
-  auto peer1_kp = std::make_shared<crypto::KeyPair_mbedTLS>(
+  auto peer1_kp = std::make_shared<crypto::KeyPair_OpenSSL>(
     crypto::service_identity_curve_choice);
-  auto peer2_kp = std::make_shared<crypto::KeyPair_mbedTLS>(
+  auto peer2_kp = std::make_shared<crypto::KeyPair_OpenSSL>(
     crypto::service_identity_curve_choice);
 
   auto peer1_ctx = tls::KeyExchangeContext(peer1_kp, peer2_kp);

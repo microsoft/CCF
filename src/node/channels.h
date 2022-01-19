@@ -18,7 +18,6 @@
 
 #include <iostream>
 #include <map>
-#include <mbedtls/ecdh.h>
 #include <openssl/crypto.h>
 
 // -Wpedantic flags token pasting of __VA_ARGS__
@@ -701,7 +700,6 @@ namespace ccf
     void establish()
     {
       auto shared_secret = kex_ctx.compute_shared_secret();
-      kex_ctx.free_ctx();
 
       {
         const std::string label_from = peer_id.value() + self.value();
