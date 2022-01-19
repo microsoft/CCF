@@ -61,7 +61,7 @@ def cert_bytes(cert_file_name):
                 chars.append(c)
             else:
                 break
-        # mbedtls demands null-terminated certs
+        # null-terminated certs, just in case
         return chars + [0]
 
 

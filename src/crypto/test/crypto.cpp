@@ -378,7 +378,6 @@ void run_csr(bool corrupt_csr = false)
 
   std::vector<SubjectAltName> subject_alternative_names;
 
-  // mbedtls doesn't support parsing SAN from CSR
   if constexpr (std::is_same_v<T, KeyPair_OpenSSL>)
   {
     subject_alternative_names.push_back({"email:my-other-name", false});

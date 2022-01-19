@@ -51,7 +51,7 @@ namespace enclave
   private:
     std::vector<uint8_t> pending_write;
     std::vector<uint8_t> pending_read;
-    // Decrypted data, read through mbedtls
+    // Decrypted data
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
@@ -140,7 +140,6 @@ namespace enclave
       {
         case 0:
         case TLS_ERR_CONN_CLOSE_NOTIFY:
-        case TLS_ERR_CONN_RESET:
         {
           LOG_TRACE_FMT(
             "TLS {} close on read: {}", session_id, tls::error_string(r));
@@ -342,13 +341,14 @@ namespace enclave
 
           switch (r)
           {
-            case 0:
             case TLS_ERR_WANT_READ:
             case TLS_ERR_WANT_WRITE:
             {
-              // mbedtls may return 0 when a close notify has not been
-              // sent. This can't be disambiguated from a successful
-              // close notify, so treat them the same.
+              LOG_TRACE_FMT("TLS {} has pending data ({})", session_id, r);
+              // FALLTHROUGH
+            }
+            case 0:
+            {
               LOG_TRACE_FMT("TLS {} closed ({})", session_id, r);
               stop(closed);
               break;
@@ -394,7 +394,6 @@ namespace enclave
           break;
 
         case TLS_ERR_NEED_CERT:
-        case TLS_ERR_PEER_VERIFY:
         {
           LOG_TRACE_FMT(
             "TLS {} verify error on handshake: {}",
@@ -405,7 +404,6 @@ namespace enclave
         }
 
         case TLS_ERR_CONN_CLOSE_NOTIFY:
-        case TLS_ERR_CONN_RESET:
         {
           LOG_TRACE_FMT(
             "TLS {} closed on handshake: {}",
@@ -554,9 +552,9 @@ namespace enclave
 
     // These callbacks below are complex, using the callbacks above and
     // manipulating OpenSSL's BIO objects accordingly. This is just so we can
-    // emulate MbedTLS.
-    // Once we get rid of MbedTLS we can move the callbacks above to handle BIOs
-    // directly and hopefully remove the complexity below.
+    // emulate what MbedTLS used to do.
+    // Now that we have removed it from the code, we can move the callbacks
+    // above to handle BIOs directly and hopefully remove the complexity below.
     static long send_callback_openssl(
       BIO* b,
       int oper,
@@ -669,17 +667,6 @@ namespace enclave
       // Unless we detected an error, the return value is always the same as the
       // original operation.
       return ret;
-    }
-
-    // Remove this function once MbedTLS is gone.
-    static void dbg_callback(
-      void*, int, const char* file, int line, const char* str)
-    {
-      // Unused in release builds
-      (void)file;
-      (void)line;
-      (void)str;
-      LOG_DEBUG_FMT("{}:{}: {}", file, line, str);
     }
   };
 }
