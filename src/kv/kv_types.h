@@ -245,7 +245,8 @@ namespace kv
       ccf::SeqNo seqno,
       ReconfigurationId rid,
       const ccf::ResharingResult& result) = 0;
-    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) = 0;
+    virtual std::optional<std::unordered_set<ccf::NodeId>> orc(
+      kv::ReconfigurationId rid, const NodeId& node_id) = 0;
     virtual void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,

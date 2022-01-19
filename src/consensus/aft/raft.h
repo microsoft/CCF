@@ -605,7 +605,7 @@ namespace aft
     }
 
     // For more info about Observed Reconfiguration Commits see
-    // https://microsoft.github.io/CCF/main/overview/consensus/2tx-reconfig.html
+    // https://microsoft.github.io/CCF/main/architecture/consensus/2tx-reconfig.html
     //
     // Note that this call is not `const` and that it modifies `orc_sets`. This
     // is safe, despite the fact that the primary may change or a
@@ -616,8 +616,8 @@ namespace aft
     // nodes keep re-submitting ORCs until they are able to switch to the next
     // pending configuration.
 
-    // TODO: Return std::optional<std::set<Nodes>>
-    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
+    std::optional<std::unordered_set<ccf::NodeId>> orc(
+      kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
@@ -639,6 +639,7 @@ namespace aft
       if (ncnodes.find(node_id) == ncnodes.end())
       {
         LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
+        return std::nullopt;
       }
       else
       {
@@ -656,7 +657,14 @@ namespace aft
       // nodes table before they are fully caught up and have submitted their
       // own ORC.
 
-      return oit->second.size() >= get_quorum(ncnodes.size());
+      if (oit->second.size() >= get_quorum(ncnodes.size()))
+      {
+        return ncnodes;
+      }
+      else
+      {
+        return std::nullopt;
+      }
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override

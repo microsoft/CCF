@@ -1436,43 +1436,35 @@ namespace ccf
           }
         }
 
-        if (consensus->orc(in.reconfiguration_id, in.from))
+        auto nodes_in_config = consensus->orc(in.reconfiguration_id, in.from);
+        if (nodes_in_config.has_value())
         {
           LOG_DEBUG_FMT(
             "Configurations: sufficient number of ORCs, updating nodes in "
             "configuration #{}.",
             in.reconfiguration_id);
-          auto ncfgs = args.tx.rw(network.network_configuration);
           auto nodes = args.tx.rw(network.nodes);
-          auto nc = ncfgs->get();
 
-          if (!nc.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::ResourceNotFound,
-              "No network configuration found.");
-          }
-
-          nodes->foreach([&nodes, &nc](const auto& nid, const auto& node_info) {
-            if (
-              node_info.status == NodeStatus::RETIRING &&
-              nc->nodes.find(nid) == nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::RETIRED;
-              nodes->put(nid, updated_info);
-            }
-            else if (
-              node_info.status == NodeStatus::LEARNER &&
-              nc->nodes.find(nid) != nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::TRUSTED;
-              nodes->put(nid, updated_info);
-            }
-            return true;
-          });
+          nodes->foreach(
+            [&nodes, &nodes_in_config](const auto& nid, const auto& node_info) {
+              if (
+                node_info.status == NodeStatus::RETIRING &&
+                nodes_in_config->find(nid) == nodes_in_config->end())
+              {
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::RETIRED;
+                nodes->put(nid, updated_info);
+              }
+              else if (
+                node_info.status == NodeStatus::LEARNER &&
+                nodes_in_config->find(nid) != nodes_in_config->end())
+              {
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::TRUSTED;
+                nodes->put(nid, updated_info);
+              }
+              return true;
+            });
         }
 
         return make_success(true);
