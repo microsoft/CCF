@@ -115,8 +115,6 @@ namespace aft
     ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
-    // std::unordered_map<kv::ReconfigurationId, Configuration>
-    //   network_configuration;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
       orc_sets;
 
@@ -538,7 +536,6 @@ namespace aft
       {
         uint32_t offset = get_bft_offset(conf);
         Configuration new_config = {idx, std::move(conf), offset, idx};
-        // network_configuration[idx] = new_config; // TODO: Delete
         configurations.push_back(new_config);
 
         create_and_remove_node_state();
@@ -581,7 +578,6 @@ namespace aft
       //   configurations.back().rid = seqno;
       // }
 
-      // TODO: Raft don't cleanup
       // network_configuration[seqno] = netconfig;
 
       // if (orc_sets.find(seqno) == orc_sets.end())
@@ -688,46 +684,6 @@ namespace aft
       }
 
       return std::nullopt;
-
-      // const auto ncit = network_configuration.find(rid);
-      // if (ncit == network_configuration.end())
-      // {
-      //   throw std::logic_error(fmt::format("Unknown configuration #{}",
-      //   rid));
-      // }
-
-      // const auto& ncnodes = ncit->second.nodes;
-      // if (ncnodes.find(node_id) == ncnodes.end())
-      // {
-      //   LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
-      //   return std::nullopt;
-      // }
-      // else
-      // {
-      //   oit->second.insert(node_id);
-      // }
-
-      // LOG_DEBUG_FMT(
-      //   "Configurations: have {} ORCs out of {} for configuration #{}",
-      //   oit->second.size(),
-      //   ncnodes.size(),
-      //   rid);
-
-      // // Note: Learners in the next configuration become trusted when there
-      // is
-      // // quorum in the next configuration, i.e. they may become trusted in
-      // the
-      // // nodes table before they are fully caught up and have submitted their
-      // // own ORC.
-
-      // if (oit->second.size() >= get_quorum(ncnodes.size()))
-      // {
-      //   return ncnodes;
-      // }
-      // else
-      // {
-      //   return std::nullopt;
-      // }
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
@@ -2267,11 +2223,7 @@ namespace aft
 
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
-          // TODO:
-          // 1. Get rid from first element of configurations
-          // 2. Remove rid from network_configuration
           configurations.pop_front();
-          // network_configuration.erase();
           changed = true;
         }
         else
@@ -2332,7 +2284,6 @@ namespace aft
             }
 
             configurations.pop_front();
-            // network_configuration.pop_front(); // TODO: Same as for 1.x
           }
           else
           {
@@ -2468,9 +2419,6 @@ namespace aft
       {
         configurations.pop_back();
         changed = true;
-
-        // TODO: network_configuration pop_back(); // TODO: erase network
-        // configurations too
       }
 
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
