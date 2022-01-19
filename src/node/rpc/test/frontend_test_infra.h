@@ -29,11 +29,17 @@ using namespace nlohmann;
 using TResponse = http::SimpleResponseProcessor::Response;
 
 // used throughout
+constexpr size_t certificate_validity_period_days = 365;
+auto valid_from =
+  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+    std::chrono::system_clock::now())); // now
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
+
 auto kp = crypto::make_key_pair();
-auto member_cert = kp -> self_sign("CN=name_member");
+auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
 auto verifier_mem = crypto::make_verifier(member_cert);
-auto member_caller = verifier_mem -> cert_der();
-auto user_cert = kp -> self_sign("CN=name_user");
+auto user_cert = kp -> self_sign("CN=name_user", valid_from, valid_to);
 auto dummy_enc_pubk = crypto::make_rsa_key_pair() -> public_key_pem();
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
@@ -154,7 +160,8 @@ auto activate(
 
 auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
 {
-  return kp_mem->self_sign("CN=new member" + to_string(member_id));
+  return kp_mem->self_sign(
+    "CN=new member" + to_string(member_id), valid_from, valid_to);
 }
 
 auto init_frontend(

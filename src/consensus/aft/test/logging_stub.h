@@ -224,7 +224,7 @@ namespace aft
 
     void initialize(
       const ccf::NodeId& self_id,
-      const crypto::Pem& network_cert,
+      const crypto::Pem& service_cert,
       crypto::KeyPairPtr node_kp,
       const std::optional<crypto::Pem>& node_cert = std::nullopt) override
     {}
