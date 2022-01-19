@@ -475,6 +475,74 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
   }
 }
 
+TEST_CASE("read_n vs read_all" * doctest::test_suite("messaging"))
+{
+  enum : Message
+  {
+    big_message = Const::msg_min,
+    finish
+  };
+
+  constexpr auto circuit_size = 1 << 8;
+
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(circuit_size);
+  auto rr = ringbuffer::Reader(in_buffer->bd);
+  auto write_to_inside = ringbuffer::Writer(rr);
+
+  BufferProcessor processor_inside;
+
+  auto finish_handler = [&processor_inside](const uint8_t* data, size_t size) {
+    processor_inside.set_finished();
+  };
+  DISPATCHER_SET_MESSAGE_HANDLER(processor_inside, finish, finish_handler);
+
+  auto big_message_handler = [](const uint8_t* data, size_t size) {};
+  DISPATCHER_SET_MESSAGE_HANDLER(
+    processor_inside, big_message, big_message_handler);
+
+  std::vector<uint8_t> message_body(circuit_size / 7);
+  std::iota(message_body.begin(), message_body.end(), 0);
+
+  size_t written = 0;
+  auto write_until_full = [&]() {
+    while (true)
+    {
+      const bool succeeded =
+        write_to_inside.try_write(big_message, message_body);
+      if (!succeeded)
+      {
+        break;
+      }
+      ++written;
+    }
+  };
+
+  write_until_full();
+  const auto max_at_once = written;
+
+  REQUIRE(written >= 3);
+
+  const auto first_read = processor_inside.read_n(2, rr);
+  REQUIRE(first_read == 2);
+
+  write_until_full();
+  REQUIRE(written == max_at_once + 2);
+
+  const auto second_read = processor_inside.read_all(rr);
+  REQUIRE(second_read == max_at_once);
+
+  write_until_full();
+  REQUIRE(written == 2 * max_at_once + 2);
+
+  const auto third_read = processor_inside.read_n(max_at_once, rr);
+  REQUIRE(second_read == max_at_once);
+
+  REQUIRE(0 == processor_inside.read_all(rr));
+  REQUIRE(0 == processor_inside.read_n(0, rr));
+  REQUIRE(0 == processor_inside.read_n(1, rr));
+  REQUIRE(0 == processor_inside.read_n(max_at_once, rr));
+}
+
 TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
 {
   enum : Message
@@ -525,8 +593,7 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   size_t last_progress = i;
   while (i < target_writes)
   {
-    REQUIRE(
-      processor_inside.read_n(target_writes, circuit.read_from_outside()) > 0);
+    REQUIRE(processor_inside.read_all(circuit.read_from_outside()) > 0);
 
     while (write_to_inside.try_write(big_message, message_body))
     {
@@ -538,8 +605,7 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   }
 
   // Read remaining messages
-  REQUIRE(
-    processor_inside.read_n(target_writes, circuit.read_from_outside()) > 0);
+  REQUIRE(processor_inside.read_all(circuit.read_from_outside()) > 0);
 
   // NonBlockingWriter also avoids deadlock
   ringbuffer::WriterFactory base_factory(circuit);
@@ -568,7 +634,7 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   while (true)
   {
     const size_t n_read =
-      processor_inside.read_n(target_writes, circuit.read_from_outside());
+      processor_inside.read_all(circuit.read_from_outside());
     REQUIRE(n_read > 0);
     total_read += n_read;
 
@@ -579,7 +645,6 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   }
 
   // Read remaining messages
-  const size_t n_read =
-    processor_inside.read_n(target_writes, circuit.read_from_outside());
+  const size_t n_read = processor_inside.read_all(circuit.read_from_outside());
   REQUIRE(n_read > 0);
 }

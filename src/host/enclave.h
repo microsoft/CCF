@@ -127,7 +127,7 @@ namespace host
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {
         // Logs have described the errors already, we just need to allow the
-        // host to read them (via read_n()).
+        // host to read them (via read_all()).
         return status;
       }
 

@@ -475,15 +475,7 @@ int main(int argc, char** argv)
 
       // Pull all logs from the enclave via BufferProcessor `bp`
       // and show any logs that came from the ring buffer during setup.
-      //
-      // `64` is an arbitrary number of log entries, `read_n` will stop
-      // before if there aren't any more to read. The `while` will keep
-      // reading if there are more.
-      while (bp.read_n(64, circuit.read_from_inside()))
-      {
-        // Do nothing here, read_n should process the left-over messages using
-        // the already registered handler for log entrie and print on out/err.
-      }
+      bp.read_all(circuit.read_from_inside());
 
       // This returns from main, stopping the program
       return create_status;
