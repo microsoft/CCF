@@ -560,15 +560,15 @@ namespace aft
 
       if (configurations.back().rid == 0)
       {
-        configurations.back().rid = netconfig.rid;
+        configurations.back().rid = seqno;
       }
 
       // TODO: Raft don't cleanup
-      network_configuration[netconfig.rid] = netconfig;
+      network_configuration[seqno] = netconfig;
 
-      if (orc_sets.find(netconfig.rid) == orc_sets.end())
+      if (orc_sets.find(seqno) == orc_sets.end())
       {
-        orc_sets[netconfig.rid] = {};
+        orc_sets[seqno] = {};
       }
 
       if (resharing_tracker)
