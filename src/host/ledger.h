@@ -141,8 +141,27 @@ namespace asynchost
       file = fopen(file_path.c_str(), "w+b");
       if (!file)
       {
-        throw std::logic_error(fmt::format(
-          "Unable to open ledger file {}: {}", file_path, strerror(errno)));
+        // auto txt = fmt::format(
+        //   "Unable to open ledger file {}: {}", file_path, strerror(errno));
+
+        // I have no mouth and I must scream: fmt::format requires free file
+        // descriptors of which there may not be any left, e.g. in the
+        // connections test. snprintf doesn't require file descriptors.
+
+        // Alternatively, we could also try to free up random file descriptors,
+        // e.g., like so:
+        // for (size_t i = 3; i < 20; i++)
+        //   close(i);
+
+        char txt[1024];
+        snprintf(
+          txt,
+          sizeof(txt),
+          "Unable to open ledger file %s: %s",
+          file_path.c_str(),
+          strerror(errno));
+
+        throw std::logic_error(txt);
       }
 
       // Header reserved for the offset to the position table
