@@ -693,6 +693,7 @@ namespace kv
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
     virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
+    virtual crypto::Sha256Hash&& consume_commit_evidence_digest() = 0;
 
     // Setting a short rollback is a work around that should be fixed
     // shortly. In BFT mode when we deserialize and realize we need to

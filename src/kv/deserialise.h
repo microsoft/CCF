@@ -70,6 +70,11 @@ namespace kv
       return std::move(claims_digest);
     }
 
+    crypto::Sha256Hash&& consume_commit_evidence_digest() override
+    {
+      return std::move(commit_evidence_digest);
+    }
+
     ApplyResult apply() override
     {
       if (!store->fill_maps(
