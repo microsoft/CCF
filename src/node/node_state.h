@@ -414,7 +414,11 @@ namespace ccf
     {
       auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
+        network_ca,
+        self_signed_node_cert,
+        node_sign_kp->private_key_pem(),
+        tls::Auth::auth_required,
+        config.join.target_rpc_address);
 
       // Create RPC client and connect to remote node
       auto join_client =
