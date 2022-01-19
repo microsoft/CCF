@@ -256,6 +256,7 @@ namespace asynchost
         if (!DNS::resolve(
               client_host.value(), "0", this, on_client_resolved, false))
         {
+          LOG_DEBUG_FMT("Bind to '{}' failed", client_host.value());
           status = BINDING_FAILED;
           return false;
         }
@@ -578,6 +579,7 @@ namespace asynchost
 
       if (!DNS::resolve(host, service, this, on_resolved, async))
       {
+        LOG_DEBUG_FMT("Bind to '{}' failed", host);
         status = RESOLVING_FAILED;
         return false;
       }
