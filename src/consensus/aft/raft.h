@@ -638,6 +638,7 @@ namespace aft
       kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
       // TODO: What about lock?
+      std::lock_guard<std::mutex> guard(state->lock);
 
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
