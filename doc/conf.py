@@ -60,6 +60,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
     "sphinx_panels",
+    "sphinx.ext.extlinks",
 ]
 
 autosectionlabel_prefix_document = True
@@ -81,7 +82,7 @@ master_doc = "index"
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -204,7 +205,23 @@ smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
-# PyData theme options
+# Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
+# This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`
+# envvar should be used for further versions (release pending).
+docs_version = "main"
+for arg in sys.argv:
+    if "smv_current_version=" in arg:
+        docs_version = arg.split("=")[1]
+
+# :ccf_repo: directive can be used to create a versioned link to GitHub repo
+extlinks = {
+    "ccf_repo": (
+        f"https://github.com/microsoft/CCF/tree/{docs_version}/%s",
+        "%s",
+    )
+}
+
+# Theme options
 
 html_logo = "_static/ccf.svg"
 html_favicon = "_static/favicon.ico"

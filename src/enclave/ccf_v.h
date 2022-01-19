@@ -113,9 +113,9 @@ extern "C"
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
-    uint8_t* network_cert,
-    size_t network_cert_size,
-    size_t* network_cert_len,
+    uint8_t* service_cert,
+    size_t service_cert_size,
+    size_t* service_cert_len,
     uint8_t* enclave_version,
     size_t enclave_version_size,
     size_t* enclave_version_len,
@@ -133,16 +133,27 @@ extern "C"
       node_cert,
       node_cert_size,
       node_cert_len,
-      network_cert,
-      network_cert_size,
-      network_cert_len,
+      service_cert,
+      service_cert_size,
+      service_cert_len,
       enclave_version,
       enclave_version_size,
       enclave_version_len,
       start_type,
       num_worker_thread,
       time_location);
-    return OE_OK;
+
+    // Only return OE_OK when the error isn't OE related
+    switch (*status)
+    {
+      case CreateNodeStatus::OEAttesterInitFailed:
+      case CreateNodeStatus::OEVerifierInitFailed:
+      case CreateNodeStatus::EnclaveInitFailed:
+      case CreateNodeStatus::MemoryNotOutsideEnclave:
+        return OE_FAILURE;
+      default:
+        return OE_OK;
+    }
   }
 
   inline oe_result_t enclave_run(oe_enclave_t*, bool* _retval)

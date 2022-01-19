@@ -22,7 +22,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
       :align: left
 
     :doc:`example`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^
 
     Sample CCF application written in C++.
 
@@ -30,13 +30,20 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     .. image:: ../img/ts.svg
       :width: 22
-      :alt: C++
+      :alt: TypeScript
       :align: left
 
-    :doc:`js_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :doc:`js_app_ts`
+    ^^^^^^^^^^^^^^^
 
-    Sample CCF application written in TypeScript or JavaScript.
+    Sample CCF application written in TypeScript, using the API specified in :typedoc:package:`ccf-app`.
+
+    ---
+
+    :fa:`luggage-cart` :doc:`js_app_bundle`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Description of the bundle format for JS applications in CCF.
 
     ---
 
@@ -93,7 +100,8 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     install_bin
     example
-    js_app
+    js_app_ts
+    js_app_bundle
     build_app
     run_app
     demo

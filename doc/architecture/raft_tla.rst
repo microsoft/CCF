@@ -6,12 +6,12 @@ CCF implements some modifications to Raft as it was originally proposed by Ongar
 
 The TLA+ specification models the intended behavior of Raft as it is modified for CCF. Below, we explain several core parts of the specification in more detail.
 
-You can find the full specification in the `CCF GitHub repository <https://github.com/microsoft/CCF/tree/main/tla>`_ and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is `this guide <https://www.learntla.com/introduction/about-this-guide/>`_.
+You can find the full specification in the :ccf_repo:`tla/` folder and more information on TLA+ `here <http://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is `this guide <https://www.learntla.com/introduction/about-this-guide/>`_.
 
 
 Building blocks of the TLA+ spec
 --------------------------------
-The core model is maintained in the file `ccfraft.tla <https://github.com/microsoft/CCF/tree/main/tla/raft_spec/ccfraft.tla>`_ , however the constants defined in this file are controlled through the model check file `MCraft.tla <https://github.com/microsoft/CCF/tree/main/tla/raft_spec/MCraft.tla>`_ .
+The core model is maintained in the :ccf_repo:`tla/raft_spec/ccfraft.tla` file, however the constants defined in this file are controlled through the model check file :ccf_repo:`tla/raft_spec/MCraft.tla`.
 
 This file controls the constants as seen below. In addition to basic settings of how many nodes are to be model checked and their initial configuration, the model allows to place additional limitations on the state space of the program.
 

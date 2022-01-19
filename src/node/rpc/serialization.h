@@ -76,7 +76,7 @@ namespace ccf
     certificate_signing_request,
     node_endorsed_certificate,
     public_key,
-    network_cert,
+    service_cert,
     quote_info,
     public_encryption_key,
     code_digest,

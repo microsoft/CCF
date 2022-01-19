@@ -83,6 +83,21 @@ namespace aft
       return std::nullopt;
     }
 
+    std::optional<std::vector<uint8_t>> get_raw_entry_by_idx(size_t idx)
+    {
+      auto data = get_entry_by_idx(idx);
+      if (data.has_value())
+      {
+        // Remove the View and Index that were written during put_entry
+        data->erase(
+          data->begin(),
+          data->begin() + sizeof(size_t) + sizeof(kv::Term) +
+            sizeof(kv::Version));
+      }
+
+      return data;
+    }
+
     std::optional<std::vector<uint8_t>> get_append_entries_payload(
       const aft::AppendEntries& ae)
     {
@@ -209,7 +224,7 @@ namespace aft
 
     void initialize(
       const ccf::NodeId& self_id,
-      const crypto::Pem& network_cert,
+      const crypto::Pem& service_cert,
       crypto::KeyPairPtr node_kp,
       const std::optional<crypto::Pem>& node_cert = std::nullopt) override
     {}

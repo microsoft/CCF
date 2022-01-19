@@ -6,7 +6,6 @@
 #include "ds/json.h"
 #include "ds/logger.h"
 
-#include <mbedtls/ecp.h>
 #include <openssl/evp.h>
 #include <stdexcept>
 #include <string>

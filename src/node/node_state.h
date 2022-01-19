@@ -20,6 +20,7 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "hooks.h"
+#include "indexing/indexer.h"
 #include "js/wrap.h"
 #include "network_state.h"
 #include "node/http_node_client.h"
@@ -72,7 +73,7 @@ namespace ccf
   struct NodeCreateInfo
   {
     crypto::Pem self_signed_node_cert;
-    crypto::Pem network_cert;
+    crypto::Pem service_cert;
   };
 
   void reset_data(std::vector<uint8_t>& data)
@@ -118,6 +119,7 @@ namespace ccf
 
     std::shared_ptr<kv::Consensus> consensus;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<ccf::indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
@@ -245,6 +247,7 @@ namespace ccf
       const consensus::Configuration& consensus_config_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<enclave::AbstractRPCResponder> rpc_sessions_,
+      std::shared_ptr<ccf::indexing::Indexer> indexer_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -253,6 +256,7 @@ namespace ccf
 
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
+      indexer = indexer_;
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
@@ -316,7 +320,9 @@ namespace ccf
         case StartType::Start:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network", curve_id);
+            curve_id,
+            config.startup_host_time,
+            config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
 
@@ -375,7 +381,9 @@ namespace ccf
         case StartType::Recover:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            "CN=CCF Network", curve_id);
+            curve_id,
+            config.startup_host_time,
+            config.initial_service_certificate_validity_days);
 
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
@@ -404,7 +412,7 @@ namespace ccf
     //
     void initiate_join()
     {
-      auto network_ca = std::make_shared<tls::CA>(config.join.network_cert);
+      auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
 
@@ -1066,7 +1074,6 @@ namespace ccf
             "Could not commit transaction when finishing network recovery");
         }
       }
-      open_user_frontend();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
@@ -1232,10 +1239,7 @@ namespace ccf
         }
 
         GenesisGenerator g(network, tx);
-        if (g.open_service())
-        {
-          open_user_frontend();
-        }
+        g.open_service();
         return;
       }
       else
@@ -1291,6 +1295,12 @@ namespace ccf
       }
 
       consensus->periodic(elapsed);
+
+      if (sm.check(State::partOfNetwork))
+      {
+        const auto tx_id = consensus->get_committed_txid();
+        indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
+      }
     }
 
     void tick_end()
@@ -1599,7 +1609,7 @@ namespace ccf
         create_params.node_endorsed_certificate);
 
       create_params.public_key = node_sign_kp->public_key_pem();
-      create_params.network_cert = network.identity->cert;
+      create_params.service_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
@@ -1809,8 +1819,20 @@ namespace ccf
               accept_network_tls_connections();
 
               open_frontend(ActorsType::members);
-              open_user_frontend();
             }
+          }));
+
+      network.tables->set_global_hook(
+        network.service.get_name(),
+        network.service.wrap_commit_hook(
+          [this](kv::Version hook_version, const Service::Write& w) {
+            if (!w.has_value())
+            {
+              throw std::logic_error("Unexpected deletion in service value");
+            }
+
+            network.identity->set_certificate(w->cert);
+            open_user_frontend();
           }));
     }
 

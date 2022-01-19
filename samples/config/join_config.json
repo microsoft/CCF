@@ -22,7 +22,7 @@
   },
   "command": {
     "type": "join",
-    "network_certificate_file": "networkcert.pem",
+    "service_certificate_file": "service_cert.pem",
     "join": {
       "retry_timeout": "1s",
       "target_rpc_address": "127.0.0.1:8080"
