@@ -319,7 +319,7 @@ int main(int argc, char** argv)
     // Initialise the enclave and create a CCF node in it
     const size_t certificate_size = 4096;
     std::vector<uint8_t> node_cert(certificate_size);
-    std::vector<uint8_t> network_cert(certificate_size);
+    std::vector<uint8_t> service_cert(certificate_size);
 
     EnclaveConfig enclave_config;
     enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
@@ -387,6 +387,8 @@ int main(int argc, char** argv)
         config.command.start.service_configuration;
       startup_config.start.service_configuration.recovery_threshold =
         recovery_threshold;
+      startup_config.initial_service_certificate_validity_days =
+        config.command.start.initial_service_certificate_validity_days;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
@@ -401,12 +403,14 @@ int main(int argc, char** argv)
       startup_config.join.target_rpc_address =
         config.command.join.target_rpc_address;
       startup_config.join.retry_timeout = config.command.join.retry_timeout;
-      startup_config.join.network_cert =
-        files::slurp(config.command.network_certificate_file);
+      startup_config.join.service_cert =
+        files::slurp(config.command.service_certificate_file);
     }
     else if (config.command.type == StartType::Recover)
     {
       LOG_INFO_FMT("Creating new node - recover");
+      startup_config.initial_service_certificate_validity_days =
+        config.command.recover.initial_service_certificate_validity_days;
     }
     else
     {
@@ -454,18 +458,32 @@ int main(int argc, char** argv)
 #endif
     }
 
-    enclave.create_node(
+    auto create_status = enclave.create_node(
       enclave_config,
       startup_config,
       node_cert,
-      network_cert,
+      service_cert,
       config.command.type,
       config.worker_threads,
       time_updater->behaviour.get_value());
 
+    if (create_status != CreateNodeStatus::OK)
+    {
+      LOG_FAIL_FMT(
+        "An error occurred when creating CCF node: {}",
+        create_node_result_to_str(create_status));
+
+      // Pull all logs from the enclave via BufferProcessor `bp`
+      // and show any logs that came from the ring buffer during setup.
+      bp.read_all(circuit.read_from_inside());
+
+      // This returns from main, stopping the program
+      return create_status;
+    }
+
     LOG_INFO_FMT("Created new node");
 
-    // Write the node and network certs to disk.
+    // Write the node and service certs to disk.
     files::dump(node_cert, config.output_files.node_certificate_file);
     LOG_INFO_FMT(
       "Output self-signed node certificate to {}",
@@ -475,10 +493,10 @@ int main(int argc, char** argv)
       config.command.type == StartType::Start ||
       config.command.type == StartType::Recover)
     {
-      files::dump(network_cert, config.command.network_certificate_file);
+      files::dump(service_cert, config.command.service_certificate_file);
       LOG_INFO_FMT(
         "Output service certificate to {}",
-        config.command.network_certificate_file);
+        config.command.service_certificate_file);
     }
 
     auto enclave_thread_start = [&]() {

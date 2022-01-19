@@ -21,6 +21,13 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
+constexpr size_t certificate_validity_period_days = 365;
+auto valid_from =
+  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
+    std::chrono::system_clock::now())); // now
+auto valid_to = crypto::compute_cert_valid_to_string(
+  valid_from, certificate_validity_period_days);
+
 const std::chrono::milliseconds step_time(10);
 
 using MapA = kv::Map<std::string, std::string>;
@@ -459,7 +466,7 @@ TEST_CASE_TEMPLATE(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
     auto kp = crypto::make_key_pair();
-    auto cert = kp->self_sign("CN=member");
+    auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
       crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
 

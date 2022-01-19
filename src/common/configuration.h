@@ -129,6 +129,9 @@ struct StartupConfig : CCFConfig
   std::string startup_host_time;
   size_t snapshot_tx_interval = 10'000;
 
+  // Only if starting or recovering
+  size_t initial_service_certificate_validity_days = 1;
+
   struct Start
   {
     std::vector<ccf::NewMember> members;
@@ -143,7 +146,7 @@ struct StartupConfig : CCFConfig
   {
     ccf::NodeInfoNetwork::NetAddress target_rpc_address;
     ds::TimeString retry_timeout = {"1000ms"};
-    std::vector<uint8_t> network_cert = {};
+    std::vector<uint8_t> service_cert = {};
   };
   Join join = {};
 };
@@ -154,7 +157,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(StartupConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig::Join, target_rpc_address, retry_timeout, network_cert);
+  StartupConfig::Join, target_rpc_address, retry_timeout, service_cert);
 
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -162,6 +165,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   startup_snapshot,
   startup_host_time,
   snapshot_tx_interval,
+  initial_service_certificate_validity_days,
   start,
   join);
 DECLARE_JSON_OPTIONAL_FIELDS(

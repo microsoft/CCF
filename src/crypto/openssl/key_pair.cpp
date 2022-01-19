@@ -25,23 +25,6 @@ namespace crypto
 {
   using namespace OpenSSL;
 
-  static inline int get_openssl_group_id(CurveID gid)
-  {
-    switch (gid)
-    {
-      case CurveID::NONE:
-        return NID_undef;
-      case CurveID::SECP384R1:
-        return NID_secp384r1;
-      case CurveID::SECP256R1:
-        return NID_X9_62_prime256v1;
-      default:
-        throw std::logic_error(
-          fmt::format("unsupported OpenSSL CurveID {}", gid));
-    }
-    return MBEDTLS_ECP_DP_NONE;
-  }
-
   static std::map<std::string, std::string> parse_name(const std::string& name)
   {
     std::map<std::string, std::string> result;
@@ -98,6 +81,17 @@ namespace crypto
   std::vector<uint8_t> KeyPair_OpenSSL::public_key_der() const
   {
     return PublicKey_OpenSSL::public_key_der();
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::private_key_der() const
+  {
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(i2d_PrivateKey_bio(buf, key));
+
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {bptr->data, bptr->data + bptr->length};
   }
 
   bool KeyPair_OpenSSL::verify(
@@ -220,9 +214,9 @@ namespace crypto
   Pem KeyPair_OpenSSL::sign_csr(
     const Pem& issuer_cert,
     const Pem& signing_request,
-    bool ca,
-    const std::optional<std::string>& valid_from,
-    const std::optional<std::string>& valid_to) const
+    const std::string& valid_from,
+    const std::string& valid_to,
+    bool ca) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -261,10 +255,8 @@ namespace crypto
         X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
     }
 
-    // Note: 825-day validity range
-    // https://support.apple.com/en-us/HT210176
-    Unique_X509_TIME not_before(valid_from.value_or("20210311000000Z"));
-    Unique_X509_TIME not_after(valid_to.value_or("20230611235959Z"));
+    Unique_X509_TIME not_before(valid_from);
+    Unique_X509_TIME not_after(valid_to);
     if (!validate_chronological_times(not_before, not_after))
     {
       throw std::logic_error(fmt::format(
@@ -342,5 +334,36 @@ namespace crypto
       X509_free(icrt);
 
     return result;
+  }
+
+  CurveID KeyPair_OpenSSL::get_curve_id() const
+  {
+    return PublicKey_OpenSSL::get_curve_id();
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::public_key_raw() const
+  {
+    return PublicKey_OpenSSL::public_key_raw();
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(
+    const PublicKey& peer_key)
+  {
+    crypto::CurveID cid = peer_key.get_curve_id();
+    int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
+    auto pk = key_from_raw_ec_point(peer_key.public_key_raw(), nid);
+
+    std::vector<uint8_t> shared_secret;
+    size_t shared_secret_length = 0;
+    Unique_EVP_PKEY_CTX ctx(key);
+    CHECK1(EVP_PKEY_derive_init(ctx));
+    CHECK1(EVP_PKEY_derive_set_peer(ctx, pk));
+    CHECK1(EVP_PKEY_derive(ctx, NULL, &shared_secret_length));
+    shared_secret.resize(shared_secret_length);
+    CHECK1(EVP_PKEY_derive(ctx, shared_secret.data(), &shared_secret_length));
+
+    EVP_PKEY_free(pk);
+
+    return shared_secret;
   }
 }

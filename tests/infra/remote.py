@@ -673,7 +673,7 @@ class CCFRemote(object):
         if major_version is None or major_version > 1:
             cmd = [bin_path, "--config", config_file]
             if start_type == StartType.join:
-                data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
         else:
             consensus = kwargs.get("consensus")
@@ -772,7 +772,7 @@ class CCFRemote(object):
                     cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
 
             if start_type == StartType.start:
-                cmd += ["start", "--network-cert-file=networkcert.pem"]
+                cmd += ["start", "--network-cert-file=service_cert.pem"]
                 for fragment in constitution:
                     cmd.append(f"--constitution={os.path.basename(fragment)}")
                     data_files += [
@@ -806,14 +806,14 @@ class CCFRemote(object):
             elif start_type == StartType.join:
                 cmd += [
                     "join",
-                    "--network-cert-file=networkcert.pem",
+                    "--network-cert-file=service_cert.pem",
                     f"--target-rpc-address={target_rpc_address}",
                     f"--join-timer={join_timer_s * 1000}",
                 ]
-                data_files += [os.path.join(self.common_dir, "networkcert.pem")]
+                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
             elif start_type == StartType.recover:
-                cmd += ["recover", "--network-cert-file=networkcert.pem"]
+                cmd += ["recover", "--network-cert-file=service_cert.pem"]
 
             else:
                 raise ValueError(
@@ -858,7 +858,7 @@ class CCFRemote(object):
         if self.rpc_addresses_file is not None:
             self.remote.get(self.rpc_addresses_file, dst_path)
         if self.start_type in {StartType.start, StartType.recover}:
-            self.remote.get("networkcert.pem", dst_path)
+            self.remote.get("service_cert.pem", dst_path)
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()

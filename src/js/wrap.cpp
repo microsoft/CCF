@@ -636,6 +636,47 @@ namespace ccf::js
     return JS_NewString(ctx, endorsed_cert.str().c_str());
   }
 
+  JSValue js_network_generate_certificate(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    if (argc != 2)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
+    }
+
+    auto network =
+      static_cast<ccf::NetworkState*>(JS_GetOpaque(this_val, network_class_id));
+    if (network == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Network state is not set");
+    }
+
+    auto valid_from_str = jsctx.to_str(argv[0]);
+    if (!valid_from_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    auto valid_from = *valid_from_str;
+
+    size_t validity_period_days = 0;
+    if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto renewed_cert =
+      network->identity->issue_certificate(valid_from, validity_period_days);
+
+    return JS_NewString(ctx, renewed_cert.str().c_str());
+  }
+
   JSValue js_network_latest_ledger_secret_seqno(
     JSContext* ctx,
     JSValueConst this_val,
@@ -1504,6 +1545,15 @@ namespace ccf::js
           ctx,
           js_network_generate_endorsed_certificate,
           "generateEndorsedCertificate",
+          0));
+      JS_SetPropertyStr(
+        ctx,
+        network,
+        "generateNetworkCertificate",
+        JS_NewCFunction(
+          ctx,
+          js_network_generate_certificate,
+          "generateNetworkCertificate",
           0));
     }
 

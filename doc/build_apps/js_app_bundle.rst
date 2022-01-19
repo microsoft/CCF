@@ -13,12 +13,7 @@ This page documents the components of a bundle and the JavaScript API available 
     `TypeScript <https://www.typescriptlang.org/>`_.
     CCF provides an example app built with these tools.
     They involve a `build` step that generates an app bundle suitable for CCF.
-    See the following for more details:
-
-    .. toctree::
-      :maxdepth: 1
-
-      js_app_ts
+    See the :ref:`TypeScript Application <build_apps/js_app_ts>` section for more details
 
 Folder Layout
 -------------
@@ -36,9 +31,7 @@ A bundle has the following folder structure:
 It consists of :ref:`metadata <build_apps/js_app_bundle:Metadata>` (``app.json``) and one or more :ref:`JavaScript modules <build_apps/js_app_bundle:JavaScript API>` (``src/``).
 JavaScript modules can `import <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import>`_ other modules using relative path names.
 
-You can find an example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
-folder of the CCF git repository.
+You can find an example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository.
 
 Metadata
 --------
@@ -99,9 +92,7 @@ Each endpoint object contains the following information:
   enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
   types of the endpoint's requests or responses.
 
-You can find an example metadata file at
-`tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle/app.json>`_
-in the CCF git repository.
+You can find an example metadata file at :ccf_repo:`tests/js-app-bundle/app.json` in the CCF git repository.
 
 JavaScript API
 --------------
@@ -123,10 +114,7 @@ Endpoint handlers
 
 An endpoint handler is an exported function that receives a :typedoc:interface:`Request <ccf-app/endpoints/Request>` object, returns a :typedoc:interface:`Response <ccf-app/endpoints/Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
-See the following handler from the example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
-folder of the CCF git repository.
-It validates the request body and returns the result of a mathematical operation:
+See the following handler from the example app bundle in the :ccf_repo:`tests/js-app-bundle/` folder of the CCF git repository. It validates the request body and returns the result of a mathematical operation:
 
 .. literalinclude:: ../../tests/js-app-bundle/src/math.js
    :language: js
@@ -307,7 +295,7 @@ Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposa
 Any existing application endpoints and JavaScript modules are removed.
 
 If you are using ``npm`` or similar to build your app it may make sense to convert your app into a proposal-ready JSON bundle during packaging.
-For an example of how this could be done, see `this example script <https://github.com/microsoft/CCF/tree/main/tests/npm-app/build_bundle.js>`_ from one of CCF's test applications, called by ``npm build`` from the corresponding `package.json <https://github.com/microsoft/CCF/tree/main/tests/npm-app/package.json>`_.
+For an example of how this could be done, see :ccf_repo:`tests/npm-app/build_bundle.js` from one of CCF's test applications, called by ``npm build`` from the corresponding :ccf_repo:`tests/npm-app/package.json`.
 
 Bytecode cache
 ~~~~~~~~~~~~~~
