@@ -558,16 +558,17 @@ namespace aft
 
       assert(!configurations.empty());
 
+      if (configurations.back().rid == 0)
+      {
+        configurations.back().rid = netconfig.rid;
+      }
+
+      // TODO: Raft don't cleanup
       network_configuration[netconfig.rid] = netconfig;
 
       if (orc_sets.find(netconfig.rid) == orc_sets.end())
       {
         orc_sets[netconfig.rid] = {};
-      }
-
-      if (configurations.back().rid == 0)
-      {
-        configurations.back().rid = netconfig.rid;
       }
 
       if (resharing_tracker)
@@ -614,6 +615,8 @@ namespace aft
     // guaranteed that we will eventually receive all of them, since all
     // nodes keep re-submitting ORCs until they are able to switch to the next
     // pending configuration.
+
+    // TODO: Return std::optional<std::set<Nodes>>
     bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
       LOG_DEBUG_FMT(
@@ -2193,7 +2196,11 @@ namespace aft
 
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
+          // TODO:
+          // 1. Get rid from first element of configurations
+          // 2. Remove rid from network_configuration
           configurations.pop_front();
+          // network_configuration.erase();
           changed = true;
         }
         else
@@ -2254,6 +2261,7 @@ namespace aft
             }
 
             configurations.pop_front();
+            // network_configuration.pop_front(); // TODO: Same as for 1.x
           }
           else
           {
@@ -2389,6 +2397,9 @@ namespace aft
       {
         configurations.pop_back();
         changed = true;
+
+        // TODO: network_configuration pop_back(); // TODO: erase network
+        // configurations too
       }
 
       if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)

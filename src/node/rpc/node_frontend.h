@@ -1254,6 +1254,7 @@ namespace ccf
           ctx.tx.rw(network.node_endorsed_certificates);
         endorsed_certificates->put(in.node_id, in.node_endorsed_certificate);
 
+        // TODO: Cleanup network configuration table
         g.add_node(in.node_id, node_info);
 
 #ifdef GET_QUOTE
