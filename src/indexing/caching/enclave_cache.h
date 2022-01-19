@@ -13,7 +13,11 @@
 #include <set>
 #include <unordered_map>
 
-namespace indexing::caching
+// Uncomment to disable encryption and obfuscation, writing cache content
+// directly unencrypted to host disk
+#define PLAINTEXT_CACHE
+
+namespace ccf::indexing::caching
 {
   using BlobContents = std::vector<uint8_t>;
 
@@ -53,6 +57,10 @@ namespace indexing::caching
     encryption_key.encrypt(
       gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
 
+#ifdef PLAINTEXT_CACHE
+    gcm.cipher = contents;
+#endif
+
     return gcm.serialise();
   }
 
@@ -79,9 +87,14 @@ namespace indexing::caching
       return false;
     }
 
+#ifdef PLAINTEXT_CACHE
+    plaintext = gcm.cipher;
+    const auto success = true;
+#else
     plaintext.resize(gcm.cipher.size());
     const auto success = encryption_key.decrypt(
       gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, nullb, plaintext.data());
+#endif
 
     if (success)
     {
@@ -96,8 +109,12 @@ namespace indexing::caching
 
   static inline BlobKey obfuscate_key(const BlobKey& key)
   {
+#ifdef PLAINTEXT_CACHE
+    return key;
+#else
     const auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
     return ds::to_hex(h);
+#endif
   }
 
   class EnclaveCache

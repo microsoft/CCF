@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace indexing::caching
+namespace ccf::indexing::caching
 {
   using BlobKey = std::string;
   using EncryptedBlob = std::vector<uint8_t>;
@@ -25,16 +25,16 @@ namespace indexing::caching
 }
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  indexing::caching::BlobMsg::store,
-  indexing::caching::BlobKey,
-  indexing::caching::EncryptedBlob);
+  ccf::indexing::caching::BlobMsg::store,
+  ccf::indexing::caching::BlobKey,
+  ccf::indexing::caching::EncryptedBlob);
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  indexing::caching::BlobMsg::get, indexing::caching::BlobKey);
+  ccf::indexing::caching::BlobMsg::get, ccf::indexing::caching::BlobKey);
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  indexing::caching::BlobMsg::response,
-  indexing::caching::BlobKey,
-  indexing::caching::EncryptedBlob);
+  ccf::indexing::caching::BlobMsg::response,
+  ccf::indexing::caching::BlobKey,
+  ccf::indexing::caching::EncryptedBlob);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  indexing::caching::BlobMsg::not_found, indexing::caching::BlobKey);
+  ccf::indexing::caching::BlobMsg::not_found, ccf::indexing::caching::BlobKey);

@@ -42,7 +42,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
   auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
   ringbuffer::Reader outbound_reader(outbound_buffer->bd);
 
-  using namespace indexing::caching;
+  using namespace ccf::indexing::caching;
 
   HostCache hc(
     host_bp.get_dispatcher(),
@@ -104,6 +104,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
     REQUIRE(result->contents != blob_a);
   }
 
+#ifndef PLAINTEXT_CACHE
   {
     INFO("Host cache provides corrupt file");
     const auto b_path = hc.root_dir / obfuscate_key(key_b);
@@ -123,4 +124,5 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
       REQUIRE(result->contents != blob_b);
     }
   }
+#endif
 }

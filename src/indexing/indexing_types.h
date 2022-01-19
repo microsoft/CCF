@@ -17,5 +17,6 @@ namespace kv
 namespace ccf::indexing
 {
   using StorePtr = std::shared_ptr<kv::Store>;
-  using SeqNoCollection = ds::ContiguousSet<ccf::SeqNo>;
+  // TODO: Is there benefit to using ContiguousSet here?
+  using SeqNoCollection = std::set<ccf::SeqNo>;
 }

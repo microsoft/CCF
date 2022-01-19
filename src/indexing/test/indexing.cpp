@@ -5,6 +5,8 @@
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "ds/test/stub_writer.h"
+#include "indexing/caching/enclave_cache.h"
+#include "indexing/caching/host_cache.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/indexer.h"
 #include "kv/test/stub_consensus.h"
@@ -287,9 +289,30 @@ void run_tests(
   }
 }
 
+#define CREATE_CACHES \
+  messaging::BufferProcessor host_bp("blobcache_host"); \
+  messaging::BufferProcessor enclave_bp("blobcache_enclave"); \
+  constexpr size_t buf_size = 1 << 16; \
+  auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size); \
+  ringbuffer::Reader inbound_reader(inbound_buffer->bd); \
+  auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size); \
+  ringbuffer::Reader outbound_reader(outbound_buffer->bd); \
+  ccf::indexing::caching::HostCache hc( \
+    host_bp.get_dispatcher(), \
+    std::make_shared<ringbuffer::Writer>(inbound_reader)); \
+  ccf::indexing::caching::EnclaveCache ec( \
+    enclave_bp.get_dispatcher(), \
+    std::make_shared<ringbuffer::Writer>(outbound_reader)); \
+  auto update_caches = [&]() { \
+    host_bp.read_all(outbound_reader); \
+    enclave_bp.read_all(inbound_reader); \
+  };
+
 // Uses stub classes to test just indexing logic in isolation
 TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 {
+  CREATE_CACHES;
+
   kv::Store kv_store;
 
   auto consensus = std::make_shared<AllCommittableConsensus>();
@@ -303,7 +326,7 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
 
-  auto index_a = std::make_shared<IndexA>(map_a);
+  auto index_a = std::make_shared<IndexA>(map_a, ec);
   REQUIRE(indexer.install_strategy(index_a));
   REQUIRE_FALSE(indexer.install_strategy(index_a));
 
@@ -327,6 +350,8 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
           fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
       }
       fetcher->requested.clear();
+
+      update_caches();
     }
   };
 
@@ -343,7 +368,7 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
     "Indexes can be installed later, and will be populated after enough "
     "ticks");
 
-  auto index_b = std::make_shared<IndexB>(map_b);
+  auto index_b = std::make_shared<IndexB>(map_b, ec);
   REQUIRE(indexer.install_strategy(index_b));
   REQUIRE_FALSE(indexer.install_strategy(index_b));
 
@@ -427,11 +452,13 @@ aft::LedgerStubProxy* add_raft_consensus(
 
 // Uses the real classes, to test their interaction with indexing
 TEST_CASE_TEMPLATE(
-  "integrated indexing" * doctest::test_suite("indexing"),
-  AA,
-  IndexA,
-  LazyIndexA)
+  "integrated indexing" * doctest::test_suite("indexing"), AA, IndexA
+  // ,
+  // LazyIndexA
+)
 {
+  CREATE_CACHES
+
   auto kv_store_p = std::make_shared<kv::Store>();
   auto& kv_store = *kv_store_p;
 
@@ -447,7 +474,7 @@ TEST_CASE_TEMPLATE(
   auto indexer_p = std::make_shared<ccf::indexing::Indexer>(fetcher);
   auto& indexer = *indexer_p;
 
-  auto index_a = std::make_shared<AA>(map_a);
+  auto index_a = std::make_shared<AA>(map_a, ec);
   REQUIRE(indexer.install_strategy(index_a));
 
   auto ledger = add_raft_consensus(kv_store_p, indexer_p);
@@ -519,6 +546,8 @@ TEST_CASE_TEMPLATE(
         cache->handle_ledger_entries(from_seqno, to_seqno, combined);
       }
 
+      update_caches();
+
       handled_writes = writes.end() - writes.begin();
 
       if (loops++ > 100)
@@ -555,7 +584,7 @@ TEST_CASE_TEMPLATE(
     "Indexes can be installed later, and will be populated after enough "
     "ticks");
 
-  auto index_b = std::make_shared<IndexB>(map_b);
+  auto index_b = std::make_shared<IndexB>(map_b, ec);
   REQUIRE(indexer.install_strategy(index_b));
 
   run_tests(

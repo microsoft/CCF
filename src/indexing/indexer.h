@@ -100,7 +100,11 @@ namespace ccf::indexing
             MAX_REQUESTABLE - uncommitted_entries.size(),
             committed.seqno - first_requested);
 
-          SeqNoCollection seqnos(first_requested, additional);
+          SeqNoCollection seqnos;
+          for (auto i = first_requested; i <= first_requested + additional; ++i)
+          {
+            seqnos.insert(i);
+          }
 
           auto stores = transaction_fetcher->fetch_transactions(seqnos);
           for (auto& store : stores)

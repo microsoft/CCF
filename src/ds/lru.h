@@ -39,7 +39,7 @@ private:
   {
     while (entries_list.size() > max_size)
     {
-      const auto least_recent_entry = entries_list.back();
+      const auto& least_recent_entry = entries_list.back();
       iter_map.erase(least_recent_entry.first);
       entries_list.pop_back();
     }

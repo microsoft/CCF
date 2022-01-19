@@ -4,7 +4,7 @@
 
 #include <filesystem>
 
-namespace indexing::caching
+namespace ccf::indexing::caching
 {
   struct HostCache
   {
@@ -16,17 +16,16 @@ namespace indexing::caching
       messaging::RingbufferDispatcher& disp, ringbuffer::WriterPtr&& w) :
       writer(w)
     {
-      if (std::filesystem::is_directory(root_dir))
-      {
-        LOG_INFO_FMT("Clearing cache from existing directory {}", root_dir);
-        std::filesystem::remove_all(root_dir);
-      }
-
-      if (!std::filesystem::create_directory(root_dir))
-      {
-        throw std::logic_error(
-          fmt::format("Could not create cache directory: {}", root_dir));
-      }
+      // if (std::filesystem::is_directory(root_dir))
+      // {
+      //   // LOG_INFO_FMT("Clearing cache from existing directory {}", root_dir);
+      //   // std::filesystem::remove_all(root_dir);
+      // }
+      // else if (!std::filesystem::create_directory(root_dir))
+      // {
+      //   throw std::logic_error(
+      //     fmt::format("Could not create cache directory: {}", root_dir));
+      // }
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, BlobMsg::store, [&](const uint8_t* data, size_t size) {
@@ -35,7 +34,7 @@ namespace indexing::caching
 
           const auto blob_path = root_dir / key;
           std::ofstream f(blob_path, std::ios::trunc | std::ios::binary);
-          LOG_TRACE_FMT(
+          LOG_INFO_FMT( // TODO: Should be TRACE, just INFO for temp debugging
             "Writing {} byte blob to {}", encrypted_blob.size(), blob_path);
           f.write((char const*)encrypted_blob.data(), encrypted_blob.size());
           f.close();
