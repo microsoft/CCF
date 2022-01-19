@@ -22,6 +22,7 @@ namespace crypto
     virtual Pem private_key_pem() const override;
     virtual Pem public_key_pem() const override;
     virtual std::vector<uint8_t> public_key_der() const override;
+    virtual std::vector<uint8_t> private_key_der() const override;
 
     using PublicKey_OpenSSL::verify;
 
@@ -60,5 +61,12 @@ namespace crypto
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false) const override;
+
+    virtual std::vector<uint8_t> derive_shared_secret(
+      const PublicKey& peer_key) override;
+
+    virtual CurveID get_curve_id() const override;
+
+    virtual std::vector<uint8_t> public_key_raw() const override;
   };
 }

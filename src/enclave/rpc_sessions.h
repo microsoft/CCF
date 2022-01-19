@@ -191,10 +191,8 @@ namespace enclave
 
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
-      // certificate does not have to be signed by a known CA (nullptr,
-      // tls::auth_optional).
-      cert = std::make_shared<tls::Cert>(
-        nullptr, cert_, pk, nullb, tls::auth_optional);
+      // certificate does not have to be signed by a known CA (nullptr).
+      cert = std::make_shared<tls::Cert>(nullptr, cert_, pk, tls::auth_default);
     }
 
     void accept(tls::ConnID id, const ListenInterfaceID& listen_interface_id)

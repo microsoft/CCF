@@ -1,18 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "mbedtls/base64.h"
+#include "openssl/base64.h"
 
 #include "ds/logger.h"
-#include "openssl/base64.h"
 
 namespace crypto
 {
-#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-  using Base64Impl = Base64_mbedtls;
-#else
   using Base64Impl = Base64_openssl;
-#endif
 
   std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
   {

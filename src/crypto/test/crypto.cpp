@@ -7,12 +7,6 @@
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
 #include "crypto/key_wrap.h"
-#include "crypto/mbedtls/entropy.h"
-#include "crypto/mbedtls/key_pair.h"
-#include "crypto/mbedtls/public_key.h"
-#include "crypto/mbedtls/rsa_key_pair.h"
-#include "crypto/mbedtls/symmetric_key.h"
-#include "crypto/mbedtls/verifier.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
@@ -185,16 +179,6 @@ void run_alt()
   CHECK(kp2.verify(contents, signature));
 }
 
-TEST_CASE("Sign, verify with alternate implementation")
-{
-  run_alt<KeyPair_mbedTLS, PublicKey_mbedTLS, CurveID::SECP256R1>();
-  run_alt<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256R1>();
-  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP384R1>();
-  run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP384R1>();
-  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP256R1>();
-  run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP256R1>();
-}
-
 TEST_CASE("Sign, verify with certificate")
 {
   for (const auto curve : supported_curves)
@@ -355,38 +339,6 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   }
 }
 
-TEST_CASE("RSA-OAEP mbedTLS vs OpenSSL")
-{
-  std::vector<uint8_t> input = create_entropy()->random(32);
-
-  size_t key_sz = 2048;
-
-  auto kp_mbed = std::make_shared<RSAKeyPair_mbedTLS>(key_sz);
-  auto pk_mbed =
-    std::make_shared<RSAPublicKey_mbedTLS>(kp_mbed->public_key_pem());
-
-  auto kp_ossl =
-    std::make_shared<RSAKeyPair_OpenSSL>(kp_mbed->private_key_pem());
-  auto pk_ossl =
-    std::make_shared<RSAPublicKey_OpenSSL>(pk_mbed->public_key_pem());
-
-  INFO("mbedTLS -> OpenSSL");
-  {
-    auto wrapped = pk_mbed->rsa_oaep_wrap(input);
-    REQUIRE(wrapped.size() == key_sz / 8);
-    auto unwrapped = kp_ossl->rsa_oaep_unwrap(wrapped);
-    REQUIRE(input == unwrapped);
-  }
-
-  INFO("OpenSSL -> mbedTLS");
-  {
-    auto wrapped = pk_ossl->rsa_oaep_wrap(input);
-    REQUIRE(wrapped.size() == key_sz / 8);
-    auto unwrapped = kp_mbed->rsa_oaep_unwrap(wrapped);
-    REQUIRE(input == unwrapped);
-  }
-}
-
 TEST_CASE("Extract public key from cert")
 {
   for (const auto curve : supported_curves)
@@ -413,7 +365,6 @@ void create_csr_and_extract_pubk()
 
 TEST_CASE("Extract public key from csr")
 {
-  create_csr_and_extract_pubk<KeyPair_mbedTLS>();
   create_csr_and_extract_pubk<KeyPair_OpenSSL>();
 }
 
@@ -476,9 +427,6 @@ TEST_CASE("Create sign and verify certificates")
   bool corrupt_csr = false;
   do
   {
-    run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>(corrupt_csr);
-    run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>(corrupt_csr);
-    run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>(corrupt_csr);
     run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>(corrupt_csr);
     corrupt_csr = !corrupt_csr;
   } while (corrupt_csr);
@@ -503,101 +451,6 @@ TEST_CASE("ExtendedIv0")
 
   auto k2 = crypto::make_key_aes_gcm(getRawKey());
   REQUIRE(k2->decrypt(h.get_iv(), h.tag, p, nullb, p.p));
-}
-
-TEST_CASE("AES mbedTLS vs OpenSSL")
-{
-  auto key = getRawKey();
-
-  GcmHeader<1234> h;
-
-  { // mbedTLS -> OpenSSL
-    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
-    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
-
-    std::vector<uint8_t> encrypted(contents_.size());
-    mbed->encrypt(h.get_iv(), contents_, nullb, encrypted.data(), h.tag);
-
-    std::vector<unsigned char> rawP(contents_.size(), 'x');
-    Buffer p{rawP.data(), rawP.size()};
-
-    std::vector<uint8_t> decrypted(contents_.size());
-    REQUIRE(ossl->decrypt(
-      h.get_iv(),
-      h.tag,
-      {encrypted.data(), encrypted.size()},
-      nullb,
-      decrypted.data()));
-
-    REQUIRE(decrypted == contents);
-  }
-
-  { // OpenSSL -> mbedTLS
-    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
-    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
-
-    std::vector<uint8_t> encrypted(contents_.size());
-    ossl->encrypt(h.get_iv(), contents_, nullb, encrypted.data(), h.tag);
-
-    std::vector<unsigned char> rawP(contents_.size(), 'x');
-    Buffer p{rawP.data(), rawP.size()};
-
-    std::vector<uint8_t> decrypted(contents_.size());
-    CBuffer encbuf{encrypted.data(), encrypted.size()};
-    REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, nullb, decrypted.data()));
-
-    REQUIRE(decrypted == contents);
-  }
-}
-
-TEST_CASE("AES mbedTLS vs OpenSSL + AAD")
-{
-  auto key = getRawKey();
-
-  GcmHeader<1234> h;
-  std::vector<uint8_t> aad(123, 'y');
-
-  {
-    INFO("mbedTLS -> OpenSSL");
-
-    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
-    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
-
-    std::vector<uint8_t> encrypted(contents_.size());
-    mbed->encrypt(h.get_iv(), contents_, aad, encrypted.data(), h.tag);
-
-    std::vector<unsigned char> rawP(contents_.size(), 'x');
-    Buffer p{rawP.data(), rawP.size()};
-
-    std::vector<uint8_t> decrypted(contents_.size());
-    REQUIRE(ossl->decrypt(
-      h.get_iv(),
-      h.tag,
-      {encrypted.data(), encrypted.size()},
-      aad,
-      decrypted.data()));
-
-    REQUIRE(decrypted == contents);
-  }
-
-  {
-    INFO("OpenSSL -> mbedTLS");
-
-    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
-    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
-
-    std::vector<uint8_t> encrypted(contents_.size());
-    ossl->encrypt(h.get_iv(), contents_, aad, encrypted.data(), h.tag);
-
-    std::vector<unsigned char> rawP(contents_.size(), 'x');
-    Buffer p{rawP.data(), rawP.size()};
-
-    std::vector<uint8_t> decrypted(contents_.size());
-    CBuffer encbuf{encrypted.data(), encrypted.size()};
-    REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, aad, decrypted.data()));
-
-    REQUIRE(decrypted == contents);
-  }
 }
 
 TEST_CASE("AES Key wrap with padding")
@@ -748,28 +601,5 @@ TEST_CASE("x509 time")
       auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
       REQUIRE(converted_time_t == adjusted_time_t);
     }
-  }
-}
-
-TEST_CASE("check equality of DER encodings")
-{
-  {
-    KeyPair_OpenSSL key_ossl(CurveID::SECP384R1);
-    auto der_ossl = key_ossl.public_key_der();
-    PublicKey_mbedTLS pub_mbed(der_ossl);
-    auto der_mbed = pub_mbed.public_key_der();
-    REQUIRE(der_ossl == der_mbed);
-    PublicKey_OpenSSL pub_ossl(pub_mbed.public_key_der());
-    REQUIRE(der_mbed == der_ossl);
-  }
-
-  {
-    KeyPair_mbedTLS key_mbed(CurveID::SECP384R1);
-    auto der_mbed = key_mbed.public_key_der();
-    PublicKey_OpenSSL pub_ossl(der_mbed);
-    auto der_ossl = pub_ossl.public_key_der();
-    REQUIRE(der_ossl == der_mbed);
-    PublicKey_mbedTLS pub_mbed(pub_ossl.public_key_der());
-    REQUIRE(der_mbed == der_ossl);
   }
 }
