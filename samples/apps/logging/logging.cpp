@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 // This app's includes
-#include "formatters.h"
 #include "logging_schema.h"
 
 // CCF
