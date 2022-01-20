@@ -159,7 +159,8 @@
                     "members"
                   ]
                 }
-              }
+              },
+              "required": ["start"]
             }
           },
           {
@@ -183,14 +184,31 @@
                   },
                   "required": ["target_rpc_address"]
                 }
+              },
+              "required": ["join"]
+            }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "recover"} }
+            },
+            "then": {
+              "properties": {
+                "recover": {
+                  "type": "object",
+                  "properties": {
+                    "initial_service_certificate_validity_days": {
+                      "type": "integer",
+                      "default": 1,
+                      "description": "Initial validity period (days) for service certificate."
+                    }
+                  }
+                }
               }
             }
           }
         ],
-
-        "required": [
-         "type"
-        ]
+        "required": ["type"]
       }
     },
     "required": [

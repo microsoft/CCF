@@ -21,7 +21,7 @@
     "initial_validity_days": 1
   },
   "command": {
-    "type": "recover",
+    "type": "join",
     "service_certificate_file": "service_cert.pem",
     "join": {
       "retry_timeout": "1s",
