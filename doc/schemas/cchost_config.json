@@ -47,7 +47,7 @@
                 },
                 "published_rpc_address": {
                   "type": "string",
-                  "default": "Value of \"bind_address\"",
+                  "default": "Value of 'bind_address'",
                   "description": "The published RPC address advertised to clients."
                 },
                 "max_open_sessions_soft": {
@@ -58,7 +58,7 @@
                 "max_open_sessions_hard": {
                   "type": "integer",
                   "default": 1010,
-                  "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of max_open_sessions_soft."
+                  "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of 'max_open_sessions_soft'."
                 }
               },
               "required": ["bind_address"]
@@ -133,7 +133,7 @@
                         "recovery_threshold": {
                           "type": "integer",
                           "default": 0,
-                          "description": "Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in \"members\"."
+                          "description": "Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in 'members'."
                         },
                         "maximum_node_certificate_validity_days": {
                           "type": "integer",
@@ -223,7 +223,7 @@
             "items": {
               "type": "string"
             },
-            "description": "List of \"iPAddress:\" or \"dNSName:\" strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface \"published_rpc_address\"."
+            "description": "List of 'iPAddress:' or 'dNSName:' strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'."
           },
           "curve_id": {
             "type": "string",
@@ -251,7 +251,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Paths to read-only ledger directories. Note that only \".committed\" files will be read from these directories."
+            "description": "Paths to read-only ledger directories. Note that only '.committed' files will be read from these directories."
           },
           "chunk_size": {
             "type": "string",
@@ -288,7 +288,7 @@
             "type": "string",
             "enum": ["text", "json"],
             "default": "text",
-            "description": "If \"json\", node logs will be formatted as JSON."
+            "description": "If 'json', node logs will be formatted as JSON."
           }
         }
       },
@@ -304,12 +304,12 @@
           "message_timeout": {
             "type": "string",
             "default": "100ms",
-            "description": "Maximum interval (time string) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than \"election_timeout\"."
+            "description": "Maximum interval (time string) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than 'election_timeout'."
           },
           "election_timeout": {
             "type": "string",
             "default": "5000ms",
-            "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than \"message_timeout\"."
+            "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than 'message_timeout'."
           }
         }
       },
@@ -347,7 +347,7 @@
         "pid_file": {
           "type": "string",
           "default": "cchost.pid",
-          "description": "Path to file in which \"cchost\" process identifier (PID) will be written to on startup."
+          "description": "Path to file in which 'cchost' process identifier (PID) will be written to on startup."
         },
         "node_to_node_address_file": {
           "type": "string",

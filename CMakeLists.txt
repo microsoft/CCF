@@ -49,6 +49,12 @@ configure_file(
 configure_file(
   ${CCF_DIR}/python/version.py.in ${CCF_DIR}/python/version.py @ONLY
 )
+file(READ ${CCF_DIR}/doc/schemas/cchost_config.json HOST_CONFIG_SCHEMA_IN NEWLINE_CONSUME)
+string(REPLACE "\"" "\\\"" HOST_CONFIG_SCHEMA_IN2 ${HOST_CONFIG_SCHEMA_IN})
+string(REPLACE "\n" "" HOST_CONFIG_SCHEMA ${HOST_CONFIG_SCHEMA_IN2})
+configure_file(
+  ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h @ONLY
+)
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))

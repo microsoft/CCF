@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
@@ -96,16 +97,16 @@ int main(int argc, char** argv)
     auto config_json = nlohmann::json(config);
 
     // TODO: Bake in binary instead
-    auto schema_str = files::slurp_string(
-      "/home/jumaffre/git/CCF/doc/schemas/cchost_config.json");
-    auto schema_json = nlohmann::json::parse(schema_str);
+    // auto schema_str = files::slurp_string(
+    //   "/home/jumaffre/git/CCF/doc/schemas/cchost_config.json");
+    auto schema_json = nlohmann::json::parse(host::host_config_schema);
 
     json::validate_json(config_json, schema_json);
   }
   catch (const std::exception& e)
   {
     LOG_FAIL_FMT(
-      "Error validationg JSON schema for configuration file {}: {}",
+      "Error validating JSON schema for configuration file {}: {}",
       config_file_path,
       e.what());
     return 1;

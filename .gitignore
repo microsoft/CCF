@@ -29,6 +29,7 @@ package-lock.json
 .cache
 include/ccf/version.h
 python/version.py
+src/host/config_schema.h
 **/compatibility_report.json
 .venv_ccf_sandbox/*
 workspace/*
