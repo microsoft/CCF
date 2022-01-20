@@ -209,6 +209,34 @@
           }
         ],
         "required": ["type"]
+      },
+      "node_certificate": {
+        "type": "object",
+        "properties": {
+          "subject_name": {
+            "type": "string",
+            "default": "CN=CCF Node",
+            "description": "Subject name to include in node certificate."
+          },
+          "subject_alt_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of \"iPAddress:\" or \"dNSName:\" strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface \"published_rpc_address\"."
+          },
+          "curve_id": {
+            "type": "string",
+            "enum": ["secp384r1", "secp256r1"],
+            "default": "secp384r1",
+            "description": "Elliptic curve to use for node identity key."
+          },
+          "initial_validity_days": {
+            "type": "integer",
+            "default": 1,
+            "description": "Initial validity period (days) for node certificate."
+          }
+        }
       }
     },
     "required": [
