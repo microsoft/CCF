@@ -11,9 +11,39 @@
 
 namespace json
 {
-  template <typename T>
-  static T validate_json(const nlohmann::json& input, const std::string&)
+  static void validate_json(
+    const nlohmann::json& input_json, const nlohmann::json& schema_json)
   {
-    // TODO: Implement
+    valijson::Schema schema;
+    valijson::SchemaParser parser;
+    valijson::Validator validator;
+
+    valijson::adapters::NlohmannJsonAdapter schema_adapter(schema_json);
+    valijson::adapters::NlohmannJsonAdapter target_adapter(input_json);
+
+    parser.populateSchema(schema_adapter, schema);
+
+    valijson::ValidationResults results;
+    if (!validator.validate(schema, target_adapter, &results))
+    {
+      std::string validation_error_msg;
+      valijson::ValidationResults::Error error;
+      size_t error_num = 0;
+      while (results.popError(error))
+      {
+        std::string error_ctx;
+        for (auto const& c : error.context)
+        {
+          error_ctx += c;
+        }
+        validation_error_msg += fmt::format(
+          "\nError #{}:\n  context: {}\n  desc: {})",
+          error_num,
+          error.description,
+          error_ctx);
+        ++error_num;
+      }
+      throw std::logic_error(validation_error_msg);
+    }
   }
 }

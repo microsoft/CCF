@@ -87,57 +87,28 @@ int main(int argc, char** argv)
   }
   catch (const std::exception& e)
   {
-    throw std::logic_error(fmt::format(
-      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+    LOG_FAIL_FMT(
+      "Error parsing configuration file {}: {}", config_file_path, e.what());
   }
 
   try
   {
     auto config_json = nlohmann::json(config);
 
-    LOG_FAIL_FMT("Config: {}", config_json.dump());
-
-    // TODO: Validate configuration with schema
-    // 1. Load schema (TODO: Bake in binary instead)
+    // TODO: Bake in binary instead
     auto schema_str = files::slurp_string(
       "/home/jumaffre/git/CCF/doc/schemas/cchost_config.json");
     auto schema_json = nlohmann::json::parse(schema_str);
 
-    // 2. Load in parser
-    valijson::adapters::NlohmannJsonAdapter schema_adapter(schema_json);
-    valijson::Schema schema;
-    valijson::SchemaParser parser;
-    parser.populateSchema(schema_adapter, schema);
-
-    // 3. Verify configuration
-    valijson::Validator validator;
-    valijson::adapters::NlohmannJsonAdapter target_adapter(config_json);
-    valijson::ValidationResults results;
-    if (!validator.validate(schema, target_adapter, &results))
-    {
-      std::string validation_error_msg;
-      valijson::ValidationResults::Error error;
-      size_t error_num = 0;
-      while (results.popError(error))
-      {
-        std::string error_ctx;
-        for (auto const& c : error.context)
-        {
-          error_ctx += c;
-        }
-        validation_error_msg += fmt::format(
-          "Error #{} - {} ({})\n", error_num, error.description, error_ctx);
-        ++error_num;
-      }
-      throw std::logic_error(validation_error_msg);
-    }
+    json::validate_json(config_json, schema_json);
   }
   catch (const std::exception& e)
   {
-    throw std::logic_error(fmt::format(
-      "Error verifying JSON schema for configuration file {}: {}",
+    LOG_FAIL_FMT(
+      "Error validationg JSON schema for configuration file {}: {}",
       config_file_path,
-      e.what()));
+      e.what());
+    return 1;
   }
 
   if (check_config_only)

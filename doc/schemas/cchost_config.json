@@ -2,20 +2,20 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
     "title": "CCF configuration",
-    "description": "JSON schema for configuration of cchost executable",
+    "description": "JSON schema for configuration of cchost executable.",
     "properties": {
       "enclave": {
         "type": "object",
         "properties": {
           "file": {
             "type": "string",
-            "description": "Path to enclave application"
+            "description": "Path to enclave application."
           },
           "type": {
             "type": "string",
             "enum": ["release", "debug", "virtual"],
             "default": "release",
-            "description": "Type of enclave application"
+            "description": "Type of enclave application."
           }
         },
         "required": ["file"]
@@ -28,10 +28,10 @@
             "properties": {
               "bind_address": {
                 "type": "string",
-                "description": "Local address the node binds to and listens on for node-to-node connections"
+                "description": "Local address the node binds to and listens on for node-to-node connections."
               }
             },
-            "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
+            "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages).",
             "required": [
               "bind_address"
             ]
@@ -44,17 +44,17 @@
               "properties": {
                   "bind_address": {
                     "type": "string",
-                    "description": "Local address the node binds to and listens on"
+                    "description": "Local address the node binds to and listens on."
                   },
                   "published_rpc_address": {
                     "type": "string",
                     "default": "Value of \"bind_address\"",
-                    "description": "The published RPC address advertised to clients"
+                    "description": "The published RPC address advertised to clients."
                   },
                   "max_open_sessions_soft": {
                     "type": "integer",
                     "default": 1000,
-                    "description": "The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error"
+                    "description": "The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error."
                   },
                   "max_open_sessions_hard": {
                     "type": "integer",
@@ -93,7 +93,7 @@
                 "items": {
                     "type": "string"
                 },
-                "description": "List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js"
+                "description": "List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js."
               },
               "members": {
                 "type": "array",
@@ -103,21 +103,21 @@
                     "properties": {
                       "certificate_file": {
                         "type": "string",
-                        "description": "Path to member x509 identity certificate (PEM)"
+                        "description": "Path to member x509 identity certificate (PEM)."
                       },
                       "encryption_public_key_file": {
                         "type": "string",
-                        "description": "Path to member encryption public key (PEM)"
+                        "description": "Path to member encryption public key (PEM)."
                       }
                     },
                     "data_json_file": {
                       "type": "string",
-                      "description": "Path to member data file (JSON)"
+                      "description": "Path to member data file (JSON)."
                     },
                     "required": ["certificate_file"]
                   }
                 ],
-                "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
+                "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files."
               },
               "service_configuration": {
                 "type": "object",
@@ -130,7 +130,7 @@
                   "maximum_node_certificate_validity_days": {
                     "type": "integer",
                     "default": 365,
-                    "description": "The maximum number of days allowed for node certificate validity period"
+                    "description": "The maximum number of days allowed for node certificate validity period."
                   },
                   "reconfiguration_type": {
                     "type": "string",
@@ -143,7 +143,7 @@
               "initial_service_certificate_validity_days": {
                 "type": "integer",
                 "default": 1,
-                "description": "Initial validity period (days) for service certificate"
+                "description": "Initial validity period (days) for service certificate."
               }
             },
             "required": [
