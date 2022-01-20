@@ -327,8 +327,17 @@
             "description": "Maximum duration after which a signature transaction is automatically generated."
           }
         }
+      },
+      "jwt": {
+        "type": "object",
+        "properties": {
+          "key_refresh_interval": {
+            "type": "string",
+            "default": "30min",
+            "description": "Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed."
+          }
+        }
       }
-
     },
     "required": [
       "enclave", "network", "command"
