@@ -596,6 +596,11 @@ TEST_CASE_TEMPLATE(
   {
     INFO("Confirm that pre-existing strategy was populated already");
 
+    while (!index_a->get_all_write_txs("hello").has_value())
+    {
+      update_caches();
+    }
+  
     check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
     check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
   }
