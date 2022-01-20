@@ -271,7 +271,7 @@
           "tx_count": {
             "type": "integer",
             "default": 10000,
-            "description": "Minimum number of transactions between two snapshots."
+            "description": "Number of transactions after which a snapshot is automatically generated."
           }
         }
       },
@@ -310,6 +310,21 @@
             "type": "string",
             "default": "5000ms",
             "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than \"message_timeout\"."
+          }
+        }
+      },
+      "ledger_signatures": {
+        "type": "object",
+        "properties": {
+          "tx_count": {
+            "type": "integer",
+            "default": 5000,
+            "description": "Number of transactions after which a signature transaction is automatically generated."
+          },
+          "delay": {
+            "type": "string",
+            "default": "1000ms",
+            "description": "Maximum duration after which a signature transaction is automatically generated."
           }
         }
       }
