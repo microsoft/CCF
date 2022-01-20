@@ -259,6 +259,21 @@
             "description": "Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created."
           }
         }
+      },
+      "snapshots": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string",
+            "default": "snapshots",
+            "description": "Path to snapshot directory."
+          },
+          "tx_count": {
+            "type": "integer",
+            "default": 10000,
+            "description": "Minimum number of transactions between two snapshots."
+          }
+        }
       }
     },
     "required": [
