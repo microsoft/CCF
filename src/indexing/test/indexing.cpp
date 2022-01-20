@@ -127,19 +127,21 @@ using ExpectedSeqNos = std::set<ccf::SeqNo>;
 
 void check_seqnos(
   const ExpectedSeqNos& expected,
-  const ccf::indexing::SeqNoCollection& actual,
+  const std::optional<ccf::indexing::SeqNoCollection>& actual,
   bool complete_match = true)
 {
+  REQUIRE(actual.has_value());
+
   if (complete_match)
   {
-    REQUIRE(expected.size() == actual.size());
+    REQUIRE(expected.size() == actual->size());
   }
   else
   {
-    REQUIRE(expected.size() >= actual.size());
+    REQUIRE(expected.size() >= actual->size());
   }
 
-  for (auto n : actual)
+  for (auto n : *actual)
   {
     REQUIRE(expected.contains(n));
   }
@@ -196,6 +198,7 @@ void create_transactions(
 template <typename AA>
 void run_tests(
   const std::function<void()>& tick_until_caught_up,
+  const std::function<void()>& update_caches,
   kv::Store& kv_store,
   ccf::indexing::Indexer& indexer,
   ExpectedSeqNos& seqnos_hello,
@@ -216,6 +219,11 @@ void run_tests(
   tick_until_caught_up();
 
   {
+    while (!index_b->get_all_write_txs(1).has_value())
+    {
+      update_caches();
+    }
+
     check_seqnos(seqnos_1, index_b->get_all_write_txs(1));
     check_seqnos(seqnos_2, index_b->get_all_write_txs(2));
   }
@@ -231,29 +239,27 @@ void run_tests(
     const auto full_range_hello =
       index_a->get_write_txs_in_range("hello", 0, current_seqno);
     REQUIRE(full_range_hello.has_value());
-    check_seqnos(seqnos_hello, *full_range_hello);
+    check_seqnos(seqnos_hello, full_range_hello);
 
     const auto sub_range_saluton = index_a->get_write_txs_in_range(
       "saluton", sub_range_start, sub_range_end);
     REQUIRE(sub_range_saluton.has_value());
-    check_seqnos(seqnos_saluton, *sub_range_saluton, false);
+    check_seqnos(seqnos_saluton, sub_range_saluton, false);
 
     const auto max_seqnos = 3;
     const auto truncated_sub_range_saluton = index_a->get_write_txs_in_range(
       "saluton", sub_range_start, sub_range_end, max_seqnos);
     REQUIRE(truncated_sub_range_saluton.has_value());
     REQUIRE(truncated_sub_range_saluton->size() == max_seqnos);
-    check_seqnos(seqnos_saluton, *truncated_sub_range_saluton, false);
+    check_seqnos(seqnos_saluton, truncated_sub_range_saluton, false);
 
-    const auto full_range_1 =
-      index_b->get_write_txs_in_range(1, 0, current_seqno);
-    REQUIRE(full_range_1.has_value());
-    check_seqnos(seqnos_1, *full_range_1);
+    check_seqnos(
+      seqnos_1, index_b->get_write_txs_in_range(1, 0, current_seqno));
 
-    const auto sub_range_2 =
-      index_b->get_write_txs_in_range(2, sub_range_start, sub_range_end);
-    REQUIRE(sub_range_2.has_value());
-    check_seqnos(seqnos_2, *sub_range_2, false);
+    check_seqnos(
+      seqnos_2,
+      index_b->get_write_txs_in_range(2, sub_range_start, sub_range_end),
+      false);
 
     REQUIRE_FALSE(
       index_a->get_write_txs_in_range("hello", 0, invalid_seqno_a).has_value());
@@ -280,6 +286,12 @@ void run_tests(
     }
 
     tick_until_caught_up();
+
+    while (!index_a->get_all_write_txs("hello").has_value() ||
+           !index_b->get_all_write_txs(1).has_value())
+    {
+      update_caches();
+    }
 
     check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
     check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
@@ -360,6 +372,11 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   {
     INFO("Confirm that pre-existing strategy was populated already");
 
+    while (!index_a->get_all_write_txs("hello").has_value())
+    {
+      update_caches();
+    }
+
     check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
     check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
   }
@@ -384,6 +401,7 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 
   run_tests(
     tick_until_caught_up,
+    update_caches,
     kv_store,
     indexer,
     seqnos_hello,
@@ -519,6 +537,8 @@ TEST_CASE_TEMPLATE(
   const auto& writes = stub_writer->writes;
 
   auto tick_until_caught_up = [&]() {
+    update_caches();
+
     size_t loops = 0;
     while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
            handled_writes < writes.size())
@@ -563,14 +583,14 @@ TEST_CASE_TEMPLATE(
   {
     INFO("Lazy indexes require an additional prod to be populated");
 
-    REQUIRE(index_a->get_all_write_txs("hello").empty());
-    REQUIRE(index_a->get_all_write_txs("saluton").empty());
+    REQUIRE_FALSE(index_a->get_all_write_txs("hello").has_value());
+    REQUIRE_FALSE(index_a->get_all_write_txs("saluton").has_value());
 
     index_a->extend_index_to(kv_store.current_txid());
     tick_until_caught_up();
 
-    REQUIRE(!index_a->get_all_write_txs("hello").empty());
-    REQUIRE(!index_a->get_all_write_txs("saluton").empty());
+    REQUIRE(index_a->get_all_write_txs("hello").has_value());
+    REQUIRE(index_a->get_all_write_txs("saluton").has_value());
   }
 
   {
@@ -589,6 +609,7 @@ TEST_CASE_TEMPLATE(
 
   run_tests(
     tick_until_caught_up,
+    update_caches,
     kv_store,
     indexer,
     seqnos_hello,

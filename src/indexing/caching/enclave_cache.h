@@ -256,17 +256,46 @@ namespace ccf::indexing::caching
         encrypt(*encryption_key, obfuscated, std::move(contents)));
     }
 
-    void fetch(const BlobKey& key, const FetchResultPtr& result)
+    FetchResultPtr fetch(const BlobKey& key)
     {
       const auto obfuscated = obfuscate_key(key);
       auto it = pending.find(obfuscated);
-      if (it == pending.end())
+
+      FetchResultPtr result;
+
+      if (it != pending.end())
       {
-        result->fetch_result = FetchResult::Fetching;
-        result->key = key;
-        pending.emplace(obfuscated, result);
-        RINGBUFFER_WRITE_MESSAGE(BlobMsg::get, to_host, obfuscated);
+        result = it->second.lock();
+        if (result != nullptr)
+        {
+          if (key != result->key)
+          {
+            throw std::runtime_error(fmt::format(
+              "Obfuscation collision for unique keys '{}' and '{}', both "
+              "obfuscated to '{}'",
+              key,
+              result->key,
+              obfuscated));
+          }
+
+          return result;
+        }
+        else
+        {
+          result = std::make_shared<FetchResult>();
+          it->second = result;
+        }
       }
+      else
+      {
+        result = std::make_shared<FetchResult>();
+        pending.emplace(obfuscated, result);
+      }
+
+      result->fetch_result = FetchResult::Fetching;
+      result->key = key;
+      RINGBUFFER_WRITE_MESSAGE(BlobMsg::get, to_host, obfuscated);
+      return result;
     }
   };
 }

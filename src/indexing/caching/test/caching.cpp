@@ -65,16 +65,11 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
 
   {
     INFO("Load entries");
-    auto result_a = std::make_shared<FetchResult>();
-    auto result_b = std::make_shared<FetchResult>();
 
-    REQUIRE(result_a->fetch_result == FetchResult::Fetching);
-    REQUIRE(result_b->fetch_result == FetchResult::Fetching);
-
-    ec.fetch(key_a, result_a);
+    auto result_a = ec.fetch(key_a);
     REQUIRE(result_a->fetch_result == FetchResult::Fetching);
 
-    ec.fetch(key_b, result_b);
+    auto result_b = ec.fetch(key_b);
     REQUIRE(result_b->fetch_result == FetchResult::Fetching);
 
     host_bp.read_all(outbound_reader);
@@ -94,8 +89,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
       hc.root_dir / obfuscate_key(key_a),
       std::filesystem::copy_options::overwrite_existing));
 
-    auto result = std::make_shared<FetchResult>();
-    ec.fetch(key_a, result);
+    auto result = ec.fetch(key_a);
 
     host_bp.read_all(outbound_reader);
     enclave_bp.read_all(inbound_reader);
@@ -114,8 +108,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
     {
       write_file_corrupted_at(b_path, i, original_b_contents);
 
-      auto result = std::make_shared<FetchResult>();
-      ec.fetch(key_b, result);
+      auto result = ec.fetch(key_b);
 
       host_bp.read_all(outbound_reader);
       enclave_bp.read_all(inbound_reader);

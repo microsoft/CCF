@@ -35,7 +35,8 @@ namespace ccf::indexing::strategies
         covered_range(range_)
       {}
 
-      // TODO: Want to do this on cull, but not on final teardown! Need to extend LRU
+      // TODO: Want to do this on cull, but not on final teardown! Need to
+      // extend LRU
       ~PartialResults()
       {
         if (!seqnos_by_key.empty())
@@ -93,11 +94,48 @@ namespace ccf::indexing::strategies
       return blob;
     }
 
+    // TODO: Do all of this in a try-catch, and handle it being unserialisable
+    // as though it were corrupt?
+    PartialResultsMap deserialise(const caching::BlobContents& raw)
+    {
+      PartialResultsMap result;
+
+      auto data = raw.data();
+      auto size = raw.size();
+
+      // Read number of keys
+      const auto key_count = serialized::read<size_t>(data, size);
+
+      for (auto i = 0; i < key_count; ++i)
+      {
+        const auto map_name_len = serialized::read<size_t>(data, size);
+        const auto map_name_data = serialized::read(data, size, map_name_len);
+
+        // Read number of seqnos
+        const auto seqno_count = serialized::read<size_t>(data, size);
+        SeqNoCollection seqnos;
+
+        for (auto j = 0; j < seqno_count; ++j)
+        {
+          seqnos.insert(serialized::read<ccf::SeqNo>(data, size));
+        }
+
+        const kv::untyped::SerialisedEntry map_name(
+          map_name_data.begin(), map_name_data.end());
+        result[map_name] = seqnos;
+      }
+
+      return result;
+    }
+
+    caching::BlobKey get_blob_name(const Range& range)
+    {
+      return fmt::format("{}: {} -> {}", get_name(), range.first, range.second);
+    }
+
     void store_to_disk(const Range& range, PartialResultsMap&& map)
     {
-      caching::BlobKey key =
-        fmt::format("{}: {} -> {}", get_name(), range.first, range.second);
-
+      const auto key = get_blob_name(range);
       enclave_cache.store(key, serialise(std::move(map)));
     }
 
@@ -107,6 +145,8 @@ namespace ccf::indexing::strategies
 
     std::string map_name;
     caching::EnclaveCache& enclave_cache;
+
+    std::map<Range, caching::FetchResultPtr> fetching;
 
     // TODO: Template? Construction parameter?
     static constexpr auto RANGE_SIZE = 10;
@@ -160,15 +200,11 @@ namespace ccf::indexing::strategies
       return current_txid;
     }
 
-    // TODO: Remove
-    std::set<ccf::SeqNo> get_all_write_txs(const typename M::Key& key)
+    // TODO: Remove?
+    std::optional<std::set<ccf::SeqNo>> get_all_write_txs(
+      const typename M::Key& key)
     {
-      auto res = get_write_txs_in_range(key, 0, current_txid.seqno);
-      if (!res.has_value())
-      {
-        throw std::logic_error("Range to current txid hasn't been populated");
-      }
-      return res.value();
+      return get_write_txs_in_range(key, 0, current_txid.seqno);
     }
 
     std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
@@ -191,40 +227,88 @@ namespace ccf::indexing::strategies
 
       std::set<ccf::SeqNo> result;
 
+      auto append_partial_results = [&](const PartialResultsMap& partial) {
+        const auto it = partial.find(serialised_key);
+        if (it != partial.end())
+        {
+          const std::set<ccf::SeqNo>& seqnos = it->second;
+
+          // TODO: Need to find a more efficient way of doing this
+          for (auto n : seqnos)
+          {
+            if (max_seqnos.has_value() && result.size() >= *max_seqnos)
+            {
+              break;
+            }
+
+            if (n >= from && n <= to)
+            {
+              result.insert(n);
+            }
+          }
+        }
+      };
+
+      bool complete = true;
+
       while (true)
       {
         const auto partial_it = loaded_results.find(from_range);
         if (partial_it != loaded_results.end())
         {
-          // Have partial result for this sub-range in-memory already
-          const auto it =
-            partial_it->second->seqnos_by_key.find(serialised_key);
-          if (it != partial_it->second->seqnos_by_key.end())
+          if (complete)
           {
-            std::set<ccf::SeqNo>& seqnos = it->second;
-
-            auto from_it = seqnos.lower_bound(from);
-            auto to_it = seqnos.upper_bound(to);
-
-            // TODO: max_seqnos calculation here is wrong, because we're only
-            // considering a subrange now
-            if (
-              max_seqnos.has_value() &&
-              std::distance(from_it, to_it) > *max_seqnos)
-            {
-              to_it = from_it;
-              std::advance(to_it, *max_seqnos);
-            }
-
-            result.insert(from_it, to_it);
+            // Have partial result for this sub-range in-memory already
+            append_partial_results(partial_it->second->seqnos_by_key);
           }
         }
         else
         {
-          // Oh no, we flushed this already, need to fetch it from the host-side
-          // disk storage
-          LOG_FAIL_FMT("TODO");
-          throw std::logic_error("Oh no");
+          // We flushed this already, need to fetch it from the host-side disk
+          // storage
+
+          auto should_fetch = true;
+
+          auto it = fetching.find(from_range);
+          if (it != fetching.end())
+          {
+            switch (it->second->fetch_result)
+            {
+              case (caching::FetchResult::Fetching):
+              {
+                should_fetch = false;
+                complete = false;
+                break;
+              }
+              case (caching::FetchResult::Loaded):
+              {
+                should_fetch = false;
+                if (complete)
+                {
+                  auto partial_results = deserialise(it->second->contents);
+                  append_partial_results(partial_results);
+                }
+                break;
+              }
+              case (caching::FetchResult::NotFound):
+              {
+                throw std::logic_error("TODO");
+                break;
+              }
+              case (caching::FetchResult::Corrupt):
+              {
+                throw std::logic_error("TODO");
+                break;
+              }
+            }
+          }
+
+          if (should_fetch)
+          {
+            auto fetch_handle = enclave_cache.fetch(get_blob_name(from_range));
+            fetching.emplace(from_range, fetch_handle);
+            complete = false;
+          }
         }
 
         if (from_range == to_range)
@@ -238,7 +322,12 @@ namespace ccf::indexing::strategies
         }
       }
 
-      return result;
+      if (complete)
+      {
+        return result;
+      }
+
+      return std::nullopt;
     }
   };
 }
