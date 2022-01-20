@@ -274,6 +274,23 @@
             "description": "Minimum number of transactions between two snapshots."
           }
         }
+      },
+      "logging": {
+        "type": "object",
+        "properties": {
+          "host_level": {
+            "type": "string",
+            "enum": ["info", "fail", "fatal"],
+            "default": "info",
+            "description": "Logging level for the untrusted host."
+          },
+          "format": {
+            "type": "string",
+            "enum": ["text", "json"],
+            "default": "text",
+            "description": "If \"json\", node logs will be formatted as JSON."
+          }
+        }
       }
     },
     "required": [
