@@ -381,6 +381,23 @@
         "type": "integer",
         "default": "0",
         "description": "Experimental. Number of additional threads processing incoming client requests in the enclave."
+      },
+      "memory": {
+        "circuit_size": {
+          "type": "string",
+          "default": "4MB",
+          "description": "Size (size string) of the internal host-enclave ringbuffers, as a power of 2."
+        },
+        "max_msg_size": {
+          "type": "string",
+          "default": "16MB",
+          "description": "Maximum size (size string) for a message sent over the ringbuffer, as a power of 2. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments."
+        },
+        "max_fragment_size": {
+          "type": "string",
+          "default": "64KB",
+          "description": "Maximum size (size string) of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments."
+        }
       }
     },
     "required": [
