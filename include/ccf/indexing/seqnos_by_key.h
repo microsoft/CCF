@@ -12,10 +12,47 @@
 
 namespace ccf::indexing::strategies
 {
-  template <typename M>
-  class SeqnosByKey : public Strategy
+  class VisitEachEntryInMap : public Strategy
   {
-  private:
+  protected:
+    std::string map_name;
+    ccf::TxID current_txid = {};
+
+    virtual void visit_entry(
+      const ccf::TxID& tx_id,
+      const kv::serialisers::SerialisedEntry& k,
+      const kv::serialisers::SerialisedEntry& v) = 0;
+
+  public:
+    VisitEachEntryInMap(const std::string& map_name_) :
+      Strategy(fmt::format("VisitEachEntryIn {}", map_name_)),
+      map_name(map_name_)
+    {}
+
+    void handle_committed_transaction(
+      const ccf::TxID& tx_id, const StorePtr& store) override
+    {
+      // NB: Get an untyped view over the map with the same name. This saves
+      // deserialisation here, where we hand on the raw key and value.
+      auto tx = store->create_read_only_tx();
+      auto handle = tx.ro<kv::untyped::Map>(map_name);
+
+      handle->foreach([this, &tx_id](const auto& k, const auto& v) {
+        visit_entry(tx_id, k, v);
+        return true;
+      });
+      current_txid = tx_id;
+    }
+
+    ccf::TxID get_indexed_watermark() const
+    {
+      return current_txid;
+    }
+  };
+
+  class BaseSeqnosByKey : public VisitEachEntryInMap
+  {
+  protected:
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
     // Key is the raw value of a KV key.
     // Value is every SeqNo which talks about that key.
@@ -26,11 +63,11 @@ namespace ccf::indexing::strategies
 
     struct PartialResults
     {
-      SeqnosByKey<M>& owner;
+      BaseSeqnosByKey& owner;
       Range covered_range;
       PartialResultsMap seqnos_by_key;
 
-      PartialResults(SeqnosByKey<M>& owner_, const Range& range_) :
+      PartialResults(BaseSeqnosByKey& owner_, const Range& range_) :
         owner(owner_),
         covered_range(range_)
       {}
@@ -141,15 +178,19 @@ namespace ccf::indexing::strategies
 
     LRU<Range, std::unique_ptr<PartialResults>> loaded_results;
 
-    ccf::TxID current_txid = {};
 
-    std::string map_name;
     caching::EnclaveCache& enclave_cache;
 
     std::map<Range, caching::FetchResultPtr> fetching;
 
-    // TODO: Template? Construction parameter?
+    // TODO: Templates? Construction parameters?
+    // How many seqnos are bucketed together into a single partial
+    // result, to be offloaded together?
     static constexpr auto RANGE_SIZE = 10;
+    // TODO: Other parameters
+    // How many buckets are kept in memory at once?
+    // How many of those buckets can be used for historical reconstruction?
+    // What is the largest range of SeqNos which can be requested?
 
     Range get_range_for(ccf::SeqNo seqno)
     {
@@ -158,27 +199,11 @@ namespace ccf::indexing::strategies
       return {begin, end};
     }
 
-  public:
-    SeqnosByKey(
-      const std::string& map_name_, caching::EnclaveCache& enclave_cache_) :
-      Strategy(fmt::format("SeqnosByKey for {}", map_name_)),
-      loaded_results(3), // TODO: Decide how this is set
-      map_name(map_name_),
-      enclave_cache(enclave_cache_)
-    {}
-
-    SeqnosByKey(const M& map, caching::EnclaveCache& enclave_cache_) :
-      SeqnosByKey(map.get_name(), enclave_cache_)
-    {}
-
-    void handle_committed_transaction(
-      const ccf::TxID& tx_id, const StorePtr& store) override
+    void visit_entry(
+      const ccf::TxID& tx_id,
+      const kv::serialisers::SerialisedEntry& k,
+      const kv::serialisers::SerialisedEntry& v) override
     {
-      // NB: Don't use M, instead get an untyped view over the map with the same
-      // name. This saves deserialisation here, where we work with the raw key.
-      auto tx = store->create_read_only_tx();
-      auto handle = tx.ro<kv::untyped::Map>(map_name);
-
       const auto range = get_range_for(tx_id.seqno);
 
       // NB: If this is a new range, it may push the oldest PartialResults out
@@ -186,29 +211,21 @@ namespace ccf::indexing::strategies
       auto partial_it = loaded_results.insert(
         range, std::make_unique<PartialResults>(*this, range));
       auto& partial_map = partial_it->second->seqnos_by_key;
-
-      handle->foreach([this, &partial_map, seqno = tx_id.seqno](
-                        const auto& k, const auto& v) {
-        partial_map[k].insert(seqno);
-        return true;
-      });
-      current_txid = tx_id;
+      partial_map[k].insert(tx_id.seqno);
     }
 
-    ccf::TxID get_indexed_watermark() const
-    {
-      return current_txid;
-    }
+  public:
+    BaseSeqnosByKey(
+      const std::string& map_name_, caching::EnclaveCache& enclave_cache_) :
+      VisitEachEntryInMap(map_name_),
+      loaded_results(3), // TODO: Decide how this is set
+      enclave_cache(enclave_cache_)
+    {}
 
-    // TODO: Remove?
-    std::optional<std::set<ccf::SeqNo>> get_all_write_txs(
-      const typename M::Key& key)
-    {
-      return get_write_txs_in_range(key, 0, current_txid.seqno);
-    }
+    virtual ~BaseSeqnosByKey() = default;
 
     std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
-      const typename M::Key& key,
+      const kv::serialisers::SerialisedEntry& serialised_key,
       ccf::SeqNo from,
       ccf::SeqNo to,
       std::optional<size_t> max_seqnos = std::nullopt)
@@ -222,8 +239,6 @@ namespace ccf::indexing::strategies
 
       auto from_range = get_range_for(from);
       const auto to_range = get_range_for(to);
-
-      const auto serialised_key = M::KeySerialiser::to_serialised(key);
 
       std::set<ccf::SeqNo> result;
 
@@ -328,6 +343,33 @@ namespace ccf::indexing::strategies
       }
 
       return std::nullopt;
+    }
+  };
+
+  template <typename M>
+  class SeqnosByKey : public BaseSeqnosByKey
+  {
+  public:
+    using BaseSeqnosByKey::BaseSeqnosByKey;
+
+    SeqnosByKey(const M& map, caching::EnclaveCache& enclave_cache_) :
+      BaseSeqnosByKey(map.get_name(), enclave_cache_)
+    {}
+
+    std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
+      const typename M::Key& key,
+      ccf::SeqNo from,
+      ccf::SeqNo to,
+      std::optional<size_t> max_seqnos = std::nullopt)
+    {
+      return BaseSeqnosByKey::get_write_txs_in_range(
+        M::KeySerialiser::to_serialised(key), from, to, max_seqnos);
+    }
+
+    std::optional<std::set<ccf::SeqNo>> get_all_write_txs(
+      const typename M::Key& key)
+    {
+      return get_write_txs_in_range(key, 0, current_txid.seqno);
     }
   };
 }
