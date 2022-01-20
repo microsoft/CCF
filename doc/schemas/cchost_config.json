@@ -1,0 +1,352 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "properties": {
+      "enclave": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "type"
+        ]
+      },
+      "network": {
+        "type": "object",
+        "properties": {
+          "node_to_node_interface": {
+            "type": "object",
+            "properties": {
+              "bind_address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "bind_address"
+            ]
+          },
+          "rpc_interfaces": {
+            "type": "object",
+            "properties": {
+              "primary_rpc_interface": {
+                "type": "object",
+                "properties": {
+                  "bind_address": {
+                    "type": "string"
+                  },
+                  "published_rpc_address": {
+                    "type": "string"
+                  },
+                  "max_open_sessions_soft": {
+                    "type": "integer"
+                  },
+                  "max_open_sessions_hard": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "bind_address",
+                  "published_rpc_address",
+                  "max_open_sessions_soft",
+                  "max_open_sessions_hard"
+                ]
+              }
+            },
+            "required": [
+              "primary_rpc_interface"
+            ]
+          }
+        },
+        "required": [
+          "node_to_node_interface",
+          "rpc_interfaces"
+        ]
+      },
+      "node_certificate": {
+        "type": "object",
+        "properties": {
+          "subject_name": {
+            "type": "string"
+          },
+          "subject_alt_names": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "curve_id": {
+            "type": "string"
+          },
+          "initial_validity_days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "subject_name",
+          "subject_alt_names",
+          "curve_id",
+          "initial_validity_days"
+        ]
+      },
+      "command": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "service_certificate_file": {
+            "type": "string"
+          },
+          "start": {
+            "type": "object",
+            "properties": {
+              "constitution_files": {
+                "type": "array",
+                "items": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "members": {
+                "type": "array",
+                "items": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "certificate_file": {
+                        "type": "string"
+                      },
+                      "encryption_public_key_file": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "certificate_file",
+                      "encryption_public_key_file"
+                    ]
+                  }
+                ]
+              },
+              "service_configuration": {
+                "type": "object",
+                "properties": {
+                  "recovery_threshold": {
+                    "type": "integer"
+                  },
+                  "maximum_node_certificate_validity_days": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "recovery_threshold",
+                  "maximum_node_certificate_validity_days"
+                ]
+              },
+              "initial_service_certificate_validity_days": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "constitution_files",
+              "members",
+              "service_configuration",
+              "initial_service_certificate_validity_days"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "service_certificate_file",
+          "start"
+        ]
+      },
+      "ledger": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "read_only_directories": {
+            "type": "array",
+            "items": {}
+          },
+          "chunk_size": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "directory",
+          "read_only_directories",
+          "chunk_size"
+        ]
+      },
+      "snapshots": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "tx_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "directory",
+          "tx_count"
+        ]
+      },
+      "logging": {
+        "type": "object",
+        "properties": {
+          "host_level": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "host_level",
+          "format"
+        ]
+      },
+      "consensus": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "message_timeout": {
+            "type": "string"
+          },
+          "election_timeout": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "message_timeout",
+          "election_timeout"
+        ]
+      },
+      "ledger_signatures": {
+        "type": "object",
+        "properties": {
+          "tx_count": {
+            "type": "integer"
+          },
+          "delay": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tx_count",
+          "delay"
+        ]
+      },
+      "jwt": {
+        "type": "object",
+        "properties": {
+          "key_refresh_interval": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_refresh_interval"
+        ]
+      },
+      "output_files": {
+        "type": "object",
+        "properties": {
+          "node_certificate_file": {
+            "type": "string"
+          },
+          "pid_file": {
+            "type": "string"
+          },
+          "node_to_node_address_file": {
+            "type": "string"
+          },
+          "rpc_addresses_file": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_certificate_file",
+          "pid_file",
+          "node_to_node_address_file",
+          "rpc_addresses_file"
+        ]
+      },
+      "tick_interval": {
+        "type": "string"
+      },
+      "slow_io_logging_threshold": {
+        "type": "string"
+      },
+      "client_connection_timeout": {
+        "type": "string"
+      },
+      "worker_threads": {
+        "type": "integer"
+      },
+      "memory": {
+        "type": "object",
+        "properties": {
+          "circuit_size": {
+            "type": "string"
+          },
+          "max_msg_size": {
+            "type": "string"
+          },
+          "max_fragment_size": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "circuit_size",
+          "max_msg_size",
+          "max_fragment_size"
+        ]
+      }
+    },
+    "required": [
+      "enclave",
+      "network",
+      "node_certificate",
+      "command",
+      "ledger",
+      "snapshots",
+      "logging",
+      "consensus",
+      "ledger_signatures",
+      "jwt",
+      "output_files",
+      "tick_interval",
+      "slow_io_logging_threshold",
+      "client_connection_timeout",
+      "worker_threads",
+      "memory"
+    ]
+  }

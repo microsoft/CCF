@@ -29,6 +29,11 @@
 #include <sys/types.h>
 #include <thread>
 #include <unistd.h>
+#include <valijson/adapters/nlohmann_json_adapter.hpp>
+#include <valijson/schema.hpp>
+#include <valijson/schema_parser.hpp>
+#include <valijson/utils/nlohmann_json_utils.hpp>
+#include <valijson/validator.hpp>
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -83,6 +88,33 @@ int main(int argc, char** argv)
   try
   {
     config = nlohmann::json::parse(config_str);
+
+    // TODO: Validate configuration with schema
+    // 1. Load schema (TODO: Bake in binary instead)
+    nlohmann::json schema_json;
+    if (!valijson::utils::loadDocument(
+          "/home/jumaffre/git/CCF/doc/schemas/cchost_config.json", schema_json))
+    {
+      throw std::runtime_error("Failed to load schema document");
+    }
+
+    // 2. Load in parser
+    valijson::adapters::NlohmannJsonAdapter schema_adapter(schema_json);
+    valijson::Schema schema;
+    valijson::SchemaParser parser;
+    parser.populateSchema(schema_adapter, schema);
+
+    // 3. Verify configuration
+    valijson::Validator validator;
+    valijson::adapters::NlohmannJsonAdapter target_adapter(config);
+    // valijson::ValidationResults results;
+    if (!validator.validate(schema, target_adapter, nullptr))
+    {
+      // TODO: Print errors
+      throw std::logic_error("Validation failed");
+      // throw std::runtime_error(fmt::format("Validation failed : {}",
+      // results));
+    }
   }
   catch (const std::exception& e)
   {
