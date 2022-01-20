@@ -579,7 +579,7 @@ namespace asynchost
 
       if (!DNS::resolve(host, service, this, on_resolved, async))
       {
-        LOG_DEBUG_FMT("Bind to '{}' failed", host);
+        LOG_DEBUG_FMT("Resolving '{}' failed", host);
         status = RESOLVING_FAILED;
         return false;
       }
