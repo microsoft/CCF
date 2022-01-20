@@ -76,65 +76,29 @@
           "rpc_interfaces"
         ]
       },
-      "node_certificate": {
-        "type": "object",
-        "properties": {
-          "subject_name": {
-            "type": "string"
-          },
-          "subject_alt_names": {
-            "type": "array",
-            "items": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
-          "curve_id": {
-            "type": "string"
-          },
-          "initial_validity_days": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "subject_name",
-          "subject_alt_names",
-          "curve_id",
-          "initial_validity_days"
-        ]
-      },
       "command": {
         "type": "object",
         "properties": {
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": ["start", "join", "recover"],
+            "default": "start",
+            "description": "Type of CCF node"
           },
           "service_certificate_file": {
-            "type": "string"
+            "type": "string",
+            "default": "service_cert.pem",
+            "description" :"For start and recover nodes, path to which service certificate will be written to on startup. For join nodes, path to the certificate of the existing network to join."
           },
           "start": {
             "type": "object",
             "properties": {
               "constitution_files": {
                 "type": "array",
-                "items": [
-                  {
+                "items": {
                     "type": "string"
-                  },
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
+                },
+                "description": "List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js"
               },
               "members": {
                 "type": "array",
@@ -143,43 +107,53 @@
                     "type": "object",
                     "properties": {
                       "certificate_file": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Path to member x509 identity certificate (PEM)"
                       },
                       "encryption_public_key_file": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Path to member encryption public key (PEM)"
                       }
                     },
-                    "required": [
-                      "certificate_file",
-                      "encryption_public_key_file"
-                    ]
+                    "data_json_file": {
+                      "type": "string",
+                      "description": "Path to member data file (JSON)"
+                    },
+                    "required": ["certificate_file"]
                   }
-                ]
+                ],
+                "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
               },
               "service_configuration": {
                 "type": "object",
                 "properties": {
                   "recovery_threshold": {
-                    "type": "integer"
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in \"members\"."
                   },
                   "maximum_node_certificate_validity_days": {
-                    "type": "integer"
+                    "type": "integer",
+                    "default": 365,
+                    "description": "The maximum number of days allowed for node certificate validity period"
+                  },
+                  "reconfiguration_type": {
+                    "type": "string",
+                    "default": "OneTransaction",
+                    "enum": ["OneTransaction", "TwoTransaction"]
                   }
                 },
-                "required": [
-                  "recovery_threshold",
-                  "maximum_node_certificate_validity_days"
-                ]
+                "required": ["recovery_threshold"]
               },
               "initial_service_certificate_validity_days": {
-                "type": "integer"
+                "type": "integer",
+                "default": 1,
+                "description": "Initial validity period (days) for service certificate"
               }
             },
             "required": [
               "constitution_files",
-              "members",
-              "service_configuration",
-              "initial_service_certificate_validity_days"
+              "members"
             ]
           }
         },
@@ -188,173 +162,9 @@
           "service_certificate_file",
           "start"
         ]
-      },
-      "ledger": {
-        "type": "object",
-        "properties": {
-          "directory": {
-            "type": "string"
-          },
-          "read_only_directories": {
-            "type": "array",
-            "items": {}
-          },
-          "chunk_size": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "directory",
-          "read_only_directories",
-          "chunk_size"
-        ]
-      },
-      "snapshots": {
-        "type": "object",
-        "properties": {
-          "directory": {
-            "type": "string"
-          },
-          "tx_count": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "directory",
-          "tx_count"
-        ]
-      },
-      "logging": {
-        "type": "object",
-        "properties": {
-          "host_level": {
-            "type": "string"
-          },
-          "format": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "host_level",
-          "format"
-        ]
-      },
-      "consensus": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "message_timeout": {
-            "type": "string"
-          },
-          "election_timeout": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "message_timeout",
-          "election_timeout"
-        ]
-      },
-      "ledger_signatures": {
-        "type": "object",
-        "properties": {
-          "tx_count": {
-            "type": "integer"
-          },
-          "delay": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "tx_count",
-          "delay"
-        ]
-      },
-      "jwt": {
-        "type": "object",
-        "properties": {
-          "key_refresh_interval": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "key_refresh_interval"
-        ]
-      },
-      "output_files": {
-        "type": "object",
-        "properties": {
-          "node_certificate_file": {
-            "type": "string"
-          },
-          "pid_file": {
-            "type": "string"
-          },
-          "node_to_node_address_file": {
-            "type": "string"
-          },
-          "rpc_addresses_file": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "node_certificate_file",
-          "pid_file",
-          "node_to_node_address_file",
-          "rpc_addresses_file"
-        ]
-      },
-      "tick_interval": {
-        "type": "string"
-      },
-      "slow_io_logging_threshold": {
-        "type": "string"
-      },
-      "client_connection_timeout": {
-        "type": "string"
-      },
-      "worker_threads": {
-        "type": "integer"
-      },
-      "memory": {
-        "type": "object",
-        "properties": {
-          "circuit_size": {
-            "type": "string"
-          },
-          "max_msg_size": {
-            "type": "string"
-          },
-          "max_fragment_size": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "circuit_size",
-          "max_msg_size",
-          "max_fragment_size"
-        ]
       }
     },
     "required": [
-      "enclave",
-      "network",
-      "node_certificate",
-      "command",
-      "ledger",
-      "snapshots",
-      "logging",
-      "consensus",
-      "ledger_signatures",
-      "jwt",
-      "output_files",
-      "tick_interval",
-      "slow_io_logging_threshold",
-      "client_connection_timeout",
-      "worker_threads",
-      "memory"
+      "enclave"
     ]
   }
