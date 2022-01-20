@@ -130,8 +130,6 @@ void check_seqnos(
   const std::optional<ccf::indexing::SeqNoCollection>& actual,
   bool complete_match = true)
 {
-  REQUIRE(actual.has_value());
-
   if (complete_match)
   {
     REQUIRE(expected.size() == actual->size());
@@ -557,14 +555,14 @@ TEST_CASE_TEMPLATE(
   {
     INFO("Lazy indexes require an additional prod to be populated");
 
-    REQUIRE_FALSE(index_a->get_all_write_txs("hello").has_value());
-    REQUIRE_FALSE(index_a->get_all_write_txs("saluton").has_value());
+    REQUIRE(index_a->get_all_write_txs("hello")->empty());
+    REQUIRE(index_a->get_all_write_txs("saluton")->empty());
 
     index_a->extend_index_to(kv_store.current_txid());
     tick_until_caught_up();
 
-    REQUIRE(index_a->get_all_write_txs("hello").has_value());
-    REQUIRE(index_a->get_all_write_txs("saluton").has_value());
+    REQUIRE_FALSE(index_a->get_all_write_txs("hello")->empty());
+    REQUIRE_FALSE(index_a->get_all_write_txs("saluton")->empty());
   }
 
   {
