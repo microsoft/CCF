@@ -45,7 +45,7 @@ default_tables_format_rules = [
         },
     ),
     (
-        "^public:ccf\\.gov\\.(service|network|constitution).*$",
+        "^public:ccf\\.gov\\..*(service|network|constitution).*$",
         {
             "key": fmt_uint_le,
             "value": fmt_json,

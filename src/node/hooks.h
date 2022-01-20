@@ -29,6 +29,12 @@ namespace ccf
     {
       for (const auto& [node_id, opt_ni] : w)
       {
+        if (!opt_ni.has_value())
+        {
+          // Deleted node will have already been retired
+          continue;
+        }
+
         const auto& ni = opt_ni.value();
         const auto [host, port] =
           split_net_address(ni.node_to_node_interface.bind_address);
