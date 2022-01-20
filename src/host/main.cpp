@@ -84,6 +84,18 @@ int main(int argc, char** argv)
   try
   {
     config = nlohmann::json::parse(config_str);
+  }
+  catch (const std::exception& e)
+  {
+    throw std::logic_error(fmt::format(
+      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+  }
+
+  try
+  {
+    auto config_json = nlohmann::json(config);
+
+    LOG_FAIL_FMT("Config: {}", config_json.dump());
 
     // TODO: Validate configuration with schema
     // 1. Load schema (TODO: Bake in binary instead)
@@ -99,22 +111,33 @@ int main(int argc, char** argv)
 
     // 3. Verify configuration
     valijson::Validator validator;
-    valijson::adapters::NlohmannJsonAdapter target_adapter(config);
-    // valijson::ValidationResults results;
-    if (!validator.validate(schema, target_adapter, nullptr))
+    valijson::adapters::NlohmannJsonAdapter target_adapter(config_json);
+    valijson::ValidationResults results;
+    if (!validator.validate(schema, target_adapter, &results))
     {
-      // valijson::ValidationResults::Error error;
-      // while (results.popError(error))
-      // {
-      //   LOG_FAIL_FMT("Validation error: {}", error.description);
-      // }
-      throw std::logic_error("Validation failed");
+      std::string validation_error_msg;
+      valijson::ValidationResults::Error error;
+      size_t error_num = 0;
+      while (results.popError(error))
+      {
+        std::string error_ctx;
+        for (auto const& c : error.context)
+        {
+          error_ctx += c;
+        }
+        validation_error_msg += fmt::format(
+          "Error #{} - {} ({})\n", error_num, error.description, error_ctx);
+        ++error_num;
+      }
+      throw std::logic_error(validation_error_msg);
     }
   }
   catch (const std::exception& e)
   {
     throw std::logic_error(fmt::format(
-      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+      "Error verifying JSON schema for configuration file {}: {}",
+      config_file_path,
+      e.what()));
   }
 
   if (check_config_only)
