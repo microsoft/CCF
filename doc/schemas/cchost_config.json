@@ -357,6 +357,30 @@
           "type": "string",
           "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified."
         }
+      },
+      "tick_interval": {
+        "type": "string",
+        "default": "10ms",
+        "description": "Interval at which the enclave time will be updated by the host."
+      },
+      "slow_io_logging_threshold": {
+        "type": "string",
+        "default": "10000us",
+        "description": "Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log."
+      },
+      "node_client_interface": {
+        "type": "string",
+        "description": "Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes)."
+      },
+      "client_connection_timeout": {
+        "type": "string",
+        "default": "2000ms",
+        "description": "Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded."
+      },
+      "worker_threads": {
+        "type": "integer",
+        "default": "0",
+        "description": "Experimental. Number of additional threads processing incoming client requests in the enclave."
       }
     },
     "required": [
