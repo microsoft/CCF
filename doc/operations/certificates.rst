@@ -5,7 +5,7 @@ Since 2.x releases, the validity period of certificates is no longer hardcoded. 
 
 .. note:: The granularity for the validity period of nodes and service certificates is one day.
 
-.. tip:: See :ref:`overview/cryptography:Identity Keys and Certificates` for a detailed explanation of the relationship between keys and certificates in CCF.
+.. tip:: See :ref:`architecture/cryptography:Identity Keys and Certificates` for a detailed explanation of the relationship between keys and certificates in CCF.
 
 Node Certificates
 -----------------
@@ -56,8 +56,8 @@ The ``command.start.service_configuration.maximum_service_certificate_validity_d
 
 .. tip::
 
-- The current service certificate (PEM) can be retrieved by operators via the :http:GET:`/network` endpoint (``"service_certificate"`` field).
-- Once renewed, the service certificate should be distributed to clients to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network.
+    - The current service certificate (PEM) can be retrieved by operators via the :http:GET:`/network` endpoint (``"service_certificate"`` field).
+    - Once renewed, the service certificate should be distributed to clients to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network.
 
 The procedure that operators and members should follow is summarised in the following diagram:
 
