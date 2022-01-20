@@ -61,6 +61,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
                 except Exception as ex:
                     # OK, retiring node may be gone or a joining node may not be ready yet
                     LOG.info(f"expected RPC failure because of: {ex}")
+        time.sleep(0.5)
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
         if time.time() > end_time:
             raise Exception("Reconfiguration did not complete in time")
@@ -236,6 +237,12 @@ def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.retire_node(primary, backup_to_retire)
+    network.wait_for_node_in_store(
+        primary,
+        backup_to_retire.node_id,
+        node_status=None,
+        timeout=3,
+    )
     backup_to_retire.stop()
     check_can_progress(primary)
     wait_for_reconfiguration_to_complete(network)
@@ -252,7 +259,15 @@ def test_retire_primary(network, args):
     # Query this backup to find the new primary. If we ask any other
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
-    network.wait_for_new_primary(primary, nodes=[backup])
+    new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
+    # The old primary should automatically be removed from the store
+    # once a new primary is elected
+    network.wait_for_node_in_store(
+        new_primary,
+        primary.node_id,
+        node_status=None,
+        timeout=3,
+    )
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
@@ -415,6 +430,9 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
             if ccf.ledger.NODES_TABLE_NAME in tables:
                 nodes = tables[ccf.ledger.NODES_TABLE_NAME]
                 for nid, info_ in nodes.items():
+                    if info_ is None:
+                        # Node was removed
+                        continue
                     info = json.loads(info_)
                     if info["status"] == "Retired":
                         retiring_nodes.add(nid)
@@ -460,11 +478,11 @@ def test_learner_catches_up(network, args):
         rj = s.body.json()
         assert rj["status"] == "Learner" or rj["status"] == "Trusted"
 
-    network.consortium.wait_for_node_to_exist_in_store(
+    network.wait_for_node_in_store(
         primary,
         new_node.node_id,
-        timeout=3,
         node_status=(ccf.ledger.NodeStatus.TRUSTED),
+        timeout=3,
     )
 
     with primary.client() as c:

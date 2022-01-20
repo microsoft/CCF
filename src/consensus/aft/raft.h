@@ -12,6 +12,7 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/resharing_tracker.h"
+#include "node/retired_nodes_cleanup.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "orc_requests.h"
@@ -121,6 +122,9 @@ namespace aft
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
 
+    // Used to remove retired nodes from store
+    std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
+
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
     // Earliest index at which this node's retirement can be committed
@@ -178,6 +182,8 @@ namespace aft
       reconfiguration_type(reconfiguration_type_),
       resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
+      retired_node_cleanup(
+        std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
 
       public_only(public_only_),
 
@@ -2194,6 +2200,11 @@ namespace aft
         {
           configurations.pop_front();
           changed = true;
+
+          if (retired_node_cleanup && is_primary())
+          {
+            retired_node_cleanup->cleanup();
+          }
         }
         else
         {
@@ -2250,6 +2261,11 @@ namespace aft
               {
                 retired_nodes.erase(nid);
               }
+            }
+
+            if (retired_node_cleanup && is_primary())
+            {
+              retired_node_cleanup->cleanup();
             }
 
             configurations.pop_front();

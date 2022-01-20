@@ -973,11 +973,17 @@ const actions = new Map([
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
           ccf.strToBuf(args.node_id)
         );
-        if (node !== undefined) {
-          const node_obj = ccf.bufToJsonCompatible(node);
+        if (node === undefined) {
+          return;
+        }
+        const node_obj = ccf.bufToJsonCompatible(node);
+        if (node_obj.status === "Pending") {
+          ccf.kv["public:ccf.gov.nodes.info"].delete(
+            ccf.strToBuf(args.node_id)
+          );
+        } else {
           node_obj.status =
-            serviceConfig.reconfiguration_type === "TwoTransaction" &&
-            node_obj.status !== "Pending"
+            serviceConfig.reconfiguration_type === "TwoTransaction"
               ? "Retiring"
               : "Retired";
           ccf.kv["public:ccf.gov.nodes.info"].set(
