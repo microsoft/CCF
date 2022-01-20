@@ -237,6 +237,28 @@
             "description": "Initial validity period (days) for node certificate."
           }
         }
+      },
+      "ledger": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string",
+            "default": "ledger",
+            "description": "Path to main ledger directory."
+          },
+          "read_only_directories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Paths to read-only ledger directories. Note that only \".committed\" files will be read from these directories."
+          },
+          "chunk_size": {
+            "type": "string",
+            "default": "5MB",
+            "description": "Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created."
+          }
+        }
       }
     },
     "required": [
