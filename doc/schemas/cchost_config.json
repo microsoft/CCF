@@ -1,21 +1,24 @@
 {
-    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
+    "title": "CCF configuration",
+    "description": "JSON schema for configuration of cchost executable",
     "properties": {
       "enclave": {
         "type": "object",
         "properties": {
           "file": {
-            "type": "string"
+            "type": "string",
+            "description": "Path to enclave application"
           },
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": ["release", "debug", "virtual"],
+            "default": "release",
+            "description": "Type of enclave application"
           }
         },
-        "required": [
-          "file",
-          "type"
-        ]
+        "required": ["file"]
       },
       "network": {
         "type": "object",
@@ -24,9 +27,11 @@
             "type": "object",
             "properties": {
               "bind_address": {
-                "type": "string"
+                "type": "string",
+                "description": "Local address the node binds to and listens on for node-to-node connections"
               }
             },
+            "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
             "required": [
               "bind_address"
             ]
@@ -38,29 +43,32 @@
                 "type": "object",
                 "properties": {
                   "bind_address": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Local address the node binds to and listens on"
                   },
                   "published_rpc_address": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The published RPC address advertised to clients",
+                    "default": "Value of bind_address"
                   },
                   "max_open_sessions_soft": {
-                    "type": "integer"
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error"
                   },
                   "max_open_sessions_hard": {
-                    "type": "integer"
+                    "type": "integer",
+                    "default": 1010,
+                    "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of max_open_sessions_soft."
                   }
                 },
-                "required": [
-                  "bind_address",
-                  "published_rpc_address",
-                  "max_open_sessions_soft",
-                  "max_open_sessions_hard"
-                ]
+                "required": ["bind_address"]
               }
             },
             "required": [
               "primary_rpc_interface"
-            ]
+            ],
+            "description": "Addresses to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information."
           }
         },
         "required": [
