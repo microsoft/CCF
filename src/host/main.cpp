@@ -11,6 +11,7 @@
 #include "ds/oversized.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "json_schema.h"
 #include "load_monitor.h"
 #include "node_connections.h"
 #include "process_launcher.h"
@@ -29,11 +30,6 @@
 #include <sys/types.h>
 #include <thread>
 #include <unistd.h>
-#include <valijson/adapters/nlohmann_json_adapter.hpp>
-#include <valijson/schema.hpp>
-#include <valijson/schema_parser.hpp>
-#include <valijson/utils/nlohmann_json_utils.hpp>
-#include <valijson/validator.hpp>
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -91,12 +87,9 @@ int main(int argc, char** argv)
 
     // TODO: Validate configuration with schema
     // 1. Load schema (TODO: Bake in binary instead)
-    nlohmann::json schema_json;
-    if (!valijson::utils::loadDocument(
-          "/home/jumaffre/git/CCF/doc/schemas/cchost_config.json", schema_json))
-    {
-      throw std::runtime_error("Failed to load schema document");
-    }
+    auto schema_str = files::slurp_string(
+      "/home/jumaffre/git/CCF/doc/schemas/cchost_config.json");
+    auto schema_json = nlohmann::json::parse(schema_str);
 
     // 2. Load in parser
     valijson::adapters::NlohmannJsonAdapter schema_adapter(schema_json);
@@ -110,10 +103,12 @@ int main(int argc, char** argv)
     // valijson::ValidationResults results;
     if (!validator.validate(schema, target_adapter, nullptr))
     {
-      // TODO: Print errors
+      // valijson::ValidationResults::Error error;
+      // while (results.popError(error))
+      // {
+      //   LOG_FAIL_FMT("Validation error: {}", error.description);
+      // }
       throw std::logic_error("Validation failed");
-      // throw std::runtime_error(fmt::format("Validation failed : {}",
-      // results));
     }
   }
   catch (const std::exception& e)

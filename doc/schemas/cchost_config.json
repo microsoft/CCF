@@ -38,18 +38,18 @@
           },
           "rpc_interfaces": {
             "type": "object",
-            "properties": {
-              "primary_rpc_interface": {
-                "type": "object",
-                "properties": {
+            "additionalProperties": {
+              "type": "object",
+              "required": ["bind_address"],
+              "properties": {
                   "bind_address": {
                     "type": "string",
                     "description": "Local address the node binds to and listens on"
                   },
                   "published_rpc_address": {
                     "type": "string",
-                    "description": "The published RPC address advertised to clients",
-                    "default": "Value of bind_address"
+                    "default": "Value of \"bind_address\"",
+                    "description": "The published RPC address advertised to clients"
                   },
                   "max_open_sessions_soft": {
                     "type": "integer",
@@ -61,13 +61,8 @@
                     "default": 1010,
                     "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of max_open_sessions_soft."
                   }
-                },
-                "required": ["bind_address"]
-              }
+                }
             },
-            "required": [
-              "primary_rpc_interface"
-            ],
             "description": "Addresses to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information."
           }
         },
@@ -159,12 +154,11 @@
         },
         "required": [
           "type",
-          "service_certificate_file",
           "start"
         ]
       }
     },
     "required": [
-      "enclave"
+      "enclave", "network", "command"
     ]
   }
