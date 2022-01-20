@@ -16,6 +16,8 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 
+#include "crypto/openssl/hmac.h"
+
 #include <chrono>
 #include <cstring>
 #include <ctime>
@@ -602,4 +604,11 @@ TEST_CASE("x509 time")
       REQUIRE(converted_time_t == adjusted_time_t);
     }
   }
+}
+
+TEST_CASE("hmac")
+{
+  std::vector<uint8_t> key(0, 32);
+  std::vector<uint8_t> data(0, 64);
+  auto r = crypto::OpenSSL::hmac(MDType::SHA256, key, data);
 }
