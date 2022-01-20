@@ -291,7 +291,29 @@
             "description": "If \"json\", node logs will be formatted as JSON."
           }
         }
+      },
+      "consensus": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["CFT"],
+            "default": "CFT",
+            "description": "Type of consensus protocol. Only CFT (Crash-Fault Tolerant) is currently supported."
+          },
+          "message_timeout": {
+            "type": "string",
+            "default": "100ms",
+            "description": "Maximum interval (time string) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than \"election_timeout\"."
+          },
+          "election_timeout": {
+            "type": "string",
+            "default": "5000ms",
+            "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than \"message_timeout\"."
+          }
+        }
       }
+
     },
     "required": [
       "enclave", "network", "command"
