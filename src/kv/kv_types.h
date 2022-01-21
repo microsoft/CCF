@@ -209,23 +209,6 @@ namespace kv
     leadership_state,
     retirement_phase);
 
-  struct NetworkConfiguration
-  {
-    /// Configuration unique identifier
-    ReconfigurationId rid;
-
-    /// Set of Node IDs that are part of this configuration
-    std::unordered_set<NodeId> nodes;
-
-    bool operator<(const NetworkConfiguration& other) const
-    {
-      return rid < other.rid;
-    }
-  };
-
-  DECLARE_JSON_TYPE(kv::NetworkConfiguration);
-  DECLARE_JSON_REQUIRED_FIELDS(kv::NetworkConfiguration, rid, nodes);
-
   struct ConsensusParameters
   {
     ReconfigurationType reconfiguration_type;
@@ -242,13 +225,12 @@ namespace kv
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
-    virtual void reconfigure(
-      ccf::SeqNo seqno, const NetworkConfiguration& config) = 0;
     virtual void add_resharing_result(
       ccf::SeqNo seqno,
       ReconfigurationId rid,
       const ccf::ResharingResult& result) = 0;
-    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) = 0;
+    virtual std::optional<Configuration::Nodes> orc(
+      kv::ReconfigurationId rid, const NodeId& node_id) = 0;
     virtual void record_signature(
       kv::Version version,
       const std::vector<uint8_t>& sig,
@@ -777,24 +759,6 @@ struct formatter<kv::Configuration::Nodes>
       node_ids.insert(nid);
     }
     return format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
-  }
-};
-
-template <>
-struct formatter<kv::NetworkConfiguration>
-{
-  template <typename ParseContext>
-  auto parse(ParseContext& ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const kv::NetworkConfiguration& config, FormatContext& ctx)
-    -> decltype(ctx.out())
-  {
-    return format_to(
-      ctx.out(), "{}:{{{}}}", config.rid, fmt::join(config.nodes, " "));
   }
 };
 

@@ -16,7 +16,6 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
-#include "node/reconfig_id.h"
 #include "node/rpc/error.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -258,16 +257,6 @@ namespace ccf
       }
 
       nodes->put(joining_node_id, node_info);
-
-      if (
-        node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER)
-      {
-        kv::NetworkConfiguration nc =
-          get_latest_network_configuration(network, tx);
-        nc.nodes.insert(joining_node_id);
-        add_new_network_reconfiguration(network, tx, nc);
-      }
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -1422,7 +1411,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ResharingAlreadyCompleted,
             fmt::format(
-              "resharing for configuration {} already completed", in.rid));
+              "resharing for configuration {} already completed.", in.rid));
         }
 
         // For now, just pretend that we're done.
@@ -1461,48 +1450,39 @@ namespace ccf
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::NodeCannotHandleRequest,
-              "Only the primary accepts ORCs");
+              "Only the primary accepts ORCs.");
           }
         }
 
-        if (consensus->orc(in.reconfiguration_id, in.from))
+        auto nodes_in_config = consensus->orc(in.reconfiguration_id, in.from);
+        if (nodes_in_config.has_value())
         {
           LOG_DEBUG_FMT(
             "Configurations: sufficient number of ORCs, updating nodes in "
-            "configuration #{}",
+            "configuration #{}.",
             in.reconfiguration_id);
-          auto ncfgs = args.tx.rw(network.network_configurations);
           auto nodes = args.tx.rw(network.nodes);
-          auto nc = ncfgs->get(in.reconfiguration_id);
 
-          if (!nc.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::ResourceNotFound,
-              fmt::format(
-                "unknown reconfiguration id: {}", in.reconfiguration_id));
-          }
-
-          nodes->foreach([&nodes, &nc](const auto& nid, const auto& node_info) {
-            if (
-              node_info.status == NodeStatus::RETIRING &&
-              nc->nodes.find(nid) == nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::RETIRED;
-              nodes->put(nid, updated_info);
-            }
-            else if (
-              node_info.status == NodeStatus::LEARNER &&
-              nc->nodes.find(nid) != nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::TRUSTED;
-              nodes->put(nid, updated_info);
-            }
-            return true;
-          });
+          nodes->foreach(
+            [&nodes, &nodes_in_config](const auto& nid, const auto& node_info) {
+              if (
+                node_info.status == NodeStatus::RETIRING &&
+                nodes_in_config->find(nid) == nodes_in_config->end())
+              {
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::RETIRED;
+                nodes->put(nid, updated_info);
+              }
+              else if (
+                node_info.status == NodeStatus::LEARNER &&
+                nodes_in_config->find(nid) != nodes_in_config->end())
+              {
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::TRUSTED;
+                nodes->put(nid, updated_info);
+              }
+              return true;
+            });
         }
 
         return make_success(true);
