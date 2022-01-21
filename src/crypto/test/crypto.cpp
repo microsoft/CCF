@@ -5,6 +5,7 @@
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/entropy.h"
+#include "crypto/hmac.h"
 #include "crypto/key_pair.h"
 #include "crypto/key_wrap.h"
 #include "crypto/openssl/key_pair.h"
@@ -15,8 +16,6 @@
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-
-#include "crypto/openssl/hmac.h"
 
 #include <chrono>
 #include <cstring>
@@ -610,5 +609,5 @@ TEST_CASE("hmac")
 {
   std::vector<uint8_t> key(0, 32);
   std::vector<uint8_t> data(0, 64);
-  auto r = crypto::OpenSSL::hmac(MDType::SHA256, key, data);
+  auto r = crypto::hmac(MDType::SHA256, key, data);
 }
