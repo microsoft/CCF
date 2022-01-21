@@ -46,6 +46,11 @@ namespace ccf::indexing::strategies
       current_txid = tx_id;
     }
 
+    std::optional<ccf::SeqNo> next_requested() override
+    {
+      return current_txid.seqno + 1;
+    }
+
     ccf::TxID get_indexed_watermark() const
     {
       return current_txid;
