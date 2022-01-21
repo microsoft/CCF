@@ -563,6 +563,9 @@
           "maximum_node_certificate_validity_days": {
             "$ref": "#/components/schemas/uint64"
           },
+          "maximum_service_certificate_validity_days": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "reconfiguration_type": {
             "$ref": "#/components/schemas/ReconfigurationType"
           },
@@ -696,7 +699,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.9.0"
+    "version": "2.10.0"
   },
   "openapi": "3.0.0",
   "paths": {

@@ -99,7 +99,7 @@ namespace ccf
     };
 
     NodeId self;
-    const crypto::Pem& network_cert;
+    const crypto::Pem& service_cert;
     crypto::KeyPairPtr node_kp;
     const crypto::Pem& node_cert;
     crypto::VerifierPtr peer_cv;
@@ -596,14 +596,14 @@ namespace ccf
 
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      const crypto::Pem& network_cert_,
+      const crypto::Pem& service_cert_,
       crypto::KeyPairPtr node_kp_,
       const crypto::Pem& node_cert_,
       const NodeId& self_,
       const NodeId& peer_id_,
       size_t message_limit_ = default_message_limit) :
       self(self_),
-      network_cert(network_cert_),
+      service_cert(service_cert_),
       node_kp(node_kp_),
       node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
@@ -653,7 +653,7 @@ namespace ccf
         cert = crypto::Pem(pc);
         verifier = crypto::make_verifier(cert);
 
-        if (!verifier->verify_certificate({&network_cert}))
+        if (!verifier->verify_certificate({&service_cert}))
         {
           return false;
         }

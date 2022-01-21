@@ -14,7 +14,7 @@ import os
 import json
 import time
 from e2e_logging import test_random_receipts
-from governance import test_all_nodes_cert_renewal
+from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 
 
 from loguru import logger as LOG
@@ -84,6 +84,8 @@ def test_new_service(
     new_constitution = get_new_constitution_for_install(args, install_path)
     network.consortium.set_constitution(primary, new_constitution)
 
+    all_nodes = network.get_joined_nodes()
+
     # Note: Changes to constitution between versions should be tested here
 
     LOG.info(f"Add node to new service [cycle nodes: {cycle_existing_nodes}]")
@@ -102,6 +104,7 @@ def test_new_service(
         new_node.verify_certificate_validity_period(
             expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
         )
+        all_nodes.append(new_node)
 
     for node in nodes_to_cycle:
         network.retire_node(primary, node)
@@ -110,6 +113,15 @@ def test_new_service(
         node.stop()
 
     test_all_nodes_cert_renewal(network, args)
+    test_service_cert_renewal(network, args)
+
+    LOG.info("Waiting for retired nodes to be automatically removed")
+    for node in all_nodes:
+        network.wait_for_node_in_store(
+            primary,
+            node.node_id,
+            node_status=ccf.ledger.NodeStatus.TRUSTED if node.is_joined() else None,
+        )
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)

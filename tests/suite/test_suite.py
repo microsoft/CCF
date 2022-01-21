@@ -100,6 +100,7 @@ all_tests_suite = [
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_retire_backup,
     reconfiguration.test_node_certificates_validity_period,
+    reconfiguration.test_retire_primary,
     # recovery:
     recovery.test,
     # rekey:
@@ -117,6 +118,7 @@ all_tests_suite = [
     jwt_test.test_refresh_jwt_issuer,
     # governance
     governance.test_each_node_cert_renewal,
+    governance.test_service_cert_renewal,
     #
     #
     #

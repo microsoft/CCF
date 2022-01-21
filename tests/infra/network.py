@@ -107,7 +107,9 @@ class Network:
         "common_read_only_ledger_dir",
         "curve_id",
         "initial_node_cert_validity_days",
+        "initial_service_cert_validity_days",
         "maximum_node_certificate_validity_days",
+        "maximum_service_certificate_validity_days",
         "reconfiguration_type",
         "config_file",
     ]
@@ -160,6 +162,8 @@ class Network:
         self.perf_nodes = perf_nodes
         self.version = version
         self.args = None
+        self.service_certificate_valid_from = None
+        self.service_certificate_validity_days = None
 
         # Requires admin privileges
         self.partitioner = (
@@ -439,7 +443,9 @@ class Network:
         )
         self.status = ServiceStatus.OPEN
         LOG.info(f"Initial set of users added: {len(initial_users)}")
-        self.verify_service_certificate_validity_period()
+        self.verify_service_certificate_validity_period(
+            args.initial_service_cert_validity_days
+        )
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
@@ -502,9 +508,7 @@ class Network:
         self.consortium.check_for_service(
             self.find_random_node(), status=ServiceStatus.OPENING
         )
-        self.consortium.wait_for_all_nodes_to_be_trusted(
-            self.find_random_node(), self.nodes
-        )
+        self.wait_for_all_nodes_to_be_trusted(self.find_random_node())
         self.consortium.transition_service_to_open(self.find_random_node())
         self.consortium.recover_with_shares(self.find_random_node())
 
@@ -517,7 +521,9 @@ class Network:
             self._wait_for_app_open(node)
 
         self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
-        self.verify_service_certificate_validity_period()
+        self.verify_service_certificate_validity_period(
+            args.initial_service_cert_validity_days
+        )
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -593,15 +599,15 @@ class Network:
 
         primary, _ = self.find_primary()
         try:
-            self.consortium.wait_for_node_to_exist_in_store(
+            self.wait_for_node_in_store(
                 primary,
                 node.node_id,
-                timeout=timeout,
                 node_status=(
                     NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
                     else NodeStatus.TRUSTED
                 ),
+                timeout=timeout,
             )
         except TimeoutError as e:
             LOG.error(f"New pending node {node.node_id} failed to join the network")
@@ -625,12 +631,16 @@ class Network:
                 valid_from = valid_from or str(
                     infra.crypto.datetime_to_X509time(datetime.now())
                 )
+                timeout = ceil(args.join_timer_s * 2)
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
                     valid_from=valid_from,
                     validity_period_days=validity_period_days,
-                    timeout=ceil(args.join_timer_s * 2),
+                    timeout=timeout,
+                )
+                self.wait_for_node_in_store(
+                    primary, node.node_id, NodeStatus.TRUSTED, timeout
                 )
             if not no_wait:
                 # Here, quote verification has already been run when the node
@@ -651,7 +661,11 @@ class Network:
             self.wait_for_all_nodes_to_commit(primary=primary)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
-        self.consortium.retire_node(remote_node, node_to_retire, timeout=timeout)
+        self.consortium.retire_node(
+            remote_node,
+            node_to_retire,
+            timeout=timeout,
+        )
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -881,6 +895,53 @@ class Network:
                     pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
+    def _check_node_status(
+        self,
+        remote_node,
+        node_id,
+        node_status,  # None indicates that the node should not be present
+    ):
+        with remote_node.client() as c:
+            r = c.get(f"/node/network/nodes/{node_id}")
+            resp = r.body.json()
+            return (
+                r.status_code == http.HTTPStatus.NOT_FOUND.value
+                and node_status is None
+                and resp["error"]["message"] == "Node not found"
+            ) or (
+                r.status_code == http.HTTPStatus.OK.value
+                and node_status is not None
+                and resp["status"] == node_status.value
+            )
+
+    def wait_for_node_in_store(
+        self,
+        remote_node,
+        node_id,
+        node_status,
+        timeout=3,
+    ):
+        success = False
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                if self._check_node_status(remote_node, node_id, node_status):
+                    success = True
+                    break
+            except TimeoutError:
+                pass
+            time.sleep(0.5)
+        if not success:
+            raise TimeoutError(
+                f'Node {node_id} is not in expected state: {node_status or "absent"})'
+            )
+
+    def wait_for_all_nodes_to_be_trusted(self, remote_node, timeout=3):
+        for n in self.nodes:
+            self.wait_for_node_in_store(
+                remote_node, n.node_id, NodeStatus.TRUSTED, timeout
+            )
+
     def wait_for_new_primary(
         self, old_primary, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER
     ):
@@ -1098,28 +1159,48 @@ class Network:
 
     @functools.cached_property
     def cert(self):
-        cert_path = os.path.join(self.common_dir, "networkcert.pem")
+        cert_path = os.path.join(self.common_dir, "service_cert.pem")
         with open(cert_path, encoding="utf-8") as c:
-            network_cert = load_pem_x509_certificate(
+            service_cert = load_pem_x509_certificate(
                 c.read().encode("ascii"), default_backend()
             )
-            return network_cert
+            return service_cert
 
-    def verify_service_certificate_validity_period(self):
-        # See https://github.com/microsoft/CCF/issues/3090
-        assert self.cert.not_valid_before == datetime(
-            year=2021, month=3, day=11
-        )  # 20210311000000Z
-        assert self.cert.not_valid_after == datetime(
-            year=2023, month=6, day=11, hour=23, minute=59, second=59
-        )  # 20230611235959Z
-        validity_period = (
-            self.cert.not_valid_after
-            - self.cert.not_valid_before
-            + timedelta(seconds=1)
+    def verify_service_certificate_validity_period(self, expected_validity_days):
+        primary, _ = self.find_primary()
+        if primary.major_version and primary.major_version <= 1:
+            # Service certificate validity period is hardcoded in 1.x
+            LOG.warning("Skipping service certificate validity check for 1.x service")
+            return
+
+        with primary.client() as c:
+            r = c.get("/node/network")
+            valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+                r.body.json()["service_certificate"]
+            )
+
+        if self.service_certificate_valid_from is None:
+            # If the service certificate has not been renewed, assume that certificate has
+            # been issued within this test run
+            expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+            if valid_from < expected_valid_from:
+                raise ValueError(
+                    f'Service certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
+                )
+
+        # Note: CCF substracts one second from validity period since x509 specifies
+        # that validity dates are inclusive.
+        expected_valid_to = valid_from + timedelta(
+            days=expected_validity_days, seconds=-1
         )
-        LOG.debug(
-            f"Certificate validity period for service: {self.cert.not_valid_before} - {self.cert.not_valid_after} (for {validity_period})"
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for service certiticate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+            )
+
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
+        LOG.info(
+            f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
 
 

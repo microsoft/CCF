@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import os
-import time
 import http
 import json
 import random
@@ -13,7 +12,6 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
-from ccf.ledger import NodeStatus
 import ccf.ledger
 from infra.proposal import ProposalState
 import shutil
@@ -331,16 +329,10 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
-        self.wait_for_node_to_exist_in_store(
-            remote_node, node_to_retire.node_id, timeout, NodeStatus.RETIRED
-        )
 
     def trust_node(
         self, remote_node, node_id, valid_from, validity_period_days=None, timeout=3
     ):
-        if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
-            raise ValueError(f"Node {node_id} does not exist in state PENDING")
-
         proposal_body, careful_vote = self.make_proposal(
             "transition_node_to_trusted",
             node_id=node_id,
@@ -354,10 +346,6 @@ class Consortium:
             careful_vote,
             wait_for_global_commit=True,
             timeout=timeout,
-        )
-
-        self.wait_for_node_to_exist_in_store(
-            remote_node, node_id, timeout, NodeStatus.TRUSTED
         )
 
     def remove_member(self, remote_node, member_to_remove):
@@ -664,6 +652,18 @@ class Consortium:
         r = self.vote_using_majority(remote_node, proposal, careful_vote)
         return r
 
+    def set_service_certificate_validity(
+        self, remote_node, valid_from, validity_period_days
+    ):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_service_certificate_validity",
+            valid_from=valid_from,
+            validity_period_days=validity_period_days,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        r = self.vote_using_majority(remote_node, proposal, careful_vote)
+        return r
+
     def check_for_service(self, remote_node, status):
         """
         Check the certificate associated with current CCF service signing key has been recorded in
@@ -674,53 +674,16 @@ class Consortium:
             current_status = r.body.json()["service_status"]
             current_cert = r.body.json()["service_certificate"]
 
-            expected_cert = slurp_file(os.path.join(self.common_dir, "networkcert.pem"))
+            expected_cert = slurp_file(
+                os.path.join(self.common_dir, "service_cert.pem")
+            )
 
             assert (
                 current_cert == expected_cert[:-1]
-            ), "Current service certificate did not match with networkcert.pem"
+            ), "Current service certificate did not match with service_cert.pem"
             assert (
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
-
-    def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.client() as c:
-            r = c.get(f"/node/network/nodes/{node_id}")
-            if r.status_code != http.HTTPStatus.OK.value or (
-                node_status and r.body.json()["status"] != node_status.value
-            ):
-                return False
-
-        return True
-
-    def wait_for_node_to_exist_in_store(
-        self,
-        remote_node,
-        node_id,
-        timeout,
-        node_status=None,
-    ):
-        exists = False
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                if self._check_node_exists(remote_node, node_id, node_status):
-                    exists = True
-                    break
-            except TimeoutError:
-                LOG.warning(f"Node {node_id} has not been recorded in the store yet")
-            time.sleep(0.5)
-        if not exists:
-            raise TimeoutError(
-                f"Node {node_id} has not yet been recorded in the store"
-                + getattr(node_status, f" with status {node_status.value}", "")
-            )
-
-    def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
-        for n in nodes:
-            self.wait_for_node_to_exist_in_store(
-                remote_node, n.node_id, timeout, NodeStatus.TRUSTED
-            )
 
     def submit_2tx_migration_proposal(self, remote_node, timeout=10):
         proposal_body = {

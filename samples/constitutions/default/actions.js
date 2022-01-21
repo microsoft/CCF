@@ -151,6 +151,48 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
   });
 }
 
+function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
+  const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+    getSingletonKvKey()
+  );
+  if (rawConfig === undefined) {
+    throw new Error("Service configuration could not be found");
+  }
+  const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
+
+  const default_validity_period_days = 365;
+  const max_allowed_cert_validity_period_days =
+    serviceConfig.maximum_service_certificate_validity_days ??
+    default_validity_period_days;
+
+  if (
+    validityPeriodDays !== undefined &&
+    validityPeriodDays > max_allowed_cert_validity_period_days
+  ) {
+    throw new Error(
+      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
+    );
+  }
+
+  const renewed_service_certificate = ccf.network.generateNetworkCertificate(
+    validFrom,
+    validityPeriodDays ?? max_allowed_cert_validity_period_days
+  );
+
+  const serviceInfoTable = "public:ccf.gov.service.info";
+  const rawServiceInfo = ccf.kv[serviceInfoTable].get(getSingletonKvKey());
+  if (rawServiceInfo === undefined) {
+    throw new Error("Service info could not be found");
+  }
+  const serviceInfo = ccf.bufToJsonCompatible(rawServiceInfo);
+
+  serviceInfo.cert = renewed_service_certificate;
+  ccf.kv[serviceInfoTable].set(
+    getSingletonKvKey(),
+    ccf.jsonCompatibleToBuf(serviceInfo)
+  );
+}
+
 function setNodeCertificateValidityPeriod(
   nodeId,
   nodeInfo,
@@ -179,17 +221,14 @@ function setNodeCertificateValidityPeriod(
     validityPeriodDays > max_allowed_cert_validity_period_days
   ) {
     throw new Error(
-      `Validity period ${validityPeriodDayss} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
+      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
     );
   }
-
-  validityPeriodDays =
-    validityPeriodDays ?? max_allowed_cert_validity_period_days;
 
   const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
     nodeInfo.certificate_signing_request,
     validFrom,
-    validityPeriodDays
+    validityPeriodDays ?? max_allowed_cert_validity_period_days
   );
   ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
     ccf.strToBuf(nodeId),
@@ -901,41 +940,6 @@ const actions = new Map([
               ccf.strToBuf(endorsed_node_cert)
             );
           }
-
-          if (serviceConfig.reconfiguration_type == "TwoTransaction") {
-            const latest_id_raw = ccf.kv[
-              "public:ccf.gov.nodes.network.configurations"
-            ].get(getSingletonKvKey());
-            if (latest_id_raw === undefined) {
-              throw new Error("Network configuration could not be found");
-            }
-            const latest_id = ccf.bufToJsonCompatible(latest_id_raw);
-            const rid_buf = new ArrayBuffer(8);
-            new DataView(rid_buf).setUint32(0, latest_id.rid, true);
-
-            const latest_config_raw =
-              ccf.kv["public:ccf.gov.nodes.network.configurations"].get(
-                rid_buf
-              );
-            if (latest_config_raw === undefined) {
-              throw new Error("Network configuration could not be found");
-            }
-            const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
-
-            latest_config.nodes.push(args.node_id);
-            latest_config.rid++;
-            new DataView(rid_buf).setUint32(0, latest_config.rid, true);
-            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
-              rid_buf,
-              ccf.jsonCompatibleToBuf(latest_config)
-            );
-            latest_config.nodes = {};
-            latest_id.rid = latest_config.rid;
-            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
-              getSingletonKvKey(),
-              ccf.jsonCompatibleToBuf(latest_id)
-            );
-          }
         }
       }
     ),
@@ -969,53 +973,23 @@ const actions = new Map([
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
           ccf.strToBuf(args.node_id)
         );
-        if (node !== undefined) {
-          const node_obj = ccf.bufToJsonCompatible(node);
+        if (node === undefined) {
+          return;
+        }
+        const node_obj = ccf.bufToJsonCompatible(node);
+        if (node_obj.status === "Pending") {
+          ccf.kv["public:ccf.gov.nodes.info"].delete(
+            ccf.strToBuf(args.node_id)
+          );
+        } else {
           node_obj.status =
-            serviceConfig.reconfiguration_type === "TwoTransaction" &&
-            node_obj.status !== "Pending"
+            serviceConfig.reconfiguration_type === "TwoTransaction"
               ? "Retiring"
               : "Retired";
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(node_obj)
           );
-
-          if (serviceConfig.reconfiguration_type == "TwoTransaction") {
-            const latest_id_raw = ccf.kv[
-              "public:ccf.gov.nodes.network.configurations"
-            ].get(getSingletonKvKey());
-            if (latest_id_raw === undefined) {
-              throw new Error("Network configuration could not be found");
-            }
-            const latest_id = ccf.bufToJsonCompatible(latest_id_raw);
-            const rid_buf = new ArrayBuffer(8);
-            new DataView(rid_buf).setUint32(0, latest_id.rid, true);
-            const latest_config_raw =
-              ccf.kv["public:ccf.gov.nodes.network.configurations"].get(
-                rid_buf
-              );
-            if (latest_config_raw === undefined) {
-              throw new Error("Network configuration could not be found");
-            }
-            const latest_config = ccf.bufToJsonCompatible(latest_config_raw);
-            const idx = latest_config.nodes.indexOf(args.node_id);
-            if (idx > -1) {
-              latest_config.nodes.splice(idx, 1);
-            }
-            latest_config.rid++;
-            new DataView(rid_buf).setUint32(0, latest_config.rid, true);
-            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
-              rid_buf,
-              ccf.jsonCompatibleToBuf(latest_config)
-            );
-            latest_config.nodes = {};
-            latest_id.rid = latest_config.rid;
-            ccf.kv["public:ccf.gov.nodes.network.configurations"].set(
-              getSingletonKvKey(),
-              ccf.jsonCompatibleToBuf(latest_id)
-            );
-          }
         }
       }
     ),
@@ -1093,6 +1067,33 @@ const actions = new Map([
             );
           }
         });
+      }
+    ),
+  ],
+  [
+    "set_service_certificate_validity",
+    new Action(
+      function (args) {
+        checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days"
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days"
+          );
+        }
+      },
+      function (args) {
+        setServiceCertificateValidityPeriod(
+          args.valid_from,
+          args.validity_period_days
+        );
       }
     ),
   ],

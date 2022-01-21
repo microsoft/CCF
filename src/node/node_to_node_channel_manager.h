@@ -19,7 +19,7 @@ namespace ccf
     struct ThisNode
     {
       NodeId node_id;
-      const crypto::Pem& network_cert;
+      const crypto::Pem& service_cert;
       crypto::KeyPairPtr node_kp;
       std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     };
@@ -51,7 +51,7 @@ namespace ccf
         peer_id,
         std::make_shared<Channel>(
           writer_factory,
-          this_node->network_cert,
+          this_node->service_cert,
           this_node->node_kp,
           this_node->endorsed_node_cert.value(),
           this_node->node_id,
@@ -69,7 +69,7 @@ namespace ccf
 
     void initialize(
       const NodeId& self_id,
-      const crypto::Pem& network_cert,
+      const crypto::Pem& service_cert,
       crypto::KeyPairPtr node_kp,
       const std::optional<crypto::Pem>& node_cert) override
     {
@@ -90,7 +90,7 @@ namespace ccf
       }
 
       this_node = std::unique_ptr<ThisNode>(
-        new ThisNode{self_id, network_cert, node_kp, node_cert});
+        new ThisNode{self_id, service_cert, node_kp, node_cert});
     }
 
     void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert) override

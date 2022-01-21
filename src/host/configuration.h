@@ -114,13 +114,14 @@ namespace host
     struct Command
     {
       StartType type = StartType::Start;
-      std::string network_certificate_file = "networkcert.pem";
+      std::string service_certificate_file = "service_cert.pem";
 
       struct Start
       {
         std::vector<ParsedMemberInfo> members = {};
         std::vector<std::string> constitution_files = {};
         ccf::ServiceConfiguration service_configuration;
+        size_t initial_service_certificate_validity_days = 1;
 
         bool operator==(const Start&) const = default;
       };
@@ -134,6 +135,13 @@ namespace host
         bool operator==(const Join&) const = default;
       };
       Join join = {};
+
+      struct Recover
+      {
+        size_t initial_service_certificate_validity_days = 1;
+        bool operator==(const Recover&) const = default;
+      };
+      Recover recover = {};
     };
     Command command = {};
   };
@@ -172,16 +180,23 @@ namespace host
   DECLARE_JSON_REQUIRED_FIELDS(
     CCHostConfig::Command::Start, members, constitution_files);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::Start, service_configuration);
+    CCHostConfig::Command::Start,
+    service_configuration,
+    initial_service_certificate_validity_days);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
   DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, retry_timeout);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::Command::Recover, initial_service_certificate_validity_days);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command, network_certificate_file, start, join);
+    CCHostConfig::Command, service_certificate_file, start, join, recover);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);

@@ -16,7 +16,6 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
-#include "node/reconfig_id.h"
 #include "node/rpc/error.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -259,16 +258,6 @@ namespace ccf
 
       nodes->put(joining_node_id, node_info);
 
-      if (
-        node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER)
-      {
-        kv::NetworkConfiguration nc =
-          get_latest_network_configuration(network, tx);
-        nc.nodes.insert(joining_node_id);
-        add_new_network_reconfiguration(network, tx, nc);
-      }
-
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
       JoinNetworkNodeToNode::Out rep;
@@ -323,7 +312,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.9.0";
+      openapi_info.document_version = "2.10.0";
     }
 
     void init_handlers() override
@@ -563,6 +552,36 @@ namespace ccf
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto remove_retired_nodes = [this](auto& ctx, nlohmann::json&&) {
+        // This endpoint should only be called internally once it is certain
+        // that all nodes recorded as Retired will no longer issue transactions.
+        auto nodes = ctx.tx.rw(network.nodes);
+        auto node_endorsed_certificates =
+          ctx.tx.rw(network.node_endorsed_certificates);
+        nodes->foreach([this, &nodes, &node_endorsed_certificates](
+                         const auto& node_id, const auto& node_info) {
+          if (
+            node_info.status == ccf::NodeStatus::RETIRED &&
+            node_id != this->context.get_node_state().get_node_id())
+          {
+            nodes->remove(node_id);
+            node_endorsed_certificates->remove(node_id);
+
+            LOG_DEBUG_FMT("Removing retired node {}", node_id);
+          }
+          return true;
+        });
+
+        return make_success();
+      };
+      make_endpoint(
+        "network/nodes/retired",
+        HTTP_DELETE,
+        json_adapter(remove_retired_nodes),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
@@ -1198,7 +1217,7 @@ namespace ccf
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
         GenesisGenerator g(this->network, ctx.tx);
-        if (g.is_service_created(in.network_cert))
+        if (g.is_service_created(in.service_cert))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1206,7 +1225,7 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(in.network_cert);
+        g.create_service(in.service_cert);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         g.retire_active_nodes();
@@ -1392,7 +1411,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ResharingAlreadyCompleted,
             fmt::format(
-              "resharing for configuration {} already completed", in.rid));
+              "resharing for configuration {} already completed.", in.rid));
         }
 
         // For now, just pretend that we're done.
@@ -1431,48 +1450,39 @@ namespace ccf
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::NodeCannotHandleRequest,
-              "Only the primary accepts ORCs");
+              "Only the primary accepts ORCs.");
           }
         }
 
-        if (consensus->orc(in.reconfiguration_id, in.from))
+        auto nodes_in_config = consensus->orc(in.reconfiguration_id, in.from);
+        if (nodes_in_config.has_value())
         {
           LOG_DEBUG_FMT(
             "Configurations: sufficient number of ORCs, updating nodes in "
-            "configuration #{}",
+            "configuration #{}.",
             in.reconfiguration_id);
-          auto ncfgs = args.tx.rw(network.network_configurations);
           auto nodes = args.tx.rw(network.nodes);
-          auto nc = ncfgs->get(in.reconfiguration_id);
 
-          if (!nc.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::ResourceNotFound,
-              fmt::format(
-                "unknown reconfiguration id: {}", in.reconfiguration_id));
-          }
-
-          nodes->foreach([&nodes, &nc](const auto& nid, const auto& node_info) {
-            if (
-              node_info.status == NodeStatus::RETIRING &&
-              nc->nodes.find(nid) == nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::RETIRED;
-              nodes->put(nid, updated_info);
-            }
-            else if (
-              node_info.status == NodeStatus::LEARNER &&
-              nc->nodes.find(nid) != nc->nodes.end())
-            {
-              auto updated_info = node_info;
-              updated_info.status = NodeStatus::TRUSTED;
-              nodes->put(nid, updated_info);
-            }
-            return true;
-          });
+          nodes->foreach(
+            [&nodes, &nodes_in_config](const auto& nid, const auto& node_info) {
+              if (
+                node_info.status == NodeStatus::RETIRING &&
+                nodes_in_config->find(nid) == nodes_in_config->end())
+              {
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::RETIRED;
+                nodes->put(nid, updated_info);
+              }
+              else if (
+                node_info.status == NodeStatus::LEARNER &&
+                nodes_in_config->find(nid) != nodes_in_config->end())
+              {
+                auto updated_info = node_info;
+                updated_info.status = NodeStatus::TRUSTED;
+                nodes->put(nid, updated_info);
+              }
+              return true;
+            });
         }
 
         return make_success(true);

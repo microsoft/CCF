@@ -25,7 +25,7 @@ def test_verify_quotes(network, args):
 
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
-        cafile = os.path.join(network.common_dir, "networkcert.pem")
+        cafile = os.path.join(network.common_dir, "service_cert.pem")
         assert (
             infra.proc.ccall(
                 "verify_quote.sh",

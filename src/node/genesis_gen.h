@@ -10,7 +10,6 @@
 #include "members.h"
 #include "network_tables.h"
 #include "nodes.h"
-#include "reconfig_id.h"
 
 #include <algorithm>
 #include <fstream>
@@ -30,7 +29,7 @@ namespace ccf
       tx(tx_)
     {}
 
-    kv::NetworkConfiguration retire_active_nodes()
+    void retire_active_nodes()
     {
       auto nodes = tx.rw(tables.nodes);
 
@@ -42,17 +41,11 @@ namespace ccf
         return true;
       });
 
-      kv::NetworkConfiguration nc =
-        get_latest_network_configuration(tables, tx);
-
       for (auto [nid, ni] : nodes_to_delete)
       {
         ni.status = NodeStatus::RETIRED;
         nodes->put(nid, ni);
-        nc.nodes.erase(nid);
       }
-
-      return nc;
     }
 
     bool is_recovery_member(const MemberId& member_id)
@@ -267,11 +260,6 @@ namespace ccf
     {
       auto node = tx.rw(tables.nodes);
       node->put(id, node_info);
-
-      kv::NetworkConfiguration nc =
-        get_latest_network_configuration(tables, tx);
-      nc.nodes.insert(id);
-      add_new_network_reconfiguration(tables, tx, nc);
     }
 
     auto get_trusted_and_learner_nodes(
@@ -299,10 +287,10 @@ namespace ccf
     }
 
     // Service status should use a state machine, very much like NodeState.
-    void create_service(const crypto::Pem& network_cert)
+    void create_service(const crypto::Pem& service_cert)
     {
       auto service = tx.rw(tables.service);
-      service->put({network_cert, ServiceStatus::OPENING});
+      service->put({service_cert, ServiceStatus::OPENING});
     }
 
     bool is_service_created(const crypto::Pem& expected_service_cert)
@@ -385,11 +373,6 @@ namespace ccf
       node_info->status = NodeStatus::TRUSTED;
       node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
       nodes->put(node_id, node_info.value());
-
-      kv::NetworkConfiguration nc =
-        get_latest_network_configuration(tables, tx);
-      nc.nodes.insert(node_id);
-      add_new_network_reconfiguration(tables, tx, nc);
 
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
     }

@@ -90,7 +90,7 @@ namespace host
       const EnclaveConfig& enclave_config,
       const StartupConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
-      std::vector<uint8_t>& network_cert,
+      std::vector<uint8_t>& service_cert,
       StartType start_type,
       size_t num_worker_thread,
       void* time_location)
@@ -100,7 +100,7 @@ namespace host
       std::vector<uint8_t> enclave_version_buf(enclave_version_size);
 
       size_t node_cert_len = 0;
-      size_t network_cert_len = 0;
+      size_t service_cert_len = 0;
       size_t enclave_version_len = 0;
 
       auto config = nlohmann::json(ccf_config).dump();
@@ -114,9 +114,9 @@ namespace host
         node_cert.data(),
         node_cert.size(),
         &node_cert_len,
-        network_cert.data(),
-        network_cert.size(),
-        &network_cert_len,
+        service_cert.data(),
+        service_cert.size(),
+        &service_cert_len,
         enclave_version_buf.data(),
         enclave_version_buf.size(),
         &enclave_version_len,
@@ -127,7 +127,7 @@ namespace host
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {
         // Logs have described the errors already, we just need to allow the
-        // host to read them (via read_n()).
+        // host to read them (via read_all()).
         return status;
       }
 
@@ -146,7 +146,7 @@ namespace host
       }
 
       node_cert.resize(node_cert_len);
-      network_cert.resize(network_cert_len);
+      service_cert.resize(service_cert_len);
 
       return CreateNodeStatus::OK;
     }
