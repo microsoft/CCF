@@ -304,24 +304,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
   {
     INFO("Invalid disk cache leads to index being rebuilt");
 
-#ifndef PLAINTEXT_CACHE
-    {
-      INFO("Corrupted files");
-      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
-      {
-        LOG_FAIL_FMT("TODO");
-        break;
-      }
-    }
-#endif
-
-    {
-      INFO("Deleted files");
-      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
-      {
-        std::filesystem::remove(f);
-      }
-
+    auto identify_error_and_reindex = [&]() {
       fetch_all(index_a, "hello", seqnos_hello, true);
 
       // index_a has seen a missing file and reset, but index_b hasn't (yet)
@@ -333,6 +316,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
       // Now index_b has also seen a missing file
       REQUIRE(index_b->get_indexed_watermark() != current);
 
+      // This call does the actual re-indexing
       tick_until_caught_up();
       REQUIRE(index_a->get_indexed_watermark() == current);
       REQUIRE(index_b->get_indexed_watermark() == current);
@@ -342,6 +326,43 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
       fetch_all(index_b, 1, seqnos_1);
       fetch_all(index_b, 2, seqnos_2);
+    };
+
+    // Note: We delete/corrupt every file, since we don't know which files apply
+    // to which indexes/buckets
+
+    {
+      INFO("Deleted files");
+      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
+      {
+        std::filesystem::remove(f);
+      }
+
+      identify_error_and_reindex();
+    }
+
+    {
+      INFO("Corrupted files");
+      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
+      {
+        auto original = read_file(f);
+
+#ifndef PLAINTEXT_CACHE
+        // With encrypted files, corruption of any single byte should be
+        // recognised as corruption
+        write_file_corrupted_at(f, rand() % original.size(), original);
+#else
+        // For plaintext files, make a simple corruption of resizing them, so
+        // bytes remain after parsing
+        original.resize(original.size() + 1);
+
+        std::ofstream ofs(f, std::ios::trunc | std::ios::binary);
+        ofs.write((char const*)original.data(), original.size());
+        ofs.close();
+#endif
+      }
+
+      identify_error_and_reindex();
     }
   }
 }
