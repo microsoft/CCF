@@ -163,23 +163,40 @@ namespace ccf::indexing::strategies
 
     // TODO: Do all of this in a try-catch, and handle it being unserialisable
     // as though it were corrupt?
-    SeqNos deserialise(const caching::BlobContents& raw)
+    SeqNos deserialise(const caching::BlobContents& raw, bool& corrupt)
     {
-      SeqNos result;
-
-      auto data = raw.data();
-      auto size = raw.size();
-
-      // Read number of seqnos
-      const auto seqno_count = serialized::read<size_t>(data, size);
-      SeqNoCollection seqnos;
-
-      for (auto j = 0; j < seqno_count; ++j)
+      corrupt = false;
+      try
       {
-        seqnos.insert(serialized::read<ccf::SeqNo>(data, size));
-      }
+        SeqNos result;
 
-      return result;
+        auto data = raw.data();
+        auto size = raw.size();
+
+        // Read number of seqnos
+        const auto seqno_count = serialized::read<size_t>(data, size);
+        SeqNoCollection seqnos;
+
+        for (auto j = 0; j < seqno_count; ++j)
+        {
+          seqnos.insert(serialized::read<ccf::SeqNo>(data, size));
+        }
+
+        if (size != 0)
+        {
+          LOG_TRACE_FMT("{} bytes remaining after deserialisation", size);
+          corrupt = true;
+          return {};
+        }
+
+        return result;
+      }
+      // Catch errors thrown by serialized::read
+      catch (const std::logic_error& e)
+      {
+        corrupt = true;
+        return {};
+      }
     }
 
     caching::BlobKey get_blob_name(const BucketKey& bk)
@@ -332,9 +349,20 @@ namespace ccf::indexing::strategies
               }
               case (caching::FetchResult::Loaded):
               {
-                bucket_value.second = deserialise(bucket_value.first->contents);
-                bucket_value.first = nullptr;
-                break;
+                bool corrupt = false;
+                bucket_value.second =
+                  deserialise(bucket_value.first->contents, corrupt);
+                if (!corrupt)
+                {
+                  bucket_value.first = nullptr;
+                  break;
+                }
+                else
+                {
+                  // Deliberately fall through to the case below. If this can't
+                  // deserialise the value, consider the file corrupted
+                  LOG_FAIL_FMT("Deserialisation failed");
+                }
               }
               case (caching::FetchResult::NotFound):
               case (caching::FetchResult::Corrupt):
