@@ -39,7 +39,7 @@ namespace crypto
     {
       unsigned long ec = ERR_get_error();
       const char* msg = ERR_error_string(ec, NULL);
-      throw new std::runtime_error(fmt::format("OpenSSL error: {}", msg));
+      throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
 
     key = EVP_PKEY_new();

@@ -16,7 +16,6 @@
 #include "kv/store.h"
 #include "members.h"
 #include "modules.h"
-#include "network_configurations.h"
 #include "nodes.h"
 #include "proposals.h"
 #include "resharing.h"
@@ -81,7 +80,6 @@ namespace ccf
     // Node table
     //
     Nodes nodes;
-    NetworkConfigurations network_configurations;
     NodeEndorsedCertificates node_endorsed_certificates;
 
     //
@@ -131,7 +129,6 @@ namespace ccf
       user_certs(Tables::USER_CERTS),
       user_info(Tables::USER_INFO),
       nodes(Tables::NODES),
-      network_configurations(Tables::NODES_CONFIGURATIONS),
       node_endorsed_certificates(Tables::NODE_ENDORSED_CERTIFICATES),
       service(Tables::SERVICE),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),

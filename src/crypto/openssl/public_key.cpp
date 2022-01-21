@@ -37,7 +37,7 @@ namespace crypto
     key = d2i_PUBKEY_bio(buf, &key);
     if (!key)
     {
-      throw new std::runtime_error("Could not read DER");
+      throw std::runtime_error("Could not read DER");
     }
   }
 

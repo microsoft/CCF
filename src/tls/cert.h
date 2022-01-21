@@ -60,9 +60,8 @@ namespace tls
       {
         // Peer hostname is only checked against peer certificate (SAN
         // extension) if it is set. This lets us connect to peers that present
-        // certificates with IPAddress in SAN field (mbedtls does not parse
-        // IPAddress in SAN field). This is OK since we check for peer CA
-        // endorsement.
+        // certificates with IPAddress in SAN field. This is OK since we check
+        // for peer CA endorsement.
         SSL_set1_host(ssl, peer_hostname->c_str());
       }
 
