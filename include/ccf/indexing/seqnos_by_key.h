@@ -402,7 +402,10 @@ namespace ccf::indexing::strategies
   public:
     using Base::Base;
 
-    SeqnosByKey_Access(const M& map) : Base(map.get_name()) {}
+    template <typename... Ts>
+    SeqnosByKey_Access(const M& map, Ts&&... ts) :
+      Base(map.get_name(), std::forward<Ts>(ts)...)
+    {}
 
     std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
       const typename M::Key& key,
@@ -430,4 +433,8 @@ namespace ccf::indexing::strategies
 
   template <typename M>
   using SeqnosByKey = SeqnosByKey_Access<M, SeqnosByKey_InMemory>;
+
+  // TODO: This shouldn't really have a get_all_write_txs method
+  template <typename M>
+  using SeqnosByKeyAsync = SeqnosByKey_Access<M, SeqnosByKey_BucketedCache>;
 }

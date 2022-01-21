@@ -1,19 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/indexing/seqnos_by_key.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "ds/test/stub_writer.h"
-#include "indexing/caching/enclave_cache.h"
-#include "indexing/caching/host_cache.h"
 #include "indexing/historical_transaction_fetcher.h"
-#include "indexing/indexer.h"
-#include "kv/test/stub_consensus.h"
+#include "indexing/test/common.h"
 #include "node/share_manager.h"
-
-// Needed by TestTransactionFetcher
-#include "kv/test/null_encryptor.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -31,167 +24,6 @@ auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
 const std::chrono::milliseconds step_time(10);
-
-using MapA = kv::Map<std::string, std::string>;
-using MapB = kv::Map<size_t, size_t>;
-kv::Map<std::string, std::string> map_a("private_map_a");
-using IndexA = ccf::indexing::strategies::SeqnosByKey<decltype(map_a)>;
-using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;
-
-kv::Map<size_t, size_t> map_b("private_map_b");
-using IndexB = ccf::indexing::strategies::SeqnosByKey<decltype(map_b)>;
-
-class TestTransactionFetcher : public ccf::indexing::TransactionFetcher
-{
-public:
-  std::shared_ptr<kv::NullTxEncryptor> encryptor =
-    std::make_shared<kv::NullTxEncryptor>();
-
-  ccf::indexing::SeqNoCollection requested;
-  std::unordered_map<ccf::SeqNo, ccf::indexing::StorePtr> fetched_stores;
-
-  ccf::indexing::StorePtr deserialise_transaction(
-    ccf::SeqNo seqno, const uint8_t* data, size_t size)
-  {
-    auto store = std::make_shared<kv::Store>(
-      false /* Do not start from very first seqno */,
-      true /* Make use of historical secrets */);
-
-    store->set_encryptor(encryptor);
-
-    bool public_only = false;
-    auto exec =
-      store->deserialize({data, data + size}, ConsensusType::CFT, public_only);
-    if (exec == nullptr)
-    {
-      return nullptr;
-    }
-
-    auto result = exec->apply();
-    if (result == kv::ApplyResult::FAIL)
-    {
-      return nullptr;
-    }
-
-    return store;
-  }
-
-  std::vector<ccf::indexing::StorePtr> fetch_transactions(
-    const ccf::indexing::SeqNoCollection& seqnos)
-  {
-    std::vector<ccf::indexing::StorePtr> stores;
-
-    for (auto seqno : seqnos)
-    {
-      auto it = fetched_stores.find(seqno);
-      if (it != fetched_stores.end())
-      {
-        stores.push_back(it->second);
-
-        // For simplicity, we instantly erase fetched stores here
-        it = fetched_stores.erase(it);
-      }
-      else
-      {
-        requested.insert(seqno);
-      }
-    }
-
-    return stores;
-  }
-};
-
-template <typename TConsensus>
-class AllCommittableWrapper : public TConsensus
-{
-public:
-  using TConsensus::TConsensus;
-
-  bool replicate(const kv::BatchVector& entries_, ccf::View view) override
-  {
-    // Rather than building a history that produces real signatures, we just
-    // overwrite the entries here to say that everything is committable
-    kv::BatchVector entries(entries_);
-    for (auto& [seqno, data, committable, hooks] : entries)
-    {
-      committable = true;
-    }
-
-    return TConsensus::replicate(entries, view);
-  }
-};
-
-using AllCommittableConsensus = AllCommittableWrapper<kv::test::StubConsensus>;
-
-using ExpectedSeqNos = std::set<ccf::SeqNo>;
-
-void check_seqnos(
-  const ExpectedSeqNos& expected,
-  const std::optional<ccf::indexing::SeqNoCollection>& actual,
-  bool complete_match = true)
-{
-  if (complete_match)
-  {
-    REQUIRE(expected.size() == actual->size());
-  }
-  else
-  {
-    REQUIRE(expected.size() >= actual->size());
-  }
-
-  for (auto n : *actual)
-  {
-    REQUIRE(expected.contains(n));
-  }
-}
-
-void create_transactions(
-  kv::Store& kv_store,
-  ExpectedSeqNos& seqnos_hello,
-  ExpectedSeqNos& seqnos_saluton,
-  ExpectedSeqNos& seqnos_1,
-  ExpectedSeqNos& seqnos_2,
-  size_t count = ccf::indexing::Indexer::MAX_REQUESTABLE * 3)
-{
-  INFO("Create and commit transactions");
-  for (size_t i = 0; i < count; ++i)
-  {
-    const auto write_saluton = i % 3 == 0;
-    const auto write_1 = i % 5 == 0;
-    const auto write_2 = rand() % 4 != 0;
-
-    auto tx = kv_store.create_tx();
-    tx.wo(map_a)->put("hello", "value doesn't matter");
-    if (write_saluton)
-    {
-      tx.wo(map_a)->put("saluton", "value doesn't matter");
-    }
-    if (write_1)
-    {
-      tx.wo(map_b)->put(1, 42);
-    }
-    if (write_2)
-    {
-      tx.wo(map_b)->put(2, 42);
-    }
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-
-    const auto seqno = tx.get_txid()->version;
-    seqnos_hello.insert(seqno);
-    if (write_saluton)
-    {
-      seqnos_saluton.insert(seqno);
-    }
-    if (write_1)
-    {
-      seqnos_1.insert(seqno);
-    }
-    if (write_2)
-    {
-      seqnos_2.insert(seqno);
-    }
-  }
-}
 
 template <typename AA>
 void run_tests(
@@ -216,8 +48,8 @@ void run_tests(
   tick_until_caught_up();
 
   {
-    check_seqnos(seqnos_1, index_b->get_all_write_txs(1));
-    check_seqnos(seqnos_2, index_b->get_all_write_txs(2));
+    REQUIRE(check_seqnos(seqnos_1, index_b->get_all_write_txs(1)));
+    REQUIRE(check_seqnos(seqnos_2, index_b->get_all_write_txs(2)));
   }
 
   {
@@ -231,27 +63,27 @@ void run_tests(
     const auto full_range_hello =
       index_a->get_write_txs_in_range("hello", 0, current_seqno);
     REQUIRE(full_range_hello.has_value());
-    check_seqnos(seqnos_hello, full_range_hello);
+    REQUIRE(check_seqnos(seqnos_hello, full_range_hello));
 
     const auto sub_range_saluton = index_a->get_write_txs_in_range(
       "saluton", sub_range_start, sub_range_end);
     REQUIRE(sub_range_saluton.has_value());
-    check_seqnos(seqnos_saluton, sub_range_saluton, false);
+    REQUIRE(check_seqnos(seqnos_saluton, sub_range_saluton, false));
 
     const auto max_seqnos = 3;
     const auto truncated_sub_range_saluton = index_a->get_write_txs_in_range(
       "saluton", sub_range_start, sub_range_end, max_seqnos);
     REQUIRE(truncated_sub_range_saluton.has_value());
     REQUIRE(truncated_sub_range_saluton->size() == max_seqnos);
-    check_seqnos(seqnos_saluton, truncated_sub_range_saluton, false);
+    REQUIRE(check_seqnos(seqnos_saluton, truncated_sub_range_saluton, false));
 
-    check_seqnos(
-      seqnos_1, index_b->get_write_txs_in_range(1, 0, current_seqno));
+    REQUIRE(check_seqnos(
+      seqnos_1, index_b->get_write_txs_in_range(1, 0, current_seqno)));
 
-    check_seqnos(
+    REQUIRE(check_seqnos(
       seqnos_2,
       index_b->get_write_txs_in_range(2, sub_range_start, sub_range_end),
-      false);
+      false));
 
     REQUIRE_FALSE(
       index_a->get_write_txs_in_range("hello", 0, invalid_seqno_a).has_value());
@@ -269,8 +101,8 @@ void run_tests(
 
   {
     INFO("Both indexes continue to be updated with new entries");
-    create_transactions(
-      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100);
+    REQUIRE(create_transactions(
+      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 100));
 
     if constexpr (std::is_same_v<AA, LazyIndexA>)
     {
@@ -279,34 +111,14 @@ void run_tests(
 
     tick_until_caught_up();
 
-    check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
-    check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
+    REQUIRE(check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello")));
+    REQUIRE(
+      check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton")));
 
-    check_seqnos(seqnos_1, index_b->get_all_write_txs(1));
-    check_seqnos(seqnos_2, index_b->get_all_write_txs(2));
+    REQUIRE(check_seqnos(seqnos_1, index_b->get_all_write_txs(1)));
+    REQUIRE(check_seqnos(seqnos_2, index_b->get_all_write_txs(2)));
   }
 }
-
-// TODO: Re-use this, for a single deliberate test on a 'real' index
-// #define CREATE_CACHES \
-//   messaging::BufferProcessor host_bp("blobcache_host"); \
-//   messaging::BufferProcessor enclave_bp("blobcache_enclave"); \
-//   constexpr size_t buf_size = 1 << 16; \
-//   auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size); \
-//   ringbuffer::Reader inbound_reader(inbound_buffer->bd); \
-//   auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
-//   \
-//   ringbuffer::Reader outbound_reader(outbound_buffer->bd); \
-//   ccf::indexing::caching::HostCache hc( \
-//     host_bp.get_dispatcher(), \
-//     std::make_shared<ringbuffer::Writer>(inbound_reader)); \
-//   ccf::indexing::caching::EnclaveCache ec( \
-//     enclave_bp.get_dispatcher(), \
-//     std::make_shared<ringbuffer::Writer>(outbound_reader)); \
-//   auto update_caches = [&]() { \
-//     host_bp.read_all(outbound_reader); \
-//     enclave_bp.read_all(inbound_reader); \
-//   };
 
 // Uses stub classes to test just indexing logic in isolation
 TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
@@ -331,8 +143,8 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   static constexpr auto num_transactions =
     ccf::indexing::Indexer::MAX_REQUESTABLE * 3;
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
-  create_transactions(
-    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
+  REQUIRE(create_transactions(
+    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2));
 
   auto tick_until_caught_up = [&]() {
     while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
@@ -356,8 +168,9 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   {
     INFO("Confirm that pre-existing strategy was populated already");
 
-    check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
-    check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
+    REQUIRE(check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello")));
+    REQUIRE(
+      check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton")));
   }
 
   INFO(
@@ -501,13 +314,13 @@ TEST_CASE_TEMPLATE(
 
   for (size_t i = 0; i < 3; ++i)
   {
-    create_transactions(
-      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 10);
+    REQUIRE(create_transactions(
+      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2, 10));
     rekey(kv_store, ledger_secrets);
   }
 
-  create_transactions(
-    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
+  REQUIRE(create_transactions(
+    kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2));
 
   size_t handled_writes = 0;
   const auto& writes = stub_writer->writes;
@@ -568,8 +381,9 @@ TEST_CASE_TEMPLATE(
   {
     INFO("Confirm that pre-existing strategy was populated already");
 
-    check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
-    check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
+    REQUIRE(check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello")));
+    REQUIRE(
+      check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton")));
   }
 
   INFO(
