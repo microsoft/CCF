@@ -379,6 +379,16 @@ namespace ccf::indexing::strategies
               append_bucket_result(current_it->second.second);
             }
           }
+          // Another possibility is that the requested range is _after_ the
+          // current_results for this key. That means, assuming we have
+          // constructed a complete index up to to_range, that there are no
+          // later buckets to fetch - we have constructed a complete result
+          else if (
+            current_it != current_results.end() &&
+            current_it->second.first.first < to_range.first)
+          {
+            break;
+          }
           else
           {
             // Begin fetching this bucket from disk

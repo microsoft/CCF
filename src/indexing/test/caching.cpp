@@ -209,7 +209,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
     while (true)
     {
-      LOG_INFO_FMT("Fetching {} from {} to {}", key, range_start, range_end);
+      LOG_TRACE_FMT("Fetching {} from {} to {}", key, range_start, range_end);
 
       auto results =
         index_a->get_write_txs_in_range(key, range_start, range_end);
