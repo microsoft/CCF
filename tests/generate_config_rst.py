@@ -31,8 +31,29 @@ def print_entry(output, entry, name=None):
     output.newline()
 
 
+def print_object(output, obj, depth=0):
+    for k, v in obj.items():
+        LOG.info(k)
+        if depth == 0:
+            output.h3(f"``{k}``")
+            output.newline()
+        elif "properties" in v or "additionalProperties" in v:
+            output.h4(f"``{k}``")
+            output.newline()
+
+        if "properties" in v:
+            print_object(output, v["properties"], depth=depth + 1)
+        elif "additionalProperties" in v:
+            print_object(
+                output, v["additionalProperties"]["properties"], depth=depth + 1
+            )
+        else:
+            print_entry(output, v, name=k)
+
+
 # TODO:
-# - network
+# - network [DONE]
+# - recursion [DONE]
 # - command
 # - required field
 # - pattern
@@ -55,31 +76,7 @@ if __name__ == "__main__":
     output.h2("Configuration Options")
     output.newline()
 
-    for k, v in j["properties"].items():
-        output.h3(f"``{k}``")
-        output.newline()
-
-        if "properties" in v:
-            LOG.error(v)
-            for a, b in v["properties"].items():
-                LOG.success(b)
-                if "properties" in b:
-                    output.h4(f"``{a}``")
-                    output.newline()
-                    for x, y in b["properties"].items():
-                        print_entry(output, y, name=x)
-                elif "additionalProperties" in b:
-                    output.h4(f"``{a}``")
-                    output.newline()
-                    for x, y in b["additionalProperties"]["properties"].items():
-                        LOG.error(x)
-                        LOG.warning(y)
-                        print_entry(output, y, name=x)
-
-                else:
-                    print_entry(output, b, name=a)
-        else:
-            print_entry(output, v)
+    print_object(output, j["properties"])
 
     output.print_content()
     output.write(output_file)

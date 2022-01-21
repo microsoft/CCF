@@ -83,7 +83,7 @@
           "service_certificate_file": {
             "type": "string",
             "default": "service_cert.pem",
-            "description" : "For start and recover nodes, path to which service certificate will be written to on startup. For join nodes, path to the certificate of the existing network to join"
+            "description" : "For ``start`` and ``recover`` nodes, path to which service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join"
           }
         },
         "allOf": [

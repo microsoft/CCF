@@ -32,7 +32,7 @@ Configuration Options
 
 - ``type``: Type of CCF node (values: ``"start"``, ``"join"``, ``"recover"``). Default: ``"start"``.
 
-- ``service_certificate_file``: For start and recover nodes, path to which service certificate will be written to on startup. For join nodes, path to the certificate of the existing network to join. Default: ``"service_cert.pem"``.
+- ``service_certificate_file``: For ``start`` and ``recover`` nodes, path to which service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join. Default: ``"service_cert.pem"``.
 
 ``node_certificate``
 ~~~~~~~~~~~~~~~~~~~~
@@ -103,27 +103,27 @@ Configuration Options
 ``tick_interval``
 ~~~~~~~~~~~~~~~~~
 
-Interval at which the enclave time will be updated by the host. Default: ``"10ms"``.
+- ``tick_interval``: Interval at which the enclave time will be updated by the host. Default: ``"10ms"``.
 
 ``slow_io_logging_threshold``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log. Default: ``"10000us"``.
+- ``slow_io_logging_threshold``: Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log. Default: ``"10000us"``.
 
 ``node_client_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).
+- ``node_client_interface``: Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).
 
 ``client_connection_timeout``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default: ``"2000ms"``.
+- ``client_connection_timeout``: Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default: ``"2000ms"``.
 
 ``worker_threads``
 ~~~~~~~~~~~~~~~~~~
 
-Experimental. Number of additional threads processing incoming client requests in the enclave. Default: ``0``.
+- ``worker_threads``: Experimental. Number of additional threads processing incoming client requests in the enclave. Default: ``0``.
 
 ``memory``
 ~~~~~~~~~~
