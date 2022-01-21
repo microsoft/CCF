@@ -187,7 +187,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
   tick_until_caught_up();
   REQUIRE(flush_ringbuffers() == 0);
 
-  const auto current_seqno = kv_store.current_version();
+  auto current_seqno = kv_store.current_version();
   const auto max_requestable = index_a->max_requestable_range();
   const auto request_range = max_requestable / 3;
 
@@ -203,7 +203,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
     REQUIRE(flush_ringbuffers() == 0);
   }
 
-  auto fetch_all = [&](const auto& key, const auto& expected) {
+  auto fetch_all = [&](auto& strat, const auto& key, const auto& expected) {
     auto range_start = 0;
     auto range_end = request_range;
 
@@ -211,15 +211,14 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
     {
       LOG_TRACE_FMT("Fetching {} from {} to {}", key, range_start, range_end);
 
-      auto results =
-        index_a->get_write_txs_in_range(key, range_start, range_end);
+      auto results = strat->get_write_txs_in_range(key, range_start, range_end);
 
       if (!results.has_value())
       {
         // This required an async load from disk
         REQUIRE(flush_ringbuffers() > 0);
 
-        results = index_a->get_write_txs_in_range(key, range_start, range_end);
+        results = strat->get_write_txs_in_range(key, range_start, range_end);
         REQUIRE(results.has_value());
       }
 
@@ -240,36 +239,44 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
   {
     INFO("Old entries must be fetched asynchronously");
 
-    fetch_all("hello", seqnos_hello);
-    fetch_all("saluton", seqnos_saluton);
+    fetch_all(index_a, "hello", seqnos_hello);
+    fetch_all(index_a, "saluton", seqnos_saluton);
   }
 
-  // INFO(
-  //   "Indexes can be installed later, and will be populated after enough "
-  //   "ticks");
+  INFO(
+    "Indexes can be installed later, and will be populated after enough "
+    "ticks");
 
-  // auto index_b = std::make_shared<IndexB>(map_b);
-  // REQUIRE(indexer.install_strategy(index_b));
-  // REQUIRE_FALSE(indexer.install_strategy(index_b));
+  using StratB = ccf::indexing::strategies::SeqnosByKeyAsync<decltype(map_b)>;
+  auto index_b = std::make_shared<StratB>(map_b, ec);
+  REQUIRE(indexer.install_strategy(index_b));
 
-  // auto current_ = kv_store.current_txid();
-  // ccf::TxID current{current_.term, current_.version};
-  // REQUIRE(index_a->get_indexed_watermark() == current);
-  // REQUIRE(index_b->get_indexed_watermark() == ccf::TxID());
+  kv::TxID current_ = kv_store.current_txid();
+  ccf::TxID current{current_.term, current_.version};
+  REQUIRE(index_a->get_indexed_watermark() == current);
+  REQUIRE(index_b->get_indexed_watermark() == ccf::TxID());
 
-  // tick_until_caught_up();
+  tick_until_caught_up();
 
-  // REQUIRE(index_a->get_indexed_watermark() == current);
-  // REQUIRE(index_b->get_indexed_watermark() == current);
+  REQUIRE(index_a->get_indexed_watermark() == current);
+  REQUIRE(index_b->get_indexed_watermark() == current);
 
-  // run_tests(
-  //   tick_until_caught_up,
-  //   kv_store,
-  //   indexer,
-  //   seqnos_hello,
-  //   seqnos_saluton,
-  //   seqnos_1,
-  //   seqnos_2,
-  //   index_a,
-  //   index_b);
+  fetch_all(index_b, 1, seqnos_1);
+  fetch_all(index_b, 2, seqnos_2);
+
+  {
+    INFO("Both indexes continue to be updated with new entries");
+    REQUIRE(create_transactions(
+      kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2));
+
+    auto current_seqno = kv_store.current_version();
+
+    tick_until_caught_up();
+
+    fetch_all(index_a, "hello", seqnos_hello);
+    fetch_all(index_a, "saluton", seqnos_saluton);
+
+    fetch_all(index_b, 1, seqnos_1);
+    fetch_all(index_b, 2, seqnos_2);
+  }
 }
