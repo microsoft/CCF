@@ -105,26 +105,24 @@
                     },
                     "members": {
                       "type": "array",
-                      "items": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "certificate_file": {
-                              "type": "string",
-                              "description": "Path to member x509 identity certificate (PEM)"
-                            },
-                            "encryption_public_key_file": {
-                              "type": "string",
-                              "description": "Path to member encryption public key (PEM)"
-                            }
-                          },
-                          "data_json_file": {
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "certificate_file": {
                             "type": "string",
-                            "description": "Path to member data file (JSON)"
+                            "description": "Path to member x509 identity certificate (PEM)"
                           },
-                          "required": ["certificate_file"]
-                        }
-                      ],
+                          "encryption_public_key_file": {
+                            "type": "string",
+                            "description": "Path to member encryption public key (PEM)"
+                          }
+                        },
+                        "data_json_file": {
+                          "type": "string",
+                          "description": "Path to member data file (JSON)"
+                        },
+                        "required": ["certificate_file"]
+                        },
                       "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
                     },
                     "service_configuration": {

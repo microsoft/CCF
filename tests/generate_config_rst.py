@@ -31,23 +31,47 @@ def print_entry(output, entry, name=None):
     output.newline()
 
 
+def depth_to_heading_level(output, depth):
+    if depth == 0:
+        return output.h2
+    elif depth == 1:
+        return output.h3
+    elif depth == 2:
+        return output.h4
+    else:
+        return output.h5
+
+
 def print_object(output, obj, depth=0):
     for k, v in obj.items():
         LOG.info(k)
-        if depth == 0:
-            output.h3(f"``{k}``")
-            output.newline()
-        elif "properties" in v or "additionalProperties" in v:
-            output.h4(f"``{k}``")
+        heading = depth_to_heading_level(output, depth)
+        if "properties" in v or "additionalProperties" in v:  # TODO: Cleanup
+            heading(f"``{k}``")
             output.newline()
 
         if "properties" in v:
             print_object(output, v["properties"], depth=depth + 1)
-        elif "additionalProperties" in v:
+        if "additionalProperties" in v:
             print_object(
                 output, v["additionalProperties"]["properties"], depth=depth + 1
             )
-        else:
+        if "items" in v:
+            print_object(output, v["items"], depth=depth + 1)
+        if "allOf" in v:
+            # TODO: Print conditions
+            for e in v["allOf"]:
+                # TODO: Fix this
+                k_, v_ = iter(["if"]["properties"]
+                LOG.error(k_)
+                output.content(f'Only if {cond} is {cond["const"]}')
+                print_object(output, e["then"]["properties"], depth=depth + 1)
+        if (
+            "properties" not in v
+            and "additionalProperties" not in v
+            and "items" not in v
+            and "allOf" not in v
+        ):
             print_entry(output, v, name=k)
 
 
