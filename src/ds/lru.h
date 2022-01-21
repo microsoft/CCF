@@ -127,4 +127,10 @@ public:
     auto it = insert(std::forward<K>(k), V{});
     return it->second;
   }
+
+  void clear()
+  {
+    entries_list.clear();
+    iter_map.clear();
+  }
 };

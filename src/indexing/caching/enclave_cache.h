@@ -15,7 +15,7 @@
 
 // Uncomment to disable encryption and obfuscation, writing cache content
 // directly unencrypted to host disk
-#define PLAINTEXT_CACHE
+// #define PLAINTEXT_CACHE
 
 namespace ccf::indexing::caching
 {

@@ -203,7 +203,11 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
     REQUIRE(flush_ringbuffers() == 0);
   }
 
-  auto fetch_all = [&](auto& strat, const auto& key, const auto& expected) {
+  auto fetch_all = [&](
+                     auto& strat,
+                     const auto& key,
+                     const auto& expected,
+                     bool should_fail = false) {
     auto range_start = 0;
     auto range_end = request_range;
 
@@ -219,13 +223,25 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
         REQUIRE(flush_ringbuffers() > 0);
 
         results = strat->get_write_txs_in_range(key, range_start, range_end);
-        REQUIRE(results.has_value());
+
+        if (should_fail && !results.has_value())
+        {
+          // Ringbuffer flush was insufficient to fill the requested range.
+          // Likely a corrupted or missing file, which needs a full re-index to
+          // resolve
+          return;
+        }
+        else
+        {
+          REQUIRE(results.has_value());
+        }
       }
 
       REQUIRE(check_seqnos(expected, results, false));
 
       if (range_end == current_seqno)
       {
+        REQUIRE(!should_fail);
         break;
       }
       else
@@ -278,5 +294,34 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
     fetch_all(index_b, 1, seqnos_1);
     fetch_all(index_b, 2, seqnos_2);
+  }
+
+  {
+    INFO("Invalid disk cache leads to index being rebuilt");
+
+#ifndef PLAINTEXT_CACHE
+    {
+      INFO("Corrupted files");
+      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
+      {
+        LOG_FAIL_FMT("TODO");
+        break;
+      }
+    }
+#endif
+
+    {
+      INFO("Deleted files");
+      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
+      {
+        std::filesystem::remove(f);
+      }
+
+      fetch_all(index_a, "hello", seqnos_hello, true);
+
+      tick_until_caught_up();
+
+      fetch_all(index_a, "hello", seqnos_hello);
+    }
   }
 }

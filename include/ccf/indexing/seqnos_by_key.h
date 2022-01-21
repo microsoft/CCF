@@ -209,12 +209,6 @@ namespace ccf::indexing::strategies
     // How many of those buckets can be used for historical reconstruction?
     // What is the largest range of SeqNos which can be requested?
 
-    // TODO: Should store a single current bucket, and an LRU of fetching
-    // buckets, with a bounded size
-    // (Key + Bucket) -> SeqNos
-    // Then culling the overfull current bucket is explicit, and we don't need
-    // to fiddle with the LRU
-
     Range get_range_for(ccf::SeqNo seqno)
     {
       const auto begin = (seqno / RANGE_SIZE) * RANGE_SIZE;
@@ -328,7 +322,8 @@ namespace ccf::indexing::strategies
           // parse and store the result
           if (bucket_value.first != nullptr)
           {
-            switch (bucket_value.first->fetch_result)
+            const auto fetch_result = bucket_value.first->fetch_result;
+            switch (fetch_result)
             {
               case (caching::FetchResult::Fetching):
               {
@@ -342,17 +337,31 @@ namespace ccf::indexing::strategies
                 break;
               }
               case (caching::FetchResult::NotFound):
-              {
-                LOG_FAIL_FMT(
-                  "TODO case: NotFound ({})", bucket_value.first->key);
-                complete = false;
-                break;
-              }
               case (caching::FetchResult::Corrupt):
               {
-                LOG_FAIL_FMT(
-                  "TODO case: Corrupt ({})", bucket_value.first->key);
+                // This class previously wrote a bucket to disk which is no
+                // longer available or corrupted. Reset the watermark of what
+                // has been indexed, to re-index and rewrite those files.
                 complete = false;
+                const auto problem =
+                  fetch_result == caching::FetchResult::NotFound ? "missing" :
+                                                                   "corrupt";
+                LOG_FAIL_FMT(
+                  "A file that {} requires is {}. Re-indexing.",
+                  get_name(),
+                  problem);
+                LOG_DEBUG_FMT(
+                  "The {} file is {}", problem, bucket_value.first->key);
+
+                // TODO: Can be smarter about where we re-index from. Only need
+                // to re-index to satisfy the current query. But for safety,
+                // currently go all the way
+                // TODO: This doesn't reset what we ask for at all!
+                current_txid = {};
+                old_results.clear();
+                current_results.clear();
+
+                return std::nullopt;
                 break;
               }
             }
