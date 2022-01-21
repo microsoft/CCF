@@ -389,7 +389,6 @@ namespace ccf::indexing::strategies
                 // TODO: Can be smarter about where we re-index from. Only need
                 // to re-index to satisfy the current query. But for safety,
                 // currently go all the way
-                // TODO: This doesn't reset what we ask for at all!
                 current_txid = {};
                 old_results.clear();
                 current_results.clear();

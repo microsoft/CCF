@@ -285,9 +285,14 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
     REQUIRE(create_transactions(
       kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2));
 
-    auto current_seqno = kv_store.current_version();
+    current_ = kv_store.current_txid();
+    current = {current_.term, current_.version};
+    current_seqno = current.seqno;
 
     tick_until_caught_up();
+
+    REQUIRE(index_a->get_indexed_watermark() == current);
+    REQUIRE(index_b->get_indexed_watermark() == current);
 
     fetch_all(index_a, "hello", seqnos_hello);
     fetch_all(index_a, "saluton", seqnos_saluton);
@@ -319,9 +324,24 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
       fetch_all(index_a, "hello", seqnos_hello, true);
 
+      // index_a has seen a missing file and reset, but index_b hasn't (yet)
+      REQUIRE(index_a->get_indexed_watermark() != current);
+      REQUIRE(index_b->get_indexed_watermark() == current);
+
+      fetch_all(index_b, 1, seqnos_1, true);
+
+      // Now index_b has also seen a missing file
+      REQUIRE(index_b->get_indexed_watermark() != current);
+
       tick_until_caught_up();
+      REQUIRE(index_a->get_indexed_watermark() == current);
+      REQUIRE(index_b->get_indexed_watermark() == current);
 
       fetch_all(index_a, "hello", seqnos_hello);
+      fetch_all(index_a, "saluton", seqnos_saluton);
+
+      fetch_all(index_b, 1, seqnos_1);
+      fetch_all(index_b, 2, seqnos_2);
     }
   }
 }
