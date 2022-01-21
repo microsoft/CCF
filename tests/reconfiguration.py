@@ -376,7 +376,6 @@ def test_join_straddling_primary_replacement(network, args):
     primary, _ = network.find_primary()
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
     proposal_body = {
         "actions": [
             {
