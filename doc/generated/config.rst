@@ -11,9 +11,21 @@ Configuration Options
 ``network``
 ~~~~~~~~~~~
 
-- ``node_to_node_interface``: Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages).
+``node_to_node_interface``
+++++++++++++++++++++++++++
 
-- ``rpc_interfaces``: Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information.
+- ``bind_address``: Local address the node binds to and listens on.
+
+``rpc_interfaces``
+++++++++++++++++++
+
+- ``bind_address``: Local address the node binds to and listens on.
+
+- ``published_rpc_address``: The published RPC address advertised to clients. Default: ``"Value of 'bind_address'"``.
+
+- ``max_open_sessions_soft``: The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error. Default: ``1000``.
+
+- ``max_open_sessions_hard``: The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of 'max_open_sessions_soft'. Default: ``1010``.
 
 ``command``
 ~~~~~~~~~~~
