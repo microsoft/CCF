@@ -258,11 +258,16 @@ namespace ccf::indexing::strategies
     SeqnosByKey_BucketedCache(
       const std::string& map_name_, caching::EnclaveCache& enclave_cache_) :
       VisitEachEntryInMap(map_name_, "SeqnosByKey"),
-      old_results(3), // TODO: Decide how this is set
+      old_results(5), // TODO: Decide how this is set
       enclave_cache(enclave_cache_)
     {}
 
     virtual ~SeqnosByKey_BucketedCache() = default;
+
+    size_t max_requestable_range() const
+    {
+      return (old_results.get_max_size() * RANGE_SIZE) - 1;
+    }
 
     std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
       const kv::serialisers::SerialisedEntry& serialised_key,
@@ -273,9 +278,10 @@ namespace ccf::indexing::strategies
       auto from_range = get_range_for(from);
       const auto to_range = get_range_for(to);
 
+      // Check that once the entire requested range is fetched, it will fit
+      // into the LRU at the same time
+      if ((to - from) > max_requestable_range())
       {
-        // Check that once the entire requested range is fetched, it will fit
-        // into the LRU at the same time
         const auto num_buckets_required =
           1 + (to_range.first - from_range.first) / RANGE_SIZE;
         if (num_buckets_required > old_results.get_max_size())
@@ -336,9 +342,16 @@ namespace ccf::indexing::strategies
                 break;
               }
               case (caching::FetchResult::NotFound):
+              {
+                LOG_FAIL_FMT(
+                  "TODO case: NotFound ({})", bucket_value.first->key);
+                complete = false;
+                break;
+              }
               case (caching::FetchResult::Corrupt):
               {
-                LOG_FAIL_FMT("TODO case");
+                LOG_FAIL_FMT(
+                  "TODO case: Corrupt ({})", bucket_value.first->key);
                 complete = false;
                 break;
               }
@@ -413,6 +426,12 @@ namespace ccf::indexing::strategies
       ccf::SeqNo to,
       std::optional<size_t> max_seqnos = std::nullopt)
     {
+      if (to < from)
+      {
+        throw std::logic_error(
+          fmt::format("Range goes backwards: {} -> {}", from, to));
+      }
+
       if (to > Base::current_txid.seqno)
       {
         // If the requested range hasn't been populated yet, indicate

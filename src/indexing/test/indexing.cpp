@@ -23,8 +23,6 @@ auto valid_from =
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
-const std::chrono::milliseconds step_time(10);
-
 template <typename AA>
 void run_tests(
   const std::function<void()>& tick_until_caught_up,

@@ -151,8 +151,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
     std::make_shared<ringbuffer::Writer>(outbound_reader));
 
   auto flush_ringbuffers = [&]() {
-    host_bp.read_all(outbound_reader);
-    enclave_bp.read_all(inbound_reader);
+    return host_bp.read_all(outbound_reader) +
+      enclave_bp.read_all(inbound_reader);
   };
 
   using StratA = ccf::indexing::strategies::SeqnosByKeyAsync<decltype(map_a)>;
@@ -165,33 +165,84 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
   create_transactions(
     kv_store, seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2);
 
-  // auto tick_until_caught_up = [&]() {
-  //   while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
-  //          !fetcher->requested.empty())
-  //   {
-  //     // Do the fetch, simulating an asynchronous fetch by the historical
-  //     query
-  //     // system
-  //     for (auto seqno : fetcher->requested)
-  //     {
-  //       REQUIRE(consensus->replica.size() >= seqno);
-  //       const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
-  //       fetcher->fetched_stores[seqno] =
-  //         fetcher->deserialise_transaction(seqno, entry->data(),
-  //         entry->size());
-  //     }
-  //     fetcher->requested.clear();
-  //   }
-  // };
+  auto tick_until_caught_up = [&]() {
+    while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
+           !fetcher->requested.empty())
+    {
+      // Do the fetch, simulating an asynchronous fetch by the historical query
+      // system
+      for (auto seqno : fetcher->requested)
+      {
+        REQUIRE(consensus->replica.size() >= seqno);
+        const auto& entry = std::get<1>(consensus->replica[seqno - 1]);
+        fetcher->fetched_stores[seqno] =
+          fetcher->deserialise_transaction(seqno, entry->data(), entry->size());
+      }
+      fetcher->requested.clear();
 
-  // tick_until_caught_up();
+      flush_ringbuffers();
+    }
+  };
 
-  // {
-  //   INFO("Confirm that pre-existing strategy was populated already");
+  tick_until_caught_up();
+  REQUIRE(flush_ringbuffers() == 0);
 
-  //   check_seqnos(seqnos_hello, index_a->get_all_write_txs("hello"));
-  //   check_seqnos(seqnos_saluton, index_a->get_all_write_txs("saluton"));
-  // }
+  const auto current_seqno = kv_store.current_version();
+  const auto max_requestable = index_a->max_requestable_range();
+  const auto request_range = max_requestable / 3;
+
+  {
+    INFO("Requestable range is limited");
+
+    REQUIRE_THROWS(index_a->get_all_write_txs("hello"));
+    REQUIRE_THROWS(
+      index_a->get_write_txs_in_range("hello", 0, max_requestable + 1));
+    REQUIRE_THROWS(index_a->get_write_txs_in_range(
+      "hello", current_seqno - (max_requestable + 1), current_seqno));
+
+    REQUIRE(flush_ringbuffers() == 0);
+  }
+
+  auto fetch_all = [&](const auto& key, const auto& expected) {
+    auto range_start = 0;
+    auto range_end = request_range;
+
+    while (true)
+    {
+      LOG_INFO_FMT("Fetching {} from {} to {}", key, range_start, range_end);
+
+      auto results =
+        index_a->get_write_txs_in_range(key, range_start, range_end);
+
+      if (!results.has_value())
+      {
+        // This required an async load from disk
+        REQUIRE(flush_ringbuffers() > 0);
+
+        results = index_a->get_write_txs_in_range(key, range_start, range_end);
+        REQUIRE(results.has_value());
+      }
+
+      REQUIRE(check_seqnos(expected, results, false));
+
+      if (range_end == current_seqno)
+      {
+        break;
+      }
+      else
+      {
+        range_start = range_end + 1;
+        range_end = std::min(range_start + request_range, current_seqno);
+      }
+    }
+  };
+
+  {
+    INFO("Old entries must be fetched asynchronously");
+
+    fetch_all("hello", seqnos_hello);
+    fetch_all("saluton", seqnos_saluton);
+  }
 
   // INFO(
   //   "Indexes can be installed later, and will be populated after enough "

@@ -18,6 +18,8 @@ using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;
 static kv::Map<size_t, size_t> map_b("private_map_b");
 using IndexB = ccf::indexing::strategies::SeqnosByKey<decltype(map_b)>;
 
+static const std::chrono::milliseconds step_time(10);
+
 class TestTransactionFetcher : public ccf::indexing::TransactionFetcher
 {
 public:
