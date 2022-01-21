@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/seqnos_by_key.h"
 #include "indexing/indexer.h"
 #include "kv/test/stub_consensus.h"
 
@@ -10,13 +9,10 @@
 #include "kv/test/null_encryptor.h"
 
 using MapA = kv::Map<std::string, std::string>;
-using MapB = kv::Map<size_t, size_t>;
 static kv::Map<std::string, std::string> map_a("private_map_a");
-using IndexA = ccf::indexing::strategies::SeqnosByKey<decltype(map_a)>;
-using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;
 
+using MapB = kv::Map<size_t, size_t>;
 static kv::Map<size_t, size_t> map_b("private_map_b");
-using IndexB = ccf::indexing::strategies::SeqnosByKey<decltype(map_b)>;
 
 static const std::chrono::milliseconds step_time(10);
 

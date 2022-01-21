@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "indexing/caching/enclave_cache.h"
 #include "indexing/caching/host_cache.h"
 #include "indexing/test/common.h"
@@ -155,7 +156,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
       enclave_bp.read_all(inbound_reader);
   };
 
-  using StratA = ccf::indexing::strategies::SeqnosByKeyAsync<decltype(map_a)>;
+  using StratA =
+    ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
   auto index_a = std::make_shared<StratA>(map_a, ec);
   REQUIRE(indexer.install_strategy(index_a));
 
@@ -189,12 +191,13 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
   auto current_seqno = kv_store.current_version();
   const auto max_requestable = index_a->max_requestable_range();
+  REQUIRE(current_seqno > max_requestable);
   const auto request_range = max_requestable / 3;
 
   {
     INFO("Requestable range is limited");
 
-    REQUIRE_THROWS(index_a->get_all_write_txs("hello"));
+    REQUIRE_THROWS(index_a->get_write_txs_in_range("hello", 0, current_seqno));
     REQUIRE_THROWS(
       index_a->get_write_txs_in_range("hello", 0, max_requestable + 1));
     REQUIRE_THROWS(index_a->get_write_txs_in_range(
@@ -263,7 +266,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
     "Indexes can be installed later, and will be populated after enough "
     "ticks");
 
-  using StratB = ccf::indexing::strategies::SeqnosByKeyAsync<decltype(map_b)>;
+  using StratB =
+    ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_b)>;
   auto index_b = std::make_shared<StratB>(map_b, ec);
   REQUIRE(indexer.install_strategy(index_b));
 

@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "ds/test/stub_writer.h"
@@ -15,6 +16,11 @@
 // initialise here
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
+
+using IndexA = ccf::indexing::strategies::SeqnosByKey_InMemory<decltype(map_a)>;
+using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;
+
+using IndexB = ccf::indexing::strategies::SeqnosByKey_InMemory<decltype(map_b)>;
 
 constexpr size_t certificate_validity_period_days = 365;
 auto valid_from =

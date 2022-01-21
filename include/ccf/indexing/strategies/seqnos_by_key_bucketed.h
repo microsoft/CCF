@@ -2,120 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/strategy.h"
+#include "ccf/indexing/strategies/visit_each_entry_in_map.h"
 #include "ds/lru.h"
 #include "indexing/caching/enclave_cache.h"
-#include "indexing/indexing_types.h"
-
-#include <memory>
-#include <string>
 
 namespace ccf::indexing::strategies
 {
-  class VisitEachEntryInMap : public Strategy
-  {
-  protected:
-    std::string map_name;
-    ccf::TxID current_txid = {};
-
-    virtual void visit_entry(
-      const ccf::TxID& tx_id,
-      const kv::serialisers::SerialisedEntry& k,
-      const kv::serialisers::SerialisedEntry& v) = 0;
-
-  public:
-    VisitEachEntryInMap(
-      const std::string& map_name_,
-      const std::string& strategy_prefix = "VisitEachEntryIn") :
-      Strategy(fmt::format("{} {}", strategy_prefix, map_name_)),
-      map_name(map_name_)
-    {}
-
-    void handle_committed_transaction(
-      const ccf::TxID& tx_id, const StorePtr& store) override
-    {
-      // NB: Get an untyped view over the map with the same name. This saves
-      // deserialisation here, where we hand on the raw key and value.
-      auto tx = store->create_read_only_tx();
-      auto handle = tx.ro<kv::untyped::Map>(map_name);
-
-      handle->foreach([this, &tx_id](const auto& k, const auto& v) {
-        visit_entry(tx_id, k, v);
-        return true;
-      });
-      current_txid = tx_id;
-    }
-
-    std::optional<ccf::SeqNo> next_requested() override
-    {
-      return current_txid.seqno + 1;
-    }
-
-    ccf::TxID get_indexed_watermark() const
-    {
-      return current_txid;
-    }
-  };
-
-  // A simple Strategy which stores one large map in-memory
-  class SeqnosByKey_InMemory : public VisitEachEntryInMap
-  {
-  protected:
-    // Key is the raw value of a KV key.
-    // Value is every SeqNo which talks about that key.
-    std::unordered_map<kv::untyped::SerialisedEntry, SeqNoCollection>
-      seqnos_by_key;
-
-    void visit_entry(
-      const ccf::TxID& tx_id,
-      const kv::serialisers::SerialisedEntry& k,
-      const kv::serialisers::SerialisedEntry& v) override
-    {
-      seqnos_by_key[k].insert(tx_id.seqno);
-    }
-
-  public:
-    SeqnosByKey_InMemory(const std::string& map_name_) :
-      VisitEachEntryInMap(map_name_, "SeqnosByKey")
-    {}
-
-    std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
-      const kv::serialisers::SerialisedEntry& serialised_key,
-      ccf::SeqNo from,
-      ccf::SeqNo to,
-      std::optional<size_t> max_seqnos = std::nullopt)
-    {
-      const auto it = seqnos_by_key.find(serialised_key);
-      if (it != seqnos_by_key.end())
-      {
-        SeqNoCollection& seqnos = it->second;
-        auto from_it = seqnos.lower_bound(from);
-        auto to_it = from_it;
-
-        if (
-          max_seqnos.has_value() &&
-          std::distance(from_it, seqnos.end()) > *max_seqnos)
-        {
-          std::advance(to_it, *max_seqnos);
-        }
-        else
-        {
-          to_it = seqnos.upper_bound(to);
-        }
-
-        SeqNoCollection sub_range(from_it, to_it);
-        return sub_range;
-      }
-
-      // In this case we have seen every tx in the requested range, but have not
-      // seen the target key at all
-      return SeqNoCollection();
-    }
-  };
-
   // Stores only a subset of results in-memory, on-demand, and dumps the
-  // remainder to disk
-  class SeqnosByKey_BucketedCache : public VisitEachEntryInMap
+  // remainder to disk. The size of the per-key buckets which will be retained,
+  // and the number of buckets which may be held in-memory, are configurable
+  template <typename M>
+  class SeqnosByKey_Bucketed : public VisitEachEntryInMap
   {
   protected:
     // Inclusive begin, exclusive end
@@ -225,7 +122,7 @@ namespace ccf::indexing::strategies
     // TODO: Templates? Construction parameters?
     // How many seqnos are bucketed together into a single partial
     // result, to be offloaded together?
-    static constexpr auto RANGE_SIZE = 10;
+    static constexpr auto RANGE_SIZE = 100;
     // TODO: Other parameters
     // How many buckets are kept in memory at once?
     // How many of those buckets can be used for historical reconstruction?
@@ -270,22 +167,7 @@ namespace ccf::indexing::strategies
       current_seqnos.insert(tx_id.seqno);
     }
 
-  public:
-    SeqnosByKey_BucketedCache(
-      const std::string& map_name_, caching::EnclaveCache& enclave_cache_) :
-      VisitEachEntryInMap(map_name_, "SeqnosByKey"),
-      old_results(5), // TODO: Decide how this is set
-      enclave_cache(enclave_cache_)
-    {}
-
-    virtual ~SeqnosByKey_BucketedCache() = default;
-
-    size_t max_requestable_range() const
-    {
-      return (old_results.get_max_size() * RANGE_SIZE) - 1;
-    }
-
-    std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
+    std::optional<std::set<ccf::SeqNo>> get_write_txs_impl(
       const kv::serialisers::SerialisedEntry& serialised_key,
       ccf::SeqNo from,
       ccf::SeqNo to,
@@ -458,18 +340,25 @@ namespace ccf::indexing::strategies
 
       return std::nullopt;
     }
-  };
 
-  template <typename M, typename Base>
-  class SeqnosByKey_Access : public Base
-  {
   public:
-    using Base::Base;
-
-    template <typename... Ts>
-    SeqnosByKey_Access(const M& map, Ts&&... ts) :
-      Base(map.get_name(), std::forward<Ts>(ts)...)
+    SeqnosByKey_Bucketed(
+      const std::string& map_name_, caching::EnclaveCache& enclave_cache_) :
+      VisitEachEntryInMap(map_name_, "SeqnosByKey"),
+      old_results(10), // TODO: Decide how this is set
+      enclave_cache(enclave_cache_)
     {}
+
+    SeqnosByKey_Bucketed(const M& map, caching::EnclaveCache& enclave_cache_) :
+      SeqnosByKey_Bucketed(map.get_name(), enclave_cache_)
+    {}
+
+    virtual ~SeqnosByKey_Bucketed() = default;
+
+    size_t max_requestable_range() const
+    {
+      return (old_results.get_max_size() * RANGE_SIZE) - 1;
+    }
 
     std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
       const typename M::Key& key,
@@ -483,28 +372,15 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
-      if (to > Base::current_txid.seqno)
+      if (to > current_txid.seqno)
       {
         // If the requested range hasn't been populated yet, indicate
         // that with nullopt
         return std::nullopt;
       }
 
-      return Base::get_write_txs_in_range(
+      return get_write_txs_impl(
         M::KeySerialiser::to_serialised(key), from, to, max_seqnos);
     }
-
-    std::optional<std::set<ccf::SeqNo>> get_all_write_txs(
-      const typename M::Key& key)
-    {
-      return get_write_txs_in_range(key, 0, Base::current_txid.seqno);
-    }
   };
-
-  template <typename M>
-  using SeqnosByKey = SeqnosByKey_Access<M, SeqnosByKey_InMemory>;
-
-  // TODO: This shouldn't really have a get_all_write_txs method
-  template <typename M>
-  using SeqnosByKeyAsync = SeqnosByKey_Access<M, SeqnosByKey_BucketedCache>;
 }
