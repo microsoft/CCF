@@ -15,6 +15,8 @@ namespace ccf::indexing::strategies
   class SeqnosByKey_Bucketed : public VisitEachEntryInMap
   {
   protected:
+    const size_t seqnos_per_bucket = 100;
+
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
 
@@ -31,7 +33,7 @@ namespace ccf::indexing::strategies
     // fetched from disk
     using BucketKey = std::pair<kv::untyped::SerialisedEntry, Range>;
     // First element is a handle while result is being fetched. Second is parsed
-    // result, after fetch, at which point the first is set to nullptr
+    // result, after fetch completes, at which point the first is set to nullptr
     using BucketValue = std::pair<caching::FetchResultPtr, SeqNos>;
     LRU<BucketKey, BucketValue> old_results;
 
@@ -63,8 +65,6 @@ namespace ccf::indexing::strategies
       return blob;
     }
 
-    // TODO: Do all of this in a try-catch, and handle it being unserialisable
-    // as though it were corrupt?
     SeqNos deserialise(const caching::BlobContents& raw, bool& corrupt)
     {
       corrupt = false;
@@ -119,19 +119,10 @@ namespace ccf::indexing::strategies
       enclave_cache.store(blob_key, serialise(std::move(seqnos)));
     }
 
-    // TODO: Templates? Construction parameters?
-    // How many seqnos are bucketed together into a single partial
-    // result, to be offloaded together?
-    static constexpr auto RANGE_SIZE = 100;
-    // TODO: Other parameters
-    // How many buckets are kept in memory at once?
-    // How many of those buckets can be used for historical reconstruction?
-    // What is the largest range of SeqNos which can be requested?
-
-    Range get_range_for(ccf::SeqNo seqno)
+    Range get_range_for(ccf::SeqNo seqno) const
     {
-      const auto begin = (seqno / RANGE_SIZE) * RANGE_SIZE;
-      const auto end = begin + RANGE_SIZE;
+      const auto begin = (seqno / seqnos_per_bucket) * seqnos_per_bucket;
+      const auto end = begin + seqnos_per_bucket;
       return {begin, end};
     }
 
@@ -181,7 +172,7 @@ namespace ccf::indexing::strategies
       if ((to - from) > max_requestable_range())
       {
         const auto num_buckets_required =
-          1 + (to_range.first - from_range.first) / RANGE_SIZE;
+          1 + (to_range.first - from_range.first) / seqnos_per_bucket;
         if (num_buckets_required > old_results.get_max_size())
         {
           throw std::logic_error(fmt::format(
@@ -328,8 +319,8 @@ namespace ccf::indexing::strategies
         }
         else
         {
-          from_range.first += RANGE_SIZE;
-          from_range.second += RANGE_SIZE;
+          from_range.first += seqnos_per_bucket;
+          from_range.second += seqnos_per_bucket;
         }
       }
 
@@ -343,21 +334,26 @@ namespace ccf::indexing::strategies
 
   public:
     SeqnosByKey_Bucketed(
-      const std::string& map_name_, caching::EnclaveCache& enclave_cache_) :
+      const std::string& map_name_,
+      caching::EnclaveCache& enclave_cache_,
+      size_t seqnos_per_bucket_ = 100, // TODO: Default should be higher?
+      size_t max_buckets_ = 10) :
       VisitEachEntryInMap(map_name_, "SeqnosByKey"),
-      old_results(10), // TODO: Decide how this is set
+      seqnos_per_bucket(seqnos_per_bucket_),
+      old_results(max_buckets_),
       enclave_cache(enclave_cache_)
     {}
 
-    SeqnosByKey_Bucketed(const M& map, caching::EnclaveCache& enclave_cache_) :
-      SeqnosByKey_Bucketed(map.get_name(), enclave_cache_)
+    template <typename... Ts>
+    SeqnosByKey_Bucketed(const M& map, Ts&&... ts) :
+      SeqnosByKey_Bucketed(map.get_name(), std::forward<Ts>(ts)...)
     {}
 
     virtual ~SeqnosByKey_Bucketed() = default;
 
     size_t max_requestable_range() const
     {
-      return (old_results.get_max_size() * RANGE_SIZE) - 1;
+      return (old_results.get_max_size() * seqnos_per_bucket) - 1;
     }
 
     std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
