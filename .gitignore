@@ -21,7 +21,7 @@ tests/env/
 sphinx/env/
 html/
 latex/
-env/
+*env/
 *.egg-info
 **/dist
 node_modules

@@ -49,7 +49,7 @@ configure_file(
 configure_file(
   ${CCF_DIR}/python/version.py.in ${CCF_DIR}/python/version.py @ONLY
 )
-file(READ ${CCF_DIR}/doc/schemas/cchost_config.json HOST_CONFIG_SCHEMA_IN NEWLINE_CONSUME)
+file(READ ${CCF_DIR}/doc/schemas/cchost_config.json HOST_CONFIG_SCHEMA_IN)
 string(REPLACE "\"" "\\\"" HOST_CONFIG_SCHEMA_IN2 ${HOST_CONFIG_SCHEMA_IN})
 string(REPLACE "\n" "" HOST_CONFIG_SCHEMA ${HOST_CONFIG_SCHEMA_IN2})
 configure_file(

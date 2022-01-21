@@ -13,7 +13,7 @@ fi
 source env/bin/activate
 pip install -U pip
 pip install -q -U -e ./python/
-pip install -q -U -r ./doc/requirements.txt
+pip install -U -r ./doc/requirements.txt
 echo "Python environment successfully setup"
 
 sphinx-autobuild -b html doc doc/html --host localhost --port 8080

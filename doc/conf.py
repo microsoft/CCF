@@ -61,7 +61,6 @@ extensions = [
     "sphinxcontrib.openapi",
     "sphinx_panels",
     "sphinx.ext.extlinks",
-    "sphinx-jsonschema",
 ]
 
 autosectionlabel_prefix_document = True

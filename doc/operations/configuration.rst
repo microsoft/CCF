@@ -3,13 +3,8 @@ Configuration
 
 The configuration for each CCF node must be contained in a single JSON configuration file specified to the ``cchost`` executable via the ``--config /path/to/config/file`` argument.
 
-.. jsonschema:: ../schemas/cchost_config.json#/properties/enclave
-    :lift_description:
-    :lift_definitions:
 
-.. jsonschema:: ../schemas/cchost_config.json#/properties/network
-    :lift_description:
-    :lift_definitions:
+.. include:: ../generated/config.rst
 
 .. tip::
 
