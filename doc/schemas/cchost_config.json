@@ -340,23 +340,25 @@
       },
       "output_files": {
         "type": "object",
-        "node_certificate_file": {
-          "type": "string",
-          "default": "nodecert.pem",
-          "description": "Path to self-signed node certificate output by node on startup"
-        },
-        "pid_file": {
-          "type": "string",
-          "default": "cchost.pid",
-          "description": "Path to file in which 'cchost' process identifier (PID) will be written to on startup"
-        },
-        "node_to_node_address_file": {
-          "type": "string",
-          "description": "Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
-        },
-        "rpc_addresses_file": {
-          "type": "string",
-          "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
+        "properties": {
+          "node_certificate_file": {
+            "type": "string",
+            "default": "nodecert.pem",
+            "description": "Path to self-signed node certificate output by node on startup"
+          },
+          "pid_file": {
+            "type": "string",
+            "default": "cchost.pid",
+            "description": "Path to file in which 'cchost' process identifier (PID) will be written to on startup"
+          },
+          "node_to_node_address_file": {
+            "type": "string",
+            "description": "Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
+          },
+          "rpc_addresses_file": {
+            "type": "string",
+            "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
+          }
         }
       },
       "tick_interval": {
@@ -385,20 +387,22 @@
       },
       "memory": {
         "type": "object",
-        "circuit_size": {
-          "type": "string",
-          "default": "4MB",
-          "description": "Size (size string) of the internal host-enclave ringbuffers, as a power of 2"
-        },
-        "max_msg_size": {
-          "type": "string",
-          "default": "16MB",
-          "description": "Maximum size (size string) for a message sent over the ringbuffer, as a power of 2. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments"
-        },
-        "max_fragment_size": {
-          "type": "string",
-          "default": "64KB",
-          "description": "Maximum size (size string) of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments"
+        "properties": {
+          "circuit_size": {
+            "type": "string",
+            "default": "4MB",
+            "description": "Size (size string) of the internal host-enclave ringbuffers, as a power of 2"
+          },
+          "max_msg_size": {
+            "type": "string",
+            "default": "16MB",
+            "description": "Maximum size (size string) for a message sent over the ringbuffer, as a power of 2. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments"
+          },
+          "max_fragment_size": {
+            "type": "string",
+            "default": "64KB",
+            "description": "Maximum size (size string) of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments"
+          }
         }
       }
     },
