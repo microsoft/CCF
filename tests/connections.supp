@@ -1,0 +1,11 @@
+#############################################################################
+
+# Sanitizer runtime suppressions. The undefined behavior sanitizer (specifically
+# the vptr check) produces spurious reports when we run out of file descriptors.
+
+vptr:snapshots.h
+vptr:locale
+vptr:streambuf
+vptr:ostream
+
+#############################################################################

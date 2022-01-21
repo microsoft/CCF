@@ -260,7 +260,6 @@ namespace asynchost
       }
       catch (std::exception& e)
       {
-        // I saw this one trigger a similar UBSAN problem two times.
         LOG_FAIL_FMT(
           "Exception while attempting to commit snapshot at {}: {}",
           snapshot_idx,
