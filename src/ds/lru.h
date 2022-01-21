@@ -59,6 +59,11 @@ public:
     cull();
   }
 
+  size_t get_max_size() const
+  {
+    return max_size;
+  }
+
   Iterator begin()
   {
     return entries_list.begin();
