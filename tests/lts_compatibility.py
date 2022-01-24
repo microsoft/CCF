@@ -15,6 +15,7 @@ import json
 import time
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
+from reconfiguration import test_migration_2tx_reconfiguration
 
 
 from loguru import logger as LOG
@@ -121,6 +122,15 @@ def test_new_service(
             primary,
             node.node_id,
             node_status=ccf.ledger.NodeStatus.TRUSTED if node.is_joined() else None,
+        )
+
+    if args.check_2tx_reconfig_migration:
+        test_migration_2tx_reconfiguration(
+            network,
+            args,
+            binary_dir=binary_dir,
+            library_dir=library_dir,
+            version=version,
         )
 
     LOG.info("Apply transactions to new nodes only")
@@ -500,6 +510,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument("--check-ledger-compatibility", action="store_true")
+        parser.add_argument("--check-2tx-reconfig-migration", action="store_true")
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
         )
