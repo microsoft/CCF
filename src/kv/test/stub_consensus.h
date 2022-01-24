@@ -206,13 +206,10 @@ namespace kv::test
       const std::unordered_set<NodeId>& retired_nodes = {}) override
     {}
 
-    void reconfigure(
-      ccf::SeqNo seqno, const NetworkConfiguration& config) override
-    {}
-
-    virtual bool orc(kv::ReconfigurationId rid, const NodeId& node_id) override
+    virtual std::optional<kv::Configuration::Nodes> orc(
+      kv::ReconfigurationId rid, const NodeId& node_id) override
     {
-      return false;
+      return std::nullopt;
     }
 
     void record_signature(

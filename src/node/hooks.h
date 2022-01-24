@@ -29,6 +29,12 @@ namespace ccf
     {
       for (const auto& [node_id, opt_ni] : w)
       {
+        if (!opt_ni.has_value())
+        {
+          // Deleted node will have already been retired
+          continue;
+        }
+
         const auto& ni = opt_ni.value();
         const auto [host, port] =
           split_net_address(ni.node_to_node_interface.bind_address);
@@ -87,39 +93,6 @@ namespace ccf
       {
         consensus->add_configuration(
           version, configuration, learners, retired_nodes);
-      }
-    }
-  };
-
-  class NetworkConfigurationsHook : public kv::ConsensusHook
-  {
-    kv::Version version;
-    std::set<kv::NetworkConfiguration> configs;
-
-  public:
-    NetworkConfigurationsHook(
-      kv::Version version_, const NetworkConfigurations::Write& w) :
-      version(version_)
-    {
-      for (const auto& [rid, opt_nc] : w)
-      {
-        if (rid != CONFIG_COUNT_KEY && opt_nc.has_value())
-        {
-          configs.insert(opt_nc.value());
-        }
-      }
-    }
-
-    void call(kv::ConfigurableConsensus* consensus) override
-    {
-      // This hook is always executed after the hook for the nodes table above,
-      // because the hooks are sorted by table name.
-      assert(
-        std::string(Tables::NODES) < std::string(Tables::NODES_CONFIGURATIONS));
-
-      for (const auto& nc : configs)
-      {
-        consensus->reconfigure(version, nc);
       }
     }
   };
