@@ -759,12 +759,12 @@ if __name__ == "__main__":
             reconfiguration_type="TwoTransaction",
         )
 
-    cr.add(
-        "migration",
-        run_migration_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="OneTransaction",
-    )
+        cr.add(
+            "migration",
+            run_migration_tests,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="OneTransaction",
+        )
 
     cr.run()
