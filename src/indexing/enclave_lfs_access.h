@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/lfs_access.h"
+#include "ccf/indexing/lfs_interface.h"
 #include "crypto/entropy.h"
 #include "crypto/hash.h"
 #include "crypto/symmetric_key.h"

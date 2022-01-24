@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "indexing/lfs/enclave_lfs_access.h"
-#include "indexing/lfs/lfs_file_handler.h"
+#include "host/lfs_file_handler.h"
+#include "indexing/enclave_lfs_access.h"
 #include "indexing/test/common.h"
 
 #include <doctest/doctest.h>
@@ -44,9 +44,9 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
   auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
   ringbuffer::Reader outbound_reader(outbound_buffer->bd);
 
-  ccf::indexing::LFSFileHandler host_files(
-    host_bp.get_dispatcher(),
+  asynchost::LFSFileHandler host_files(
     std::make_shared<ringbuffer::Writer>(inbound_reader));
+  host_files.register_message_handlers(host_bp.get_dispatcher());
 
   ccf::indexing::EnclaveLFSAccess enclave_lfs(
     enclave_bp.get_dispatcher(),
@@ -145,9 +145,10 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
 
   ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-  ccf::indexing::LFSFileHandler host_files(
-    host_bp.get_dispatcher(),
+  asynchost::LFSFileHandler host_files(
     std::make_shared<ringbuffer::Writer>(inbound_reader));
+  host_files.register_message_handlers(host_bp.get_dispatcher());
+
   ccf::indexing::EnclaveLFSAccess enclave_lfs(
     enclave_bp.get_dispatcher(),
     std::make_shared<ringbuffer::Writer>(outbound_reader));

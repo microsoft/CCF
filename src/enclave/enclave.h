@@ -7,6 +7,7 @@
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/historical_transaction_fetcher.h"
+#include "indexing/enclave_lfs_access.h"
 #include "interface.h"
 #include "js/wrap.h"
 #include "node/entities.h"
@@ -42,12 +43,16 @@ namespace enclave
 
     StartType start_type;
 
+    // TODO: Call register_message_handlers instead
+    messaging::BufferProcessor bp;
+
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
       std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
         nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
       std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
+      std::unique_ptr<ccf::indexing::AbstractLFSAccess> lfs_access = nullptr;
 
       NodeContext() {}
 
@@ -81,6 +86,17 @@ namespace enclave
         }
         return *indexer;
       }
+
+      ccf::indexing::AbstractLFSAccess& get_lfs_access() override
+      {
+        if (lfs_access == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_lfs_access before NodeContext is "
+            "initialized");
+        }
+        return *lfs_access;
+      }
     };
 
     std::unique_ptr<NodeContext> context = nullptr;
@@ -101,7 +117,8 @@ namespace enclave
       network(consensus_config.type),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
-      rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
+      rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map)),
+      bp("Enclave")
     {
       ccf::initialize_oe();
 
@@ -139,6 +156,8 @@ namespace enclave
       context->indexer = std::make_shared<ccf::indexing::Indexer>(
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
           context->historical_state_cache));
+      context->lfs_access = std::make_unique<ccf::indexing::EnclaveLFSAccess>(
+        bp.get_dispatcher(), writer_factory->create_writer_to_outside());
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -247,13 +266,11 @@ namespace enclave
       try
 #endif
       {
-        messaging::BufferProcessor bp("Enclave");
-
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
+          bp, AdminMessage::stop, [&bp = this->bp](const uint8_t*, size_t) {
             bp.set_finished();
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
@@ -261,11 +278,11 @@ namespace enclave
         last_tick_time = enclave::get_enclave_time();
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::tick, [this, &bp](const uint8_t*, size_t) {
-            const auto message_counts =
-              bp.get_dispatcher().retrieve_message_counts();
-            const auto j =
-              bp.get_dispatcher().convert_message_counts(message_counts);
+          bp,
+          AdminMessage::tick,
+          [this, &disp = this->bp.get_dispatcher()](const uint8_t*, size_t) {
+            const auto message_counts = disp.retrieve_message_counts();
+            const auto j = disp.convert_message_counts(message_counts);
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::work_stats, to_host, j.dump());
 

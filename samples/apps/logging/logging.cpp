@@ -163,7 +163,7 @@ namespace loggingapp
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
       index_per_private_key = std::make_shared<RecordsIndexingStrategy>(
-        PRIVATE_RECORDS, context.get_scratch_files());
+        PRIVATE_RECORDS, context.get_lfs_access(), 1000, 20);
       context.get_indexing_strategies().install_strategy(index_per_private_key);
 
       const ccf::AuthnPolicies auth_policies = {

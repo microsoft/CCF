@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/lfs_access.h"
+#include "ccf/indexing/lfs_interface.h"
 #include "ccf/indexing/strategies/visit_each_entry_in_map.h"
 #include "ds/lru.h"
 
@@ -73,7 +73,7 @@ namespace ccf::indexing::strategies
         const auto seqno_count = serialized::read<size_t>(data, size);
         SeqNoCollection seqnos;
 
-        for (auto j = 0; j < seqno_count; ++j)
+        for (auto j = 0u; j < seqno_count; ++j)
         {
           seqnos.insert(serialized::read<ccf::SeqNo>(data, size));
         }
