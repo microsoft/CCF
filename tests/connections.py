@@ -15,6 +15,7 @@ import random
 import http
 import functools
 import httpx
+import os
 
 from loguru import logger as LOG
 
@@ -61,6 +62,11 @@ def run(args):
 
     # Chunk often, so that new fds are regularly requested
     args.ledger_chunk_bytes = "500B"
+
+    supp_file = os.path.join(
+        os.path.abspath(os.path.dirname(__file__)), "connections.supp"
+    )
+    args.ubsan_options = "suppressions=" + str(supp_file)
 
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
