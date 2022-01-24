@@ -21,8 +21,6 @@ The configuration for each CCF node must be contained in a single JSON configura
 
 .. include:: ../generated/config.rst
 
-.. warning:: The following configuration options have sensible default values and should be modified with care.
-
 
 .. rubric:: Footnotes
 

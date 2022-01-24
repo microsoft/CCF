@@ -4,7 +4,7 @@ Configuration Options
 ``enclave``
 -----------
 
-This section includes configuration for the enclave application launched by this node.
+**Required.** This section includes configuration for the enclave application launched by this node.
 
 - ``file``: Path to enclave application.
 
@@ -13,19 +13,19 @@ This section includes configuration for the enclave application launched by this
 ``network``
 -----------
 
-This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications).
+**Required.** This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications).
 
 ``node_to_node_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages).
+**Required.** Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages).
 
 - ``bind_address``: Local address the node binds to and listens on.
 
 ``rpc_interfaces``
 ~~~~~~~~~~~~~~~~~~
 
-Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information.
+**Required.** Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information.
 
 - ``bind_address``: Local address the node binds to and listens on.
 
@@ -38,7 +38,7 @@ Interfaces to listen on for incoming client TLS connections, as a dictionnary fr
 ``command``
 -----------
 
-This section includes configuration of how the node should start (either start, join or recover) and associated information.
+**Required.** This section includes configuration of how the node should start (either start, join or recover) and associated information.
 
 - ``type``: Type of CCF node (values: ``"start"``, ``"join"``, ``"recover"``). Default: ``"start"``.
 
@@ -56,7 +56,7 @@ Note: Only if ``type`` is ``"start"``.
 ``members``
 +++++++++++
 
-List of initial consortium members files, including identity certificates, public encryption keys and member data files.
+**Required.** List of initial consortium members files, including identity certificates, public encryption keys and member data files.
 
 - ``certificate_file``: Path to member x509 identity certificate (PEM).
 
