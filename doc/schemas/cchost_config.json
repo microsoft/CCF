@@ -286,7 +286,7 @@
             "type": "string",
             "enum": ["info", "fail", "fatal"],
             "default": "info",
-            "description": "Logging level for the untrusted host"
+            "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity."
           },
           "format": {
             "type": "string",
@@ -333,7 +333,7 @@
             "description": "Maximum duration after which a signature transaction is automatically generated"
           }
         },
-        "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service)"
+        "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput."
       },
       "jwt": {
         "type": "object",
@@ -373,7 +373,7 @@
       "tick_interval": {
         "type": "string",
         "default": "10ms",
-        "description": "Interval at which the enclave time will be updated by the host"
+        "description": "Interval at which the enclave time will be updated by the host (modify with care)"
       },
       "slow_io_logging_threshold": {
         "type": "string",
@@ -392,7 +392,7 @@
       "worker_threads": {
         "type": "integer",
         "default": "0",
-        "description": "Experimental. Number of additional threads processing incoming client requests in the enclave"
+        "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care)"
       },
       "memory": {
         "type": "object",
@@ -413,7 +413,7 @@
             "description": "Maximum size (size string) of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments"
           }
         },
-        "description": "This section includes configuration for the host-enclave ring-buffer memory"
+        "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care)"
       }
     },
     "required": [

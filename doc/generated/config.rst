@@ -127,7 +127,7 @@ This section includes configuration for the snapshot directory and files.
 
 This section includes configuration for the logging of the node process.
 
-- ``host_level``: Logging level for the untrusted host (values: ``"info"``, ``"fail"``, ``"fatal"``). Default: ``"info"``.
+- ``host_level``: Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity. (values: ``"info"``, ``"fail"``, ``"fatal"``). Default: ``"info"``.
 
 - ``format``: If 'json', node logs will be formatted as JSON (values: ``"text"``, ``"json"``). Default: ``"text"``.
 
@@ -145,7 +145,7 @@ This section includes configuration for the consensus protocol (note: should be 
 ``ledger_signatures``
 ---------------------
 
-This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service).
+This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput..
 
 - ``tx_count``: Number of transactions after which a signature transaction is automatically generated. Default: ``5000``.
 
@@ -174,7 +174,7 @@ This section includes configuration for additional files output by the node.
 ``tick_interval``
 -----------------
 
-Interval at which the enclave time will be updated by the host. Default: ``"10ms"``.
+Interval at which the enclave time will be updated by the host (modify with care). Default: ``"10ms"``.
 
 ``slow_io_logging_threshold``
 -----------------------------
@@ -194,12 +194,12 @@ Maximum duration after which unestablished client connections will be marked as 
 ``worker_threads``
 ------------------
 
-Experimental. Number of additional threads processing incoming client requests in the enclave. Default: ``0``.
+Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care). Default: ``0``.
 
 ``memory``
 ----------
 
-This section includes configuration for the host-enclave ring-buffer memory.
+This section includes configuration for the host-enclave ring-buffer memory (modify with care).
 
 - ``circuit_size``: Size (size string) of the internal host-enclave ringbuffers, as a power of 2. Default: ``"4MB"``.
 
