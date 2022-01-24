@@ -1192,10 +1192,16 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto jwt_metrics = [this](auto& args, nlohmann::json&&) {
+      auto jwt_metrics = [this](auto&, nlohmann::json&&) {
         JWTMetrics m;
+        // Attempts are recorded by the key refresh code itself, registering
+        // before each call to each issuer's keys
         m.attempts = context.get_node_state().get_jwt_attempts();
-        m.successes = 42;
+        // Success is marked by the fact that the key succeeded and called
+        // our internal "jwt_keys/refresh" endpoint.
+        auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
+        auto metric = get_metrics_for_endpoint(e);
+        m.successes = metric.calls;
         return m;
       };
 
