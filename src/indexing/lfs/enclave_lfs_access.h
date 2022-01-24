@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/indexing/lfs_access.h"
 #include "crypto/entropy.h"
 #include "crypto/hash.h"
 #include "crypto/symmetric_key.h"
 #include "ds/hex.h"
 #include "ds/messaging.h"
-#include "message_types.h"
 
 #include <optional>
 #include <set>
@@ -17,38 +17,19 @@
 // directly unencrypted to host disk
 // #define PLAINTEXT_CACHE
 
-namespace ccf::indexing::caching
+namespace ccf::indexing
 {
-  using BlobContents = std::vector<uint8_t>;
-
-  struct FetchResult
-  {
-    enum
-    {
-      Fetching,
-      Loaded,
-      NotFound,
-      Corrupt,
-    } fetch_result;
-
-    BlobKey key;
-
-    std::vector<uint8_t> contents;
-  };
-
-  using FetchResultPtr = std::shared_ptr<FetchResult>;
-
-  static inline std::vector<uint8_t> get_iv(const BlobKey& key)
+  static inline std::vector<uint8_t> get_iv(const LFSKey& key)
   {
     auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
     h.resize(crypto::GCM_SIZE_IV);
     return h;
   }
 
-  static inline EncryptedBlob encrypt(
+  static inline LFSEncryptedContents encrypt(
     crypto::KeyAesGcm& encryption_key,
-    const BlobKey& key,
-    BlobContents&& contents)
+    const LFSKey& key,
+    LFSContents&& contents)
   {
     crypto::GcmCipher gcm(contents.size());
     auto iv = get_iv(key);
@@ -66,8 +47,8 @@ namespace ccf::indexing::caching
 
   static inline bool verify_and_decrypt(
     crypto::KeyAesGcm& encryption_key,
-    const BlobKey& key,
-    EncryptedBlob&& encrypted,
+    const LFSKey& key,
+    LFSEncryptedContents&& encrypted,
     std::vector<uint8_t>& plaintext)
   {
     crypto::GcmCipher gcm;
@@ -107,22 +88,12 @@ namespace ccf::indexing::caching
     }
   }
 
-  static inline BlobKey obfuscate_key(const BlobKey& key)
-  {
-#ifdef PLAINTEXT_CACHE
-    return key;
-#else
-    const auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
-    return ds::to_hex(h);
-#endif
-  }
-
-  class EnclaveCache
+  class EnclaveLFSAccess : public AbstractLFSAccess
   {
   protected:
     using PendingResult = std::weak_ptr<FetchResult>;
 
-    std::unordered_map<BlobKey, PendingResult> pending;
+    std::unordered_map<LFSKey, PendingResult> pending;
 
     ringbuffer::WriterPtr to_host;
 
@@ -130,23 +101,21 @@ namespace ccf::indexing::caching
     std::unique_ptr<crypto::KeyAesGcm> encryption_key;
 
   public:
-    EnclaveCache(
+    EnclaveLFSAccess(
       messaging::Dispatcher<ringbuffer::Message>& dispatcher,
       const ringbuffer::WriterPtr& writer) :
       to_host(writer),
       entropy_src(crypto::create_entropy())
     {
       // Generate a fresh random key. Only this specific instance, in this
-      // enclave, can read these blobs!
+      // enclave, can read these files!
       encryption_key =
         crypto::make_key_aes_gcm(entropy_src->random(crypto::GCM_SIZE_KEY));
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        dispatcher,
-        BlobMsg::response,
-        [this](const uint8_t* data, size_t size) {
-          auto [obfuscated, encrypted_blob] =
-            ringbuffer::read_message<BlobMsg::response>(data, size);
+        dispatcher, LFSMsg::response, [this](const uint8_t* data, size_t size) {
+          auto [obfuscated, encrypted] =
+            ringbuffer::read_message<LFSMsg::response>(data, size);
           auto it = pending.find(obfuscated);
           if (it != pending.end())
           {
@@ -158,7 +127,7 @@ namespace ccf::indexing::caching
                 const auto success = verify_and_decrypt(
                   *encryption_key,
                   obfuscated,
-                  std::move(encrypted_blob),
+                  std::move(encrypted),
                   result->contents);
                 if (success)
                 {
@@ -168,7 +137,7 @@ namespace ccf::indexing::caching
                 {
                   result->fetch_result = FetchResult::Corrupt;
                   LOG_TRACE_FMT(
-                    "Cache was given invalid blob for {} (aka {})",
+                    "Cache was given invalid contents for {} (aka {})",
                     obfuscated,
                     result->key);
                 }
@@ -200,10 +169,10 @@ namespace ccf::indexing::caching
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         dispatcher,
-        BlobMsg::not_found,
+        LFSMsg::not_found,
         [this](const uint8_t* data, size_t size) {
           auto [obfuscated] =
-            ringbuffer::read_message<BlobMsg::not_found>(data, size);
+            ringbuffer::read_message<LFSMsg::not_found>(data, size);
           auto it = pending.find(obfuscated);
           if (it != pending.end())
           {
@@ -213,7 +182,7 @@ namespace ccf::indexing::caching
               if (result->fetch_result == FetchResult::Fetching)
               {
                 LOG_TRACE_FMT(
-                  "Host has no blob for key {} (aka {})",
+                  "Host has no contents for key {} (aka {})",
                   obfuscated,
                   result->key);
                 result->fetch_result = FetchResult::NotFound;
@@ -244,11 +213,21 @@ namespace ccf::indexing::caching
         });
     }
 
-    void store(const BlobKey& key, BlobContents&& contents)
+    static inline LFSKey obfuscate_key(const LFSKey& key)
+    {
+#ifdef PLAINTEXT_CACHE
+      return key;
+#else
+      const auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
+      return ds::to_hex(h);
+#endif
+    }
+
+    void store(const LFSKey& key, LFSContents&& contents) override
     {
       const auto obfuscated = obfuscate_key(key);
       RINGBUFFER_WRITE_MESSAGE(
-        BlobMsg::store,
+        LFSMsg::store,
         to_host,
         // To avoid leaking potentially confidential information to the host,
         // all cached data is encrypted and stored at an obfuscated key
@@ -256,7 +235,7 @@ namespace ccf::indexing::caching
         encrypt(*encryption_key, obfuscated, std::move(contents)));
     }
 
-    FetchResultPtr fetch(const BlobKey& key)
+    FetchResultPtr fetch(const LFSKey& key) override
     {
       const auto obfuscated = obfuscate_key(key);
       auto it = pending.find(obfuscated);
@@ -294,7 +273,7 @@ namespace ccf::indexing::caching
 
       result->fetch_result = FetchResult::Fetching;
       result->key = key;
-      RINGBUFFER_WRITE_MESSAGE(BlobMsg::get, to_host, obfuscated);
+      RINGBUFFER_WRITE_MESSAGE(LFSMsg::get, to_host, obfuscated);
       return result;
     }
   };

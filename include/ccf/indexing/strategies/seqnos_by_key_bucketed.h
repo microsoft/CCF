@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/indexing/lfs_access.h"
 #include "ccf/indexing/strategies/visit_each_entry_in_map.h"
 #include "ds/lru.h"
-#include "indexing/caching/enclave_cache.h"
 
 namespace ccf::indexing::strategies
 {
@@ -30,14 +30,14 @@ namespace ccf::indexing::strategies
     using BucketKey = std::pair<kv::untyped::SerialisedEntry, Range>;
     // First element is a handle while result is being fetched. Second is parsed
     // result, after fetch completes, at which point the first is set to nullptr
-    using BucketValue = std::pair<caching::FetchResultPtr, SeqNoCollection>;
+    using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
     LRU<BucketKey, BucketValue> old_results;
 
-    caching::EnclaveCache& enclave_cache;
+    AbstractLFSAccess& lfs_access;
 
-    caching::BlobContents serialise(SeqNoCollection&& seqnos)
+    LFSContents serialise(SeqNoCollection&& seqnos)
     {
-      caching::BlobContents blob;
+      LFSContents blob;
 
       {
         // Write number of seqnos
@@ -61,7 +61,7 @@ namespace ccf::indexing::strategies
       return blob;
     }
 
-    SeqNoCollection deserialise(const caching::BlobContents& raw, bool& corrupt)
+    SeqNoCollection deserialise(const LFSContents& raw, bool& corrupt)
     {
       corrupt = false;
       try
@@ -95,7 +95,7 @@ namespace ccf::indexing::strategies
       }
     }
 
-    caching::BlobKey get_blob_name(const BucketKey& bk)
+    LFSKey get_blob_name(const BucketKey& bk)
     {
       const auto hex_key = ds::to_hex(bk.first.begin(), bk.first.end());
       const auto& range = bk.second;
@@ -110,7 +110,7 @@ namespace ccf::indexing::strategies
     {
       const BucketKey bucket_key{k, range};
       const auto blob_key = get_blob_name(bucket_key);
-      enclave_cache.store(blob_key, serialise(std::move(seqnos)));
+      lfs_access.store(blob_key, serialise(std::move(seqnos)));
     }
 
     Range get_range_for(ccf::SeqNo seqno) const
@@ -216,12 +216,12 @@ namespace ccf::indexing::strategies
             const auto fetch_result = bucket_value.first->fetch_result;
             switch (fetch_result)
             {
-              case (caching::FetchResult::Fetching):
+              case (FetchResult::Fetching):
               {
                 complete = false;
                 break;
               }
-              case (caching::FetchResult::Loaded):
+              case (FetchResult::Loaded):
               {
                 bool corrupt = false;
                 bucket_value.second =
@@ -238,16 +238,15 @@ namespace ccf::indexing::strategies
                   LOG_FAIL_FMT("Deserialisation failed");
                 }
               }
-              case (caching::FetchResult::NotFound):
-              case (caching::FetchResult::Corrupt):
+              case (FetchResult::NotFound):
+              case (FetchResult::Corrupt):
               {
                 // This class previously wrote a bucket to disk which is no
                 // longer available or corrupted. Reset the watermark of what
                 // has been indexed, to re-index and rewrite those files.
                 complete = false;
                 const auto problem =
-                  fetch_result == caching::FetchResult::NotFound ? "missing" :
-                                                                   "corrupt";
+                  fetch_result == FetchResult::NotFound ? "missing" : "corrupt";
                 LOG_FAIL_FMT(
                   "A file that {} requires is {}. Re-indexing.",
                   get_name(),
@@ -302,7 +301,7 @@ namespace ccf::indexing::strategies
           else
           {
             // Begin fetching this bucket from disk
-            auto fetch_handle = enclave_cache.fetch(get_blob_name(bucket_key));
+            auto fetch_handle = lfs_access.fetch(get_blob_name(bucket_key));
             old_results.insert(
               bucket_key, std::make_pair(fetch_handle, SeqNoCollection()));
             complete = false;
@@ -331,18 +330,19 @@ namespace ccf::indexing::strategies
   public:
     SeqnosByKey_Bucketed(
       const std::string& map_name_,
-      caching::EnclaveCache& enclave_cache_,
+      AbstractLFSAccess& lfs_access_,
       size_t seqnos_per_bucket_ = 100, // TODO: Default should be higher?
       size_t max_buckets_ = 10) :
       VisitEachEntryInMap(map_name_, "SeqnosByKey"),
       seqnos_per_bucket(seqnos_per_bucket_),
       old_results(max_buckets_),
-      enclave_cache(enclave_cache_)
+      lfs_access(lfs_access_)
     {}
 
     template <typename... Ts>
-    SeqnosByKey_Bucketed(const M& map, Ts&&... ts) :
-      SeqnosByKey_Bucketed(map.get_name(), std::forward<Ts>(ts)...)
+    SeqnosByKey_Bucketed(
+      const M& map, AbstractLFSAccess& lfs_access_, Ts&&... ts) :
+      SeqnosByKey_Bucketed(map.get_name(), lfs_access_, std::forward<Ts>(ts)...)
     {}
 
     virtual ~SeqnosByKey_Bucketed() = default;

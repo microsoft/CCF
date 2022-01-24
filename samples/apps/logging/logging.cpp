@@ -9,7 +9,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
-#include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
+#include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/verifier.h"
@@ -34,7 +34,7 @@ namespace loggingapp
   static constexpr auto FIRST_WRITES = "first_write_version";
 
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
-    ccf::indexing::strategies::SeqnosByKey_InMemory<RecordsMap>>;
+    ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -162,8 +162,8 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
-      index_per_private_key =
-        std::make_shared<RecordsIndexingStrategy>(PRIVATE_RECORDS);
+      index_per_private_key = std::make_shared<RecordsIndexingStrategy>(
+        PRIVATE_RECORDS, context.get_scratch_files());
       context.get_indexing_strategies().install_strategy(index_per_private_key);
 
       const ccf::AuthnPolicies auth_policies = {

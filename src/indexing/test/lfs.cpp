@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "indexing/caching/enclave_cache.h"
-#include "indexing/caching/host_cache.h"
+#include "indexing/lfs/enclave_lfs_access.h"
+#include "indexing/lfs/lfs_file_handler.h"
 #include "indexing/test/common.h"
 
 #include <doctest/doctest.h>
@@ -33,10 +33,10 @@ void write_file_corrupted_at(
   f.close();
 }
 
-TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
+TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 {
-  messaging::BufferProcessor host_bp("blobcache_host");
-  messaging::BufferProcessor enclave_bp("blobcache_enclave");
+  messaging::BufferProcessor host_bp("lfs_host");
+  messaging::BufferProcessor enclave_bp("lfs_enclave");
 
   constexpr size_t buf_size = 1 << 10;
   auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
@@ -44,85 +44,86 @@ TEST_CASE("Basic cache" * doctest::test_suite("blobcache"))
   auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
   ringbuffer::Reader outbound_reader(outbound_buffer->bd);
 
-  using namespace ccf::indexing::caching;
-
-  HostCache hc(
+  ccf::indexing::LFSFileHandler host_files(
     host_bp.get_dispatcher(),
     std::make_shared<ringbuffer::Writer>(inbound_reader));
 
-  EnclaveCache ec(
+  ccf::indexing::EnclaveLFSAccess enclave_lfs(
     enclave_bp.get_dispatcher(),
     std::make_shared<ringbuffer::Writer>(outbound_reader));
 
-  BlobKey key_a("Blob A");
-  BlobContents blob_a{0, 1, 2, 3, 4, 5, 6, 7};
+  ccf::indexing::LFSKey key_a("Blob A");
+  ccf::indexing::LFSContents blob_a{0, 1, 2, 3, 4, 5, 6, 7};
 
-  BlobKey key_b("Blob B");
-  BlobContents blob_b{'a', 'b', 'c'};
+  ccf::indexing::LFSKey key_b("Blob B");
+  ccf::indexing::LFSContents blob_b{'a', 'b', 'c'};
 
-  ec.store(key_a, BlobContents(blob_a));
-  ec.store(key_b, BlobContents(blob_b));
+  enclave_lfs.store(key_a, ccf::indexing::LFSContents(blob_a));
+  enclave_lfs.store(key_b, ccf::indexing::LFSContents(blob_b));
 
   REQUIRE(2 == host_bp.read_all(outbound_reader));
 
   {
     INFO("Load entries");
 
-    auto result_a = ec.fetch(key_a);
-    REQUIRE(result_a->fetch_result == FetchResult::Fetching);
+    auto result_a = enclave_lfs.fetch(key_a);
+    REQUIRE(result_a->fetch_result == ccf::indexing::FetchResult::Fetching);
 
-    auto result_b = ec.fetch(key_b);
-    REQUIRE(result_b->fetch_result == FetchResult::Fetching);
+    auto result_b = enclave_lfs.fetch(key_b);
+    REQUIRE(result_b->fetch_result == ccf::indexing::FetchResult::Fetching);
 
     host_bp.read_all(outbound_reader);
     enclave_bp.read_all(inbound_reader);
 
-    REQUIRE(result_a->fetch_result == FetchResult::Loaded);
+    REQUIRE(result_a->fetch_result == ccf::indexing::FetchResult::Loaded);
     REQUIRE(result_a->contents == blob_a);
 
-    REQUIRE(result_b->fetch_result == FetchResult::Loaded);
+    REQUIRE(result_b->fetch_result == ccf::indexing::FetchResult::Loaded);
     REQUIRE(result_b->contents == blob_b);
   }
 
   {
     INFO("Host cache provides wrong file");
     REQUIRE(std::filesystem::copy_file(
-      hc.root_dir / obfuscate_key(key_b),
-      hc.root_dir / obfuscate_key(key_a),
+      host_files.root_dir /
+        ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b),
+      host_files.root_dir /
+        ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_a),
       std::filesystem::copy_options::overwrite_existing));
 
-    auto result = ec.fetch(key_a);
+    auto result = enclave_lfs.fetch(key_a);
 
     host_bp.read_all(outbound_reader);
     enclave_bp.read_all(inbound_reader);
 
-    REQUIRE(result->fetch_result == FetchResult::Corrupt);
+    REQUIRE(result->fetch_result == ccf::indexing::FetchResult::Corrupt);
     REQUIRE(result->contents != blob_a);
   }
 
 #ifndef PLAINTEXT_CACHE
   {
     INFO("Host cache provides corrupt file");
-    const auto b_path = hc.root_dir / obfuscate_key(key_b);
+    const auto b_path = host_files.root_dir /
+      ccf::indexing::EnclaveLFSAccess::obfuscate_key(key_b);
     const auto original_b_contents = read_file(b_path);
 
     for (auto i = 0; i < original_b_contents.size(); ++i)
     {
       write_file_corrupted_at(b_path, i, original_b_contents);
 
-      auto result = ec.fetch(key_b);
+      auto result = enclave_lfs.fetch(key_b);
 
       host_bp.read_all(outbound_reader);
       enclave_bp.read_all(inbound_reader);
 
-      REQUIRE(result->fetch_result == FetchResult::Corrupt);
+      REQUIRE(result->fetch_result == ccf::indexing::FetchResult::Corrupt);
       REQUIRE(result->contents != blob_b);
     }
   }
 #endif
 }
 
-TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
+TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 {
   kv::Store kv_store;
 
@@ -135,8 +136,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  messaging::BufferProcessor host_bp("blobcache_host");
-  messaging::BufferProcessor enclave_bp("blobcache_enclave");
+  messaging::BufferProcessor host_bp("lfs_host");
+  messaging::BufferProcessor enclave_bp("lfs_enclave");
 
   constexpr size_t buf_size = 1 << 16;
   auto inbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
@@ -144,10 +145,10 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
   auto outbound_buffer = std::make_unique<ringbuffer::TestBuffer>(buf_size);
 
   ringbuffer::Reader outbound_reader(outbound_buffer->bd);
-  ccf::indexing::caching::HostCache hc(
+  ccf::indexing::LFSFileHandler host_files(
     host_bp.get_dispatcher(),
     std::make_shared<ringbuffer::Writer>(inbound_reader));
-  ccf::indexing::caching::EnclaveCache ec(
+  ccf::indexing::EnclaveLFSAccess enclave_lfs(
     enclave_bp.get_dispatcher(),
     std::make_shared<ringbuffer::Writer>(outbound_reader));
 
@@ -158,7 +159,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
   using StratA =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_a)>;
-  auto index_a = std::make_shared<StratA>(map_a, ec);
+  auto index_a = std::make_shared<StratA>(map_a, enclave_lfs);
   REQUIRE(indexer.install_strategy(index_a));
 
   static constexpr auto num_transactions =
@@ -268,7 +269,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
   using StratB =
     ccf::indexing::strategies::SeqnosByKey_Bucketed<decltype(map_b)>;
-  auto index_b = std::make_shared<StratB>(map_b, ec);
+  auto index_b = std::make_shared<StratB>(map_b, enclave_lfs);
   REQUIRE(indexer.install_strategy(index_b));
 
   kv::TxID current_ = kv_store.current_txid();
@@ -337,7 +338,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
     {
       INFO("Deleted files");
-      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
+      for (auto const& f :
+           std::filesystem::directory_iterator(host_files.root_dir))
       {
         std::filesystem::remove(f);
       }
@@ -347,7 +349,8 @@ TEST_CASE("Integrated cache" * doctest::test_suite("blobcache"))
 
     {
       INFO("Corrupted files");
-      for (auto const& f : std::filesystem::directory_iterator(hc.root_dir))
+      for (auto const& f :
+           std::filesystem::directory_iterator(host_files.root_dir))
       {
         auto original = read_file(f);
 

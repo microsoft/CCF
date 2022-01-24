@@ -15,5 +15,6 @@ namespace ccfapp
     virtual ccf::historical::AbstractStateCache& get_historical_state() = 0;
     virtual ccf::AbstractNodeState& get_node_state() = 0;
     virtual ccf::indexing::IndexingStrategies& get_indexing_strategies() = 0;
+    virtual ccf::indexing::ScratchFiles& get_scratch_files() = 0;
   };
 }
