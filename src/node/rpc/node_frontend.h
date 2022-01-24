@@ -66,6 +66,15 @@ namespace ccf
   DECLARE_JSON_TYPE(JavaScriptMetrics);
   DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used);
 
+  struct JWTMetrics
+  {
+    size_t attempts;
+    size_t successes;
+  };
+
+  DECLARE_JSON_TYPE(JWTMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(JWTMetrics, attempts, successes)
+
   struct SetJwtPublicSigningKeys
   {
     std::string issuer;
@@ -1184,7 +1193,9 @@ namespace ccf
         .install();
 
       auto jwt_metrics = [this](auto& args, nlohmann::json&&) {
-        auto m = context.get_node_state().get_jwt_metrics();
+        JWTMetrics m;
+        m.attempts = context.get_node_state().get_jwt_attempts();
+        m.successes = 42;
         return m;
       };
 

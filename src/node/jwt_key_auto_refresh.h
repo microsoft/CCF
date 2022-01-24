@@ -5,7 +5,6 @@
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "node/jwt.h"
-#include "node/jwt_metrics.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 
@@ -26,7 +25,6 @@ namespace ccf
     crypto::KeyPairPtr node_sign_kp;
     crypto::Pem node_cert;
     std::atomic_size_t attempts;
-    std::atomic_size_t successes;
 
   public:
     JwtKeyAutoRefresh(
@@ -44,8 +42,7 @@ namespace ccf
       rpc_map(rpc_map),
       node_sign_kp(node_sign_kp),
       node_cert(node_cert),
-      attempts(0),
-      successes(0)
+      attempts(0)
     {}
 
     struct RefreshTimeMsg
@@ -273,15 +270,15 @@ namespace ccf
 
     void refresh_jwt_keys()
     {
-      // Increment attempts
-      attempts++;
-
       auto tx = network.tables->create_read_only_tx();
       auto jwt_issuers = tx.ro(network.jwt_issuers);
       auto ca_cert_bundles = tx.ro(network.ca_cert_bundles);
       jwt_issuers->foreach([this, &ca_cert_bundles](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
+        // Increment attempts
+        attempts++;
+
         if (!metadata.auto_refresh)
         {
           LOG_DEBUG_FMT(
@@ -342,15 +339,12 @@ namespace ccf
         http_client->send_request(r.build_request());
         return true;
       });
-
-      // If none of the issuers failed
-      successes++;
     }
 
-    // Returns a copy of the current metrics
-    JWTMetrics get_metrics() const
+    // Returns a copy of the current attempts
+    size_t get_attempts() const
     {
-      return { attempts.load(), successes.load() };
+      return attempts.load();
     }
   };
 }

@@ -699,9 +699,9 @@ namespace ccf
         });
     }
 
-    JWTMetrics get_jwt_metrics() override
+    size_t get_jwt_attempts() override
     {
-      return jwt_key_auto_refresh->get_metrics();
+      return jwt_key_auto_refresh->get_attempts();
     }
 
     //

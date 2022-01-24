@@ -122,9 +122,9 @@ namespace ccf
       return {};
     }
 
-    JWTMetrics get_jwt_metrics() override
+    size_t get_jwt_attempts() override
     {
-      return {};
+      return 0;
     }
   };
 
