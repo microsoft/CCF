@@ -66,8 +66,6 @@ namespace ccf::indexing::strategies
       corrupt = false;
       try
       {
-        SeqNoCollection result;
-
         auto data = raw.data();
         auto size = raw.size();
 
@@ -87,7 +85,7 @@ namespace ccf::indexing::strategies
           return {};
         }
 
-        return result;
+        return seqnos;
       }
       // Catch errors thrown by serialized::read
       catch (const std::logic_error& e)

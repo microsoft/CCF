@@ -105,6 +105,14 @@ static inline bool check_seqnos(
   const std::optional<ccf::indexing::SeqNoCollection>& actual,
   bool complete_match = true)
 {
+  // Check that actual is a contiguous subrange of expected. May actually be a
+  // perfect match, that is fine too, and required if complete_match is true
+  if (!actual.has_value() || actual->empty())
+  {
+    LOG_FAIL_FMT("No actual result");
+    return false;
+  }
+
   if (complete_match)
   {
     if (expected.size() != actual->size())
@@ -113,19 +121,33 @@ static inline bool check_seqnos(
       return false;
     }
   }
-  else if (expected.size() < actual->size())
-  {
-    LOG_FAIL_FMT("{} < {}", expected.size(), actual->size());
-    return false;
-  }
 
-  for (auto n : *actual)
+  size_t idx = 0;
+  auto actual_it = actual->begin();
+  auto expected_it = expected.find(*actual_it);
+  while (true)
   {
-    if (!expected.contains(n))
+    if (actual_it == actual->end())
     {
-      LOG_FAIL_FMT("Got unexpected element {}", n);
+      break;
+    }
+    else if (expected_it == expected.end())
+    {
+      LOG_FAIL_FMT(
+        "Too many results. Reached end of expected values at {}", idx);
       return false;
     }
+
+    if (*actual_it != *expected_it)
+    {
+      LOG_FAIL_FMT(
+        "Mismatch at {}th result, {} != {}", idx, *actual_it, *expected_it);
+      return false;
+    }
+
+    ++idx;
+    ++actual_it;
+    ++expected_it;
   }
 
   return true;
