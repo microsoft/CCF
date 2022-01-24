@@ -264,6 +264,11 @@ namespace logger
     {
       get_loggers().emplace_back(std::make_unique<JsonConsoleLogger>());
     }
+
+    static inline void default_init()
+    {
+      add_text_console_logger();
+    }
 #endif
 
     static inline Level& level()
