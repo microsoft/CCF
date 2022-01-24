@@ -821,8 +821,11 @@ class CCFRemote(object):
                 )
 
         env = {}
-        if kwargs.get("enclave_type") == "virtual":
+        if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            ubsan_opts = kwargs.get("ubsan_options")
+            if ubsan_opts:
+                env["UBSAN_OPTIONS"] += ":" + ubsan_opts
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
