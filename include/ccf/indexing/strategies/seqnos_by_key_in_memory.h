@@ -24,7 +24,7 @@ namespace ccf::indexing::strategies
       seqnos_by_key[k].insert(tx_id.seqno);
     }
 
-    std::optional<std::set<ccf::SeqNo>> get_write_txs_impl(
+    std::optional<SeqNoCollection> get_write_txs_impl(
       const kv::serialisers::SerialisedEntry& serialised_key,
       ccf::SeqNo from,
       ccf::SeqNo to,
@@ -64,7 +64,7 @@ namespace ccf::indexing::strategies
 
     SeqnosByKey_InMemory(const M& map) : SeqnosByKey_InMemory(map.get_name()) {}
 
-    std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
+    std::optional<SeqNoCollection> get_write_txs_in_range(
       const typename M::Key& key,
       ccf::SeqNo from,
       ccf::SeqNo to,
@@ -87,7 +87,7 @@ namespace ccf::indexing::strategies
         M::KeySerialiser::to_serialised(key), from, to, max_seqnos);
     }
 
-    std::optional<std::set<ccf::SeqNo>> get_all_write_txs(
+    std::optional<SeqNoCollection> get_all_write_txs(
       const typename M::Key& key)
     {
       return get_write_txs_in_range(key, 0, current_txid.seqno);

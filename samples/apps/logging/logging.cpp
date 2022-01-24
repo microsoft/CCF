@@ -9,7 +9,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
-#include "ccf/indexing/seqnos_by_key.h"
+#include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/verifier.h"
@@ -34,7 +34,7 @@ namespace loggingapp
   static constexpr auto FIRST_WRITES = "first_write_version";
 
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
-    ccf::indexing::strategies::SeqnosByKey<RecordsMap>>;
+    ccf::indexing::strategies::SeqnosByKey_InMemory<RecordsMap>>;
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity

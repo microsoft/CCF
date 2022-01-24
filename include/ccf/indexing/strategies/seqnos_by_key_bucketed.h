@@ -20,12 +20,8 @@ namespace ccf::indexing::strategies
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
 
-    // TODO: Could be a SeqNoCollection? But keeping as a set for simplicity
-    // right now
-    using SeqNos = std::set<ccf::SeqNo>;
-
     // Store a single bucket of current results for each key
-    using CurrentResult = std::pair<Range, SeqNos>;
+    using CurrentResult = std::pair<Range, SeqNoCollection>;
     std::unordered_map<kv::untyped::SerialisedEntry, CurrentResult>
       current_results;
 
@@ -34,12 +30,12 @@ namespace ccf::indexing::strategies
     using BucketKey = std::pair<kv::untyped::SerialisedEntry, Range>;
     // First element is a handle while result is being fetched. Second is parsed
     // result, after fetch completes, at which point the first is set to nullptr
-    using BucketValue = std::pair<caching::FetchResultPtr, SeqNos>;
+    using BucketValue = std::pair<caching::FetchResultPtr, SeqNoCollection>;
     LRU<BucketKey, BucketValue> old_results;
 
     caching::EnclaveCache& enclave_cache;
 
-    caching::BlobContents serialise(SeqNos&& seqnos)
+    caching::BlobContents serialise(SeqNoCollection&& seqnos)
     {
       caching::BlobContents blob;
 
@@ -65,12 +61,12 @@ namespace ccf::indexing::strategies
       return blob;
     }
 
-    SeqNos deserialise(const caching::BlobContents& raw, bool& corrupt)
+    SeqNoCollection deserialise(const caching::BlobContents& raw, bool& corrupt)
     {
       corrupt = false;
       try
       {
-        SeqNos result;
+        SeqNoCollection result;
 
         auto data = raw.data();
         auto size = raw.size();
@@ -112,7 +108,7 @@ namespace ccf::indexing::strategies
     void store_to_disk(
       const kv::untyped::SerialisedEntry& k,
       const Range& range,
-      SeqNos&& seqnos)
+      SeqNoCollection&& seqnos)
     {
       const BucketKey bucket_key{k, range};
       const auto blob_key = get_blob_name(bucket_key);
@@ -150,7 +146,9 @@ namespace ccf::indexing::strategies
       else
       {
         // This key has never been seen before. Insert a new bucket for it
-        it = current_results.emplace(k, std::make_pair(range, SeqNos())).first;
+        it =
+          current_results.emplace(k, std::make_pair(range, SeqNoCollection()))
+            .first;
       }
 
       auto& current_result = it->second;
@@ -158,7 +156,7 @@ namespace ccf::indexing::strategies
       current_seqnos.insert(tx_id.seqno);
     }
 
-    std::optional<std::set<ccf::SeqNo>> get_write_txs_impl(
+    std::optional<SeqNoCollection> get_write_txs_impl(
       const kv::serialisers::SerialisedEntry& serialised_key,
       ccf::SeqNo from,
       ccf::SeqNo to,
@@ -185,9 +183,9 @@ namespace ccf::indexing::strategies
         }
       }
 
-      SeqNos result;
+      SeqNoCollection result;
 
-      auto append_bucket_result = [&](const SeqNos& seqnos) {
+      auto append_bucket_result = [&](const SeqNoCollection& seqnos) {
         // TODO: Need to find a more efficient way of doing this
         for (auto n : seqnos)
         {
@@ -308,7 +306,7 @@ namespace ccf::indexing::strategies
             // Begin fetching this bucket from disk
             auto fetch_handle = enclave_cache.fetch(get_blob_name(bucket_key));
             old_results.insert(
-              bucket_key, std::make_pair(fetch_handle, SeqNos()));
+              bucket_key, std::make_pair(fetch_handle, SeqNoCollection()));
             complete = false;
           }
         }
@@ -356,7 +354,7 @@ namespace ccf::indexing::strategies
       return (old_results.get_max_size() * seqnos_per_bucket) - 1;
     }
 
-    std::optional<std::set<ccf::SeqNo>> get_write_txs_in_range(
+    std::optional<SeqNoCollection> get_write_txs_in_range(
       const typename M::Key& key,
       ccf::SeqNo from,
       ccf::SeqNo to,
