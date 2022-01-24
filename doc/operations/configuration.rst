@@ -19,7 +19,9 @@ The configuration for each CCF node must be contained in a single JSON configura
 
         $ cchost --config /path/to/config/file --check
 
-.. include:: ../generated/config.rst
+.. include:: generated_config.rst
+
+
 
 
 .. rubric:: Footnotes

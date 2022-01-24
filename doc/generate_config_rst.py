@@ -116,17 +116,11 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
 # - rpc_interfaces: key is name of interface [DONE]
 # - references
 
-if __name__ == "__main__":
+
+def generate_configuration_docs(input_file_path, output_file_path):
     LOG.info("Generating configuration documentation")
 
-    if len(sys.argv) <= 2:
-        LOG.error(f"Usage: {sys.argv[0]} <input_path> <output_path>")
-        sys.exit(1)
-
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-
-    with open(input_file, "r") as f:
+    with open(input_file_path, "r") as f:
         j = json.load(f)
 
     output = RstCloth(line_width=1000)
@@ -136,6 +130,15 @@ if __name__ == "__main__":
 
     print_object(output, j["properties"], required_entries=j["required"])
 
-    output.print_content()
-    output.write(output_file)
-    LOG.success(f"Configuration file successfully generated at {output_file}")
+    output.print_content()  # TODO: Remove
+    output.write(output_file_path)
+
+    LOG.success(f"Configuration file successfully generated at {output_file_path}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) <= 2:
+        LOG.error(f"Usage: {sys.argv[0]} <input_path> <output_path>")
+        sys.exit(1)
+
+    run(sys.arg[1], sys.argv[2])

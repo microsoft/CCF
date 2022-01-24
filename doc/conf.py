@@ -18,6 +18,7 @@ import os
 import sys
 import subprocess
 import pathlib
+from . import generate_config_rst
 
 
 from docutils import nodes
@@ -390,3 +391,8 @@ def setup(app):
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
+
+    # configuration generator
+    generate_configuration_docs(
+        "schemas/cchost_config.json", "operations/generated_config.rst"
+    )
