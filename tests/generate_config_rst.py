@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 import sys
 import json
 from rstcloth import RstCloth
@@ -22,16 +25,20 @@ def print_attributes(entry):
     return desc
 
 
-def print_entry(output, entry, name=None):
+def print_entry(output, entry, name, depth=0):
     desc = ""
-    if name is not None:
+    if depth == 0:
+        heading = depth_to_heading(output, 0)
+        heading(f"``{name}``")
+        output.newline()
+    else:
         desc += f"- ``{name}``: "
     desc += print_attributes(entry)
     output.content(f"{desc}.")
     output.newline()
 
 
-def depth_to_heading_level(output, depth):
+def depth_to_heading(output, depth):
     if depth == 0:
         return output.h2
     elif depth == 1:
@@ -42,45 +49,54 @@ def depth_to_heading_level(output, depth):
         return output.h5
 
 
-def print_object(output, obj, depth=0):
+def has_subobjs(obj):
+    return any(
+        k in ["properties", "additionalProperties", "items"] for k in obj.keys()
+    ) and ("items" not in obj or obj["items"]["type"] == "object")
+
+
+def print_object(output, obj, depth=0, additional_desc=None):
     for k, v in obj.items():
+        LOG.warning(f"depth: {depth}")
         LOG.info(k)
-        heading = depth_to_heading_level(output, depth)
-        if "properties" in v or "additionalProperties" in v:  # TODO: Cleanup
+        heading = depth_to_heading(output, depth)
+        if has_subobjs(v):
             heading(f"``{k}``")
             output.newline()
+            if additional_desc is not None:
+                output.content(f"Note: {additional_desc}.")
+                output.newline()
 
-        if "properties" in v:
-            print_object(output, v["properties"], depth=depth + 1)
-        if "additionalProperties" in v:
-            print_object(
-                output, v["additionalProperties"]["properties"], depth=depth + 1
-            )
-        if "items" in v:
-            print_object(output, v["items"], depth=depth + 1)
-        if "allOf" in v:
-            # TODO: Print conditions
-            for e in v["allOf"]:
-                # TODO: Fix this
-                k_, v_ = iter(["if"]["properties"]
-                LOG.error(k_)
-                output.content(f'Only if {cond} is {cond["const"]}')
-                print_object(output, e["then"]["properties"], depth=depth + 1)
-        if (
-            "properties" not in v
-            and "additionalProperties" not in v
-            and "items" not in v
-            and "allOf" not in v
-        ):
-            print_entry(output, v, name=k)
+            if "properties" in v:
+                LOG.success(k)
+                print_object(output, v["properties"], depth=depth + 1)
+            if "additionalProperties" in v:
+                print_object(
+                    output, v["additionalProperties"]["properties"], depth=depth + 1
+                )
+            if "items" in v and v["items"]["type"] == "object":
+                print_object(output, v["items"]["properties"], depth=depth + 1)
+            if "allOf" in v:
+                for e in v["allOf"]:
+                    ((k_, cond_),) = e["if"]["properties"].items()
+                    print_object(
+                        output,
+                        e["then"]["properties"],
+                        depth=depth + 1,
+                        additional_desc=f'Only if ``{k_}`` is ``"{cond_["const"]}"``',
+                    )
+        else:
+            print_entry(output, v, name=k, depth=depth)
 
 
 # TODO:
 # - network [DONE]
 # - recursion [DONE]
-# - command
+# - command [DONE]
 # - required field
 # - pattern
+# - description for each top field
+# - rpc_interfaces: key is name of interface
 
 if __name__ == "__main__":
     LOG.info("Generating configuration documentation")

@@ -25,7 +25,7 @@ Configuration Options
 
 - ``max_open_sessions_soft``: The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error. Default: ``1000``.
 
-- ``max_open_sessions_hard``: The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of 'max_open_sessions_soft'. Default: ``1010``.
+- ``max_open_sessions_hard``: The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``. Default: ``1010``.
 
 ``command``
 -----------
@@ -37,15 +37,20 @@ Configuration Options
 ``start``
 ~~~~~~~~~
 
-- ``type``: .
+Note: Only if ``type`` is ``"start"``.
 
-- ``type``: .
+- ``constitution_files``: List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js.
 
-- ``properties``: .
+- ``initial_service_certificate_validity_days``: Initial validity period (days) for service certificate. Default: ``1``.
+
+``members``
++++++++++++
+
+- ``certificate_file``: Path to member x509 identity certificate (PEM).
+
+- ``encryption_public_key_file``: Path to member encryption public key (PEM).
 
 - ``data_json_file``: Path to member data file (JSON).
-
-- ``required``: .
 
 ``service_configuration``
 +++++++++++++++++++++++++
@@ -56,10 +61,10 @@ Configuration Options
 
 - ``reconfiguration_type``:  (values: ``"OneTransaction"``, ``"TwoTransaction"``). Default: ``"OneTransaction"``.
 
-- ``initial_service_certificate_validity_days``: Initial validity period (days) for service certificate. Default: ``1``.
-
 ``join``
 ~~~~~~~~
+
+Note: Only if ``type`` is ``"join"``.
 
 - ``target_rpc_address``: Address (host:port) of a node of the existing service to join.
 
@@ -68,6 +73,8 @@ Configuration Options
 ``recover``
 ~~~~~~~~~~~
 
+Note: Only if ``type`` is ``"recover"``.
+
 - ``initial_service_certificate_validity_days``: Initial validity period (days) for service certificate. Default: ``1``.
 
 ``node_certificate``
@@ -75,7 +82,7 @@ Configuration Options
 
 - ``subject_name``: Subject name to include in node certificate. Default: ``"CN=CCF Node"``.
 
-- ``type``: .
+- ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'.
 
 - ``curve_id``: Elliptic curve to use for node identity key (values: ``"secp384r1"``, ``"secp256r1"``). Default: ``"secp384r1"``.
 
@@ -86,7 +93,7 @@ Configuration Options
 
 - ``directory``: Path to main ledger directory. Default: ``"ledger"``.
 
-- ``type``: .
+- ``read_only_directories``: Paths to read-only ledger directories. Note that only '.committed' files will be read from these directories.
 
 - ``chunk_size``: Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created. Default: ``"5MB"``.
 
@@ -136,15 +143,30 @@ Configuration Options
 
 - ``rpc_addresses_file``: Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
 
-- ``tick_interval``: Interval at which the enclave time will be updated by the host. Default: ``"10ms"``.
+``tick_interval``
+-----------------
 
-- ``slow_io_logging_threshold``: Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log. Default: ``"10000us"``.
+Interval at which the enclave time will be updated by the host. Default: ``"10ms"``.
 
-- ``node_client_interface``: Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).
+``slow_io_logging_threshold``
+-----------------------------
 
-- ``client_connection_timeout``: Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default: ``"2000ms"``.
+Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log. Default: ``"10000us"``.
 
-- ``worker_threads``: Experimental. Number of additional threads processing incoming client requests in the enclave. Default: ``0``.
+``node_client_interface``
+-------------------------
+
+Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).
+
+``client_connection_timeout``
+-----------------------------
+
+Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded. Default: ``"2000ms"``.
+
+``worker_threads``
+------------------
+
+Experimental. Number of additional threads processing incoming client requests in the enclave. Default: ``0``.
 
 ``memory``
 ----------
