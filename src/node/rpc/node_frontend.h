@@ -1183,6 +1183,21 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
+      auto jwt_metrics = [this](auto& args, nlohmann::json&&) {
+        auto m = context.get_node_state().get_jwt_metrics();
+        return m;
+      };
+
+      make_read_only_endpoint(
+        "/jwt_metrics",
+        HTTP_GET,
+        json_read_only_adapter(jwt_metrics),
+        no_auth_required)
+        .set_auto_schema<void, JWTMetrics>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
       auto version = [this](auto&, nlohmann::json&&) {
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;

@@ -121,6 +121,11 @@ namespace ccf
     {
       return {};
     }
+
+    JWTMetrics get_jwt_metrics() override
+    {
+      return {};
+    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache

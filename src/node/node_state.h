@@ -699,6 +699,11 @@ namespace ccf
         });
     }
 
+    JWTMetrics get_jwt_metrics() override
+    {
+      return jwt_key_auto_refresh->get_metrics();
+    }
+
     //
     // funcs in state "readingPublicLedger" or "verifyingSnapshot"
     //

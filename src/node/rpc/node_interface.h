@@ -4,6 +4,7 @@
 
 #include "node/entities.h"
 #include "node/session_metrics.h"
+#include "node/jwt_metrics.h"
 #include "node_call_types.h"
 
 namespace ccf
@@ -50,5 +51,6 @@ namespace ccf
       CodeDigest& code_digest) = 0;
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
+    virtual JWTMetrics get_jwt_metrics() = 0;
   };
 }
