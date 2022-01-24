@@ -87,8 +87,7 @@ namespace ccf::indexing::strategies
         M::KeySerialiser::to_serialised(key), from, to, max_seqnos);
     }
 
-    std::optional<SeqNoCollection> get_all_write_txs(
-      const typename M::Key& key)
+    std::optional<SeqNoCollection> get_all_write_txs(const typename M::Key& key)
     {
       return get_write_txs_in_range(key, 0, current_txid.seqno);
     }
