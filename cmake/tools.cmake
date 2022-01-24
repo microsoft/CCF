@@ -7,13 +7,13 @@ function(add_san name)
       ${name}
       PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
               -fno-sanitize-recover=all -fno-sanitize=function
-              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.suppressions
     )
     target_link_libraries(
       ${name}
       PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
               -fno-sanitize-recover=all -fno-sanitize=function
-              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.suppressions
     )
   endif()
 endfunction()
