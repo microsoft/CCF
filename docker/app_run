@@ -27,10 +27,10 @@ RUN ["/bin/bash", "-c", "mv *sgx_$(echo ${PSW_VERSION//./_})_${UBUNTU}_custom_ve
 
 COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update \
-    && apt install -y ansible software-properties-common curl bsdmainutils dnsutils \
+    && apt install -y ansible software-properties-common bsdmainutils dnsutils \
     && cd setup_vm \
     && ansible-playbook app-run.yml $extra_vars \
     && rm -rf /tmp/* \
-    && apt remove -y ansible software-properties-common curl \
+    && apt remove -y ansible software-properties-common \
     && apt -y autoremove \
     && apt -y clean
