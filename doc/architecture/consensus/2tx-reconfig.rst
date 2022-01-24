@@ -1,14 +1,16 @@
 Two-transaction Reconfiguration
 ===============================
 
-Next to one-transaction reconfiguration, CCF also supports two-transaction reconfiguration, which has properties that are particularly desirable when used with the (experimental) Byzantine Fault Tolerance consensus algorithm. It is however also available to :doc:`CFT <1tx-reconfig>` networks and in fact, Ongaro and Ousterhout also describe a two-transaction reconfiguration mechanism for Raft. 
+Next to one-transaction reconfiguration, CCF also supports two-transaction reconfiguration, which has properties that are particularly desirable when used with the (experimental) Byzantine Fault Tolerance consensus algorithm. It is however also available to :doc:`CFT <1tx-reconfig>` networks and in fact, Ongaro and Ousterhout also describe a two-transaction reconfiguration mechanism for Raft. In general, it helps to improve liveness and availability of a service as learner nodes (see below) are not expected to take part in the consensus until they are fully caught up with the primary, and because bad or misconfigured joining nodes can be removed by cancelling their reconfigurations before they take an active part in the consensus. The tools to automate these procedures are currently not available in CCF, however. 
+
+As a side note, two-transaction reconfiguration will likely become a requirement for distributed identity management, which is currently under research. 
 
 In BFT, the following properties are desirable: 
 
 1. A reconfiguration only starts when the reconfiguration transaction is committed, so a reconfiguration attempt can never roll back.
 2. Reconfigurations are atomic. This creates room for additional conditions, such as checking that the Byzantine reconfiguration (a multiple transaction protocol) is complete before proceeding to the new configuration.
 
-BFT is under development and should not be enabled in a production environment. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
+BFT is under development and should not be enabled in a production environment.
 
 A two-transaction reconfiguration is triggered by the same mechanism as in one-transaction reconfiguration, i.e. a change to :ref:`audit/builtin_maps:``nodes.info```. It does however not become active immediately. Joining nodes are held in a ``Learner`` membership state in which they receive copies of the ledger, but they are not taken into account in commit-level decisions or leader selection until a quorum of them has caught up. Nodes recognize that they are added to the network by observing the commit of the transaction that includes their own addition to ``public:ccf.gov.nodes.info``. This means that they have seen all preceding transactions up until their addition to the network. Similary, nodes that are to be retired recognize that their state is changed to ``RetirementInitiated`` in ``public:ccf.gov.nodes.info``.
 

@@ -13,7 +13,7 @@ This page documents the components of a bundle and the JavaScript API available 
     `TypeScript <https://www.typescriptlang.org/>`_.
     CCF provides an example app built with these tools.
     They involve a `build` step that generates an app bundle suitable for CCF.
-    See the :ref:`TypeScript Application <build_apps/js_app_ts>` section for more details
+    See the :ref:`TypeScript Application <build_apps/js_app_ts:TypeScript Application>` section for more details
 
 Folder Layout
 -------------

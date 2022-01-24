@@ -5,7 +5,7 @@ Since 2.x releases, the validity period of certificates is no longer hardcoded. 
 
 .. note:: The granularity for the validity period of nodes and service certificates is one day.
 
-.. tip:: See :ref:`overview/cryptography:Identity Keys and Certificates` for a detailed explanation of the relationship between keys and certificates in CCF.
+.. tip:: See :ref:`architecture/cryptography:Identity Keys and Certificates` for a detailed explanation of the relationship between keys and certificates in CCF.
 
 Node Certificates
 -----------------

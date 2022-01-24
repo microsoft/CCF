@@ -116,8 +116,6 @@ namespace aft
     ReconfigurationType reconfiguration_type;
     bool require_identity_for_reconfig = false;
     std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
-    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration>
-      network_configurations;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
       orc_sets;
 
@@ -523,12 +521,29 @@ namespace aft
             }
           }
         }
+
+        if (orc_sets.find(idx) == orc_sets.end())
+        {
+          orc_sets[idx] = {};
+        }
       }
 
       if (conf != configurations.back().nodes)
       {
         uint32_t offset = get_bft_offset(conf);
-        configurations.push_back({idx, std::move(conf), offset, 0});
+        Configuration new_config = {idx, std::move(conf), offset, idx};
+        configurations.push_back(new_config);
+
+        if (
+          reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
+          resharing_tracker)
+        {
+          resharing_tracker->add_network_configuration(new_config);
+          if (is_primary())
+          {
+            resharing_tracker->reshare(new_config);
+          }
+        }
 
         create_and_remove_node_state();
       }
@@ -557,36 +572,6 @@ namespace aft
       snapshotter->record_serialised_tree(version, tree);
     }
 
-    void reconfigure(
-      ccf::SeqNo seqno, const kv::NetworkConfiguration& netconfig) override
-    {
-      LOG_DEBUG_FMT("Configurations: reconfigure to {{{}}}", netconfig);
-
-      assert(!configurations.empty());
-
-      network_configurations[netconfig.rid] = netconfig;
-
-      if (orc_sets.find(netconfig.rid) == orc_sets.end())
-      {
-        orc_sets[netconfig.rid] = {};
-      }
-
-      if (configurations.back().rid == 0)
-      {
-        configurations.back().rid = netconfig.rid;
-      }
-
-      if (resharing_tracker)
-      {
-        assert(resharing_tracker);
-        resharing_tracker->add_network_configuration(netconfig);
-        if (is_primary())
-        {
-          resharing_tracker->reshare(netconfig);
-        }
-      }
-    }
-
     void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
@@ -610,7 +595,7 @@ namespace aft
     }
 
     // For more info about Observed Reconfiguration Commits see
-    // https://microsoft.github.io/CCF/main/overview/consensus/2tx-reconfig.html
+    // https://microsoft.github.io/CCF/main/architecture/consensus/2tx-reconfig.html
     //
     // Note that this call is not `const` and that it modifies `orc_sets`. This
     // is safe, despite the fact that the primary may change or a
@@ -620,8 +605,12 @@ namespace aft
     // guaranteed that we will eventually receive all of them, since all
     // nodes keep re-submitting ORCs until they are able to switch to the next
     // pending configuration.
-    bool orc(kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
+
+    std::optional<kv::Configuration::Nodes> orc(
+      kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
     {
+      std::lock_guard<std::mutex> guard(state->lock);
+
       LOG_DEBUG_FMT(
         "Configurations: ORC for configuration #{} from {}", rid, node_id);
 
@@ -632,35 +621,44 @@ namespace aft
           fmt::format("Missing ORC set for configuration #{}", rid));
       }
 
-      const auto ncit = network_configurations.find(rid);
-      if (ncit == network_configurations.end())
+      for (auto const& conf : configurations)
       {
-        throw std::logic_error(fmt::format("Unknown configuration #{}", rid));
+        if (conf.rid == rid)
+        {
+          const auto& ncnodes = conf.nodes;
+          if (ncnodes.find(node_id) == ncnodes.end())
+          {
+            LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
+            return std::nullopt;
+          }
+          else
+          {
+            oit->second.insert(node_id);
+            LOG_DEBUG_FMT(
+              "Configurations: have {} ORCs out of {} for configuration #{}",
+              oit->second.size(),
+              ncnodes.size(),
+              rid);
+
+            // Note: Learners in the next configuration become trusted when
+            // there is quorum in the next configuration, i.e. they may become
+            // trusted in the nodes table before they are fully caught up and
+            // have submitted their own ORC.
+
+            if (oit->second.size() >= get_quorum(ncnodes.size()))
+            {
+              return ncnodes;
+            }
+            else
+            {
+              return std::nullopt;
+            }
+          }
+          break;
+        }
       }
 
-      const auto& ncnodes = ncit->second.nodes;
-      if (ncnodes.find(node_id) == ncnodes.end())
-      {
-        LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
-      }
-      else
-      {
-        oit->second.insert(node_id);
-      }
-
-      LOG_DEBUG_FMT(
-        "Configurations: have {} ORCs out of {}/{} for configuration #{}",
-        oit->second.size(),
-        get_quorum(ncnodes.size()),
-        ncnodes.size(),
-        rid);
-
-      // Note: Learners in the next configuration become trusted when there is
-      // quorum in the next configuration, i.e. they may become trusted in the
-      // nodes table before they are fully caught up and have submitted their
-      // own ORC.
-
-      return oit->second.size() >= get_quorum(ncnodes.size());
+      return std::nullopt;
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
