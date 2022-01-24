@@ -12,7 +12,7 @@ parameters:
 
   build:
     common:
-      cmake_args: "-DLONG_TESTS=ON"
+      cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON"
     NoSGX:
       cmake_args: "-DCOMPILE_TARGETS=virtual"
     SGX:
