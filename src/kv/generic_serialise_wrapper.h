@@ -58,7 +58,8 @@ namespace kv
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
-      EntryType entry_type_ = EntryType::WriteSetWithCommitEvidence,
+      EntryType entry_type_,
+      const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       entry_type(entry_type_),
@@ -73,8 +74,7 @@ namespace kv
       }
       if (has_commit_evidence(entry_type))
       {
-        crypto::Sha256Hash commit_evidence_digest;
-        serialise_internal(commit_evidence_digest);
+        serialise_internal(commit_evidence_digest_);
       }
       // Write a placeholder max_conflict_version for compatibility
       serialise_internal((Version)0u);

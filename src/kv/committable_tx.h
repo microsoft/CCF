@@ -23,6 +23,7 @@ namespace kv
     kv::TxHistory::RequestID req_id;
 
     std::vector<uint8_t> serialise(
+      crypto::Sha256Hash& commit_evidence_digest,
       const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
       bool include_reads = false)
     {
@@ -44,15 +45,24 @@ namespace kv
       }
 
       auto e = store->get_encryptor();
-      auto entry_type = claims_digest.empty() ? EntryType::WriteSet :
-                                                EntryType::WriteSetWithClaims;
+      // Create the commit_evidence_digest
+      auto tx_commit_evidence_digest = crypto::Sha256Hash::from_string(
+        fmt::format("{}.{}", commit_view, version));
+      commit_evidence_digest = tx_commit_evidence_digest;
+      auto entry_type = claims_digest.empty() ?
+        EntryType::WriteSetWithCommitEvidence :
+        EntryType::WriteSetWithCommitEvidenceAndClaims;
 
       LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
         claims_digest.value(),
         claims_digest.empty());
       KvStoreSerialiser replicated_serialiser(
-        e, {commit_view, version}, entry_type, claims_digest);
+        e,
+        {commit_view, version},
+        entry_type,
+        tx_commit_evidence_digest,
+        claims_digest);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -155,7 +165,8 @@ namespace kv
         // recover.
         try
         {
-          auto data = serialise(claims);
+          crypto::Sha256Hash commit_evidence_digest;
+          auto data = serialise(commit_evidence_digest, claims);
 
           if (data.empty())
           {
@@ -168,8 +179,6 @@ namespace kv
           }
 
           auto claims_ = claims;
-
-          crypto::Sha256Hash commit_evidence_digest;
 
           return store->commit(
             {commit_view, version},
@@ -348,9 +357,10 @@ namespace kv
       crypto::Sha256Hash commit_evidence_digest;
 
       committed = true;
+      auto data = serialise(commit_evidence_digest);
       return {
         CommitResult::SUCCESS,
-        serialise(),
+        std::move(data),
         ccf::no_claims(),
         std::move(commit_evidence_digest),
         std::move(hooks)};
