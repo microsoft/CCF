@@ -256,6 +256,7 @@ namespace asynchost
         if (!DNS::resolve(
               client_host.value(), "0", this, on_client_resolved, false))
         {
+          LOG_DEBUG_FMT("Bind to '{}' failed", client_host.value());
           status = BINDING_FAILED;
           return false;
         }
@@ -539,8 +540,9 @@ namespace asynchost
       assert_status(CONNECTING_RESOLVING, CONNECTING_FAILED);
       delete req;
 
-      LOG_DEBUG_FMT(
-        "unable to connect: all resolved addresses failed: {}:{}",
+      // This should show even when verbose logs are off
+      LOG_INFO_FMT(
+        "Unable to connect: all resolved addresses failed: {}:{}",
         host,
         service);
 
@@ -577,6 +579,7 @@ namespace asynchost
 
       if (!DNS::resolve(host, service, this, on_resolved, async))
       {
+        LOG_DEBUG_FMT("Resolving '{}' failed", host);
         status = RESOLVING_FAILED;
         return false;
       }

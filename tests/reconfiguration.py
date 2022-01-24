@@ -61,6 +61,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
                 except Exception as ex:
                     # OK, retiring node may be gone or a joining node may not be ready yet
                     LOG.info(f"expected RPC failure because of: {ex}")
+        time.sleep(0.5)
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
         if time.time() > end_time:
             raise Exception("Reconfiguration did not complete in time")
@@ -236,6 +237,12 @@ def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.retire_node(primary, backup_to_retire)
+    network.wait_for_node_in_store(
+        primary,
+        backup_to_retire.node_id,
+        node_status=None,
+        timeout=3,
+    )
     backup_to_retire.stop()
     check_can_progress(primary)
     wait_for_reconfiguration_to_complete(network)
@@ -252,7 +259,15 @@ def test_retire_primary(network, args):
     # Query this backup to find the new primary. If we ask any other
     # node, then this backup may not know the new primary by the
     # time we call check_can_progress.
-    network.wait_for_new_primary(primary, nodes=[backup])
+    new_primary, _ = network.wait_for_new_primary(primary, nodes=[backup])
+    # The old primary should automatically be removed from the store
+    # once a new primary is elected
+    network.wait_for_node_in_store(
+        new_primary,
+        primary.node_id,
+        node_status=None,
+        timeout=3,
+    )
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
@@ -361,7 +376,6 @@ def test_join_straddling_primary_replacement(network, args):
     primary, _ = network.find_primary()
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
     proposal_body = {
         "actions": [
             {
@@ -415,6 +429,9 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
             if ccf.ledger.NODES_TABLE_NAME in tables:
                 nodes = tables[ccf.ledger.NODES_TABLE_NAME]
                 for nid, info_ in nodes.items():
+                    if info_ is None:
+                        # Node was removed
+                        continue
                     info = json.loads(info_)
                     if info["status"] == "Retired":
                         retiring_nodes.add(nid)
@@ -460,11 +477,11 @@ def test_learner_catches_up(network, args):
         rj = s.body.json()
         assert rj["status"] == "Learner" or rj["status"] == "Trusted"
 
-    network.consortium.wait_for_node_to_exist_in_store(
+    network.wait_for_node_in_store(
         primary,
         new_node.node_id,
-        timeout=3,
         node_status=(ccf.ledger.NodeStatus.TRUSTED),
+        timeout=3,
     )
 
     with primary.client() as c:
@@ -646,13 +663,48 @@ def check_2tx_ledger(ledger_paths, learner_id):
     assert pending_at < learner_at < trusted_at
 
 
+@reqs.description("Migrate from 1tx to 2tx reconfiguration scheme")
+def test_migration_2tx_reconfiguration(network, args, **kwargs):
+    primary, _ = network.find_primary()
+
+    # Check that the service config agrees that this is a 1tx network
+    with primary.client() as c:
+        s = c.get("/node/service/configuration").body.json()
+        if "reconfiguration_type" in s:  # Added in 2.x
+            assert s["reconfiguration_type"] == "OneTransaction"
+
+    network.consortium.submit_2tx_migration_proposal(primary)
+    network.wait_for_all_nodes_to_commit(primary)
+
+    # Check that the service config has been updated
+    with primary.client() as c:
+        rj = c.get("/node/service/configuration").body.json()
+        assert rj["reconfiguration_type"] == "TwoTransaction"
+
+    # Check that all nodes have updated their consensus parameters
+    for node in network.nodes:
+        with node.client() as c:
+            rj = c.get("/node/consensus").body.json()
+            assert "reconfiguration_type" in rj["details"]
+            assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+            assert len(rj["details"]["learners"]) == 0
+
+    new_node = network.create_node("local://localhost", **kwargs)
+    network.join_node(new_node, args.package, args)
+    network.trust_node(new_node, args)
+
+    # Check that the new node has the right consensus parameter
+    with new_node.client() as c:
+        rj = c.get("/node/consensus").body.json()
+        assert "reconfiguration_type" in rj["details"]
+        assert "learners" in rj["details"]
+        assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
+        assert len(rj["details"]["learners"]) == 0
+
+
 def run_migration_tests(args):
     if args.reconfiguration_type != "OneTransaction":
         return
-
-    txs = app.LoggingTxs("user0")
-    ledger_paths = None
-    learner_id = None
 
     with infra.network.network(
         args.nodes,
@@ -660,42 +712,11 @@ def run_migration_tests(args):
         args.debug_nodes,
         args.perf_nodes,
         pdb=args.pdb,
-        txs=txs,
     ) as network:
         network.start_and_join(args)
+        test_migration_2tx_reconfiguration(network, args)
         primary, _ = network.find_primary()
-
-        # Check that the service config agrees that this is a 1tx network
-        with primary.client() as c:
-            s = c.get("/node/service/configuration").body.json()
-            assert s["reconfiguration_type"] == "OneTransaction"
-
-        network.consortium.submit_2tx_migration_proposal(primary)
-        network.wait_for_all_nodes_to_commit(primary)
-
-        # Check that the service config has been updated
-        with primary.client() as c:
-            rj = c.get("/node/service/configuration").body.json()
-            assert rj["reconfiguration_type"] == "TwoTransaction"
-
-        # Check that all nodes have updated their consensus parameters
-        for node in network.nodes:
-            with node.client() as c:
-                rj = c.get("/node/consensus").body.json()
-                assert "reconfiguration_type" in rj["details"]
-                assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
-                assert len(rj["details"]["learners"]) == 0
-
-        test_add_node(network, args)
         new_node = network.nodes[-1]
-
-        # Check that the new node has the right consensus parameter
-        with new_node.client() as c:
-            rj = c.get("/node/consensus").body.json()
-            assert "reconfiguration_type" in rj["details"]
-            assert "learners" in rj["details"]
-            assert rj["details"]["reconfiguration_type"] == "TwoTransaction"
-            assert len(rj["details"]["learners"]) == 0
 
         ledger_paths = primary.remote.ledger_paths()
         learner_id = new_node.node_id
@@ -738,12 +759,12 @@ if __name__ == "__main__":
             reconfiguration_type="TwoTransaction",
         )
 
-    cr.add(
-        "migration",
-        run_migration_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="OneTransaction",
-    )
+        cr.add(
+            "migration",
+            run_migration_tests,
+            package="samples/apps/logging/liblogging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            reconfiguration_type="OneTransaction",
+        )
 
     cr.run()

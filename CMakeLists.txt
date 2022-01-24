@@ -666,13 +666,11 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
   )
 
-  if(NOT SAN)
-    add_e2e_test(
-      NAME connections_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-      CONSENSUS cft
-    )
-  endif()
+  add_e2e_test(
+    NAME connections_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+    CONSENSUS cft
+  )
 
   if(TLS_TEST)
     add_e2e_test(
@@ -702,7 +700,9 @@ if(BUILD_TESTS)
        ${CCF_VERSION}
   )
   if(LONG_TESTS)
-    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility
+         --check-2tx-reconfig-migration
+    )
   endif()
 
   set(LTS_ITERATIONS "compatibility")
