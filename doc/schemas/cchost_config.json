@@ -373,7 +373,7 @@
       "tick_interval": {
         "type": "string",
         "default": "10ms",
-        "description": "Interval at which the enclave time will be updated by the host (modify with care)"
+        "description": "Interval at which the enclave time will be updated by the host (modify with care!)"
       },
       "slow_io_logging_threshold": {
         "type": "string",
@@ -392,7 +392,7 @@
       "worker_threads": {
         "type": "integer",
         "default": "0",
-        "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care)"
+        "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!)"
       },
       "memory": {
         "type": "object",
@@ -413,7 +413,7 @@
             "description": "Maximum size (size string) of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments"
           }
         },
-        "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care)"
+        "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care!)"
       }
     },
     "required": [

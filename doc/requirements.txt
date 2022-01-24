@@ -14,4 +14,3 @@ docutils==0.17.*
 # mistune 2.0.0-rc1 causes "AttributeError: module 'mistune'
 # has no attribute 'BlockGrammar'" error when building doc
 mistune<2.0.0
-# rstcloth>=0.3.1

@@ -3,8 +3,29 @@
 
 import sys
 import json
-from rstcloth import RstCloth
-from loguru import logger as LOG
+
+# Generated document is included in existing page, so
+# start at heading of depth 1 (equivalent to markdown h2.)
+START_DEPTH = 1
+
+
+class MinimalRstGenerator:
+    def __init__(self):
+        self._lines = []
+
+    def _add_lines(self, lines):
+        self._lines.extend(lines)
+        self._lines.append("\n")
+
+    def add_heading(self, text, depth):
+        depth_to_char = {0: "=", 1: "-", 2: "~", 3: "+"}
+        self._add_lines([text, depth_to_char[depth] * len(text)])
+
+    def add_line(self, text):
+        self._add_lines([text])
+
+    def render(self):
+        return "\n".join(self._lines)
 
 
 def print_attributes(entry):
@@ -25,28 +46,16 @@ def print_attributes(entry):
     return desc
 
 
-def print_entry(output, entry, name, depth=0):
+def print_entry(output, entry, name, required=False, depth=0):
     desc = ""
-    if depth == 0:
-        heading = depth_to_heading(output, 0)
-        heading(f"``{name}``")
-        output.newline()
+    if depth == START_DEPTH:
+        output.add_heading(f"``{name}``", 2)
     else:
         desc += f"- ``{name}``: "
     desc += print_attributes(entry)
-    output.content(f"{desc}.")
-    output.newline()
-
-
-def depth_to_heading(output, depth):
-    if depth == 0:
-        return output.h2
-    elif depth == 1:
-        return output.h3
-    elif depth == 2:
-        return output.h4
-    else:
-        return output.h5
+    if required:
+        desc += ". Required"
+    output.add_line(f"{desc}.")
 
 
 def has_subobjs(obj):
@@ -58,19 +67,14 @@ def has_subobjs(obj):
 def print_object(output, obj, depth=0, required_entries=None, additional_desc=None):
     required_entries = required_entries or []
     for k, v in obj.items():
-        heading = depth_to_heading(output, depth)
         if has_subobjs(v):
-            LOG.error(required_entries)
-            heading(f"``{k}``")
-            output.newline()
+            output.add_heading(f"``{k}``", depth)
             if "description" in v:
-                output.content(
+                output.add_line(
                     f'{"**Required.** " if k in required_entries else ""}{v["description"]}.'
                 )
-                output.newline()
             if additional_desc is not None:
-                output.content(f"Note: {additional_desc}.")
-                output.newline()
+                output.add_line(f"Note: {additional_desc}.")
 
             reqs = v.get("required", [])
 
@@ -103,42 +107,30 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
                         additional_desc=f'Only if ``{k_}`` is ``"{cond_["const"]}"``',
                     )
         else:
-            print_entry(output, v, name=k, depth=depth)
-
-
-# TODO:
-# - network [DONE]
-# - recursion [DONE]
-# - command [DONE]
-# - required field [DONE]
-# - pattern
-# - description for each top field [DONE]
-# - rpc_interfaces: key is name of interface [DONE]
-# - references
+            print_entry(output, v, name=k, required=k in required_entries, depth=depth)
 
 
 def generate_configuration_docs(input_file_path, output_file_path):
-    LOG.info("Generating configuration documentation")
+    print("Generating configuration documentation...")
 
-    with open(input_file_path, "r") as f:
-        j = json.load(f)
+    with open(input_file_path, "r") as in_:
+        j = json.load(in_)
 
-    output = RstCloth(line_width=1000)
+    output = MinimalRstGenerator()
+    output.add_heading("Configuration Options", START_DEPTH)
+    print_object(
+        output, j["properties"], required_entries=j["required"], depth=START_DEPTH
+    )
 
-    output.h2("Configuration Options")
-    output.newline()
+    with open(output_file_path, "w") as out_:
+        out_.write(output.render())
 
-    print_object(output, j["properties"], required_entries=j["required"])
-
-    output.print_content()  # TODO: Remove
-    output.write(output_file_path)
-
-    LOG.success(f"Configuration file successfully generated at {output_file_path}")
+    print(f"Configuration file successfully generated at {output_file_path}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) <= 2:
-        LOG.error(f"Usage: {sys.argv[0]} <input_path> <output_path>")
+        print(f"Usage: {sys.argv[0]} <input_path> <output_path>")
         sys.exit(1)
 
-    run(sys.arg[1], sys.argv[2])
+    generate_configuration_docs(sys.argv[1], sys.argv[2])

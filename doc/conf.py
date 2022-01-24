@@ -18,12 +18,14 @@ import os
 import sys
 import subprocess
 import pathlib
-from . import generate_config_rst
 
 
 from docutils import nodes
 
 sys.path.insert(0, os.path.abspath("../python"))
+sys.path.insert(0, os.path.abspath("."))
+
+import generate_config_rst
 
 
 # -- Project information -----------------------------------------------------
@@ -393,6 +395,6 @@ def setup(app):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
 
     # configuration generator
-    generate_configuration_docs(
-        "schemas/cchost_config.json", "operations/generated_config.rst"
+    generate_config_rst.generate_configuration_docs(
+        "doc/schemas/cchost_config.json", "doc/operations/generated_config.rst"
     )
