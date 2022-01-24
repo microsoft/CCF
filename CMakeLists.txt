@@ -696,7 +696,9 @@ if(BUILD_TESTS)
        ${CCF_VERSION}
   )
   if(LONG_TESTS)
-    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility --check-2tx-reconfig-migration)
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility
+         --check-2tx-reconfig-migration
+    )
   endif()
 
   set(LTS_ITERATIONS "compatibility")
