@@ -18,6 +18,7 @@
             "description": "Type of enclave application"
           }
         },
+        "description": "This section includes configuration for the enclave application launched by this node",
         "required": ["file"]
       },
       "network": {
@@ -66,6 +67,7 @@
             "description": "Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information"
           }
         },
+        "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
         "required": [
           "node_to_node_interface",
           "rpc_interfaces"
@@ -206,6 +208,7 @@
             }
           }
         ],
+        "description": "This section includes configuration of how the node should start (either start, join or recover) and associated information",
         "required": ["type"]
       },
       "node_certificate": {
@@ -234,7 +237,8 @@
             "default": 1,
             "description": "Initial validity period (days) for node certificate"
           }
-        }
+        },
+        "description": "This section includes configuration for the node x509 identity certificate"
       },
       "ledger": {
         "type": "object",
@@ -256,7 +260,8 @@
             "default": "5MB",
             "description": "Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created"
           }
-        }
+        },
+        "description": "This section includes configuration for the ledger directories and files"
       },
       "snapshots": {
         "type": "object",
@@ -271,7 +276,8 @@
             "default": 10000,
             "description": "Number of transactions after which a snapshot is automatically generated"
           }
-        }
+        },
+        "description": "This section includes configuration for the snapshot directory and files"
       },
       "logging": {
         "type": "object",
@@ -288,7 +294,8 @@
             "default": "text",
             "description": "If 'json', node logs will be formatted as JSON"
           }
-        }
+        },
+        "description": "This section includes configuration for the logging of the node process"
       },
       "consensus": {
         "type": "object",
@@ -309,7 +316,8 @@
             "default": "5000ms",
             "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than 'message_timeout'"
           }
-        }
+        },
+        "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)"
       },
       "ledger_signatures": {
         "type": "object",
@@ -324,7 +332,8 @@
             "default": "1000ms",
             "description": "Maximum duration after which a signature transaction is automatically generated"
           }
-        }
+        },
+        "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service)"
       },
       "jwt": {
         "type": "object",
@@ -334,7 +343,8 @@
             "default": "30min",
             "description": "Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed"
           }
-        }
+        },
+        "description": "This section includes configuration for JWT issuers automatic refresh"
       },
       "output_files": {
         "type": "object",
@@ -357,7 +367,8 @@
             "type": "string",
             "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
           }
-        }
+        },
+        "description": "This section includes configuration for additional files output by the node"
       },
       "tick_interval": {
         "type": "string",
@@ -401,7 +412,8 @@
             "default": "64KB",
             "description": "Maximum size (size string) of individual ringbuffer message fragments, as a power of 2. Messages larger than this will be split into multiple fragments"
           }
-        }
+        },
+        "description": "This section includes configuration for the host-enclave ring-buffer memory"
       }
     },
     "required": [

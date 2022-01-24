@@ -4,6 +4,8 @@ Configuration Options
 ``enclave``
 -----------
 
+This section includes configuration for the enclave application launched by this node.
+
 - ``file``: Path to enclave application.
 
 - ``type``: Type of enclave application (values: ``"release"``, ``"debug"``, ``"virtual"``). Default: ``"release"``.
@@ -11,13 +13,19 @@ Configuration Options
 ``network``
 -----------
 
+This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications).
+
 ``node_to_node_interface``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages).
 
 - ``bind_address``: Local address the node binds to and listens on.
 
 ``rpc_interfaces``
 ~~~~~~~~~~~~~~~~~~
+
+Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information.
 
 - ``bind_address``: Local address the node binds to and listens on.
 
@@ -29,6 +37,8 @@ Configuration Options
 
 ``command``
 -----------
+
+This section includes configuration of how the node should start (either start, join or recover) and associated information.
 
 - ``type``: Type of CCF node (values: ``"start"``, ``"join"``, ``"recover"``). Default: ``"start"``.
 
@@ -45,6 +55,8 @@ Note: Only if ``type`` is ``"start"``.
 
 ``members``
 +++++++++++
+
+List of initial consortium members files, including identity certificates, public encryption keys and member data files.
 
 - ``certificate_file``: Path to member x509 identity certificate (PEM).
 
@@ -80,6 +92,8 @@ Note: Only if ``type`` is ``"recover"``.
 ``node_certificate``
 --------------------
 
+This section includes configuration for the node x509 identity certificate.
+
 - ``subject_name``: Subject name to include in node certificate. Default: ``"CN=CCF Node"``.
 
 - ``subject_alt_names``: List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'.
@@ -91,6 +105,8 @@ Note: Only if ``type`` is ``"recover"``.
 ``ledger``
 ----------
 
+This section includes configuration for the ledger directories and files.
+
 - ``directory``: Path to main ledger directory. Default: ``"ledger"``.
 
 - ``read_only_directories``: Paths to read-only ledger directories. Note that only '.committed' files will be read from these directories.
@@ -100,6 +116,8 @@ Note: Only if ``type`` is ``"recover"``.
 ``snapshots``
 -------------
 
+This section includes configuration for the snapshot directory and files.
+
 - ``directory``: Path to snapshot directory. Default: ``"snapshots"``.
 
 - ``tx_count``: Number of transactions after which a snapshot is automatically generated. Default: ``10000``.
@@ -107,12 +125,16 @@ Note: Only if ``type`` is ``"recover"``.
 ``logging``
 -----------
 
+This section includes configuration for the logging of the node process.
+
 - ``host_level``: Logging level for the untrusted host (values: ``"info"``, ``"fail"``, ``"fatal"``). Default: ``"info"``.
 
 - ``format``: If 'json', node logs will be formatted as JSON (values: ``"text"``, ``"json"``). Default: ``"text"``.
 
 ``consensus``
 -------------
+
+This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service).
 
 - ``type``: Type of consensus protocol. Only CFT (Crash-Fault Tolerant) is currently supported (values: ``"CFT"``). Default: ``"CFT"``.
 
@@ -123,6 +145,8 @@ Note: Only if ``type`` is ``"recover"``.
 ``ledger_signatures``
 ---------------------
 
+This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service).
+
 - ``tx_count``: Number of transactions after which a signature transaction is automatically generated. Default: ``5000``.
 
 - ``delay``: Maximum duration after which a signature transaction is automatically generated. Default: ``"1000ms"``.
@@ -130,10 +154,14 @@ Note: Only if ``type`` is ``"recover"``.
 ``jwt``
 -------
 
+This section includes configuration for JWT issuers automatic refresh.
+
 - ``key_refresh_interval``: Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed. Default: ``"30min"``.
 
 ``output_files``
 ----------------
+
+This section includes configuration for additional files output by the node.
 
 - ``node_certificate_file``: Path to self-signed node certificate output by node on startup. Default: ``"nodecert.pem"``.
 
@@ -170,6 +198,8 @@ Experimental. Number of additional threads processing incoming client requests i
 
 ``memory``
 ----------
+
+This section includes configuration for the host-enclave ring-buffer memory.
 
 - ``circuit_size``: Size (size string) of the internal host-enclave ringbuffers, as a power of 2. Default: ``"4MB"``.
 

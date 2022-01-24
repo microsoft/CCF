@@ -57,18 +57,18 @@ def has_subobjs(obj):
 
 def print_object(output, obj, depth=0, additional_desc=None):
     for k, v in obj.items():
-        LOG.warning(f"depth: {depth}")
-        LOG.info(k)
         heading = depth_to_heading(output, depth)
         if has_subobjs(v):
             heading(f"``{k}``")
             output.newline()
+            if "description" in v:
+                output.content(f'{v["description"]}.')
+                output.newline()
             if additional_desc is not None:
                 output.content(f"Note: {additional_desc}.")
                 output.newline()
 
             if "properties" in v:
-                LOG.success(k)
                 print_object(output, v["properties"], depth=depth + 1)
             if "additionalProperties" in v:
                 print_object(
