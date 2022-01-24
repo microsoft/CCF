@@ -6,8 +6,8 @@
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
-#include "indexing/historical_transaction_fetcher.h"
 #include "indexing/enclave_lfs_access.h"
+#include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/wrap.h"
 #include "node/entities.h"
@@ -43,16 +43,13 @@ namespace enclave
 
     StartType start_type;
 
-    // TODO: Call register_message_handlers instead
-    messaging::BufferProcessor bp;
-
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
       std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
         nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
       std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
-      std::unique_ptr<ccf::indexing::AbstractLFSAccess> lfs_access = nullptr;
+      std::unique_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
 
       NodeContext() {}
 
@@ -117,8 +114,7 @@ namespace enclave
       network(consensus_config.type),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
-      rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map)),
-      bp("Enclave")
+      rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
       ccf::initialize_oe();
 
@@ -157,7 +153,7 @@ namespace enclave
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
           context->historical_state_cache));
       context->lfs_access = std::make_unique<ccf::indexing::EnclaveLFSAccess>(
-        bp.get_dispatcher(), writer_factory->create_writer_to_outside());
+        writer_factory->create_writer_to_outside());
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -266,11 +262,15 @@ namespace enclave
       try
 #endif
       {
+        messaging::BufferProcessor bp("Enclave");
+
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
+        context->lfs_access->register_message_handlers(bp.get_dispatcher());
+
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [&bp = this->bp](const uint8_t*, size_t) {
+          bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
             bp.set_finished();
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
@@ -280,7 +280,7 @@ namespace enclave
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
           AdminMessage::tick,
-          [this, &disp = this->bp.get_dispatcher()](const uint8_t*, size_t) {
+          [this, &disp = bp.get_dispatcher()](const uint8_t*, size_t) {
             const auto message_counts = disp.retrieve_message_counts();
             const auto j = disp.convert_message_counts(message_counts);
             RINGBUFFER_WRITE_MESSAGE(

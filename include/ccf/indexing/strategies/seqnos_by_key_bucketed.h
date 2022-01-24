@@ -157,8 +157,7 @@ namespace ccf::indexing::strategies
     std::optional<SeqNoCollection> get_write_txs_impl(
       const kv::serialisers::SerialisedEntry& serialised_key,
       ccf::SeqNo from,
-      ccf::SeqNo to,
-      std::optional<size_t> max_seqnos = std::nullopt)
+      ccf::SeqNo to)
     {
       auto from_range = get_range_for(from);
       const auto to_range = get_range_for(to);
@@ -254,9 +253,12 @@ namespace ccf::indexing::strategies
                 LOG_DEBUG_FMT(
                   "The {} file is {}", problem, bucket_value.first->key);
 
-                // TODO: Can be smarter about where we re-index from. Only need
-                // to re-index to satisfy the current query. But for safety,
-                // currently go all the way
+                // NB: This could probably be more precise about what is
+                // re-indexed. Technically only need to build an index to build
+                // the current query, and that applies to re-indexing too. But
+                // for safety, and consistency with the simple indexing
+                // strategies currently used, this re-indexes everything from
+                // the start of time.
                 current_txid = {};
                 old_results.clear();
                 current_results.clear();
@@ -331,7 +333,7 @@ namespace ccf::indexing::strategies
     SeqnosByKey_Bucketed(
       const std::string& map_name_,
       AbstractLFSAccess& lfs_access_,
-      size_t seqnos_per_bucket_ = 100, // TODO: Default should be higher?
+      size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10) :
       VisitEachEntryInMap(map_name_, "SeqnosByKey"),
       seqnos_per_bucket(seqnos_per_bucket_),
@@ -339,10 +341,13 @@ namespace ccf::indexing::strategies
       lfs_access(lfs_access_)
     {}
 
-    template <typename... Ts>
     SeqnosByKey_Bucketed(
-      const M& map, AbstractLFSAccess& lfs_access_, Ts&&... ts) :
-      SeqnosByKey_Bucketed(map.get_name(), lfs_access_, std::forward<Ts>(ts)...)
+      const M& map,
+      AbstractLFSAccess& lfs_access_,
+      size_t seqnos_per_bucket_ = 1000,
+      size_t max_buckets_ = 10) :
+      SeqnosByKey_Bucketed(
+        map.get_name(), lfs_access_, seqnos_per_bucket_, max_buckets_)
     {}
 
     virtual ~SeqnosByKey_Bucketed() = default;

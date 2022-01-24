@@ -101,9 +101,7 @@ namespace ccf::indexing
     std::unique_ptr<crypto::KeyAesGcm> encryption_key;
 
   public:
-    EnclaveLFSAccess(
-      messaging::Dispatcher<ringbuffer::Message>& dispatcher,
-      const ringbuffer::WriterPtr& writer) :
+    EnclaveLFSAccess(const ringbuffer::WriterPtr& writer) :
       to_host(writer),
       entropy_src(crypto::create_entropy())
     {
@@ -111,7 +109,11 @@ namespace ccf::indexing
       // enclave, can read these files!
       encryption_key =
         crypto::make_key_aes_gcm(entropy_src->random(crypto::GCM_SIZE_KEY));
+    }
 
+    void register_message_handlers(
+      messaging::Dispatcher<ringbuffer::Message>& dispatcher)
+    {
       DISPATCHER_SET_MESSAGE_HANDLER(
         dispatcher, LFSMsg::response, [this](const uint8_t* data, size_t size) {
           auto [obfuscated, encrypted] =
