@@ -33,15 +33,16 @@ class MinimalRstGenerator:
 
 
 def print_attributes(entry):
-    def stringify_output(entry, s):
-        s = f'"{s}"' if entry["type"] == "string" else s
-        return f"``{s}``"
+    def stringify_output(s):
+        return f"``{json.dumps(s)}``"
 
     desc = ""
     if "description" in entry:
         desc += entry["description"]
     if "enum" in entry:
-        desc += f' (values: {", ".join(map(lambda s: stringify_output(entry, s), entry["enum"]))})'
+        desc += (
+            f' (values: {", ".join(map(lambda s: stringify_output(s), entry["enum"]))})'
+        )
     if "default" in entry:
         default_str = entry["default"]
         if entry["type"] == "string":
