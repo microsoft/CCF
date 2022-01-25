@@ -157,8 +157,7 @@ namespace ccf::indexing::strategies
     std::optional<SeqNoCollection> get_write_txs_impl(
       const kv::serialisers::SerialisedEntry& serialised_key,
       ccf::SeqNo from,
-      ccf::SeqNo to,
-      std::optional<size_t> max_seqnos = std::nullopt)
+      ccf::SeqNo to)
     {
       auto from_range = get_range_for(from);
       const auto to_range = get_range_for(to);
@@ -187,11 +186,6 @@ namespace ccf::indexing::strategies
         // TODO: Need to find a more efficient way of doing this
         for (auto n : seqnos)
         {
-          if (max_seqnos.has_value() && result.size() >= *max_seqnos)
-          {
-            break;
-          }
-
           if (n >= from && n <= to)
           {
             result.insert(n);
@@ -359,10 +353,7 @@ namespace ccf::indexing::strategies
     }
 
     std::optional<SeqNoCollection> get_write_txs_in_range(
-      const typename M::Key& key,
-      ccf::SeqNo from,
-      ccf::SeqNo to,
-      std::optional<size_t> max_seqnos = std::nullopt)
+      const typename M::Key& key, ccf::SeqNo from, ccf::SeqNo to)
     {
       if (to < from)
       {
@@ -377,8 +368,7 @@ namespace ccf::indexing::strategies
         return std::nullopt;
       }
 
-      return get_write_txs_impl(
-        M::KeySerialiser::to_serialised(key), from, to, max_seqnos);
+      return get_write_txs_impl(M::KeySerialiser::to_serialised(key), from, to);
     }
   };
 }
