@@ -181,13 +181,22 @@ endif()
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
+  if (DISABLE_OE)
+    target_compile_definitions(
+        ${name} PRIVATE DISABLE_OE)
+  endif()
   target_include_directories(
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host ${HOST_SIDE_VERIFIERS}
   )
+  if("virtual" IN_LIST COMPILE_TARGETS)
+    target_link_libraries(
+      ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT}
+    )
+  endif()
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
@@ -259,6 +268,10 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   # Virtual Host Executable
   add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
+  if (DISABLE_OE)
+    target_compile_definitions(
+        cchost.virtual PRIVATE DISABLE_OE)
+  endif()
   target_compile_options(cchost.virtual PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
@@ -353,6 +366,9 @@ set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
 )
 
+set(JS_PLUGINS_ENCLAVE "")
+set(JS_PLUGINS_VIRTUAL "")
+
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
@@ -362,24 +378,28 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     EXPORT ccf
     DESTINATION lib
   )
+  list(APPEND JS_PLUGINS_ENCLAVE js_openenclave.enclave)
 endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
-  add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
-  add_san(js_openenclave.virtual)
-  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                  _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-  set_property(
-    TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  install(
-    TARGETS js_openenclave.virtual
-    EXPORT ccf
-    DESTINATION lib
-  )
+if("virtual" IN_LIST COMPILE_TARGETS AND NOT DISABLE_OE)
+  if (NOT DISABLE_OE)
+    add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
+    add_san(js_openenclave.virtual)
+    target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
+    target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
+    target_compile_definitions(
+      js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                    _LIBCPP_HAS_THREAD_API_PTHREAD
+    )
+    set_property(
+      TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+    )
+    install(
+      TARGETS js_openenclave.virtual
+      EXPORT ccf
+      DESTINATION lib
+    )
+    list(APPEND JS_PLUGINS_VIRTUAL js_openenclave.virtual)
+  endif()
 endif()
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -407,6 +427,10 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
                                    _LIBCPP_HAS_THREAD_API_PTHREAD
   )
+  if (DISABLE_OE)
+    target_compile_definitions(
+        js_generic_base.virtual PUBLIC DISABLE_OE)
+  endif()
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
@@ -420,8 +444,8 @@ endif()
 add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-  LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual INSTALL_LIBS
+  LINK_LIBS_ENCLAVE js_generic_base.enclave ${JS_PLUGINS_ENCLAVE}
+  LINK_LIBS_VIRTUAL js_generic_base.virtual ${JS_PLUGINS_VIRTUAL} INSTALL_LIBS
                     ON
 )
 sign_app_library(

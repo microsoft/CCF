@@ -129,6 +129,10 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
                        _LIBCPP_HAS_THREAD_API_PTHREAD
   )
+  if (DISABLE_OE)
+    target_compile_definitions(
+        ccf.virtual PUBLIC PRIVATE DISABLE_OE)
+  endif()
 
   target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
   add_warning_checks(ccf.virtual)
@@ -153,7 +157,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            quickjs.host
            sss.host
            ccf_endpoints.host
-           openenclave::oehost
+           ${HOST_SIDE_VERIFIERS}
            ${CMAKE_THREAD_LIBS_INIT}
   )
 

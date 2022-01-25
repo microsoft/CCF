@@ -14,6 +14,19 @@
 #  include <openenclave/edger8r/enclave.h> // For oe_lfence
 #  include <openenclave/enclave.h>
 
+bool ccf_allocator_mallinfo(ccf_mallinfo_t& info)
+{
+  oe_mallinfo_t oe_info;
+  if (oe_allocator_mallinfo(&oe_info) != OE_OK)
+  {
+    return false;
+  }
+  info.max_total_heap_size = oe_info.max_total_heap_size;
+  info.current_allocated_heap_size = oe_info.current_allocated_heap_size;
+  info.peak_allocated_heap_size = oe_info.peak_allocated_heap_size;
+  return true;
+}
+
 #else
 
 // Repeat or approximate a lot of OE definitions, so that the virtual library
@@ -44,12 +57,12 @@ OE_EXTERNC bool oe_is_outside_enclave(const void*, std::size_t)
 
 #  define oe_lfence() // nop
 
-OE_EXTERNC oe_result_t oe_allocator_mallinfo(oe_mallinfo_t* info)
+bool ccf_allocator_mallinfo(ccf_mallinfo_t& info)
 {
-  info->max_total_heap_size = std::numeric_limits<size_t>::max();
-  info->current_allocated_heap_size = 0;
-  info->peak_allocated_heap_size = 0;
-  return OE_OK;
+  info.max_total_heap_size = std::numeric_limits<size_t>::max();
+  info.current_allocated_heap_size = 0;
+  info.peak_allocated_heap_size = 0;
+  return true;
 }
 
 #endif

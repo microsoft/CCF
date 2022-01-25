@@ -14,7 +14,11 @@ namespace ccfapp
 
   std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
+#if !defined(DISABLE_OE)
     return {ccf::js::openenclave_plugin};
+#else
+    return {};
+#endif
   }
 
 } // namespace ccfapp

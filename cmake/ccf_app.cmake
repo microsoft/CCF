@@ -1,13 +1,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set(ALLOWED_TARGETS "sgx;virtual")
+if (NOT DISABLE_OE)
+  set(ALLOWED_TARGETS "sgx;virtual")
+else()
+  set(ALLOWED_TARGETS "virtual")
+endif()
 
 set(COMPILE_TARGETS
-    "sgx;virtual"
+    ${ALLOWED_TARGETS}
     CACHE
       STRING
       "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
+)
+
+set(DISABLE_OE
+    False
+    CACHE
+      BOOL
+      "Disable the requirements for OE, but also to ability to verify OE attesation reports."
 )
 
 set(IS_VALID_TARGET "FALSE")
@@ -29,43 +40,52 @@ if((NOT ${IS_VALID_TARGET}))
   )
 endif()
 
-# Find OpenEnclave package
-find_package(OpenEnclave 0.17.5 CONFIG REQUIRED)
-# As well as pulling in openenclave:: targets, this sets variables which can be
-# used for our edge cases (eg - for virtual libraries). These do not follow the
-# standard naming patterns, for example use OE_INCLUDEDIR rather than
-# OpenEnclave_INCLUDE_DIRS
+set(HOST_SIDE_VERIFIERS)
 
-set(OE_TARGET_LIBC openenclave::oelibc)
-set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
-                              openenclave::oelibc openenclave::oecryptoopenssl
-)
-# These oe libraries must be linked in specific order
-set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
-                                openenclave::oecore openenclave::oesyscall
-)
+if (NOT DISABLE_OE)
+  # Find OpenEnclave package
+  find_package(OpenEnclave 0.17.5 CONFIG REQUIRED)
 
-option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
-if(LVI_MITIGATIONS)
-  string(APPEND OE_TARGET_LIBC -lvi-cfg)
-  list(TRANSFORM OE_TARGET_ENCLAVE_AND_STD APPEND -lvi-cfg)
-  list(TRANSFORM OE_TARGET_ENCLAVE_CORE_LIBS APPEND -lvi-cfg)
-endif()
+  # As well as pulling in openenclave:: targets, this sets variables which can be
+  # used for our edge cases (eg - for virtual libraries). These do not follow the
+  # standard naming patterns, for example use OE_INCLUDEDIR rather than
+  # OpenEnclave_INCLUDE_DIRS
 
-function(add_lvi_mitigations name)
+  set(OE_TARGET_LIBC openenclave::oelibc)
+  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
+                                openenclave::oelibc openenclave::oecryptoopenssl
+  )
+  # These oe libraries must be linked in specific order
+  set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
+                                  openenclave::oecore openenclave::oesyscall
+  )
+
+  list(APPEND HOST_SIDE_VERIFIERS openenclave::oehost)
+
+  option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
   if(LVI_MITIGATIONS)
-    apply_lvi_mitigation(${name})
+    string(APPEND OE_TARGET_LIBC -lvi-cfg)
+    list(TRANSFORM OE_TARGET_ENCLAVE_AND_STD APPEND -lvi-cfg)
+    list(TRANSFORM OE_TARGET_ENCLAVE_CORE_LIBS APPEND -lvi-cfg)
   endif()
-endfunction()
 
-if(LVI_MITIGATIONS)
-  set(LVI_MITIGATION_BINDIR
-      /opt/oe_lvi
-      CACHE STRING "Path to the LVI mitigation bindir."
-  )
-  find_package(
-    OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
-  )
+  function(add_lvi_mitigations name)
+    if(LVI_MITIGATIONS)
+      apply_lvi_mitigation(${name})
+    endif()
+  endfunction()
+
+  if(LVI_MITIGATIONS)
+    set(LVI_MITIGATION_BINDIR
+        /opt/oe_lvi
+        CACHE STRING "Path to the LVI mitigation bindir."
+    )
+    find_package(
+      OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
+    )
+  endif()
+else()
+  set(OE_BINDIR .)
 endif()
 
 # Sign a built enclave library with oesign
@@ -239,6 +259,10 @@ function(add_host_library name)
   set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   add_library(${name} ${files})
   target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
-  target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc openenclave::oehost)
+  if (DISABLE_OE)
+    target_compile_definitions(
+        ${name} PUBLIC DISABLE_OE)
+  endif()
+  target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc ${HOST_SIDE_VERIFIERS})
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()

@@ -1124,9 +1124,8 @@ namespace ccf
 // Do not attempt to call oe_allocator_mallinfo when used from
 // unit tests such as the frontend_test
 #ifdef INSIDE_ENCLAVE
-        oe_mallinfo_t info;
-        auto rc = oe_allocator_mallinfo(&info);
-        if (rc == OE_OK)
+        ccf_mallinfo_t info;
+        if (ccf_allocator_mallinfo(info))
         {
           MemoryUsage::Out mu(info);
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);

@@ -4,7 +4,7 @@
 
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 #  include <openenclave/enclave.h>
-#else
+#elif !defined(DISABLE_OE)
 #  include <openenclave/host_verify.h>
 #endif
 #include "ds/ccf_exception.h"
@@ -23,6 +23,7 @@ namespace ccf
       }
     }
 #endif
+#if !defined(DISABLE_OE)
     {
       auto rc = oe_verifier_initialize();
       if (rc != OE_OK)
@@ -31,6 +32,7 @@ namespace ccf
           "Failed to initialise evidence verifier: {}", oe_result_str(rc)));
       }
     }
+#endif
   }
 
   void shutdown_oe()
@@ -38,7 +40,9 @@ namespace ccf
 #if !defined(VIRTUAL_ENCLAVE)
     oe_attester_shutdown();
 #endif
+#if !defined(DISABLE_OE)
     oe_verifier_shutdown();
+#endif
   }
 
 }

@@ -7,13 +7,14 @@
 #include "proposals.h"
 #include "service_map.h"
 
-#include <openenclave/attestation/verifier.h>
 #include <optional>
 #include <set>
 #include <sstream>
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/attestation/verifier.h>
 #  include <openenclave/enclave.h>
-#else
+#elsif !defined(DISABLE_OE)
+#  include <openenclave/attestation/verifier.h>
 #  include <openenclave/host_verify.h>
 #endif
 
@@ -115,6 +116,7 @@ namespace ccf
       });
   }
 
+#if !defined(DISABLE_OE)
   static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
     oe_claim_t* claims, size_t claims_length, void* arg)
   {
@@ -128,6 +130,7 @@ namespace ccf
     }
     return OE_OK;
   }
+#endif
 
   static bool set_jwt_public_signing_keys(
     kv::Tx& tx,
@@ -187,6 +190,7 @@ namespace ccf
       bool has_key_policy_sgx_claims = issuer_metadata.key_policy.has_value() &&
         issuer_metadata.key_policy.value().sgx_claims.has_value() &&
         !issuer_metadata.key_policy.value().sgx_claims.value().empty();
+#if !defined(DISABLE_OE)
       if (
         issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
         has_key_policy_sgx_claims)
@@ -197,6 +201,7 @@ namespace ccf
           oe_verify_attestation_certificate_with_evidence_cb,
           &claims);
       }
+#endif
 
       if (
         issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX && claims.empty())
