@@ -39,7 +39,7 @@ namespace json
           error_ctx += c;
         }
         validation_error_msg += fmt::format(
-          "\nError #{}:\n  context: {}\n  desc: {}",
+          "\nError #{}:\n  context: {}\n  message: {}",
           error_num,
           error_ctx,
           error.description);

@@ -74,7 +74,6 @@
         "type": {
           "type": "string",
           "enum": ["start", "join", "recover"],
-          "default": "start",
           "description": "Type of CCF node"
         },
         "service_certificate_file": {
@@ -132,7 +131,6 @@
                     "properties": {
                       "recovery_threshold": {
                         "type": "integer",
-                        "default": 0,
                         "description": "Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in 'members'"
                       },
                       "maximum_node_certificate_validity_days": {
@@ -216,7 +214,7 @@
           "items": {
             "type": "string"
           },
-          "description": "List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none is set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'"
+          "description": "List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'"
         },
         "curve_id": {
           "type": "string",
@@ -383,7 +381,7 @@
     },
     "worker_threads": {
       "type": "integer",
-      "default": "0",
+      "default": 0,
       "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!)"
     },
     "memory": {
