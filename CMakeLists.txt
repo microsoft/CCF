@@ -51,9 +51,10 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
-file(READ ${CCF_DIR}/doc/schemas/cchost_config.json HOST_CONFIG_SCHEMA)
+file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json HOST_CONFIG_SCHEMA)
 configure_file(
-  ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h @ONLY
+  ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h
+  @ONLY
 )
 
 if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))

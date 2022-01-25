@@ -3,6 +3,8 @@
 
 import sys
 import json
+import tempfile
+import filecmp
 
 # Generated document is included in existing page, so
 # start at heading of depth 1 (equivalent to markdown h2.)
@@ -112,8 +114,6 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
 
 
 def generate_configuration_docs(input_file_path, output_file_path):
-    print("Generating configuration documentation...")
-
     with open(input_file_path, "r") as in_:
         j = json.load(in_)
 
@@ -123,10 +123,15 @@ def generate_configuration_docs(input_file_path, output_file_path):
         output, j["properties"], required_entries=j["required"], depth=START_DEPTH
     )
 
-    with open(output_file_path, "w") as out_:
-        out_.write(output.render())
-
-    print(f"Configuration file successfully generated at {output_file_path}")
+    out = output.render()
+    # Only update output file if the file wil be modified
+    with tempfile.NamedTemporaryFile("w") as temp:
+        temp.write(out)
+        temp.flush()
+        if not filecmp.cmp(temp.name, output_file_path):
+            with open(output_file_path, "w") as out_:
+                out_.write(output.render())
+            print(f"Configuration file successfully generated at {output_file_path}")
 
 
 if __name__ == "__main__":

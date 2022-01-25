@@ -385,7 +385,8 @@ def config_inited(app, config):
 
 
 def setup(app):
-    app.connect("config-inited", config_inited)
+    if not os.environ.get("SKIP_JS"):
+        app.connect("config-inited", config_inited)
 
     srcdir = pathlib.Path(app.srcdir)
 
@@ -396,5 +397,6 @@ def setup(app):
 
     # configuration generator
     generate_config_rst.generate_configuration_docs(
-        "doc/schemas/cchost_config.json", "doc/operations/generated_config.rst"
+        "doc/host_config_schema/cchost_config.json",
+        "doc/operations/generated_config.rst",
     )
