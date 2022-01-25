@@ -699,6 +699,11 @@ namespace ccf
         });
     }
 
+    size_t get_jwt_attempts() override
+    {
+      return jwt_key_auto_refresh->get_attempts();
+    }
+
     //
     // funcs in state "readingPublicLedger" or "verifyingSnapshot"
     //
