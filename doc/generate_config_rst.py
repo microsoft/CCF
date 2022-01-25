@@ -11,7 +11,8 @@ START_DEPTH = 1
 
 class MinimalRstGenerator:
     def __init__(self):
-        self._lines = []
+        self._lines = [".."]
+        self._lines.append("  This is an auto-generated file. DO NOT EDIT.\n")
 
     def _add_lines(self, lines):
         self._lines.extend(lines)
