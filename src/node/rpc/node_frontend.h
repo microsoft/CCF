@@ -1201,7 +1201,7 @@ namespace ccf
         // our internal "jwt_keys/refresh" endpoint.
         auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
         auto metric = get_metrics_for_endpoint(e);
-        m.successes = metric.calls;
+        m.successes = metric.calls - (metric.failures + metric.errors);
         return m;
       };
 
