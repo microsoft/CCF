@@ -271,7 +271,7 @@ NetworkCA get_ca()
 
 /// Creates a tls::Cert with a new CA using a new self-signed Pem certificate.
 unique_ptr<tls::Cert> get_dummy_cert(
-  NetworkCA& net_ca, string name, bool auth_required)
+  NetworkCA& net_ca, string name, bool auth_required = true)
 {
   // Create a CA with a self-signed certificate
   auto ca = make_unique<tls::CA>(CBuffer(net_ca.cert.str()));
@@ -287,7 +287,7 @@ unique_ptr<tls::Cert> get_dummy_cert(
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk, auth_required);
+  return make_unique<Cert>(move(ca), crt, pk, std::nullopt, auth_required);
 }
 
 /// Helper to write past the maximum buffer (16k)
@@ -464,8 +464,8 @@ TEST_CASE("verified handshake")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", true);
-  auto client_cert = get_dummy_cert(ca, "client", true);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: verified handshake");
 
@@ -491,8 +491,8 @@ TEST_CASE("verified communication")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", true);
-  auto client_cert = get_dummy_cert(ca, "client", true);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: verified communication");
 
@@ -518,8 +518,8 @@ TEST_CASE("large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", true);
-  auto client_cert = get_dummy_cert(ca, "client", true);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: large message");
 
@@ -545,8 +545,8 @@ TEST_CASE("very large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", true);
-  auto client_cert = get_dummy_cert(ca, "client", true);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: very large message");
 
