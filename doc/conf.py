@@ -386,6 +386,7 @@ def setup(app):
     doc_dir = pathlib.Path(app.srcdir)  # CCF/doc/
     root_dir = os.path.abspath(doc_dir / "..")  # CCF/
 
+    # import ccf python package to generate docs for this version
     python_path = os.path.abspath(doc_dir / "../python")
     sys.path.insert(0, python_path)
 
