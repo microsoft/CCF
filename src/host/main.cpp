@@ -93,19 +93,16 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  try
-  {
-    auto config_json = nlohmann::json(config);
-    auto schema_json = nlohmann::json::parse(host::host_config_schema);
+  auto config_json = nlohmann::json(config);
+  auto schema_json = nlohmann::json::parse(host::host_config_schema);
 
-    json::validate_json(config_json, schema_json);
-  }
-  catch (const std::exception& e)
+  auto schema_error_msg = json::validate_json(config_json, schema_json);
+  if (schema_error_msg.has_value())
   {
     LOG_FAIL_FMT(
       "Error validating JSON schema for configuration file {}: {}",
       config_file_path,
-      e.what());
+      schema_error_msg.value());
     return 1;
   }
 

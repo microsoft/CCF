@@ -3,6 +3,8 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <string>
 #include <valijson/adapters/nlohmann_json_adapter.hpp>
 #include <valijson/schema.hpp>
 #include <valijson/schema_parser.hpp>
@@ -11,7 +13,7 @@
 
 namespace json
 {
-  static void validate_json(
+  static std::optional<std::string> validate_json(
     const nlohmann::json& input_json, const nlohmann::json& schema_json)
   {
     valijson::Schema schema;
@@ -43,7 +45,9 @@ namespace json
           error_ctx);
         ++error_num;
       }
-      throw std::logic_error(validation_error_msg);
+      return validation_error_msg;
     }
+
+    return std::nullopt;
   }
 }

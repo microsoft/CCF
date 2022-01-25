@@ -12,7 +12,7 @@ namespace host
   // @CMAKE_GENERATED_COMMENT@
   //
 
-  static constexpr auto host_config_schema = "@HOST_CONFIG_SCHEMA@";
+  static constexpr auto host_config_schema = R"!!!(@HOST_CONFIG_SCHEMA@)!!!";
 
   // clang-format on
 }
