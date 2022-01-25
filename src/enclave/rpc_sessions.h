@@ -247,7 +247,7 @@ namespace enclave
 
       auto& per_listen_interface = it->second;
 
-      if (!certs.contains(listen_interface_id))
+      if (certs.find(listen_interface_id) == certs.end())
       {
         LOG_DEBUG_FMT(
           "Refusing TLS session {} inside the enclave - interface {} "
