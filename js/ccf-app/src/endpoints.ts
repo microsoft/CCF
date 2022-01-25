@@ -54,6 +54,11 @@ export interface Request<T extends JsonCompatible<T> = any> {
   query: string;
 
   /**
+   * The request path of the requested URL.
+   */
+  path: string;
+
+  /**
    * An object to access the request body in various ways.
    */
   body: Body<T>;
@@ -223,7 +228,7 @@ export interface Response<T extends ResponseBodyType<T> = any> {
 export type EndpointFn<
   A extends JsonCompatible<A> = any,
   B extends ResponseBodyType<B> = any
-> = (request: Request<A>) => Response<B>;
+  > = (request: Request<A>) => Response<B>;
 
 /**
  * @inheritDoc CCF.rpc.setApplyWrites
