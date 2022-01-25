@@ -183,7 +183,6 @@ namespace ccf::indexing::strategies
       SeqNoCollection result;
 
       auto append_bucket_result = [&](const SeqNoCollection& seqnos) {
-        // TODO: Need to find a more efficient way of doing this
         for (auto n : seqnos)
         {
           if (n >= from && n <= to)
