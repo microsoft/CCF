@@ -163,7 +163,7 @@ namespace loggingapp
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
       index_per_private_key = std::make_shared<RecordsIndexingStrategy>(
-        PRIVATE_RECORDS, context.get_lfs_access(), 1000, 20);
+        PRIVATE_RECORDS, context.get_lfs_access(), 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_private_key);
 
       const ccf::AuthnPolicies auth_policies = {
@@ -1053,12 +1053,14 @@ namespace loggingapp
         }
 
         // Set a maximum range, paginate larger requests
-        static constexpr size_t max_seqno_per_page = 2000;
+        static constexpr size_t max_seqno_per_page = 10000;
         const auto range_begin = from_seqno;
+        const auto range_end =
+          std::min(to_seqno, range_begin + max_seqno_per_page);
 
         const auto interesting_seqnos =
           index_per_private_key->get_write_txs_in_range(
-            id, range_begin, to_seqno, max_seqno_per_page);
+            id, range_begin, range_end);
         if (!interesting_seqnos.has_value())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
@@ -1071,8 +1073,6 @@ namespace loggingapp
             "Still constructing index for private records at {}", id));
           return;
         }
-
-        const auto range_end = interesting_seqnos->back();
 
         // Use hash of request as RequestHandle. WARNING: This means identical
         // requests from different users will collide, and overwrite each
@@ -1139,9 +1139,11 @@ namespace loggingapp
         if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
+          const auto next_range_end =
+            std::min(to_seqno, next_page_start + max_seqno_per_page);
           const auto next_seqnos =
             index_per_private_key->get_write_txs_in_range(
-              id, next_page_start, to_seqno, max_seqno_per_page);
+              id, next_page_start, next_range_end);
           if (next_seqnos.has_value() && !next_seqnos->empty())
           {
             const auto next_page_end = next_seqnos->back();
