@@ -21,7 +21,7 @@ tests/env/
 sphinx/env/
 html/
 latex/
-*env/
+env/
 *.egg-info
 **/dist
 node_modules
@@ -35,4 +35,4 @@ src/host/config_schema.h
 workspace/*
 ledger_[0-9]*
 snapshot_[0-9]*
-generated_config.rst
+doc/operations/generated_config.rst
