@@ -53,7 +53,7 @@ def print_attributes(entry):
 def print_entry(output, entry, name, required=False, depth=0):
     desc = ""
     if depth == START_DEPTH:
-        output.add_heading(f"``{name}``", 2)
+        output.add_heading(f"``{name}``", START_DEPTH)
     else:
         desc += f"- ``{name}``: "
     desc += print_attributes(entry)
@@ -71,6 +71,7 @@ def has_subobjs(obj):
 def print_object(output, obj, depth=0, required_entries=None, additional_desc=None):
     required_entries = required_entries or []
     for k, v in obj.items():
+        print(f"Obj: {k}, depth: {depth}")
         if has_subobjs(v):
             output.add_heading(f"``{k}``", depth)
             if "description" in v:
@@ -125,7 +126,7 @@ def generate_configuration_docs(input_file_path, output_file_path):
     )
 
     out = output.render()
-    # Only update output file if the file wil be modified
+    # Only update output file if the file will be modified
     with tempfile.NamedTemporaryFile("w") as temp:
         temp.write(out)
         temp.flush()
