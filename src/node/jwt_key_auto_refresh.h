@@ -276,9 +276,6 @@ namespace ccf
       jwt_issuers->foreach([this, &ca_cert_bundles](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
-        // Increment attempts
-        attempts++;
-
         if (!metadata.auto_refresh)
         {
           LOG_DEBUG_FMT(
@@ -287,6 +284,10 @@ namespace ccf
             issuer);
           return true;
         }
+
+        // Increment attempts, only when auto-refresh is enabled.
+        attempts++;
+
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
         auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
