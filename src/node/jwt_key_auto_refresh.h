@@ -311,7 +311,7 @@ namespace ccf
 
         auto ca = std::make_shared<tls::CA>(ca_cert_bundle_pem.value());
         auto ca_cert = std::make_shared<tls::Cert>(
-          ca, std::nullopt, std::nullopt, true, metadata_url.host);
+          ca, std::nullopt, std::nullopt, /*auth_required=*/true, metadata_url.host);
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Requesting OpenID metadata at https://{}:{}{}",
