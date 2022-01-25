@@ -245,7 +245,7 @@ namespace ccf
       auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
 
       auto ca_cert = std::make_shared<tls::Cert>(
-        ca, std::nullopt, std::nullopt, tls::auth_required, jwks_url.host);
+        ca, std::nullopt, std::nullopt, true, jwks_url.host);
 
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
@@ -311,11 +311,7 @@ namespace ccf
 
         auto ca = std::make_shared<tls::CA>(ca_cert_bundle_pem.value());
         auto ca_cert = std::make_shared<tls::Cert>(
-          ca,
-          std::nullopt,
-          std::nullopt,
-          tls::auth_required,
-          metadata_url.host);
+          ca, std::nullopt, std::nullopt, true, metadata_url.host);
 
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Requesting OpenID metadata at https://{}:{}{}",

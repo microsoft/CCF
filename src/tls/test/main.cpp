@@ -270,7 +270,8 @@ NetworkCA get_ca()
 }
 
 /// Creates a tls::Cert with a new CA using a new self-signed Pem certificate.
-unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
+unique_ptr<tls::Cert> get_dummy_cert(
+  NetworkCA& net_ca, string name, bool auth_required)
 {
   // Create a CA with a self-signed certificate
   auto ca = make_unique<tls::CA>(CBuffer(net_ca.cert.str()));
@@ -286,7 +287,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk, auth);
+  return make_unique<Cert>(move(ca), crt, pk, auth_required);
 }
 
 /// Helper to write past the maximum buffer (16k)
@@ -414,8 +415,8 @@ TEST_CASE("unverified handshake")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_none);
-  auto client_cert = get_dummy_cert(ca, "client", auth_none);
+  auto server_cert = get_dummy_cert(ca, "server", false);
+  auto client_cert = get_dummy_cert(ca, "client", false);
 
   LOG_INFO_FMT("TEST: unverified handshake");
 
@@ -441,8 +442,8 @@ TEST_CASE("unverified communication")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_none);
-  auto client_cert = get_dummy_cert(ca, "client", auth_none);
+  auto server_cert = get_dummy_cert(ca, "server", false);
+  auto client_cert = get_dummy_cert(ca, "client", false);
 
   LOG_INFO_FMT("TEST: unverified communication");
 
@@ -463,8 +464,8 @@ TEST_CASE("verified handshake")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server", true);
+  auto client_cert = get_dummy_cert(ca, "client", true);
 
   LOG_INFO_FMT("TEST: verified handshake");
 
@@ -490,8 +491,8 @@ TEST_CASE("verified communication")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server", true);
+  auto client_cert = get_dummy_cert(ca, "client", true);
 
   LOG_INFO_FMT("TEST: verified communication");
 
@@ -517,8 +518,8 @@ TEST_CASE("large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server", true);
+  auto client_cert = get_dummy_cert(ca, "client", true);
 
   LOG_INFO_FMT("TEST: large message");
 
@@ -544,8 +545,8 @@ TEST_CASE("very large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server", true);
+  auto client_cert = get_dummy_cert(ca, "client", true);
 
   LOG_INFO_FMT("TEST: very large message");
 

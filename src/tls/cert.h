@@ -26,7 +26,7 @@ namespace tls
   private:
     std::shared_ptr<CA> peer_ca;
     std::optional<std::string> peer_hostname;
-    Auth auth;
+    bool auth_required;
 
     Unique_X509 own_cert;
     std::shared_ptr<KeyPair_OpenSSL> own_pkey;
@@ -37,11 +37,11 @@ namespace tls
       std::shared_ptr<CA> peer_ca_,
       const std::optional<crypto::Pem>& own_cert_ = std::nullopt,
       const std::optional<crypto::Pem>& own_pkey_ = std::nullopt,
-      Auth auth_ = auth_default,
+      bool auth_required_ = false,
       const std::optional<std::string>& peer_hostname_ = std::nullopt) :
       peer_ca(peer_ca_),
       peer_hostname(peer_hostname_),
-      auth(auth_)
+      auth_required(auth_required_)
     {
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
@@ -70,9 +70,10 @@ namespace tls
         peer_ca->use(ssl_ctx);
       }
 
-      if (auth != auth_default)
+      if (auth_required)
       {
-        SSL_CTX_set_verify(ssl_ctx, authmode(auth), NULL);
+        SSL_CTX_set_verify(
+          ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
       }
       else
       {
@@ -100,25 +101,6 @@ namespace tls
       {
         CHECK1(SSL_CTX_use_cert_and_key(ssl_ctx, own_cert, *own_pkey, NULL, 1));
         CHECK1(SSL_use_cert_and_key(ssl, own_cert, *own_pkey, NULL, 1));
-      }
-    }
-
-  private:
-    int authmode(Auth auth)
-    {
-      switch (auth)
-      {
-        case auth_none:
-        {
-          // Peer certificate is not checked
-          return SSL_VERIFY_NONE;
-        }
-
-        case auth_required:
-        default:
-        {
-          return SSL_VERIFY_PEER;
-        }
       }
     }
   };
