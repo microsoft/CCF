@@ -102,7 +102,8 @@
                   "initial_service_certificate_validity_days": {
                     "type": "integer",
                     "default": 1,
-                    "description": "Initial validity period (days) for service certificate"
+                    "description": "Initial validity period (days) for service certificate",
+                    "minimum": 1
                   },
                   "members": {
                     "type": "array",
@@ -131,12 +132,14 @@
                     "properties": {
                       "recovery_threshold": {
                         "type": "integer",
-                        "description": "Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in 'members'"
+                        "description": "Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in 'members'",
+                        "minimum": 0
                       },
                       "maximum_node_certificate_validity_days": {
                         "type": "integer",
                         "default": 365,
-                        "description": "The maximum number of days allowed for node certificate validity period"
+                        "description": "The maximum number of days allowed for node certificate validity period",
+                        "minimum": 1
                       },
                       "reconfiguration_type": {
                         "type": "string",
@@ -190,7 +193,8 @@
                   "initial_service_certificate_validity_days": {
                     "type": "integer",
                     "default": 1,
-                    "description": "Initial validity period (days) for service certificate"
+                    "description": "Initial validity period (days) for service certificate",
+                    "minimum": 1
                   }
                 }
               }
@@ -225,7 +229,8 @@
         "initial_validity_days": {
           "type": "integer",
           "default": 1,
-          "description": "Initial validity period (days) for node certificate"
+          "description": "Initial validity period (days) for node certificate",
+          "minimum": 1
         }
       },
       "description": "This section includes configuration for the node x509 identity certificate"
@@ -264,7 +269,8 @@
         "tx_count": {
           "type": "integer",
           "default": 10000,
-          "description": "Number of transactions after which a snapshot is automatically generated"
+          "description": "Number of transactions after which a snapshot is automatically generated",
+          "minimum": 1
         }
       },
       "description": "This section includes configuration for the snapshot directory and files"
@@ -315,7 +321,8 @@
         "tx_count": {
           "type": "integer",
           "default": 5000,
-          "description": "Number of transactions after which a signature transaction is automatically generated"
+          "description": "Number of transactions after which a signature transaction is automatically generated",
+          "minimum": 1
         },
         "delay": {
           "type": "string",
@@ -382,7 +389,8 @@
     "worker_threads": {
       "type": "integer",
       "default": 0,
-      "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!)"
+      "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!)",
+      "minimum": 0
     },
     "memory": {
       "type": "object",

@@ -44,10 +44,9 @@ def print_attributes(entry):
             f' (values: {", ".join(map(lambda s: stringify_output(s), entry["enum"]))})'
         )
     if "default" in entry:
-        default_str = entry["default"]
-        if entry["type"] == "string":
-            default_str = f'"{default_str}"'
-        desc += f". Default: ``{default_str}``"
+        desc += f'. Default: {stringify_output(entry["default"])}'
+    if "minimum" in entry:
+        desc += f'. Minimum: {stringify_output(entry["minimum"])}'
     return desc
 
 
