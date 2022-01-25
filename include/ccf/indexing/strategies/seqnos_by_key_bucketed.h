@@ -157,7 +157,8 @@ namespace ccf::indexing::strategies
     std::optional<SeqNoCollection> get_write_txs_impl(
       const kv::serialisers::SerialisedEntry& serialised_key,
       ccf::SeqNo from,
-      ccf::SeqNo to)
+      ccf::SeqNo to,
+      std::optional<size_t> max_seqnos = std::nullopt)
     {
       auto from_range = get_range_for(from);
       const auto to_range = get_range_for(to);
