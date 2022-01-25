@@ -184,8 +184,8 @@ In this case, ``key_filter`` must be set to ``sgx`` such that only those certifi
 Extracting JWT metrics
 ----------------------
 
-CCF tracks JWT key auto-refresh that were attempted and succeeded.
+CCF tracks JWT key auto-refresh attempts and successes.
 This can be used to identify errors, for example when the number of attempts doesn't match the number of successes.
-For each issuer, that has auto-refresh enabled, CCF tracks an attempt for each try, and eventually a success, if the update completes.
+For each issuer that has auto-refresh enabled, CCF tracks an attempt for each try, and eventually a success, if the update completes.
 
-To query those numbers, use the RPC API on node endpoint `/jwt_metrics` as described `here <https://microsoft.github.io/CCF/main/operations/operator_rpc_api.html#get--jwt_metrics)`_.
+Operators can query those numbers via the :http:GET:`/jwt_metrics` endpoint.
