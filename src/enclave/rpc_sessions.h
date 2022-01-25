@@ -24,6 +24,8 @@ namespace enclave
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
+  static constexpr ccf::EndorsementType endorsement_type_default =
+    ccf::EndorsementType::NETWORK;
 
   class RPCSessions : public AbstractRPCResponder
   {
@@ -157,15 +159,17 @@ namespace enclave
         li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
           max_open_sessions_hard_default);
 
-        li.endorsement_type = interface.endorsement_type;
+        li.endorsement_type =
+          interface.endorsement_type.value_or(endorsement_type_default);
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
-          "{}]",
+          "{}] and endorsement type to {}",
           name,
           interface.bind_address,
           li.max_open_sessions_soft,
-          li.max_open_sessions_hard);
+          li.max_open_sessions_hard,
+          li.endorsement_type);
       }
     }
 
@@ -191,12 +195,12 @@ namespace enclave
 
     void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      set_cert(ccf::EndorsementType::Node, cert_, pk);
+      set_cert(ccf::EndorsementType::NODE, cert_, pk);
     }
 
     void set_network_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      set_cert(ccf::EndorsementType::Network, cert_, pk);
+      set_cert(ccf::EndorsementType::NETWORK, cert_, pk);
     }
 
     void set_cert(
@@ -245,7 +249,7 @@ namespace enclave
 
       if (!certs.contains(listen_interface_id))
       {
-        LOG_INFO_FMT(
+        LOG_DEBUG_FMT(
           "Refusing TLS session {} inside the enclave - interface {} "
           "has no TLS certificate yet",
           id,

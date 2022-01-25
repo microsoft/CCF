@@ -11,12 +11,12 @@ namespace ccf
 {
   enum class EndorsementType
   {
-    Node,
-    Network
+    NODE,
+    NETWORK
   };
   DECLARE_JSON_ENUM(
     EndorsementType,
-    {{EndorsementType::Node, "node"}, {EndorsementType::Network, "network"}});
+    {{EndorsementType::NODE, "Node"}, {EndorsementType::NETWORK, "Network"}});
 
   struct NodeInfoNetwork_v1
   {
@@ -46,7 +46,7 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
-      EndorsementType endorsement_type = EndorsementType::Network;
+      std::optional<EndorsementType> endorsement_type = std::nullopt;
 
       bool operator==(const NetInterface& other) const
       {
@@ -151,3 +151,32 @@ namespace ccf
     }
   }
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::EndorsementType>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::EndorsementType& type, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    switch (type)
+    {
+      case (ccf::EndorsementType::NODE):
+      {
+        return format_to(ctx.out(), "Node");
+      }
+      case (ccf::EndorsementType::NETWORK):
+      {
+        return format_to(ctx.out(), "Network");
+      }
+    }
+  }
+};
+FMT_END_NAMESPACE
