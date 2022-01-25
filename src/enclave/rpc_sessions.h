@@ -34,13 +34,14 @@ namespace enclave
       size_t peak_sessions;
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
+      ccf::EndorsementType endorsement_type;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<tls::Cert> cert;
+    std::unordered_map<ListenInterfaceID, std::shared_ptr<tls::Cert>> certs;
 
     std::mutex lock;
     std::unordered_map<
@@ -141,7 +142,8 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
-    void update_listening_interface_caps(const ccf::NodeInfoNetwork& node_info)
+    void update_listening_interface_options(
+      const ccf::NodeInfoNetwork& node_info)
     {
       std::lock_guard<std::mutex> guard(lock);
 
@@ -154,6 +156,8 @@ namespace enclave
 
         li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
           max_open_sessions_hard_default);
+
+        li.endorsement_type = interface.endorsement_type;
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
@@ -185,14 +189,36 @@ namespace enclave
       return sm;
     }
 
-    void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      std::lock_guard<std::mutex> guard(lock);
+      set_cert(ccf::EndorsementType::Node, cert_, pk);
+    }
 
+    void set_network_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    {
+      set_cert(ccf::EndorsementType::Network, cert_, pk);
+    }
+
+    void set_cert(
+      ccf::EndorsementType endorsement_type,
+      const crypto::Pem& cert_,
+      const crypto::Pem& pk)
+    {
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
       // certificate does not have to be signed by a known CA (nullptr).
-      cert = std::make_shared<tls::Cert>(nullptr, cert_, pk, tls::auth_default);
+      auto cert =
+        std::make_shared<tls::Cert>(nullptr, cert_, pk, tls::auth_default);
+
+      std::lock_guard<std::mutex> guard(lock);
+
+      for (auto& [listen_interface_id, interface] : listening_interfaces)
+      {
+        if (interface.endorsement_type == endorsement_type)
+        {
+          certs.insert(std::make_pair(listen_interface_id, cert));
+        }
+      }
     }
 
     void accept(tls::ConnID id, const ListenInterfaceID& listen_interface_id)
@@ -217,7 +243,18 @@ namespace enclave
 
       auto& per_listen_interface = it->second;
 
-      if (
+      if (!certs.contains(listen_interface_id))
+      {
+        LOG_INFO_FMT(
+          "Refusing TLS session {} inside the enclave - interface {} "
+          "has no TLS certificate yet",
+          id,
+          listen_interface_id);
+
+        RINGBUFFER_WRITE_MESSAGE(
+          tls::tls_stop, to_host, id, std::string("Session refused"));
+      }
+      else if (
         per_listen_interface.open_sessions >=
         per_listen_interface.max_open_sessions_hard)
       {
@@ -244,7 +281,7 @@ namespace enclave
           listen_interface_id,
           per_listen_interface.max_open_sessions_soft);
 
-        auto ctx = std::make_unique<tls::Server>(cert);
+        auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
         auto capped_session = std::make_shared<NoMoreSessionsEndpointImpl>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(
@@ -260,7 +297,7 @@ namespace enclave
           "Accepting a session {} inside the enclave from interface \"{}\"",
           id,
           listen_interface_id);
-        auto ctx = std::make_unique<tls::Server>(cert);
+        auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
 
         auto session = std::make_shared<ServerEndpointImpl>(
           rpc_map, id, listen_interface_id, writer_factory, std::move(ctx));

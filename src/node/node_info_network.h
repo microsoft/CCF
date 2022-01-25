@@ -9,6 +9,15 @@
 
 namespace ccf
 {
+  enum class EndorsementType
+  {
+    Node,
+    Network
+  };
+  DECLARE_JSON_ENUM(
+    EndorsementType,
+    {{EndorsementType::Node, "node"}, {EndorsementType::Network, "network"}});
+
   struct NodeInfoNetwork_v1
   {
     std::string rpchost;
@@ -37,12 +46,15 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
+      EndorsementType endorsement_type = EndorsementType::Network;
+
       bool operator==(const NetInterface& other) const
       {
         return bind_address == other.bind_address &&
           published_address == other.published_address &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
-          max_open_sessions_hard == other.max_open_sessions_hard;
+          max_open_sessions_hard == other.max_open_sessions_hard &&
+          endorsement_type == other.endorsement_type;
       }
     };
 
@@ -55,6 +67,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
     NodeInfoNetwork_v2::NetInterface,
+    endorsement_type,
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address);

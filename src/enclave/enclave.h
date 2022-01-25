@@ -191,7 +191,7 @@ namespace enclave
 
       start_type = start_type_;
 
-      rpcsessions->update_listening_interface_caps(ccf_config_.network);
+      rpcsessions->update_listening_interface_options(ccf_config_.network);
 
       ccf::NodeCreateInfo r;
       try
