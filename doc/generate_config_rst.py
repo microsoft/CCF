@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import os
 import sys
 import json
 import tempfile
@@ -128,7 +129,9 @@ def generate_configuration_docs(input_file_path, output_file_path):
     with tempfile.NamedTemporaryFile("w") as temp:
         temp.write(out)
         temp.flush()
-        if not filecmp.cmp(temp.name, output_file_path):
+        if not os.path.exists(output_file_path) or not filecmp.cmp(
+            temp.name, output_file_path
+        ):
             with open(output_file_path, "w") as out_:
                 out_.write(output.render())
             print(f"Configuration file successfully generated at {output_file_path}")

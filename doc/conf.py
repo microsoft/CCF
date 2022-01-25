@@ -396,7 +396,10 @@ def setup(app):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
 
     # configuration generator
-    generate_config_rst.generate_configuration_docs(
-        "doc/host_config_schema/cchost_config.json",
-        "doc/operations/generated_config.rst",
-    )
+    input_file_path = srcdir / "host_config_schema/cchost_config.json"
+    output_file_path = srcdir / "operations/generated_config.rst"
+
+    if os.path.exists(input_file_path):
+        generate_config_rst.generate_configuration_docs(
+            input_file_path, output_file_path
+        )
