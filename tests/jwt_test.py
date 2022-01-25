@@ -348,6 +348,13 @@ def get_jwt_refresh_endpoint_metrics(network) -> dict:
         return m
 
 
+def get_jwt_metrics(network) -> dict:
+    primary, _ = network.find_nodes()
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
+        r = c.get("/node/jwt_metrics")
+        return r.body.json()
+
+
 @reqs.description("JWT with auto_refresh enabled")
 def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
@@ -391,6 +398,11 @@ def test_jwt_key_auto_refresh(network, args):
                 timeout=5,
             )
 
+        LOG.info("Check that JWT refresh has attempts and successes")
+        m = get_jwt_metrics(network)
+        assert m["attempts"] > 0, m["attempts"]
+        assert m["successes"] > 0, m["successes"]
+
         LOG.info("Check that JWT refresh endpoint has no failures")
         m = get_jwt_refresh_endpoint_metrics(network)
         assert m["failures"] == 0, m["failures"]
@@ -406,6 +418,10 @@ def test_jwt_key_auto_refresh(network, args):
             assert m["failures"] > 0, m["failures"]
 
         with_timeout(check_has_failures, timeout=5)
+
+        LOG.info("Check that JWT refresh has less successes than attempts")
+        m = get_jwt_metrics(network)
+        assert m["attempts"] > m["successes"], m["attempts"]
 
     LOG.info("Restart OpenID endpoint server with new keys")
     kid2 = "the_kid_2"

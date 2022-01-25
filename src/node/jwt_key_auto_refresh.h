@@ -24,6 +24,7 @@ namespace ccf
     std::shared_ptr<enclave::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
     crypto::Pem node_cert;
+    std::atomic_size_t attempts;
 
   public:
     JwtKeyAutoRefresh(
@@ -40,7 +41,8 @@ namespace ccf
       rpcsessions(rpcsessions),
       rpc_map(rpc_map),
       node_sign_kp(node_sign_kp),
-      node_cert(node_cert)
+      node_cert(node_cert),
+      attempts(0)
     {}
 
     struct RefreshTimeMsg
@@ -274,6 +276,9 @@ namespace ccf
       jwt_issuers->foreach([this, &ca_cert_bundles](
                              const JwtIssuer& issuer,
                              const JwtIssuerMetadata& metadata) {
+        // Increment attempts
+        attempts++;
+
         if (!metadata.auto_refresh)
         {
           LOG_DEBUG_FMT(
@@ -335,6 +340,11 @@ namespace ccf
         return true;
       });
     }
-  };
 
+    // Returns a copy of the current attempts
+    size_t get_attempts() const
+    {
+      return attempts.load();
+    }
+  };
 }

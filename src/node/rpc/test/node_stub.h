@@ -121,6 +121,11 @@ namespace ccf
     {
       return {};
     }
+
+    size_t get_jwt_attempts() override
+    {
+      return 0;
+    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache
