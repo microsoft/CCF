@@ -17,6 +17,7 @@ namespace ccf
     std::optional<crypto::Pem> cert = std::nullopt;
     std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
     ccf::ClaimsDigest claims_digest = {};
+    std::string commit_evidence = {};
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
