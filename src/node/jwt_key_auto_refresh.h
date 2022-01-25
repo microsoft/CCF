@@ -245,7 +245,7 @@ namespace ccf
       auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
 
       auto ca_cert = std::make_shared<tls::Cert>(
-        ca, std::nullopt, std::nullopt, true, jwks_url.host);
+        ca, std::nullopt, std::nullopt, /*auth_required=*/true, jwks_url.host);
 
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
