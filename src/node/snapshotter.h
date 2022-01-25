@@ -38,6 +38,7 @@ namespace ccf
       consensus::Index evidence_idx;
 
       crypto::Sha256Hash write_set_digest;
+      std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
 
       std::optional<NodeId> node_id = std::nullopt;
@@ -49,10 +50,12 @@ namespace ccf
         consensus::Index idx,
         consensus::Index evidence_idx,
         const crypto::Sha256Hash& write_set_digest_,
+        const std::string& commit_evidence_,
         const crypto::Sha256Hash& snapshot_digest_) :
         idx(idx),
         evidence_idx(evidence_idx),
         write_set_digest(write_set_digest_),
+        commit_evidence(commit_evidence_),
         snapshot_digest(snapshot_digest_)
       {}
     };
@@ -139,7 +142,7 @@ namespace ccf
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
       pending_snapshots.emplace_back(
-        snapshot_idx, snapshot_evidence_idx, ws_digest, cd.value());
+        snapshot_idx, snapshot_evidence_idx, ws_digest, "" /* TODO: hook up */, cd.value());
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "
@@ -170,6 +173,7 @@ namespace ccf
             it->node_cert.value(),
             it->evidence_idx,
             it->write_set_digest,
+            it->commit_evidence,
             std::move(it->snapshot_digest));
           commit_snapshot(it->idx, serialised_receipt);
           auto it_ = it;

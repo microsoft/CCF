@@ -20,13 +20,13 @@ namespace ccf
     struct LeafComponents
     {
       std::optional<std::string> write_set_digest = std::nullopt;
-      std::string commit_evidence;
+      std::optional<std::string> commit_evidence;
       std::optional<std::string> claims_digest = std::nullopt;
 
       LeafComponents() {}
       LeafComponents(
         const std::optional<std::string>& write_set_digest_,
-        const std::string commit_evidence_,
+        const std::optional<std::string>& commit_evidence_,
         const std::optional<std::string>& claims_digest_) :
         write_set_digest(write_set_digest_),
         commit_evidence(commit_evidence_),
@@ -51,9 +51,9 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt::Element, left, right)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::LeafComponents)
-  DECLARE_JSON_REQUIRED_FIELDS(Receipt::LeafComponents, commit_evidence)
+  DECLARE_JSON_REQUIRED_FIELDS(Receipt::LeafComponents)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    Receipt::LeafComponents, write_set_digest, claims_digest)
+    Receipt::LeafComponents, write_set_digest, commit_evidence, claims_digest)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id)
@@ -71,11 +71,12 @@ namespace ccf
       auto components = receipt.leaf_components.value();
       if (
         components.write_set_digest.has_value() &&
+        components.commit_evidence.has_value() &&
         components.claims_digest.has_value())
       {
         auto ws_dgst = crypto::Sha256Hash::from_hex_string(
           components.write_set_digest.value());
-        auto ce_dgst = crypto::Sha256Hash::from_string(components.commit_evidence);
+        auto ce_dgst = crypto::Sha256Hash::from_string(components.commit_evidence.value());
         auto cl_dgst =
           crypto::Sha256Hash::from_hex_string(components.claims_digest.value());
         current = crypto::Sha256Hash(ws_dgst, ce_dgst, cl_dgst);

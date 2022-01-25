@@ -16,8 +16,8 @@ namespace ccf
     ccf::NodeId node_id = {};
     std::optional<crypto::Pem> cert = std::nullopt;
     std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
+    std::optional<std::string> commit_evidence = std::nullopt;
     ccf::ClaimsDigest claims_digest = {};
-    std::string commit_evidence = {};
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
@@ -26,6 +26,7 @@ namespace ccf
       const NodeId& n_,
       const std::optional<crypto::Pem>& c_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
+      const std::optional<std::string>& commit_evidence_ = std::nullopt,
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       signature(s_),
       root(r_),
@@ -33,6 +34,7 @@ namespace ccf
       node_id(n_),
       cert(c_),
       write_set_digest(write_set_digest_),
+      commit_evidence(commit_evidence_),
       claims_digest(claims_digest_)
     {}
 
@@ -86,7 +88,7 @@ namespace ccf
         std::optional<std::string> claims_digest_str =
           claims_digest.value().hex_str();
         r.leaf_components =
-          Receipt::LeafComponents{write_set_digest_str, claims_digest_str};
+          Receipt::LeafComponents{write_set_digest_str, commit_evidence, claims_digest_str};
       }
     }
   };

@@ -100,6 +100,7 @@ namespace ccf::historical
     {
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_digest = {};
+      std::string commit_evidence = {};
       ccf::ClaimsDigest claims_digest = {};
       StorePtr store = nullptr;
       bool is_signature = false;
@@ -278,6 +279,7 @@ namespace ccf::historical
                     sig->node,
                     sig->cert,
                     details->entry_digest,
+                    details->commit_evidence,
                     details->claims_digest);
                   details->transaction_id = {sig->view, seqno};
                   HISTORICAL_LOG(
@@ -364,6 +366,7 @@ namespace ccf::historical
                           sig->node,
                           sig->cert,
                           new_details->entry_digest,
+                          new_details->commit_evidence,
                           new_details->claims_digest);
                         new_details->transaction_id = {sig->view, new_seqno};
                         return std::nullopt;
@@ -410,6 +413,7 @@ namespace ccf::historical
                         sig->node,
                         sig->cert,
                         new_details->entry_digest,
+                        new_details->commit_evidence,
                         new_details->claims_digest);
                       new_details->transaction_id = {sig->view, new_seqno};
                     }
@@ -581,6 +585,10 @@ namespace ccf::historical
           details->entry_digest = entry_digest;
           if (!claims_digest.empty())
             details->claims_digest = std::move(claims_digest);
+
+          // TODO: fetch hmac
+          details->commit_evidence = fmt::format("{}:{}", details->transaction_id.view, details->transaction_id.seqno);
+          LOG_DEBUG_FMT("Fetched commit evidence: {}", details->commit_evidence);
 
           CCF_ASSERT_FMT(
             details->store == nullptr,
