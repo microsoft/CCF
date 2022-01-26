@@ -450,6 +450,10 @@ if(BUILD_TESTS)
     add_test(NAME versionifier_test
              COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
     )
+
+    add_test(NAME github_version_lts_test
+             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
+    )
   endif()
 
   # Picobench benchmarks
