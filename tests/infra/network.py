@@ -112,6 +112,7 @@ class Network:
         "maximum_service_certificate_validity_days",
         "reconfiguration_type",
         "config_file",
+        "ubsan_options",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -250,7 +251,7 @@ class Network:
             )
 
         forwarded_args = {
-            arg: getattr(args, arg)
+            arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
 
@@ -294,7 +295,7 @@ class Network:
         LOG.debug(f"Opening CCF service on {hosts}")
 
         forwarded_args = {
-            arg: getattr(args, arg)
+            arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
 

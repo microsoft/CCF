@@ -180,3 +180,12 @@ Any attempt to add a certificate with mismatching claims in a ``set_jwt_public_s
 
 Some IdPs, like MAA, advertise a mix of SGX and non-SGX signing certificates.
 In this case, ``key_filter`` must be set to ``sgx`` such that only those certificates are stored which contain SGX evidence.
+
+Extracting JWT metrics
+----------------------
+
+CCF tracks JWT key auto-refresh attempts and successes.
+This can be used to identify errors, for example when the number of attempts doesn't match the number of successes.
+For each issuer that has auto-refresh enabled, CCF tracks an attempt for each try, and eventually a success, if the update completes.
+
+Operators can query those numbers via the :http:GET:`/jwt_metrics` endpoint.

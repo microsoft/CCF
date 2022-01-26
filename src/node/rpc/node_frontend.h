@@ -66,6 +66,15 @@ namespace ccf
   DECLARE_JSON_TYPE(JavaScriptMetrics);
   DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used);
 
+  struct JWTMetrics
+  {
+    size_t attempts;
+    size_t successes;
+  };
+
+  DECLARE_JSON_TYPE(JWTMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(JWTMetrics, attempts, successes)
+
   struct SetJwtPublicSigningKeys
   {
     std::string issuer;
@@ -312,7 +321,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.10.0";
+      openapi_info.document_version = "2.11.0";
     }
 
     void init_handlers() override
@@ -1179,6 +1188,29 @@ namespace ccf
         json_read_only_adapter(js_metrics),
         no_auth_required)
         .set_auto_schema<void, JavaScriptMetrics>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
+      auto jwt_metrics = [this](auto&, nlohmann::json&&) {
+        JWTMetrics m;
+        // Attempts are recorded by the key refresh code itself, registering
+        // before each call to each issuer's keys
+        m.attempts = context.get_node_state().get_jwt_attempts();
+        // Success is marked by the fact that the key succeeded and called
+        // our internal "jwt_keys/refresh" endpoint.
+        auto e = fully_qualified_endpoints["/jwt_keys/refresh"][HTTP_POST];
+        auto metric = get_metrics_for_endpoint(e);
+        m.successes = metric.calls - (metric.failures + metric.errors);
+        return m;
+      };
+
+      make_read_only_endpoint(
+        "/jwt_metrics",
+        HTTP_GET,
+        json_read_only_adapter(jwt_metrics),
+        no_auth_required)
+        .set_auto_schema<void, JWTMetrics>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();

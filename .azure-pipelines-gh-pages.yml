@@ -23,7 +23,7 @@ jobs:
           git checkout -b main $(git rev-parse HEAD)
         displayName: Prepare repo
 
-      # Used to generate setup.py
+      # Used to generate version.py
       - template: .azure-pipelines-templates/cmake.yml
         parameters:
           cmake_args: ""
@@ -35,6 +35,7 @@ jobs:
           pip install wheel
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
+          pip install -U -r doc/historical_ccf_requirements.txt
           sphinx-multiversion doc build/html
         displayName: Sphinx
 
