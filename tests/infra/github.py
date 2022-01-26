@@ -21,6 +21,8 @@ REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"
 TAG_RELEASE_PREFIX = "ccf-"
+TAG_DEVELOPMENT_SUFFIX = "-dev"
+MAIN_BRANCH_NAME = "main"
 DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
@@ -56,6 +58,26 @@ def get_major_version_from_release_branch_name(full_branch_name):
 def get_version_from_tag_name(tag_name):
     assert is_release_tag(tag_name), tag_name
     return Version(strip_release_tag_name(tag_name))
+
+
+def is_dev_tag(tag_name):
+    return is_release_tag(tag_name) and TAG_DEVELOPMENT_SUFFIX in tag_name
+
+
+def sanitise_branch_name(branch_name):
+    # Note: When checking out a specific tag, Azure DevOps does not know about the
+    # branch but only the tag name so automatically convert release tags to release branch
+    if is_dev_tag(branch_name):
+        # For simplification, assume that dev tags are only released from main branch
+        LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
+        return MAIN_BRANCH_NAME
+    if is_release_tag(branch_name):
+        equivalent_release_branch = f'{BRANCH_RELEASE_PREFIX}{branch_name.split(TAG_RELEASE_PREFIX)[1].split(".")[0]}.x'
+        LOG.debug(
+            f"Considering release tag {branch_name} as {equivalent_release_branch} release branch"
+        )
+        return equivalent_release_branch
+    return branch_name
 
 
 def get_release_branch_from_branch_name(branch_name):
@@ -139,24 +161,24 @@ class Repository:
             reverse=newest_first,
         )
 
-    def get_release_branch_name_before(self, release_branch_name):
+    def get_release_branch_name_before(self, branch):
         release_branches = self.get_release_branches_names()
-        assert (
-            release_branch_name in release_branches
-        ), f"{release_branch_name} branch is not a valid release branch"
-        before_index = release_branches.index(release_branch_name) - 1
+        assert branch in release_branches or is_release_tag(
+            branch
+        ), f"{branch} branch is not a valid release branch/tag"
+        before_index = release_branches.index(branch) - 1
         if before_index < 0:
-            raise ValueError(f"No prior release branch to {release_branch_name}")
+            raise ValueError(f"No prior release branch to {branch}")
         return release_branches[before_index]
 
-    def get_next_release_branch(self, release_branch_name):
+    def get_next_release_branch(self, branch):
         release_branches = self.get_release_branches_names()
-        assert (
-            release_branch_name in release_branches
-        ), f"{release_branch_name} branch is not a valid release branch"
-        after_index = release_branches.index(release_branch_name) + 1
+        assert branch in release_branches or is_release_tag(
+            branch
+        ), f"{branch} branch is not a valid release branch/tag"
+        after_index = release_branches.index(branch) + 1
         if after_index >= len(release_branches):
-            raise ValueError(f"No release branch after {release_branch_name}")
+            raise ValueError(f"No release branch after {branch}")
         return release_branches[after_index]
 
     def get_tags_for_release_branch(self, branch_name):
@@ -236,6 +258,7 @@ class Repository:
         If the branch is not a release branch, verify compatibility with the
         latest available LTS.
         """
+        branch = sanitise_branch_name(branch)
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
 
@@ -268,6 +291,7 @@ class Repository:
         If the branch is a release branch, return first tag for the next release branch.
         If no next branch/tag are found or the branch is not a release branch, return nothing.
         """
+        branch = sanitise_branch_name(branch)
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
             try:
@@ -344,7 +368,7 @@ if __name__ == "__main__":
         make_test_vector(
             ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
             ["release/1.x", "release/2.x"],
-            "release/1.x",
+            "ccf-1.0.3",
             {"latest": None, "latest_same_lts": "ccf-1.0.2", "next": "ccf-2.0.0"},
         ),
         # Development on main after release 2.x
@@ -354,12 +378,26 @@ if __name__ == "__main__":
             "main",
             {"latest": "ccf-2.0.0", "latest_same_lts": None, "next": None},
         ),
+        # Dev release on main after release 2.x
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0"],
+            ["release/1.x", "release/2.x"],
+            "ccf-3.0.0-dev0",
+            {"latest": "ccf-2.0.0", "latest_same_lts": None, "next": None},
+        ),
         # 2.0.1 release is now out
         make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0", "ccf-2.0.0"],
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0", "ccf-2.0.1"],
             ["release/1.x", "release/2.x"],
             "release/2.x",
-            {"latest": "ccf-1.0.2", "latest_same_lts": "ccf-2.0.0", "next": None},
+            {"latest": "ccf-1.0.2", "latest_same_lts": "ccf-2.0.1", "next": None},
+        ),
+        # Local branch is a actually tag! (https://github.com/microsoft/CCF/issues/2699)
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0", "ccf-2.0.1"],
+            ["release/1.x", "release/2.x"],
+            "ccf-2.0.2",
+            {"latest": "ccf-1.0.2", "latest_same_lts": "ccf-2.0.1", "next": None},
         ),
     ]
 
