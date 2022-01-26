@@ -4,6 +4,7 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
+#include "ds/hash.h"
 #include "ds/map_serializers.h"
 
 #include <algorithm>
