@@ -19,7 +19,6 @@ REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"
 TAG_RELEASE_PREFIX = "ccf-"
-MAIN_BRANCH_NAME = "main"
 DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
@@ -37,10 +36,6 @@ def is_release_branch(branch_name):
 
 def is_release_tag(tag_name):
     return tag_name.startswith(TAG_RELEASE_PREFIX)
-
-
-def is_main_branch(branch_name):
-    return branch_name == MAIN_BRANCH_NAME
 
 
 def strip_release_branch_name(branch_name):
@@ -224,28 +219,33 @@ class Repository:
         LOG.info(f"CCF release {stripped_tag} successfully installed at {install_path}")
         return stripped_tag, install_path
 
-    def get_latest_tag_for_release_branch(self, branch):
+    def get_latest_tag_for_release_branch(self, branch, this_release_branch_only):
         """
-        If the branch is a release branch, return latest tag on this branch.
-        If no tags are found (i.e. first tag on this release branch), return latest
-        tag on _previous_ release branch.
+        If the branch is a release branch, return latest tag on this branch if
+        this_release_branch_only is true.
+        If no tags are found (i.e. first tag on this release branch) or this_release_branch_only
+        is false, return latest tag on _previous_ release branch.
         If the branch is not a release branch, verify compatibility with the
         latest available LTS.
         """
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
+
             tags = self.get_tags_for_release_branch(
                 get_release_branch_from_branch_name(branch)
             )
-            if tags:
+            if tags and this_release_branch_only:
                 return tags[0]
-            else:
+            elif not this_release_branch_only:
                 try:
                     prior_release_branch = self.get_release_branch_name_before(branch)
                     return self.get_tags_for_release_branch(prior_release_branch)[0]
                 except ValueError as e:  # No previous release branch
                     LOG.warning(f"{e}. Skipping compatibility test with previous")
                     return None
+            else:
+                LOG.debug(f"Release branch {branch} has no release yet")
+                return None
         else:
             LOG.debug(f"{branch} is development branch")
             latest_release_branch = self.get_release_branches_names()[0]
@@ -272,14 +272,12 @@ class Repository:
             LOG.debug(f"{branch} is development branch")
             return None
 
-    def install_latest_lts_for_branch(self, branch):
-        latest_tag = self.get_latest_tag_for_release_branch(branch)
+    def install_latest_lts_for_branch(self, branch, this_release_branch_only):
+        latest_tag = self.get_latest_tag_for_release_branch(branch, this_release_branch_only)
         if not latest_tag:
             LOG.info(f"No latest release tag found for {branch}")
             return None, None
 
-        # Note: will currently fail if the tag is created but the release
-        # not yet published
         LOG.info(f"Latest release tag: {latest_tag}")
         return self.install_release(latest_tag)
 
