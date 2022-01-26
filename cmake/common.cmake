@@ -381,25 +381,23 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   list(APPEND JS_PLUGINS_ENCLAVE js_openenclave.enclave)
 endif()
 if("virtual" IN_LIST COMPILE_TARGETS AND NOT DISABLE_OE)
-  if (NOT DISABLE_OE)
-    add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
-    add_san(js_openenclave.virtual)
-    target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
-    target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
-    target_compile_definitions(
-      js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                    _LIBCPP_HAS_THREAD_API_PTHREAD
-    )
-    set_property(
-      TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-    )
-    install(
-      TARGETS js_openenclave.virtual
-      EXPORT ccf
-      DESTINATION lib
-    )
-    list(APPEND JS_PLUGINS_VIRTUAL js_openenclave.virtual)
-  endif()
+  add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
+  add_san(js_openenclave.virtual)
+  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
+  target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                  _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+  set_property(
+    TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  install(
+    TARGETS js_openenclave.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+  list(APPEND JS_PLUGINS_VIRTUAL js_openenclave.virtual)
 endif()
 
 if("sgx" IN_LIST COMPILE_TARGETS)

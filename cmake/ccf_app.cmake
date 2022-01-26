@@ -18,7 +18,7 @@ set(DISABLE_OE
     False
     CACHE
       BOOL
-      "Disable the requirements for OE, but also to ability to verify OE attesation reports."
+      "Disable the requirement for OE, but also to ability to verify OE attestation reports."
 )
 
 set(IS_VALID_TARGET "FALSE")

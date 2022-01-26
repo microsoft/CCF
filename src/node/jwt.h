@@ -13,7 +13,7 @@
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 #  include <openenclave/attestation/verifier.h>
 #  include <openenclave/enclave.h>
-#elsif !defined(DISABLE_OE)
+#  elsif !defined(DISABLE_OE)
 #  include <openenclave/attestation/verifier.h>
 #  include <openenclave/host_verify.h>
 #endif
