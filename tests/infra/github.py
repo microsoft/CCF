@@ -9,7 +9,6 @@ import git
 import urllib
 import shutil
 import requests
-from subprocess import run
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -113,7 +112,7 @@ class GitEnv:
             if "heads/release" in branch
         ]
 
-    def has_release_for_tag_name(Self, tag_name):
+    def has_release_for_tag_name(self, tag_name):
         return (
             requests.head(
                 get_debian_package_url_from_tag_name(tag_name), allow_redirects=True
@@ -204,7 +203,7 @@ class Repository:
     def get_lts_releases(self):
         """
         Returns a dict of all release branches to the the latest release tag on this branch.
-        The newest release branch is first in the dict.
+        The oldest release branch is first in the dict.
         """
         releases = {}
         for release_branch in self.get_release_branches_names():
@@ -241,7 +240,9 @@ class Repository:
         LOG.info("Unpacking debian package...")
         shutil.rmtree(install_directory, ignore_errors=True)
         install_cmd = ["dpkg-deb", "-R", download_path, install_directory]
-        assert subprocess.run(install_cmd).returncode == 0, "Installation failed"
+        assert (
+            subprocess.run(install_cmd, check=True).returncode == 0
+        ), "Installation failed"
 
         # Write new file to avoid having to download install again
         open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8")
@@ -300,7 +301,7 @@ class Repository:
                 )
                 LOG.debug(f"{next_release_branch} is next release branch")
                 return self.get_tags_for_release_branch(next_release_branch)[-1]
-            except ValueError as e:  # No release branch after target branch
+            except ValueError:  # No release branch after target branch
                 return None
         else:
             LOG.debug(f"{branch} is development branch")
