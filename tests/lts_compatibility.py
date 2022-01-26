@@ -347,6 +347,12 @@ def run_live_compatibility_with_latest(
         os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
         this_release_branch_only,
     )
+    if lts_version is None:
+        LOG.warning(
+            f"Latest LTS no found for {local_branch} (this_release_branch_only: {this_release_branch_only}"
+        )
+        return None
+
     local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
     LOG.info(
         f'From LTS {lts_version} to local "{local_branch}" branch (version: {local_major_version})'
@@ -542,8 +548,8 @@ if __name__ == "__main__":
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
 
-    # Compatibility with latest LTS (e.g. when releasing 2.0.1, check compatibility
-    # with existing 2.0.either on this release branch if it exists, or previous LTS)
+    # Compatibility with latest LTS
+    # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
     latest_lts_version = run_live_compatibility_with_latest(
         args, repo, env.branch, this_release_branch_only=False
     )
@@ -551,13 +557,13 @@ if __name__ == "__main__":
         {"with latest": latest_lts_version}
     )
 
-    # Compatibility with latest on the same LTS
-    # TODO:
-    compatibility_report["live compatibility"].update(
-        {"with latest (same LTS)": latest_lts_version}
-    )
+    # Compatibility with latest LTS on the same release branch
+    # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
     latest_lts_version = run_live_compatibility_with_latest(
         args, repo, env.branch, this_release_branch_only=True
+    )
+    compatibility_report["live compatibility"].update(
+        {"with latest (same LTS)": latest_lts_version}
     )
 
     # Compatibility with following LTS (e.g. when releasing 1.0.10, check

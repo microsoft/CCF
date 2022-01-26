@@ -219,7 +219,7 @@ class Repository:
         LOG.info(f"CCF release {stripped_tag} successfully installed at {install_path}")
         return stripped_tag, install_path
 
-    def get_latest_tag_for_release_branch(self, branch, this_release_branch_only):
+    def get_latest_released_tag_for_branch(self, branch, this_release_branch_only):
         """
         If the branch is a release branch, return latest tag on this branch if
         this_release_branch_only is true.
@@ -246,11 +246,13 @@ class Repository:
             else:
                 LOG.debug(f"Release branch {branch} has no release yet")
                 return None
-        else:
+        elif not this_release_branch_only:
             LOG.debug(f"{branch} is development branch")
             latest_release_branch = self.get_release_branches_names()[0]
             LOG.info(f"Latest release branch: {latest_release_branch}")
             return self.get_tags_for_release_branch(latest_release_branch)[0]
+        else:
+            return None
 
     def get_first_tag_for_next_release_branch(self, branch):
         """
@@ -273,12 +275,11 @@ class Repository:
             return None
 
     def install_latest_lts_for_branch(self, branch, this_release_branch_only):
-        latest_tag = self.get_latest_tag_for_release_branch(branch, this_release_branch_only)
+        latest_tag = self.get_latest_released_tag_for_branch(
+            branch, this_release_branch_only
+        )
         if not latest_tag:
-            LOG.info(f"No latest release tag found for {branch}")
             return None, None
-
-        LOG.info(f"Latest release tag: {latest_tag}")
         return self.install_release(latest_tag)
 
     def install_next_lts_for_branch(self, branch):
