@@ -103,6 +103,10 @@ namespace ccf::endpoints
     virtual ~EndpointDefinition() = default;
 
     EndpointKey dispatch;
+
+    /// Full URI path to endpoint, including method prefix
+    URI full_uri_path;
+
     EndpointProperties properties;
 
     /** List of authentication policies which will be checked before executing
@@ -221,7 +225,7 @@ namespace ccf::endpoints
 
             ds::openapi::add_request_body_schema<In>(
               document,
-              endpoint.dispatch.uri_path,
+              endpoint.full_uri_path,
               http_verb.value(),
               http::headervalues::contenttype::JSON);
           });
@@ -247,7 +251,7 @@ namespace ccf::endpoints
 
             ds::openapi::add_response_schema<Out>(
               document,
-              endpoint.dispatch.uri_path,
+              endpoint.full_uri_path,
               http_verb.value(),
               endpoint.success_status,
               http::headervalues::contenttype::JSON);
@@ -318,7 +322,10 @@ namespace ccf::endpoints
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(
-            document, endpoint.dispatch.uri_path, http_verb.value(), parameter);
+            document,
+            endpoint.full_uri_path,
+            http_verb.value(),
+            parameter);
         });
 
       return *this;
@@ -357,7 +364,7 @@ namespace ccf::endpoints
         LOG_FATAL_FMT(
           "Can't install this endpoint ({}) - it is not associated with an "
           "installer",
-          dispatch.uri_path);
+          full_uri_path);
       }
       else
       {
