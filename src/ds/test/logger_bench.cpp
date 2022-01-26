@@ -23,7 +23,7 @@ static void prepare_loggers()
   if constexpr ((LK & LoggerKind::Console) != 0)
   {
     logger::config::loggers().emplace_back(
-      std::make_unique<logger::ConsoleLogger>());
+      std::make_unique<logger::TextConsoleLogger>());
   }
 
   if constexpr ((LK & LoggerKind::JSON) != 0)
@@ -35,19 +35,13 @@ static void prepare_loggers()
   if constexpr (Absorb)
   {
     // Swallow all output for duration of benchmarks
-    for (auto& logger : logger::config::loggers())
-    {
-      logger->get_stream().setstate(std::ios_base::badbit);
-    }
+    std::cout.setstate(std::ios_base::badbit);
   }
 }
 
 static void reset_loggers()
 {
   logger::config::loggers().clear();
-
-  logger::config::loggers().emplace_back(
-    std::make_unique<logger::ConsoleLogger>());
 
   std::cout.clear();
 }
