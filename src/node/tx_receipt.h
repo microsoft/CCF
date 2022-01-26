@@ -45,7 +45,7 @@ namespace ccf
       {
         r.root = root.to_string();
       }
-      if (path)
+      if (path != nullptr)
       {
         for (const auto& node : *path)
         {
@@ -68,25 +68,19 @@ namespace ccf
         r.cert = cert->str();
       }
 
-      if (claims_digest.empty())
+      if (path == nullptr)
       {
-        if (path)
-        {
-          r.leaf = path->leaf().to_string();
-        }
-        else
-        {
-          // Signature transaction
-          r.leaf = root.to_string();
-        }
+        // Signature transaction
+        r.leaf = root.to_string();
       }
       else
       {
         std::optional<std::string> write_set_digest_str = std::nullopt;
         if (write_set_digest.has_value())
           write_set_digest_str = write_set_digest->hex_str();
-        std::optional<std::string> claims_digest_str =
-          claims_digest.value().hex_str();
+        std::optional<std::string> claims_digest_str = std::nullopt;
+        if (!claims_digest.empty())
+          claims_digest_str = claims_digest.value().hex_str();
         r.leaf_components =
           Receipt::LeafComponents{write_set_digest_str, commit_evidence, claims_digest_str};
       }
