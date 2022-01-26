@@ -120,13 +120,16 @@ namespace ccf
       crypto::Sha256Hash ws_digest;
       std::string commit_evidence;
       auto capture_ws_digest_and_commit_evidence =
-        [&ws_digest, &commit_evidence](const std::vector<uint8_t>& write_set, const std::string& commit_evidence_) {
+        [&ws_digest, &commit_evidence](
+          const std::vector<uint8_t>& write_set,
+          const std::string& commit_evidence_) {
           new (&ws_digest)
             crypto::Sha256Hash({write_set.data(), write_set.size()});
           commit_evidence = commit_evidence_;
         };
 
-      auto rc = tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
+      auto rc =
+        tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
@@ -144,7 +147,11 @@ namespace ccf
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
       pending_snapshots.emplace_back(
-        snapshot_idx, snapshot_evidence_idx, ws_digest, commit_evidence, cd.value());
+        snapshot_idx,
+        snapshot_evidence_idx,
+        ws_digest,
+        commit_evidence,
+        cd.value());
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "

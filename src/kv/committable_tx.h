@@ -47,9 +47,11 @@ namespace kv
 
       auto e = store->get_encryptor();
       auto commit_nonce = e->get_commit_nonce({commit_view, version});
-      commit_evidence = fmt::format("ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
+      commit_evidence = fmt::format(
+        "ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
-      auto tx_commit_evidence_digest = crypto::Sha256Hash::from_string(commit_evidence);
+      auto tx_commit_evidence_digest =
+        crypto::Sha256Hash::from_string(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
       auto entry_type = claims_digest.empty() ?
         EntryType::WriteSetWithCommitEvidence :
@@ -107,8 +109,9 @@ namespace kv
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
-      std::function<void(const std::vector<uint8_t>& write_set, const std::string& commit_evidence)>
-        write_set_observer = nullptr)
+      std::function<void(
+        const std::vector<uint8_t>& write_set,
+        const std::string& commit_evidence)> write_set_observer = nullptr)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -169,7 +172,8 @@ namespace kv
         {
           crypto::Sha256Hash commit_evidence_digest;
           std::string commit_evidence;
-          auto data = serialise(commit_evidence_digest, commit_evidence, claims);
+          auto data =
+            serialise(commit_evidence_digest, commit_evidence, claims);
 
           if (data.empty())
           {

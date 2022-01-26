@@ -256,7 +256,8 @@ namespace ccf
       return ls->key;
     }
 
-    LedgerSecretPtr get_secret_for(kv::Version version, bool historical_hint = false)
+    LedgerSecretPtr get_secret_for(
+      kv::Version version, bool historical_hint = false)
     {
       std::lock_guard<std::mutex> guard(lock);
       return get_secret_for_version(version, historical_hint);

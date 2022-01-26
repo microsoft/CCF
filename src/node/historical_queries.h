@@ -111,7 +111,8 @@ namespace ccf::historical
         if (store != nullptr)
         {
           auto e = store->get_encryptor();
-          return e->get_commit_nonce({transaction_id.view, transaction_id.seqno}, true);
+          return e->get_commit_nonce(
+            {transaction_id.view, transaction_id.seqno}, true);
         }
         else
         {
@@ -121,7 +122,11 @@ namespace ccf::historical
 
       std::string get_commit_evidence()
       {
-        return fmt::format("ce:{}.{}:{}", transaction_id.view, transaction_id.seqno, ds::to_hex(get_commit_nonce()));
+        return fmt::format(
+          "ce:{}.{}:{}",
+          transaction_id.view,
+          transaction_id.seqno,
+          ds::to_hex(get_commit_nonce()));
       }
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;

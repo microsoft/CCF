@@ -81,8 +81,8 @@ namespace ccf
         std::optional<std::string> claims_digest_str = std::nullopt;
         if (!claims_digest.empty())
           claims_digest_str = claims_digest.value().hex_str();
-        r.leaf_components =
-          Receipt::LeafComponents{write_set_digest_str, commit_evidence, claims_digest_str};
+        r.leaf_components = Receipt::LeafComponents{
+          write_set_digest_str, commit_evidence, claims_digest_str};
       }
     }
   };

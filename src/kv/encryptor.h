@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/kv_types.h"
 #include "crypto/hmac.h"
+#include "kv/kv_types.h"
 
 #include <algorithm>
 #include <map>
@@ -135,7 +135,8 @@ namespace kv
       return ret;
     }
 
-    crypto::HashBytes get_commit_nonce(const TxID& tx_id, bool historical_hint = false) override
+    crypto::HashBytes get_commit_nonce(
+      const TxID& tx_id, bool historical_hint = false) override
     {
       auto secret =
         ledger_secrets->get_secret_for(tx_id.version, historical_hint);
@@ -144,9 +145,11 @@ namespace kv
         throw std::logic_error("Failed to get encryption key");
       }
       auto txid_str = tx_id.str();
-      std::vector<uint8_t> txid = {txid_str.data(), txid_str.data() + txid_str.size()};
+      std::vector<uint8_t> txid = {
+        txid_str.data(), txid_str.data() + txid_str.size()};
 
-      auto commit_nonce = crypto::hmac(crypto::MDType::SHA256, secret->get_commit_secret(), txid);
+      auto commit_nonce =
+        crypto::hmac(crypto::MDType::SHA256, secret->get_commit_secret(), txid);
       return commit_nonce;
     }
 

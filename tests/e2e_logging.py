@@ -51,7 +51,9 @@ def verify_receipt(
     if claims is not None:
         assert "leaf_components" in receipt
         assert "commit_evidence" in receipt["leaf_components"]
-        commit_evidence_digest = sha256(receipt["leaf_components"]["commit_evidence"].encode()).digest()
+        commit_evidence_digest = sha256(
+            receipt["leaf_components"]["commit_evidence"].encode()
+        ).digest()
         if not generic:
             assert "claims_digest" not in receipt["leaf_components"]
         claims_digest = sha256(claims).digest()
@@ -75,9 +77,19 @@ def verify_receipt(
                 receipt["leaf_components"]["write_set_digest"]
             )
             assert "commit_evidence" in receipt["leaf_components"]
-            commit_evidence_digest = sha256(receipt["leaf_components"]["commit_evidence"].encode()).digest()
-            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"]) if "claims_digest" in receipt["leaf_components"] else b''
-            leaf = sha256(write_set_digest + commit_evidence_digest + claims_digest).digest().hex()
+            commit_evidence_digest = sha256(
+                receipt["leaf_components"]["commit_evidence"].encode()
+            ).digest()
+            claims_digest = (
+                bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+                if "claims_digest" in receipt["leaf_components"]
+                else b""
+            )
+            leaf = (
+                sha256(write_set_digest + commit_evidence_digest + claims_digest)
+                .digest()
+                .hex()
+            )
     root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
