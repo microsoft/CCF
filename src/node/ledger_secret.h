@@ -13,6 +13,8 @@
 
 namespace ccf
 {
+  static constexpr auto commit_secret_label_ = "Commit Secret Label";
+
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
@@ -24,7 +26,7 @@ namespace ccf
     {
       if (!commit_secret.has_value())
       {
-        commit_secret = crypto::hmac(crypto::MDType::SHA256, raw_key, {1, 2, 3} /* TODO uh no */);
+        commit_secret = crypto::hmac(crypto::MDType::SHA256, raw_key, {commit_secret_label_, commit_secret_label_ + sizeof(commit_secret_label_)});
       }
       return commit_secret.value();
     }

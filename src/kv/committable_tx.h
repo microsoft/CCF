@@ -45,9 +45,10 @@ namespace kv
       }
 
       auto e = store->get_encryptor();
-      // Create the commit_evidence_digest
-      auto tx_commit_evidence_digest = crypto::Sha256Hash::from_string(
-        fmt::format("{}.{}", commit_view, version));
+      auto commit_nonce = e->get_commit_nonce({commit_view, version});
+      auto commit_evidence = fmt::format("ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
+      LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
+      auto tx_commit_evidence_digest = crypto::Sha256Hash::from_string(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
       auto entry_type = claims_digest.empty() ?
         EntryType::WriteSetWithCommitEvidence :

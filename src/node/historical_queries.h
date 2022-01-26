@@ -105,6 +105,24 @@ namespace ccf::historical
       bool is_signature = false;
       TxReceiptPtr receipt = nullptr;
       ccf::TxID transaction_id;
+
+      crypto::HashBytes get_commit_nonce()
+      {
+        if (store != nullptr)
+        {
+          auto e = store->get_encryptor();
+          return e->get_commit_nonce({transaction_id.view, transaction_id.seqno}, true);
+        }
+        else
+        {
+          throw std::logic_error("Store pointer not set");
+        }
+      }
+
+      std::string get_commit_evidence()
+      {
+        return fmt::format("ce:{}.{}:{}", transaction_id.view, transaction_id.seqno, ds::to_hex(get_commit_nonce()));
+      }
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
@@ -279,7 +297,7 @@ namespace ccf::historical
                     sig->node,
                     sig->cert,
                     details->entry_digest,
-                    fmt::format("{}.{}", sig->view, seqno),
+                    details->get_commit_evidence(),
                     details->claims_digest);
                   HISTORICAL_LOG(
                     "Assigned a sig for {} after given signature at {}",
@@ -366,7 +384,7 @@ namespace ccf::historical
                           sig->node,
                           sig->cert,
                           new_details->entry_digest,
-                          fmt::format("{}.{}", sig->view, new_seqno),
+                          new_details->get_commit_evidence(),
                           new_details->claims_digest);
                         return std::nullopt;
                       }
@@ -413,7 +431,7 @@ namespace ccf::historical
                         sig->node,
                         sig->cert,
                         new_details->entry_digest,
-                        fmt::format("{}.{}", sig->view, new_seqno),
+                        new_details->get_commit_evidence(),
                         new_details->claims_digest);
                     }
                   }

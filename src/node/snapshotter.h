@@ -142,7 +142,7 @@ namespace ccf
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
       pending_snapshots.emplace_back(
-        snapshot_idx, snapshot_evidence_idx, ws_digest, "" /* TODO: hook up */, cd.value());
+        snapshot_idx, snapshot_evidence_idx, ws_digest, "" /* TODO: grab from commit? */, cd.value());
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "

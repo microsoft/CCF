@@ -78,6 +78,11 @@ namespace kv
     {
       return term == other.term && version == other.version;
     }
+
+    std::string str() const
+    {
+      return fmt::format("{}.{}", term, version);
+    }
   };
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
@@ -596,6 +601,8 @@ namespace kv
 
     virtual size_t get_header_length() = 0;
     virtual uint64_t get_term(const uint8_t* data, size_t size) = 0;
+
+    virtual crypto::HashBytes get_commit_nonce(const TxID& tx_id, bool historical_hint = false) = 0;
   };
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
