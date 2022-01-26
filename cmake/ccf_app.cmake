@@ -186,12 +186,13 @@ function(add_ccf_app name)
     )
 
     if(NOT SAN)
-      target_link_options(
-        ${virt_name}
-        PRIVATE
-        LINKER:--no-undefined,--undefined=enclave_create_node,--undefined=enclave_run
-      )
+      target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
     endif()
+
+    target_link_options(
+      ${virt_name} PRIVATE
+      LINKER:--undefined=enclave_create_node,--undefined=enclave_run
+    )
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
