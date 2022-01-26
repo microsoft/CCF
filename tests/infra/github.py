@@ -1,13 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.proc
 
 import re
 import os
+
+import subprocess
 import git
 import urllib
 import shutil
 import requests
+from subprocess import run
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -44,7 +46,6 @@ def strip_release_branch_name(branch_name):
 
 
 def strip_release_tag_name(tag_name):
-    assert is_release_tag(tag_name), tag_name
     return tag_name[len(TAG_RELEASE_PREFIX) :]
 
 
@@ -76,21 +77,7 @@ def get_debian_package_url_from_tag_name(tag_name):
     return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
 
-def has_release_for_tag_name(tag_name):
-    return (
-        requests.head(
-            get_debian_package_url_from_tag_name(tag_name), allow_redirects=True
-        ).status_code
-        == 200
-    )
-
-
-class Repository:
-    """
-    Helper class to verify CCF operations compatibility described at
-    https://microsoft.github.io/CCF/main/build_apps/release_policy.html#operations-compatibility
-    """
-
+class GitEnv:
     def __init__(self):
         self.g = git.cmd.Git()
         self.tags = [
@@ -104,12 +91,32 @@ class Repository:
             if "heads/release" in branch
         ]
 
+    def has_release_for_tag_name(Self, tag_name):
+        return (
+            requests.head(
+                get_debian_package_url_from_tag_name(tag_name), allow_redirects=True
+            ).status_code
+            == 200
+        )
+
+
+class Repository:
+    """
+    Helper class to verify CCF operations compatibility described at
+    https://microsoft.github.io/CCF/main/build_apps/release_policy.html#operations-compatibility
+    """
+
+    def __init__(self, env=None):
+        self.g = env or GitEnv()
+        self.tags = self.g.tags
+        self.release_branches = self.g.release_branches
+
     def _filter_released_tags(self, tags):
         # From a list of tags ordered by semver (latest first), filter out the ones
         # that don't have a release yet
         first_release_tag_idx = -1
         for i, t in enumerate(tags):
-            if not has_release_for_tag_name(t):
+            if not self.g.has_release_for_tag_name(t):
                 LOG.debug(f"No release available for tag {t}")
                 first_release_tag_idx = i
             else:
@@ -124,11 +131,12 @@ class Repository:
         # Only consider tags that have releases as a release might be in progress
         return self._filter_released_tags(dev_tags)[0]
 
-    def get_release_branches_names(self):
-        # Branches are ordered based on major version, with oldest first
+    def get_release_branches_names(self, newest_first=False):
+        # Branches are ordered based on major version, with ordering based on newest_first
         return sorted(
             self.release_branches,
             key=get_major_version_from_release_branch_name,
+            reverse=newest_first,
         )
 
     def get_release_branch_name_before(self, release_branch_name):
@@ -174,7 +182,7 @@ class Repository:
     def get_lts_releases(self):
         """
         Returns a dict of all release branches to the the latest release tag on this branch.
-        The oldest release branch is first in the dict.
+        The newest release branch is first in the dict.
         """
         releases = {}
         for release_branch in self.get_release_branches_names():
@@ -211,7 +219,7 @@ class Repository:
         LOG.info("Unpacking debian package...")
         shutil.rmtree(install_directory, ignore_errors=True)
         install_cmd = ["dpkg-deb", "-R", download_path, install_directory]
-        assert infra.proc.ccall(*install_cmd).returncode == 0, "Installation failed"
+        assert subprocess.run(install_cmd).returncode == 0, "Installation failed"
 
         # Write new file to avoid having to download install again
         open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8")
@@ -240,15 +248,16 @@ class Repository:
                 try:
                     prior_release_branch = self.get_release_branch_name_before(branch)
                     return self.get_tags_for_release_branch(prior_release_branch)[0]
-                except ValueError as e:  # No previous release branch
-                    LOG.warning(f"{e}. Skipping compatibility test with previous")
+                except ValueError:  # No previous release branch
                     return None
             else:
                 LOG.debug(f"Release branch {branch} has no release yet")
                 return None
         elif not this_release_branch_only:
             LOG.debug(f"{branch} is development branch")
-            latest_release_branch = self.get_release_branches_names()[0]
+            latest_release_branch = self.get_release_branches_names(newest_first=True)[
+                0
+            ]
             LOG.info(f"Latest release branch: {latest_release_branch}")
             return self.get_tags_for_release_branch(latest_release_branch)[0]
         else:
@@ -268,7 +277,6 @@ class Repository:
                 LOG.debug(f"{next_release_branch} is next release branch")
                 return self.get_tags_for_release_branch(next_release_branch)[-1]
             except ValueError as e:  # No release branch after target branch
-                LOG.warning(f"{e}. Skipping compatibility test with next")
                 return None
         else:
             LOG.debug(f"{branch} is development branch")
@@ -290,3 +298,91 @@ class Repository:
 
         LOG.info(f"Next release tag: {next_tag}")
         return self.install_release(next_tag)
+
+
+if __name__ == "__main__":
+    # Run this to test
+    class MockGitEnv:
+        def __init__(self, tags, release_branches):
+            self.tags = tags
+            self.release_branches = release_branches
+
+        def has_release_for_tag_name(self, tag_name):
+            return True
+
+    def make_test_vector(tags, release_branches, local_branch, expected):
+        return {
+            "tags": tags,
+            "release_branches": release_branches,
+            "local_branch": local_branch,
+            "expected": expected,
+        }
+
+    test_scenarios = [
+        # Development on main after release 1.x
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1"],
+            ["release/1.x"],
+            "main",
+            {"latest": "ccf-1.0.1", "latest_same_lts": None, "next": None},
+        ),
+        # New commit on release/1.x
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1"],
+            ["release/1.x"],
+            "release/1.x",
+            {"latest": None, "latest_same_lts": "ccf-1.0.1", "next": None},
+        ),
+        # 2.0.0 release is now out
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0"],
+            ["release/1.x", "release/2.x"],
+            "release/2.x",
+            {"latest": "ccf-1.0.1", "latest_same_lts": "ccf-2.0.0", "next": None},
+        ),
+        # Patch to 1.x
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
+            ["release/1.x", "release/2.x"],
+            "release/1.x",
+            {"latest": None, "latest_same_lts": "ccf-1.0.2", "next": "ccf-2.0.0"},
+        ),
+        # Development on main after release 2.x
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0"],
+            ["release/1.x", "release/2.x"],
+            "main",
+            {"latest": "ccf-2.0.0", "latest_same_lts": None, "next": None},
+        ),
+        # 2.0.1 release is now out
+        make_test_vector(
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0", "ccf-2.0.0"],
+            ["release/1.x", "release/2.x"],
+            "release/2.x",
+            {"latest": "ccf-1.0.2", "latest_same_lts": "ccf-2.0.0", "next": None},
+        ),
+    ]
+
+    for s in test_scenarios:
+        env = MockGitEnv(s["tags"], s["release_branches"])
+        repo = Repository(env)
+        latest_tag = repo.get_latest_released_tag_for_branch(
+            branch=s["local_branch"], this_release_branch_only=False
+        )
+        assert (
+            latest_tag == s["expected"]["latest"]
+        ), f'{latest_tag} != {s["expected"]["latest"]}'
+
+        latest_tag_for_this_release_branch = repo.get_latest_released_tag_for_branch(
+            branch=s["local_branch"], this_release_branch_only=True
+        )
+        assert (
+            latest_tag_for_this_release_branch == s["expected"]["latest_same_lts"]
+        ), f'{latest_tag_for_this_release_branch} != {s["expected"]["latest_same_lts"]}'
+
+        next_tag = repo.get_first_tag_for_next_release_branch(branch=s["local_branch"])
+        assert (
+            next_tag == s["expected"]["next"]
+        ), f'{next_tag} != {s["expected"]["next"]}'
+
+    LOG.success(f"Successfully verified {len(test_scenarios)} scenarios")

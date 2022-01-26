@@ -349,7 +349,7 @@ def run_live_compatibility_with_latest(
     )
     if lts_version is None:
         LOG.warning(
-            f"Latest LTS no found for {local_branch} (this_release_branch_only: {this_release_branch_only}"
+            f"Latest LTS not found for {local_branch} branch (this_release_branch_only: {this_release_branch_only})"
         )
         return None
 
@@ -376,7 +376,7 @@ def run_live_compatibility_with_following(args, repo, local_branch):
     """
     lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
     if lts_version is None:
-        LOG.warning(f"No next LTS for local {local_branch} branch")
+        LOG.warning(f"Next LTS not found for {local_branch} branch")
         return None
 
     local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
@@ -548,10 +548,12 @@ if __name__ == "__main__":
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
 
+    cheeky_local_branch = "release/1.x_lala"  # TODO: Remove
+
     # Compatibility with latest LTS
     # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
     latest_lts_version = run_live_compatibility_with_latest(
-        args, repo, env.branch, this_release_branch_only=False
+        args, repo, cheeky_local_branch, this_release_branch_only=False
     )
     compatibility_report["live compatibility"].update(
         {"with latest": latest_lts_version}
@@ -560,7 +562,7 @@ if __name__ == "__main__":
     # Compatibility with latest LTS on the same release branch
     # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
     latest_lts_version = run_live_compatibility_with_latest(
-        args, repo, env.branch, this_release_branch_only=True
+        args, repo, cheeky_local_branch, this_release_branch_only=True
     )
     compatibility_report["live compatibility"].update(
         {"with latest (same LTS)": latest_lts_version}
@@ -569,7 +571,7 @@ if __name__ == "__main__":
     # Compatibility with following LTS (e.g. when releasing 1.0.10, check
     # compatibility with existing 2.0.3)
     following_lts_version = run_live_compatibility_with_following(
-        args, repo, env.branch
+        args, repo, cheeky_local_branch
     )
     compatibility_report["live compatibility"].update(
         {"with following": following_lts_version}
