@@ -174,6 +174,11 @@ namespace ccfapp
         ctx.new_string_len(request_query.c_str(), request_query.size());
       request.set("query", query_str);
 
+      const auto request_path = endpoint_ctx.rpc_ctx->get_request_path();
+      auto path_str =
+        ctx.new_string_len(request_path.c_str(), request_path.size());
+      request.set("path", path_str);
+
       auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
