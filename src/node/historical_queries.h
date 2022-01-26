@@ -100,7 +100,6 @@ namespace ccf::historical
     {
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_digest = {};
-      std::string commit_evidence = {};
       ccf::ClaimsDigest claims_digest = {};
       StorePtr store = nullptr;
       bool is_signature = false;
@@ -272,6 +271,7 @@ namespace ccf::historical
                 if (details != nullptr)
                 {
                   auto proof = tree.get_proof(seqno);
+                  details->transaction_id = {sig->view, seqno};
                   details->receipt = std::make_shared<TxReceipt>(
                     sig->sig,
                     proof.get_root(),
@@ -279,9 +279,8 @@ namespace ccf::historical
                     sig->node,
                     sig->cert,
                     details->entry_digest,
-                    details->commit_evidence,
+                    fmt::format("{}.{}", sig->view, seqno),
                     details->claims_digest);
-                  details->transaction_id = {sig->view, seqno};
                   HISTORICAL_LOG(
                     "Assigned a sig for {} after given signature at {}",
                     seqno,
@@ -359,6 +358,7 @@ namespace ccf::historical
                       if (tree.in_range(new_seqno))
                       {
                         auto proof = tree.get_proof(new_seqno);
+                        new_details->transaction_id = {sig->view, new_seqno};
                         new_details->receipt = std::make_shared<TxReceipt>(
                           sig->sig,
                           proof.get_root(),
@@ -366,9 +366,8 @@ namespace ccf::historical
                           sig->node,
                           sig->cert,
                           new_details->entry_digest,
-                          new_details->commit_evidence,
+                          fmt::format("{}.{}", sig->view, new_seqno),
                           new_details->claims_digest);
-                        new_details->transaction_id = {sig->view, new_seqno};
                         return std::nullopt;
                       }
 
@@ -406,6 +405,7 @@ namespace ccf::historical
                     if (tree.in_range(new_seqno))
                     {
                       auto proof = tree.get_proof(new_seqno);
+                      new_details->transaction_id = {sig->view, new_seqno};
                       new_details->receipt = std::make_shared<TxReceipt>(
                         sig->sig,
                         proof.get_root(),
@@ -413,9 +413,8 @@ namespace ccf::historical
                         sig->node,
                         sig->cert,
                         new_details->entry_digest,
-                        new_details->commit_evidence,
+                        fmt::format("{}.{}", sig->view, new_seqno),
                         new_details->claims_digest);
-                      new_details->transaction_id = {sig->view, new_seqno};
                     }
                   }
                 }
@@ -586,10 +585,6 @@ namespace ccf::historical
           if (!claims_digest.empty())
             details->claims_digest = std::move(claims_digest);
 
-          // TODO: fetch hmac
-          details->commit_evidence = fmt::format("{}:{}", details->transaction_id.view, details->transaction_id.seqno);
-          LOG_DEBUG_FMT("Fetched commit evidence: {}", details->commit_evidence);
-
           CCF_ASSERT_FMT(
             details->store == nullptr,
             "Request {} already has store for seqno {}",
@@ -606,9 +601,9 @@ namespace ccf::historical
             // the receipt _later_ for an already-fetched signature transaction.
             const auto sig = get_signature(details->store);
             assert(sig.has_value());
+            details->transaction_id = {sig->view, sig->seqno};
             details->receipt = std::make_shared<TxReceipt>(
               sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
-            details->transaction_id = {sig->view, sig->seqno};
           }
 
           if (request.include_receipts)

@@ -4,6 +4,7 @@
 
 #include "crypto/entropy.h"
 #include "crypto/symmetric_key.h"
+#include "crypto/hmac.h"
 #include "kv/kv_types.h"
 #include "secrets.h"
 #include "shares.h"
@@ -16,8 +17,17 @@ namespace ccf
   {
     std::vector<uint8_t> raw_key;
     std::shared_ptr<crypto::KeyAesGcm> key;
-
     std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
+    std::optional<crypto::HashBytes> commit_secret = std::nullopt;
+
+    const crypto::HashBytes& get_commit_secret()
+    {
+      if (!commit_secret.has_value())
+      {
+        commit_secret = crypto::hmac(crypto::MDType::SHA256, raw_key, {1, 2, 3} /* TODO uh no */);
+      }
+      return commit_secret.value();
+    }
 
     bool operator==(const LedgerSecret& other) const
     {
