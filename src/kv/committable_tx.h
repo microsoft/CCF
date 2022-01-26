@@ -24,6 +24,7 @@ namespace kv
 
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
+      std::string& commit_evidence,
       const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
       bool include_reads = false)
     {
@@ -46,7 +47,7 @@ namespace kv
 
       auto e = store->get_encryptor();
       auto commit_nonce = e->get_commit_nonce({commit_view, version});
-      auto commit_evidence = fmt::format("ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
+      commit_evidence = fmt::format("ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
       auto tx_commit_evidence_digest = crypto::Sha256Hash::from_string(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
@@ -106,7 +107,7 @@ namespace kv
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
-      std::function<void(const std::vector<uint8_t>& write_set)>
+      std::function<void(const std::vector<uint8_t>& write_set, const std::string& commit_evidence)>
         write_set_observer = nullptr)
     {
       if (committed)
@@ -167,7 +168,8 @@ namespace kv
         try
         {
           crypto::Sha256Hash commit_evidence_digest;
-          auto data = serialise(commit_evidence_digest, claims);
+          std::string commit_evidence;
+          auto data = serialise(commit_evidence_digest, commit_evidence, claims);
 
           if (data.empty())
           {
@@ -176,7 +178,7 @@ namespace kv
 
           if (write_set_observer != nullptr)
           {
-            write_set_observer(data);
+            write_set_observer(data, commit_evidence);
           }
 
           auto claims_ = claims;
@@ -356,9 +358,10 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       crypto::Sha256Hash commit_evidence_digest;
+      std::string commit_evidence;
 
       committed = true;
-      auto data = serialise(commit_evidence_digest);
+      auto data = serialise(commit_evidence_digest, commit_evidence);
       return {
         CommitResult::SUCCESS,
         std::move(data),
