@@ -1,0 +1,18 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
+#include <string>
+
+namespace host
+{
+  // clang-format off
+
+  //
+  // @CMAKE_GENERATED_COMMENT@
+  //
+
+  static constexpr auto host_config_schema = R"!!!(@HOST_CONFIG_SCHEMA@)!!!";
+
+  // clang-format on
+}
