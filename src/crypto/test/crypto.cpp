@@ -598,7 +598,22 @@ TEST_CASE("x509 time")
 
 TEST_CASE("hmac")
 {
-  std::vector<uint8_t> key(0, 32);
-  std::vector<uint8_t> data(0, 64);
-  auto r = crypto::hmac(MDType::SHA256, key, data);
+  std::vector<uint8_t> key(32, 0);
+  std::vector<uint8_t> zeros(64, 0);
+  std::vector<uint8_t> mostly_zeros(64, 0);
+  mostly_zeros[0] = 1;
+
+  INFO("Same inputs, same hmac");
+  {
+    auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
+    auto r1 = crypto::hmac(MDType::SHA256, key, zeros);
+    REQUIRE(r0 == r1);
+  }
+
+  INFO("Different inputs, different hmacs");
+  {
+    auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
+    auto r1 = crypto::hmac(MDType::SHA256, key, mostly_zeros);
+    REQUIRE(r0 != r1);
+  }
 }
