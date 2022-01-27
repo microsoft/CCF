@@ -40,9 +40,7 @@ def print_attributes(entry):
     if "description" in entry:
         desc += entry["description"]
     if "enum" in entry:
-        desc += (
-            f' (values: {", ".join(map(lambda s: stringify_output(s), entry["enum"]))})'
-        )
+        desc += f' (values: {", ".join(stringify_output(s) for s in entry["enum"])})'
     if "default" in entry:
         desc += f'. Default: {stringify_output(entry["default"])}'
     if "minimum" in entry:
@@ -71,7 +69,6 @@ def has_subobjs(obj):
 def print_object(output, obj, depth=0, required_entries=None, additional_desc=None):
     required_entries = required_entries or []
     for k, v in obj.items():
-        print(f"Obj: {k}, depth: {depth}")
         if has_subobjs(v):
             output.add_heading(f"``{k}``", depth)
             if "description" in v:
