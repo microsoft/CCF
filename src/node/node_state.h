@@ -26,7 +26,6 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
@@ -414,7 +413,11 @@ namespace ccf
     {
       auto network_ca = std::make_shared<tls::CA>(config.join.service_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        network_ca, self_signed_node_cert, node_sign_kp->private_key_pem());
+        network_ca,
+        self_signed_node_cert,
+        node_sign_kp->private_key_pem(),
+        tls::Auth::auth_required,
+        config.join.target_rpc_address);
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -694,6 +697,11 @@ namespace ccf
           jwt_key_auto_refresh->schedule_once();
           return kv::ConsensusHookPtr(nullptr);
         });
+    }
+
+    size_t get_jwt_attempts() override
+    {
+      return jwt_key_auto_refresh->get_attempts();
     }
 
     //
@@ -1991,14 +1999,6 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
-          }));
-
-      network.tables->set_map_hook(
-        network.network_configurations.get_name(),
-        network.network_configurations.wrap_map_hook(
-          [](kv::Version version, const NetworkConfigurations::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<NetworkConfigurationsHook>(version, w);
           }));
 
       network.tables->set_map_hook(

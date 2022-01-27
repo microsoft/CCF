@@ -47,7 +47,7 @@ namespace enclave
       tls::ConnID,
       std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
       sessions;
-    size_t sessions_peak;
+    size_t sessions_peak = 0;
 
     // Negative sessions are reserved for those originating from
     // the enclave via create_client().
