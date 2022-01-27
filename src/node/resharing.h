@@ -65,11 +65,9 @@ namespace ccf
     {
     public:
       SessionState state = SessionState::STARTED;
-      kv::NetworkConfiguration config;
+      kv::Configuration config;
 
-      ResharingSession(const kv::NetworkConfiguration& config_) :
-        config(config_)
-      {}
+      ResharingSession(const kv::Configuration& config_) : config(config_) {}
     };
 
     SplitIdentityResharingTracker(
@@ -88,12 +86,12 @@ namespace ccf
     virtual ~SplitIdentityResharingTracker() {}
 
     virtual void add_network_configuration(
-      const kv::NetworkConfiguration& config) override
+      const kv::Configuration& config) override
     {
       configs[config.rid] = config;
     }
 
-    virtual void reshare(const kv::NetworkConfiguration& config) override
+    virtual void reshare(const kv::Configuration& config) override
     {
       auto rid = config.rid;
       LOG_DEBUG_FMT("Resharings: start resharing for configuration #{}", rid);
@@ -117,12 +115,12 @@ namespace ccf
       // We're searching for a configuration with the same set of nodes as
       // `nodes`. We currently don't have an easy way to look up the
       // reconfiguration ID, which would make this unnecessary.
-      for (auto& [rid, nc] : configs)
+      for (auto& [rid, config] : configs)
       {
         bool have_all = true;
-        for (auto& [nid, byid] : nodes)
+        for (auto& [nid, _] : nodes)
         {
-          if (nc.nodes.find(nid) == nc.nodes.end())
+          if (config.nodes.find(nid) == config.nodes.end())
           {
             have_all = false;
             break;
@@ -226,7 +224,7 @@ namespace ccf
     const std::optional<crypto::Pem>& endorsed_node_cert;
     std::unordered_map<kv::ReconfigurationId, ResharingSession> sessions;
     std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
-    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration> configs;
+    std::unordered_map<kv::ReconfigurationId, kv::Configuration> configs;
 
     static inline bool make_request(
       http::Request& request,

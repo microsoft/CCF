@@ -54,6 +54,11 @@ export interface Request<T extends JsonCompatible<T> = any> {
   query: string;
 
   /**
+   * The request path of the requested URL.
+   */
+  path: string;
+
+  /**
    * An object to access the request body in various ways.
    */
   body: Body<T>;

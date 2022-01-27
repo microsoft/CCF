@@ -298,12 +298,14 @@ endif()
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
-add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
-install(
-  TARGETS http_parser.enclave
-  EXPORT ccf
-  DESTINATION lib
-)
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
+  install(
+    TARGETS http_parser.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
@@ -313,13 +315,15 @@ install(
 )
 
 # CCF endpoints libs
-add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
-add_warning_checks(ccf_endpoints.enclave)
-install(
-  TARGETS ccf_endpoints.enclave
-  EXPORT ccf
-  DESTINATION lib
-)
+if("sgx" IN_LIST COMPILE_TARGETS)
+  add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+  add_warning_checks(ccf_endpoints.enclave)
+  install(
+    TARGETS ccf_endpoints.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)

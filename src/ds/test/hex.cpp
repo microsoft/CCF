@@ -4,6 +4,7 @@
 #include "../hex.h"
 
 #include "ds/logger.h"
+#include "ds/nonstd.h"
 
 #include <algorithm>
 #include <cctype>

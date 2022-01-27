@@ -371,6 +371,11 @@ class LedgerValidator:
             node_table = tables[NODES_TABLE_NAME]
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
+                if node_info is None:
+                    # Node has been removed from the store
+                    self.node_activity_status.pop(node_id)
+                    continue
+
                 node_info = json.loads(node_info)
                 # Add the self-signed node certificate (only available in 1.x,
                 # refer to node endorsed certificates table otherwise)
@@ -397,8 +402,12 @@ class LedgerValidator:
                 assert (
                     node_id not in node_certs
                 ), f"Only one of node self-signed certificate and endorsed certificate should be recorded for node {node_id}"
-                node_cert = endorsed_node_cert
-                self.node_certificates[node_id] = node_cert
+
+                if endorsed_node_cert is None:
+                    # Node has been removed from the store
+                    self.node_certificates.pop(node_id)
+                else:
+                    self.node_certificates[node_id] = endorsed_node_cert
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
@@ -428,14 +437,6 @@ class LedgerValidator:
                 # validations for 1, 2 and 3
                 # throws if ledger validation failed.
                 self._verify_tx_set(tx_info)
-
-                # Forget about nodes whose retirement has been committed
-                for node_id, (status, seqno) in list(self.node_activity_status.items()):
-                    if (
-                        status == NodeStatus.RETIRED.value
-                        and signature["commit_seqno"] >= seqno
-                    ):
-                        self.node_activity_status.pop(node_id)
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view

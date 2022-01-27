@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
 - Service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
+- Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
 
 ### Removed
 
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `set_claims_digest()` API to `RpcContext`, see [documentation](https://microsoft.github.io/CCF/main/build_apps/logging_cpp.html#user-defined-claims-in-receipts) on how to use it to attach application-defined claims to transaction receipts.
+- Added a `GET /jwt_metrics` endpoint to monitor attempts and successes of key refresh for each issuer. See [documentation](https://microsoft.github.io/CCF/main/build_apps/auth/jwt.html#extracting-jwt-metrics) on how to use it.
 
 ## [2.0.0-dev7]
 

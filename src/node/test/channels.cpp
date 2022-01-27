@@ -4,6 +4,7 @@
 
 #include "crypto/verifier.h"
 #include "ds/hex.h"
+#include "ds/ring_buffer.h"
 #include "node/entities.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/node_types.h"

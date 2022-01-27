@@ -347,6 +347,21 @@
         ],
         "type": "object"
       },
+      "JWTMetrics": {
+        "properties": {
+          "attempts": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "successes": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "attempts",
+          "successes"
+        ],
+        "type": "object"
+      },
       "JavaScriptMetrics": {
         "properties": {
           "bytecode_size": {
@@ -699,7 +714,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.10.0"
+    "version": "2.11.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -807,6 +822,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JavaScriptMetrics"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/jwt_metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JWTMetrics"
                 }
               }
             },
