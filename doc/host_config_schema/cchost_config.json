@@ -1,0 +1,418 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "CCF node configuration",
+  "description": "JSON schema for configuration of a single CCF node (cchost executable)",
+  "properties": {
+    "enclave": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to enclave application"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["release", "debug", "virtual"],
+          "default": "release",
+          "description": "Type of enclave application"
+        }
+      },
+      "description": "This section includes configuration for the enclave application launched by this node",
+      "required": ["file"]
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "node_to_node_interface": {
+          "type": "object",
+          "properties": {
+            "bind_address": {
+              "type": "string",
+              "description": "Local address the node binds to and listens on"
+            }
+          },
+          "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
+          "required": ["bind_address"]
+        },
+        "rpc_interfaces": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "bind_address": {
+                "type": "string",
+                "description": "Local address the node binds to and listens on"
+              },
+              "published_rpc_address": {
+                "type": "string",
+                "default": "Value of 'bind_address'",
+                "description": "The published RPC address advertised to clients"
+              },
+              "max_open_sessions_soft": {
+                "type": "integer",
+                "default": 1000,
+                "description": "The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error"
+              },
+              "max_open_sessions_hard": {
+                "type": "integer",
+                "default": 1010,
+                "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
+              }
+            },
+            "required": ["bind_address"]
+          },
+          "description": "Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information"
+        }
+      },
+      "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
+      "required": ["node_to_node_interface", "rpc_interfaces"]
+    },
+    "command": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["start", "join", "recover"],
+          "description": "Type of CCF node"
+        },
+        "service_certificate_file": {
+          "type": "string",
+          "default": "service_cert.pem",
+          "description": "For ``start`` and ``recover`` nodes, path to which service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "start" } }
+          },
+          "then": {
+            "properties": {
+              "start": {
+                "type": "object",
+                "properties": {
+                  "constitution_files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js"
+                  },
+                  "initial_service_certificate_validity_days": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Initial validity period (days) for service certificate",
+                    "minimum": 1
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "certificate_file": {
+                          "type": "string",
+                          "description": "Path to member x509 identity certificate (PEM)"
+                        },
+                        "encryption_public_key_file": {
+                          "type": "string",
+                          "description": "Path to member encryption public key (PEM)"
+                        },
+                        "data_json_file": {
+                          "type": "string",
+                          "description": "Path to member data file (JSON)"
+                        }
+                      },
+                      "required": ["certificate_file"]
+                    },
+                    "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
+                  },
+                  "service_configuration": {
+                    "type": "object",
+                    "properties": {
+                      "recovery_threshold": {
+                        "type": "integer",
+                        "description": "Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in 'members'",
+                        "minimum": 0
+                      },
+                      "maximum_node_certificate_validity_days": {
+                        "type": "integer",
+                        "default": 365,
+                        "description": "The maximum number of days allowed for node certificate validity period",
+                        "minimum": 1
+                      },
+                      "reconfiguration_type": {
+                        "type": "string",
+                        "default": "OneTransaction",
+                        "enum": ["OneTransaction", "TwoTransaction"]
+                      }
+                    },
+                    "required": ["recovery_threshold"]
+                  }
+                },
+                "required": ["constitution_files", "members"]
+              }
+            },
+            "required": ["start"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "join" } }
+          },
+          "then": {
+            "properties": {
+              "join": {
+                "type": "object",
+                "properties": {
+                  "target_rpc_address": {
+                    "type": "string",
+                    "description": "Address (host:port) of a node of the existing service to join"
+                  },
+                  "retry_timeout": {
+                    "type": "string",
+                    "default": "1000ms",
+                    "description": "Interval (time string) at which the node sends join requests to the existing network"
+                  }
+                },
+                "required": ["target_rpc_address"]
+              }
+            },
+            "required": ["join"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "recover" } }
+          },
+          "then": {
+            "properties": {
+              "recover": {
+                "type": "object",
+                "properties": {
+                  "initial_service_certificate_validity_days": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Initial validity period (days) for service certificate",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "description": "This section includes configuration of how the node should start (either start, join or recover) and associated information",
+      "required": ["type"]
+    },
+    "node_certificate": {
+      "type": "object",
+      "properties": {
+        "subject_name": {
+          "type": "string",
+          "default": "CN=CCF Node",
+          "description": "Subject name to include in node certificate"
+        },
+        "subject_alt_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'"
+        },
+        "curve_id": {
+          "type": "string",
+          "enum": ["secp384r1", "secp256r1"],
+          "default": "secp384r1",
+          "description": "Elliptic curve to use for node identity key"
+        },
+        "initial_validity_days": {
+          "type": "integer",
+          "default": 1,
+          "description": "Initial validity period (days) for node certificate",
+          "minimum": 1
+        }
+      },
+      "description": "This section includes configuration for the node x509 identity certificate"
+    },
+    "ledger": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "default": "ledger",
+          "description": "Path to main ledger directory"
+        },
+        "read_only_directories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Paths to read-only ledger directories. Note that only '.committed' files will be read from these directories"
+        },
+        "chunk_size": {
+          "type": "string",
+          "default": "5MB",
+          "description": "Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created"
+        }
+      },
+      "description": "This section includes configuration for the ledger directories and files"
+    },
+    "snapshots": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "default": "snapshots",
+          "description": "Path to snapshot directory"
+        },
+        "tx_count": {
+          "type": "integer",
+          "default": 10000,
+          "description": "Number of transactions after which a snapshot is automatically generated",
+          "minimum": 1
+        }
+      },
+      "description": "This section includes configuration for the snapshot directory and files"
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "host_level": {
+          "type": "string",
+          "enum": ["info", "fail", "fatal"],
+          "default": "info",
+          "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity."
+        },
+        "format": {
+          "type": "string",
+          "enum": ["text", "json"],
+          "default": "text",
+          "description": "If 'json', node logs will be formatted as JSON"
+        }
+      },
+      "description": "This section includes configuration for the logging of the node process"
+    },
+    "consensus": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["CFT"],
+          "default": "CFT",
+          "description": "Type of consensus protocol. Only CFT (Crash-Fault Tolerant) is currently supported"
+        },
+        "message_timeout": {
+          "type": "string",
+          "default": "100ms",
+          "description": "Maximum interval (time string) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than 'election_timeout'"
+        },
+        "election_timeout": {
+          "type": "string",
+          "default": "5000ms",
+          "description": "Timeout value after which backup nodes that have not received any message from the primary node will trigger a new election. This should be set to a significantly greater value than 'message_timeout'"
+        }
+      },
+      "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)"
+    },
+    "ledger_signatures": {
+      "type": "object",
+      "properties": {
+        "tx_count": {
+          "type": "integer",
+          "default": 5000,
+          "description": "Number of transactions after which a signature transaction is automatically generated",
+          "minimum": 1
+        },
+        "delay": {
+          "type": "string",
+          "default": "1000ms",
+          "description": "Maximum duration after which a signature transaction is automatically generated"
+        }
+      },
+      "description": "This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput."
+    },
+    "jwt": {
+      "type": "object",
+      "properties": {
+        "key_refresh_interval": {
+          "type": "string",
+          "default": "30min",
+          "description": "Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed"
+        }
+      },
+      "description": "This section includes configuration for JWT issuers automatic refresh"
+    },
+    "output_files": {
+      "type": "object",
+      "properties": {
+        "node_certificate_file": {
+          "type": "string",
+          "default": "nodecert.pem",
+          "description": "Path to self-signed node certificate output by node on startup"
+        },
+        "pid_file": {
+          "type": "string",
+          "default": "cchost.pid",
+          "description": "Path to file in which 'cchost' process identifier (PID) will be written to on startup"
+        },
+        "node_to_node_address_file": {
+          "type": "string",
+          "description": "Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
+        },
+        "rpc_addresses_file": {
+          "type": "string",
+          "description": "Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified"
+        }
+      },
+      "description": "This section includes configuration for additional files output by the node"
+    },
+    "tick_interval": {
+      "type": "string",
+      "default": "10ms",
+      "description": "Interval at which the enclave time will be updated by the host (modify with care!)"
+    },
+    "slow_io_logging_threshold": {
+      "type": "string",
+      "default": "10000us",
+      "description": "Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log"
+    },
+    "node_client_interface": {
+      "type": "string",
+      "description": "Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes)"
+    },
+    "client_connection_timeout": {
+      "type": "string",
+      "default": "2000ms",
+      "description": "Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded"
+    },
+    "worker_threads": {
+      "type": "integer",
+      "default": 0,
+      "description": "Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!)",
+      "minimum": 0
+    },
+    "memory": {
+      "type": "object",
+      "properties": {
+        "circuit_size": {
+          "type": "string",
+          "default": "4MB",
+          "description": "Size (size string) of the internal host-enclave ringbuffers (must be a power of 2)"
+        },
+        "max_msg_size": {
+          "type": "string",
+          "default": "16MB",
+          "description": "Maximum size (size string) for a message sent over the ringbuffer. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments"
+        },
+        "max_fragment_size": {
+          "type": "string",
+          "default": "64KB",
+          "description": "Maximum size (size string) of individual ringbuffer message fragments. Messages larger than this will be split into multiple fragments"
+        }
+      },
+      "description": "This section includes configuration for the host-enclave ring-buffer memory (modify with care!)"
+    }
+  },
+  "required": ["enclave", "network", "command"]
+}

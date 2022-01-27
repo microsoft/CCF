@@ -22,6 +22,11 @@ import pathlib
 
 from docutils import nodes
 
+# To import generate_config_rst
+sys.path.insert(0, os.path.abspath("."))
+
+import generate_config_rst
+
 
 # -- Project information -----------------------------------------------------
 
@@ -381,7 +386,8 @@ def config_inited(app, config):
 
 
 def setup(app):
-    app.connect("config-inited", config_inited)
+    if not os.environ.get("SKIP_JS"):
+        app.connect("config-inited", config_inited)
 
     doc_dir = pathlib.Path(app.srcdir)  # CCF/doc/
     root_dir = os.path.abspath(doc_dir / "..")  # CCF/
@@ -394,3 +400,12 @@ def setup(app):
     breathe_projects["CCF"] = str(doc_dir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=root_dir, check=True)
+
+    # configuration generator
+    input_file_path = doc_dir / "host_config_schema/cchost_config.json"
+    output_file_path = doc_dir / "operations/generated_config.rst"
+
+    if os.path.exists(input_file_path):
+        generate_config_rst.generate_configuration_docs(
+            input_file_path, output_file_path
+        )
