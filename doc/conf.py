@@ -93,7 +93,7 @@ language = "en"
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "colorful"
+pygments_style = "zenburn"
 
 
 # -- Options for HTML output -------------------------------------------------
