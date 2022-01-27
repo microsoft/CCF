@@ -5,4 +5,5 @@ Logging RPC API
    :examples:
    :include:
       /app/log/.*
+      /app/api
       /app/tx
