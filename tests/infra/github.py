@@ -240,9 +240,7 @@ class Repository:
         LOG.info("Unpacking debian package...")
         shutil.rmtree(install_directory, ignore_errors=True)
         install_cmd = ["dpkg-deb", "-R", download_path, install_directory]
-        assert (
-            subprocess.run(install_cmd, check=True).returncode == 0
-        ), "Installation failed"
+        subprocess.run(install_cmd, check=True)
 
         # Write new file to avoid having to download install again
         open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8")
@@ -349,56 +347,89 @@ if __name__ == "__main__":
             ["ccf-1.0.0", "ccf-1.0.1"],
             ["release/1.x"],
             "main",
-            {"latest": "ccf-1.0.1", "latest_same_lts": None, "next": None},
+            {"previous LTS": "ccf-1.0.1", "same LTS": None, "next LTS": None},
         ),
         # New commit on release/1.x
         make_test_vector(
             ["ccf-1.0.0", "ccf-1.0.1"],
             ["release/1.x"],
             "release/1.x",
-            {"latest": None, "latest_same_lts": "ccf-1.0.1", "next": None},
+            {"previous LTS": None, "same LTS": "ccf-1.0.1", "next LTS": None},
         ),
         # 2.0.0 release is now out
         make_test_vector(
             ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0"],
             ["release/1.x", "release/2.x"],
             "release/2.x",
-            {"latest": "ccf-1.0.1", "latest_same_lts": "ccf-2.0.0", "next": None},
+            {"previous LTS": "ccf-1.0.1", "same LTS": "ccf-2.0.0", "next LTS": None},
         ),
         # Patch to 1.x
         make_test_vector(
             ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
             ["release/1.x", "release/2.x"],
             "ccf-1.0.3",
-            {"latest": None, "latest_same_lts": "ccf-1.0.2", "next": "ccf-2.0.0"},
+            {"previous LTS": None, "same LTS": "ccf-1.0.2", "next LTS": "ccf-2.0.0"},
         ),
         # Development on main after release 2.x
         make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0"],
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
             ["release/1.x", "release/2.x"],
             "main",
-            {"latest": "ccf-2.0.0", "latest_same_lts": None, "next": None},
+            {"previous LTS": "ccf-2.0.0", "same LTS": None, "next LTS": None},
         ),
         # Dev release on main after release 2.x
         make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0"],
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
             ["release/1.x", "release/2.x"],
             "ccf-3.0.0-dev0",
-            {"latest": "ccf-2.0.0", "latest_same_lts": None, "next": None},
+            {"previous LTS": "ccf-2.0.0", "same LTS": None, "next LTS": None},
         ),
         # 2.0.1 release is now out
         make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0", "ccf-2.0.1"],
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2", "ccf-2.0.1"],
             ["release/1.x", "release/2.x"],
             "release/2.x",
-            {"latest": "ccf-1.0.2", "latest_same_lts": "ccf-2.0.1", "next": None},
+            {"previous LTS": "ccf-1.0.2", "same LTS": "ccf-2.0.1", "next LTS": None},
         ),
         # Local branch is a actually tag! (https://github.com/microsoft/CCF/issues/2699)
         make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-1.0.2", "ccf-2.0.0", "ccf-2.0.1"],
+            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2", "ccf-2.0.1"],
             ["release/1.x", "release/2.x"],
             "ccf-2.0.2",
-            {"latest": "ccf-1.0.2", "latest_same_lts": "ccf-2.0.1", "next": None},
+            {"previous LTS": "ccf-1.0.2", "same LTS": "ccf-2.0.1", "next LTS": None},
+        ),
+        # 3.0.0 release is now out
+        make_test_vector(
+            [
+                "ccf-1.0.0",
+                "ccf-1.0.1",
+                "ccf-2.0.0",
+                "ccf-1.0.2",
+                "ccf-2.0.1",
+                "ccf-3.0.0",
+            ],
+            ["release/1.x", "release/2.x", "release/3.x"],
+            "release/3.x",
+            {"previous LTS": "ccf-2.0.1", "same LTS": "ccf-3.0.0", "next LTS": None},
+        ),
+        # Patch to 2.x
+        make_test_vector(
+            [
+                "ccf-1.0.0",
+                "ccf-1.0.1",
+                "ccf-2.0.0",
+                "ccf-1.0.2",
+                "ccf-2.0.1",
+                "ccf-3.0.0",
+                "ccf-2.0.2",
+            ],
+            ["release/1.x", "release/2.x", "release/3.x"],
+            "release/2.x",
+            {
+                "previous LTS": "ccf-1.0.2",
+                "same LTS": "ccf-2.0.2",
+                "next LTS": "ccf-3.0.0",
+            },
         ),
     ]
 
@@ -409,19 +440,19 @@ if __name__ == "__main__":
             branch=s["local_branch"], this_release_branch_only=False
         )
         assert (
-            latest_tag == s["expected"]["latest"]
-        ), f'{latest_tag} != {s["expected"]["latest"]}'
+            latest_tag == s["expected"]["previous LTS"]
+        ), f'{latest_tag} != {s["expected"]["previous LTS"]}'
 
         latest_tag_for_this_release_branch = repo.get_latest_released_tag_for_branch(
             branch=s["local_branch"], this_release_branch_only=True
         )
         assert (
-            latest_tag_for_this_release_branch == s["expected"]["latest_same_lts"]
-        ), f'{latest_tag_for_this_release_branch} != {s["expected"]["latest_same_lts"]}'
+            latest_tag_for_this_release_branch == s["expected"]["same LTS"]
+        ), f'{latest_tag_for_this_release_branch} != {s["expected"]["same LTS"]}'
 
         next_tag = repo.get_first_tag_for_next_release_branch(branch=s["local_branch"])
         assert (
-            next_tag == s["expected"]["next"]
-        ), f'{next_tag} != {s["expected"]["next"]}'
+            next_tag == s["expected"]["next LTS"]
+        ), f'{next_tag} != {s["expected"]["next LTS"]}'
 
     LOG.success(f"Successfully verified {len(test_scenarios)} scenarios")
