@@ -394,8 +394,11 @@ namespace Base64_bench
 }
 
 PICOBENCH_SUITE("hmac");
-namespace Base64_bench
+namespace HMAC_bench
 {
   auto openssl_hmac_sha256_32 = benchmark_hmac<MDType::SHA256, 32>;
   PICOBENCH(openssl_hmac_sha256_32).PICO_HASH_SUFFIX();
+
+  auto openssl_hmac_sha256_64 = benchmark_hmac<MDType::SHA256, 64>;
+  PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
 }

@@ -23,8 +23,6 @@ from ccf.tx_id import TxID
 import ccf.receipt
 from hashlib import sha256
 
-from pkg_resources import EntryPoint
-
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
 LEDGER_DOMAIN_SIZE = 8
@@ -654,7 +652,7 @@ class Transaction(Entry):
         write_set_digest = digest(hashes.SHA256(), self.get_raw_tx())
         if claims_digest is None:
             if commit_evidence_digest:
-                digest(write_set_digest, commit_evidence_digest)
+                return digest(write_set_digest, commit_evidence_digest)
             else:
                 return write_set_digest
         else:
