@@ -46,6 +46,8 @@ namespace kv
       }
 
       auto e = store->get_encryptor();
+      if (e == nullptr)
+        throw KvSerialiserException("No encryptor set");
       auto commit_nonce = e->get_commit_nonce({commit_view, version});
       commit_evidence = fmt::format(
         "ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));

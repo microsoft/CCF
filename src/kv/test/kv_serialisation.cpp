@@ -31,8 +31,11 @@ TEST_CASE(
 
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   kv_store.set_consensus(consensus);
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   kv::Store kv_store_target;
+  kv_store_target.set_encryptor(encryptor);
 
   MapTypes::StringString map("public:pub_map");
 
@@ -552,6 +555,8 @@ TEST_CASE_TEMPLATE(
   VerboseSerialisedMap)
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   MapType map("public:map");
 
@@ -564,6 +569,8 @@ TEST_CASE_TEMPLATE(
   INFO("Serialise/Deserialise 2 kv stores");
   {
     kv::Store kv_store2;
+    kv_store2.set_encryptor(encryptor);
+
     MapType map2("public:map");
 
     auto tx = kv_store.create_reserved_tx(kv_store.next_txid());
@@ -610,6 +617,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     using Table = kv::Map<std::vector<int>, std::string>;
     kv::Store s0, s1;
     s0.set_consensus(consensus);
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    s0.set_encryptor(encryptor);
+    s1.set_encryptor(encryptor);
+
     Table t("public:t");
 
     auto tx = s0.create_tx();
@@ -629,6 +640,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     using Table = kv::Map<nlohmann::json, nlohmann::json>;
     kv::Store s0, s1;
     s0.set_consensus(consensus);
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    s0.set_encryptor(encryptor);
+    s1.set_encryptor(encryptor);
+
     Table t("public:t");
 
     auto tx = s0.create_tx();
