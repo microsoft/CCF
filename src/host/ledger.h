@@ -933,11 +933,12 @@ namespace asynchost
       return last_idx;
     }
 
-    void truncate(size_t idx)
+    void truncate(size_t idx, bool complete = false)
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
-      LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
+      LOG_DEBUG_FMT(
+        "Ledger truncate: {}/{} (complete: {})", idx, last_idx, complete);
 
       if (idx >= last_idx || idx < committed_idx)
       {
@@ -963,9 +964,19 @@ namespace asynchost
         }
         else
         {
-          // A new file will not be required on the next written entry if the
-          // file is _not_ deleted entirely
-          require_new_file = false;
+          if (complete)
+          {
+            // If required, complete files that are not entirely truncated
+            (*it)->complete();
+            require_new_file = true;
+            LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
+          }
+          else
+          {
+            // A new file will not be required on the next written entry if the
+            // file is _not_ deleted entirely
+            require_new_file = false;
+          }
           it++;
         }
       }
@@ -1102,7 +1113,12 @@ namespace asynchost
         consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          truncate(idx);
+          auto complete = serialized::read<bool>(data, size);
+          truncate(idx, complete);
+          if (complete)
+          {
+            commit(idx);
+          }
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

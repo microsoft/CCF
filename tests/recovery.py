@@ -78,7 +78,7 @@ def test(network, args, from_snapshot=False, split_ledger=False):
         committed_ledger_dirs=committed_ledger_dirs,
         snapshots_dir=snapshots_dir,
     )
-    recovered_network.recover(args)
+    # recovered_network.recover(args)
 
     return recovered_network
 
@@ -158,31 +158,29 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        for i in range(args.recovery):
-            # Issue transactions which will required historical ledger queries recovery
-            # when the network is shutdown
-            network.txs.issue(network, number_txs=1)
-            network.txs.issue(network, number_txs=1, repeat=True)
+        # for i in range(args.recovery):
+        # Issue transactions which will required historical ledger queries recovery
+        # when the network is shutdown
+        network.txs.issue(network, number_txs=1)
+        network.txs.issue(network, number_txs=1, repeat=True)
 
-            # Alternate between recovery with primary change and stable primary-ship,
-            # with and without snapshots
-            if i % 2 == 0:
-                if args.consensus != "BFT":
-                    recovered_network = test_share_resilience(
-                        network, args, from_snapshot=True
-                    )
-                else:
-                    recovered_network = network
-            else:
-                recovered_network = test(
-                    network, args, from_snapshot=False, split_ledger=True
-                )
-            network = recovered_network
+        # Alternate between recovery with primary change and stable primary-ship,
+        # with and without snapshots
+        # if i % 2 == 0:
+        #     if args.consensus != "BFT":
+        #         recovered_network = test_share_resilience(
+        #             network, args, from_snapshot=True
+        #         )
+        #     else:
+        #         recovered_network = network
+        # else:
+        recovered_network = test(network, args, from_snapshot=False, split_ledger=True)
+        network = recovered_network
 
-            for node in network.get_joined_nodes():
-                node.verify_certificate_validity_period()
+        for node in network.get_joined_nodes():
+            node.verify_certificate_validity_period()
 
-            LOG.success("Recovery complete on all nodes")
+        LOG.success("Recovery complete on all nodes")
 
 
 if __name__ == "__main__":
