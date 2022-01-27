@@ -5,6 +5,7 @@
 #include "ds/hash.h"
 
 #include <cassert>
+#include <fstream>
 #include <iostream>
 #include <regex>
 #include <string>
