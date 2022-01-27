@@ -548,13 +548,13 @@ if __name__ == "__main__":
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
 
-    # Compatibility with latest LTS
+    # Compatibility with previous LTS
     # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
     latest_lts_version = run_live_compatibility_with_latest(
         args, repo, env.branch, this_release_branch_only=False
     )
     compatibility_report["live compatibility"].update(
-        {"with latest": latest_lts_version}
+        {"with previous LTS": latest_lts_version}
     )
 
     # Compatibility with latest LTS on the same release branch
@@ -563,16 +563,16 @@ if __name__ == "__main__":
         args, repo, env.branch, this_release_branch_only=True
     )
     compatibility_report["live compatibility"].update(
-        {"with latest (same LTS)": latest_lts_version}
+        {"with same LTS": latest_lts_version}
     )
 
-    # Compatibility with following LTS (e.g. when releasing 1.0.10, check
-    # compatibility with existing 2.0.3)
+    # Compatibility with following LTS
+    # (e.g. when releasing 1.0.10, check compatibility with existing 2.0.3)
     following_lts_version = run_live_compatibility_with_following(
         args, repo, env.branch
     )
     compatibility_report["live compatibility"].update(
-        {"with following": following_lts_version}
+        {"with following LTS": following_lts_version}
     )
 
     if args.check_ledger_compatibility:
