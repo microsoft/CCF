@@ -280,7 +280,7 @@
       "properties": {
         "host_level": {
           "type": "string",
-          "enum": ["info", "fail", "fatal"],
+          "enum": ["trace", "debug", "info", "fail", "fatal"],
           "default": "info",
           "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity."
         },
