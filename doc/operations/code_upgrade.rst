@@ -184,5 +184,5 @@ Procedure
 Notes
 -----
 
-- The :http:GET:`/version` endpoint can be used by operators to check which version of CCF a specific node is running.
+- The :http:GET:`/node/version` endpoint can be used by operators to check which version of CCF a specific node is running.
 - A code upgrade procedure provides very little service downtime compared to a disaster recovery. The service is only unavailable to process write transactions while the primary-ship changes (typically a few seconds) but can still process read-only transactions throughout the whole procedure. Note that this is true during any primary-ship change, and not just during the code upgrade procedure.

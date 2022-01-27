@@ -56,7 +56,7 @@ The ``command.start.service_configuration.maximum_service_certificate_validity_d
 
 .. tip::
 
-- The current service certificate (PEM) can be retrieved by operators via the :http:GET:`/network` endpoint (``"service_certificate"`` field).
+- The current service certificate (PEM) can be retrieved by operators via the :http:GET:`/node/network` endpoint (``"service_certificate"`` field).
 - Once renewed, the service certificate should be distributed to clients to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network.
 
 The procedure that operators and members should follow is summarised in the following diagram:

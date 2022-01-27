@@ -62,7 +62,7 @@ If the network has not yet been opened by members (see :ref:`governance/open_net
 
 The ``Pending`` joining node automatically polls the service (interval configurable via ``join.retry_timeout`` configuration entry) until the members have successfully transitioned the node to the ``Trusted`` state. It is only then that the joining node transitions to the ``PartOfNetwork`` state and starts updating its ledger.
 
-.. tip:: After the node has been trusted by members, operators should poll the ``GET /node/state`` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
+.. tip:: After the node has been trusted by members, operators should poll the :http:GET:`/node/state` endpoint on the newly added node, using the node's self-signed certificate as TLS CA, until the ``{"state": "PartOfNetwork"}`` is reported. This status confirms that the replication of the ledger has started on this node.
 
 .. note:: To accelerate the joining procedure, it is possible for new nodes to join from a snapshot. More information on snapshots :ref:`here <operations/ledger_snapshot:Join/Recover From Snapshot>`.
 
