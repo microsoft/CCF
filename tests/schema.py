@@ -30,7 +30,7 @@ def run(args):
     documents_valid = True
     all_methods = []
 
-    def fetch_schema(client, prefix, file_prefix = None):
+    def fetch_schema(client, prefix, file_prefix=None):
         if file_prefix is None:
             file_prefix = prefix
         api_response = client.get(f"/{prefix}/api")
@@ -44,7 +44,9 @@ def run(args):
         fetched_version = response_body["info"]["version"]
 
         formatted_schema = json.dumps(response_body, indent=2)
-        openapi_target_file = os.path.join(args.schema_dir, f"{file_prefix}_openapi.json")
+        openapi_target_file = os.path.join(
+            args.schema_dir, f"{file_prefix}_openapi.json"
+        )
 
         try:
             old_schema.remove(openapi_target_file)

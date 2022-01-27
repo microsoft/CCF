@@ -322,10 +322,7 @@ namespace ccf::endpoints
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(
-            document,
-            endpoint.full_uri_path,
-            http_verb.value(),
-            parameter);
+            document, endpoint.full_uri_path, http_verb.value(), parameter);
         });
 
       return *this;
