@@ -114,22 +114,6 @@ def run(args):
             if not fetch_schema(member_client, "gov"):
                 documents_valid = False
 
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes
-    ) as js_network:
-        args.package = "libjs_generic"
-        args.js_app_bundle = "../samples/apps/logging/js"
-
-        js_network.start_and_join(args)
-        primary, _ = js_network.find_primary()
-
-        check = infra.checker.Checker()
-
-        with primary.client("user0") as user_client:
-            LOG.info("JS user frontend")
-            if not fetch_schema(user_client, "app", "js_logging_app"):
-                documents_valid = False
-
     made_changes = False
 
     if len(old_schema) > 0:
