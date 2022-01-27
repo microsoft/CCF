@@ -940,8 +940,19 @@ namespace asynchost
       LOG_DEBUG_FMT(
         "Ledger truncate: {}/{} (complete: {})", idx, last_idx, complete);
 
-      if (idx >= last_idx || idx < committed_idx)
+      LOG_FAIL_FMT("Committed {}", committed_idx);
+
+      if (idx > last_idx || idx < committed_idx)
       {
+        return;
+      }
+
+      if (idx == last_idx && complete)
+      {
+        auto last = get_it_contains_idx(idx);
+        (*last)->complete();
+        require_new_file = true;
+        LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
         return;
       }
 
@@ -953,6 +964,8 @@ namespace asynchost
 
       for (auto it = f_from; it != f_end;)
       {
+        LOG_FAIL_FMT("here {}", (*it)->get_start_idx());
+
         // Truncate the first file to the truncation index while the more
         // recent files are deleted entirely
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;

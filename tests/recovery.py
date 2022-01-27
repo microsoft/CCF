@@ -58,16 +58,16 @@ def test(network, args, from_snapshot=False, split_ledger=False):
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    if split_ledger:
-        # Test that ledger files can be arbitrarily split and that recovery
-        # and historical queries work as expected.
-        # Note: For real operations, it would be best practice to use a separate
-        # output directory
-        split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
-        if committed_ledger_dirs:
-            split_all_ledger_files_in_dir(
-                committed_ledger_dirs[0], committed_ledger_dirs[0]
-            )
+    # if split_ledger:
+    #     # Test that ledger files can be arbitrarily split and that recovery
+    #     # and historical queries work as expected.
+    #     # Note: For real operations, it would be best practice to use a separate
+    #     # output directory
+    #     split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
+    #     if committed_ledger_dirs:
+    #         split_all_ledger_files_in_dir(
+    #             committed_ledger_dirs[0], committed_ledger_dirs[0]
+    #         )
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
