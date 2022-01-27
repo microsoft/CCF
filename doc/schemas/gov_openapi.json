@@ -346,6 +346,9 @@
           "claims_digest": {
             "$ref": "#/components/schemas/string"
           },
+          "commit_evidence": {
+            "$ref": "#/components/schemas/string"
+          },
           "write_set_digest": {
             "$ref": "#/components/schemas/string"
           }
@@ -428,7 +431,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.5.0"
+    "version": "2.6.0"
   },
   "openapi": "3.0.0",
   "paths": {

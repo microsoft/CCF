@@ -35,8 +35,6 @@ from types import MappingProxyType
 
 from loguru import logger as LOG
 
-import pprint
-
 
 def verify_receipt(
     receipt, service_cert, check_endorsement=True, claims=None, generic=True
@@ -47,7 +45,6 @@ def verify_receipt(
     node_cert = load_pem_x509_certificate(receipt["cert"].encode(), default_backend())
     if check_endorsement:
         ccf.receipt.check_endorsement(node_cert, service_cert)
-    pprint.pprint(receipt)
     if claims is not None:
         assert "leaf_components" in receipt
         assert "commit_evidence" in receipt["leaf_components"]
@@ -1365,14 +1362,14 @@ def run(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "js",
-    #     run,
-    #     package="libjs_generic",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     # Is there a better way to do this?
     if os.path.exists(
