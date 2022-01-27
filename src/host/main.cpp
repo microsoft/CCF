@@ -85,9 +85,8 @@ int main(int argc, char** argv)
   }
   catch (const std::exception& e)
   {
-    LOG_FAIL_FMT(
-      "Error parsing configuration file {}: {}", config_file_path, e.what());
-    return 1;
+    throw std::logic_error(fmt::format(
+      "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
 
   auto config_json = nlohmann::json(config);
@@ -96,11 +95,10 @@ int main(int argc, char** argv)
   auto schema_error_msg = json::validate_json(config_json, schema_json);
   if (schema_error_msg.has_value())
   {
-    LOG_FAIL_FMT(
+    throw std::logic_error(fmt::format(
       "Error validating JSON schema for configuration file {}: {}",
       config_file_path,
-      schema_error_msg.value());
-    return 1;
+      schema_error_msg.value()));
   }
 
   if (config.logging.format == host::LogFormat::JSON)
