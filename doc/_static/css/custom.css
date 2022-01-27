@@ -5,3 +5,5 @@
 img {
   margin: .3rem !important;
 }
+
+body[data-theme="dark"] .highlight .s2 { background-color: #303030 } /* Literal.String.Double */
