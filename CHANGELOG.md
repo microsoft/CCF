@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Compatibility with 2.x releases: internally, CCF now supports transactions with commit evidence.
+- Compatibility with 2.x releases: internally, CCF now supports transactions with commit evidence (#3474).
 
 ## [1.0.17]
 
