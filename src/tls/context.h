@@ -23,16 +23,13 @@ namespace tls
     crypto::OpenSSL::Unique_SSL ssl;
 
   public:
-    Context(bool client, bool dtls) :
-      cfg(
-        dtls ? (client ? DTLS_client_method() : DTLS_server_method()) :
-               (client ? TLS_client_method() : TLS_server_method())),
+    Context(bool client) :
+      cfg(client ? TLS_client_method() : TLS_server_method()),
       ssl(cfg)
     {
       // Require at least TLS 1.2, support up to 1.3
-      SSL_CTX_set_min_proto_version(
-        cfg, dtls ? DTLS1_2_VERSION : TLS1_2_VERSION);
-      SSL_set_min_proto_version(ssl, dtls ? DTLS1_2_VERSION : TLS1_2_VERSION);
+      SSL_CTX_set_min_proto_version(cfg, TLS1_2_VERSION);
+      SSL_set_min_proto_version(ssl, TLS1_2_VERSION);
 
       // Disable renegotiation to avoid DoS
       SSL_CTX_set_options(
@@ -79,11 +76,7 @@ namespace tls
 
     virtual ~Context() = default;
 
-    void set_bio(
-      void* cb_obj,
-      BIO_callback_fn_ex send,
-      BIO_callback_fn_ex recv,
-      BIO_callback_fn_ex dbg)
+    void set_bio(void* cb_obj, BIO_callback_fn_ex send, BIO_callback_fn_ex recv)
     {
       // Read/Write BIOs will be used by TLS
       BIO* rbio = BIO_new(BIO_s_mem());
