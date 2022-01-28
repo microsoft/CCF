@@ -405,19 +405,16 @@ namespace kv
     CommitResult success;
     std::vector<uint8_t> data;
     ccf::ClaimsDigest claims_digest;
-    crypto::Sha256Hash commit_evidence_digest;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
       std::vector<uint8_t>&& data_,
       ccf::ClaimsDigest&& claims_digest_,
-      crypto::Sha256Hash&& commit_evidence_digest_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       data(std::move(data_)),
       claims_digest(claims_digest_),
-      commit_evidence_digest(commit_evidence_digest_),
       hooks(std::move(hooks_))
     {}
   };
@@ -434,18 +431,15 @@ namespace kv
   private:
     std::vector<uint8_t> data;
     ccf::ClaimsDigest claims_digest;
-    crypto::Sha256Hash commit_evidence_digest;
     ConsensusHookPtrs hooks;
 
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_,
       ccf::ClaimsDigest&& claims_digest_,
-      crypto::Sha256Hash&& commit_evidence_digest_,
       ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
       claims_digest(claims_digest_),
-      commit_evidence_digest(commit_evidence_digest_),
       hooks(std::move(hooks_))
     {}
 
@@ -455,7 +449,6 @@ namespace kv
         CommitResult::SUCCESS,
         std::move(data),
         std::move(claims_digest),
-        std::move(commit_evidence_digest),
         std::move(hooks));
     }
   };

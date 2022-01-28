@@ -1031,9 +1031,7 @@ namespace kv
           }
 
           auto& [pending_tx_, committable_] = search->second;
-          auto
-            [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
-              pending_tx_->call();
+          auto [success_, data_, claims_digest_, hooks_] = pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
@@ -1052,13 +1050,12 @@ namespace kv
           {
             if (claims_digest_.empty())
             {
-              h->append_entry(
-                ccf::entry_leaf(*data_shared, commit_evidence_digest_));
+              h->append(*data_shared);
             }
             else
             {
-              h->append_entry(ccf::entry_leaf(
-                *data_shared, commit_evidence_digest_, claims_digest_.value()));
+              h->append_entry(
+                ccf::entry_leaf(*data_shared, claims_digest_.value()));
             }
           }
 

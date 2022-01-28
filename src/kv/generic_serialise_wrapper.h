@@ -61,7 +61,6 @@ namespace kv
       const TxID& tx_id_,
       const Version& max_conflict_version_,
       EntryType entry_type_ = EntryType::WriteSet,
-      const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       max_conflict_version(max_conflict_version_),
@@ -74,10 +73,6 @@ namespace kv
       if (has_claims(entry_type))
       {
         serialise_internal(claims_digest_.value());
-      }
-      if (has_commit_evidence(entry_type))
-      {
-        serialise_internal(commit_evidence_digest_);
       }
       serialise_internal(max_conflict_version);
     }
