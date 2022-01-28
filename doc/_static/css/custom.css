@@ -2,8 +2,10 @@
   margin-right: 0.25em;
 }
 
-img {
-  margin: .3rem !important;
+/* Modify margins of images used as tile icons, to align with text */
+img.ccf-tile-icon {
+  margin: 0 !important;
+  margin-right: 0.3rem !important;
 }
 
 /* Insert white background rectangle for mermaid divs, so they are visible in dark theme */

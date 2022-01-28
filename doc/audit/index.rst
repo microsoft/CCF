@@ -14,6 +14,7 @@ Audit
       :width: 22
       :alt: Python
       :align: left
+      :class: ccf-tile-icon
 
 
     :doc:`python_library`
