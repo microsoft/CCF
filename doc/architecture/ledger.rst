@@ -35,11 +35,11 @@ The following table describes the structure of a serialised transaction as it is
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | uint64_t                                 | Length of serialised public domain                                      |
 +----------+------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`kv::EntryType`                | One of WriteSet, Snapshot or WriteSetWithClaims                         |
+|          | :cpp:type:`kv::EntryType`                | Snapshot, or a WriteSet variant                                         |
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`kv::Version`                  | Transaction version                                                     |
 +          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`crypto::Sha256Hash`           | User-defined claims digest, only when entry type is WriteSetWithClaims  |
+|          | :cpp:type:`crypto::Sha256Hash`           | User-defined claims digest, when entry type is WriteSetWith.*Claims     |
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`kv::Version`                  | Unused, reserved for compatibility                                      |
 +          +------------------------------------------+-------------------------------------------------------------------------+
