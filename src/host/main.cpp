@@ -169,20 +169,24 @@ int main(int argc, char** argv)
 
     switch (config.enclave.type)
     {
-      case host::EnclaveType::RELEASE:
+#ifdef CCHOST_SUPPORTS_SGX
+      case host::EnclaveType::SGX_RELEASE:
       {
         break;
       }
-      case host::EnclaveType::DEBUG:
+      case host::EnclaveType::SGX_DEBUG:
       {
         oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
         break;
       }
+#endif
+#ifdef CCHOST_SUPPORTS_VIRTUAL
       case host::EnclaveType::VIRTUAL:
       {
         oe_flags = ENCLAVE_FLAG_VIRTUAL;
         break;
       }
+#endif
       default:
       {
         throw std::logic_error(
@@ -518,13 +522,10 @@ int main(int argc, char** argv)
     }
 
     auto enclave_thread_start = [&]() {
-#ifndef VIRTUAL_ENCLAVE
       try
-#endif
       {
         enclave.run();
       }
-#ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
@@ -536,7 +537,6 @@ int main(int argc, char** argv)
         std::this_thread::sleep_for(1s);
         throw;
       }
-#endif
     };
 
     // Start threads which will ECall and process messages inside the enclave

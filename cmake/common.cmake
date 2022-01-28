@@ -65,6 +65,12 @@ if(ENABLE_2TX_RECONFIG)
   add_compile_definitions(ENABLE_2TX_RECONFIG)
 endif()
 
+# This option controls whether to link virtual builds against snmalloc rather
+# than use the system allocator. In builds using Open Enclave, enclave
+# allocation is managed separately and enabling snmalloc is done by linking
+# openenclave::oesnmalloc
+option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
+
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -208,77 +214,58 @@ function(add_test_bin name)
   add_san(${name})
 endfunction()
 
+# Host Executable
+if(SAN OR NOT USE_SNMALLOC)
+  set(SNMALLOC_LIB)
+else()
+  set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+  # Remove the following two lines once we upgrade to snmalloc 0.5.4
+  set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+  set(USE_POSIX_COMMIT_CHECKS off)
+  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
+  set(SNMALLOC_LIB snmalloc_lib)
+  list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
+endif()
+
+list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp)
+
 if("sgx" IN_LIST COMPILE_TARGETS)
-  # Host Executable
-  add_executable(
-    cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
-  )
-
-  add_warning_checks(cchost)
-  target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
-  target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
-  add_san(cchost)
-
-  target_link_libraries(
-    cchost
-    PRIVATE uv
-            ${CRYPTO_LIBRARY}
-            ${TLS_LIBRARY}
-            ${CMAKE_DL_LIBS}
-            ${CMAKE_THREAD_LIBS_INIT}
-            ${LINK_LIBCXX}
-            openenclave::oehost
-            ccfcrypto.host
-  )
-  enable_quote_code(cchost)
-
-  install(TARGETS cchost DESTINATION bin)
+  list(APPEND CCHOST_SOURCES ${CCF_GENERATED_DIR}/ccf_u.cpp)
 endif()
 
-# This option controls whether to link virtual builds against snmalloc rather
-# than use the system allocator. In builds using Open Enclave, enclave
-# allocation is managed separately and enabling snmalloc is done by linking
-# openenclave::oesnmalloc
-option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
+add_executable(cchost ${CCHOST_SOURCES})
 
+add_warning_checks(cchost)
+add_san(cchost)
+enable_quote_code(cchost)
+
+target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
+target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
+
+if("sgx" IN_LIST COMPILE_TARGETS)
+  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_SGX)
+endif()
 if("virtual" IN_LIST COMPILE_TARGETS)
-  if(SAN OR NOT USE_SNMALLOC)
-    set(SNMALLOC_LIB)
-    set(SNMALLOC_CPP)
-  else()
-
-    set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-    # Remove the following two lines once we upgrade to snmalloc 0.5.4
-    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-    set(USE_POSIX_COMMIT_CHECKS off)
-    add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
-    set(SNMALLOC_LIB snmalloc_lib)
-    set(SNMALLOC_CPP src/enclave/snmalloc.cpp)
-  endif()
-
-  # Virtual Host Executable
-  add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
-  target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
-  target_compile_options(cchost.virtual PRIVATE ${COMPILE_LIBCXX})
-  target_include_directories(
-    cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
-  )
-  add_warning_checks(cchost.virtual)
-  add_san(cchost.virtual)
-  target_link_libraries(
-    cchost.virtual
-    PRIVATE uv
-            ${SNMALLOC_LIB}
-            ${CRYPTO_LIBRARY}
-            ${TLS_LIBRARY}
-            ${CMAKE_DL_LIBS}
-            ${CMAKE_THREAD_LIBS_INIT}
-            ${LINK_LIBCXX}
-            ccfcrypto.host
-  )
-
-  install(TARGETS cchost.virtual DESTINATION bin)
+  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_VIRTUAL)
+  target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
 endif()
+
+target_link_libraries(
+  cchost
+  PRIVATE uv
+          ${SNMALLOC_LIB}
+          ${CRYPTO_LIBRARY}
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
+)
+if("sgx" IN_LIST COMPILE_TARGETS)
+  target_link_libraries(cchost PRIVATE openenclave::oehost)
+endif()
+
+install(TARGETS cchost DESTINATION bin)
 
 # Perf scenario executable
 add_executable(

@@ -2,27 +2,28 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#ifndef CCHOST_SUPPORTS_VIRTUAL
+#  error Should only be included in cchost builds with virtual support
+#endif
+
+#include "common/enclave_interface_types.h"
+#include "consensus_type.h"
+
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
-#ifdef VIRTUAL_ENCLAVE
-#  include "common/enclave_interface_types.h"
-#  include "consensus_type.h"
-#else
-#  include <ccf_args.h>
-#endif
-
-#define OE_REPORT_DATA_SIZE 64
-
-#define OE_ENCLAVE_FLAG_DEBUG 0x00000001u
-
-static void* virtual_enclave_handle;
-
 template <typename T>
-T get_enclave_exported_function(const char* func_name)
+T get_enclave_exported_function(
+  void* virtual_enclave_handle, const char* func_name)
 {
+  if (virtual_enclave_handle == nullptr)
+  {
+    throw std::logic_error(
+      "Cannot find symbol - library was not loaded correctly");
+  }
+
   void* sym = dlsym(virtual_enclave_handle, func_name);
   if (sym == nullptr)
   {
@@ -32,30 +33,33 @@ T get_enclave_exported_function(const char* func_name)
   return (T)sym;
 }
 
-// Repeat minimal required definitions for virtual build. It should not matter
-// if these do not match precisely OE's, so long as they can be used
-// consistently by the virtual build
+#ifndef CCHOST_SUPPORTS_SGX
+// If this build does not also include OE definitions, then recreate them here.
+// It should not matter if these do not match precisely OE's, so long as they
+// can be used consistently by the virtual build.
 using oe_result_t = int;
 constexpr oe_result_t OE_OK = 0;
 constexpr oe_result_t OE_FAILURE = 1;
 
 using oe_enclave_t = void;
+using oe_log_level_t = size_t;
 
 enum oe_enclave_type_t
 {
   OE_ENCLAVE_TYPE_SGX = 2,
 };
 
+#  define oe_result_str(x) x
+#endif
+
 #ifdef GET_QUOTE
-#  error Quotes cannot be retrieved in virtual build. Calls to oe_verify_report should be guarded with GET_QUOTE
+#  pragma message("TODO: Work out what to do about GET_QUOTE")
 #endif
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-#define oe_result_str(x) x
 
   typedef void (*oe_ocall_func_t)(
     const uint8_t* input_buffer,
@@ -64,48 +68,22 @@ extern "C"
     size_t output_buffer_size,
     size_t* output_bytes_written);
 
-  using create_node_func_t = CreateNodeStatus (*)(
-    void*,
-    char*,
-    size_t,
-    uint8_t*,
-    size_t,
-    size_t*,
-    uint8_t*,
-    size_t,
-    size_t*,
-    uint8_t*,
-    size_t,
-    size_t*,
-    StartType,
-    size_t,
-    void*);
-
-  using run_func_t = bool (*)();
-
-  using tick_func_t = bool (*)(size_t, size_t);
-
   /*ocall function table*/
   static oe_ocall_func_t __ccf_ocall_function_table[] = {nullptr};
 
-  inline void load_virtual_enclave(const char* path)
+  inline void* load_virtual_enclave(const char* path)
   {
-    if (virtual_enclave_handle)
-    {
-      throw std::logic_error(
-        "Current implementation is limited to a single virtual "
-        "enclave per process");
-    }
-    virtual_enclave_handle = dlopen(path, RTLD_NOW);
+    auto virtual_enclave_handle = dlopen(path, RTLD_NOW);
     if (virtual_enclave_handle == nullptr)
     {
       throw std::logic_error(
         fmt::format("Could not load virtual enclave: {}", dlerror()));
     }
+    return virtual_enclave_handle;
   }
 
-  inline oe_result_t enclave_create_node(
-    oe_enclave_t*,
+  inline oe_result_t virtual_create_node(
+    void* virtual_enclave_handle,
     CreateNodeStatus* status,
     void* enclave_config,
     char* ccf_config,
@@ -123,8 +101,26 @@ extern "C"
     size_t num_worker_thread,
     void* time_location)
   {
+    using create_node_func_t = CreateNodeStatus (*)(
+      void*,
+      char*,
+      size_t,
+      uint8_t*,
+      size_t,
+      size_t*,
+      uint8_t*,
+      size_t,
+      size_t*,
+      uint8_t*,
+      size_t,
+      size_t*,
+      StartType,
+      size_t,
+      void*);
+
     static create_node_func_t create_node_func =
-      get_enclave_exported_function<create_node_func_t>("enclave_create_node");
+      get_enclave_exported_function<create_node_func_t>(
+        virtual_enclave_handle, "enclave_create_node");
 
     *status = create_node_func(
       enclave_config,
@@ -156,40 +152,15 @@ extern "C"
     }
   }
 
-  inline oe_result_t enclave_run(oe_enclave_t*, bool* _retval)
+  inline oe_result_t virtual_run(void* virtual_enclave_handle, bool* _retval)
   {
-    static run_func_t run_func =
-      get_enclave_exported_function<run_func_t>("enclave_run");
+    using run_func_t = bool (*)();
+
+    static run_func_t run_func = get_enclave_exported_function<run_func_t>(
+      virtual_enclave_handle, "enclave_run");
 
     *_retval = run_func();
     return *_retval ? OE_OK : OE_FAILURE;
-  }
-
-  inline oe_result_t oe_create_ccf_enclave(
-    const char*,
-    oe_enclave_type_t,
-    uint32_t,
-    const void*,
-    uint32_t,
-    oe_enclave_t**)
-  {
-    // this function is not supposed to be called when using a virtual enclave
-    return OE_FAILURE;
-  }
-
-  using oe_log_level_t = size_t;
-  typedef void (*oe_log_callback_t)(
-    void* context,
-    bool is_enclave,
-    const struct tm* t,
-    long int usecs,
-    oe_log_level_t level,
-    uint64_t host_thread_id,
-    const char* message);
-
-  oe_result_t oe_log_set_callback(void* context, oe_log_callback_t callback)
-  {
-    return OE_OK;
   }
 
 #ifdef __cplusplus
