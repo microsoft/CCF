@@ -57,10 +57,7 @@ namespace kv
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_) :
-      store(store_),
-      history(history_),
-      data(data_),
-      public_only(public_only_)
+      store(store_), history(history_), data(data_), public_only(public_only_)
     {}
 
     ApplyResult apply() override

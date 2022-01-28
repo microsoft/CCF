@@ -162,15 +162,13 @@ namespace kv
 
   public:
     Store(bool strict_versions_ = true, bool is_historical_ = false) :
-      strict_versions(strict_versions_),
-      is_historical(is_historical_)
+      strict_versions(strict_versions_), is_historical(is_historical_)
     {}
 
     Store(
       const ReplicateType& replicate_type_,
       const std::unordered_set<std::string>& replicated_tables_) :
-      replicate_type(replicate_type_),
-      replicated_tables(replicated_tables_)
+      replicate_type(replicate_type_), replicated_tables(replicated_tables_)
     {}
 
     Store(std::shared_ptr<Consensus> consensus_) : consensus(consensus_) {}
@@ -304,23 +302,19 @@ namespace kv
     {
       switch (replicate_type)
       {
-        case (kv::ReplicateType::ALL):
-        {
+        case (kv::ReplicateType::ALL): {
           return true;
         }
 
-        case (kv::ReplicateType::NONE):
-        {
+        case (kv::ReplicateType::NONE): {
           return false;
         }
 
-        case (kv::ReplicateType::SOME):
-        {
+        case (kv::ReplicateType::SOME): {
           return replicated_tables.find(name) != replicated_tables.end();
         }
 
-        default:
-        {
+        default: {
           throw std::logic_error("Unhandled ReplicateType value");
         }
       }
