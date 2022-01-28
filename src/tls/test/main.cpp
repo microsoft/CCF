@@ -37,14 +37,9 @@ public:
   static const int SERVER = 0;
   static const int CLIENT = 1;
 
-  TestPipe(bool dgram)
+  TestPipe()
   {
-    int sock_type = 0;
-    if (dgram)
-      sock_type = SOCK_DGRAM;
-    else
-      sock_type = SOCK_STREAM;
-    if (socketpair(PF_LOCAL, sock_type, 0, pfd) == -1)
+    if (socketpair(PF_LOCAL, SOCK_STREAM, 0, pfd) == -1)
     {
       throw runtime_error(
         "Failed to create socketpair: " + string(strerror(errno)));
@@ -326,7 +321,6 @@ std::string truncate_message(const uint8_t* msg, size_t len)
 
 /// Test runner, with various options for different kinds of tests.
 void run_test_case(
-  int dgram,
   const uint8_t* message,
   size_t message_length,
   const uint8_t* response,
@@ -337,15 +331,13 @@ void run_test_case(
   uint8_t buf[max(message_length, response_length) + 1];
 
   // Create a pair of client/server
-  tls::Server server(move(server_cert), dgram);
-  tls::Client client(move(client_cert), dgram);
+  tls::Server server(move(server_cert));
+  tls::Client client(move(client_cert));
 
   // Connect BIOs together
-  TestPipe pipe(dgram);
-  server.set_bio(
-    &pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>, nullptr);
-  client.set_bio(
-    &pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>, nullptr);
+  TestPipe pipe;
+  server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
+  client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
 
   bool keep_going = true;
   std::optional<std::runtime_error> client_exception, server_exception;
@@ -453,7 +445,6 @@ TEST_CASE("unverified handshake")
 
   // Just testing handshake, does not verify certificates, no communication.
   run_test_case(
-    0,
     (const uint8_t*)"",
     0,
     (const uint8_t*)"",
@@ -480,7 +471,6 @@ TEST_CASE("unverified communication")
 
   // Just testing communication channel, does not verify certificates.
   run_test_case(
-    0,
     message,
     message_length,
     response,
@@ -502,7 +492,6 @@ TEST_CASE("verified handshake")
 
   // Just testing handshake, no communication, but verifies certificates.
   run_test_case(
-    0,
     (const uint8_t*)"",
     0,
     (const uint8_t*)"",
@@ -525,7 +514,6 @@ TEST_CASE("self-signed server certificate")
   // Client expected to complain about self-signedness.
   REQUIRE_THROWS_WITH_AS(
     run_test_case(
-      0,
       (const uint8_t*)"",
       0,
       (const uint8_t*)"",
@@ -547,7 +535,6 @@ TEST_CASE("server certificate from different CA")
   // Client expected to complain
   REQUIRE_THROWS_WITH_AS(
     run_test_case(
-      0,
       (const uint8_t*)"",
       0,
       (const uint8_t*)"",
@@ -572,7 +559,6 @@ TEST_CASE("self-signed client certificate")
 
   REQUIRE_THROWS_WITH_AS(
     run_test_case(
-      0,
       (const uint8_t*)"",
       0,
       (const uint8_t*)"",
@@ -588,7 +574,6 @@ TEST_CASE("self-signed client certificate")
 
   REQUIRE_THROWS_WITH_AS(
     run_test_case(
-      0,
       (const uint8_t*)"",
       0,
       (const uint8_t*)"",
@@ -602,7 +587,6 @@ TEST_CASE("self-signed client certificate")
   server_cert = get_dummy_cert(server_ca, "server", false);
   client_cert = make_unique<Cert>(nullptr, crt, pk, std::nullopt, false);
   REQUIRE_NOTHROW(run_test_case(
-    0,
     (const uint8_t*)"",
     0,
     (const uint8_t*)"",
@@ -629,7 +613,6 @@ TEST_CASE("verified communication")
 
   // Testing communication channel, verifying certificates.
   run_test_case(
-    0,
     message,
     message_length,
     response,
@@ -656,7 +639,6 @@ TEST_CASE("large message")
 
   // Testing communication channel, verifying certificates.
   run_test_case(
-    0,
     (const uint8_t*)message.data(),
     message.size(),
     (const uint8_t*)message.data(),
@@ -683,7 +665,6 @@ TEST_CASE("very large message")
 
   // Testing communication channel, verifying certificates.
   run_test_case(
-    0,
     (const uint8_t*)message.data(),
     message.size(),
     (const uint8_t*)message.data(),
