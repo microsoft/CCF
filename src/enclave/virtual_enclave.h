@@ -52,10 +52,6 @@ enum oe_enclave_type_t
 #  define oe_result_str(x) x
 #endif
 
-#ifdef GET_QUOTE
-#  pragma message("TODO: Work out what to do about GET_QUOTE")
-#endif
-
 #ifdef __cplusplus
 extern "C"
 {
