@@ -90,7 +90,8 @@ void validate_enclave_file_suffix(
     }
     const auto suggested = fmt::format("{}{}", basename, expected_suffix);
     throw std::logic_error(fmt::format(
-      "Given enclave file '{}' does not have suffix expected for enclave type {}. Did you mean '{}'?",
+      "Given enclave file '{}' does not have suffix expected for enclave type "
+      "{}. Did you mean '{}'?",
       file,
       nlohmann::json(type).dump(),
       suggested));
