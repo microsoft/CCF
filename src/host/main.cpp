@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
@@ -11,6 +12,7 @@
 #include "ds/oversized.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "json_schema.h"
 #include "load_monitor.h"
 #include "node_connections.h"
 #include "process_launcher.h"
@@ -85,6 +87,18 @@ int main(int argc, char** argv)
   {
     throw std::logic_error(fmt::format(
       "Error parsing configuration file {}: {}", config_file_path, e.what()));
+  }
+
+  auto config_json = nlohmann::json(config);
+  auto schema_json = nlohmann::json::parse(host::host_config_schema);
+
+  auto schema_error_msg = json::validate_json(config_json, schema_json);
+  if (schema_error_msg.has_value())
+  {
+    throw std::logic_error(fmt::format(
+      "Error validating JSON schema for configuration file {}: {}",
+      config_file_path,
+      schema_error_msg.value()));
   }
 
   if (config.logging.format == host::LogFormat::JSON)
