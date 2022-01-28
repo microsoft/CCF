@@ -291,7 +291,7 @@ namespace ccf::historical
               if (tree.in_range(seqno))
               {
                 auto details = get_store_details(seqno);
-                if (details != nullptr)
+                if (details != nullptr && details->store != nullptr)
                 {
                   auto proof = tree.get_proof(seqno);
                   details->transaction_id = {sig->view, seqno};
