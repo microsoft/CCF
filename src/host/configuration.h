@@ -13,13 +13,9 @@ namespace host
 {
   enum class EnclaveType
   {
-#ifdef CCHOST_SUPPORTS_SGX
     SGX_RELEASE,
     SGX_DEBUG,
-#endif
-#ifdef CCHOST_SUPPORTS_VIRTUAL
     VIRTUAL,
-#endif
   };
   DECLARE_JSON_ENUM(
     EnclaveType,

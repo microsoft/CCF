@@ -41,10 +41,6 @@
 #  include "kv/test/null_encryptor.h"
 #endif
 
-#ifndef VIRTUAL_ENCLAVE
-#  include "ccf_t.h"
-#endif
-
 #include <atomic>
 #include <chrono>
 #define FMT_HEADER_ONLY

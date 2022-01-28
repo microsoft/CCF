@@ -125,7 +125,7 @@ def run_configuration_file_checks(args):
     OUTPUT_2_X_CONFIGURATION_FILE = "2_x_config.json"
 
     bin_path = infra.path.build_bin_path(
-        CCHOST_BINARY_NAME, enclave_type=args.enclave_type, binary_dir=args.binary_dir
+        CCHOST_BINARY_NAME, binary_dir=args.binary_dir
     )
 
     # Assumes MIGRATE_CONFIGURATION_SCRIPT is in the path

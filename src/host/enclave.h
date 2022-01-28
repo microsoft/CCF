@@ -25,6 +25,7 @@
 
 extern "C"
 {
+#ifdef CCHOST_SUPPORTS_SGX
   void nop_oe_logger(
     void* context,
     bool is_enclave,
@@ -34,11 +35,8 @@ extern "C"
     uint64_t host_thread_id,
     const char* message)
   {}
+#endif
 }
-
-// Marker to create virtual enclaves, should be distinct from any valid
-// OE_ENCLAVE_FLAG combinations
-constexpr static uint32_t ENCLAVE_FLAG_VIRTUAL = -1;
 
 namespace host
 {
@@ -62,40 +60,76 @@ namespace host
      * Create an uninitialized enclave hosting the given library.
      *
      * @param path Path to signed enclave library file
-     * @param flags Flags passed to oe_create_enclave. eg OE_ENCLAVE_FLAG_DEBUG,
-     * OE_ENCLAVE_FLAG_SIMULATE. Alternatively, ENCLAVE_FLAG_VIRTUAL will not
-     * use OE at all, instead loading a shared library directly
+     * @param type Type of enclave to load, influencing what flags should be
+     * passed to OE, or whether to dlload a virtual enclave
      */
-    Enclave(const std::string& path, uint32_t flags)
+    Enclave(const std::string& path, EnclaveType type)
     {
-      if (flags == ENCLAVE_FLAG_VIRTUAL)
-      {
-#ifdef CCHOST_SUPPORTS_VIRTUAL
-        virtual_handle = load_virtual_enclave(path.c_str());
-#else
-        throw std::logic_error(
-          "Virtual enclaves not supported in current build");
-#endif
-      }
-      else
+      switch (type)
       {
 #ifdef CCHOST_SUPPORTS_SGX
-#  ifndef VERBOSE_LOGGING
-        oe_log_set_callback(nullptr, nop_oe_logger);
-#  endif
-
-        auto err = oe_create_ccf_enclave(
-          path.c_str(), OE_ENCLAVE_TYPE_SGX, flags, nullptr, 0, &sgx_handle);
-
-        if (err != OE_OK)
+        case host::EnclaveType::SGX_RELEASE:
+        case host::EnclaveType::SGX_DEBUG:
         {
+          uint32_t oe_flags = 0;
+          if (type == host::EnclaveType::SGX_DEBUG)
+          {
+            oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
+          }
+
+#  ifdef CCHOST_SUPPORTS_SGX
+#    ifndef VERBOSE_LOGGING
+          oe_log_set_callback(nullptr, nop_oe_logger);
+#    endif
+
+          auto err = oe_create_ccf_enclave(
+            path.c_str(),
+            OE_ENCLAVE_TYPE_SGX,
+            oe_flags,
+            nullptr,
+            0,
+            &sgx_handle);
+
+          if (err != OE_OK)
+          {
+            throw std::logic_error(
+              fmt::format("Could not create enclave: {}", oe_result_str(err)));
+          }
+#  else
           throw std::logic_error(
-            fmt::format("Could not create enclave: {}", oe_result_str(err)));
+            "SGX enclaves are not supported in current build");
+#  endif
+          break;
         }
-#else
-        throw std::logic_error(
-          "SGX enclaves are not supported in current build");
-#endif
+#endif // CCHOST_SUPPORTS_SGX
+
+#ifdef CCHOST_SUPPORTS_VIRTUAL
+        case host::EnclaveType::VIRTUAL:
+        {
+#  ifdef CCHOST_SUPPORTS_VIRTUAL
+          virtual_handle = load_virtual_enclave(path.c_str());
+          if (virtual_handle == nullptr)
+          {
+            LOG_INFO_FMT("Huh, it sure is null");
+          }
+          else
+          {
+            LOG_INFO_FMT("It's not null, what are you talking about?");
+          }
+#  else
+          throw std::logic_error(
+            "Virtual enclaves not supported in current build");
+#  endif
+          break;
+        }
+#endif // CCHOST_SUPPORTS_VIRTUAL
+
+        default:
+        {
+          // TODO: List which types _are_ supported
+          throw std::logic_error(
+            fmt::format("Unsupported enclave type: {}", type));
+        }
       }
     }
 
@@ -130,10 +164,16 @@ namespace host
 // Assume that constructor correctly set the appropriate field, and call
 // appropriate function
 #ifdef CCHOST_SUPPORTS_VIRTUAL
-      err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
+      if (virtual_handle != nullptr)
+      {
+        err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
+      }
 #endif
 #ifdef CCHOST_SUPPORTS_SGX
-      err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
+      if (sgx_handle != nullptr)
+      {
+        err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
+      }
 #endif
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
@@ -143,8 +183,8 @@ namespace host
         return status;
       }
 
-      // Host and enclave versions must match. Otherwise the node may crash much
-      // later (e.g. unhandled ring buffer message on either end)
+      // Host and enclave versions must match. Otherwise the node may crash
+      // much later (e.g. unhandled ring buffer message on either end)
       auto enclave_version = std::string(
         enclave_version_buf.begin(),
         enclave_version_buf.begin() + enclave_version_len);
@@ -171,10 +211,16 @@ namespace host
       oe_result_t err = OE_FAILURE;
 
 #ifdef CCHOST_SUPPORTS_VIRTUAL
-      err = virtual_run(virtual_handle, &ret);
+      if (virtual_handle != nullptr)
+      {
+        err = virtual_run(virtual_handle, &ret);
+      }
 #endif
 #ifdef CCHOST_SUPPORTS_SGX
-      err = enclave_run(sgx_handle, &ret);
+      if (sgx_handle != nullptr)
+      {
+        err = enclave_run(sgx_handle, &ret);
+      }
 #endif
 
       if (err != OE_OK)

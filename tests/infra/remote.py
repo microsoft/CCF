@@ -578,7 +578,7 @@ class CCFRemote(object):
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
         self.BIN = infra.path.build_bin_path(
-            self.BIN, enclave_type, binary_dir=binary_dir
+            self.BIN, binary_dir=binary_dir
         )
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host

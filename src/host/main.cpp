@@ -120,7 +120,6 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
 
-  uint32_t oe_flags = 0;
   size_t recovery_threshold = 0;
   try
   {
@@ -166,33 +165,6 @@ int main(int argc, char** argv)
           members_with_pubk_count));
       }
     }
-
-    switch (config.enclave.type)
-    {
-#ifdef CCHOST_SUPPORTS_SGX
-      case host::EnclaveType::SGX_RELEASE:
-      {
-        break;
-      }
-      case host::EnclaveType::SGX_DEBUG:
-      {
-        oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-        break;
-      }
-#endif
-#ifdef CCHOST_SUPPORTS_VIRTUAL
-      case host::EnclaveType::VIRTUAL:
-      {
-        oe_flags = ENCLAVE_FLAG_VIRTUAL;
-        break;
-      }
-#endif
-      default:
-      {
-        throw std::logic_error(
-          fmt::format("Invalid enclave type: {}", config.enclave.type));
-      }
-    }
   }
   catch (const std::logic_error& e)
   {
@@ -210,7 +182,7 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
-  host::Enclave enclave(config.enclave.file, oe_flags);
+  host::Enclave enclave(config.enclave.file, config.enclave.type);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
