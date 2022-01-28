@@ -69,7 +69,7 @@ namespace enclave
     {
       execution_thread =
         threading::ThreadMessaging::get_execution_thread(session_id);
-      ctx->set_bio(this, send_callback_openssl, recv_callback_openssl, nullptr);
+      ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
     ~TLSEndpoint()
