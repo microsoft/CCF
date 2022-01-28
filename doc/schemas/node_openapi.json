@@ -721,7 +721,7 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "/api": {
+    "/node/api": {
       "get": {
         "responses": {
           "200": {
@@ -737,7 +737,7 @@
         }
       }
     },
-    "/api/metrics": {
+    "/node/api/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -753,7 +753,7 @@
         }
       }
     },
-    "/code": {
+    "/node/code": {
       "get": {
         "responses": {
           "200": {
@@ -769,7 +769,7 @@
         }
       }
     },
-    "/commit": {
+    "/node/commit": {
       "get": {
         "responses": {
           "200": {
@@ -785,7 +785,7 @@
         }
       }
     },
-    "/config": {
+    "/node/config": {
       "get": {
         "responses": {
           "200": {
@@ -801,7 +801,7 @@
         }
       }
     },
-    "/consensus": {
+    "/node/consensus": {
       "get": {
         "responses": {
           "200": {
@@ -817,7 +817,7 @@
         }
       }
     },
-    "/js_metrics": {
+    "/node/js_metrics": {
       "get": {
         "responses": {
           "200": {
@@ -833,7 +833,7 @@
         }
       }
     },
-    "/jwt_metrics": {
+    "/node/jwt_metrics": {
       "get": {
         "responses": {
           "200": {
@@ -849,7 +849,7 @@
         }
       }
     },
-    "/local_tx": {
+    "/node/local_tx": {
       "get": {
         "parameters": [
           {
@@ -875,7 +875,7 @@
         }
       }
     },
-    "/memory": {
+    "/node/memory": {
       "get": {
         "responses": {
           "200": {
@@ -891,7 +891,7 @@
         }
       }
     },
-    "/metrics": {
+    "/node/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -907,7 +907,7 @@
         }
       }
     },
-    "/network": {
+    "/node/network": {
       "get": {
         "responses": {
           "200": {
@@ -923,7 +923,7 @@
         }
       }
     },
-    "/network/nodes": {
+    "/node/network/nodes": {
       "get": {
         "parameters": [
           {
@@ -965,7 +965,7 @@
         }
       }
     },
-    "/network/nodes/primary": {
+    "/node/network/nodes/primary": {
       "get": {
         "responses": {
           "200": {
@@ -974,7 +974,7 @@
         }
       }
     },
-    "/network/nodes/self": {
+    "/node/network/nodes/self": {
       "get": {
         "responses": {
           "200": {
@@ -983,7 +983,7 @@
         }
       }
     },
-    "/network/nodes/{node_id}": {
+    "/node/network/nodes/{node_id}": {
       "get": {
         "responses": {
           "200": {
@@ -1009,7 +1009,7 @@
         }
       ]
     },
-    "/primary": {
+    "/node/primary": {
       "head": {
         "responses": {
           "200": {
@@ -1018,7 +1018,7 @@
         }
       }
     },
-    "/quotes": {
+    "/node/quotes": {
       "get": {
         "responses": {
           "200": {
@@ -1034,7 +1034,7 @@
         }
       }
     },
-    "/quotes/self": {
+    "/node/quotes/self": {
       "get": {
         "responses": {
           "200": {
@@ -1050,7 +1050,7 @@
         }
       }
     },
-    "/receipt": {
+    "/node/receipt": {
       "get": {
         "parameters": [
           {
@@ -1076,7 +1076,7 @@
         }
       }
     },
-    "/service/configuration": {
+    "/node/service/configuration": {
       "get": {
         "responses": {
           "200": {
@@ -1092,7 +1092,7 @@
         }
       }
     },
-    "/state": {
+    "/node/state": {
       "get": {
         "responses": {
           "200": {
@@ -1108,7 +1108,7 @@
         }
       }
     },
-    "/tx": {
+    "/node/tx": {
       "get": {
         "parameters": [
           {
@@ -1134,7 +1134,7 @@
         }
       }
     },
-    "/version": {
+    "/node/version": {
       "get": {
         "responses": {
           "200": {
@@ -1151,9 +1151,5 @@
       }
     }
   },
-  "servers": [
-    {
-      "url": "/node"
-    }
-  ]
+  "servers": []
 }

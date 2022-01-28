@@ -45,7 +45,7 @@ state diagram indicate a transition on rollback:
         Retired-.->RetirementInitiated
         Retired-.->Active
 
-The membership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint.
+The membership state a node is currently is provided in the output of the :http:GET:`/node/consensus` endpoint.
 
 Simplified Leadership
 ~~~~~~~~~~~~~~~~~~~~~
@@ -63,7 +63,7 @@ consensus states as the network evolves:
         Candidate-->Candidate;
         Leader-->Follower;
 
-The leadership state a node is currently is provided in the output of the :http:get:`/consensus` endpoint.
+The leadership state a node is currently is provided in the output of the :http:GET:`/node/consensus` endpoint.
 
 Key-Value Store
 ~~~~~~~~~~~~~~~

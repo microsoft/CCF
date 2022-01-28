@@ -1,6 +1,6 @@
 {
   "enclave": {
-    "file": "lib_jsgeneric.enclave.so.signed",
+    "file": "libjs_generic.enclave.so.signed",
     "type": "release"
   },
   "network": {
