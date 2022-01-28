@@ -207,14 +207,13 @@ namespace host
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {
-        // Logs have described the errors already, we just need to allow
-        // the host to read them (via read_all()).
+        // Logs have described the errors already, we just need to allow the
+        // host to read them (via read_all()).
         return status;
       }
 
-      // Host and enclave versions must match. Otherwise the node may
-      // crash much later (e.g. unhandled ring buffer message on either
-      // end)
+      // Host and enclave versions must match. Otherwise the node may crash much
+      // later (e.g. unhandled ring buffer message on either end)
       auto enclave_version = std::string(
         enclave_version_buf.begin(),
         enclave_version_buf.begin() + enclave_version_len);
@@ -233,8 +232,8 @@ namespace host
       return CreateNodeStatus::OK;
     }
 
-    // Run a processor over this circuit inside the enclave - should be
-    // called from a thread
+    // Run a processor over this circuit inside the enclave - should be called
+    // from a thread
     bool run()
     {
       bool ret;
