@@ -17,7 +17,7 @@ id_gen = itertools.count()
 
 
 @reqs.description("Running batch submission of new entries")
-@reqs.supports_methods("batch/submit", "batch/fetch")
+@reqs.supports_methods("/app/batch/submit", "/app/batch/fetch")
 def test(network, args, batch_size=100, write_key_divisor=1, write_size_multiplier=1):
     LOG.info(f"Number of batched entries: {batch_size}")
     primary, _ = network.find_primary()
@@ -102,9 +102,14 @@ def run_to_destruction(args):
             while True:
                 LOG.info(f"Trying with writes scaled by {wsm}")
                 network = test(network, args, batch_size=10, write_size_multiplier=wsm)
-                wsm += (
-                    50000  # Grow very quickly, expect to fail on the second iteration
-                )
+                if wsm > 1000000:
+                    LOG.error(
+                        f"Run to destruction still hasn't caused exception with write sizes multiplied by {wsm}. Infinite loop, or not actually submitting?"
+                    )
+                    raise ValueError(wsm)
+                else:
+                    wsm += 50000  # Grow very quickly, expect to fail on the second iteration
+
         except Exception as e:
             timeout = 10
 

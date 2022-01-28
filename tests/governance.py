@@ -43,7 +43,7 @@ def test_consensus_status(network, args):
 
 
 @reqs.description("Test quotes")
-@reqs.supports_methods("quotes/self", "quotes")
+@reqs.supports_methods("/app/quotes/self", "/app/quotes")
 def test_quote(network, args):
     if args.enclave_type == "virtual":
         LOG.warning("Quote test can only run in real enclaves, skipping")
@@ -101,7 +101,7 @@ def test_quote(network, args):
 
 
 @reqs.description("Add user, remove user")
-@reqs.supports_methods("log/private")
+@reqs.supports_methods("/app/log/private")
 def test_user(network, args, verify=True):
     # Note: This test should not be chained in the test suite as it creates
     # a new user and uses its own LoggingTxs
@@ -125,7 +125,7 @@ def test_user(network, args, verify=True):
 
 
 @reqs.description("Validate sample Jinja templates")
-@reqs.supports_methods("log/private")
+@reqs.supports_methods("/app/log/private")
 def test_jinja_templates(network, args, verify=True):
     primary, _ = network.find_primary()
 
