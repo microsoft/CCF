@@ -41,6 +41,35 @@ extern "C"
 
 namespace host
 {
+  void expect_enclave_file_suffix(
+    const std::string& file,
+    char const* expected_suffix,
+    host::EnclaveType type)
+  {
+    if (!nonstd::ends_with(file, expected_suffix))
+    {
+      // Remove possible suffixes to try and get root of filename, to build
+      // suggested filename
+      auto basename = file;
+      for (const char* suffix :
+           {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
+      {
+        if (nonstd::ends_with(basename, suffix))
+        {
+          basename = basename.substr(0, basename.size() - strlen(suffix));
+        }
+      }
+      const auto suggested = fmt::format("{}{}", basename, expected_suffix);
+      throw std::logic_error(fmt::format(
+        "Given enclave file '{}' does not have suffix expected for enclave "
+        "type "
+        "{}. Did you mean '{}'?",
+        file,
+        nlohmann::json(type).dump(),
+        suggested));
+    }
+  }
+
   /**
    * Wraps an oe_enclave and associated ECalls. New ECalls should be added as
    * methods which construct an appropriate EGeneric-derived param type and pass
@@ -81,7 +110,12 @@ namespace host
           uint32_t oe_flags = 0;
           if (type == host::EnclaveType::SGX_DEBUG)
           {
+            expect_enclave_file_suffix(path, ".enclave.so.debuggable", type);
             oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
+          }
+          else
+          {
+            expect_enclave_file_suffix(path, ".enclave.so.signed", type);
           }
 
 #  ifndef VERBOSE_LOGGING
@@ -111,6 +145,7 @@ namespace host
         case host::EnclaveType::VIRTUAL:
         {
 #ifdef CCHOST_SUPPORTS_VIRTUAL
+          expect_enclave_file_suffix(path, ".virtual.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
           throw std::logic_error(

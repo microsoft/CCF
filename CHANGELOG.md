@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
 - Service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
 - Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
+- `cchost` can now run both SGX and virtual enclave libraries. `cchost.virtual` is no longer needed, and has been removed.
 
 ### Removed
 
