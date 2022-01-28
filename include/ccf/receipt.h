@@ -85,7 +85,8 @@ namespace ccf
       else
       {
         throw std::logic_error(
-          "Cannot compute leaf unless both write_set_digest and claims_digest "
+          "Cannot compute leaf unless write_set_digest, commit_evidence and "
+          "claims_digest "
           "are set");
       }
     }
