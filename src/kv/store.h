@@ -162,15 +162,13 @@ namespace kv
 
   public:
     Store(bool strict_versions_ = true, bool is_historical_ = false) :
-      strict_versions(strict_versions_),
-      is_historical(is_historical_)
+      strict_versions(strict_versions_), is_historical(is_historical_)
     {}
 
     Store(
       const ReplicateType& replicate_type_,
       const std::unordered_set<std::string>& replicated_tables_) :
-      replicate_type(replicate_type_),
-      replicated_tables(replicated_tables_)
+      replicate_type(replicate_type_), replicated_tables(replicated_tables_)
     {}
 
     Store(std::shared_ptr<Consensus> consensus_) : consensus(consensus_) {}
@@ -304,23 +302,19 @@ namespace kv
     {
       switch (replicate_type)
       {
-        case (kv::ReplicateType::ALL):
-        {
+        case (kv::ReplicateType::ALL): {
           return true;
         }
 
-        case (kv::ReplicateType::NONE):
-        {
+        case (kv::ReplicateType::NONE): {
           return false;
         }
 
-        case (kv::ReplicateType::SOME):
-        {
+        case (kv::ReplicateType::SOME): {
           return replicated_tables.find(name) != replicated_tables.end();
         }
 
-        default:
-        {
+        default: {
           throw std::logic_error("Unhandled ReplicateType value");
         }
       }
@@ -689,6 +683,7 @@ namespace kv
       OrderedChanges& changes,
       MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
+      crypto::Sha256Hash& commit_evidence_digest,
       bool ignore_strict_versions = false) override
     {
       // This will return FAILED if the serialised transaction is being
@@ -715,6 +710,10 @@ namespace kv
         "Deserialised claim digest {} {}",
         claims_digest.value(),
         claims_digest.empty());
+
+      commit_evidence_digest = std::move(d.consume_commit_evidence_digest());
+      LOG_TRACE_FMT(
+        "Deserialised commit evidence digest {}", commit_evidence_digest);
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -802,6 +801,7 @@ namespace kv
         OrderedChanges changes;
         MapCollection new_maps;
         ccf::ClaimsDigest claims_digest;
+        crypto::Sha256Hash commit_evidence_digest;
         if (!fill_maps(
               data,
               public_only,
@@ -811,6 +811,7 @@ namespace kv
               changes,
               new_maps,
               claims_digest,
+              commit_evidence_digest,
               true))
         {
           return nullptr;
@@ -1030,7 +1031,9 @@ namespace kv
           }
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, data_, claims_digest_, hooks_] = pending_tx_->call();
+          auto
+            [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
+              pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
@@ -1049,12 +1052,13 @@ namespace kv
           {
             if (claims_digest_.empty())
             {
-              h->append(*data_shared);
+              h->append_entry(
+                ccf::entry_leaf(*data_shared, commit_evidence_digest_));
             }
             else
             {
-              h->append_entry(
-                ccf::entry_leaf(*data_shared, claims_digest_.value()));
+              h->append_entry(ccf::entry_leaf(
+                *data_shared, commit_evidence_digest_, claims_digest_.value()));
             }
           }
 

@@ -1256,7 +1256,8 @@ TEST_CASE("Deserialising from other Store")
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
-  auto [success, data, claims_digest, hooks] = tx1.commit_reserved();
+  auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+    tx1.commit_reserved();
   REQUIRE(success == kv::CommitResult::SUCCESS);
 
   kv::Store clone;
@@ -1288,7 +1289,8 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_txid());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1303,7 +1305,8 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     tree_handle->put(0, {});
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1319,7 +1322,8 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(

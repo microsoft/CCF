@@ -566,7 +566,8 @@ TEST_CASE_TEMPLATE(
     handle->put(k1, v1);
     handle->put(k2, v2);
 
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
@@ -647,8 +648,8 @@ TEST_CASE(
   constexpr auto data_derived = "data_replicated";
   constexpr auto data_replicated_private = "public:data_replicated_private";
   constexpr auto data_derived_private = "data_replicated_private";
-  std::unordered_set<std::string> replicated_tables = {data_replicated,
-                                                       data_replicated_private};
+  std::unordered_set<std::string> replicated_tables = {
+    data_replicated, data_replicated_private};
 
   kv::Store store(kv::ReplicateType::SOME, replicated_tables);
   store.set_encryptor(encryptor);
@@ -668,7 +669,8 @@ TEST_CASE(
     data_handle_d->put(46, 46);
     data_handle_d_p->put(47, 47);
 
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
     REQUIRE(
       store.deserialize(data, ConsensusType::CFT)->apply() ==
@@ -793,6 +795,63 @@ TEST_CASE(
     REQUIRE(wrapper->apply() != kv::ApplyResult::FAIL);
     auto deserialised_claims = wrapper->consume_claims_digest();
     REQUIRE(claims_digest == deserialised_claims);
+
+    auto tx_target = kv_store_target.create_tx();
+    auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx_target.rw<MapTypes::StringString>(pub_map);
+
+    REQUIRE(handle_priv->get("privk1") == "privv1");
+    REQUIRE(handle_pub->get("pubk1") == "pubv1");
+  }
+}
+
+TEST_CASE(
+  "Serialise/deserialise maps with commit evidence" *
+  doctest::test_suite("serialisation"))
+{
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+
+  kv::Store kv_store;
+  kv_store.set_consensus(consensus);
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto priv_map = "priv_map";
+  constexpr auto pub_map = "public:pub_map";
+
+  kv::Store kv_store_target;
+  kv_store_target.set_encryptor(encryptor);
+
+  ccf::ClaimsDigest claims_digest;
+  claims_digest.set(crypto::Sha256Hash::from_string("claim text"));
+
+  // TODO: To test
+
+  INFO("Commit to source store, including ");
+  {
+    auto tx = kv_store.create_tx();
+    auto handle_priv = tx.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx.rw<MapTypes::StringString>(pub_map);
+
+    handle_priv->put("privk1", "privv1");
+    handle_pub->put("pubk1", "pubv1");
+
+    REQUIRE(tx.commit(claims_digest) == kv::CommitResult::SUCCESS);
+  }
+
+  INFO("Deserialise transaction in target store and extract claims");
+  {
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    auto wrapper =
+      kv_store_target.deserialize(latest_data.value(), ConsensusType::CFT);
+    REQUIRE(wrapper->apply() != kv::ApplyResult::FAIL);
+    auto deserialised_claims = wrapper->consume_claims_digest();
+    REQUIRE(claims_digest == deserialised_claims);
+
+    auto deserialized_commit_evidence =
+      wrapper->consume_commit_evidence_digest();
+    LOG_FAIL_FMT("{}", deserialized_commit_evidence);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);

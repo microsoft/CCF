@@ -238,6 +238,7 @@ namespace aft
     private:
       const std::vector<uint8_t>& data;
       ccf::ClaimsDigest claims_digest;
+      crypto::Sha256Hash commit_evidence_digest;
       kv::ConsensusHookPtrs hooks;
 
     public:
@@ -246,6 +247,11 @@ namespace aft
       ccf::ClaimsDigest&& consume_claims_digest() override
       {
         return std::move(claims_digest);
+      }
+
+      crypto::Sha256Hash&& consume_commit_evidence_digest() override
+      {
+        return std::move(commit_evidence_digest);
       }
 
       kv::ApplyResult apply() override

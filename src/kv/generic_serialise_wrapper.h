@@ -61,6 +61,7 @@ namespace kv
       const TxID& tx_id_,
       const Version& max_conflict_version_,
       EntryType entry_type_ = EntryType::WriteSet,
+      const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       max_conflict_version(max_conflict_version_),
@@ -70,9 +71,13 @@ namespace kv
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
       serialise_internal(tx_id.version);
-      if (entry_type == EntryType::WriteSetWithClaims)
+      if (has_claims(entry_type))
       {
         serialise_internal(claims_digest_.value());
+      }
+      if (has_commit_evidence(entry_type))
+      {
+        serialise_internal(commit_evidence_digest_);
       }
       serialise_internal(max_conflict_version);
     }
@@ -231,6 +236,7 @@ namespace kv
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
+    crypto::Sha256Hash commit_evidence_digest = {};
     Version version;
     Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
@@ -242,12 +248,19 @@ namespace kv
     {
       entry_type = public_reader.template read_next<EntryType>();
       version = public_reader.template read_next<Version>();
-      if (entry_type == EntryType::WriteSetWithClaims)
+      if (has_claims(entry_type))
       {
         auto digest_array =
           public_reader
             .template read_next<ccf::ClaimsDigest::Digest::Representation>();
         claims_digest.set(std::move(digest_array));
+      }
+      if (has_commit_evidence(entry_type))
+      {
+        auto digest_array =
+          public_reader
+            .template read_next<crypto::Sha256Hash::Representation>();
+        commit_evidence_digest.set(std::move(digest_array));
       }
 
       max_conflict_version = public_reader.template read_next<Version>();
@@ -257,13 +270,17 @@ namespace kv
     GenericDeserialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       std::optional<SecurityDomain> domain_restriction = std::nullopt) :
-      crypto_util(e),
-      domain_restriction(domain_restriction)
+      crypto_util(e), domain_restriction(domain_restriction)
     {}
 
     ccf::ClaimsDigest&& consume_claims_digest()
     {
       return std::move(claims_digest);
+    }
+
+    crypto::Sha256Hash&& consume_commit_evidence_digest()
+    {
+      return std::move(commit_evidence_digest);
     }
 
     std::optional<std::tuple<Version, Version>> init(
@@ -289,13 +306,11 @@ namespace kv
 
       switch (tx_header.version)
       {
-        case entry_format_v1:
-        {
+        case entry_format_v1: {
           // Proceed with deserialisation
           break;
         }
-        default:
-        {
+        default: {
           throw std::logic_error(fmt::format(
             "Cannot deserialise entry format {}", tx_header.version));
         }
@@ -380,8 +395,9 @@ namespace kv
 
     std::tuple<SerialisedKey, Version> deserialise_read()
     {
-      return {current_reader->template read_next<SerialisedKey>(),
-              current_reader->template read_next<Version>()};
+      return {
+        current_reader->template read_next<SerialisedKey>(),
+        current_reader->template read_next<Version>()};
     }
 
     uint64_t deserialise_write_header()
@@ -391,8 +407,9 @@ namespace kv
 
     std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
     {
-      return {current_reader->template read_next<SerialisedKey>(),
-              current_reader->template read_next<SerialisedValue>()};
+      return {
+        current_reader->template read_next<SerialisedKey>(),
+        current_reader->template read_next<SerialisedValue>()};
     }
 
     std::vector<uint8_t> deserialise_raw()

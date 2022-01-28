@@ -219,6 +219,18 @@ namespace kv
     WriteSetWithCommitEvidenceAndClaims = 4
   };
 
+  static bool has_claims(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithClaims ||
+      et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
+
+  static bool has_commit_evidence(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithCommitEvidence ||
+      et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
+
   class KvSerialiserException : public std::exception
   {
   private:
@@ -393,16 +405,19 @@ namespace kv
     CommitResult success;
     std::vector<uint8_t> data;
     ccf::ClaimsDigest claims_digest;
+    crypto::Sha256Hash commit_evidence_digest;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
       std::vector<uint8_t>&& data_,
       ccf::ClaimsDigest&& claims_digest_,
+      crypto::Sha256Hash&& commit_evidence_digest_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       data(std::move(data_)),
       claims_digest(claims_digest_),
+      commit_evidence_digest(commit_evidence_digest_),
       hooks(std::move(hooks_))
     {}
   };
@@ -419,15 +434,18 @@ namespace kv
   private:
     std::vector<uint8_t> data;
     ccf::ClaimsDigest claims_digest;
+    crypto::Sha256Hash commit_evidence_digest;
     ConsensusHookPtrs hooks;
 
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_,
       ccf::ClaimsDigest&& claims_digest_,
+      crypto::Sha256Hash&& commit_evidence_digest_,
       ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
       claims_digest(claims_digest_),
+      commit_evidence_digest(commit_evidence_digest_),
       hooks(std::move(hooks_))
     {}
 
@@ -437,6 +455,7 @@ namespace kv
         CommitResult::SUCCESS,
         std::move(data),
         std::move(claims_digest),
+        std::move(commit_evidence_digest),
         std::move(hooks));
     }
   };
@@ -566,6 +585,7 @@ namespace kv
     virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
+    virtual crypto::Sha256Hash&& consume_commit_evidence_digest() = 0;
   };
 
   class AbstractStore

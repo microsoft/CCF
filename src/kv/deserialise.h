@@ -25,6 +25,7 @@ namespace kv
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
+      crypto::Sha256Hash& commit_evidence_digest,
       bool ignore_strict_versions = false) = 0;
 
     virtual bool commit_deserialised(
@@ -48,6 +49,7 @@ namespace kv
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
     ccf::ClaimsDigest claims_digest;
+    crypto::Sha256Hash commit_evidence_digest = {};
 
   public:
     CFTExecutionWrapper(
@@ -55,10 +57,7 @@ namespace kv
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_) :
-      store(store_),
-      history(history_),
-      data(data_),
-      public_only(public_only_)
+      store(store_), history(history_), data(data_), public_only(public_only_)
     {}
 
     ApplyResult apply() override
@@ -74,6 +73,7 @@ namespace kv
             changes,
             new_maps,
             claims_digest,
+            commit_evidence_digest,
             true))
       {
         return ApplyResult::FAIL;
@@ -127,11 +127,12 @@ namespace kv
       {
         if (claims_digest.empty())
         {
-          history->append(data);
+          history->append_entry(ccf::entry_leaf(data, commit_evidence_digest));
         }
         else
         {
-          history->append_entry(ccf::entry_leaf(data, claims_digest.value()));
+          history->append_entry(ccf::entry_leaf(
+            data, commit_evidence_digest, claims_digest.value()));
         }
       }
       return success;
@@ -180,6 +181,11 @@ namespace kv
     {
       return std::move(claims_digest);
     }
+
+    crypto::Sha256Hash&& consume_commit_evidence_digest() override
+    {
+      return std::move(commit_evidence_digest);
+    }
   };
 
   class BFTExecutionWrapper : public AbstractExecutionWrapper
@@ -200,6 +206,7 @@ namespace kv
     kv::ConsensusHookPtrs hooks;
     aft::Request req;
     ccf::ClaimsDigest claims_digest;
+    crypto::Sha256Hash commit_evidence_digest;
 
   public:
     BFTExecutionWrapper(
@@ -268,6 +275,11 @@ namespace kv
     ccf::ClaimsDigest&& consume_claims_digest() override
     {
       return std::move(claims_digest);
+    }
+
+    crypto::Sha256Hash&& consume_commit_evidence_digest() override
+    {
+      return std::move(commit_evidence_digest);
     }
   };
 

@@ -45,6 +45,8 @@ namespace kv
     kv::TxHistory::RequestID req_id;
 
     std::vector<uint8_t> serialise(
+      crypto::Sha256Hash& commit_evidence_digest,
+      std::string& commit_evidence,
       const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
       bool include_reads = false)
     {
@@ -71,17 +73,39 @@ namespace kv
       }
 
       auto e = store->get_encryptor();
-      auto entry_type = claims_digest.empty() ? EntryType::WriteSet :
-                                                EntryType::WriteSetWithClaims;
+
+      // Note: 1.x releases do not generate commit evidence
+      crypto::HashBytes commit_nonce = {};
+
+      commit_evidence = fmt::format(
+        "ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
+      LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
+      commit_evidence_digest = crypto::Sha256Hash::from_string(commit_evidence);
+
+      // Should always be `WriteSet` (unless for some unit tests)
+      EntryType entry_type = EntryType::WriteSet;
+      if (!commit_evidence.empty())
+      {
+        entry_type = claims_digest.empty() ?
+          EntryType::WriteSetWithCommitEvidence :
+          EntryType::WriteSetWithCommitEvidenceAndClaims;
+      }
+      else if (!claims_digest.empty())
+      {
+        entry_type = EntryType::WriteSetWithClaims;
+      }
+
       LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
         claims_digest.value(),
         claims_digest.empty());
+
       KvStoreSerialiser replicated_serialiser(
         e,
         {commit_view, version},
         max_conflict_version,
         entry_type,
+        commit_evidence_digest,
         claims_digest);
 
       // Process in security domain order
@@ -216,7 +240,10 @@ namespace kv
         // recover.
         try
         {
-          auto data = serialise(claims);
+          crypto::Sha256Hash commit_evidence_digest;
+          std::string commit_evidence;
+          auto data =
+            serialise(commit_evidence_digest, commit_evidence, claims);
 
           if (data.empty())
           {
@@ -228,7 +255,10 @@ namespace kv
           return store->commit(
             {commit_view, version},
             std::make_unique<MovePendingTx>(
-              std::move(data), std::move(claims_), std::move(hooks)),
+              std::move(data),
+              std::move(claims_),
+              std::move(commit_evidence_digest),
+              std::move(hooks)),
             false);
         }
         catch (const std::exception& e)
@@ -396,9 +426,17 @@ namespace kv
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
+      crypto::Sha256Hash commit_evidence_digest;
+      std::string commit_evidence;
+
       committed = true;
+      auto data = serialise(commit_evidence_digest, commit_evidence);
       return {
-        CommitResult::SUCCESS, serialise(), ccf::no_claims(), std::move(hooks)};
+        CommitResult::SUCCESS,
+        std::move(data),
+        ccf::no_claims(),
+        std::move(commit_evidence_digest),
+        std::move(hooks)};
     }
   };
 }

@@ -50,13 +50,13 @@ class EntryType(Enum):
     WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS = 4
 
     def has_claims(self):
-        return self.value in (
+        return self in (
             EntryType.WRITE_SET_WITH_CLAIMS,
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
         )
 
     def has_commit_evidence(self):
-        return self.value in (
+        return self in (
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
         )
@@ -609,10 +609,12 @@ class Transaction(Entry):
         commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
         write_set_digest = digest(hashes.SHA256(), self.get_raw_tx())
         if claims_digest is None:
-            if commit_evidence_digest:
-                return digest(write_set_digest, commit_evidence_digest)
-            else:
+            if commit_evidence_digest is None:
                 return write_set_digest
+            else:
+                return digest(
+                    hashes.SHA256(), write_set_digest + commit_evidence_digest
+                )
         else:
             return digest(
                 hashes.SHA256(),
