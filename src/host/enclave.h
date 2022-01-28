@@ -112,14 +112,6 @@ namespace host
         {
 #ifdef CCHOST_SUPPORTS_VIRTUAL
           virtual_handle = load_virtual_enclave(path.c_str());
-          if (virtual_handle == nullptr)
-          {
-            LOG_INFO_FMT("Huh, it sure is null");
-          }
-          else
-          {
-            LOG_INFO_FMT("It's not null, what are you talking about?");
-          }
 #else
           throw std::logic_error(
             "Virtual enclaves not supported in current build");
