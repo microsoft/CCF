@@ -17,7 +17,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     ---
 
     .. image:: ../img/cpp.svg
-      :width: 22
       :alt: C++
       :align: left
       :class: ccf-tile-icon
@@ -30,7 +29,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     ---
 
     .. image:: ../img/ts.svg
-      :width: 22
       :alt: TypeScript
       :align: left
       :class: ccf-tile-icon

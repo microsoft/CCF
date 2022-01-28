@@ -27,7 +27,6 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     ---
 
     .. image:: ../img/python.svg
-      :width: 22
       :alt: Python
       :align: left
       :class: ccf-tile-icon
