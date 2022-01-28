@@ -41,8 +41,8 @@ set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
                               openenclave::oelibc openenclave::oecryptoopenssl
 )
 # These oe libraries must be linked in specific order
-set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave
-                                openenclave::oecore openenclave::oesyscall
+set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oecore
+                                openenclave::oesyscall
 )
 if(USE_SNMALLOC)
   list(APPEND OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oesnmalloc)
