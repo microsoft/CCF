@@ -647,8 +647,8 @@ TEST_CASE(
   constexpr auto data_derived = "data_replicated";
   constexpr auto data_replicated_private = "public:data_replicated_private";
   constexpr auto data_derived_private = "data_replicated_private";
-  std::unordered_set<std::string> replicated_tables = {
-    data_replicated, data_replicated_private};
+  std::unordered_set<std::string> replicated_tables = {data_replicated,
+                                                       data_replicated_private};
 
   kv::Store store(kv::ReplicateType::SOME, replicated_tables);
   store.set_encryptor(encryptor);
@@ -822,8 +822,6 @@ TEST_CASE(
 
   ccf::ClaimsDigest claims_digest;
   claims_digest.set(crypto::Sha256Hash::from_string("claim text"));
-
-  // TODO: To test
 
   INFO("Commit to source store, including ");
   {

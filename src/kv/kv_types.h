@@ -88,7 +88,8 @@ namespace kv
       NodeInfo() = default;
 
       NodeInfo(const std::string& hostname_, const std::string& port_) :
-        hostname(hostname_), port(port_)
+        hostname(hostname_),
+        port(port_)
       {}
     };
 
