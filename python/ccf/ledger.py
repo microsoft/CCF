@@ -22,6 +22,7 @@ from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
 import ccf.receipt
 from hashlib import sha256
+import functools
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -57,13 +58,13 @@ class EntryType(Enum):
     WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS = 4
 
     def has_claims(self):
-        return self.value in (
+        return self in (
             EntryType.WRITE_SET_WITH_CLAIMS,
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
         )
 
     def has_commit_evidence(self):
-        return self.value in (
+        return self in (
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
             EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
         )
@@ -649,17 +650,15 @@ class Transaction(Entry):
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
         commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
-        write_set_digest = digest(hashes.SHA256(), self.get_raw_tx())
+        dgst = functools.partial(digest, hashes.SHA256())
+        write_set_digest = dgst(self.get_raw_tx())
         if claims_digest is None:
-            if commit_evidence_digest:
-                return digest(write_set_digest, commit_evidence_digest)
-            else:
+            if commit_evidence_digest is None:
                 return write_set_digest
+            else:
+                return dgst(write_set_digest + commit_evidence_digest)
         else:
-            return digest(
-                hashes.SHA256(),
-                write_set_digest + commit_evidence_digest + claims_digest,
-            )
+            return dgst(write_set_digest + commit_evidence_digest + claims_digest)
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
