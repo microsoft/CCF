@@ -545,8 +545,8 @@ namespace kv
       crypto::Sha256Hash&& commit_evidence_digest_,
       ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
-      claims_digest(claims_digest_),
-      commit_evidence_digest(commit_evidence_digest_),
+      claims_digest(std::move(claims_digest_)),
+      commit_evidence_digest(std::move(commit_evidence_digest_)),
       hooks(std::move(hooks_))
     {}
 
