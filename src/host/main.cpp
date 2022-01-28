@@ -48,6 +48,55 @@ void print_version(size_t)
   exit(0);
 }
 
+void validate_enclave_file_suffix(
+  const std::string& file, host::EnclaveType type)
+{
+  char const* expected_suffix;
+  switch (type)
+  {
+    case host::EnclaveType::RELEASE:
+    {
+      expected_suffix = ".enclave.so.signed";
+      break;
+    }
+    case host::EnclaveType::DEBUG:
+    {
+      expected_suffix = ".enclave.so.debuggable";
+      break;
+    }
+    case host::EnclaveType::VIRTUAL:
+    {
+      expected_suffix = ".virtual.so";
+      break;
+    }
+    default:
+    {
+      throw std::logic_error(fmt::format("Unhandled enclave type: {}", type));
+    }
+  }
+
+  if (!nonstd::ends_with(file, expected_suffix))
+  {
+    // Remove possible suffixes to try and get root of filename, to build
+    // suggested filename
+    auto basename = file;
+    for (const char* suffix :
+         {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
+    {
+      if (nonstd::ends_with(basename, suffix))
+      {
+        basename = basename.substr(0, basename.size() - strlen(suffix));
+      }
+    }
+    const auto suggested = fmt::format("{}{}", basename, expected_suffix);
+    throw std::logic_error(fmt::format(
+      "Given enclave file '{}' does not have suffix expected for enclave type {}. Did you mean '{}'?",
+      file,
+      nlohmann::json(type).dump(),
+      suggested));
+  }
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
@@ -206,6 +255,7 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
+  validate_enclave_file_suffix(config.enclave.file, config.enclave.type);
   host::Enclave enclave(config.enclave.file, oe_flags);
 
   // messaging ring buffers
