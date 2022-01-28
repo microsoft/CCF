@@ -54,12 +54,12 @@ void validate_enclave_file_suffix(
   char const* expected_suffix;
   switch (type)
   {
-    case host::EnclaveType::RELEASE:
+    case host::EnclaveType::SGX_RELEASE:
     {
       expected_suffix = ".enclave.so.signed";
       break;
     }
-    case host::EnclaveType::DEBUG:
+    case host::EnclaveType::SGX_DEBUG:
     {
       expected_suffix = ".enclave.so.debuggable";
       break;

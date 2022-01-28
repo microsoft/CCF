@@ -74,82 +74,85 @@ namespace host
 
       switch (type)
       {
-        uint32_t oe_flags = 0;
-        if (type == host::EnclaveType::SGX_DEBUG)
+        case host::EnclaveType::SGX_RELEASE:
+        case host::EnclaveType::SGX_DEBUG:
         {
-          oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-        }
-
 #ifdef CCHOST_SUPPORTS_SGX
+          uint32_t oe_flags = 0;
+          if (type == host::EnclaveType::SGX_DEBUG)
+          {
+            oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
+          }
+
 #  ifndef VERBOSE_LOGGING
-        oe_log_set_callback(nullptr, nop_oe_logger);
+          oe_log_set_callback(nullptr, nop_oe_logger);
 #  endif
 
-        auto err = oe_create_ccf_enclave(
-          path.c_str(), OE_ENCLAVE_TYPE_SGX, oe_flags, nullptr, 0, &sgx_handle);
+          auto err = oe_create_ccf_enclave(
+            path.c_str(),
+            OE_ENCLAVE_TYPE_SGX,
+            oe_flags,
+            nullptr,
+            0,
+            &sgx_handle);
 
-        if (err != OE_OK)
-        {
-          throw std::logic_error(
-            fmt::format("Could not create enclave: {}", oe_result_str(err)));
-        }
+          if (err != OE_OK)
+          {
+            throw std::logic_error(
+              fmt::format("Could not create enclave: {}", oe_result_str(err)));
+          }
 #else
-        throw std::logic_error(
-          "SGX enclaves are not supported in current build");
-#endif
-        break;
-      }
+          throw std::logic_error(
+            "SGX enclaves are not supported in current build");
 #endif // CCHOST_SUPPORTS_SGX
+          break;
+        }
 
+        case host::EnclaveType::VIRTUAL:
+        {
 #ifdef CCHOST_SUPPORTS_VIRTUAL
-      case host::EnclaveType::VIRTUAL:
-      {
-#  ifdef CCHOST_SUPPORTS_VIRTUAL
-        virtual_handle = load_virtual_enclave(path.c_str());
-        if (virtual_handle == nullptr)
-        {
-          LOG_INFO_FMT("Huh, it sure is null");
-        }
-        else
-        {
-          LOG_INFO_FMT("It's not null, what are you talking about?");
-        }
-#  else
-        throw std::logic_error(
-          "Virtual enclaves not supported in current build");
-#  endif
-        break;
-      }
+          virtual_handle = load_virtual_enclave(path.c_str());
+          if (virtual_handle == nullptr)
+          {
+            LOG_INFO_FMT("Huh, it sure is null");
+          }
+          else
+          {
+            LOG_INFO_FMT("It's not null, what are you talking about?");
+          }
+#else
+          throw std::logic_error(
+            "Virtual enclaves not supported in current build");
 #endif // CCHOST_SUPPORTS_VIRTUAL
+          break;
+        }
 
-      default:
-      {
-        // TODO: List which types _are_ supported
-        throw std::logic_error(
-          fmt::format("Unsupported enclave type: {}", type));
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Unsupported enclave type: {}", nlohmann::json(type).dump()));
+        }
       }
     }
-  }
 
-  CreateNodeStatus
-  create_node(
-    const EnclaveConfig& enclave_config,
-    const StartupConfig& ccf_config,
-    std::vector<uint8_t>& node_cert,
-    std::vector<uint8_t>& service_cert,
-    StartType start_type,
-    size_t num_worker_thread,
-    void* time_location)
-  {
-    CreateNodeStatus status = CreateNodeStatus::InternalError;
-    constexpr size_t enclave_version_size = 256;
-    std::vector<uint8_t> enclave_version_buf(enclave_version_size);
+    CreateNodeStatus create_node(
+      const EnclaveConfig& enclave_config,
+      const StartupConfig& ccf_config,
+      std::vector<uint8_t>& node_cert,
+      std::vector<uint8_t>& service_cert,
+      StartType start_type,
+      size_t num_worker_thread,
+      void* time_location)
+    {
+      CreateNodeStatus status = CreateNodeStatus::InternalError;
+      constexpr size_t enclave_version_size = 256;
+      std::vector<uint8_t> enclave_version_buf(enclave_version_size);
 
-    size_t node_cert_len = 0;
-    size_t service_cert_len = 0;
-    size_t enclave_version_len = 0;
+      size_t node_cert_len = 0;
+      size_t service_cert_len = 0;
+      size_t enclave_version_len = 0;
 
-    auto config = nlohmann::json(ccf_config).dump();
+      auto config = nlohmann::json(ccf_config).dump();
 
 #define CREATE_NODE_ARGS \
   &status, (void*)&enclave_config, config.data(), config.size(), \
@@ -158,77 +161,78 @@ namespace host
     enclave_version_buf.size(), &enclave_version_len, start_type, \
     num_worker_thread, time_location
 
-    oe_result_t err = OE_FAILURE;
+      oe_result_t err = OE_FAILURE;
 
 // Assume that constructor correctly set the appropriate field, and call
 // appropriate function
 #ifdef CCHOST_SUPPORTS_VIRTUAL
-    if (virtual_handle != nullptr)
-    {
-      err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
-    }
+      if (virtual_handle != nullptr)
+      {
+        err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
+      }
 #endif
 #ifdef CCHOST_SUPPORTS_SGX
-    if (sgx_handle != nullptr)
-    {
-      err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
-    }
+      if (sgx_handle != nullptr)
+      {
+        err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
+      }
 #endif
 
-    if (err != OE_OK || status != CreateNodeStatus::OK)
-    {
-      // Logs have described the errors already, we just need to allow the
-      // host to read them (via read_all()).
-      return status;
+      if (err != OE_OK || status != CreateNodeStatus::OK)
+      {
+        // Logs have described the errors already, we just need to allow
+        // the host to read them (via read_all()).
+        return status;
+      }
+
+      // Host and enclave versions must match. Otherwise the node may
+      // crash much later (e.g. unhandled ring buffer message on either
+      // end)
+      auto enclave_version = std::string(
+        enclave_version_buf.begin(),
+        enclave_version_buf.begin() + enclave_version_len);
+      if (ccf::ccf_version != enclave_version)
+      {
+        LOG_FAIL_FMT(
+          "Host/Enclave versions mismatch: {} != {}",
+          ccf::ccf_version,
+          enclave_version);
+        return CreateNodeStatus::VersionMismatch;
+      }
+
+      node_cert.resize(node_cert_len);
+      service_cert.resize(service_cert_len);
+
+      return CreateNodeStatus::OK;
     }
 
-    // Host and enclave versions must match. Otherwise the node may crash
-    // much later (e.g. unhandled ring buffer message on either end)
-    auto enclave_version = std::string(
-      enclave_version_buf.begin(),
-      enclave_version_buf.begin() + enclave_version_len);
-    if (ccf::ccf_version != enclave_version)
+    // Run a processor over this circuit inside the enclave - should be
+    // called from a thread
+    bool run()
     {
-      LOG_FAIL_FMT(
-        "Host/Enclave versions mismatch: {} != {}",
-        ccf::ccf_version,
-        enclave_version);
-      return CreateNodeStatus::VersionMismatch;
-    }
-
-    node_cert.resize(node_cert_len);
-    service_cert.resize(service_cert_len);
-
-    return CreateNodeStatus::OK;
-  }
-
-  // Run a processor over this circuit inside the enclave - should be called
-  // from a thread
-  bool run()
-  {
-    bool ret;
-    oe_result_t err = OE_FAILURE;
+      bool ret;
+      oe_result_t err = OE_FAILURE;
 
 #ifdef CCHOST_SUPPORTS_VIRTUAL
-    if (virtual_handle != nullptr)
-    {
-      err = virtual_run(virtual_handle, &ret);
-    }
+      if (virtual_handle != nullptr)
+      {
+        err = virtual_run(virtual_handle, &ret);
+      }
 #endif
 #ifdef CCHOST_SUPPORTS_SGX
-    if (sgx_handle != nullptr)
-    {
-      err = enclave_run(sgx_handle, &ret);
-    }
+      if (sgx_handle != nullptr)
+      {
+        err = enclave_run(sgx_handle, &ret);
+      }
 #endif
 
-    if (err != OE_OK)
-    {
-      throw std::logic_error(
-        fmt::format("Failed to call in enclave_run: {}", oe_result_str(err)));
-    }
+      if (err != OE_OK)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to call in enclave_run: {}", oe_result_str(err)));
+      }
 
-    return ret;
-  }
-};
+      return ret;
+    }
+  };
 }
