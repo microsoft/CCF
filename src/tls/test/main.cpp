@@ -5,6 +5,7 @@
 #include "crypto/verifier.h"
 #include "tls/tls.h"
 
+#include <exception>
 #include <openssl/err.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ds/buffer.h"
@@ -170,9 +171,9 @@ long recv(
 
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.
-int handshake(Context* ctx)
+int handshake(Context* ctx, bool& keep_going)
 {
-  while (true)
+  while (keep_going)
   {
     int rc = ctx->handshake();
 
@@ -213,6 +214,8 @@ int handshake(Context* ctx)
       }
     }
   }
+
+  return 0;
 }
 
 struct NetworkCA
@@ -270,7 +273,8 @@ NetworkCA get_ca()
 }
 
 /// Creates a tls::Cert with a new CA using a new self-signed Pem certificate.
-unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
+unique_ptr<tls::Cert> get_dummy_cert(
+  NetworkCA& net_ca, string name, bool auth_required = true)
 {
   // Create a CA with a self-signed certificate
   auto ca = make_unique<tls::CA>(CBuffer(net_ca.cert.str()));
@@ -286,7 +290,7 @@ unique_ptr<tls::Cert> get_dummy_cert(NetworkCA& net_ca, string name, Auth auth)
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk, auth);
+  return make_unique<Cert>(move(ca), crt, pk, std::nullopt, auth_required);
 }
 
 /// Helper to write past the maximum buffer (16k)
@@ -343,24 +347,52 @@ void run_test_case(
   client.set_bio(
     &pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>, nullptr);
 
+  bool keep_going = true;
+  std::optional<std::runtime_error> client_exception, server_exception;
+
   // Create a thread for the client handshake
-  thread client_thread([&client]() {
+  thread client_thread([&client, &keep_going, &client_exception]() {
     LOG_INFO_FMT("Client handshake");
-    if (handshake(&client))
-      throw runtime_error("Client handshake error");
+    try
+    {
+      if (handshake(&client, keep_going))
+        throw runtime_error("Client handshake error");
+    }
+    catch (std::runtime_error& ex)
+    {
+      keep_going = false;
+      client_exception = ex;
+    }
   });
 
   // Create a thread for the server handshake
-  thread server_thread([&server]() {
+  thread server_thread([&server, &keep_going, &server_exception]() {
     LOG_INFO_FMT("Server handshake");
-    if (handshake(&server))
-      throw runtime_error("Server handshake error");
+    try
+    {
+      if (handshake(&server, keep_going))
+        throw runtime_error("Server handshake error");
+    }
+    catch (std::runtime_error& ex)
+    {
+      keep_going = false;
+      server_exception = ex;
+    }
   });
 
   // Join threads
   client_thread.join();
   server_thread.join();
   LOG_INFO_FMT("Handshake completed");
+
+  if (client_exception)
+  {
+    throw *client_exception;
+  }
+  if (server_exception)
+  {
+    throw *server_exception;
+  }
 
   // The rest of the communication is deterministic and easy to simulate
   // so we take them out of the thread, to guarantee there will be bytes
@@ -414,8 +446,8 @@ TEST_CASE("unverified handshake")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_none);
-  auto client_cert = get_dummy_cert(ca, "client", auth_none);
+  auto server_cert = get_dummy_cert(ca, "server", false);
+  auto client_cert = get_dummy_cert(ca, "client", false);
 
   LOG_INFO_FMT("TEST: unverified handshake");
 
@@ -441,8 +473,8 @@ TEST_CASE("unverified communication")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_none);
-  auto client_cert = get_dummy_cert(ca, "client", auth_none);
+  auto server_cert = get_dummy_cert(ca, "server", false);
+  auto client_cert = get_dummy_cert(ca, "client", false);
 
   LOG_INFO_FMT("TEST: unverified communication");
 
@@ -463,8 +495,8 @@ TEST_CASE("verified handshake")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: verified handshake");
 
@@ -479,6 +511,106 @@ TEST_CASE("verified handshake")
     move(client_cert));
 }
 
+TEST_CASE("self-signed server certificate")
+{
+  auto kp = crypto::make_key_pair();
+  auto pk = kp->private_key_pem();
+  auto crt = generate_self_signed_cert(kp, "CN=server");
+  auto server_cert = make_unique<Cert>(nullptr, crt, pk);
+
+  // Create a CA
+  auto ca = get_ca();
+  auto client_cert = get_dummy_cert(ca, "client");
+
+  // Client expected to complain about self-signedness.
+  REQUIRE_THROWS_WITH_AS(
+    run_test_case(
+      0,
+      (const uint8_t*)"",
+      0,
+      (const uint8_t*)"",
+      0,
+      move(server_cert),
+      move(client_cert)),
+    "Client handshake error",
+    std::runtime_error);
+}
+
+TEST_CASE("server certificate from different CA")
+{
+  auto server_ca = get_ca();
+  auto server_cert = get_dummy_cert(server_ca, "server");
+
+  auto client_ca = get_ca();
+  auto client_cert = get_dummy_cert(client_ca, "client");
+
+  // Client expected to complain
+  REQUIRE_THROWS_WITH_AS(
+    run_test_case(
+      0,
+      (const uint8_t*)"",
+      0,
+      (const uint8_t*)"",
+      0,
+      move(server_cert),
+      move(client_cert)),
+    "Client handshake error",
+    std::runtime_error);
+}
+
+TEST_CASE("self-signed client certificate")
+{
+  auto server_ca = get_ca();
+  auto server_cert = get_dummy_cert(server_ca, "server", false);
+
+  auto kp = crypto::make_key_pair();
+  auto pk = kp->private_key_pem();
+  auto crt = generate_self_signed_cert(kp, "CN=server");
+
+  // With verification enabled, the client is expected to complain.
+  auto client_cert = make_unique<Cert>(nullptr, crt, pk);
+
+  REQUIRE_THROWS_WITH_AS(
+    run_test_case(
+      0,
+      (const uint8_t*)"",
+      0,
+      (const uint8_t*)"",
+      0,
+      move(server_cert),
+      move(client_cert)),
+    "Client handshake error",
+    std::runtime_error);
+
+  // Without verification enabled on the client, the server should complain.
+  server_cert = get_dummy_cert(server_ca, "server");
+  client_cert = make_unique<Cert>(nullptr, crt, pk, std::nullopt, false);
+
+  REQUIRE_THROWS_WITH_AS(
+    run_test_case(
+      0,
+      (const uint8_t*)"",
+      0,
+      (const uint8_t*)"",
+      0,
+      move(server_cert),
+      move(client_cert)),
+    "Server handshake error",
+    std::runtime_error);
+
+  // Neither, neither.
+  server_cert = get_dummy_cert(server_ca, "server", false);
+  client_cert = make_unique<Cert>(nullptr, crt, pk, std::nullopt, false);
+  REQUIRE_NOTHROW(run_test_case(
+    0,
+    (const uint8_t*)"",
+    0,
+    (const uint8_t*)"",
+    0,
+    move(server_cert),
+    move(client_cert)));
+}
+
 TEST_CASE("verified communication")
 {
   const uint8_t message[] = "Hello World!";
@@ -490,8 +622,8 @@ TEST_CASE("verified communication")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: verified communication");
 
@@ -517,8 +649,8 @@ TEST_CASE("large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: large message");
 
@@ -544,8 +676,8 @@ TEST_CASE("very large message")
   auto ca = get_ca();
 
   // Create bogus certificate
-  auto server_cert = get_dummy_cert(ca, "server", auth_required);
-  auto client_cert = get_dummy_cert(ca, "client", auth_required);
+  auto server_cert = get_dummy_cert(ca, "server");
+  auto client_cert = get_dummy_cert(ca, "client");
 
   LOG_INFO_FMT("TEST: very large message");
 
