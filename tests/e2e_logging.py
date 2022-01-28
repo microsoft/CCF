@@ -1354,8 +1354,8 @@ def run(args):
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
-        network = test_historical_receipts(network, args)
         if "v8" not in args.package:
+            network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
 
 
