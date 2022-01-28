@@ -689,6 +689,7 @@ namespace kv
       OrderedChanges& changes,
       MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
+      crypto::Sha256Hash& commit_evidence_digest,
       bool ignore_strict_versions = false) override
     {
       // This will return FAILED if the serialised transaction is being
@@ -715,6 +716,10 @@ namespace kv
         "Deserialised claim digest {} {}",
         claims_digest.value(),
         claims_digest.empty());
+
+      commit_evidence_digest = std::move(d.consume_commit_evidence_digest());
+      LOG_TRACE_FMT(
+        "Deserialised commit evidence digest {}", commit_evidence_digest);
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -802,6 +807,7 @@ namespace kv
         OrderedChanges changes;
         MapCollection new_maps;
         ccf::ClaimsDigest claims_digest;
+        crypto::Sha256Hash commit_evidence_digest;
         if (!fill_maps(
               data,
               public_only,
@@ -811,6 +817,7 @@ namespace kv
               changes,
               new_maps,
               claims_digest,
+              commit_evidence_digest,
               true))
         {
           return nullptr;

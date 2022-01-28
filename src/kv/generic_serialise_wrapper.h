@@ -70,7 +70,7 @@ namespace kv
       set_current_domain(SecurityDomain::PUBLIC);
       serialise_internal(entry_type);
       serialise_internal(tx_id.version);
-      if (entry_type == EntryType::WriteSetWithClaims)
+      if (has_claims(entry_type))
       {
         serialise_internal(claims_digest_.value());
       }
@@ -231,6 +231,7 @@ namespace kv
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
+    crypto::Sha256Hash commit_evidence_digest = {};
     Version version;
     Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
@@ -242,12 +243,19 @@ namespace kv
     {
       entry_type = public_reader.template read_next<EntryType>();
       version = public_reader.template read_next<Version>();
-      if (entry_type == EntryType::WriteSetWithClaims)
+      if (has_claims(entry_type))
       {
         auto digest_array =
           public_reader
             .template read_next<ccf::ClaimsDigest::Digest::Representation>();
         claims_digest.set(std::move(digest_array));
+      }
+      if (has_commit_evidence(entry_type))
+      {
+        auto digest_array =
+          public_reader
+            .template read_next<crypto::Sha256Hash::Representation>();
+        commit_evidence_digest.set(std::move(digest_array));
       }
 
       max_conflict_version = public_reader.template read_next<Version>();
@@ -264,6 +272,11 @@ namespace kv
     ccf::ClaimsDigest&& consume_claims_digest()
     {
       return std::move(claims_digest);
+    }
+
+    crypto::Sha256Hash&& consume_commit_evidence_digest()
+    {
+      return std::move(commit_evidence_digest);
     }
 
     std::optional<std::tuple<Version, Version>> init(

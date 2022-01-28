@@ -215,8 +215,22 @@ namespace kv
   {
     WriteSet = 0,
     Snapshot = 1,
-    WriteSetWithClaims = 2
+    WriteSetWithClaims = 2,
+    WriteSetWithCommitEvidence = 3,
+    WriteSetWithCommitEvidenceAndClaims = 4
   };
+
+  static bool has_claims(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithClaims ||
+      et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
+
+  static bool has_commit_evidence(const EntryType& et)
+  {
+    return et == EntryType::WriteSetWithCommitEvidence ||
+      et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+  }
 
   class KvSerialiserException : public std::exception
   {
@@ -565,6 +579,7 @@ namespace kv
     virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
+    virtual crypto::Sha256Hash&& consume_commit_evidence_digest() = 0;
   };
 
   class AbstractStore

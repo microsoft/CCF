@@ -802,3 +802,145 @@ TEST_CASE(
     REQUIRE(handle_pub->get("pubk1") == "pubv1");
   }
 }
+
+TEST_CASE(
+  "Serialise/deserialise maps with commit evidence" *
+  doctest::test_suite("serialisation"))
+{
+  // Because 1.x releases are not able to generate transactions with commit
+  // evidence, this test modifies serialised transactions (as no integrity check
+  // is performed - using kv::NullTxEncryptor) to insert commit evidence digest.
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+
+  kv::Store kv_store;
+  kv_store.set_consensus(consensus);
+  kv_store.set_encryptor(encryptor);
+
+  constexpr auto priv_map = "priv_map";
+  constexpr auto pub_map = "public:pub_map";
+
+  kv::Store kv_store_target;
+  kv_store_target.set_encryptor(encryptor);
+
+  ccf::ClaimsDigest claims_digest;
+  claims_digest.set(crypto::Sha256Hash::from_string("claim text"));
+
+  auto commit_evidence_digest =
+    crypto::Sha256Hash::from_string("commit evidence");
+
+  INFO("Commit to source store");
+  {
+    auto tx = kv_store.create_tx();
+    auto handle_priv = tx.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx.rw<MapTypes::StringString>(pub_map);
+
+    handle_priv->put("privk1", "privv1");
+    handle_pub->put("pubk1", "pubv1");
+
+    REQUIRE(tx.commit(claims_digest) == kv::CommitResult::SUCCESS);
+  }
+
+  INFO(
+    "Deserialise transaction in target store and modify claims digest to "
+    "commit evidence digest");
+  {
+    auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+
+    {
+      // Pretend that existing claim digest is a commit evidence digest (commit
+      // evidence but no claim)
+
+      auto ws_with_ce = kv::EntryType::WriteSetWithCommitEvidence;
+      size_t entry_type_offset = kv::serialised_entry_header_size +
+        sizeof(uint64_t); // Offset of entry type in ledger entry when using
+                          // NullTxEncryptor
+      latest_data->at(entry_type_offset) =
+        *reinterpret_cast<uint8_t*>(&ws_with_ce);
+    }
+
+    auto wrapper =
+      kv_store_target.deserialize(latest_data.value(), ConsensusType::CFT);
+    REQUIRE(wrapper->apply() != kv::ApplyResult::FAIL);
+    auto deserialised_commit_evidence =
+      wrapper->consume_commit_evidence_digest();
+    REQUIRE(claims_digest.value() == deserialised_commit_evidence);
+
+    auto tx_target = kv_store_target.create_tx();
+    auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx_target.rw<MapTypes::StringString>(pub_map);
+
+    REQUIRE(handle_priv->get("privk1") == "privv1");
+    REQUIRE(handle_pub->get("pubk1") == "pubv1");
+  }
+
+  INFO(
+    "Deserialise transaction in target store with claims and commit evidence");
+  {
+    auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+
+    auto modified_data = std::vector<uint8_t>(latest_data->size());
+    std::copy(latest_data->begin(), latest_data->end(), modified_data.begin());
+
+    {
+      // Change entry type to commit evidence and claims and insert commit
+      // evidence
+
+      auto ws_with_ce_ac = kv::EntryType::WriteSetWithCommitEvidenceAndClaims;
+      size_t entry_type_offset = kv::serialised_entry_header_size +
+        sizeof(uint64_t); // Offset of entry type in ledger entry when using
+                          // NullTxEncryptor
+      modified_data.at(entry_type_offset) =
+        *reinterpret_cast<uint8_t*>(&ws_with_ce_ac);
+
+      size_t offset_commit_evidence_digest = entry_type_offset +
+        sizeof(kv::EntryType) + sizeof(kv::Version) + crypto::Sha256Hash::SIZE;
+
+      modified_data.insert(
+        modified_data.begin() + offset_commit_evidence_digest,
+        commit_evidence_digest.h.begin(),
+        commit_evidence_digest.h.end());
+    }
+
+    {
+      // Overall entry size and public domain size needs to be modified
+      // accordingly
+      auto hdr =
+        *reinterpret_cast<kv::SerialisedEntryHeader*>(modified_data.data());
+      hdr.set_size(modified_data.size() - kv::serialised_entry_header_size);
+      std::copy(
+        (uint8_t*)&hdr,
+        (uint8_t*)&hdr + kv::serialised_entry_header_size,
+        modified_data.begin());
+
+      auto public_domain_size =
+        *reinterpret_cast<uint64_t*>(
+          modified_data.data() + kv::serialised_entry_header_size) +
+        crypto::Sha256Hash::SIZE;
+      std::copy(
+        (uint8_t*)&public_domain_size,
+        (uint8_t*)&public_domain_size + sizeof(public_domain_size),
+        modified_data.begin() + kv::serialised_entry_header_size);
+    }
+
+    auto wrapper =
+      kv_store_target.deserialize(modified_data, ConsensusType::CFT);
+    REQUIRE(wrapper->apply() != kv::ApplyResult::FAIL);
+
+    auto deserialised_claims = wrapper->consume_claims_digest();
+    REQUIRE(claims_digest == deserialised_claims);
+
+    auto deserialised_commit_evidence =
+      wrapper->consume_commit_evidence_digest();
+    REQUIRE(commit_evidence_digest == deserialised_commit_evidence);
+
+    auto tx_target = kv_store_target.create_tx();
+    auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
+    auto handle_pub = tx_target.rw<MapTypes::StringString>(pub_map);
+
+    REQUIRE(handle_priv->get("privk1") == "privv1");
+    REQUIRE(handle_pub->get("pubk1") == "pubv1");
+  }
+}
