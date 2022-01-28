@@ -290,6 +290,7 @@ namespace kv
     WriteSetWithClaims = 2,
     WriteSetWithCommitEvidence = 3,
     WriteSetWithCommitEvidenceAndClaims = 4,
+    MAX = WriteSetWithCommitEvidenceAndClaims
   };
 
   static bool has_claims(const EntryType& et)
