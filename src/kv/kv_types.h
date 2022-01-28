@@ -88,8 +88,7 @@ namespace kv
       NodeInfo() = default;
 
       NodeInfo(const std::string& hostname_, const std::string& port_) :
-        hostname(hostname_),
-        port(port_)
+        hostname(hostname_), port(port_)
       {}
     };
 
@@ -215,7 +214,9 @@ namespace kv
   {
     WriteSet = 0,
     Snapshot = 1,
-    WriteSetWithClaims = 2
+    WriteSetWithClaims = 2,
+    WriteSetWithCommitEvidence = 3,
+    WriteSetWithCommitEvidenceAndClaims = 4
   };
 
   class KvSerialiserException : public std::exception

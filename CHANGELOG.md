@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.18]
+
+### Changed
+
+- Compatibility with 2.x releases: internally, CCF now supports transactions with commit evidence.
+
 ## [1.0.17]
 
 ### Changed
@@ -16,7 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Internally, CCF now interprets the former `bool is_snapshot` field in ledger transactions as an `enum EntryType entry_type`. Transactions setting `entry_type` to `WriteSetWithClaims` are never emitted, but are handled correctly if received. This allows nodes from this release onwards to interoperate with nodes that do emit transactions containing additional claimsm (#3346).
+- Internally, CCF now interprets the former `bool is_snapshot` field in ledger transactions as an `enum EntryType entry_type`. Transactions setting `entry_type` to `WriteSetWithClaims` are never emitted, but are handled correctly if received. This allows nodes from this release onwards to interoperate with nodes that do emit transactions containing additional claims. (#3346).
 
 ### Dependency
 
@@ -989,6 +995,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.18
 [1.0.17]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.17
 [1.0.16]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.16
 [1.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.15

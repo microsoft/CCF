@@ -210,7 +210,7 @@ namespace kv
       else if constexpr (std::is_same_v<T, kv::EntryType>)
       {
         uint8_t entry_type = read_entry<uint8_t>();
-        if (entry_type > 2)
+        if (entry_type > 4)
           throw std::logic_error(
             fmt::format("Invalid EntryType: {}", entry_type));
 
