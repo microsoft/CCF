@@ -13,13 +13,6 @@ using namespace crypto::OpenSSL;
 
 namespace tls
 {
-  enum Auth
-  {
-    auth_default,
-    auth_none,
-    auth_required
-  };
-
   class CA
   {
   private:
