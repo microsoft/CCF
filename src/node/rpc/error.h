@@ -54,6 +54,7 @@ namespace ccf
 
     // CCF-specific errors
     // client-facing:
+    ERROR(SessionCapExhausted)
     ERROR(FrontendNotOpen)
     ERROR(KeyNotFound)
     ERROR(NodeAlreadyRecovering)
