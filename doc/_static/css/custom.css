@@ -5,3 +5,9 @@
 img {
   margin: .3rem !important;
 }
+
+/* Insert white background rectangle for mermaid divs, so they are visible in dark theme */
+body[data-theme="dark"] .mermaid
+{
+  background-color: #ffffff
+}
