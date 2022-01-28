@@ -336,14 +336,23 @@ def run_code_upgrade_from(
 
 
 @reqs.description("Run live compatibility with latest LTS")
-def run_live_compatibility_with_latest(args, repo, local_branch):
+def run_live_compatibility_with_latest(
+    args, repo, local_branch, this_release_branch_only
+):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
     lts_version, lts_install_path = repo.install_latest_lts_for_branch(
-        os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch)
+        os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
+        this_release_branch_only,
     )
+    if lts_version is None:
+        LOG.warning(
+            f"Latest LTS not found for {local_branch} branch (this_release_branch_only: {this_release_branch_only})"
+        )
+        return None
+
     local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
     LOG.info(
         f'From LTS {lts_version} to local "{local_branch}" branch (version: {local_major_version})'
@@ -367,7 +376,7 @@ def run_live_compatibility_with_following(args, repo, local_branch):
     """
     lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
     if lts_version is None:
-        LOG.warning(f"No next LTS for local {local_branch} branch")
+        LOG.warning(f"Next LTS not found for {local_branch} branch")
         return None
 
     local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
@@ -386,7 +395,7 @@ def run_live_compatibility_with_following(args, repo, local_branch):
 
 
 @reqs.description("Run ledger compatibility since first LTS")
-def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
+def run_ledger_compatibility_since_first(args, use_snapshot):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
@@ -538,28 +547,41 @@ if __name__ == "__main__":
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+
+    # Compatibility with previous LTS
+    # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
+    latest_lts_version = run_live_compatibility_with_latest(
+        args, repo, env.branch, this_release_branch_only=False
+    )
+    compatibility_report["live compatibility"].update(
+        {"with previous LTS": latest_lts_version}
+    )
+
+    # Compatibility with latest LTS on the same release branch
+    # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+    latest_lts_version = run_live_compatibility_with_latest(
+        args, repo, env.branch, this_release_branch_only=True
+    )
+    compatibility_report["live compatibility"].update(
+        {"with same LTS": latest_lts_version}
+    )
+
+    # Compatibility with following LTS
+    # (e.g. when releasing 1.0.10, check compatibility with existing 2.0.3)
     following_lts_version = run_live_compatibility_with_following(
         args, repo, env.branch
     )
     compatibility_report["live compatibility"].update(
-        {"with latest": latest_lts_version}
-    )
-    compatibility_report["live compatibility"].update(
-        {"with following": following_lts_version}
+        {"with following LTS": following_lts_version}
     )
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
-        lts_versions = run_ledger_compatibility_since_first(
-            args, env.branch, use_snapshot=False
-        )
+        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=False)
         compatibility_report["data compatibility"].update(
             {"with previous ledger": lts_versions}
         )
-        lts_versions = run_ledger_compatibility_since_first(
-            args, env.branch, use_snapshot=True
-        )
+        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=True)
         compatibility_report["data compatibility"].update(
             {"with previous snapshots": lts_versions}
         )
