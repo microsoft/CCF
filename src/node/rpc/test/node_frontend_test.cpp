@@ -9,6 +9,7 @@
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 #include "node_stub.h"
+#include "kv/test/null_encryptor.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -91,6 +92,8 @@ void require_ledger_secrets_equal(
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_configuration({0, ConsensusType::CFT, std::nullopt});
@@ -225,6 +228,8 @@ TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
   auto gen_tx = network.tables->create_tx();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   GenesisGenerator gen(network, gen_tx);
 
   ShareManager share_manager(network);
