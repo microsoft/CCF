@@ -368,6 +368,7 @@ namespace kv
 
       committed = true;
       auto data = serialise(commit_evidence_digest, commit_evidence);
+
       return {
         CommitResult::SUCCESS,
         std::move(data),

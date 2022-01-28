@@ -4,12 +4,12 @@
 #include "crypto/pem.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 #include "node_stub.h"
-#include "kv/test/null_encryptor.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
