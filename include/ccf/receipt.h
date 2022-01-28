@@ -20,7 +20,7 @@ namespace ccf
     struct LeafComponents
     {
       std::optional<std::string> write_set_digest = std::nullopt;
-      std::optional<std::string> commit_evidence;
+      std::optional<std::string> commit_evidence = std::nullopt;
       std::optional<std::string> claims_digest = std::nullopt;
 
       LeafComponents() {}
