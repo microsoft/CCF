@@ -52,8 +52,7 @@ namespace kv
       commit_evidence = fmt::format(
         "ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
-      auto tx_commit_evidence_digest =
-        crypto::Sha256Hash::from_string(commit_evidence);
+      crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
       auto entry_type = claims_digest.empty() ?
         EntryType::WriteSetWithCommitEvidence :

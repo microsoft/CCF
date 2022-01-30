@@ -76,8 +76,7 @@ namespace ccf
       {
         auto ws_dgst = crypto::Sha256Hash::from_hex_string(
           components.write_set_digest.value());
-        auto ce_dgst =
-          crypto::Sha256Hash::from_string(components.commit_evidence.value());
+        crypto::Sha256Hash ce_dgst(components.commit_evidence.value());
         auto cl_dgst =
           crypto::Sha256Hash::from_hex_string(components.claims_digest.value());
         current = crypto::Sha256Hash(ws_dgst, ce_dgst, cl_dgst);

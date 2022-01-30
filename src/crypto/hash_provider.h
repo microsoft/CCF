@@ -57,18 +57,24 @@ namespace crypto
   public:
     static constexpr size_t SIZE = 256 / 8;
     using Representation = std::array<uint8_t, SIZE>;
-    Representation h;
+    Representation h = {0};
 
-    Sha256Hash() : h{0} {}
+    Sha256Hash() = default;
 
     inline void set(Representation&& r)
     {
       h = std::move(r);
     }
 
-    Sha256Hash(const CBuffer& data) : h{0}
+    Sha256Hash(const CBuffer& data)
     {
       default_sha256(data, h.data());
+    }
+
+    Sha256Hash(const std::string& str)
+    {
+      CBuffer cb(str);
+      default_sha256(cb, h.data());
     }
 
     Sha256Hash(const Sha256Hash& left, const Sha256Hash& right)
@@ -111,12 +117,6 @@ namespace crypto
     {
       return ds::to_hex(h);
     };
-
-    static inline Sha256Hash from_string(const std::string& str)
-    {
-      CBuffer cb(str);
-      return Sha256Hash(cb);
-    }
 
     static inline Sha256Hash from_hex_string(const std::string& str)
     {

@@ -795,7 +795,7 @@ TEST_CASE(
   kv_store_target.set_encryptor(encryptor);
 
   ccf::ClaimsDigest claims_digest;
-  claims_digest.set(crypto::Sha256Hash::from_string("claim text"));
+  claims_digest.set(crypto::Sha256Hash("claim text"));
 
   INFO("Commit to source store, including claims");
   {
