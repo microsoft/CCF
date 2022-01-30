@@ -155,7 +155,15 @@ namespace kv
       {
         if (claims_digest.empty())
         {
-          history->append_entry(ccf::entry_leaf(data, commit_evidence_digest));
+          if (commit_evidence_digest == crypto::Sha256Hash())
+          {
+            history->append(data);
+          }
+          else
+          {
+            history->append_entry(
+              ccf::entry_leaf(data, commit_evidence_digest));
+          }
         }
         else
         {

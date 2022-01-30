@@ -105,6 +105,7 @@ namespace ccf::historical
       bool is_signature = false;
       TxReceiptPtr receipt = nullptr;
       ccf::TxID transaction_id;
+      bool has_commit_evidence = false;
 
       crypto::HashBytes get_commit_nonce()
       {
@@ -295,6 +296,9 @@ namespace ccf::historical
                 {
                   auto proof = tree.get_proof(seqno);
                   details->transaction_id = {sig->view, seqno};
+                  std::optional<std::string> commit_evidence = std::nullopt;
+                  if (details->has_commit_evidence)
+                    commit_evidence = details->get_commit_evidence();
                   details->receipt = std::make_shared<TxReceipt>(
                     sig->sig,
                     proof.get_root(),
@@ -302,7 +306,7 @@ namespace ccf::historical
                     sig->node,
                     sig->cert,
                     details->entry_digest,
-                    details->get_commit_evidence(),
+                    commit_evidence,
                     details->claims_digest);
                   HISTORICAL_LOG(
                     "Assigned a sig for {} after given signature at {}",
@@ -382,6 +386,10 @@ namespace ccf::historical
                       {
                         auto proof = tree.get_proof(new_seqno);
                         new_details->transaction_id = {sig->view, new_seqno};
+                        std::optional<std::string> commit_evidence =
+                          std::nullopt;
+                        if (new_details->has_commit_evidence)
+                          commit_evidence = new_details->get_commit_evidence();
                         new_details->receipt = std::make_shared<TxReceipt>(
                           sig->sig,
                           proof.get_root(),
@@ -389,7 +397,7 @@ namespace ccf::historical
                           sig->node,
                           sig->cert,
                           new_details->entry_digest,
-                          new_details->get_commit_evidence(),
+                          commit_evidence,
                           new_details->claims_digest);
                         return std::nullopt;
                       }
@@ -429,6 +437,9 @@ namespace ccf::historical
                     {
                       auto proof = tree.get_proof(new_seqno);
                       new_details->transaction_id = {sig->view, new_seqno};
+                      std::optional<std::string> commit_evidence = std::nullopt;
+                      if (new_details->has_commit_evidence)
+                        commit_evidence = new_details->get_commit_evidence();
                       new_details->receipt = std::make_shared<TxReceipt>(
                         sig->sig,
                         proof.get_root(),
@@ -436,7 +447,7 @@ namespace ccf::historical
                         sig->node,
                         sig->cert,
                         new_details->entry_digest,
-                        new_details->get_commit_evidence(),
+                        commit_evidence,
                         new_details->claims_digest);
                     }
                   }
@@ -547,7 +558,8 @@ namespace ccf::historical
       const crypto::Sha256Hash& entry_digest,
       ccf::SeqNo seqno,
       bool is_signature,
-      ccf::ClaimsDigest&& claims_digest)
+      ccf::ClaimsDigest&& claims_digest,
+      bool has_commit_evidence)
     {
       auto request_it = requests.begin();
       while (request_it != requests.end())
@@ -603,6 +615,7 @@ namespace ccf::historical
           // Deserialisation includes a GCM integrity check, so all entries have
           // been verified by the time we get here.
           details->current_stage = RequestStage::Trusted;
+          details->has_commit_evidence = has_commit_evidence;
 
           details->entry_digest = entry_digest;
           if (!claims_digest.empty())
@@ -970,8 +983,14 @@ namespace ccf::historical
 
       kv::ApplyResult deserialise_result;
       ccf::ClaimsDigest claims_digest;
+      bool has_commit_evidence;
       auto store = deserialise_ledger_entry(
-        seqno, data, size, deserialise_result, claims_digest);
+        seqno,
+        data,
+        size,
+        deserialise_result,
+        claims_digest,
+        has_commit_evidence);
 
       if (deserialise_result == kv::ApplyResult::FAIL)
       {
@@ -1023,7 +1042,12 @@ namespace ccf::historical
         (size_t)deserialise_result);
       const auto entry_digest = crypto::Sha256Hash({data, size});
       process_deserialised_store(
-        store, entry_digest, seqno, is_signature, std::move(claims_digest));
+        store,
+        entry_digest,
+        seqno,
+        is_signature,
+        std::move(claims_digest),
+        has_commit_evidence);
 
       return true;
     }
@@ -1090,7 +1114,8 @@ namespace ccf::historical
       const uint8_t* data,
       size_t size,
       kv::ApplyResult& result,
-      ccf::ClaimsDigest& claims_digest)
+      ccf::ClaimsDigest& claims_digest,
+      bool& has_commit_evidence)
     {
       // Create a new store and try to deserialise this entry into it
       StorePtr store = std::make_shared<kv::Store>(
@@ -1136,6 +1161,10 @@ namespace ccf::historical
 
         result = exec->apply();
         claims_digest = std::move(exec->consume_claims_digest());
+
+        auto commit_evidence_digest =
+          std::move(exec->consume_commit_evidence_digest());
+        has_commit_evidence = (commit_evidence_digest != crypto::Sha256Hash());
       }
       catch (const std::exception& e)
       {

@@ -73,6 +73,10 @@ namespace ccf
         // Signature transaction
         r.leaf = root.to_string();
       }
+      else if (!commit_evidence.has_value())
+      {
+        r.leaf = write_set_digest->hex_str();
+      }
       else
       {
         std::optional<std::string> write_set_digest_str = std::nullopt;

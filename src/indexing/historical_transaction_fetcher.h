@@ -24,8 +24,9 @@ namespace ccf::indexing
     {
       kv::ApplyResult result;
       ccf::ClaimsDigest claims_digest;
+      bool has_commit_evidence;
       auto store = historical_cache->deserialise_ledger_entry(
-        seqno, data, size, result, claims_digest);
+        seqno, data, size, result, claims_digest, has_commit_evidence);
       if (store != nullptr && result != kv::ApplyResult::FAIL)
       {
         return store;
