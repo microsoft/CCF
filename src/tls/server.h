@@ -12,9 +12,7 @@ namespace tls
     std::shared_ptr<Cert> cert;
 
   public:
-    Server(std::shared_ptr<Cert> cert_, bool dtls = false) :
-      Context(false, dtls),
-      cert(cert_)
+    Server(std::shared_ptr<Cert> cert_) : Context(false), cert(cert_)
     {
       cert->use(ssl, cfg);
     }

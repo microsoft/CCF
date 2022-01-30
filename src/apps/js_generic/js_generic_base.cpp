@@ -610,7 +610,12 @@ namespace ccfapp
         if (!properties.openapi_hidden)
         {
           auto& path_op = ds::openapi::path_operation(
-            ds::openapi::path(document, key.uri_path),
+            ds::openapi::path(
+              document,
+              fmt::format(
+                "/{}{}",
+                ccf::get_actor_prefix(ccf::ActorsType::users),
+                key.uri_path)),
             http_verb.value(),
             false);
           if (!properties.openapi.empty())

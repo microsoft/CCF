@@ -9,6 +9,7 @@
 #include "enclave/interface.h"
 
 #include <dlfcn.h>
+#include <filesystem>
 #ifdef VIRTUAL_ENCLAVE
 #  include "enclave/ccf_v.h"
 #else
@@ -62,6 +63,12 @@ namespace host
       is_virtual_enclave(false),
       e(nullptr)
     {
+      if (!std::filesystem::exists(path))
+      {
+        throw std::logic_error(
+          fmt::format("No enclave file found at {}", path));
+      }
+
       if (flags == ENCLAVE_FLAG_VIRTUAL)
       {
 #ifdef VIRTUAL_ENCLAVE

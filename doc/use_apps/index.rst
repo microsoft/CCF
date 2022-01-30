@@ -27,9 +27,9 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     ---
 
     .. image:: ../img/python.svg
-      :width: 22
       :alt: Python
       :align: left
+      :class: ccf-tile-icon
 
     :doc:`python_tutorial`
     ^^^^^^^^^^^^^^^^^^^^^^
@@ -41,7 +41,7 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
     :fa:`terminal` :doc:`rpc_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    OpenAPI schema for user RPC API.
+    OpenAPI schema for user-facing API exposed by sample app, including common default endpoints.
 
 
 .. toctree::
