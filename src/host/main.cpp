@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
+#include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
@@ -11,6 +12,7 @@
 #include "ds/oversized.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "json_schema.h"
 #include "load_monitor.h"
 #include "node_connections.h"
 #include "process_launcher.h"
@@ -46,6 +48,56 @@ void print_version(size_t)
   exit(0);
 }
 
+void validate_enclave_file_suffix(
+  const std::string& file, host::EnclaveType type)
+{
+  char const* expected_suffix;
+  switch (type)
+  {
+    case host::EnclaveType::RELEASE:
+    {
+      expected_suffix = ".enclave.so.signed";
+      break;
+    }
+    case host::EnclaveType::DEBUG:
+    {
+      expected_suffix = ".enclave.so.debuggable";
+      break;
+    }
+    case host::EnclaveType::VIRTUAL:
+    {
+      expected_suffix = ".virtual.so";
+      break;
+    }
+    default:
+    {
+      throw std::logic_error(fmt::format("Unhandled enclave type: {}", type));
+    }
+  }
+
+  if (!nonstd::ends_with(file, expected_suffix))
+  {
+    // Remove possible suffixes to try and get root of filename, to build
+    // suggested filename
+    auto basename = file;
+    for (const char* suffix :
+         {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
+    {
+      if (nonstd::ends_with(basename, suffix))
+      {
+        basename = basename.substr(0, basename.size() - strlen(suffix));
+      }
+    }
+    const auto suggested = fmt::format("{}{}", basename, expected_suffix);
+    throw std::logic_error(fmt::format(
+      "Given enclave file '{}' does not have suffix expected for enclave type "
+      "{}. Did you mean '{}'?",
+      file,
+      nlohmann::json(type).dump(),
+      suggested));
+  }
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
@@ -75,11 +127,8 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
-
-  std::string config_str = files::slurp_string(config_file_path);
-
   host::CCHostConfig config = {};
+  std::string config_str = files::slurp_string(config_file_path);
   try
   {
     config = nlohmann::json::parse(config_str);
@@ -90,6 +139,29 @@ int main(int argc, char** argv)
       "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
 
+  auto config_json = nlohmann::json(config);
+  auto schema_json = nlohmann::json::parse(host::host_config_schema);
+
+  auto schema_error_msg = json::validate_json(config_json, schema_json);
+  if (schema_error_msg.has_value())
+  {
+    throw std::logic_error(fmt::format(
+      "Error validating JSON schema for configuration file {}: {}",
+      config_file_path,
+      schema_error_msg.value()));
+  }
+
+  if (config.logging.format == host::LogFormat::JSON)
+  {
+    logger::config::add_json_console_logger();
+  }
+  else
+  {
+    logger::config::add_text_console_logger();
+  }
+
+  LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
+
   if (check_config_only)
   {
     LOG_INFO_FMT("Configuration file successfully verified");
@@ -97,10 +169,6 @@ int main(int argc, char** argv)
   }
 
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
-  if (config.logging.format == host::LogFormat::JSON)
-  {
-    logger::config::initialize_with_json_console();
-  }
 
   uint32_t oe_flags = 0;
   size_t recovery_threshold = 0;
@@ -188,6 +256,7 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
+  validate_enclave_file_suffix(config.enclave.file, config.enclave.type);
   host::Enclave enclave(config.enclave.file, oe_flags);
 
   // messaging ring buffers

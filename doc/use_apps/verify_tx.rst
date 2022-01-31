@@ -8,7 +8,7 @@ Checking for Commit
 
 Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.
 
-To guarantee that their request is successfully committed to the ledger, a user should issue a :http:GET:`/tx` request, specifying the version received in the response. This version is constructed from a view and a sequence number.
+To guarantee that their request is successfully committed to the ledger, a user should issue a :http:GET:`/app/tx` request, specifying the version received in the response. This version is constructed from a view and a sequence number.
 
 .. code-block:: bash
 
@@ -22,7 +22,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
 
 This example queries the status of transaction ID ``2.18`` (constructed from view ``2`` and sequence number ``18``). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests and changed view (``x-ms-ccf-transaction-id: 5.42``).
 
-The possible statuses returned by :http:GET:`/tx` are:
+The possible statuses returned by :http:GET:`/app/tx` are:
 
 - ``UNKNOWN`` - this node has not received a transaction with the given ID
 - ``PENDING`` - this node has received a transaction with the given ID, but does not yet know if the transaction has been committed

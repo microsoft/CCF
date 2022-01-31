@@ -8,6 +8,7 @@
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
+#include "ringbuffer_logger.h"
 
 #include <chrono>
 #include <thread>
@@ -15,11 +16,6 @@
 // the central enclave object
 static std::mutex create_lock;
 static std::atomic<enclave::Enclave*> e;
-
-#ifdef INSIDE_ENCLAVE
-std::atomic<std::chrono::microseconds> logger::config::us =
-  std::chrono::microseconds::zero();
-#endif
 
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
@@ -74,8 +70,10 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
-    logger::config::msg() = AdminMessage::log_msg;
-    logger::config::writer() = writer_factory->create_writer_to_outside();
+    auto new_logger = std::make_unique<enclave::RingbufferLogger>(
+      writer_factory->create_writer_to_outside());
+    auto ringbuffer_logger = new_logger.get();
+    logger::config::loggers().push_back(std::move(new_logger));
 
     {
       // Report enclave version to host
@@ -196,6 +194,7 @@ extern "C"
         std::move(circuit),
         std::move(basic_writer_factory),
         std::move(writer_factory),
+        ringbuffer_logger,
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,

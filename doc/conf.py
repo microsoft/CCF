@@ -22,7 +22,10 @@ import pathlib
 
 from docutils import nodes
 
-sys.path.insert(0, os.path.abspath("../python"))
+# To import generate_config_rst
+sys.path.insert(0, os.path.abspath("."))
+
+import generate_config_rst
 
 
 # -- Project information -----------------------------------------------------
@@ -90,7 +93,7 @@ language = "en"
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "colorful"
+pygments_style = "zenburn"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -213,6 +216,7 @@ for arg in sys.argv:
     if "smv_current_version=" in arg:
         docs_version = arg.split("=")[1]
 
+
 # :ccf_repo: directive can be used to create a versioned link to GitHub repo
 extlinks = {
     "ccf_repo": (
@@ -333,10 +337,10 @@ def typedoc_role(
 def config_inited(app, config):
     # anything that needs to access app.config goes here
 
-    srcdir = pathlib.Path(app.srcdir)
+    doc_dir = pathlib.Path(app.srcdir)
     outdir = pathlib.Path(app.outdir)
 
-    js_pkg_dir = srcdir / ".." / "js" / "ccf-app"
+    js_pkg_dir = doc_dir / ".." / "js" / "ccf-app"
     js_docs_dir = outdir / "js" / "ccf-app"
     if js_pkg_dir.exists():
         # make versions.json from sphinx-multiversion available
@@ -382,11 +386,26 @@ def config_inited(app, config):
 
 
 def setup(app):
-    app.connect("config-inited", config_inited)
+    if not os.environ.get("SKIP_JS"):
+        app.connect("config-inited", config_inited)
 
-    srcdir = pathlib.Path(app.srcdir)
+    doc_dir = pathlib.Path(app.srcdir)  # CCF/doc/
+    root_dir = os.path.abspath(doc_dir / "..")  # CCF/
+
+    # import ccf python package to generate docs for this version
+    python_path = os.path.abspath(doc_dir / "../python")
+    sys.path.insert(0, python_path)
 
     # doxygen
-    breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
+    breathe_projects["CCF"] = str(doc_dir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
-        subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
+        subprocess.run(["doxygen"], cwd=root_dir, check=True)
+
+    # configuration generator
+    input_file_path = doc_dir / "host_config_schema/cchost_config.json"
+    output_file_path = doc_dir / "operations/generated_config.rst"
+
+    if os.path.exists(input_file_path):
+        generate_config_rst.generate_configuration_docs(
+            input_file_path, output_file_path
+        )

@@ -53,19 +53,12 @@ def ensure_reqs(check_reqs):
 
 
 def supports_methods(*methods):
-    def remove_prefix(s, prefix):
-        if s.startswith(prefix):
-            return s[len(prefix) :]
-        return s
-
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
             response = c.get("/app/api", log_capture=[])
             supported_methods = response.body.json()["paths"]
-            missing = {*methods}.difference(
-                [remove_prefix(key, "/") for key in supported_methods.keys()]
-            )
+            missing = {*methods}.difference(supported_methods.keys())
             if missing:
                 concat = ", ".join(missing)
                 raise TestRequirementsNotMet(f"Missing required methods: {concat}")

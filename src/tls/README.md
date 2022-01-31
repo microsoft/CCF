@@ -65,6 +65,3 @@ mimic the MbedTLS implementation, including:
 
 As discussed above, the error handling is slightly different and promotes
 verbose code in OpenSSL's side.
-
-Another example is `verify_result` and `get_verify_error` that is very long
-in the OpenSSL implementation and two one-liners in MbedTLS.

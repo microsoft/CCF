@@ -314,4 +314,4 @@ If CCF is updated and introduces a newer JavaScript engine version, then any pre
       ]
     }
 
-.. note:: The operator RPC :http:GET:`/js_metrics` returns the size of the bytecode and whether it is used. If it is not used, then either no bytecode is stored or it needs to be re-compiled due to a CCF update.
+.. note:: The operator RPC :http:GET:`/node/js_metrics` returns the size of the bytecode and whether it is used. If it is not used, then either no bytecode is stored or it needs to be re-compiled due to a CCF update.

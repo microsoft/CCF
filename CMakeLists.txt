@@ -51,6 +51,14 @@ configure_file(
 )
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
+file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+     HOST_CONFIG_SCHEMA
+)
+configure_file(
+  ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h
+  @ONLY
+)
+
 if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))
   set(CONSENSUSES cft bft)
   set(CONSENSUS_FILTER all)
@@ -449,6 +457,10 @@ if(BUILD_TESTS)
 
     add_test(NAME versionifier_test
              COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+    )
+
+    add_test(NAME github_version_lts_test
+             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
   endif()
 

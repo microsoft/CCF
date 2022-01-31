@@ -18,6 +18,7 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "oe_init.h"
+#include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -31,6 +32,7 @@ namespace enclave
     std::unique_ptr<ringbuffer::Circuit> circuit;
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
+    RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
     std::shared_ptr<RPCMap> rpc_map;
@@ -91,6 +93,7 @@ namespace enclave
       std::unique_ptr<ringbuffer::Circuit> circuit_,
       std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
       std::unique_ptr<oversized::WriterFactory> writer_factory_,
+      RingbufferLogger* ringbuffer_logger_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
@@ -98,6 +101,7 @@ namespace enclave
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
+      ringbuffer_logger(ringbuffer_logger_),
       network(consensus_config.type),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
@@ -270,7 +274,7 @@ namespace enclave
               AdminMessage::work_stats, to_host, j.dump());
 
             const auto time_now = enclave::get_enclave_time();
-            logger::config::set_time(time_now);
+            ringbuffer_logger->set_time(time_now);
 
             const auto elapsed_ms =
               std::chrono::duration_cast<std::chrono::milliseconds>(

@@ -416,7 +416,6 @@ namespace ccf
         network_ca,
         self_signed_node_cert,
         node_sign_kp->private_key_pem(),
-        tls::Auth::auth_required,
         config.join.target_rpc_address);
 
       // Create RPC client and connect to remote node
