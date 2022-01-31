@@ -577,6 +577,14 @@ class CCFRemote(object):
         self.pem = f"{local_node_id}.pem"
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
+
+        # 1.x releases have a separate cchost.virtual binary for virtual enclaves
+        if (
+            enclave_type == "virtual"
+            and major_version is not None
+            and major_version <= 1
+        ):
+            self.BIN = "cchost.virtual"
         self.BIN = infra.path.build_bin_path(self.BIN, binary_dir=binary_dir)
         self.common_dir = common_dir
         self.pub_host = host.get_primary_interface().public_host
