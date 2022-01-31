@@ -65,7 +65,9 @@ The current details, and open questions, are:
 
 * To fetch, we need to produce ``name'`` from ``name``. So if we want to derive a salt to hash with, it must be derived from the secret key.
 
-* ``data'`` is the AES-GCM encryption of ``data``, using |K_LFS| and a monotonically increasing IV.
+* ``data'`` is the AES-GCM encryption of ``data``, using |K_LFS| and a randomly selected IV.
+
+* How should we confirm that we've got the correct ``data_a``, and not some other (created by us) ``data_b``? Embed some fingerprint bytes in the IV, or prefix the encrypted message (currently doing the latter)?
 
 .. note::
 

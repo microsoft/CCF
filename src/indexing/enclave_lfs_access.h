@@ -19,32 +19,6 @@
 
 namespace ccf::indexing
 {
-  static inline std::vector<uint8_t> get_iv(const LFSKey& key)
-  {
-    auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
-    h.resize(crypto::GCM_SIZE_IV);
-    return h;
-  }
-
-  static inline LFSEncryptedContents encrypt(
-    crypto::KeyAesGcm& encryption_key,
-    const LFSKey& key,
-    LFSContents&& contents)
-  {
-    crypto::GcmCipher gcm(contents.size());
-    auto iv = get_iv(key);
-    gcm.hdr.set_iv(iv.data(), iv.size());
-
-    encryption_key.encrypt(
-      gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
-
-#ifdef PLAINTEXT_CACHE
-    gcm.cipher = contents;
-#endif
-
-    return gcm.serialise();
-  }
-
   static inline bool verify_and_decrypt(
     crypto::KeyAesGcm& encryption_key,
     const LFSKey& key,
@@ -54,28 +28,41 @@ namespace ccf::indexing
     crypto::GcmCipher gcm;
     gcm.deserialise(encrypted);
 
-    const CBuffer given_iv = gcm.hdr.get_iv();
-    const auto expected_iv = get_iv(key);
-    if (
-      given_iv.n != expected_iv.size() ||
-      (memcmp(given_iv.p, expected_iv.data(), given_iv.n) != 0))
-    {
-      LOG_TRACE_FMT(
-        "IV mismatch for {}: {:02x} != {:02x}",
-        key,
-        fmt::join(given_iv.p, given_iv.p + given_iv.n, " "),
-        fmt::join(get_iv(key), " "));
-      return false;
-    }
-
 #ifdef PLAINTEXT_CACHE
     plaintext = gcm.cipher;
-    const auto success = true;
+    auto success = true;
 #else
     plaintext.resize(gcm.cipher.size());
-    const auto success = encryption_key.decrypt(
+    auto success = encryption_key.decrypt(
       gcm.hdr.get_iv(), gcm.hdr.tag, gcm.cipher, nullb, plaintext.data());
 #endif
+
+    // Check key prefix in plaintext
+    {
+      const auto encoded_prefix_size = sizeof(key.size()) + key.size();
+      if (plaintext.size() < encoded_prefix_size)
+      {
+        return false;
+      }
+
+      auto data = (const uint8_t*)plaintext.data();
+      auto size = plaintext.size();
+      const auto prefix_size = serialized::read<size_t>(data, size);
+      if (prefix_size != key.size())
+      {
+        success = false;
+      }
+      else
+      {
+        if (memcmp(data, key.data(), key.size()) != 0)
+        {
+          success = false;
+        }
+
+        plaintext.erase(
+          plaintext.begin(), plaintext.begin() + encoded_prefix_size);
+      }
+    }
 
     if (success)
     {
@@ -99,6 +86,33 @@ namespace ccf::indexing
 
     crypto::EntropyPtr entropy_src;
     std::unique_ptr<crypto::KeyAesGcm> encryption_key;
+
+    LFSEncryptedContents encrypt(const LFSKey& key, LFSContents&& contents)
+    {
+      // Prefix the contents with the key, to be checked during decryption
+      {
+        std::vector<uint8_t> key_prefix(sizeof(key.size()) + key.size());
+        auto data = key_prefix.data();
+        auto size = key_prefix.size();
+        serialized::write(data, size, key);
+        contents.insert(contents.begin(), key_prefix.begin(), key_prefix.end());
+      }
+
+      crypto::GcmCipher gcm(contents.size());
+
+      // Use a random IV for each call
+      auto iv = entropy_src->random(crypto::GCM_SIZE_IV);
+      gcm.hdr.set_iv(iv.data(), iv.size());
+
+      encryption_key->encrypt(
+        gcm.hdr.get_iv(), contents, nullb, gcm.cipher.data(), gcm.hdr.tag);
+
+#ifdef PLAINTEXT_CACHE
+      gcm.cipher = contents;
+#endif
+
+      return gcm.serialise();
+    }
 
   public:
     EnclaveLFSAccess(const ringbuffer::WriterPtr& writer) :
@@ -234,7 +248,7 @@ namespace ccf::indexing
         // To avoid leaking potentially confidential information to the host,
         // all cached data is encrypted and stored at an obfuscated key
         obfuscated,
-        encrypt(*encryption_key, obfuscated, std::move(contents)));
+        encrypt(obfuscated, std::move(contents)));
     }
 
     FetchResultPtr fetch(const LFSKey& key) override
