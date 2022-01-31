@@ -28,7 +28,7 @@ def submit_range(primary, id_pattern, start, end, format_width):
 
             msg = f"Unique message {i}"
             r = c.post(
-                "/app/log/private",
+                "/app/log/public",
                 {
                     "id": idx,
                     "msg": msg,

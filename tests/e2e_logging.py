@@ -156,7 +156,7 @@ def test_large_messages(network, args):
             # pass but not others, and finding where does it fail).
             log_id = 40
             for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2 ** p)
+                long_msg = "X" * (2**p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
                     result=True,
@@ -678,7 +678,7 @@ def get_all_entries(
     start_time = time.time()
     end_time = start_time + timeout
     entries = []
-    path = f"/app/log/private/historical/range?id={target_id}"
+    path = f"/app/log/public/historical/range?id={target_id}"
     if from_seqno is not None:
         path += f"&from_seqno={from_seqno}"
     if to_seqno is not None:
@@ -713,7 +713,7 @@ def get_all_entries(
 
 
 @reqs.description("Read range of historical state")
-@reqs.supports_methods("log/private", "log/private/historical/range")
+@reqs.supports_methods("log/public", "log/public/historical/range")
 def test_historical_query_range(network, args):
     id_a = 142
     id_b = 143
@@ -742,7 +742,7 @@ def test_historical_query_range(network, args):
             network.txs.issue(
                 network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
             )
-            _, tx = network.txs.get_last_tx(idx=idx)
+            _, tx = network.txs.get_last_tx(idx=idx, priv=False)
             msg = tx["msg"]
             seqno = tx["seqno"]
             view = tx["view"]
