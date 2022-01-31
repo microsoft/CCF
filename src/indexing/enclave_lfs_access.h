@@ -17,6 +17,11 @@
 // directly unencrypted to host disk
 // #define PLAINTEXT_CACHE
 
+#if defined(INSIDE_ENCLAVE) && defined(PLAINTEXT_CACHE)
+#  error \
+    "PLAINTEXT_CACHE should only be used for debugging, and not enabled for enclave builds"
+#endif
+
 namespace ccf::indexing
 {
   static inline bool verify_and_decrypt(
