@@ -58,14 +58,19 @@ We want the name obfuscation to limit the former, and will explore padding optio
 
 The current details, and open questions, are:
 
+* We expect ``name`` and ``data`` to always be a matching pair, once the LFS has seen it. So we are not appending incrementally different values of ``data`` each time, and even if we re-index in future we will produce identical values.
+
 * A node generates a fresh AES-GCM key |K_LFS| on startup, which never leaves the enclave. This will be used to encrypt and decrypt all of its LFS files, and lives as long as the node.
 
    * Should this be derived from the node key?
    * *This should be rotated rather than used indefinitely! But does the derived key need to be determined from ``name``, or can it be specified by ``D``?*
+   * Should this just be a HKDF derived key per-file (aka per-``name``)?
 
 * To fetch, we need to produce ``name'`` from ``name``. So if we want to derive a salt to hash with, it must be derived from the secret key.
 
 * ``data'`` is the AES-GCM encryption of ``data``, using |K_LFS| and a randomly selected IV.
+
+   * The host could convince a node to re-index, potentially producing ``data_a'``, ``data_b'``, ``data_c'``, with different IVs but from the same plaintext ``data``. Is this a risk?
 
 * How should we confirm that we've got the correct ``data_a``, and not some other (created by us) ``data_b``? Embed some fingerprint bytes in the IV, or prefix the encrypted message (currently doing the latter)?
 
