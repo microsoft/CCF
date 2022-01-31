@@ -47,6 +47,10 @@ def verify_receipt(
         ccf.receipt.check_endorsement(node_cert, service_cert)
     if claims is not None:
         assert "leaf_components" in receipt
+        assert "commit_evidence" in receipt["leaf_components"]
+        commit_evidence_digest = sha256(
+            receipt["leaf_components"]["commit_evidence"].encode()
+        ).digest()
         if not generic:
             assert "claims_digest" not in receipt["leaf_components"]
         claims_digest = sha256(claims).digest()
@@ -54,6 +58,7 @@ def verify_receipt(
         leaf = (
             sha256(
                 bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+                + commit_evidence_digest
                 + claims_digest
             )
             .digest()
@@ -64,11 +69,24 @@ def verify_receipt(
             leaf = receipt["leaf"]
         else:
             assert "leaf_components" in receipt
+            assert "write_set_digest" in receipt["leaf_components"]
             write_set_digest = bytes.fromhex(
                 receipt["leaf_components"]["write_set_digest"]
             )
-            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
-            leaf = sha256(write_set_digest + claims_digest).digest().hex()
+            assert "commit_evidence" in receipt["leaf_components"]
+            commit_evidence_digest = sha256(
+                receipt["leaf_components"]["commit_evidence"].encode()
+            ).digest()
+            claims_digest = (
+                bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+                if "claims_digest" in receipt["leaf_components"]
+                else b""
+            )
+            leaf = (
+                sha256(write_set_digest + commit_evidence_digest + claims_digest)
+                .digest()
+                .hex()
+            )
     root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
@@ -1336,8 +1354,8 @@ def run(args):
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
-        network = test_historical_receipts(network, args)
         if "v8" not in args.package:
+            network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
 
 

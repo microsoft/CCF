@@ -315,8 +315,7 @@ namespace loggingapp
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
         {
-          ctx.rpc_ctx->set_claims_digest(
-            ccf::ClaimsDigest::Digest::from_string(in.msg));
+          ctx.rpc_ctx->set_claims_digest(ccf::ClaimsDigest::Digest(in.msg));
         }
         // SNIPPET_END: set_claims_digest
         return ccf::make_success(true);
