@@ -23,7 +23,7 @@ namespace kv
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      crypto::Sha256Hash& commit_evidence_digest,
+      std::optional<crypto::Sha256Hash>& commit_evidence_digest,
       bool ignore_strict_versions = false) = 0;
 
     virtual bool commit_deserialised(
@@ -47,7 +47,7 @@ namespace kv
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
     ccf::ClaimsDigest claims_digest;
-    crypto::Sha256Hash commit_evidence_digest = {};
+    std::optional<crypto::Sha256Hash> commit_evidence_digest = {};
 
     const std::optional<TxID> expected_txid;
 
@@ -70,7 +70,8 @@ namespace kv
       return std::move(claims_digest);
     }
 
-    crypto::Sha256Hash&& consume_commit_evidence_digest() override
+    std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+      override
     {
       return std::move(commit_evidence_digest);
     }
@@ -153,23 +154,8 @@ namespace kv
 
       if (history)
       {
-        if (claims_digest.empty())
-        {
-          if (commit_evidence_digest == crypto::Sha256Hash())
-          {
-            history->append(data);
-          }
-          else
-          {
-            history->append_entry(
-              ccf::entry_leaf(data, commit_evidence_digest));
-          }
-        }
-        else
-        {
-          history->append_entry(ccf::entry_leaf(
-            data, commit_evidence_digest, claims_digest.value()));
-        }
+        history->append_entry(
+          ccf::entry_leaf(data, commit_evidence_digest, claims_digest));
       }
       return success;
     }

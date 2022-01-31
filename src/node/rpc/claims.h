@@ -14,32 +14,35 @@ namespace ccf
 
   static crypto::Sha256Hash entry_leaf(
     const std::vector<uint8_t>& write_set,
-    const crypto::Sha256Hash& commit_evidence_digest,
-    const ClaimsDigest::Digest& claims_digest)
+    const std::optional<crypto::Sha256Hash>& commit_evidence_digest,
+    const ClaimsDigest& claims_digest)
   {
     crypto::Sha256Hash write_set_digest({write_set.data(), write_set.size()});
-    auto leaf = crypto::Sha256Hash(
-      write_set_digest, commit_evidence_digest, claims_digest);
-    LOG_TRACE_FMT(
-      "entry_leaf ws: {} + ce: {} + cd: {} = {}",
-      write_set_digest,
-      commit_evidence_digest,
-      claims_digest,
-      leaf);
-    return leaf;
-  }
-
-  static crypto::Sha256Hash entry_leaf(
-    const std::vector<uint8_t>& write_set,
-    const crypto::Sha256Hash& commit_evidence_digest)
-  {
-    crypto::Sha256Hash write_set_digest({write_set.data(), write_set.size()});
-    auto leaf = crypto::Sha256Hash(write_set_digest, commit_evidence_digest);
-    LOG_TRACE_FMT(
-      "entry_leaf ws: {} + ce: {} = {}",
-      write_set_digest,
-      commit_evidence_digest,
-      leaf);
-    return leaf;
+    if (commit_evidence_digest.has_value())
+    {
+      if (claims_digest.empty())
+      {
+        return crypto::Sha256Hash(
+          write_set_digest, commit_evidence_digest.value());
+      }
+      else
+      {
+        return crypto::Sha256Hash(
+          write_set_digest,
+          commit_evidence_digest.value(),
+          claims_digest.value());
+      }
+    }
+    else
+    {
+      if (claims_digest.empty())
+      {
+        return crypto::Sha256Hash(write_set_digest);
+      }
+      else
+      {
+        return crypto::Sha256Hash(write_set_digest, claims_digest.value());
+      }
+    }
   }
 }

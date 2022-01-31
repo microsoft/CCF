@@ -1164,7 +1164,7 @@ namespace ccf::historical
 
         auto commit_evidence_digest =
           std::move(exec->consume_commit_evidence_digest());
-        has_commit_evidence = (commit_evidence_digest != crypto::Sha256Hash());
+        has_commit_evidence = commit_evidence_digest.has_value();
       }
       catch (const std::exception& e)
       {

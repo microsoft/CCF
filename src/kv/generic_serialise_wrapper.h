@@ -234,7 +234,7 @@ namespace kv
     std::vector<uint8_t> decrypted_buffer;
     EntryType entry_type;
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
-    crypto::Sha256Hash commit_evidence_digest = {};
+    std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -257,7 +257,8 @@ namespace kv
         auto digest_array =
           public_reader
             .template read_next<crypto::Sha256Hash::Representation>();
-        commit_evidence_digest.set(std::move(digest_array));
+        commit_evidence_digest =
+          crypto::Sha256Hash::from_representation(digest_array);
       }
       // max_conflict_version is included for compatibility, but currently
       // ignored
@@ -277,7 +278,7 @@ namespace kv
       return std::move(claims_digest);
     }
 
-    crypto::Sha256Hash&& consume_commit_evidence_digest()
+    std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
     {
       return std::move(commit_evidence_digest);
     }

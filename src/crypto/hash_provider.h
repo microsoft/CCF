@@ -131,6 +131,13 @@ namespace crypto
       std::copy(sp.begin(), sp.end(), digest.h.begin());
       return digest;
     }
+
+    static inline Sha256Hash from_representation(const Representation& r)
+    {
+      Sha256Hash digest;
+      digest.h = r;
+      return digest;
+    }
   };
 
   inline void to_json(nlohmann::json& j, const Sha256Hash& hash)
