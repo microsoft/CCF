@@ -346,6 +346,9 @@
           "claims_digest": {
             "$ref": "#/components/schemas/string"
           },
+          "commit_evidence": {
+            "$ref": "#/components/schemas/string"
+          },
           "write_set_digest": {
             "$ref": "#/components/schemas/string"
           }

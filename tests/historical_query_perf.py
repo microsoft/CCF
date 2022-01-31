@@ -28,7 +28,7 @@ def submit_range(primary, id_pattern, start, end, format_width):
 
             msg = f"Unique message {i}"
             r = c.post(
-                "/app/log/private",
+                "/app/log/public",
                 {
                     "id": idx,
                     "msg": msg,
@@ -59,7 +59,7 @@ def test_historical_query_range(network, args):
     # ratio of transactions will match this
     id_pattern = [id_a, id_a, id_a, id_b, id_b, id_c]
 
-    n_entries = 10000
+    n_entries = 30000
     format_width = len(str(n_entries))
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer()
@@ -117,6 +117,8 @@ def test_historical_query_range(network, args):
         entries[id_a], duration_a = get_all_entries(c, id_a, timeout=timeout)
         entries[id_b], duration_b = get_all_entries(c, id_b, timeout=timeout)
         entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
+
+        c.get("/node/memory")
 
     id_a_fetch_rate = len(entries[id_a]) / duration_a
     id_b_fetch_rate = len(entries[id_b]) / duration_b

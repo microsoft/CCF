@@ -17,9 +17,7 @@ namespace ccf::indexing
   class IndexingStrategies
   {
   protected:
-    // Store the highest TxID that each strategy has been given, and assume it
-    // doesn't need to be given again later.
-    std::map<StrategyPtr, ccf::TxID> strategies;
+    std::set<StrategyPtr> strategies;
 
   public:
     virtual ~IndexingStrategies() = default;
@@ -31,16 +29,7 @@ namespace ccf::indexing
         throw std::logic_error("Tried to install null strategy");
       }
 
-      const auto it = strategies.find(strategy);
-      if (it == strategies.end())
-      {
-        strategies.emplace_hint(it, strategy, ccf::TxID{});
-        return true;
-      }
-      else
-      {
-        return false;
-      }
+      return strategies.insert(strategy).second;
     }
   };
 }
