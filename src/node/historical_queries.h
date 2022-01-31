@@ -121,13 +121,20 @@ namespace ccf::historical
         }
       }
 
-      std::string get_commit_evidence()
+      std::optional<std::string> get_commit_evidence()
       {
-        return fmt::format(
-          "ce:{}.{}:{}",
-          transaction_id.view,
-          transaction_id.seqno,
-          ds::to_hex(get_commit_nonce()));
+        if (has_commit_evidence)
+        {
+          return fmt::format(
+            "ce:{}.{}:{}",
+            transaction_id.view,
+            transaction_id.seqno,
+            ds::to_hex(get_commit_nonce()));
+        }
+        else
+        {
+          return std::nullopt;
+        }
       }
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
@@ -296,9 +303,6 @@ namespace ccf::historical
                 {
                   auto proof = tree.get_proof(seqno);
                   details->transaction_id = {sig->view, seqno};
-                  std::optional<std::string> commit_evidence = std::nullopt;
-                  if (details->has_commit_evidence)
-                    commit_evidence = details->get_commit_evidence();
                   details->receipt = std::make_shared<TxReceipt>(
                     sig->sig,
                     proof.get_root(),
@@ -306,7 +310,7 @@ namespace ccf::historical
                     sig->node,
                     sig->cert,
                     details->entry_digest,
-                    commit_evidence,
+                    details->get_commit_evidence(),
                     details->claims_digest);
                   HISTORICAL_LOG(
                     "Assigned a sig for {} after given signature at {}",
@@ -386,10 +390,6 @@ namespace ccf::historical
                       {
                         auto proof = tree.get_proof(new_seqno);
                         new_details->transaction_id = {sig->view, new_seqno};
-                        std::optional<std::string> commit_evidence =
-                          std::nullopt;
-                        if (new_details->has_commit_evidence)
-                          commit_evidence = new_details->get_commit_evidence();
                         new_details->receipt = std::make_shared<TxReceipt>(
                           sig->sig,
                           proof.get_root(),
@@ -397,7 +397,7 @@ namespace ccf::historical
                           sig->node,
                           sig->cert,
                           new_details->entry_digest,
-                          commit_evidence,
+                          details->get_commit_evidence(),
                           new_details->claims_digest);
                         return std::nullopt;
                       }
@@ -437,9 +437,6 @@ namespace ccf::historical
                     {
                       auto proof = tree.get_proof(new_seqno);
                       new_details->transaction_id = {sig->view, new_seqno};
-                      std::optional<std::string> commit_evidence = std::nullopt;
-                      if (new_details->has_commit_evidence)
-                        commit_evidence = new_details->get_commit_evidence();
                       new_details->receipt = std::make_shared<TxReceipt>(
                         sig->sig,
                         proof.get_root(),
@@ -447,7 +444,7 @@ namespace ccf::historical
                         sig->node,
                         sig->cert,
                         new_details->entry_digest,
-                        commit_evidence,
+                        details->get_commit_evidence(),
                         new_details->claims_digest);
                     }
                   }
