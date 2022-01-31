@@ -87,12 +87,16 @@ namespace enclave
         {
           // Send HTTP response describing soft session limit
           auto http_response = http::Response(HTTP_STATUS_SERVICE_UNAVAILABLE);
+
           http_response.set_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          const auto response_body = fmt::format(
-            "Service is currently busy and unable to serve new connections");
-          http_response.set_body(
-            (const uint8_t*)response_body.data(), response_body.size());
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+          nlohmann::json body = ccf::ODataErrorResponse{ccf::ODataError{
+            ccf::errors::SessionCapExhausted,
+            "Service is currently busy and unable to serve new connections"}};
+          const auto s = body.dump();
+          http_response.set_body((const uint8_t*)s.data(), s.size());
+
           send(http_response.build_response());
 
           // Close connection
