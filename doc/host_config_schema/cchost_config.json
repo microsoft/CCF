@@ -63,7 +63,7 @@
                 "type": "string",
                 "enum": ["Node", "Network"],
                 "default": "Network",
-                "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete."
+                "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Network' means service-endorsed."
               }
             },
             "required": ["bind_address"]

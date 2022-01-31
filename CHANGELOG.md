@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- The new `endorsement_type` configuration entry lets operators set the desired TLS certificate endorsement type, either service-endorsed or unendorsed (self-signed), for each network RPC interface of a node, defaulting to service-endorsed (#2875).
+
 ### Changed
 
 - Service certificate validity period is no longer hardcoded and can instead be set by operators and renewed by members (#3363):
@@ -15,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
 - Service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
 - Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
+- Node RPC interfaces do not anymore transition from unendorsed to service-endorsed TLS certificates but are fixed to a single configured type. While a given endorsement is not available yet (typical at start-up for service-endorsed certificates) the interface rejects TLS sessions instead of defaulting to an unendorsed certificate (#2875).
 
 ### Removed
 
