@@ -531,8 +531,9 @@ namespace ccf::historical
         {
           throw std::logic_error(fmt::format(
             "Earliest known ledger secret at {} has no earlier secret stored "
-            "version",
-            earliest_ledger_secret_seqno));
+            "version ({})",
+            earliest_ledger_secret_seqno,
+            seqno));
         }
 
         const auto seqno_to_fetch = previous_secret_stored_version.value();

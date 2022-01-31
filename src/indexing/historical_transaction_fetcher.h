@@ -44,7 +44,9 @@ namespace ccf::indexing
     {
       const ccf::historical::CompoundHandle handle{
         historical::RequestNamespace::System, 0};
-      auto stores = historical_cache->get_stores_for(handle, seqnos);
+      ccf::historical::SeqNoCollection historical_seqnos(
+        seqnos.begin(), seqnos.end());
+      auto stores = historical_cache->get_stores_for(handle, historical_seqnos);
       if (!stores.empty())
       {
         historical_cache->drop_cached_states(handle);

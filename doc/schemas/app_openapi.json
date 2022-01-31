@@ -686,53 +686,6 @@
         ]
       }
     },
-    "/app/log/private/historical/range": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "from_seqno",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/uint64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "to_seqno",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/uint64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/uint64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoggingGetHistoricalRange__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "jwt": []
-          }
-        ]
-      }
-    },
     "/app/log/private/historical/sparse": {
       "get": {
         "parameters": [
@@ -976,6 +929,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/uint64"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/app/log/public/historical/range": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from_seqno",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_seqno",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetHistoricalRange__Out"
                 }
               }
             },

@@ -65,42 +65,43 @@ namespace ccf::indexing
     {
       update_commit(newly_committed);
 
-      std::optional<ccf::TxID> min_requested = std::nullopt;
-      for (auto& [strategy, last_provided] : strategies)
+      std::optional<ccf::SeqNo> min_requested = std::nullopt;
+      for (auto& strategy : strategies)
       {
         strategy->tick();
 
-        const auto max_requested = strategy->highest_requested();
-        if (
-          max_requested.has_value() &&
-          !tx_id_less(last_provided, *max_requested))
+        const auto next_requested = strategy->next_requested();
+        if (!next_requested.has_value())
         {
-          // If this strategy has an upper-bound on Txs it cares about, and
-          // we've already provided that, don't consider advancing it any
-          // further
+          // If this strategy does not want any more Txs, don't consider
+          // advancing it any further If this strategy has an upper-bound on Txs
+          // it cares about, and we've already provided that, don't consider
+          // advancing it any further
           continue;
         }
 
-        if (
-          !min_requested.has_value() ||
-          tx_id_less(last_provided, *min_requested))
+        if (!min_requested.has_value() || *next_requested < *min_requested)
         {
-          min_requested = last_provided;
+          min_requested = next_requested;
         }
       }
 
       if (min_requested.has_value())
       {
-        if (tx_id_less(*min_requested, committed))
+        if (*min_requested < committed.seqno)
         {
           // Request a prefix of the missing entries. Cap the requested range,
           // so we don't overload the node with a huge historical request
-          const auto first_requested = min_requested->seqno + 1;
+          const auto first_requested = *min_requested;
           auto additional = std::min(
             MAX_REQUESTABLE - uncommitted_entries.size(),
             committed.seqno - first_requested);
 
-          SeqNoCollection seqnos(first_requested, additional);
+          SeqNoCollection seqnos;
+          for (auto i = first_requested; i <= first_requested + additional; ++i)
+          {
+            seqnos.insert(i);
+          }
 
           auto stores = transaction_fetcher->fetch_transactions(seqnos);
           for (auto& store : stores)
@@ -108,16 +109,13 @@ namespace ccf::indexing
             const kv::TxID kv_tx = store->current_txid();
             const ccf::TxID tx_id{kv_tx.term, kv_tx.version};
 
-            for (auto& [strategy, last_provided] : strategies)
+            for (auto& strategy : strategies)
             {
-              const auto max_requested = strategy->highest_requested();
+              const auto next_requested = strategy->next_requested();
               if (
-                tx_id.seqno == last_provided.seqno + 1 &&
-                (!max_requested.has_value() ||
-                 max_requested->seqno >= tx_id.seqno))
+                next_requested.has_value() && (tx_id.seqno == *next_requested))
               {
                 strategy->handle_committed_transaction(tx_id, store);
-                last_provided = tx_id;
               }
             }
           }

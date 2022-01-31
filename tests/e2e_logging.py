@@ -696,7 +696,7 @@ def get_all_entries(
     start_time = time.time()
     end_time = start_time + timeout
     entries = []
-    path = f"/app/log/private/historical/range?id={target_id}"
+    path = f"/app/log/public/historical/range?id={target_id}"
     if from_seqno is not None:
         path += f"&from_seqno={from_seqno}"
     if to_seqno is not None:
@@ -731,7 +731,7 @@ def get_all_entries(
 
 
 @reqs.description("Read range of historical state")
-@reqs.supports_methods("/app/log/private", "/app/log/private/historical/range")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 def test_historical_query_range(network, args):
     id_a = 142
     id_b = 143
@@ -760,7 +760,7 @@ def test_historical_query_range(network, args):
             network.txs.issue(
                 network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
             )
-            _, tx = network.txs.get_last_tx(idx=idx)
+            _, tx = network.txs.get_last_tx(idx=idx, priv=False)
             msg = tx["msg"]
             seqno = tx["seqno"]
             view = tx["view"]

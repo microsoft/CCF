@@ -13,6 +13,7 @@
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "json_schema.h"
+#include "lfs_file_handler.h"
 #include "load_monitor.h"
 #include "node_connections.h"
 #include "process_launcher.h"
@@ -306,7 +307,7 @@ int main(int argc, char** argv)
     // regularly record some load statistics
     asynchost::LoadMonitor load_monitor(500ms, bp);
 
-    // handle outbound messages from the enclave
+    // handle outbound logging and admin messages from the enclave
     asynchost::HandleRingbuffer handle_ringbuffer(
       1ms, bp, circuit.read_from_inside(), non_blocking_factory);
 
@@ -323,6 +324,11 @@ int main(int argc, char** argv)
 
     asynchost::SnapshotManager snapshots(config.snapshots.directory, ledger);
     snapshots.register_message_handlers(bp.get_dispatcher());
+
+    // handle LFS-related messages from the enclave
+    asynchost::LFSFileHandler lfs_file_handler(
+      writer_factory.create_writer_to_inside());
+    lfs_file_handler.register_message_handlers(bp.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.
     // This includes DNS resolution and potentially dynamic port assignment (if
