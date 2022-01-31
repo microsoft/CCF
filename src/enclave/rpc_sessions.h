@@ -216,7 +216,7 @@ namespace enclave
       // the caller's certificate in the relevant store table. The caller
       // certificate does not have to be signed by a known CA (nullptr) and
       // verification is not required here.
-      cert = std::make_shared<tls::Cert>(
+      auto cert = std::make_shared<tls::Cert>(
         nullptr, cert_, pk, std::nullopt, /*auth_required ==*/false);
 
       std::lock_guard<std::mutex> guard(lock);
@@ -225,7 +225,7 @@ namespace enclave
       {
         if (interface.endorsement_type == endorsement_type)
         {
-          certs.insert(std::make_pair(listen_interface_id, cert));
+          certs.insert_or_assign(listen_interface_id, cert);
         }
       }
     }

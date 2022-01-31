@@ -106,6 +106,13 @@
         ],
         "type": "string"
       },
+      "EndorsementType": {
+        "enum": [
+          "Node",
+          "Network"
+        ],
+        "type": "string"
+      },
       "EndpointMetrics": {
         "properties": {
           "metrics": {
@@ -417,6 +424,9 @@
         "properties": {
           "bind_address": {
             "$ref": "#/components/schemas/string"
+          },
+          "endorsement_type": {
+            "$ref": "#/components/schemas/EndorsementType"
           },
           "max_open_sessions_hard": {
             "$ref": "#/components/schemas/uint64"
