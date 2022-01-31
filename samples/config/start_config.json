@@ -4,10 +4,7 @@
     "type": "release"
   },
   "network": {
-    "node_to_node_interface": {
-      "bind_address": "127.0.0.1:8081",
-      "lala": { "type": "integer" }
-    },
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
     "rpc_interfaces": {
       "primary_rpc_interface": {
         "bind_address": "127.0.0.1:8080",
