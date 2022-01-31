@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/entropy.h"
+#include "crypto/hmac.h"
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "secrets.h"
@@ -12,12 +13,27 @@
 
 namespace ccf
 {
+  static constexpr auto commit_secret_label_ = "Commit Secret Label";
+
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
     std::shared_ptr<crypto::KeyAesGcm> key;
-
     std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
+    std::optional<crypto::HashBytes> commit_secret = std::nullopt;
+
+    const crypto::HashBytes& get_commit_secret()
+    {
+      if (!commit_secret.has_value())
+      {
+        commit_secret = crypto::hmac(
+          crypto::MDType::SHA256,
+          raw_key,
+          {commit_secret_label_,
+           commit_secret_label_ + sizeof(commit_secret_label_)});
+      }
+      return commit_secret.value();
+    }
 
     bool operator==(const LedgerSecret& other) const
     {
