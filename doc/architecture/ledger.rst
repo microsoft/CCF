@@ -41,6 +41,8 @@ The following table describes the structure of a serialised transaction as it is
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`crypto::Sha256Hash`           | User-defined claims digest, when entry type is WriteSetWith.*Claims     |
 +          +------------------------------------------+-------------------------------------------------------------------------+
+|          | :cpp:type:`crypto::Sha256Hash`           | Commit evidence digest, when entry type is WriteSetWithCommitEvidence.* |
++          +------------------------------------------+-------------------------------------------------------------------------+
 |          | :cpp:type:`kv::Version`                  | Unused, reserved for compatibility                                      |
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | **Repeating [0..n]**                     | With ``n`` the number of maps in the transaction                        |
