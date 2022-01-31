@@ -9,10 +9,10 @@
 #include "kv/test/null_encryptor.h"
 
 using MapA = kv::Map<std::string, std::string>;
-static kv::Map<std::string, std::string> map_a("private_map_a");
+static kv::Map<std::string, std::string> map_a("public:map_a");
 
 using MapB = kv::Map<size_t, size_t>;
-static kv::Map<size_t, size_t> map_b("private_map_b");
+static kv::Map<size_t, size_t> map_b("public:map_b");
 
 static const std::chrono::milliseconds step_time(10);
 

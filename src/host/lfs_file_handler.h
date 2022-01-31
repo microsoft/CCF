@@ -11,7 +11,7 @@ namespace asynchost
 {
   struct LFSFileHandler
   {
-    const std::filesystem::path root_dir = ".ccf_lfs";
+    const std::filesystem::path root_dir = ".index";
 
     ringbuffer::WriterPtr writer;
 

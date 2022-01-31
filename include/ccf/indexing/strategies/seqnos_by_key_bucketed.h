@@ -15,7 +15,7 @@ namespace ccf::indexing::strategies
   class SeqnosByKey_Bucketed : public VisitEachEntryInMap
   {
   protected:
-    const size_t seqnos_per_bucket = 100;
+    const size_t seqnos_per_bucket;
 
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
@@ -333,7 +333,15 @@ namespace ccf::indexing::strategies
       seqnos_per_bucket(seqnos_per_bucket_),
       old_results(max_buckets_),
       lfs_access(lfs_access_)
-    {}
+    {
+      if (kv::get_security_domain(map_name_) != kv::SecurityDomain::PUBLIC)
+      {
+        throw std::logic_error(fmt::format(
+          "This Strategy is currently only implemented for public tables, so "
+          "cannot be used for '{}'",
+          map_name_));
+      }
+    }
 
     SeqnosByKey_Bucketed(
       const M& map,
