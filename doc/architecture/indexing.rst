@@ -9,7 +9,7 @@ The framework handles all details of fetching and validating these entries, to p
 Fetching each transaction on-demand is too slow for some use cases, especially for historical queries which may be called regularly.
 To improve the performance of this kind of query, the framework provides a generic indexing system.
 Applications can define and install a strategy for processing historical queries.
-Each strategy will be given the raw contents of historical transactions shortly after they are committed, and can build its own index ahead of a user-query.
+Each strategy will be given the raw contents of transactions shortly after they are committed, and can build its own index ahead of a user-query.
 This index is built once but may be queried many times, preventing duplicate fetches and processing for duplicate queries.
 
 For instance, if we want to answer a query like "tell me the TxID of every transaction which wrote to this table", we could write a strategy which stores a large list of those TxIDs as it sees them.
