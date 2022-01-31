@@ -11,7 +11,7 @@ TEST_CASE("Test custom log format")
 {
   std::string test_log_file = "./test_json_logger.txt";
   remove(test_log_file.c_str());
-  logger::config::initialize_with_json_console();
+  logger::config::add_json_console_logger();
   logger::config::level() = logger::DEBUG;
   std::string log_msg_dbg = "log_msg_dbg";
   std::string log_msg_fail = "log_msg_fail";
@@ -22,6 +22,9 @@ TEST_CASE("Test custom log format")
 
   LOG_DEBUG_FMT("{}", log_msg_dbg);
   LOG_TRACE_FMT("{}", log_msg_fail);
+  LOG_DEBUG_FMT("{}", log_msg_dbg);
+  LOG_TRACE_FMT("{}", log_msg_fail);
+  LOG_DEBUG_FMT("{}", log_msg_dbg);
 
   out.flush();
   out.close();
@@ -43,5 +46,5 @@ TEST_CASE("Test custom log format")
     REQUIRE(line_number != j.end());
     REQUIRE(j["level"] == "debug");
   }
-  REQUIRE(line_count == 1);
+  REQUIRE(line_count == 3);
 }

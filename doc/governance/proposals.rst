@@ -245,7 +245,7 @@ These proposals and votes should be sent as the body of HTTP requests as describ
 Submitting a New Proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposals`` and vote using ``POST /gov/proposals/{proposal_id}/ballots``.
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using :http:POST:`/gov/proposals` and vote using :http:POST:`/gov/proposals/{proposal_id}/ballots`.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
@@ -319,12 +319,12 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
 
 As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``. The response shows this, as the proposal's state is now ``Accepted``.
 
-.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a ``/gov/ack`` request. See :ref:`governance/adding_member:Activating a New Member`.
+.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a :http:POST:`/gov/ack` request. See :ref:`governance/adding_member:Activating a New Member`.
 
 Displaying Proposals
 --------------------
 
-The details of pending proposals, can be queried from the service by calling ``GET /gov/proposals/{proposal_id}``. For example, after accepting the proposal above:
+The details of pending proposals, can be queried from the service by calling :http:GET:`/gov/proposals/{proposal_id}`. For example, after accepting the proposal above:
 
 .. code-block:: bash
 

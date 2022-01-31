@@ -26,8 +26,9 @@ namespace ccf::endpoints
       // Make sure the
       // endpoint exists with minimal documentation, even if there are no more
       // informed schema builders
+
       auto& path_op = ds::openapi::path_operation(
-        ds::openapi::path(document, endpoint->dispatch.uri_path),
+        ds::openapi::path(document, endpoint->full_uri_path),
         http_verb.value());
 
       // Path Operation must contain at least one response - if none has been
@@ -93,6 +94,8 @@ namespace ccf::endpoints
       endpoint.dispatch.uri_path = fmt::format("/{}", method);
     }
     endpoint.dispatch.verb = verb;
+    endpoint.full_uri_path =
+      fmt::format("/{}{}", method_prefix, endpoint.dispatch.uri_path);
     endpoint.func = f;
     endpoint.authn_policies = ap;
     // By default, all write transactions are forwarded
@@ -172,8 +175,6 @@ namespace ccf::endpoints
 
   void EndpointRegistry::build_api(nlohmann::json& document, kv::ReadOnlyTx&)
   {
-    ds::openapi::server(document, fmt::format("/{}", method_prefix));
-
     for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
@@ -200,7 +201,7 @@ namespace ccf::endpoints
           parameter["required"] = true;
           parameter["schema"] = {{"type", "string"}};
           ds::openapi::add_path_parameter_schema(
-            document, endpoint->dispatch.uri_path, parameter);
+            document, endpoint->full_uri_path, parameter);
         }
       }
     }

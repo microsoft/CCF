@@ -6,6 +6,7 @@
 #include "ds/messaging.h"
 
 #include <filesystem>
+#include <fstream>
 
 namespace asynchost
 {
