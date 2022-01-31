@@ -58,6 +58,12 @@
                 "type": "integer",
                 "default": 1010,
                 "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
+              },
+              "endorsement_type": {
+                "type": "string",
+                "enum": ["Node", "Network"],
+                "default": "Network",
+                "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete."
               }
             },
             "required": ["bind_address"]

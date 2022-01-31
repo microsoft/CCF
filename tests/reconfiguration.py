@@ -69,12 +69,27 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
 
 @reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
-    new_node = network.create_node("local://localhost")
+    # Note: 127.0.0.1 is supplied explicitly to avoid having differently
+    # assigned IPs for the interfaces, something which the test infra doesn't
+    # support widely yet.
+    operator_rpc_interface = "operator_rpc_interface"
+    host = "127.0.0.1"
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=host
+                ),
+                operator_rpc_interface: infra.interfaces.RPCInterface(
+                    host=host, endorsement_type="Node"
+                ),
+            }
+        )
+    )
     network.join_node(new_node, args.package, args, from_snapshot=False)
 
-    # FIXME this must check against the self-signed network interface
     # Verify self-signed node certificate validity period
-    #new_node.verify_certificate_validity_period()
+    new_node.verify_certificate_validity_period(interface_name=operator_rpc_interface)
 
     network.trust_node(
         new_node,

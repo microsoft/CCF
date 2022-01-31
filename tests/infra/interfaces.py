@@ -16,6 +16,7 @@ def make_address(host, port=0):
 
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
+DEFAULT_ENDORSEMENT_TYPE = "Network"
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
@@ -34,6 +35,7 @@ class RPCInterface(Interface):
     public_port: Optional[int] = None
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
+    endorsement_type: str = DEFAULT_ENDORSEMENT_TYPE
 
     @staticmethod
     def to_json(interface):
@@ -42,6 +44,7 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
+            "endorsement_type": interface.endorsement_type,
         }
 
     @staticmethod
@@ -58,6 +61,9 @@ class RPCInterface(Interface):
         )
         interface.max_open_sessions_hard = json.get(
             "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
+        )
+        interface.endorsement_type = json.get(
+            "endorsement_type", DEFAULT_ENDORSEMENT_TYPE
         )
         return interface
 

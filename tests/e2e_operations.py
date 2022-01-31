@@ -85,13 +85,20 @@ def run_tls_san_checks(args):
 
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node(
+            infra.interfaces.HostSpec(
+                rpc_interfaces={
+                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                        endorsement_type="Node"
+                    )
+                }
+            )
+        )
         args.subject_alt_names = [f"dNSName:{dummy_san}"]
         network.join_node(new_node, args.package, args)
-        # FIXME this must check against the self-signed network interface
-        # sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
-        # assert len(sans) == 1, "Expected exactly one SAN"
-        # assert sans[0].value == dummy_san
+        sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
+        assert len(sans) == 1, "Expected exactly one SAN"
+        assert sans[0].value == dummy_san
 
         LOG.info("A node started with no specified SAN defaults to public RPC host")
         dummy_public_rpc_host = "123.123.123.123"
@@ -101,21 +108,20 @@ def run_tls_san_checks(args):
             infra.interfaces.HostSpec(
                 rpc_interfaces={
                     infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        public_host=dummy_public_rpc_host
+                        public_host=dummy_public_rpc_host, endorsement_type="Node"
                     )
                 }
             )
         )
         network.join_node(new_node, args.package, args)
         # Cannot trust the node here as client cannot authenticate dummy public IP in cert
-        # FIXME this must check against the self-signed network interface
-        # with open(
-        #     os.path.join(network.common_dir, f"{new_node.local_node_id}.pem"),
-        #     encoding="utf-8",
-        # ) as self_signed_cert:
-        #     sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
-        # assert len(sans) == 1, "Expected exactly one SAN"
-        # assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
+        with open(
+            os.path.join(network.common_dir, f"{new_node.local_node_id}.pem"),
+            encoding="utf-8",
+        ) as self_signed_cert:
+            sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
+        assert len(sans) == 1, "Expected exactly one SAN"
+        assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
 
 def run_configuration_file_checks(args):
