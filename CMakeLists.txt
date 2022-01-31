@@ -345,6 +345,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
     target_link_libraries(indexing_test PRIVATE sss.host)
 

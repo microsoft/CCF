@@ -3,6 +3,7 @@
 #include "ds/logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
+#include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #include <atomic>
@@ -157,6 +158,8 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
     kv::Store kv_store;
     auto consensus = std::make_shared<SlowStubConsensus>();
     kv_store.set_consensus(consensus);
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    kv_store.set_encryptor(encryptor);
 
     // Keep atomic count of running threads
     std::atomic<size_t> active_tx_threads(thread_count);
@@ -245,6 +248,8 @@ DOCTEST_TEST_CASE(
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   constexpr auto store_commit_term = 2;
   kv_store.initialise_term(store_commit_term);
 

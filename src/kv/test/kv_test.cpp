@@ -58,6 +58,8 @@ TEST_CASE("Map name parsing")
 TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   MapTypes::StringString map("public:map");
 
@@ -169,6 +171,8 @@ TEST_CASE("Reads/writes and deletions")
 TEST_CASE("sets and values")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   {
     INFO("kv::Set");
@@ -567,6 +571,8 @@ TEST_CASE("serialisation of Unit type")
     using TSetEquivalent = kv::RawCopySerialisedMap<std::string, size_t>;
 
     kv::Store kv_store;
+    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    kv_store.set_encryptor(encryptor);
 
     {
       auto tx = kv_store.create_tx();
@@ -632,6 +638,8 @@ TEST_CASE("serialisation of Unit type")
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
       kv::Store kv_store;
+      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueA>(value_name);
@@ -650,6 +658,8 @@ TEST_CASE("serialisation of Unit type")
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
       kv::Store kv_store;
+      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueB>(value_name);
@@ -668,6 +678,8 @@ TEST_CASE("serialisation of Unit type")
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
       kv::Store kv_store;
+      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueC>(value_name);
@@ -687,6 +699,8 @@ TEST_CASE("serialisation of Unit type")
 TEST_CASE("multiple handles")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   MapTypes::NumString map("public:map");
 
@@ -721,6 +735,8 @@ TEST_CASE("multiple handles")
 TEST_CASE("clear")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   const auto k1 = "k1";
@@ -787,6 +803,8 @@ TEST_CASE("clear")
 TEST_CASE("get_version_of_previous_write")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   const auto k1 = "k1";
@@ -911,6 +929,8 @@ TEST_CASE("get_version_of_previous_write")
 TEST_CASE("size")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   const auto k1 = "k1";
@@ -1008,6 +1028,8 @@ TEST_CASE("size")
 TEST_CASE("foreach")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   std::map<std::string, std::string> iterated_entries;
@@ -1203,6 +1225,8 @@ struct NoDeserialise
 TEST_CASE("foreach_key")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   kv::MapSerialisedWith<
     std::string,
@@ -1238,6 +1262,8 @@ TEST_CASE("foreach_key")
 TEST_CASE("foreach_value")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
 
   kv::MapSerialisedWith<
     std::string,
@@ -1272,6 +1298,8 @@ TEST_CASE("foreach_value")
 TEST_CASE("Modifications during foreach iteration")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::NumString map("public:map");
 
   const auto value1 = "foo";
@@ -1533,6 +1561,8 @@ TEST_CASE("Modifications during foreach iteration")
 TEST_CASE("Read-only tx")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
@@ -1606,6 +1636,8 @@ TEST_CASE("Read-only tx")
 TEST_CASE("Rollback and compact")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   constexpr auto k = "key";
@@ -1671,6 +1703,8 @@ TEST_CASE("Local commit hooks")
   };
 
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   constexpr auto map_name = "public:map";
   MapTypes::StringString map(map_name);
   kv_store.set_map_hook(map_name, map.wrap_map_hook(map_hook));
@@ -1776,6 +1810,8 @@ TEST_CASE("Global commit hooks")
   };
 
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   using MapT = kv::Map<std::string, std::string>;
   MapT map_with_hook("public:map_with_hook");
   kv_store.set_global_hook(
@@ -1918,7 +1954,8 @@ TEST_CASE("Deserialising from other Store")
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
-  auto [success, data, claims_digest, hooks] = tx1.commit_reserved();
+  auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+    tx1.commit_reserved();
   REQUIRE(success == kv::CommitResult::SUCCESS);
 
   kv::Store clone;
@@ -1932,6 +1969,8 @@ TEST_CASE("Deserialising from other Store")
 TEST_CASE("Deserialise return status")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
 
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
   ccf::SerialisedMerkleTree serialised_tree(
@@ -1951,7 +1990,8 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_txid());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1966,7 +2006,8 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     tree_handle->put({});
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1982,7 +2023,8 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     data_handle->put(43, 43);
-    auto [success, data, claims_digest, hooks] = tx.commit_reserved();
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -2206,6 +2248,8 @@ TEST_CASE("Private recovery map swap")
 TEST_CASE("Conflict resolution")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
   {
@@ -2304,6 +2348,8 @@ std::string rand_string(size_t i)
 TEST_CASE("Mid-tx compaction")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   MapTypes::StringNum map_a("public:A");
   MapTypes::StringNum map_b("public:B");
 
@@ -2411,6 +2457,8 @@ TEST_CASE("Mid-tx compaction")
 TEST_CASE("Store clear")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   kv_store.initialise_term(42);
 
   auto map_a_name = "public:A";
@@ -2464,6 +2512,8 @@ TEST_CASE("Store clear")
 TEST_CASE("Reported TxID after commit")
 {
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   kv_store.set_consensus(consensus);
 
@@ -2699,6 +2749,8 @@ TEST_CASE("Range")
   const ValueType empty_value = {};
 
   kv::Store kv_store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  kv_store.set_encryptor(encryptor);
   RefMap ref;
 
   INFO("Populate map randomly");
