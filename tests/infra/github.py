@@ -269,19 +269,30 @@ class Repository:
             elif not this_release_branch_only:
                 try:
                     prior_release_branch = self.get_release_branch_name_before(branch)
-                    return self.get_tags_for_release_branch(prior_release_branch)[0]
+                    tags = self.get_tags_for_release_branch(prior_release_branch)
+                    if not tags:
+                        return None
+                    return tags[0]
                 except ValueError:  # No previous release branch
                     return None
             else:
                 LOG.debug(f"Release branch {branch} has no release yet")
+
                 return None
         elif not this_release_branch_only:
             LOG.debug(f"{branch} is development branch")
-            latest_release_branch = self.get_release_branches_names(newest_first=True)[
-                0
-            ]
-            LOG.info(f"Latest release branch: {latest_release_branch}")
-            return self.get_tags_for_release_branch(latest_release_branch)[0]
+            for latest_release_branch in self.get_release_branches_names(
+                newest_first=True
+            ):
+                tags = self.get_tags_for_release_branch(latest_release_branch)
+                if not tags:
+                    LOG.warning(
+                        f"Skipping release branch {latest_release_branch} because no tags found"
+                    )
+                    continue
+                LOG.info(f"Latest release branch: {latest_release_branch}")
+                return tags[0]
+            return None
         else:
             return None
 
