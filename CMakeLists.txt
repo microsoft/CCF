@@ -713,7 +713,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME lts
+    NAME lts_compatibility
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
     CONSENSUS cft
     LABEL e2e
