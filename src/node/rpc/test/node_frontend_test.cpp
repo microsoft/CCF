@@ -21,9 +21,9 @@ using namespace serdes;
 using TResponse = http::SimpleResponseProcessor::Response;
 
 constexpr size_t certificate_validity_period_days = 365;
-auto valid_from =
-  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-    std::chrono::floor<std::chrono::hours>(std::chrono::system_clock::now())));
+using namespace std::literals;
+auto valid_from = crypto::OpenSSL::to_x509_time_string(
+  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
