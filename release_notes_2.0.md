@@ -2,7 +2,6 @@
 
 TODO:
 
-- [ ] Commit evidence?
 
 See [documentation for code upgrade 1.x to 2.0](https://microsoft.github.io/CCF/main/operations/code_upgrade_1x.html) to upgrade an existing 1.x CCF service to 2.0
 
