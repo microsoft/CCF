@@ -57,18 +57,24 @@ namespace crypto
   public:
     static constexpr size_t SIZE = 256 / 8;
     using Representation = std::array<uint8_t, SIZE>;
-    Representation h;
+    Representation h = {0};
 
-    Sha256Hash() : h{0} {}
+    Sha256Hash() = default;
 
     inline void set(Representation&& r)
     {
       h = std::move(r);
     }
 
-    Sha256Hash(const CBuffer& data) : h{0}
+    Sha256Hash(const CBuffer& data)
     {
       default_sha256(data, h.data());
+    }
+
+    Sha256Hash(const std::string& str)
+    {
+      CBuffer cb(str);
+      default_sha256(cb, h.data());
     }
 
     Sha256Hash(const Sha256Hash& left, const Sha256Hash& right)
@@ -76,6 +82,23 @@ namespace crypto
       std::vector<uint8_t> data(left.h.size() + right.h.size());
       std::copy(left.h.begin(), left.h.end(), data.begin());
       std::copy(right.h.begin(), right.h.end(), data.begin() + left.h.size());
+      default_sha256(data, h.data());
+    }
+
+    Sha256Hash(
+      const Sha256Hash& first,
+      const Sha256Hash& second,
+      const Sha256Hash& third)
+    {
+      std::vector<uint8_t> data(
+        first.h.size() + second.h.size() + third.h.size());
+      std::copy(first.h.begin(), first.h.end(), data.begin());
+      std::copy(
+        second.h.begin(), second.h.end(), data.begin() + first.h.size());
+      std::copy(
+        third.h.begin(),
+        third.h.end(),
+        data.begin() + first.h.size() + second.h.size());
       default_sha256(data, h.data());
     }
 
@@ -95,12 +118,6 @@ namespace crypto
       return ds::to_hex(h);
     };
 
-    static inline Sha256Hash from_string(const std::string& str)
-    {
-      CBuffer cb(str);
-      return Sha256Hash(cb);
-    }
-
     static inline Sha256Hash from_hex_string(const std::string& str)
     {
       Sha256Hash digest;
@@ -112,6 +129,13 @@ namespace crypto
     {
       Sha256Hash digest;
       std::copy(sp.begin(), sp.end(), digest.h.begin());
+      return digest;
+    }
+
+    static inline Sha256Hash from_representation(const Representation& r)
+    {
+      Sha256Hash digest;
+      digest.h = r;
       return digest;
     }
   };

@@ -19,6 +19,9 @@ struct MapTypes
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
   MapTypes::StringString string_map("public:string_map");
   MapTypes::NumNum num_map("public:num_map");
 
@@ -57,6 +60,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   INFO("Apply snapshot at 1 to new store");
   {
     kv::Store new_store;
+    new_store.set_encryptor(encryptor);
 
     kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
@@ -113,6 +117,8 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   {
     kv::Store new_store;
 
+    new_store.set_encryptor(encryptor);
+
     kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(
       second_serialised_snapshot.data(),
@@ -164,6 +170,9 @@ TEST_CASE(
   doctest::test_suite("snapshot"))
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
   MapTypes::StringString string_map("public:string_map");
 
   kv::Version snapshot_version = kv::NoVersion;
@@ -187,6 +196,7 @@ TEST_CASE(
   INFO("Apply snapshot while committing a transaction");
   {
     kv::Store new_store;
+    new_store.set_encryptor(encryptor);
 
     auto tx = new_store.create_tx();
     auto handle = tx.rw<MapTypes::StringString>("public:string_map");
@@ -212,6 +222,9 @@ TEST_CASE(
 TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
   constexpr auto string_map = "public:string_map";
   constexpr auto string_value = "public:string_value";
   constexpr auto string_set = "public:string_set";
@@ -288,6 +301,8 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
   kv::Store new_store;
+  new_store.set_encryptor(encryptor);
+
   MapTypes::StringString new_string_map(string_map);
   MapTypes::StringValue new_string_value(string_value);
   MapTypes::StringSet new_string_set(string_set);

@@ -155,6 +155,7 @@ namespace ccf
     const crypto::Pem& node_cert,
     kv::Version seqno,
     const crypto::Sha256Hash& write_set_digest,
+    const std::string& commit_evidence,
     crypto::Sha256Hash&& claims_digest)
   {
     ccf::MerkleTreeHistory history(tree);
@@ -168,6 +169,7 @@ namespace ccf
       node_id,
       node_cert,
       write_set_digest,
+      commit_evidence,
       cd);
 
     Receipt receipt;
