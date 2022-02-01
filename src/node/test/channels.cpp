@@ -60,9 +60,9 @@ static crypto::Pem generate_self_signed_cert(
   const crypto::KeyPairPtr& kp, const std::string& name)
 {
   constexpr size_t certificate_validity_period_days = 365;
-  auto valid_from =
-    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-      std::chrono::system_clock::now())); // now
+  auto valid_from = crypto::OpenSSL::to_x509_time_string(
+    std::chrono::system_clock::to_time_t(std::chrono::floor<std::chrono::hours>(
+      std::chrono::system_clock::now())));
 
   return crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -75,9 +75,9 @@ static crypto::Pem generate_endorsed_cert(
   const crypto::Pem& issuer_cert)
 {
   constexpr size_t certificate_validity_period_days = 365;
-  auto valid_from =
-    crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-      std::chrono::system_clock::now())); // now
+  auto valid_from = crypto::OpenSSL::to_x509_time_string(
+    std::chrono::system_clock::to_time_t(std::chrono::floor<std::chrono::hours>(
+      std::chrono::system_clock::now())));
 
   return crypto::create_endorsed_cert(
     kp,
