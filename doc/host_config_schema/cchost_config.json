@@ -13,8 +13,8 @@
         },
         "type": {
           "type": "string",
-          "enum": ["release", "debug", "virtual"],
-          "default": "release",
+          "enum": ["Release", "Debug", "Virtual"],
+          "default": "Release",
           "description": "Type of enclave application"
         }
       },
@@ -73,19 +73,19 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["start", "join", "recover"],
+          "enum": ["Start", "Join", "Recover"],
           "description": "Type of CCF node"
         },
         "service_certificate_file": {
           "type": "string",
           "default": "service_cert.pem",
-          "description": "For ``start`` and ``recover`` nodes, path to which service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join"
+          "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing network to join"
         }
       },
       "allOf": [
         {
           "if": {
-            "properties": { "type": { "const": "start" } }
+            "properties": { "type": { "const": "Start" } }
           },
           "then": {
             "properties": {
@@ -158,7 +158,7 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "join" } }
+            "properties": { "type": { "const": "Join" } }
           },
           "then": {
             "properties": {
@@ -183,7 +183,7 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "recover" } }
+            "properties": { "type": { "const": "Recover" } }
           },
           "then": {
             "properties": {
@@ -222,8 +222,8 @@
         },
         "curve_id": {
           "type": "string",
-          "enum": ["secp384r1", "secp256r1"],
-          "default": "secp384r1",
+          "enum": ["Secp384R1", "Secp256R1"],
+          "default": "Secp384R1",
           "description": "Elliptic curve to use for node identity key"
         },
         "initial_validity_days": {
@@ -280,14 +280,14 @@
       "properties": {
         "host_level": {
           "type": "string",
-          "enum": ["trace", "debug", "info", "fail", "fatal"],
-          "default": "info",
+          "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
+          "default": "Info",
           "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity."
         },
         "format": {
           "type": "string",
-          "enum": ["text", "json"],
-          "default": "text",
+          "enum": ["Text", "Json"],
+          "default": "Text",
           "description": "If 'json', node logs will be formatted as JSON"
         }
       },
