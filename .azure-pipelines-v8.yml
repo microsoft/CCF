@@ -20,7 +20,7 @@ parameters:
 
 jobs:
   - job: build_v8
-    container: ccfciteam/ccf-ci:oe0.17.5-2
+    container: ccfciteam/ccf-ci:oe0.17.6-pre0
     pool: 1es-dv4-focal
 
     strategy:
