@@ -1,13 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "crypto/base64.h"
+#include "crypto/entropy.h"
 #include "crypto/hash.h"
 #include "crypto/hash_provider.h"
+#include "crypto/hmac.h"
 #include "crypto/key_pair.h"
 #include "crypto/openssl/base64.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/symmetric_key.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
@@ -83,6 +86,23 @@ static void benchmark_verify(picobench::state& s)
     (void)_;
     auto verified = pubk.verify(contents, signature);
     do_not_optimize(verified);
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+template <MDType M, size_t NContents>
+static void benchmark_hmac(picobench::state& s)
+{
+  const auto contents = make_contents<NContents>();
+  const auto key = crypto::create_entropy()->random(crypto::GCM_SIZE_KEY);
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    HashBytes hash = crypto::hmac(M, key, contents);
+    do_not_optimize(hash);
     clobber_memory();
   }
   s.stop_timer();
@@ -371,4 +391,14 @@ namespace Base64_bench
 
   auto openssl_base64_5000 = base64_bench<5000>;
   PICOBENCH(openssl_base64_5000).PICO_HASH_SUFFIX();
+}
+
+PICOBENCH_SUITE("hmac");
+namespace HMAC_bench
+{
+  auto openssl_hmac_sha256_32 = benchmark_hmac<MDType::SHA256, 32>;
+  PICOBENCH(openssl_hmac_sha256_32).PICO_HASH_SUFFIX();
+
+  auto openssl_hmac_sha256_64 = benchmark_hmac<MDType::SHA256, 64>;
+  PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
 }

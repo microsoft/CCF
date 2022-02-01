@@ -293,6 +293,8 @@ TEST_CASE(
   "halt replication")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<CompactingConsensus> consensus =
     std::make_shared<CompactingConsensus>(&store);
   store.set_consensus(consensus);
@@ -395,6 +397,8 @@ TEST_CASE(
   "Check that empty rollback during replicate does not cause replication halts")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 2);
   store.set_consensus(consensus);
@@ -433,6 +437,8 @@ TEST_CASE(
   "Check that rollback during replicate does not cause replication halts")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 1);
   store.set_consensus(consensus);

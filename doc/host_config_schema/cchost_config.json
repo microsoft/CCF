@@ -44,7 +44,7 @@
                 "type": "string",
                 "description": "Local address the node binds to and listens on"
               },
-              "published_rpc_address": {
+              "published_address": {
                 "type": "string",
                 "default": "Value of 'bind_address'",
                 "description": "The published RPC address advertised to clients"
@@ -218,7 +218,7 @@
           "items": {
             "type": "string"
           },
-          "description": "List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'"
+          "description": "List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface 'published_address'"
         },
         "curve_id": {
           "type": "string",

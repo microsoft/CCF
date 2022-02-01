@@ -27,7 +27,7 @@ namespace ds
     {
       using iterator_category = std::random_access_iterator_tag;
       using value_type = size_t;
-      using difference_type = std::ptrdiff_t;
+      using difference_type = size_t;
       using pointer = const size_t*;
       using reference = size_t;
 

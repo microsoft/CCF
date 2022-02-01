@@ -253,44 +253,10 @@ namespace ccf
     {
       throw std::logic_error("Not implemented");
     }
-  };
 
-  class StubRecoverableNodeState : public StubNodeState
-  {
-  private:
-    ShareManager& share_manager;
-
-  public:
-    StubRecoverableNodeState(ShareManager& sm) : share_manager(sm) {}
-
-    void initiate_private_recovery(kv::Tx& tx) override
+    ccf::indexing::AbstractLFSAccess& get_lfs_access() override
     {
-      kv::Version current_ledger_secret_version = 1;
-      RecoveredEncryptedLedgerSecrets recovered_secrets;
-      recovered_secrets.push_back(
-        EncryptedLedgerSecretInfo{std::nullopt, current_ledger_secret_version});
-
-      share_manager.restore_recovery_shares_info(
-        tx, std::move(recovered_secrets));
-    }
-  };
-
-  struct StubRecoverableNodeContext : public ccfapp::AbstractNodeContext
-  {
-  public:
-    StubRecoverableNodeState state;
-    StubNodeStateCache cache = {};
-
-    StubRecoverableNodeContext(ShareManager& sm) : state(sm) {}
-
-    ccf::historical::AbstractStateCache& get_historical_state()
-    {
-      return cache;
-    }
-
-    StubRecoverableNodeState& get_node_state()
-    {
-      return state;
+      throw std::logic_error("Not implemented");
     }
   };
 }
