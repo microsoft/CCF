@@ -2,8 +2,6 @@
 
 TODO:
 
-- [ ] Open Enclave?
-- [ ] TLS?
 - [ ] Commit evidence?
 
 ---
@@ -14,10 +12,13 @@ TODO:
 
 - CCF is now built with Clang 10. It is recommended that C++ applications upgrade to Clang 10 as well.
 - Raised the minimum supported CMake version for building CCF to 3.16 (#2946).
+- Removed `mbedtls` as cryptography library.
+- Upgraded Open Enclave to 0.17.5.
 
 - Added `get_untrusted_host_time_v1` API. This can be used to retrieve a timestamp during endpoint execution, accurate to within a few milliseconds. Note that this timestamp comes directly from the host so is not trusted, and should not be used to make sensitive decisions within a transaction (#2550).
 - Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
 - Added `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
+
 - `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 - `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()` (#3187).
 - `get_state_at()` now returns receipts for signature transactions (#2785), see [documentation](https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#transaction-receipts) for details.
@@ -31,9 +32,10 @@ Key-Value Store:
 
 - Added JavaScript bytecode caching to avoid repeated compilation overhead. See the [documentation](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#deployment) for more information (#2643).
 - Added `ccf.crypto.verifySignature()` for verifying digital signatures to the JavaScript API (#2661).
+- Added experimental JavaScript API `ccf.host.triggerSubprocess()` (#2461).
+
 - `ccf.crypto.verifySignature()` previously required DER-encoded ECDSA signatures and now requires IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API (#2735).
 - `ccf.historical.getStateRange` / `ccf.historical.dropCachedStates` JavaScript APIs to manually retrieve historical state in endpoints declared as `"mode": "readonly"` (#3033).
-- Added experimental JavaScript API `ccf.host.triggerSubprocess()` (#2461).
 - JavaScript endpoints with `"mode": "historical"` now expose the historical KV at `ccf.historicalState.kv` while `ccf.kv` always refers to the current KV state. Applications relying on the old behaviour should make their code forward-compatible before upgrading to 2.x with `const kv = ccf.historicalState.kv || ccf.kv`.
 - Receipts accessible through JavaScript no longer contain the redundant `root` hash field. Applications should be changed to not rely on this field anymore before upgrading to 2.x.
 
@@ -73,7 +75,7 @@ Key-Value Store:
 
 ### Misc
 
-- Service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
+- The service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
 - Log more detailed errors on early startup (#3116).
 - Format of node output RPC and node-to-node addresses files is now JSON (#3300).
 - Joining nodes now present service-endorsed certificate in client TLS sessions _after_ they have observed their own addition to the store, rather than as soon as they have joined the service. Operators should monitor the initial progress of a new node using its self-signed certificate as TLS session certificate authority (#2844).
@@ -81,10 +83,10 @@ Key-Value Store:
 - Slow ledger IO operations will now be logged at level FAIL. The threshold over which logging will activate can be adjusted by the `slow_io_logging_threshold` configuration entry to cchost (#3067).
 - Added a new `client_connection_timeout` configuration entry to specify the maximum time a node should wait before re-establishing failed client connections. This should be set to a significantly lower value than `consensus.election_timeout` (#2618).
 - Nodes code digests are now extracted and cached at network join time in `public:ccf.gov.nodes.info`, and the `GET /node/quotes` and `GET /node/quotes/self` endpoints will use this cached value whenever possible (#2651).
-- Added experimental support for 2-transaction reconfiguration with CFT consensus, see [documentation](https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration). Note that mixing 1tx and 2tx nodes in the same network is unsupported and unsafe at this stage (#3097).
 - DNS resolution of client connections is now asynchronous (#3140).
 - The curve-id selected for the identity of joining nodes no longer needs to match that of the network (#2525).
 - Removed long-deprecated `--domain` argument from `cchost`. Node certificate Subject Alternative Names should be passed in via existing `node_certificate.subject_alt_names` configuration entry (#2798).
+- Added experimental support for 2-transaction reconfiguration with CFT consensus, see [documentation](https://microsoft.github.io/CCF/main/overview/consensus/bft.html#two-transaction-reconfiguration). Note that mixing 1tx and 2tx nodes in the same network is unsupported and unsafe at this stage (#3097).
 
 ### Fixed
 
@@ -94,6 +96,8 @@ Key-Value Store:
 ---
 
 ## Client API
+
+- Added support for TLS 1.3 (now used by default).
 
 - Added `GET /gov/jwt_keys/all` endpoint (#2519).
 - Added new operator RPC `GET /node/js_metrics` returning the JavaScript bytecode size and whether the bytecode is used (#2643).
