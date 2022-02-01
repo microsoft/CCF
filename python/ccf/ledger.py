@@ -53,15 +53,11 @@ class NodeStatus(Enum):
 class EntryType(Enum):
     WRITE_SET = 0
     SNAPSHOT = 1
-    WRITE_SET_WITH_CLAIMS = 2
-    WRITE_SET_WITH_COMMIT_EVIDENCE = 3
-    WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS = 4
+    WRITE_SET_WITH_COMMIT_EVIDENCE = 2
+    WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS = 3
 
     def has_claims(self):
-        return self in (
-            EntryType.WRITE_SET_WITH_CLAIMS,
-            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
-        )
+        return self == EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS
 
     def has_commit_evidence(self):
         return self in (
