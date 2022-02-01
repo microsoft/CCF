@@ -21,7 +21,7 @@
     "initial_validity_days": 1
   },
   "command": {
-    "type": "recover",
+    "type": "Recover",
     "service_certificate_file": "service_cert.pem",
     "recover": {
       "initial_service_certificate_validity_days": 1
@@ -38,7 +38,7 @@
   },
   "logging": {
     "host_level": "info",
-    "format": "text"
+    "format": "Text"
   },
   "consensus": {
     "type": "CFT",

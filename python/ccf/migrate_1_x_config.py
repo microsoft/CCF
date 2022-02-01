@@ -93,7 +93,7 @@ if __name__ == "__main__":
         "maximum_node_certificate_validity_days": 365
     }
     output["command"]["join"] = {}
-    output["command"]["type"] = "start" if "start" in config.sections() else "join"
+    output["command"]["type"] = "Start" if "start" in config.sections() else "Join"
 
     LOG.info(f'Command type: {output["command"]["type"]}')
 
@@ -165,7 +165,7 @@ if __name__ == "__main__":
             elif k == "log_format_json":
                 output["logging"]["log_format"] = "Json" if bool(v) else "Text"
             elif k == "host_log_level":
-                output["logging"]["host_level"] = v
+                output["logging"]["host_level"] = v.title()
 
             # consensus
             elif k == "consensus":

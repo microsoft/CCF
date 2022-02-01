@@ -21,7 +21,7 @@
     "initial_validity_days": 1
   },
   "command": {
-    "type": "join",
+    "type": "Join",
     "service_certificate_file": "service_cert.pem",
     "join": {
       "retry_timeout": "1s",
@@ -39,7 +39,7 @@
   },
   "logging": {
     "host_level": "info",
-    "format": "text"
+    "format": "Text"
   },
   "consensus": {
     "type": "CFT",

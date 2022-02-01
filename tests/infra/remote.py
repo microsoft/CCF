@@ -631,7 +631,7 @@ class CCFRemote(object):
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
-                start_type=start_type.name,
+                start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,
                 enclave_type=enclave_type.title(),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(host),

@@ -27,7 +27,7 @@
     "initial_validity_days": 1
   },
   "command": {
-    "type": "start",
+    "type": "Start",
     "service_certificate_file": "service_cert.pem",
     "start": {
       "constitution_files": [
@@ -60,7 +60,7 @@
   },
   "logging": {
     "host_level": "info",
-    "format": "text"
+    "format": "Text"
   },
   "consensus": {
     "type": "CFT",

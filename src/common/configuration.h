@@ -38,9 +38,9 @@ namespace logger
 
 DECLARE_JSON_ENUM(
   StartType,
-  {{StartType::Start, "start"},
-   {StartType::Join, "join"},
-   {StartType::Recover, "recover"}});
+  {{StartType::Start, "Start"},
+   {StartType::Join, "Join"},
+   {StartType::Recover, "Recover"}});
 
 struct EnclaveConfig
 {
