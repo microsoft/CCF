@@ -222,8 +222,8 @@
         },
         "curve_id": {
           "type": "string",
-          "enum": ["secp384r1", "secp256r1"],
-          "default": "secp384r1",
+          "enum": ["Secp384R1", "Secp256R1"],
+          "default": "Secp384R1",
           "description": "Elliptic curve to use for node identity key"
         },
         "initial_validity_days": {

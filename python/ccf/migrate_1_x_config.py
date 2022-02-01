@@ -145,7 +145,7 @@ if __name__ == "__main__":
             elif k == "sn":
                 output["node_certificate"][k] = v
             elif k == "curve_id":
-                output["node_certificate"][k] = v
+                output["node_certificate"][k] = v.title()
 
             # ledger
             elif k == "ledger_dir":

@@ -642,7 +642,7 @@ class CCFRemote(object):
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
                 snapshots_dir=self.snapshot_dir_name,
                 constitution=constitution,
-                curve_id=curve_id.name,
+                curve_id=curve_id.name.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",

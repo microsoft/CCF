@@ -23,7 +23,7 @@
   "node_certificate": {
     "subject_name": "CN=CCF Node",
     "subject_alt_names": ["iPAddress:127.0.0.1", "dNSName:ccf.dummy.com"],
-    "curve_id": "secp384r1",
+    "curve_id": "Secp384R1",
     "initial_validity_days": 1
   },
   "command": {
