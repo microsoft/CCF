@@ -37,7 +37,7 @@
     "tx_count": 10000
   },
   "logging": {
-    "host_level": "info",
+    "host_level": "Info",
     "format": "Text"
   },
   "consensus": {

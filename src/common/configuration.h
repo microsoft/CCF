@@ -24,15 +24,15 @@ namespace logger
 #ifdef VERBOSE_LOGGING
   DECLARE_JSON_ENUM(
     Level,
-    {{Level::TRACE, "trace"},
-     {Level::DEBUG, "debug"},
-     {Level::INFO, "info"},
-     {Level::FAIL, "fail"},
-     {Level::FATAL, "fatal"}});
+    {{Level::TRACE, "Trace"},
+     {Level::DEBUG, "Debug"},
+     {Level::INFO, "Info"},
+     {Level::FAIL, "Fail"},
+     {Level::FATAL, "Fatal"}});
 #else
   DECLARE_JSON_ENUM(
     Level,
-    {{Level::INFO, "info"}, {Level::FAIL, "fail"}, {Level::FATAL, "fatal"}});
+    {{Level::INFO, "Info"}, {Level::FAIL, "Fail"}, {Level::FATAL, "Fatal"}});
 #endif
 }
 

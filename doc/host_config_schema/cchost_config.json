@@ -280,14 +280,14 @@
       "properties": {
         "host_level": {
           "type": "string",
-          "enum": ["trace", "debug", "info", "fail", "fatal"],
-          "default": "info",
+          "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
+          "default": "Info",
           "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity."
         },
         "format": {
           "type": "string",
-          "enum": ["text", "json"],
-          "default": "text",
+          "enum": ["Text", "Json"],
+          "default": "Text",
           "description": "If 'json', node logs will be formatted as JSON"
         }
       },
