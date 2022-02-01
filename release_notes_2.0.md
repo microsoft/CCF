@@ -104,6 +104,7 @@ Key-Value Store:
 - Service-endorsed node certificates are now recorded in a new `public:ccf.gov.nodes.endorsed_certificates` table, while the existing `cert` field in the `public:ccf.gov.nodes.info` table is now deprecated (#2844).
 - New `split_ledger.py` utility to split existing ledger files (#3129).
 - Python `ccf.read_ledger` module now accepts custom formatting rules for the key and value based on the key-value store table name (#2791).
+- [Ledger entries](https://microsoft.github.io/CCF/main/architecture/ledger.html#transaction-format) now contain a `commit_evidence_digest`, as well as an optional `claims_digest` when `set_claims_digest()` is used. The digest of the write set was previously the per-transaction leaf in the Merkle Tree, but is now combined with the digest of the commit evidence and optionally the user claims when present. [Receipt verification instructions](https://microsoft.github.io/CCF/main/audit/receipts.html) have been amended accordingly. The presence of `commit_evidence` in receipts serves two purposes: giving the user access to the TxID without having to parse the write set, and proving that a transaction has been committed by the service. Transactions are flushed to disk eagerly by the primary to keep in-enclave memory use to a minimum, so the existence of a ledger suffix is not on its own indicative of its commit status. The digest of the commit evidence is in the ledger to allow audit and recovery, but only the disclosure of the commit evidence indicates that a transaction has been committed by the service
 
 ---
 
