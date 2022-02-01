@@ -207,9 +207,9 @@ class Repository:
         """
         releases = {}
         for release_branch in self.get_release_branches_names():
-            releases[release_branch] = self.get_tags_for_release_branch(release_branch)[
-                0
-            ]
+            tags_for_release = self.get_tags_for_release_branch(release_branch)
+            if tags_for_release:
+                releases[release_branch] = tags_for_release[0]
         return releases
 
     def install_release(self, tag):
