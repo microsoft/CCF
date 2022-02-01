@@ -94,6 +94,8 @@ TEST_CASE("Regular snapshotting")
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
   network.tables->set_consensus(consensus);
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
 
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -197,6 +199,8 @@ TEST_CASE("Rollback before snapshot is committed")
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
   network.tables->set_consensus(consensus);
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
 
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);

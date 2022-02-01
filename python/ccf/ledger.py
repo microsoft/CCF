@@ -22,6 +22,7 @@ from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
 import ccf.receipt
 from hashlib import sha256
+import functools
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -52,7 +53,17 @@ class NodeStatus(Enum):
 class EntryType(Enum):
     WRITE_SET = 0
     SNAPSHOT = 1
-    WRITE_SET_WITH_CLAIMS = 2
+    WRITE_SET_WITH_COMMIT_EVIDENCE = 2
+    WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS = 3
+
+    def has_claims(self):
+        return self == EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS
+
+    def has_commit_evidence(self):
+        return self in (
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE,
+            EntryType.WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS,
+        )
 
 
 def to_uint_64(buffer):
@@ -130,8 +141,10 @@ class PublicDomain:
         self._buffer_size = self._buffer.getbuffer().nbytes
         self._entry_type = self._read_entry_type()
         self._version = self._read_version()
-        if self._entry_type == EntryType.WRITE_SET_WITH_CLAIMS:
+        if self._entry_type.has_claims():
             self._claims_digest = self._read_claims_digest()
+        if self._entry_type.has_commit_evidence():
+            self._commit_evidence_digest = self._read_commit_evidence_digest()
         self._max_conflict_version = self._read_version()
 
         if self._entry_type == EntryType.SNAPSHOT:
@@ -145,6 +158,9 @@ class PublicDomain:
         return EntryType(val)
 
     def _read_claims_digest(self):
+        return self._buffer.read(hashes.SHA256.digest_size)
+
+    def _read_commit_evidence_digest(self):
         return self._buffer.read(hashes.SHA256.digest_size)
 
     def _read_version(self):
@@ -255,9 +271,15 @@ class PublicDomain:
         """
         Return the claims digest when there is one
         """
+        return self._claims_digest if self._entry_type.has_claims() else None
+
+    def get_commit_evidence_digest(self) -> Optional[bytes]:
+        """
+        Return the commit evidence digest when there is one
+        """
         return (
-            self._claims_digest
-            if self._entry_type == EntryType.WRITE_SET_WITH_CLAIMS
+            self._commit_evidence_digest
+            if self._entry_type.has_commit_evidence()
             else None
         )
 
@@ -623,11 +645,16 @@ class Transaction(Entry):
 
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
-        write_set_digest = digest(hashes.SHA256(), self.get_raw_tx())
+        commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
+        dgst = functools.partial(digest, hashes.SHA256())
+        write_set_digest = dgst(self.get_raw_tx())
         if claims_digest is None:
-            return write_set_digest
+            if commit_evidence_digest is None:
+                return write_set_digest
+            else:
+                return dgst(write_set_digest + commit_evidence_digest)
         else:
-            return digest(hashes.SHA256(), write_set_digest + claims_digest)
+            return dgst(write_set_digest + commit_evidence_digest + claims_digest)
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
@@ -683,7 +710,14 @@ class Snapshot(Entry):
                 claims_digest = bytes.fromhex(
                     receipt["leaf_components"]["claims_digest"]
                 )
-                leaf = sha256(write_set_digest + claims_digest).digest().hex()
+                commit_evidence_digest = sha256(
+                    receipt["leaf_components"]["commit_evidence"].encode()
+                ).digest()
+                leaf = (
+                    sha256(write_set_digest + commit_evidence_digest + claims_digest)
+                    .digest()
+                    .hex()
+                )
             root = ccf.receipt.root(leaf, receipt["proof"])
             node_cert = load_pem_x509_certificate(
                 receipt["cert"].encode(), default_backend()

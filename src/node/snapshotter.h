@@ -38,6 +38,7 @@ namespace ccf
       consensus::Index evidence_idx;
 
       crypto::Sha256Hash write_set_digest;
+      std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
 
       std::optional<NodeId> node_id = std::nullopt;
@@ -49,10 +50,12 @@ namespace ccf
         consensus::Index idx,
         consensus::Index evidence_idx,
         const crypto::Sha256Hash& write_set_digest_,
+        const std::string& commit_evidence_,
         const crypto::Sha256Hash& snapshot_digest_) :
         idx(idx),
         evidence_idx(evidence_idx),
         write_set_digest(write_set_digest_),
+        commit_evidence(commit_evidence_),
         snapshot_digest(snapshot_digest_)
       {}
     };
@@ -115,13 +118,18 @@ namespace ccf
       cd.set(std::move(snapshot_hash));
 
       crypto::Sha256Hash ws_digest;
-      auto capture_ws_digest =
-        [&ws_digest](const std::vector<uint8_t>& write_set) {
+      std::string commit_evidence;
+      auto capture_ws_digest_and_commit_evidence =
+        [&ws_digest, &commit_evidence](
+          const std::vector<uint8_t>& write_set,
+          const std::string& commit_evidence_) {
           new (&ws_digest)
             crypto::Sha256Hash({write_set.data(), write_set.size()});
+          commit_evidence = commit_evidence_;
         };
 
-      auto rc = tx.commit(cd, false, nullptr, capture_ws_digest);
+      auto rc =
+        tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
@@ -139,7 +147,11 @@ namespace ccf
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
       pending_snapshots.emplace_back(
-        snapshot_idx, snapshot_evidence_idx, ws_digest, cd.value());
+        snapshot_idx,
+        snapshot_evidence_idx,
+        ws_digest,
+        commit_evidence,
+        cd.value());
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "
@@ -170,6 +182,7 @@ namespace ccf
             it->node_cert.value(),
             it->evidence_idx,
             it->write_set_digest,
+            it->commit_evidence,
             std::move(it->snapshot_digest));
           commit_snapshot(it->idx, serialised_receipt);
           auto it_ = it;

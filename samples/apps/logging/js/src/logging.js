@@ -30,10 +30,11 @@ function delete_record(map, id) {
   return { body: true };
 }
 
-function update_first_write(id) {
-  const first_writes = ccf.kv["first_write_version"];
+function update_first_write(id, is_private = false) {
+  const first_writes =
+    ccf.kv[is_private ? "first_write_version" : "public:first_write_version"];
   if (!first_writes.has(id)) {
-    const private_records = ccf.kv["records"];
+    const private_records = ccf.kv[is_private ? "records" : "public:records"];
     const prev_version = private_records.getVersionOfPreviousWrite(id);
     if (prev_version) {
       first_writes.set(id, ccf.jsonCompatibleToBuf(prev_version));
@@ -78,20 +79,26 @@ export function get_historical_public_with_receipt(request) {
   return result;
 }
 
-function get_first_write_version(id) {
-  let version = ccf.kv["first_write_version"].get(id);
+function get_first_write_version(id, is_private = true) {
+  let version =
+    ccf.kv[
+      is_private ? "first_write_version" : "public:first_write_version"
+    ].get(id);
   if (version !== undefined) {
     version = ccf.bufToJsonCompatible(version);
   }
   return version;
 }
 
-function get_last_write_version(id) {
-  const version = ccf.kv["records"].getVersionOfPreviousWrite(id);
+function get_last_write_version(id, is_private = true) {
+  const version =
+    ccf.kv[is_private ? "records" : "public:records"].getVersionOfPreviousWrite(
+      id
+    );
   return version;
 }
 
-export function get_historical_range(request) {
+function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
   let { from_seqno, to_seqno } = parsedQuery;
@@ -103,14 +110,14 @@ export function get_historical_range(request) {
   } else {
     // If no start point is specified, use the first time this ID was
     // written to
-    const firstWriteVersion = get_first_write_version(id);
+    const firstWriteVersion = get_first_write_version(id, isPrivate);
     if (firstWriteVersion !== undefined) {
       from_seqno = firstWriteVersion;
     } else {
       // It's possible there's been a single write but no subsequent
       // transaction to write this to the FirstWritesMap - check version
       // of previous write
-      const lastWrittenVersion = get_last_write_version(id);
+      const lastWrittenVersion = get_last_write_version(id, isPrivate);
       if (lastWrittenVersion !== undefined) {
         from_seqno = lastWrittenVersion;
       } else {
@@ -132,7 +139,7 @@ export function get_historical_range(request) {
   } else {
     // If no end point is specified, use the last time this ID was
     // written to
-    const lastWriteVersion = get_last_write_version(id);
+    const lastWriteVersion = get_last_write_version(id, isPrivate);
     if (lastWriteVersion !== undefined) {
       to_seqno = lastWriteVersion;
     } else {
@@ -194,7 +201,7 @@ export function get_historical_range(request) {
   // Process the fetched states
   const entries = [];
   for (const state of states) {
-    const msg = state.kv["records"].get(id);
+    const msg = state.kv[isPrivate ? "records" : "public:records"].get(id);
     if (msg !== undefined) {
       entries.push({
         seqno: parseInt(state.transactionId.split(".")[1]),
@@ -230,7 +237,7 @@ export function get_historical_range(request) {
 
     // NB: This path tells the caller to continue to ask until the end of
     // the range, even if the next response is paginated
-    nextLink = `/app/log/private/historical/range?from_seqno=${next_page_start}&to_seqno=${to_seqno}&id=${parsedQuery.id}`;
+    nextLink = `${nextLinkPrefix}?from_seqno=${next_page_start}&to_seqno=${to_seqno}&id=${parsedQuery.id}`;
   }
 
   // Assume this response makes it all the way to the client, and
@@ -244,6 +251,22 @@ export function get_historical_range(request) {
       "@nextLink": nextLink,
     },
   };
+}
+
+export function get_historical_range(request) {
+  return get_historical_range_impl(
+    request,
+    true,
+    "/app/log/private/historical/range"
+  );
+}
+
+export function get_historical_range_public(request) {
+  return get_historical_range_impl(
+    request,
+    false,
+    "/app/log/public/historical/range"
+  );
 }
 
 export function get_public(request) {
@@ -264,6 +287,7 @@ export function post_public(request) {
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
   ccf.kv["public:records"].set(id, ccf.strToBuf(params.msg));
+  update_first_write(id, false);
   if (params.record_claim) {
     const claims_digest = ccf.digest("SHA-256", ccf.strToBuf(params.msg));
     ccf.rpc.setClaimsDigest(claims_digest);
@@ -281,6 +305,7 @@ export function delete_private(request) {
 export function delete_public(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
+  update_first_write(id, false);
   return delete_record(ccf.kv["public:records"], id);
 }
 
@@ -293,6 +318,9 @@ export function clear_private(request) {
 }
 
 export function clear_public(request) {
+  ccf.kv["public:records"].forEach((_, id) => {
+    update_first_write(id, false);
+  });
   ccf.kv["public:records"].clear();
   return { body: true };
 }

@@ -45,6 +45,8 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
 
   ts.kv_store = std::make_shared<kv::Store>();
   ts.kv_store->set_consensus(std::make_shared<kv::test::StubConsensus>());
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ts.kv_store->set_encryptor(encryptor);
 
   ts.node_kp = crypto::make_key_pair();
 
