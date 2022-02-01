@@ -20,7 +20,7 @@ See [documentation for code upgrade 1.x to 2.0](https://microsoft.github.io/CCF/
 - Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
 - Added `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
 - Added `set_claims_digest()` API to `RpcContext`, see [documentation](https://microsoft.github.io/CCF/main/build_apps/logging_cpp.html#user-defined-claims-in-receipts) on how to use it to attach application-defined claims to transaction receipts.
-- Added indexing system to speed up historical queries (#3280, #3444).
+- Added [indexing system](https://microsoft.github.io/CCF/main/architecture/indexing.html) to speed up historical queries (#3280, #3444).
 
 - `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 - `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()` (#3187).
