@@ -37,7 +37,7 @@ parameters:
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
-      ctest_args: ""
+      ctest_args: '-LE "benchmark|perf"'
 
 jobs:
   # Debug
