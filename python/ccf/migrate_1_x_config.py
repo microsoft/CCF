@@ -124,7 +124,7 @@ if __name__ == "__main__":
             elif k == "enclave_file":
                 output["enclave"]["file"] = v
             elif k == "enclave_type":
-                output["enclave"]["type"] = v
+                output["enclave"]["type"] = v.title()
 
             # network
             elif k == "rpc_address":
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
             # logging
             elif k == "log_format_json":
-                output["logging"]["log_format"] = "json" if bool(v) else "text"
+                output["logging"]["log_format"] = "Json" if bool(v) else "Text"
             elif k == "host_log_level":
                 output["logging"]["host_level"] = v
 

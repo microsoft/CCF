@@ -633,7 +633,7 @@ class CCFRemote(object):
             output = t.render(
                 start_type=start_type.name,
                 enclave_file=self.enclave_file,
-                enclave_type=enclave_type,
+                enclave_type=enclave_type.title(),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
