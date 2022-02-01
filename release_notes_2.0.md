@@ -4,20 +4,23 @@ TODO:
 
 - [ ] Commit evidence?
 
+See [documentation for code upgrade 1.x to 2.0](https://microsoft.github.io/CCF/main/operations/code_upgrade_1x.html) to upgrade an existing 1.x CCF service to 2.0
+
 ---
 
 ## Developer API
 
 ### C++
 
-- CCF is now built with Clang 10. It is recommended that C++ applications upgrade to Clang 10 as well.
+- CCF is now built with Clang 10. It is strongly recommended that C++ applications upgrade to Clang 10 as well.
 - Raised the minimum supported CMake version for building CCF to 3.16 (#2946).
-- Removed `mbedtls` as cryptography library.
-- Upgraded Open Enclave to 0.17.5.
+- Removed `mbedtls` as cryptography and TLS library.
 
 - Added `get_untrusted_host_time_v1` API. This can be used to retrieve a timestamp during endpoint execution, accurate to within a few milliseconds. Note that this timestamp comes directly from the host so is not trusted, and should not be used to make sensitive decisions within a transaction (#2550).
 - Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
 - Added `get_metrics_v1` API to `BaseEndpointRegistry` for applications that do not make use of builtins and want to version or customise metrics output.
+- Added `set_claims_digest()` API to `RpcContext`, see [documentation](https://microsoft.github.io/CCF/main/build_apps/logging_cpp.html#user-defined-claims-in-receipts) on how to use it to attach application-defined claims to transaction receipts.
+- Added indexing system to speed up historical queries (#3280, #3444).
 
 - `ccf::historical::adapter_v2` now returns 404, with either `TransactionPendingOrUnknown` or `TransactionInvalid`, rather than 400 when a user performs a historical query for a transaction id that is not committed.
 - `ccf::historical::AbstractStateCache::drop_requests()` renamed to `drop_cached_states()` (#3187).
@@ -43,7 +46,7 @@ Key-Value Store:
 
 ## Governance
 
-- Updated `actions.js` constitution fragment to record service-endorsed node certificate on the `transition_node_to_trusted` action. The constitution should be updated using the existing `set_constitution` proposal (#2844).
+- Updated `actions.js` constitution fragment to record service-endorsed node certificate on the `transition_node_to_trusted` action. The constitution must be updated using the existing `set_constitution` proposal (#2844).
 - The existing `transition_node_to_trusted` proposal action now requires a new `valid_from` argument (and optional `validity_period_days`, which defaults to the value of `maximum_node_certificate_validity_days`).
 - The `proposal_generator` has been removed from the `ccf` Python package. The majority of proposals can be trivially constructed in existing client tooling, without needing to invoke Python. This also introduces parity between the default constitution and custom constitution actions - all should be constructed and called from the same governance client code. Some jinja templates are included in `samples/templates` for constructing careful ballots from existing proposals.
 
@@ -61,13 +64,13 @@ Key-Value Store:
 
 ### Certificate(s) Validity Period
 
-- Nodes certificates validity period is no longer hardcoded and can instead be set by operators and renewed by members (#2924):
+- Nodes certificates validity period is no longer hardcoded and must instead be set by operators and renewed by members (#2924):
 
   - The new `node_certificate.initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the node certificate (valid from the current system time).
   - The new `command.start.service_configuration.maximum_node_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for node certificates.
   - The new `set_node_certificate_validity` proposal action allows members to renew a node certificate (or `set_all_nodes_certificate_validity` equivalent action to renew _all_ trusted nodes certificates).
 
-- Service certificate validity period is no longer hardcoded and can instead be set by operators and renewed by members (#3363):
+- Service certificate validity period is no longer hardcoded and must instead be set by operators and renewed by members (#3363):
 
   - The new `service_certificate_initial_validity_days` (defaults to 1 day) configuration entry lets operators set the initial validity period for the service certificate (valid from the current system time).
   - The new `maximum_service_certificate_validity_days` (defaults to 365 days) configuration entry sets the maximum validity period allowed for service certificate.
@@ -95,6 +98,16 @@ Key-Value Store:
 
 ---
 
+## Auditor
+
+- Receipts now include the endorsed certificate of the node, as well as its node id, for convenience (#2991).
+- Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
+- Service-endorsed node certificates are now recorded in a new `public:ccf.gov.nodes.endorsed_certificates` table, while the existing `cert` field in the `public:ccf.gov.nodes.info` table is now deprecated (#2844).
+- New `split_ledger.py` utility to split existing ledger files (#3129).
+- Python `ccf.read_ledger` module now accepts custom formatting rules for the key and value based on the key-value store table name (#2791).
+
+---
+
 ## Client API
 
 - Added support for TLS 1.3 (now used by default).
@@ -104,6 +117,7 @@ Key-Value Store:
 - Added a new `GET /node/metrics` endpoint which includes the count of active and peak concurrent sessions handled by the node (#2596).
 - Added endpoint to obtain service configuration via `GET /node/service/configuration` (#3251).
 - Added QuickJS version to RPC `GET /node/version` (#2643).
+- Added a `GET /node/jwt_metrics` endpoint to monitor attempts and successes of key refresh for each issuer. See [documentation](https://microsoft.github.io/CCF/main/build_apps/auth/jwt.html#extracting-jwt-metrics) on how to use it.
 
 - Schema of `GET /network/nodes/{node_id}` and `GET /network/nodes` endpoints has been modified to include all RPC interfaces (#3300).
 - Improved performance for lookup of path-templated endpoints (#2918).
@@ -114,10 +128,6 @@ Key-Value Store:
 
 ---
 
-## Auditor
+## Dependencies
 
-- Receipts now include the endorsed certificate of the node, as well as its node id, for convenience (#2991).
-- Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
-- Service-endorsed node certificates are now recorded in a new `public:ccf.gov.nodes.endorsed_certificates` table, while the existing `cert` field in the `public:ccf.gov.nodes.info` table is now deprecated (#2844).
-- New `split_ledger.py` utility to split existing ledger files (#3129).
-- Python `ccf.read_ledger` module now accepts custom formatting rules for the key and value based on the key-value store table name (#2791).
+- Upgraded Open Enclave to 0.17.5.
