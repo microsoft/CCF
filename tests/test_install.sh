@@ -30,14 +30,6 @@ if [ "$#" -lt 1 ]; then
     exit 1
 fi
 
-# If "release" is passed as second argument to the script, run additional
-# tests at the end of this script
-is_release=false
-if [ "${2}" == "release" ]; then
-    echo "Testing release"
-    is_release=true
-fi
-
 # Setup env
 INSTALL_PREFIX="$1"
 if [ -n "$PYTHON_PACKAGE_PATH" ]; then
