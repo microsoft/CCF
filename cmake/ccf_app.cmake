@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-if (NOT DISABLE_OE)
+if(NOT DISABLE_OE)
   set(ALLOWED_TARGETS "sgx;virtual")
 else()
   set(ALLOWED_TARGETS "virtual")
@@ -14,11 +14,10 @@ set(COMPILE_TARGETS
       "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
 )
 
-set(DISABLE_OE
-    False
-    CACHE
-      BOOL
-      "Disable the requirement for OE, but also to ability to verify OE attestation reports."
+option(
+  DISABLE_OE
+  "Disable the requirement for OE, but also to ability to verify OE attestation reports."
+  OFF
 )
 
 set(IS_VALID_TARGET "FALSE")
@@ -42,22 +41,24 @@ endif()
 
 set(HOST_SIDE_VERIFIERS)
 
-if (NOT DISABLE_OE)
+if(NOT DISABLE_OE)
   # Find OpenEnclave package
   find_package(OpenEnclave 0.17.5 CONFIG REQUIRED)
 
-  # As well as pulling in openenclave:: targets, this sets variables which can be
-  # used for our edge cases (eg - for virtual libraries). These do not follow the
-  # standard naming patterns, for example use OE_INCLUDEDIR rather than
+  # As well as pulling in openenclave:: targets, this sets variables which can
+  # be used for our edge cases (eg - for virtual libraries). These do not follow
+  # the standard naming patterns, for example use OE_INCLUDEDIR rather than
   # OpenEnclave_INCLUDE_DIRS
 
   set(OE_TARGET_LIBC openenclave::oelibc)
-  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
-                                openenclave::oelibc openenclave::oecryptoopenssl
+  set(OE_TARGET_ENCLAVE_AND_STD
+      openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
+      openenclave::oecryptoopenssl
   )
   # These oe libraries must be linked in specific order
-  set(OE_TARGET_ENCLAVE_CORE_LIBS openenclave::oeenclave openenclave::oesnmalloc
-                                  openenclave::oecore openenclave::oesyscall
+  set(OE_TARGET_ENCLAVE_CORE_LIBS
+      openenclave::oeenclave openenclave::oesnmalloc openenclave::oecore
+      openenclave::oesyscall
   )
 
   list(APPEND HOST_SIDE_VERIFIERS openenclave::oehost)
@@ -259,10 +260,11 @@ function(add_host_library name)
   set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
   add_library(${name} ${files})
   target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
-  if (DISABLE_OE)
-    target_compile_definitions(
-        ${name} PUBLIC DISABLE_OE)
+  if(DISABLE_OE)
+    target_compile_definitions(${name} PUBLIC DISABLE_OE)
   endif()
-  target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc ${HOST_SIDE_VERIFIERS})
+  target_link_libraries(
+    ${name} PUBLIC ${LINK_LIBCXX} -lgcc ${HOST_SIDE_VERIFIERS}
+  )
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()

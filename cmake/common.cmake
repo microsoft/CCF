@@ -181,9 +181,8 @@ endif()
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
-  if (DISABLE_OE)
-    target_compile_definitions(
-        ${name} PRIVATE DISABLE_OE)
+  if(DISABLE_OE)
+    target_compile_definitions(${name} PRIVATE DISABLE_OE)
   endif()
   target_include_directories(
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -193,9 +192,7 @@ function(add_unit_test name)
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host ${HOST_SIDE_VERIFIERS}
   )
   if("virtual" IN_LIST COMPILE_TARGETS)
-    target_link_libraries(
-      ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-    )
+    target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
   endif()
   add_san(${name})
 
@@ -268,9 +265,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   # Virtual Host Executable
   add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
-  if (DISABLE_OE)
-    target_compile_definitions(
-        cchost.virtual PRIVATE DISABLE_OE)
+  if(DISABLE_OE)
+    target_compile_definitions(cchost.virtual PRIVATE DISABLE_OE)
   endif()
   target_compile_options(cchost.virtual PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
@@ -425,9 +421,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
                                    _LIBCPP_HAS_THREAD_API_PTHREAD
   )
-  if (DISABLE_OE)
-    target_compile_definitions(
-        js_generic_base.virtual PUBLIC DISABLE_OE)
+  if(DISABLE_OE)
+    target_compile_definitions(js_generic_base.virtual PUBLIC DISABLE_OE)
   endif()
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON

@@ -129,9 +129,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
                        _LIBCPP_HAS_THREAD_API_PTHREAD
   )
-  if (DISABLE_OE)
-    target_compile_definitions(
-        ccf.virtual PUBLIC PRIVATE DISABLE_OE)
+  if(DISABLE_OE)
+    target_compile_definitions(ccf.virtual PUBLIC DISABLE_OE)
   endif()
 
   target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
