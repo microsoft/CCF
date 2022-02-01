@@ -59,9 +59,9 @@
                 "default": 1010,
                 "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
               }
-            }
+            },
+            "required": ["bind_address"]
           },
-          "required": ["bind_address"],
           "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
         }
       },
