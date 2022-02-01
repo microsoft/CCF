@@ -89,7 +89,7 @@ def print_object(output, obj, depth=0, required_entries=None, additional_desc=No
                     output,
                     v["additionalProperties"]["properties"],
                     depth=depth + 1,
-                    required_entries=reqs,
+                    required_entries=v["additionalProperties"].get("required", []),
                 )
             if "items" in v and v["items"]["type"] == "object":
                 print_object(
