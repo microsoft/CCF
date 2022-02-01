@@ -24,8 +24,8 @@ namespace enclave
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
-  static constexpr ccf::EndorsementType endorsement_type_default =
-    ccf::EndorsementType::NETWORK;
+  static constexpr ccf::Endorsement endorsement_default =
+    ccf::Endorsement{ccf::Authority::SERVICE};
 
   class RPCSessions : public AbstractRPCResponder
   {
@@ -36,7 +36,7 @@ namespace enclave
       size_t peak_sessions;
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
-      ccf::EndorsementType endorsement_type;
+      ccf::Endorsement endorsement;
     };
     std::map<ListenInterfaceID, ListenInterface> listening_interfaces;
 
@@ -163,17 +163,16 @@ namespace enclave
         li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
           max_open_sessions_hard_default);
 
-        li.endorsement_type =
-          interface.endorsement_type.value_or(endorsement_type_default);
+        li.endorsement = interface.endorsement.value_or(endorsement_default);
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
-          "{}] and endorsement type to {}",
+          "{}] and endorsement authority to {}",
           name,
           interface.bind_address,
           li.max_open_sessions_soft,
           li.max_open_sessions_hard,
-          li.endorsement_type);
+          li.endorsement.authority);
       }
     }
 
@@ -199,18 +198,16 @@ namespace enclave
 
     void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      set_cert(ccf::EndorsementType::NODE, cert_, pk);
+      set_cert(ccf::Authority::NODE, cert_, pk);
     }
 
     void set_network_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      set_cert(ccf::EndorsementType::NETWORK, cert_, pk);
+      set_cert(ccf::Authority::SERVICE, cert_, pk);
     }
 
     void set_cert(
-      ccf::EndorsementType endorsement_type,
-      const crypto::Pem& cert_,
-      const crypto::Pem& pk)
+      ccf::Authority authority, const crypto::Pem& cert_, const crypto::Pem& pk)
     {
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
@@ -223,7 +220,7 @@ namespace enclave
 
       for (auto& [listen_interface_id, interface] : listening_interfaces)
       {
-        if (interface.endorsement_type == endorsement_type)
+        if (interface.endorsement.authority == authority)
         {
           certs.insert_or_assign(listen_interface_id, cert);
         }

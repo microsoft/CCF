@@ -81,7 +81,8 @@ def test_add_node(network, args):
                     host=host
                 ),
                 operator_rpc_interface: infra.interfaces.RPCInterface(
-                    host=host, endorsement_type="Node"
+                    host=host,
+                    endorsement=infra.interfaces.Endorsement(authority="Node"),
                 ),
             }
         )

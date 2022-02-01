@@ -9,14 +9,25 @@
 
 namespace ccf
 {
-  enum class EndorsementType
+  enum class Authority
   {
     NODE,
-    NETWORK
+    SERVICE
   };
   DECLARE_JSON_ENUM(
-    EndorsementType,
-    {{EndorsementType::NODE, "Node"}, {EndorsementType::NETWORK, "Network"}});
+    Authority, {{Authority::NODE, "Node"}, {Authority::SERVICE, "Service"}});
+
+  struct Endorsement
+  {
+    Authority authority;
+
+    bool operator==(const Endorsement& other) const
+    {
+      return authority == other.authority;
+    }
+  };
+  DECLARE_JSON_TYPE(Endorsement);
+  DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
 
   struct NodeInfoNetwork_v1
   {
@@ -46,7 +57,7 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
-      std::optional<EndorsementType> endorsement_type = std::nullopt;
+      std::optional<Endorsement> endorsement = std::nullopt;
 
       bool operator==(const NetInterface& other) const
       {
@@ -54,7 +65,7 @@ namespace ccf
           published_address == other.published_address &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
           max_open_sessions_hard == other.max_open_sessions_hard &&
-          endorsement_type == other.endorsement_type;
+          endorsement == other.endorsement;
       }
     };
 
@@ -67,7 +78,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
     NodeInfoNetwork_v2::NetInterface,
-    endorsement_type,
+    endorsement,
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address);
@@ -154,7 +165,7 @@ namespace ccf
 
 FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::EndorsementType>
+struct formatter<ccf::Authority>
 {
   template <typename ParseContext>
   auto parse(ParseContext& ctx)
@@ -163,18 +174,18 @@ struct formatter<ccf::EndorsementType>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::EndorsementType& type, FormatContext& ctx)
+  auto format(const ccf::Authority& authority, FormatContext& ctx)
     -> decltype(ctx.out())
   {
-    switch (type)
+    switch (authority)
     {
-      case (ccf::EndorsementType::NODE):
+      case (ccf::Authority::NODE):
       {
         return format_to(ctx.out(), "Node");
       }
-      case (ccf::EndorsementType::NETWORK):
+      case (ccf::Authority::SERVICE):
       {
-        return format_to(ctx.out(), "Network");
+        return format_to(ctx.out(), "Service");
       }
     }
   }

@@ -174,7 +174,7 @@ def test_no_quote(network, args):
         infra.interfaces.HostSpec(
             rpc_interfaces={
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    endorsement_type="Node"
+                    endorsement=infra.interfaces.Endorsement(authority="Node")
                 )
             }
         )
