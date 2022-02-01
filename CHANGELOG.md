@@ -5,16 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- The new `endorsement` configuration entry lets operators set the desired TLS certificate endorsement, either service-endorsed or node-endorsed (self-signed), for each network RPC interface of a node, defaulting to service-endorsed (#2875).
+
+### Changed
+
+- Node RPC interfaces do not anymore transition from node-endorsed to service-endorsed TLS certificates but are fixed to a single configured type. While a given endorsement is not available yet (typically at start-up for service-endorsed certificates) the interface rejects TLS sessions instead of defaulting to a node-endorsed certificate (#2875).
+
 ## [2.0.0-dev8]
 
 ### Added
 
 - Added `set_claims_digest()` API to `RpcContext`, see [documentation](https://microsoft.github.io/CCF/main/build_apps/logging_cpp.html#user-defined-claims-in-receipts) on how to use it to attach application-defined claims to transaction receipts.
 - Added a `GET /jwt_metrics` endpoint to monitor attempts and successes of key refresh for each issuer. See [documentation](https://microsoft.github.io/CCF/main/build_apps/auth/jwt.html#extracting-jwt-metrics) on how to use it.
-
-### Added
-
-- The new `endorsement` configuration entry lets operators set the desired TLS certificate endorsement, either service-endorsed or node-endorsed (self-signed), for each network RPC interface of a node, defaulting to service-endorsed (#2875).
 
 ### Changed
 
@@ -24,7 +30,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The new `set_service_certificate_validity` proposal action allows members to renew the service certificate.
 - Service certificate output by first node default name is now `service_cert.pem` rather than `networkcert.pem` (#3363).
 - Retired nodes are now removed from the store/ledger as soon as their retirement is committed (#3409).
-- Node RPC interfaces do not anymore transition from node-endorsed to service-endorsed TLS certificates but are fixed to a single configured type. While a given endorsement is not available yet (typically at start-up for service-endorsed certificates) the interface rejects TLS sessions instead of defaulting to a node-endorsed certificate (#2875).
 
 ### Removed
 
