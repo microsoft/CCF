@@ -287,14 +287,16 @@ namespace kv
   {
     WriteSet = 0,
     Snapshot = 1,
-    WriteSetWithCommitEvidence = 2,
-    WriteSetWithCommitEvidenceAndClaims = 3,
+    WriteSetWithClaims = 2,
+    WriteSetWithCommitEvidence = 3,
+    WriteSetWithCommitEvidenceAndClaims = 4,
     MAX = WriteSetWithCommitEvidenceAndClaims
   };
 
   static bool has_claims(const EntryType& et)
   {
-    return et == EntryType::WriteSetWithCommitEvidenceAndClaims;
+    return et == EntryType::WriteSetWithClaims ||
+      et == EntryType::WriteSetWithCommitEvidenceAndClaims;
   }
 
   static bool has_commit_evidence(const EntryType& et)
