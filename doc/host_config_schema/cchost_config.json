@@ -62,7 +62,7 @@
             },
             "required": ["bind_address"]
           },
-          "description": "Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information"
+          "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
