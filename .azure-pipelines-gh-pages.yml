@@ -30,7 +30,8 @@ jobs:
 
       # Only the main branch builds and publishes the versioned documentation.
       # This is because the configuration of the docs (e.g. theme) will change
-      # over time and only the main branch should be source of trust/kept up to date.
+      # over time and only the main branch should be source of truth and be
+      # kept up to date.
 
       # Only on main and not on PRs
       - script: |
