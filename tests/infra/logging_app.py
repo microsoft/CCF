@@ -114,6 +114,7 @@ class LoggingTxs:
                         headers=self._get_headers_base(),
                         log_capture=log_capture,
                     )
+                    assert rep_priv.status_code == http.HTTPStatus.OK, rep_priv
                     self.priv[target_idx].append(
                         {
                             "msg": priv_msg,
@@ -137,6 +138,7 @@ class LoggingTxs:
                         headers=self._get_headers_base(),
                         log_capture=log_capture,
                     )
+                    assert rep_pub.status_code == http.HTTPStatus.OK, rep_pub
                     self.pub[target_idx].append(
                         {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
                     )

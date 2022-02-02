@@ -16,6 +16,7 @@ namespace ccf
     ccf::NodeId node_id = {};
     std::optional<crypto::Pem> cert = std::nullopt;
     std::optional<crypto::Sha256Hash> write_set_digest = std::nullopt;
+    std::optional<std::string> commit_evidence = std::nullopt;
     ccf::ClaimsDigest claims_digest = {};
 
     TxReceipt(
@@ -25,6 +26,7 @@ namespace ccf
       const NodeId& n_,
       const std::optional<crypto::Pem>& c_,
       const std::optional<crypto::Sha256Hash>& write_set_digest_ = std::nullopt,
+      const std::optional<std::string>& commit_evidence_ = std::nullopt,
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       signature(s_),
       root(r_),
@@ -32,6 +34,7 @@ namespace ccf
       node_id(n_),
       cert(c_),
       write_set_digest(write_set_digest_),
+      commit_evidence(commit_evidence_),
       claims_digest(claims_digest_)
     {}
 
@@ -42,7 +45,7 @@ namespace ccf
       {
         r.root = root.to_string();
       }
-      if (path)
+      if (path != nullptr)
       {
         for (const auto& node : *path)
         {
@@ -65,27 +68,25 @@ namespace ccf
         r.cert = cert->str();
       }
 
-      if (claims_digest.empty())
+      if (path == nullptr)
       {
-        if (path)
-        {
-          r.leaf = path->leaf().to_string();
-        }
-        else
-        {
-          // Signature transaction
-          r.leaf = root.to_string();
-        }
+        // Signature transaction
+        r.leaf = root.to_string();
+      }
+      else if (!commit_evidence.has_value())
+      {
+        r.leaf = write_set_digest->hex_str();
       }
       else
       {
         std::optional<std::string> write_set_digest_str = std::nullopt;
         if (write_set_digest.has_value())
           write_set_digest_str = write_set_digest->hex_str();
-        std::optional<std::string> claims_digest_str =
-          claims_digest.value().hex_str();
-        r.leaf_components =
-          Receipt::LeafComponents{write_set_digest_str, claims_digest_str};
+        std::optional<std::string> claims_digest_str = std::nullopt;
+        if (!claims_digest.empty())
+          claims_digest_str = claims_digest.value().hex_str();
+        r.leaf_components = Receipt::LeafComponents{
+          write_set_digest_str, commit_evidence, claims_digest_str};
       }
     }
   };

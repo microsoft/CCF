@@ -558,6 +558,7 @@ class CCFRemote(object):
         constitution=None,
         curve_id=None,
         version=None,
+        host_log_level="Info",
         major_version=None,
         include_addresses=True,
         config_file=None,
@@ -637,9 +638,9 @@ class CCFRemote(object):
             env = Environment(loader=loader, autoescape=select_autoescape())
             t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
-                start_type=start_type.name,
+                start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,
-                enclave_type=enclave_type,
+                enclave_type=enclave_type.title(),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
@@ -648,7 +649,8 @@ class CCFRemote(object):
                 read_only_ledger_dirs=self.read_only_ledger_dirs_names,
                 snapshots_dir=self.snapshot_dir_name,
                 constitution=constitution,
-                curve_id=curve_id.name,
+                curve_id=curve_id.name.title(),
+                host_log_level=host_log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
@@ -684,14 +686,12 @@ class CCFRemote(object):
         else:
             consensus = kwargs.get("consensus")
             node_address = kwargs.get("node_address")
-            host_log_level = kwargs.get("host_log_level")
             worker_threads = kwargs.get("worker_threads")
             ledger_chunk_bytes = kwargs.get("ledger_chunk_bytes")
             subject_alt_names = kwargs.get("subject_alt_names")
             snapshot_tx_interval = kwargs.get("snapshot_tx_interval")
             max_open_sessions = kwargs.get("max_open_sessions")
             max_open_sessions_hard = kwargs.get("max_open_sessions_hard")
-            curve_id = kwargs.get("curve_id")
             initial_node_cert_validity_days = kwargs.get(
                 "initial_node_cert_validity_days"
             )

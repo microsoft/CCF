@@ -345,6 +345,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
     target_link_libraries(indexing_test PRIVATE sss.host)
 
@@ -711,22 +712,13 @@ if(BUILD_TESTS)
     )
   endif()
 
-  set(LTS_ITERATIONS "compatibility")
-  if(LONG_TESTS)
-    set(LTS_ITERATIONS
-        "compatibility_a;compatibility_b;compatibility_c;compatibility_d"
-    )
-  endif()
-
-  foreach(ITERATION ${LTS_ITERATIONS})
-    add_e2e_test(
-      NAME lts_${ITERATION}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-      CONSENSUS cft
-      LABEL e2e
-      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-    )
-  endforeach()
+  add_e2e_test(
+    NAME lts_compatibility
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+    CONSENSUS cft
+    LABEL e2e
+    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+  )
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)

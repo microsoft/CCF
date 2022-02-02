@@ -36,6 +36,12 @@ namespace kv
       return true;
     }
 
+    crypto::HashBytes get_commit_nonce(
+      const TxID& tx_id, bool historical_hint = false) override
+    {
+      return {};
+    }
+
     size_t get_header_length() override
     {
       return 0;

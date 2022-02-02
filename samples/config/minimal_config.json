@@ -1,7 +1,7 @@
 {
   "enclave": {
     "file": "libjs_generic.enclave.so.signed",
-    "type": "release"
+    "type": "Release"
   },
   "network": {
     "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
@@ -15,7 +15,7 @@
     }
   },
   "command": {
-    "type": "start",
+    "type": "Start",
     "service_certificate_file": "service_cert.pem",
     "start": {
       "constitution_files": [

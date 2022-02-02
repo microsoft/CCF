@@ -19,9 +19,9 @@ namespace host
   };
   DECLARE_JSON_ENUM(
     EnclaveType,
-    {{EnclaveType::SGX_RELEASE, "release"},
-     {EnclaveType::SGX_DEBUG, "debug"},
-     {EnclaveType::VIRTUAL, "virtual"}});
+    {{EnclaveType::SGX_RELEASE, "Release"},
+     {EnclaveType::SGX_DEBUG, "Debug"},
+     {EnclaveType::VIRTUAL, "Virtual"}});
 
   enum class LogFormat
   {
@@ -29,7 +29,7 @@ namespace host
     JSON
   };
   DECLARE_JSON_ENUM(
-    LogFormat, {{LogFormat::TEXT, "text"}, {LogFormat::JSON, "json"}});
+    LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
 
   struct ParsedMemberInfo
   {

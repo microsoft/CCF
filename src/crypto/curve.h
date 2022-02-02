@@ -26,8 +26,8 @@ namespace crypto
   DECLARE_JSON_ENUM(
     CurveID,
     {{CurveID::NONE, "None"},
-     {CurveID::SECP384R1, "secp384r1"},
-     {CurveID::SECP256R1, "secp256r1"}});
+     {CurveID::SECP384R1, "Secp384R1"},
+     {CurveID::SECP256R1, "Secp256R1"}});
 
   static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
   // SNIPPET_END: supported_curves

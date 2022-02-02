@@ -26,9 +26,10 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using NumToString = kv::Map<size_t, std::string>;
 
 constexpr size_t certificate_validity_period_days = 365;
-auto valid_from =
-  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-    std::chrono::system_clock::now())); // now
+using namespace std::literals;
+auto valid_from = crypto::OpenSSL::to_x509_time_string(
+  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
+
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
@@ -45,6 +46,8 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
 
   ts.kv_store = std::make_shared<kv::Store>();
   ts.kv_store->set_consensus(std::make_shared<kv::test::StubConsensus>());
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ts.kv_store->set_encryptor(encryptor);
 
   ts.node_kp = crypto::make_key_pair();
 

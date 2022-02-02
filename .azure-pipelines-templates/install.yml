@@ -43,7 +43,7 @@ steps:
   - script: |
       set -ex
       sudo apt -y install ./$(pkgname)
-      cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {} release"
+      cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
     workingDirectory: build
     displayName: Test installed CCF
 
