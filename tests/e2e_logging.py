@@ -7,7 +7,6 @@ import infra.e2e_args
 from infra.tx_status import TxStatus
 import infra.checker
 import infra.jwt_issuer
-import inspect
 import http
 from http.client import HTTPResponse
 import ssl
@@ -174,7 +173,7 @@ def test_large_messages(network, args):
             # pass but not others, and finding where does it fail).
             log_id = 40
             for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2**p)
+                long_msg = "X" * (2 ** p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
                     result=True,
