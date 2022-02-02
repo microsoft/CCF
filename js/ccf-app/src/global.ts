@@ -69,7 +69,7 @@ export interface ProofElement {
 export interface LeafComponents {
   /**
    * Hex-encoded hash of transaction's write set.
-  */
+   */
   write_set_digest: string;
 
   /**
@@ -79,7 +79,7 @@ export interface LeafComponents {
 
   /**
    * Hex-encoded hash of transaction's claims.
-  */
+   */
   claims_digest?: string;
 }
 
