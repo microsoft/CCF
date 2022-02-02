@@ -1,16 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import argparse
 import re
 import subprocess
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("out_path")
-    args = parser.parse_args()
-
     git_version = subprocess.run(
         ["git", "describe", "--tags"], capture_output=True, universal_newlines=True
     ).stdout.strip()
@@ -37,9 +32,6 @@ def main():
 
     release_notes = release_notes.strip()
     print(release_notes)
-
-    with open(args.out_path, "w") as f:
-        f.write(release_notes)
 
 
 if __name__ == "__main__":
