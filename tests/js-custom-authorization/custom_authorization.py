@@ -47,8 +47,14 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": 50})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
+    depth_limit = 2000
+    if "v8" in args.package:
+        # Stack limit is not currently configured explicitly for V8 app.
+        # Default limit requires deeper recursion to hit.
+        depth_limit = 20000
+
     with primary.client("user0") as c:
-        r = c.post("/app/recursive", body={"depth": 2000})
+        r = c.post("/app/recursive", body={"depth": depth_limit})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
     return network
@@ -60,6 +66,10 @@ def test_heap_size_limit(network, args):
 
     with primary.client("user0") as c:
         r = c.post("/app/alloc", body={"size": 5 * 1024 * 1024})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+    with primary.client("user0") as c:
+        r = c.post("/app/alloc", body={"size": 50 * 1024 * 1024})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
     with primary.client("user0") as c:
