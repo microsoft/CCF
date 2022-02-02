@@ -45,18 +45,50 @@ export interface Request<T extends JsonCompatible<T> = any> {
 
   /**
    * An object mapping URL path parameter names to their values.
+   * 
+   * GET /app/person/bob?fields=all, matched to /app/person/{name} => {"name": "bob"}
    */
   params: { [key: string]: string };
 
   /**
-   * The query string of the requested URL.
+   * The full original requested URL.
+   * 
+   * GET /app/person/bob?fields=all => "/app/person/bob?fields=all"
+   */
+  url: string;
+
+  /**
+   * The path component of the requested URL.
+   * 
+   * GET /app/person/bob?fields=all => "/app/person/bob"
+   */
+  path: string;
+
+  /**
+   * The endpoint name which matched requested URL, potentially containing path parameters.
+   * 
+   * GET /app/person/bob?fields=all => "/app/person/{name}"
+   */
+  route: string;
+
+  /**
+   * The query component of the requested URL.
+   * 
+   * GET /app/person/bob?fields=all => "fields=all"
    */
   query: string;
 
   /**
-   * The request path of the requested URL.
+   * The HTTP method of the request.
+   * 
+   * GET /app/person/bob?fields=all => "GET"
    */
-  path: string;
+  method: string;
+
+  /**
+   * Hostname extracted from Host header, or null if header is missing
+   */
+  hostname: string;
 
   /**
    * An object to access the request body in various ways.
@@ -228,7 +260,7 @@ export interface Response<T extends ResponseBodyType<T> = any> {
 export type EndpointFn<
   A extends JsonCompatible<A> = any,
   B extends ResponseBodyType<B> = any
-> = (request: Request<A>) => Response<B>;
+  > = (request: Request<A>) => Response<B>;
 
 /**
  * @inheritDoc CCF.rpc.setApplyWrites
