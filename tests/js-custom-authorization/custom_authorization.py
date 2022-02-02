@@ -499,7 +499,6 @@ if __name__ == "__main__":
     cr.add(
         "request_object",
         run_request_object,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
     )

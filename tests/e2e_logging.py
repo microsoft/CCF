@@ -447,9 +447,7 @@ def test_multi_auth(network, args):
         LOG.info("Authenticate via second JWT token")
         jwt2 = jwt_issuer.issue_jwt(claims={"user": "Bob"})
 
-        with primary.client(
-            common_headers={"authorization": "Bearer " + jwt2}
-        ) as c:
+        with primary.client(common_headers={"authorization": "Bearer " + jwt2}) as c:
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
