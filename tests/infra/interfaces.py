@@ -88,11 +88,19 @@ class HostSpec:
     @staticmethod
     def from_str(s):
         protocol, address = s.split("://")
+        pub_host, pub_port = None, None
+        if "," in address:
+            address, published_address = address.split(",")
+            pub_host, pub_port = split_address(published_address)
         host, port = split_address(address)
         return HostSpec(
             rpc_interfaces={
                 PRIMARY_RPC_INTERFACE: RPCInterface(
-                    protocol=protocol, host=host, port=port
+                    protocol=protocol,
+                    host=host,
+                    port=port,
+                    public_host=pub_host,
+                    public_port=pub_port,
                 )
             }
         )
