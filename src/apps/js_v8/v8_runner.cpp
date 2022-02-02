@@ -306,11 +306,6 @@ namespace ccf
     v8::Isolate::CreateParams create_params;
     create_params.array_buffer_allocator =
       v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-
-    // Set constrained heap size to match QuickJS
-    const size_t max_heap_size = 100 * 1024 * 1024;
-    create_params.constraints.ConfigureDefaultsFromHeapSize(0, max_heap_size);
-
     isolate_ = v8::Isolate::New(create_params);
     // Note: Out-of-memory also calls the fatal error handler.
     isolate_->SetFatalErrorHandler(on_fatal_error);

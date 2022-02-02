@@ -47,14 +47,8 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": 50})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-    depth_limit = 2000
-    if "v8" in args.package:
-        # Stack limit is not currently configured explicitly for V8 app.
-        # Default limit requires deeper recursion to hit.
-        depth_limit = 20000
-
     with primary.client("user0") as c:
-        r = c.post("/app/recursive", body={"depth": depth_limit})
+        r = c.post("/app/recursive", body={"depth": 2000})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
     return network
@@ -69,10 +63,6 @@ def test_heap_size_limit(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
     with primary.client("user0") as c:
-        r = c.post("/app/alloc", body={"size": 50 * 1024 * 1024})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-
-    with primary.client("user0") as c:
         r = c.post("/app/alloc", body={"size": 500 * 1024 * 1024})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
@@ -80,6 +70,13 @@ def test_heap_size_limit(network, args):
 
 
 def run_limits(args):
+    if "v8" in args.package:
+        LOG.warning(
+            f"Skipping run_limits for {args.package} as heap and stack limits are not yet enforced"
+        )
+        # See https://github.com/microsoft/CCF/issues/3324
+        return
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
