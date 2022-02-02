@@ -66,6 +66,23 @@ export interface ProofElement {
   right?: string;
 }
 
+export interface LeafComponents {
+  /**
+   * Hex-encoded hash of transaction's write set.
+  */
+  write_set_digest: string;
+
+  /**
+   * Raw bytes of commit evidence.
+   */
+  commit_evidence?: string;
+
+  /**
+   * Hex-encoded hash of transaction's claims.
+  */
+  claims_digest?: string;
+}
+
 /**
  * @inheritDoc Receipt.proof
  */
@@ -88,9 +105,14 @@ export interface Receipt {
   proof: Proof;
 
   /**
-   * Hex-encoded Merkle tree leaf hash.
+   * Hex-encoded Merkle tree leaf hash, for pre-2.x transactions.
    */
-  leaf: string;
+  leaf?: string;
+
+  /**
+   * Components of Merkle tree leaf hash, which digest together to replace leaf.
+   */
+  leaf_components?: LeafComponents;
 
   /**
    * ID of the node that signed the Merkle tree root hash.
