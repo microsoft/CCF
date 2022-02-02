@@ -95,7 +95,7 @@ export interface Receipt {
   /**
    * ID of the node that signed the Merkle tree root hash.
    */
-  nodeId: string;
+  node_id: string;
 }
 
 /**
