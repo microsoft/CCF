@@ -1,0 +1,56 @@
+{
+  "endpoints": {
+    "/echo": {
+      "post": {
+        "js_module": "endpoints.js",
+        "js_function": "echo",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert", "no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      },
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "echo",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert", "no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      },
+      "delete": {
+        "js_module": "endpoints.js",
+        "js_function": "echo",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert", "no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/echo/{foo}": {
+      "post": {
+        "js_module": "endpoints.js",
+        "js_function": "echo",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert", "no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      },
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "echo",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert", "no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      },
+      "delete": {
+        "js_module": "endpoints.js",
+        "js_function": "echo",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert", "no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    }
+  }
+}
