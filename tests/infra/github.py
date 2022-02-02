@@ -9,6 +9,7 @@ import git
 import urllib
 import shutil
 import requests
+import copy
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -71,7 +72,10 @@ def sanitise_branch_name(branch_name):
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
         return MAIN_BRANCH_NAME
     if is_release_tag(branch_name):
-        equivalent_release_branch = f'{BRANCH_RELEASE_PREFIX}{branch_name.split(TAG_RELEASE_PREFIX)[1].split(".")[0]}.x'
+        tag_major_version = int(branch_name.split(TAG_RELEASE_PREFIX)[1].split(".")[0])
+        if tag_major_version == 0:
+            return MAIN_BRANCH_NAME
+        equivalent_release_branch = f"{BRANCH_RELEASE_PREFIX}{tag_major_version}.x"
         LOG.debug(
             f"Considering release tag {branch_name} as {equivalent_release_branch} release branch"
         )
@@ -162,9 +166,8 @@ class Repository:
 
     def get_release_branch_name_before(self, branch):
         release_branches = self.get_release_branches_names()
-        assert branch in release_branches or is_release_tag(
-            branch
-        ), f"{branch} branch is not a valid release branch/tag"
+        if branch not in release_branches:
+            raise ValueError(f"{branch} branch is not a valid release branch")
         before_index = release_branches.index(branch) - 1
         if before_index < 0:
             raise ValueError(f"No prior release branch to {branch}")
@@ -172,9 +175,8 @@ class Repository:
 
     def get_next_release_branch(self, branch):
         release_branches = self.get_release_branches_names()
-        assert branch in release_branches or is_release_tag(
-            branch
-        ), f"{branch} branch is not a valid release branch/tag"
+        if branch not in release_branches:
+            raise ValueError(f"{branch} branch is not a valid release branch")
         after_index = release_branches.index(branch) + 1
         if after_index >= len(release_branches):
             raise ValueError(f"No release branch after {branch}")
@@ -187,7 +189,7 @@ class Repository:
         assert is_release_branch(branch_name), f"{branch_name} is not a release branch"
 
         release_branch_name = strip_release_branch_name(branch_name)
-        release_re = "^{}{}$".format(
+        release_re = "^{}{}(-rc.*|)$".format(
             TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\\d+]+)")
         )
 
@@ -264,6 +266,7 @@ class Repository:
             tags = self.get_tags_for_release_branch(
                 get_release_branch_from_branch_name(branch)
             )
+            LOG.warning(tags)
             if tags and this_release_branch_only:
                 return tags[0]
             elif not this_release_branch_only:
@@ -292,6 +295,7 @@ class Repository:
                     continue
                 LOG.info(f"Latest release branch: {latest_release_branch}")
                 return tags[0]
+            LOG.warning("No release branch with tag found")
             return None
         else:
             return None
@@ -337,133 +341,170 @@ class Repository:
 if __name__ == "__main__":
     # Run this to test
     class MockGitEnv:
-        def __init__(self, tags, release_branches):
-            self.tags = tags
-            self.release_branches = release_branches
+        def __init__(self, tags=None, release_branches=None, local_branch=None):
+            self.tags = set(tags) if tags else set()
+            self.release_branches = set(release_branches) if release_branches else set()
+            self.local_branch = local_branch or MAIN_BRANCH_NAME
+
+        def mut(self, tag=None, branch=None, local=None):
+            if tag:
+                self.tags.add(tag)
+                self.local_branch = tag  # Adding new tag triggers compatibility test
+            if branch:
+                self.release_branches.add(branch)
+            if local:
+                self.local_branch = local
+            return MockGitEnv(self.tags, self.release_branches, self.local_branch)
 
         def has_release_for_tag_name(self, tag_name):
+            # If tag_name is local branch, then the release from this tag
+            # must be in progress
+            if tag_name == self.local_branch:
+                return False
             return True
 
-    def make_test_vector(tags, release_branches, local_branch, expected):
-        return {
-            "tags": tags,
-            "release_branches": release_branches,
-            "local_branch": local_branch,
-            "expected": expected,
-        }
+    def expected(prev_lts=None, same_lts=None, next_lts=None):
+        return {"previous LTS": prev_lts, "same LTS": same_lts, "next LTS": next_lts}
 
+    env = MockGitEnv()
     test_scenarios = [
-        # Development on main after release 1.x
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1"],
-            ["release/1.x"],
-            "main",
-            {"previous LTS": "ccf-1.0.1", "same LTS": None, "next LTS": None},
-        ),
-        # New commit on release/1.x
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1"],
-            ["release/1.x"],
-            "release/1.x",
-            {"previous LTS": None, "same LTS": "ccf-1.0.1", "next LTS": None},
-        ),
-        # 2.0.0 release is now out
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0"],
-            ["release/1.x", "release/2.x"],
-            "release/2.x",
-            {"previous LTS": "ccf-1.0.1", "same LTS": "ccf-2.0.0", "next LTS": None},
-        ),
-        # Patch to 1.x
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
-            ["release/1.x", "release/2.x"],
-            "ccf-1.0.3",
-            {"previous LTS": None, "same LTS": "ccf-1.0.2", "next LTS": "ccf-2.0.0"},
-        ),
-        # Development on main after release 2.x
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
-            ["release/1.x", "release/2.x"],
-            "main",
-            {"previous LTS": "ccf-2.0.0", "same LTS": None, "next LTS": None},
-        ),
-        # Dev release on main after release 2.x
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
-            ["release/1.x", "release/2.x"],
-            "ccf-3.0.0-dev0",
-            {"previous LTS": "ccf-2.0.0", "same LTS": None, "next LTS": None},
-        ),
-        # 2.0.1 release is now out
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2", "ccf-2.0.1"],
-            ["release/1.x", "release/2.x"],
-            "release/2.x",
-            {"previous LTS": "ccf-1.0.2", "same LTS": "ccf-2.0.1", "next LTS": None},
-        ),
-        # Local branch is a actually tag! (https://github.com/microsoft/CCF/issues/2699)
-        make_test_vector(
-            ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2", "ccf-2.0.1"],
-            ["release/1.x", "release/2.x"],
-            "ccf-2.0.2",
-            {"previous LTS": "ccf-1.0.2", "same LTS": "ccf-2.0.1", "next LTS": None},
-        ),
-        # 3.0.0 release is now out
-        make_test_vector(
-            [
-                "ccf-1.0.0",
-                "ccf-1.0.1",
-                "ccf-2.0.0",
-                "ccf-1.0.2",
-                "ccf-2.0.1",
-                "ccf-3.0.0",
-            ],
-            ["release/1.x", "release/2.x", "release/3.x"],
-            "release/3.x",
-            {"previous LTS": "ccf-2.0.1", "same LTS": "ccf-3.0.0", "next LTS": None},
-        ),
-        # Patch to 2.x
-        make_test_vector(
-            [
-                "ccf-1.0.0",
-                "ccf-1.0.1",
-                "ccf-2.0.0",
-                "ccf-1.0.2",
-                "ccf-2.0.1",
-                "ccf-3.0.0",
-                "ccf-2.0.2",
-            ],
-            ["release/1.x", "release/2.x", "release/3.x"],
-            "release/2.x",
-            {
-                "previous LTS": "ccf-1.0.2",
-                "same LTS": "ccf-2.0.2",
-                "next LTS": "ccf-3.0.0",
-            },
-        ),
+        (env.mut(local="main"), expected()),  # Bare repo
+        (env.mut(tag="ccf-0.0.1"), expected()),  # Create new tag
+        (env.mut(local="main"), expected()),  # Development on main
+        (env.mut(tag="ccf-1.0.0-rc0"), expected()),  # First RC
+        (env.mut(local="main"), expected()),  # Dev on main, no compat! TODO: Really?
+        (
+            env.mut(branch="release/1.x", local="main"),
+            expected(prev_lts="ccf-1.0.0-rc0"),
+        ),  # 1.x branch cut
+        (
+            env.mut(local="release/1.x"),
+            expected(same_lts="ccf-1.0.0-rc0"),
+        ),  # Dev on release/1.x
+        (
+            env.mut(tag="ccf-1.0.0-rc1"),
+            expected(same_lts="ccf-1.0.0-rc0"),
+        ),  # Second RC tag
     ]
 
-    for s in test_scenarios:
-        env = MockGitEnv(s["tags"], s["release_branches"])
-        repo = Repository(env)
+    # test_scenarios = [
+    #     # Development on main after release 1.x
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1"],
+    #         ["release/1.x"],
+    #         "main",
+    #         {"previous LTS": "ccf-1.0.1", "same LTS": None, "next LTS": None},
+    #     ),
+    #     # New commit on release/1.x
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1"],
+    #         ["release/1.x"],
+    #         "release/1.x",
+    #         {"previous LTS": None, "same LTS": "ccf-1.0.1", "next LTS": None},
+    #     ),
+    #     # 2.0.0 release is now out
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0"],
+    #         ["release/1.x", "release/2.x"],
+    #         "release/2.x",
+    #         {"previous LTS": "ccf-1.0.1", "same LTS": "ccf-2.0.0", "next LTS": None},
+    #     ),
+    #     # Patch to 1.x
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
+    #         ["release/1.x", "release/2.x"],
+    #         "ccf-1.0.3",
+    #         {"previous LTS": None, "same LTS": "ccf-1.0.2", "next LTS": "ccf-2.0.0"},
+    #     ),
+    #     # Development on main after release 2.x
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
+    #         ["release/1.x", "release/2.x"],
+    #         "main",
+    #         {"previous LTS": "ccf-2.0.0", "same LTS": None, "next LTS": None},
+    #     ),
+    #     # Dev release on main after release 2.x
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2"],
+    #         ["release/1.x", "release/2.x"],
+    #         "ccf-3.0.0-dev0",
+    #         {"previous LTS": "ccf-2.0.0", "same LTS": None, "next LTS": None},
+    #     ),
+    #     # 2.0.1 release is now out
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2", "ccf-2.0.1"],
+    #         ["release/1.x", "release/2.x"],
+    #         "release/2.x",
+    #         {"previous LTS": "ccf-1.0.2", "same LTS": "ccf-2.0.1", "next LTS": None},
+    #     ),
+    #     # Local branch is a actually tag! (https://github.com/microsoft/CCF/issues/2699)
+    #     make_test_vector(
+    #         ["ccf-1.0.0", "ccf-1.0.1", "ccf-2.0.0", "ccf-1.0.2", "ccf-2.0.1"],
+    #         ["release/1.x", "release/2.x"],
+    #         "ccf-2.0.2",
+    #         {"previous LTS": "ccf-1.0.2", "same LTS": "ccf-2.0.1", "next LTS": None},
+    #     ),
+    #     # 3.0.0 release is now out
+    #     make_test_vector(
+    #         [
+    #             "ccf-1.0.0",
+    #             "ccf-1.0.1",
+    #             "ccf-2.0.0",
+    #             "ccf-1.0.2",
+    #             "ccf-2.0.1",
+    #             "ccf-3.0.0",
+    #         ],
+    #         ["release/1.x", "release/2.x", "release/3.x"],
+    #         "release/3.x",
+    #         {"previous LTS": "ccf-2.0.1", "same LTS": "ccf-3.0.0", "next LTS": None},
+    #     ),
+    #     # Patch to 2.x
+    #     make_test_vector(
+    #         [
+    #             "ccf-1.0.0",
+    #             "ccf-1.0.1",
+    #             "ccf-2.0.0",
+    #             "ccf-1.0.2",
+    #             "ccf-2.0.1",
+    #             "ccf-3.0.0",
+    #             "ccf-2.0.2",
+    #         ],
+    #         ["release/1.x", "release/2.x", "release/3.x"],
+    #         "release/2.x",
+    #         {
+    #             "previous LTS": "ccf-1.0.2",
+    #             "same LTS": "ccf-2.0.2",
+    #             "next LTS": "ccf-3.0.0",
+    #         },
+    #     ),
+    # ]
+
+    for e, exp in test_scenarios:
+        LOG.info(
+            f'env: tags: {e.tags or []}, branches: {e.release_branches or []} (local branch: "{e.local_branch}")'
+        )
+        # LOG.error(exp)
+        repo = Repository(e)
         latest_tag = repo.get_latest_released_tag_for_branch(
-            branch=s["local_branch"], this_release_branch_only=False
+            branch=e.local_branch, this_release_branch_only=False
         )
         assert (
-            latest_tag == s["expected"]["previous LTS"]
-        ), f'{latest_tag} != {s["expected"]["previous LTS"]}'
+            latest_tag == exp["previous LTS"]
+        ), f'Prev LTS: {latest_tag} != expected {exp["previous LTS"]}'
 
         latest_tag_for_this_release_branch = repo.get_latest_released_tag_for_branch(
-            branch=s["local_branch"], this_release_branch_only=True
+            branch=e.local_branch, this_release_branch_only=True
         )
         assert (
-            latest_tag_for_this_release_branch == s["expected"]["same LTS"]
-        ), f'{latest_tag_for_this_release_branch} != {s["expected"]["same LTS"]}'
+            latest_tag_for_this_release_branch == exp["same LTS"]
+        ), f'Same LTS: {latest_tag_for_this_release_branch} != expected {exp["same LTS"]}'
 
-        next_tag = repo.get_first_tag_for_next_release_branch(branch=s["local_branch"])
+        next_tag = repo.get_first_tag_for_next_release_branch(e.local_branch)
         assert (
-            next_tag == s["expected"]["next LTS"]
-        ), f'{next_tag} != {s["expected"]["next LTS"]}'
+            next_tag == exp["next LTS"]
+        ), f'Next LTS: {next_tag} != expected {exp["next LTS"]}'
+        LOG.info(
+            f"-- prev LTS: {latest_tag}, same LTS: {latest_tag_for_this_release_branch}, next LTS: {next_tag}"
+        )
 
     LOG.success(f"Successfully verified {len(test_scenarios)} scenarios")
