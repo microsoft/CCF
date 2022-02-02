@@ -45,7 +45,9 @@ def main():
 
     if not found_link:
         expected_line = f"[{git_version}]: https://github.com/microsoft/CCF/releases/tag/ccf-{git_version}"
-        raise RuntimeError(f"Link to release for git version {git_version} not found in CHANGELOG.md. Add a link definition like:\n{expected_line}")
+        raise RuntimeError(
+            f"Link to release for git version {git_version} not found in CHANGELOG.md. Add a link definition like:\n{expected_line}"
+        )
 
     release_notes = release_notes.strip()
     print(release_notes)
