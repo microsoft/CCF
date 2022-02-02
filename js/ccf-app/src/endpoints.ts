@@ -46,42 +46,42 @@ export interface Request<T extends JsonCompatible<T> = any> {
   /**
    * An object mapping URL path parameter names to their values.
    * 
-   * GET /app/person/bob?fields=all, matched to /app/person/{name} => {"name": "bob"}
+   * For example `GET /app/person/bob?fields=all` matched to `/app/person/{name}` becomes `{"name": "bob"}`
    */
   params: { [key: string]: string };
 
   /**
    * The full original requested URL.
    * 
-   * GET /app/person/bob?fields=all => "/app/person/bob?fields=all"
+   * For example `GET /app/person/bob?fields=all` becomes `"/app/person/bob?fields=all"`
    */
   url: string;
 
   /**
    * The path component of the requested URL.
    * 
-   * GET /app/person/bob?fields=all => "/app/person/bob"
+   * For example `GET /app/person/bob?fields=all` becomes `"/app/person/bob"`
    */
   path: string;
 
   /**
    * The endpoint name which matched requested URL, potentially containing path parameters.
    * 
-   * GET /app/person/bob?fields=all => "/app/person/{name}"
+   * For example `GET /app/person/bob?fields=all` becomes `"/app/person/{name}"`
    */
   route: string;
 
   /**
    * The query component of the requested URL.
    * 
-   * GET /app/person/bob?fields=all => "fields=all"
+   * For example `GET /app/person/bob?fields=all` becomes `"fields=all"`
    */
   query: string;
 
   /**
    * The HTTP method of the request.
    * 
-   * GET /app/person/bob?fields=all => "GET"
+   * For example `GET /app/person/bob?fields=all` becomes `"GET"`
    */
   method: string;
 
