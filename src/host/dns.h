@@ -4,10 +4,14 @@
 
 #include "../ds/logger.h"
 
+#include <unordered_set>
 #include <uv.h>
 
 namespace asynchost
 {
+  static std::unordered_set<uv_getaddrinfo_t*> pending_resolve_requests;
+  static std::mutex pending_resolve_requests_mtx;
+
   class DNS
   {
   public:
@@ -31,6 +35,11 @@ namespace asynchost
 
       if (async)
       {
+        {
+          std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+          pending_resolve_requests.insert(resolver);
+        }
+
         if (
           (rc = uv_getaddrinfo(
              uv_default_loop(),
@@ -46,6 +55,10 @@ namespace asynchost
             host,
             service,
             uv_strerror(rc));
+          {
+            std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+            pending_resolve_requests.erase(resolver);
+          }
           delete resolver;
           return false;
         }
