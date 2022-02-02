@@ -28,6 +28,9 @@ jobs:
         parameters:
           cmake_args: ""
 
+      # Only the main branch builds and publishes the versioned documentation.
+      # This is because the configuration (e.g. theme) of the documentation
+      # may change over time and only the configuration on main should be updated.
       - script: |
           set -ex
           python3.8 -m venv env
@@ -36,15 +39,8 @@ jobs:
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
           pip install -U -r doc/historical_ccf_requirements.txt
-        displayName: Python venv
-
-      # Only the main branch builds and publishes the versioned documentation.
-      # This is because the configuration (e.g. theme) of the documentation
-      # may change over time and only the configuration on main should be updated.
-      - script: |
-          set -ex
           sphinx-multiversion doc build/html
-        displayName: Sphinx Multiversion
+        displayName: Sphinx Multi-version
         condition: |
           and(
             not(eq(variables['Build.Reason'], 'PullRequest')),
@@ -53,8 +49,13 @@ jobs:
 
       - script: |
           set -ex
+          python3.8 -m venv env
+          source env/bin/activate
+          pip install wheel
+          pip install -U -r doc/requirements.txt
+          pip install -U -e ./python
           sphinx-build doc build/html
-        displayName: Sphinx Main
+        displayName: Sphinx Single-version
         condition: |
           or(
             eq(variables['Build.Reason'], 'PullRequest'),
