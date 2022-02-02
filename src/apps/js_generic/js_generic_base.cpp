@@ -512,8 +512,8 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
-        endpoint_def->full_uri_path = fmt::format(
-          "/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
+        endpoint_def->full_uri_path =
+          fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
         instantiate_authn_policies(*endpoint_def);
         return endpoint_def;
       }
