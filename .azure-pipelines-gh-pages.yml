@@ -42,26 +42,26 @@ jobs:
           sphinx-multiversion doc build/html
         displayName: Sphinx Multi-version
         condition: |
-          and(
-            not(eq(variables['Build.Reason'], 'PullRequest')),
-            eq(variables['Build.SourceBranch'], 'refs/heads/main')
-          )
-
-      # Only on PRs and not on main branch
-      - script: |
-          set -ex
-          python3.8 -m venv env
-          source env/bin/activate
-          pip install wheel
-          pip install -U -r doc/requirements.txt
-          pip install -U -e ./python
-          sphinx-build doc build/html
-        displayName: Sphinx Single-version
-        condition: |
           or(
             eq(variables['Build.Reason'], 'PullRequest'),
             not(eq(variables['Build.SourceBranch'], 'refs/heads/main'))
           )
+
+      # Only on PRs and not on main branch
+      # - script: |
+      #     set -ex
+      #     python3.8 -m venv env
+      #     source env/bin/activate
+      #     pip install wheel
+      #     pip install -U -r doc/requirements.txt
+      #     pip install -U -e ./python
+      #     sphinx-build doc build/html
+      #   displayName: Sphinx Single-version
+      #   condition: |
+      #     or(
+      #       eq(variables['Build.Reason'], 'PullRequest'),
+      #       not(eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+      #     )
 
       - script: |
           set -ex
