@@ -29,8 +29,8 @@ jobs:
           cmake_args: ""
 
       # Only the main branch builds and publishes the versioned documentation.
-      # This is because the configuration (e.g. theme) of the documentation
-      # may change over time and only the configuration on main should be updated.
+      # This is because the configuration of the docs (e.g. theme) will change
+      # over time and only the main branch should be source of trust/kept up to date.
       - script: |
           set -ex
           python3.8 -m venv env
@@ -47,6 +47,7 @@ jobs:
             eq(variables['Build.SourceBranch'], 'refs/heads/main')
           )
 
+      # Only on PRs and not on main branch
       - script: |
           set -ex
           python3.8 -m venv env
