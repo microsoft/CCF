@@ -601,10 +601,8 @@ namespace asynchost
 
     static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo*)
     {
-      {
-        std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
-        pending_resolve_requests.erase(req);
-      }
+      std::unique_lock<std::mutex> guard(pending_resolve_requests_mtx);
+      pending_resolve_requests.erase(req);
 
       if (req->data)
       {
