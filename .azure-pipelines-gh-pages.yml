@@ -36,8 +36,30 @@ jobs:
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
           pip install -U -r doc/historical_ccf_requirements.txt
+        displayName: Python venv
+
+      # Only the main branch builds and publishes the versioned documentation.
+      # This is because the configuration (e.g. theme) of the documentation
+      # may change over time and only the configuration on main should be updated.
+      - script: |
+          set -ex
           sphinx-multiversion doc build/html
-        displayName: Sphinx
+        displayName: Sphinx Multiversion
+        condition: |
+          and(
+            not(eq(variables['Build.Reason'], 'PullRequest')),
+            eq(variables['Build.SourceBranch'], 'refs/heads/main')
+          )
+
+      - script: |
+          set -ex
+          sphinx-build doc build/html
+        displayName: Sphinx Main
+        condition: |
+          or(
+            eq(variables['Build.Reason'], 'PullRequest'),
+            not(eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          )
 
       - script: |
           set -ex
@@ -71,10 +93,7 @@ jobs:
         condition: |
           and(
             not(eq(variables['Build.Reason'], 'PullRequest')),
-            or(
-                eq(variables['Build.SourceBranch'], 'refs/heads/main'),
-                startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')
-            )
+            eq(variables['Build.SourceBranch'], 'refs/heads/main')
           )
         workingDirectory: build/html
 
