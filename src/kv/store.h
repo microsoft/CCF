@@ -99,6 +99,9 @@ namespace kv
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
+    // Ledger entry header flags
+    uint8_t flags = 0;
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -607,6 +610,7 @@ namespace kv
         version = tx_id.version;
         last_replicated = tx_id.version;
         last_committable = tx_id.version;
+        flags = flags & ~Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE;
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
@@ -1202,6 +1206,16 @@ namespace kv
       // version_lock should already been acquired in case term_of_last_version
       // is incremented.
       return ReservedTx(this, term_of_last_version, tx_id);
+    }
+
+    virtual void set_flags(uint8_t flags) override
+    {
+      this->flags = flags;
+    }
+
+    virtual uint8_t get_flags() const override
+    {
+      return flags;
     }
   };
 }

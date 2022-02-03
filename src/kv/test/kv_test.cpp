@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
 #include "ds/logger.h"
+#include "ds/serialized.h"
 #include "kv/kv_serialiser.h"
 #include "kv/map.h"
 #include "kv/set.h"
@@ -2863,4 +2864,79 @@ TEST_CASE("Range")
     REQUIRE(std_range == kv_range);
     REQUIRE(kv_range.at(existing_key) == well_known_value);
   }
+}
+
+TEST_CASE("Ledger entry chunk request")
+{
+  kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  store.set_encryptor(encryptor);
+  store.set_consensus(consensus);
+
+  ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::SerialisedMerkleTree serialised_tree(
+    ccf::Tables::SERIALISED_MERKLE_TREE);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  MapTypes::NumNum data("public:data");
+
+  constexpr auto default_curve = crypto::CurveID::SECP384R1;
+  auto kp = crypto::make_key_pair(default_curve);
+
+  auto history =
+    std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
+  store.set_history(history);
+
+  // Request a ledger chunk at the next signature
+  store.set_flags(kv::AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+
+  // Ledger chunk flag is set in the store
+  REQUIRE(
+    (store.get_flags() &
+     kv::AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE) != 0);
+
+  // Add a non-signature transaction
+  {
+    MapTypes::StringString map("public:map");
+    auto tx = store.create_tx();
+    auto h1 = tx.rw(map);
+    h1->put("key", "value");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  // Ledger chunk flag is still set in the store
+  REQUIRE(
+    (store.get_flags() &
+     kv::AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE) != 0);
+
+  // Add a signature transaction
+  {
+    auto txid = store.next_txid();
+    auto tx = store.create_reserved_tx(txid);
+    auto sig_handle = tx.rw(signatures);
+    auto tree_handle = tx.rw(serialised_tree);
+    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+    sig_handle->put(sigv);
+    tree_handle->put({});
+    auto [success, data, claims_digest, commit_evidence_digest, hooks] =
+      tx.commit_reserved();
+    REQUIRE(success == kv::CommitResult::SUCCESS);
+
+    REQUIRE(
+      store.deserialize(data, ConsensusType::CFT)->apply() ==
+      kv::ApplyResult::PASS_SIGNATURE);
+
+    // Header flag is set in the last entry
+    const uint8_t* entry_data = data.data();
+    size_t entry_data_size = data.size();
+    auto header =
+      serialized::peek<kv::SerialisedEntryHeader>(entry_data, entry_data_size);
+    REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK) != 0);
+  }
+
+  // Ledger chunk flag is not set in the store anymore
+  REQUIRE(
+    (store.get_flags() &
+     kv::AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE) == 0);
 }

@@ -79,8 +79,9 @@ def counted_string(l, name):
 def dump_entry(entry, table_filter, tables_format_rules):
     public_transaction = entry.get_public_domain()
     public_tables = public_transaction.get_tables()
+    flags = entry.get_transaction_header().flags
     LOG.success(
-        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{len(entry.get_raw_tx())} bytes]"
+        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{len(entry.get_raw_tx())} bytes, flags={hex(flags)}]"
     )
 
     private_table_size = entry.get_private_domain_size()

@@ -767,6 +767,14 @@ namespace kv
       bool public_only = false) = 0;
 
     virtual size_t commit_gap() = 0;
+
+    enum Flags : uint8_t
+    {
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01
+    };
+
+    virtual void set_flags(uint8_t flags) = 0;
+    virtual uint8_t get_flags() const = 0;
   };
 }
 

@@ -26,7 +26,8 @@ namespace kv
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
       const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
-      bool include_reads = false)
+      bool include_reads = false,
+      bool force_ledger_chunk = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
@@ -58,6 +59,9 @@ namespace kv
         EntryType::WriteSetWithCommitEvidence :
         EntryType::WriteSetWithCommitEvidenceAndClaims;
 
+      uint8_t header_flags =
+        force_ledger_chunk ? EntryFlags::FORCE_LEDGER_CHUNK : 0;
+
       LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
         claims_digest.value(),
@@ -66,6 +70,7 @@ namespace kv
         e,
         {commit_view, version},
         entry_type,
+        header_flags,
         tx_commit_evidence_digest,
         claims_digest);
 
@@ -320,6 +325,11 @@ namespace kv
     {
       root_at_read_version = r;
     }
+
+    void set_store_flags(uint8_t flags)
+    {
+      store->set_flags(flags);
+    }
   };
 
   // Used by frontend for reserved transactions. These are constructed with a
@@ -365,8 +375,28 @@ namespace kv
       crypto::Sha256Hash commit_evidence_digest;
       std::string commit_evidence;
 
+      // This is a signature and, if the ledger chunking flag is enabled, we
+      // want the host to create a chunk when it sees this entry.
+      bool force_ledger_chunk = store->get_flags() &
+        AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE;
+
+      if (force_ledger_chunk)
+      {
+        LOG_DEBUG_FMT("Forcing ledger chunk for this signature");
+      }
+
       committed = true;
-      auto data = serialise(commit_evidence_digest, commit_evidence);
+      auto data = serialise(
+        commit_evidence_digest,
+        commit_evidence,
+        ccf::no_claims(),
+        /* include_reads= */ false,
+        force_ledger_chunk);
+
+      // Reset ledger chunk flag in the store
+      store->set_flags(
+        store->get_flags() &
+        ~AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       return {
         CommitResult::SUCCESS,

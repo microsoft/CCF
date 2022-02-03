@@ -14,6 +14,7 @@ import ipaddress
 import infra.interfaces
 import infra.path
 import infra.proc
+from infra.proposal import ProposalState
 
 
 from loguru import logger as LOG
@@ -156,8 +157,77 @@ def run_configuration_file_checks(args):
         assert rc == 0, f"Failed to run tutorial script: {rc}"
 
 
+@reqs.description("Forced ledger chunk")
+def test_forced_ledger_chunk(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_join(args)
+        primary, _ = network.find_primary()
+
+        # Submit some dummy transactions
+        network.txs.issue(network, number_txs=args.sig_tx_interval // 2)
+
+        # Submit a proposal to force a ledger chunk at the following signature
+        proposal_body, careful_vote = network.consortium.make_proposal(
+            "request_ledger_chunk", node_id=primary.node_id
+        )
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        proposal = network.consortium.vote_using_majority(
+            primary,
+            proposal,
+            careful_vote,
+            wait_for_global_commit=True,
+            timeout=3,
+        )
+        assert proposal.state == ProposalState.ACCEPTED
+
+        # Issue some more transactions
+        network.txs.issue(network, number_txs=args.sig_tx_interval * 2)
+
+        ledger_dirs = primary.remote.ledger_paths()
+        network.stop_all_nodes(skip_verification=False)
+
+        # Check that there is indeed a ledger chunk that ends at the
+        # first signature after proposal.seqno
+        ledger = ccf.ledger.Ledger(ledger_dirs)
+        for chunk in ledger:
+            first = last = next_signature = None
+            for tx in chunk:
+                pd = tx.get_public_domain()
+                if first is None:
+                    first = pd.get_seqno()
+                else:
+                    last = pd.get_seqno()
+                tables = pd.get_tables()
+                if (
+                    pd.get_seqno() >= proposal.seqno
+                    and next_signature is None
+                    and ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+                ):
+                    next_signature = pd.get_seqno()
+            if first <= proposal.seqno and proposal.seqno <= last:
+                assert last == next_signature
+                assert next_signature - proposal.seqno < args.sig_tx_interval
+
+
+def run_ledger_chunking_tests(args):
+    largs = args
+    largs.sig_tx_interval = 11
+    test_forced_ledger_chunk(largs)
+
+
 def run(args):
 
     run_file_operations(args)
     run_tls_san_checks(args)
     run_configuration_file_checks(args)
+    run_ledger_chunking_tests(args)
