@@ -540,6 +540,7 @@ if __name__ == "__main__":
     # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
     # current branch on any environment (either local checkout or CI run)
     env = cimetrics.env.get_env()
+    local_branch = env.branch
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
@@ -551,7 +552,7 @@ if __name__ == "__main__":
     # Compatibility with previous LTS
     # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
     latest_lts_version = run_live_compatibility_with_latest(
-        args, repo, env.branch, this_release_branch_only=False
+        args, repo, local_branch, this_release_branch_only=False
     )
     compatibility_report["live compatibility"].update(
         {"with previous LTS": latest_lts_version}
@@ -560,7 +561,7 @@ if __name__ == "__main__":
     # Compatibility with latest LTS on the same release branch
     # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
     latest_lts_version = run_live_compatibility_with_latest(
-        args, repo, env.branch, this_release_branch_only=True
+        args, repo, local_branch, this_release_branch_only=True
     )
     compatibility_report["live compatibility"].update(
         {"with same LTS": latest_lts_version}
@@ -569,7 +570,7 @@ if __name__ == "__main__":
     # Compatibility with following LTS
     # (e.g. when releasing 1.0.10, check compatibility with existing 2.0.3)
     following_lts_version = run_live_compatibility_with_following(
-        args, repo, env.branch
+        args, repo, local_branch
     )
     compatibility_report["live compatibility"].update(
         {"with following LTS": following_lts_version}

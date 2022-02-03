@@ -183,17 +183,19 @@ class Repository:
         )
         return self.get_tags_for_major_version(major_version)
 
-    # TODO: Fix
     def get_lts_releases(self):
         """
-        Returns a dict of all release branches to the the latest release tag on this branch.
+        Returns a dict of all release major versions to the the latest release tag on this branch.
         The oldest release branch is first in the dict.
         """
         releases = {}
-        for release_branch in self.get_release_branches_names():
-            tags_for_release = self.get_tags_for_release_branch(release_branch)
-            if tags_for_release:
-                releases[release_branch] = tags_for_release[0]
+        major_version = 1
+        while True:
+            tag = self.get_latest_tag_for_major_version(major_version)
+            if tag is None:
+                break
+            releases[major_version] = tag
+            major_version += 1
         return releases
 
     def install_release(self, tag):
