@@ -135,7 +135,6 @@ class Repository:
     def __init__(self, env=None):
         self.g = env or GitEnv()
         self.tags = self.g.tags
-        self.release_branches = self.g.release_branches
 
     def _filter_released_tags(self, tags):
         # From a list of tags ordered by semver (latest first), filter out the ones
@@ -156,14 +155,6 @@ class Repository:
 
         # Only consider tags that have releases as a release might be in progress
         return self._filter_released_tags(dev_tags)[0]
-
-    def get_release_branches_names(self, newest_first=False):
-        # Branches are ordered based on major version, with ordering based on newest_first
-        return sorted(
-            self.release_branches,
-            key=get_major_version_from_release_branch_name,
-            reverse=newest_first,
-        )
 
     def get_tags_for_major_version(self, major_version=None):
         version_re = f"{major_version}\." if major_version else ""
@@ -316,20 +307,17 @@ class Repository:
 if __name__ == "__main__":
     # Run this to test
     class MockGitEnv:
-        def __init__(self, tags=None, release_branches=None, local_branch=None):
+        def __init__(self, tags=None, local_branch=None):
             self.tags = set(tags) if tags else set()
-            self.release_branches = set(release_branches) if release_branches else set()
             self.local_branch = local_branch or MAIN_BRANCH_NAME
 
-        def mut(self, tag=None, branch=None, local=None):
+        def mut(self, tag=None, local=None):
             if tag:
                 self.tags.add(tag)
                 self.local_branch = tag  # Adding new tag triggers compatibility test
-            if branch:
-                self.release_branches.add(branch)
             if local:
                 self.local_branch = local
-            return MockGitEnv(self.tags, self.release_branches, self.local_branch)
+            return MockGitEnv(self.tags, self.local_branch)
 
         def has_release_for_tag_name(self, tag_name):
             # If tag_name is local branch, then the release from this tag
@@ -349,7 +337,7 @@ if __name__ == "__main__":
         (env.mut(tag="ccf-1.0.0-rc0"), exp()),  # 1.0 RC0
         (env.mut(local="main"), exp(prev="ccf-1.0.0-rc0")),  # Dev on main
         (
-            env.mut(branch="release/1.x", local="main"),
+            env.mut(local="main"),
             exp(prev="ccf-1.0.0-rc0"),
         ),  # 1.x branch created
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.0-rc0")),  # Dev on rel/1.x
@@ -383,10 +371,6 @@ if __name__ == "__main__":
             exp(same="ccf-1.0.1", next="ccf-2.0.0"),
         ),  # Dev on rel/1.x
         (
-            env.mut(branch="release/2.x", local="main"),
-            exp(prev="ccf-2.0.0"),
-        ),  # 2.x branch created
-        (
             env.mut(local="release/2.x"),
             exp(prev="ccf-1.0.1", same="ccf-2.0.0"),
         ),  # Dev on rel/2.x
@@ -419,9 +403,7 @@ if __name__ == "__main__":
     # - Remove branch from environment
 
     for e, exp in test_scenario:
-        LOG.info(
-            f'env: tags: {e.tags or []}, branches: {e.release_branches or []} (local branch: "{e.local_branch}")'
-        )
+        LOG.info(f'env: tags: {e.tags or []} (local branch: "{e.local_branch}")')
         repo = Repository(e)
         latest_tag = repo.get_latest_released_tag_for_branch(
             branch=e.local_branch, this_release_branch_only=False
