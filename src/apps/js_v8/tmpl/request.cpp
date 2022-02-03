@@ -14,10 +14,18 @@ namespace ccf::v8_tmpl
 {
   enum class InternalField
   {
+    EndpointDefinition,
     EndpointContext,
     EndpointRegistry,
     END
   };
+
+  static const EndpointDefinition* unwrap_endpoint_def(
+    v8::Local<v8::Object> obj)
+  {
+    return static_cast<const EndpointDefinition*>(
+      get_internal_field(obj, InternalField::EndpointDefinition));
+  }
 
   static EndpointContext* unwrap_endpoint_ctx(v8::Local<v8::Object> obj)
   {
@@ -52,6 +60,73 @@ namespace ccf::v8_tmpl
     v8::Local<v8::Value> query =
       v8_util::to_v8_str(isolate, endpoint_ctx->rpc_ctx->get_request_query());
     info.GetReturnValue().Set(query);
+  }
+
+  static void get_path(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    EndpointContext* endpoint_ctx = unwrap_endpoint_ctx(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    v8::Local<v8::Value> path =
+      v8_util::to_v8_str(isolate, endpoint_ctx->rpc_ctx->get_request_path());
+    info.GetReturnValue().Set(path);
+  }
+
+  static void get_method(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    EndpointContext* endpoint_ctx = unwrap_endpoint_ctx(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    v8::Local<v8::Value> method = v8_util::to_v8_str(
+      isolate, endpoint_ctx->rpc_ctx->get_request_verb().c_str());
+    info.GetReturnValue().Set(method);
+  }
+
+  static void get_hostname(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    EndpointContext* endpoint_ctx = unwrap_endpoint_ctx(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    const auto& r_headers = endpoint_ctx->rpc_ctx->get_request_headers();
+    v8::Local<v8::Value> hostname;
+    const auto host_it = r_headers.find(http::headers::HOST);
+    if (host_it != r_headers.end())
+    {
+      hostname = v8_util::to_v8_str(isolate, host_it->second);
+    }
+
+    info.GetReturnValue().Set(hostname);
+  }
+
+  static void get_route(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    const EndpointDefinition* endpoint_def = unwrap_endpoint_def(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    v8::Local<v8::Value> route =
+      v8_util::to_v8_str(isolate, endpoint_def->full_uri_path);
+    info.GetReturnValue().Set(route);
+  }
+
+  static void get_url(
+    v8::Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Value>& info)
+  {
+    EndpointContext* endpoint_ctx = unwrap_endpoint_ctx(info.Holder());
+    v8::Isolate* isolate = info.GetIsolate();
+
+    auto url = endpoint_ctx->rpc_ctx->get_request_path();
+    const auto& query = endpoint_ctx->rpc_ctx->get_request_query();
+    if (!query.empty())
+    {
+      url = fmt::format("{}?{}", url, query);
+    }
+
+    v8::Local<v8::Value> url_v8 = v8_util::to_v8_str(isolate, url);
+    info.GetReturnValue().Set(url_v8);
   }
 
   static void get_params(
@@ -100,6 +175,13 @@ namespace ccf::v8_tmpl
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "headers"), get_headers);
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "query"), get_query);
+    tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "path"), get_path);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "method"), get_method);
+    tmpl->SetLazyDataProperty(
+      v8_util::to_v8_istr(isolate, "hostname"), get_hostname);
+    tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "route"), get_route);
+    tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "url"), get_url);
     tmpl->SetLazyDataProperty(
       v8_util::to_v8_istr(isolate, "params"), get_params);
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "body"), get_body);
@@ -111,6 +193,7 @@ namespace ccf::v8_tmpl
 
   v8::Local<v8::Object> Request::wrap(
     v8::Local<v8::Context> context,
+    const EndpointDefinition* endpoint_def,
     EndpointContext* endpoint_ctx,
     BaseEndpointRegistry* endpoint_registry)
   {
@@ -124,7 +207,8 @@ namespace ccf::v8_tmpl
 
     set_internal_fields<InternalField>(
       result,
-      {{{InternalField::EndpointContext, endpoint_ctx},
+      {{{InternalField::EndpointDefinition, (void*)endpoint_def},
+        {InternalField::EndpointContext, endpoint_ctx},
         {InternalField::EndpointRegistry, endpoint_registry}}});
 
     return handle_scope.Escape(result);

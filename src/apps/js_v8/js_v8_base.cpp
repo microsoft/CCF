@@ -33,15 +33,18 @@ namespace ccfapp
    */
   class V8Handlers : public UserEndpointRegistry
   {
+    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
+    {};
+
     NetworkTables& network;
     ccfapp::AbstractNodeContext& node_context;
     ::metrics::Tracker metrics_tracker;
 
     void execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint_def,
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      if (props.mode == ccf::endpoints::Mode::Historical)
+      if (endpoint_def->properties.mode == ccf::endpoints::Mode::Historical)
       {
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
@@ -50,10 +53,10 @@ namespace ccfapp
           };
 
         ccf::historical::adapter_v2(
-          [this, &props](
+          [this, endpoint_def](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            do_execute_request(props, endpoint_ctx, state);
+            do_execute_request(endpoint_def, endpoint_ctx, state);
           },
           context.get_historical_state(),
           is_tx_committed)(endpoint_ctx);
@@ -61,13 +64,13 @@ namespace ccfapp
       else
       {
         // Read/Write mode just execute directly
-        do_execute_request(props, endpoint_ctx, nullptr);
+        do_execute_request(endpoint_def, endpoint_ctx, nullptr);
       }
     }
 
     /// Unpacks the request, load the JavaScript, executes the code
     void do_execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint_def,
       ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::historical::StatePtr historical_state)
     {
@@ -113,8 +116,9 @@ namespace ccfapp
 
       // Call exported function
       v8::Local<v8::Value> request =
-        ccf::v8_tmpl::Request::wrap(context, &endpoint_ctx, this);
+        ccf::v8_tmpl::Request::wrap(context, endpoint_def, &endpoint_ctx, this);
       std::vector<v8::Local<v8::Value>> args{request};
+      const auto& props = endpoint_def->properties;
       v8::Local<v8::Value> val =
         ctx.run(props.js_module, props.js_function, args);
 
@@ -297,9 +301,6 @@ namespace ccfapp
       endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
     }
 
-    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
-    {};
-
   public:
     V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
@@ -341,6 +342,8 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
+        endpoint_def->full_uri_path =
+          fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
         instantiate_authn_policies(*endpoint_def);
         return endpoint_def;
       }
@@ -386,6 +389,8 @@ namespace ccfapp
                   auto endpoint = std::make_shared<JSDynamicEndpoint>();
                   endpoint->dispatch = other_key;
                   endpoint->properties = endpoints->get(other_key).value();
+                  endpoint->full_uri_path = fmt::format(
+                    "/{}{}", method_prefix, endpoint->dispatch.uri_path);
                   instantiate_authn_policies(*endpoint);
                   matches.push_back(endpoint);
                 }
@@ -448,7 +453,7 @@ namespace ccfapp
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(endpoint->properties, endpoint_ctx);
+        execute_request(endpoint, endpoint_ctx);
         return;
       }
 

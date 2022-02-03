@@ -593,8 +593,20 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests
+    ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests
   )
+
+  if(ENABLE_V8)
+    add_e2e_test(
+      NAME auth_v8
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --package libjs_v8 --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/tests
+    )
+  endif()
 
   add_e2e_test(
     NAME launch_host_process_test
@@ -712,22 +724,13 @@ if(BUILD_TESTS)
     )
   endif()
 
-  set(LTS_ITERATIONS "compatibility")
-  if(LONG_TESTS)
-    set(LTS_ITERATIONS
-        "compatibility_a;compatibility_b;compatibility_c;compatibility_d"
-    )
-  endif()
-
-  foreach(ITERATION ${LTS_ITERATIONS})
-    add_e2e_test(
-      NAME lts_${ITERATION}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-      CONSENSUS cft
-      LABEL e2e
-      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-    )
-  endforeach()
+  add_e2e_test(
+    NAME lts_compatibility
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+    CONSENSUS cft
+    LABEL e2e
+    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+  )
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)

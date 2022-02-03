@@ -70,6 +70,13 @@ def test_heap_size_limit(network, args):
 
 
 def run_limits(args):
+    if "v8" in args.package:
+        LOG.warning(
+            f"Skipping run_limits for {args.package} as heap and stack limits are not yet enforced"
+        )
+        # See https://github.com/microsoft/CCF/issues/3324
+        return
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -371,13 +378,97 @@ def run_content_types(args):
         network = test_unknown_path(network, args)
 
 
+@reqs.description("Test request object API")
+def test_request_object_api(network, args):
+    primary, _ = network.find_nodes()
+
+    def test_expectations(expected_fields, response):
+        assert response.status_code == http.HTTPStatus.OK, response
+        j = response.body.json()
+        for k, v in expected_fields.items():
+            ks = k.split(".")
+            current = j
+            for k_ in ks:
+                assert k_ in current, f"Missing field {k} from response body"
+                current = current[k_]
+            actual = current
+            assert (
+                v == actual
+            ), f"Mismatch at field {k}. Expected '{v}', response contains '{actual}'"
+            # LOG.success(f"{k} == {v}")
+
+    def test_url(expected_fields, client, base_url, query="", url_params=None):
+        url = base_url
+        expected_fields["route"] = base_url
+
+        if url_params is not None:
+            url = url.format(**url_params)
+
+        expected_fields["path"] = url
+
+        if len(query) > 0:
+            url += f"?{query}"
+
+        expected_fields["query"] = query
+        expected_fields["url"] = url
+
+        expected_fields["method"] = "GET"
+        test_expectations(expected_fields, client.get(url))
+        expected_fields["method"] = "POST"
+        test_expectations(expected_fields, client.post(url))
+        expected_fields["method"] = "DELETE"
+        test_expectations(expected_fields, client.delete(url))
+
+    def test_client(expected_fields, client):
+        test_url(
+            {**expected_fields, "hostname": f"{client.hostname}"},
+            client,
+            "/app/echo",
+        )
+        test_url(
+            {**expected_fields, "hostname": f"{client.hostname}"},
+            client,
+            "/app/echo",
+            query="a=42&b=hello_world",
+        )
+        test_url(
+            {**expected_fields, "hostname": f"{client.hostname}"},
+            client,
+            "/app/echo/{foo}",
+            url_params={"foo": "bar"},
+        )
+        test_url(
+            {**expected_fields, "hostname": f"{client.hostname}"},
+            client,
+            "/app/echo/{foo}",
+            query="a=42&b=hello_world",
+            url_params={"foo": "bar"},
+        )
+
+    user = network.users[0]
+    with primary.client(user.local_id) as c:
+        test_client({"caller.policy": "user_cert", "caller.id": user.service_id}, c)
+
+    with primary.client() as c:
+        test_client({"caller.policy": "no_auth"}, c)
+
+    return network
+
+
+def run_request_object(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        network = test_request_object_api(network, args)
+
+
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
     cr.add(
         "authz",
         run,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
     )
@@ -385,7 +476,6 @@ if __name__ == "__main__":
     cr.add(
         "limits",
         run_limits,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
     )
@@ -393,7 +483,6 @@ if __name__ == "__main__":
     cr.add(
         "authn",
         run_authn,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
         initial_user_count=4,
@@ -403,9 +492,15 @@ if __name__ == "__main__":
     cr.add(
         "content_types",
         run_content_types,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
+    )
+
+    cr.add(
+        "request_object",
+        run_request_object,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
     )
 
     cr.run()

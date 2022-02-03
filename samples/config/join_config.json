@@ -1,7 +1,7 @@
 {
   "enclave": {
     "file": "libjs_generic.enclave.so.signed",
-    "type": "release"
+    "type": "Release"
   },
   "network": {
     "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
@@ -17,11 +17,11 @@
   "node_certificate": {
     "subject_name": "CN=CCF Node",
     "subject_alt_names": ["iPAddress:127.0.0.1", "dNSName:ccf.dummy.com"],
-    "curve_id": "secp384r1",
+    "curve_id": "Secp384R1",
     "initial_validity_days": 1
   },
   "command": {
-    "type": "join",
+    "type": "Join",
     "service_certificate_file": "service_cert.pem",
     "join": {
       "retry_timeout": "1s",
@@ -38,8 +38,8 @@
     "tx_count": 10000
   },
   "logging": {
-    "host_level": "info",
-    "format": "text"
+    "host_level": "Info",
+    "format": "Text"
   },
   "consensus": {
     "type": "CFT",
