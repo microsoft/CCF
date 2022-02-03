@@ -65,6 +65,8 @@ namespace ds
 
     namespace adl
     {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
       template <typename T>
       std::string schema_name()
       {
@@ -86,6 +88,7 @@ namespace ds
         }
       }
     }
+#pragma clang diagnostic pop
 
     template <typename T>
     inline std::string schema_name()

@@ -343,6 +343,8 @@ namespace ds
           {
             auto& j = ib.first.value();
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
             // Use argument-dependent-lookup to call correct functions
             T t;
             if constexpr (std::is_enum<T>::value)
@@ -353,6 +355,7 @@ namespace ds
             {
               add_schema_components(*this, j, t);
             }
+#pragma clang diagnostic pop
           }
 
           return components_ref_object(name);
