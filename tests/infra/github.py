@@ -64,6 +64,7 @@ def is_dev_tag(tag_name):
     return is_release_tag(tag_name) and TAG_DEVELOPMENT_SUFFIX in tag_name
 
 
+# TODO: Still required?
 def sanitise_branch_name(branch_name):
     # Note: When checking out a specific tag, Azure DevOps does not know about the
     # branch but only the tag name so automatically convert release tags to release branch
@@ -164,36 +165,14 @@ class Repository:
             reverse=newest_first,
         )
 
-    def get_release_branch_name_before(self, branch):
-        release_branches = self.get_release_branches_names()
-        LOG.info(release_branches)
-        if branch not in release_branches:
-            raise ValueError(f"{branch} branch is not a valid release branch")
-        before_index = release_branches.index(branch) - 1
-        if before_index < 0:
-            raise ValueError(f"No prior release branch to {branch}")
-        return release_branches[before_index]
-
-    def get_next_release_branch(self, branch):
-        release_branches = self.get_release_branches_names()
-        if branch not in release_branches:
-            raise ValueError(f"{branch} branch is not a valid release branch")
-        after_index = release_branches.index(branch) + 1
-        if after_index >= len(release_branches):
-            raise ValueError(f"No release branch after {branch}")
-        return release_branches[after_index]
-
     def get_tags_for_major_version(self, major_version=None):
-        LOG.error(self.tags)
         version_re = f"{major_version}\." if major_version else ""
         tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\d+]+)(-rc.*|)$"
-        LOG.success(tag_re)
         tags = sorted(
             [tag for tag in self.tags if re.match(tag_re, tag)],
             key=get_version_from_tag_name,
             reverse=True,
         )
-        LOG.success(tags)
 
         # Only consider tags that have releases as a release might be in progress
         return self._filter_released_tags(tags)
@@ -206,17 +185,14 @@ class Repository:
         # Tags are ordered based on semver, with latest first
         # Note: Assumes that N.a.b releases can only be cut from N.x branch,
         # with N a valid major version number
-
-        # TODO: Extract major version from branch name
         major_version = (
             get_major_version_from_release_branch_name(release_branch_name)
             if release_branch_name
             else None
         )
-        LOG.info(f"Branch: {release_branch_name} -> major: {major_version}")
-
         return self.get_tags_for_major_version(major_version)
 
+    # TODO: Fix
     def get_lts_releases(self):
         """
         Returns a dict of all release branches to the the latest release tag on this branch.
@@ -279,7 +255,7 @@ class Repository:
         If the branch is not a release branch, verify compatibility with the
         latest available LTS.
         """
-        branch = sanitise_branch_name(branch)  # TODO: Still needed?
+        branch = sanitise_branch_name(branch)
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
 
@@ -292,7 +268,6 @@ class Repository:
                 branch_major_version = get_major_version_from_release_branch_name(
                     branch
                 )
-                LOG.success(f"Branch major version: {branch_major_version}")
                 if branch_major_version <= 1:
                     LOG.warning(f"No previous major version for {branch}")
                     return None
@@ -448,7 +423,6 @@ if __name__ == "__main__":
             f'env: tags: {e.tags or []}, branches: {e.release_branches or []} (local branch: "{e.local_branch}")'
         )
         repo = Repository(e)
-        LOG.error(f"Most recent tag: {repo.get_latest_tag()}")
         latest_tag = repo.get_latest_released_tag_for_branch(
             branch=e.local_branch, this_release_branch_only=False
         )
