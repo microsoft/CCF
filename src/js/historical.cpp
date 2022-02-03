@@ -69,7 +69,7 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx,
       js_receipt,
-      "nodeId",
+      "node_id",
       JS_NewString(ctx, receipt_out.node_id.value().c_str()));
     auto proof = JS_NewArray(ctx);
     uint32_t i = 0;
