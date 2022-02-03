@@ -8,6 +8,7 @@
 
 using ccf::BaseEndpointRegistry;
 using ccf::endpoints::EndpointContext;
+using ccf::endpoints::EndpointDefinition;
 
 namespace ccf::v8_tmpl
 {
@@ -19,6 +20,7 @@ namespace ccf::v8_tmpl
 
     static v8::Local<v8::Object> wrap(
       v8::Local<v8::Context> context,
+      const EndpointDefinition* endpoint_def,
       EndpointContext* endpoint_ctx,
       BaseEndpointRegistry* endpoint_registry);
   };

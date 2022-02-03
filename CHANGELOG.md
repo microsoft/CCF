@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Node RPC interfaces do not anymore transition from node-endorsed to service-endorsed TLS certificates but are fixed to a single configured type. While a given endorsement is not available yet (typically at start-up for service-endorsed certificates) the interface rejects TLS sessions instead of defaulting to a node-endorsed certificate (#2875).
+- Node RPC interfaces do not transition anymore from node-endorsed to service-endorsed TLS certificates but are fixed to a single configured type. While a given endorsement is not available yet (typically at start-up for service-endorsed certificates) the interface rejects TLS sessions instead of defaulting to a node-endorsed certificate (#2875).
+- Add request details with additional URL components to JS + TS API: `request.url`, `request.route`, `request.method`, `request.hostname` (#3498).
 
 ## [2.0.0-rc0]
 
@@ -1200,14 +1201,15 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 Initial pre-release
 
 [2.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0
-[ccf-2.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev7
-[ccf-2.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev6
-[ccf-2.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev5
-[ccf-2.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev4
-[ccf-2.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev3
-[ccf-2.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev2
-[ccf-2.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev1
-[ccf-2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
+[2.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev8
+[2.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev7
+[2.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev6
+[2.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev5
+[2.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev4
+[2.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev3
+[2.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev2
+[2.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev1
+[2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
 [1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
 [1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
 [1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1
