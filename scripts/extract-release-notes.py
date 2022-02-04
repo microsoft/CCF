@@ -4,6 +4,7 @@
 import argparse
 import re
 import sys
+import subprocess
 
 
 def main():
@@ -18,6 +19,11 @@ def main():
         default=[],
     )
     parser.add_argument(
+        "--target-git-version",
+        help="Derive target version from current git version",
+        action="store_true",
+    )
+    parser.add_argument(
         "--changelog", help="Path to CHANGELOG file to parse", default="CHANGELOG.md"
     )
     parser.add_argument(
@@ -27,6 +33,13 @@ def main():
         action="store_true",
     )
     args = parser.parse_args()
+
+    if args.target_git_version:
+        git_version = subprocess.run(
+            ["git", "describe", "--tags"], capture_output=True, universal_newlines=True
+        ).stdout.strip()
+        git_version = git_version.replace("ccf-", "")
+        args.target_version.append(git_version)
 
     version_header = re.compile(r"## \[(.+)\]")
     link_definition = re.compile(r"\[(.+)\]:")

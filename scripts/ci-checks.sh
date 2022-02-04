@@ -21,6 +21,13 @@ git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s ba
 echo "TODOs"
 "$SCRIPT_DIR"/check-todo.sh include src
 
+echo "Release notes"
+if [ $FIX -ne 0 ]; then
+  python3 "$SCRIPT_DIR"/extract-release-notes.py -f
+else
+  python3 "$SCRIPT_DIR"/extract-release-notes.py
+fi
+
 echo "C/C++ format"
 if [ $FIX -ne 0 ]; then
   "$SCRIPT_DIR"/check-format.sh -f include src samples
