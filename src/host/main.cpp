@@ -7,7 +7,6 @@
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "ds/net.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"
