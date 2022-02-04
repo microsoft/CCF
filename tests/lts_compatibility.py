@@ -395,7 +395,7 @@ def run_live_compatibility_with_following(args, repo, local_branch):
 
 
 @reqs.description("Run ledger compatibility since first LTS")
-def run_ledger_compatibility_since_first(args, use_snapshot):
+def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
@@ -406,7 +406,7 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
 
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
-    lts_releases = repo.get_lts_releases()
+    lts_releases = repo.get_lts_releases(local_branch)
 
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
@@ -540,7 +540,7 @@ if __name__ == "__main__":
     # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
     # current branch on any environment (either local checkout or CI run)
     env = cimetrics.env.get_env()
-    local_branch = env.branch
+    local_branch =  env.branch
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
@@ -578,11 +578,15 @@ if __name__ == "__main__":
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
-        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=False)
+        lts_versions = run_ledger_compatibility_since_first(
+            args, local_branch, use_snapshot=False
+        )
         compatibility_report["data compatibility"].update(
             {"with previous ledger": lts_versions}
         )
-        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=True)
+        lts_versions = run_ledger_compatibility_since_first(
+            args, local_branch, use_snapshot=True
+        )
         compatibility_report["data compatibility"].update(
             {"with previous snapshots": lts_versions}
         )

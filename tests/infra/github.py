@@ -64,7 +64,6 @@ def is_dev_tag(tag_name):
     return is_release_tag(tag_name) and TAG_DEVELOPMENT_SUFFIX in tag_name
 
 
-# TODO: Still required?
 def sanitise_branch_name(branch_name):
     # Note: When checking out a specific tag, Azure DevOps does not know about the
     # branch but only the tag name so automatically convert release tags to release branch
@@ -183,14 +182,21 @@ class Repository:
         )
         return self.get_tags_for_major_version(major_version)
 
-    def get_lts_releases(self):
+    def get_lts_releases(self, branch):
         """
-        Returns a dict of all release major versions to the the latest release tag on this branch.
+        Returns a dict of all release major versions to the the latest release tag on that branch.
+        Only release branches older than `branch` are included.
         The oldest release branch is first in the dict.
         """
+        branch = sanitise_branch_name(branch)
         releases = {}
+        max_major_version = (
+            get_major_version_from_release_branch_name(branch)
+            if is_release_branch(branch)
+            else None
+        )
         major_version = 1
-        while True:
+        while max_major_version is None or major_version <= max_major_version:
             tag = self.get_latest_tag_for_major_version(major_version)
             if tag is None:
                 break
@@ -398,15 +404,29 @@ if __name__ == "__main__":
             env.mut(tag="ccf-2.0.2"),
             exp(prev="ccf-1.0.1", same="ccf-2.0.1", next="ccf-3.0.0"),
         ),  # 2.0.2
+        (
+            env.mut(tag="ccf-3.0.0"),
+            exp(same="ccf-3.0.0-rc0", prev="ccf-2.0.2"),
+        ),  # 3.0.0
+        (
+            env.mut(local="release/3.x"),
+            exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
+        ),  # Dev on rel/3.x
+        (
+            env.mut(tag="unknown-tag"),
+            exp(prev="ccf-3.0.0"),
+        ),  # Non-release tag
+        (
+            env.mut(local="unknown_branch"),
+            exp(prev="ccf-3.0.0"),
+        ),  # Non-release branch
     ]
-
-    # TODO:
-    # - Negative tests
-    # - Remove branch from environment
 
     for e, exp in test_scenario:
         LOG.info(f'env: tags: {e.tags or []} (local branch: "{e.local_branch}")')
         repo = Repository(e)
+
+        # Latest LTS (different branch)
         latest_tag = repo.get_latest_released_tag_for_branch(
             branch=e.local_branch, this_release_branch_only=False
         )
@@ -414,6 +434,7 @@ if __name__ == "__main__":
             latest_tag == exp["previous LTS"]
         ), f'Prev LTS: {latest_tag} != expected {exp["previous LTS"]}'
 
+        # Latest LTS (same branch)
         latest_tag_for_this_release_branch = repo.get_latest_released_tag_for_branch(
             branch=e.local_branch, this_release_branch_only=True
         )
@@ -421,6 +442,7 @@ if __name__ == "__main__":
             latest_tag_for_this_release_branch == exp["same LTS"]
         ), f'Same LTS: {latest_tag_for_this_release_branch} != expected {exp["same LTS"]}'
 
+        # Next LTS
         next_tag = repo.get_first_tag_for_next_release_branch(e.local_branch)
         assert (
             next_tag == exp["next LTS"]
@@ -428,5 +450,12 @@ if __name__ == "__main__":
         LOG.info(
             f"-- prev LTS: {latest_tag}, same LTS: {latest_tag_for_this_release_branch}, next LTS: {next_tag}"
         )
+
+        # All releases so far
+        lts_releases = repo.get_lts_releases(e.local_branch)
+        if is_release_branch(e.local_branch):
+            assert len(lts_releases) == get_major_version_from_release_branch_name(
+                e.local_branch
+            )
 
     LOG.success(f"Successfully verified scenario of size {len(test_scenario)}")
