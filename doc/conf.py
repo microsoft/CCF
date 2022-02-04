@@ -132,6 +132,7 @@ html_css_files = [
 
 html_js_files = ["https://kit.fontawesome.com/c75a35380d.js"]
 
+html_extra_path = ["../doxygen/"]
 
 # -- Options for HTMLHelp output ---------------------------------------------
 

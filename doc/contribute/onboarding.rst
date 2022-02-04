@@ -91,3 +91,8 @@ Note that this diagram deliberately does not represent host-to-enclave communica
         OtherNodes --> Consensus
         Consensus -- Sign --> MerkleTree
         MerkleTree -- Signature --> Store
+
+Doxygen
+-------
+
+Doxygen description of the codebase is available `here </doxygen_html>`_.
