@@ -38,7 +38,7 @@ def get_version_from_install(install_dir):
     with open(
         os.path.join(install_dir, INSTALL_VERSION_FILE_PATH), "r", encoding="utf-8"
     ) as version_file:
-        return version_file.read()
+        return f"{TAG_RELEASE_PREFIX}{version_file.read()}"
 
 
 def is_release_branch(branch_name):
@@ -225,7 +225,7 @@ class Repository:
             LOG.info(
                 f"Using existing release {stripped_tag} already installed at {install_path}"
             )
-            return stripped_tag, install_path
+            return tag, install_path
 
         debian_package_name = debian_package_url.split("/")[-1]
         download_path = os.path.join(DOWNLOAD_FOLDER_NAME, debian_package_name)
@@ -244,8 +244,8 @@ class Repository:
         # Write new file to avoid having to download install again
         open(os.path.join(install_path, INSTALL_SUCCESS_FILE), "w+", encoding="utf-8")
 
-        LOG.info(f"CCF release {stripped_tag} successfully installed at {install_path}")
-        return stripped_tag, install_path
+        LOG.info(f"CCF release {tag} successfully installed at {install_path}")
+        return tag, install_path
 
     def get_latest_tag(self):
         # Based on semver, not chronologically

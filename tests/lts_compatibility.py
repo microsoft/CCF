@@ -128,6 +128,7 @@ def test_new_service(
         test_migration_2tx_reconfiguration(
             network,
             args,
+            initial_is_1tx=False,  # Reconfiguration type added in 2.x
             binary_dir=binary_dir,
             library_dir=library_dir,
             version=version,
@@ -367,17 +368,14 @@ def run_live_compatibility_with_latest(
         )
         return None
 
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
-    LOG.info(
-        f'From LTS {lts_version} to local "{local_branch}" branch (version: {local_major_version})'
-    )
+    LOG.info(f"From LTS {lts_version} to local {local_branch} branch")
     if not args.dry_run:
         run_code_upgrade_from(
             args,
             from_install_path=lts_install_path,
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
             from_version=lts_version,
-            to_version=local_major_version,
+            to_version=None,
             from_container_image=lts_container_image,
         )
     return lts_version
@@ -400,16 +398,13 @@ def run_live_compatibility_with_following(
         LOG.warning(f"Next LTS not found for {local_branch} branch")
         return None
 
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
-    LOG.info(
-        f'From local "{local_branch}" branch (version: {local_major_version}) to LTS {lts_version}'
-    )
+    LOG.info(f"From local {local_branch} branch to LTS {lts_version}")
     if not args.dry_run:
         run_code_upgrade_from(
             args,
             from_install_path=LOCAL_CHECKOUT_DIRECTORY,
             to_install_path=lts_install_path,
-            from_version=local_major_version,
+            from_version=None,
             to_version=lts_version,
         )
     return lts_version
