@@ -166,7 +166,7 @@ class Repository:
         version_re = f"{major_version}\." if major_version else ""
         tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\d+]+)(-rc.*|)$"
         tags = sorted(
-            [tag for tag in self.tags if re.match(tag_re, tag)],
+            (tag for tag in self.tags if re.match(tag_re, tag)),
             key=get_version_from_tag_name,
             reverse=True,
         )
