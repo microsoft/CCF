@@ -219,6 +219,7 @@ class Network:
         read_only_ledger_dirs=None,
         from_snapshot=False,
         snapshots_dir=None,
+        **kwargs,
     ):
         # Contact primary if no target node is set
         if target_node is None:
@@ -250,11 +251,6 @@ class Network:
                 "Joining without snapshot: complete transaction history will be replayed"
             )
 
-        forwarded_args = {
-            arg: getattr(args, arg, None)
-            for arg in infra.network.Network.node_args_to_forward
-        }
-
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
@@ -266,7 +262,7 @@ class Network:
             snapshots_dir=snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
-            **forwarded_args,
+            **kwargs,
         )
 
         # If the network is opening, node are trusted without consortium approval
@@ -284,6 +280,7 @@ class Network:
         ledger_dir=None,
         read_only_ledger_dirs=None,
         snapshots_dir=None,
+        **kwargs,
     ):
         self.args = args
         hosts = self.hosts
@@ -310,6 +307,7 @@ class Network:
                             common_dir=self.common_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args,
+                            **kwargs,
                         )
                     else:
                         node.recover(
@@ -321,6 +319,7 @@ class Network:
                             read_only_ledger_dirs=read_only_ledger_dirs,
                             snapshots_dir=snapshots_dir,
                             **forwarded_args,
+                            **kwargs,
                         )
                         self.wait_for_state(
                             node,
@@ -338,6 +337,8 @@ class Network:
                         from_snapshot=snapshots_dir is not None,
                         read_only_ledger_dirs=read_only_ledger_dirs,
                         snapshots_dir=snapshots_dir,
+                        **forwarded_args,
+                        **kwargs,
                     )
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.local_node_id))
@@ -379,7 +380,7 @@ class Network:
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
 
-    def start_and_join(self, args):
+    def start_and_join(self, args, **kwargs):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
@@ -420,7 +421,7 @@ class Network:
         ]
         self.create_users(initial_users, args.participants_curve)
 
-        primary = self._start_all_nodes(args)
+        primary = self._start_all_nodes(args, **kwargs)
         self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined network")
 
@@ -596,7 +597,11 @@ class Network:
     def join_node(
         self, node, lib_name, args, target_node=None, timeout=JOIN_TIMEOUT, **kwargs
     ):
-        self._add_node(node, lib_name, args, target_node, **kwargs)
+        forwarded_args = {
+            arg: getattr(args, arg, None)
+            for arg in infra.network.Network.node_args_to_forward
+        }
+        self._add_node(node, lib_name, args, target_node, **forwarded_args, **kwargs)
 
         primary, _ = self.find_primary()
         try:
