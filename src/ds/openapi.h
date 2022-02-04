@@ -344,7 +344,9 @@ namespace ds
             auto& j = ib.first.value();
 
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+#if defined(__clang__) && __clang_major__ >= 11
+#  pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+#endif
             // Use argument-dependent-lookup to call correct functions
             T t;
             if constexpr (std::is_enum<T>::value)

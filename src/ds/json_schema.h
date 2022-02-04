@@ -66,7 +66,9 @@ namespace ds
     namespace adl
     {
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+#if defined(__clang__) && __clang_major__ >= 11
+#  pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+#endif
       template <typename T>
       std::string schema_name()
       {
