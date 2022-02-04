@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "authentication_types.h"
 #include "ds/lru.h"
+#include "http/authentication/authentication_types.h"
 #include "http/http_sig.h"
 
 namespace ccf

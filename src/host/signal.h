@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "proxy.h"
+#include "host/proxy.h"
 
 #include <chrono>
 

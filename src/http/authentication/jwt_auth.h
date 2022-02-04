@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "authentication_types.h"
+#include "http/authentication/authentication_types.h"
 #include "http/http_jwt.h"
 #include "node/jwt.h"
 

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "authentication_types.h"
 #include "crypto/pem.h"
 #include "crypto/verifier.h"
+#include "http/authentication/authentication_types.h"
 #include "node/blit.h"
 #include "node/members.h"
 #include "node/nodes.h"

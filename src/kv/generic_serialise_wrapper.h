@@ -4,9 +4,9 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
+#include "kv/serialised_entry.h"
 #include "kv_types.h"
 #include "node/rpc/claims.h"
-#include "serialised_entry.h"
 #include "serialised_entry_format.h"
 
 #include <optional>

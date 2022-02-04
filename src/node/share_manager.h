@@ -8,9 +8,9 @@
 #include "ds/logger.h"
 #include "genesis_gen.h"
 #include "kv/encryptor.h"
-#include "ledger_secrets.h"
-#include "network_state.h"
-#include "secret_share.h"
+#include "node/ledger_secrets.h"
+#include "node/network_state.h"
+#include "node/secret_share.h"
 
 #include <openssl/crypto.h>
 #include <vector>

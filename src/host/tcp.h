@@ -5,7 +5,7 @@
 #include "../ds/logger.h"
 #include "before_io.h"
 #include "dns.h"
-#include "proxy.h"
+#include "host/proxy.h"
 
 #include <optional>
 
