@@ -79,7 +79,7 @@ def sanitise_branch_name(branch_name):
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
         return MAIN_BRANCH_NAME
     elif is_release_tag(branch_name):
-        tag_major_version = int(branch_name.split(TAG_RELEASE_PREFIX)[1].split(".")[0])
+        tag_major_version = get_version_from_tag_name(branch_name)
         if tag_major_version == 0:
             return MAIN_BRANCH_NAME
         equivalent_release_branch = f"{BRANCH_RELEASE_PREFIX}{tag_major_version}.x"
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     # Run this to test
     class MockGitEnv:
         def __init__(self, tags=None, local_branch=None):
-            self.tags = set(tags) if tags else set()
+            self.tags = set(tags or ())
             self.local_branch = local_branch or MAIN_BRANCH_NAME
 
         def mut(self, tag=None, local=None):
