@@ -175,8 +175,8 @@ def run_live_compatibility_with_latest(args, repo, local_branch):
             args,
             from_install_path=lts_install_path,
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            from_major_version=Version(lts_version).release[0],
-            to_major_version=local_major_version,
+            from_major_version=lts_version,
+            to_major_version=None,
         )
     return lts_version
 
