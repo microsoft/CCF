@@ -4,12 +4,12 @@
 #include "common/configuration.h"
 #include "ds/json_schema.h"
 #include "enclave/interface.h"
-#include "node/config.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
-#include "node/members.h"
-#include "node/node_info_network.h"
-#include "node/service.h"
+#include "service/tables/config.h"
+#include "service/tables/members.h"
+#include "service/tables/node_info_network.h"
+#include "service/tables/service.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>

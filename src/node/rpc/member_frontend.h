@@ -9,15 +9,14 @@
 #include "ds/nonstd.h"
 #include "frontend.h"
 #include "js/wrap.h"
-#include "node/genesis_gen.h"
-#include "node/gov.h"
-#include "node/jwt.h"
-#include "node/members.h"
-#include "node/nodes.h"
 #include "node/quote.h"
-#include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
+#include "service/genesis_gen.h"
+#include "service/tables/gov.h"
+#include "service/tables/jwt.h"
+#include "service/tables/members.h"
+#include "service/tables/nodes.h"
 
 #include <charconv>
 #include <exception>

@@ -7,8 +7,7 @@
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "ledger_secret.h"
-#include "secrets.h"
-#include "shares.h"
+#include "service/network_tables.h"
 
 #include <algorithm>
 #include <map>

@@ -5,8 +5,7 @@
 #include "crypto/hash_provider.h"
 #include "ds/hex.h"
 #include "ds/json.h"
-#include "entities.h"
-#include "service_map.h"
+#include "service/map.h"
 
 namespace ccf
 {

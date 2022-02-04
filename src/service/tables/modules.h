@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "service_map.h"
+#include "service/map.h"
 
 #include <optional>
 #include <stdint.h>

@@ -9,8 +9,8 @@
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
-#include "node/node_signature.h"
 #include "node/rpc/node_interface.h"
+#include "service/tables/node_signature.h"
 
 #include <list>
 #include <map>

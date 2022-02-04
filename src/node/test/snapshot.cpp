@@ -5,8 +5,8 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
-#include "node/nodes.h"
-#include "node/signatures.h"
+#include "service/tables/nodes.h"
+#include "service/tables/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
