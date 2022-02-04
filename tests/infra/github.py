@@ -9,7 +9,6 @@ import git
 import urllib
 import shutil
 import requests
-import copy
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -79,7 +78,7 @@ def sanitise_branch_name(branch_name):
         # For simplification, assume that dev tags are only released from main branch
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
         return MAIN_BRANCH_NAME
-    if is_release_tag(branch_name):
+    elif is_release_tag(branch_name):
         tag_major_version = int(branch_name.split(TAG_RELEASE_PREFIX)[1].split(".")[0])
         if tag_major_version == 0:
             return MAIN_BRANCH_NAME
@@ -306,18 +305,11 @@ class Repository:
         latest_tag = self.get_latest_released_tag_for_branch(
             branch, this_release_branch_only
         )
-        if not latest_tag:
-            return None, None
-        return self.install_release(latest_tag)
+        return self.install_release(latest_tag) if latest_tag else (None, None)
 
     def install_next_lts_for_branch(self, branch):
         next_tag = self.get_first_tag_for_next_release_branch(branch)
-        if not next_tag:
-            LOG.info(f"No next release tag found for {branch}")
-            return None, None
-
-        LOG.info(f"Next release tag: {next_tag}")
-        return self.install_release(next_tag)
+        return self.install_release(next_tag) if next_tag else (None, None)
 
 
 if __name__ == "__main__":
