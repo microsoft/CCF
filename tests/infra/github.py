@@ -163,8 +163,8 @@ class Repository:
         return self._filter_released_tags(dev_tags)[0]
 
     def get_tags_for_major_version(self, major_version=None):
-        version_re = f"{major_version}\." if major_version else ""
-        tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\d+]+)(-rc.*|)$"
+        version_re = rf"{major_version}\." if major_version else ""
+        tag_re = rf"^{TAG_RELEASE_PREFIX}{version_re}([.\d+]+)(-rc.*|)$"
         tags = sorted(
             (tag for tag in self.tags if re.match(tag_re, tag)),
             key=get_version_from_tag_name,
@@ -332,8 +332,12 @@ if __name__ == "__main__":
             # must be in progress
             return True if tag_name != self.local_branch else False
 
-    def exp(prev=None, same=None, next=None):
-        return {"previous LTS": prev, "same LTS": same, "next LTS": next}
+    def exp(**kwargs):
+        return {
+            "previous LTS": kwargs.get("prev", None),
+            "same LTS": kwargs.get("same", None),
+            "next LTS": kwargs.get("next", None),
+        }
 
     env = MockGitEnv()
     test_scenario = [
