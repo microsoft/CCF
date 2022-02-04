@@ -128,6 +128,7 @@ def test_new_service(
         test_migration_2tx_reconfiguration(
             network,
             args,
+            initial_is_1tx=False,  # Reconfiguration type added in 2.x
             binary_dir=binary_dir,
             library_dir=library_dir,
             version=version,
@@ -367,56 +368,21 @@ def run_live_compatibility_with_latest(
         )
         return None
 
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
-    LOG.info(
-        f'From LTS {lts_version} to local "{local_branch}" branch (version: {local_major_version})'
-    )
+    LOG.info(f"From LTS {lts_version} to local {local_branch} branch")
     if not args.dry_run:
         run_code_upgrade_from(
             args,
             from_install_path=lts_install_path,
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
             from_version=lts_version,
-            to_version=local_major_version,
+            to_version=None,
             from_container_image=lts_container_image,
         )
     return lts_version
 
 
-@reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_following(
-    args, repo, local_branch, lts_install_path=None
-):
-    """
-    Tests that a service from the local checkout can be safely upgraded to the version of
-    the next LTS.
-    """
-    if lts_install_path is None:
-        lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
-    else:
-        lts_version = infra.github.get_version_from_install(lts_install_path)
-
-    if lts_version is None:
-        LOG.warning(f"Next LTS not found for {local_branch} branch")
-        return None
-
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
-    LOG.info(
-        f'From local "{local_branch}" branch (version: {local_major_version}) to LTS {lts_version}'
-    )
-    if not args.dry_run:
-        run_code_upgrade_from(
-            args,
-            from_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            to_install_path=lts_install_path,
-            from_version=local_major_version,
-            to_version=lts_version,
-        )
-    return lts_version
-
-
 @reqs.description("Run ledger compatibility since first LTS")
-def run_ledger_compatibility_since_first(args, use_snapshot):
+def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
@@ -427,7 +393,7 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
 
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
-    lts_releases = repo.get_lts_releases()
+    lts_releases = repo.get_lts_releases(local_branch)
 
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
@@ -575,6 +541,7 @@ if __name__ == "__main__":
     # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
     # current branch on any environment (either local checkout or CI run)
     env = cimetrics.env.get_env()
+    local_branch = env.branch
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
@@ -586,7 +553,7 @@ if __name__ == "__main__":
         version = run_live_compatibility_with_latest(
             args,
             repo,
-            env.branch,
+            local_branch,
             lts_install_path=args.release_install_path,
             lts_container_image=args.release_install_image,
         )
@@ -598,7 +565,7 @@ if __name__ == "__main__":
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
         latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, env.branch, this_release_branch_only=False
+            args, repo, local_branch, this_release_branch_only=False
         )
         compatibility_report["live compatibility"].update(
             {"with previous LTS": latest_lts_version}
@@ -607,30 +574,23 @@ if __name__ == "__main__":
         # Compatibility with latest LTS on the same release branch
         # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
         latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, env.branch, this_release_branch_only=True
+            args, repo, local_branch, this_release_branch_only=True
         )
         compatibility_report["live compatibility"].update(
             {"with same LTS": latest_lts_version}
         )
 
-        # Compatibility with following LTS
-        # (e.g. when releasing 1.0.10, check compatibility with existing 2.0.3)
-        following_lts_version = run_live_compatibility_with_following(
-            args, repo, env.branch
-        )
-        compatibility_report["live compatibility"].update(
-            {"with following LTS": following_lts_version}
-        )
-
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
             lts_versions = run_ledger_compatibility_since_first(
-                args, use_snapshot=False
+                args, local_branch, use_snapshot=False
             )
             compatibility_report["data compatibility"].update(
                 {"with previous ledger": lts_versions}
             )
-            lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=True)
+            lts_versions = run_ledger_compatibility_since_first(
+                args, local_branch, use_snapshot=True
+            )
             compatibility_report["data compatibility"].update(
                 {"with previous snapshots": lts_versions}
             )
