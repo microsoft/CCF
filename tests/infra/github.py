@@ -330,9 +330,7 @@ if __name__ == "__main__":
         def has_release_for_tag_name(self, tag_name):
             # If tag_name is local branch, then the release from this tag
             # must be in progress
-            if tag_name == self.local_branch:
-                return False
-            return True
+            return True if tag_name != self.local_branch else False
 
     def exp(prev=None, same=None, next=None):
         return {"previous LTS": prev, "same LTS": same, "next LTS": next}
