@@ -381,35 +381,6 @@ def run_live_compatibility_with_latest(
     return lts_version
 
 
-@reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_following(
-    args, repo, local_branch, lts_install_path=None
-):
-    """
-    Tests that a service from the local checkout can be safely upgraded to the version of
-    the next LTS.
-    """
-    if lts_install_path is None:
-        lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
-    else:
-        lts_version = infra.github.get_version_from_install(lts_install_path)
-
-    if lts_version is None:
-        LOG.warning(f"Next LTS not found for {local_branch} branch")
-        return None
-
-    LOG.info(f"From local {local_branch} branch to LTS {lts_version}")
-    if not args.dry_run:
-        run_code_upgrade_from(
-            args,
-            from_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            to_install_path=lts_install_path,
-            from_version=None,
-            to_version=lts_version,
-        )
-    return lts_version
-
-
 @reqs.description("Run ledger compatibility since first LTS")
 def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     """
@@ -607,15 +578,6 @@ if __name__ == "__main__":
         )
         compatibility_report["live compatibility"].update(
             {"with same LTS": latest_lts_version}
-        )
-
-        # Compatibility with following LTS
-        # (e.g. when releasing 1.0.10, check compatibility with existing 2.0.3)
-        following_lts_version = run_live_compatibility_with_following(
-            args, repo, local_branch
-        )
-        compatibility_report["live compatibility"].update(
-            {"with following LTS": following_lts_version}
         )
 
         if args.check_ledger_compatibility:
