@@ -664,13 +664,13 @@ def check_2tx_ledger(ledger_paths, learner_id):
 
 
 @reqs.description("Migrate from 1tx to 2tx reconfiguration scheme")
-def test_migration_2tx_reconfiguration(network, args, **kwargs):
+def test_migration_2tx_reconfiguration(network, args, initial_is_1tx=True, **kwargs):
     primary, _ = network.find_primary()
 
     # Check that the service config agrees that this is a 1tx network
     with primary.client() as c:
         s = c.get("/node/service/configuration").body.json()
-        if "reconfiguration_type" in s:  # Added in 2.x
+        if initial_is_1tx:
             assert s["reconfiguration_type"] == "OneTransaction"
 
     network.consortium.submit_2tx_migration_proposal(primary)

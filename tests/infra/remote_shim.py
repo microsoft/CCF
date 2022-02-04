@@ -131,11 +131,15 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Deduce container tag from node version
         repo = infra.github.Repository()
-        image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
-        if ccf_version is not None:
-            image_name += ccf_version
-        else:
-            image_name += infra.github.strip_release_tag_name(repo.get_latest_dev_tag())
+        image_name = kwargs.get("node_container_image")
+        if image_name is None:
+            image_name = f"{DOCKER_IMAGE_NAME_PREFIX}:"
+            if ccf_version is not None:
+                image_name += ccf_version
+            else:
+                image_name += infra.github.strip_release_tag_name(
+                    repo.get_latest_dev_tag()
+                )
 
         try:
             self.docker_client.images.get(image_name)
