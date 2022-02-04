@@ -181,32 +181,6 @@ def run_live_compatibility_with_latest(args, repo, local_branch):
     return lts_version
 
 
-@reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_following(args, repo, local_branch):
-    """
-    Tests that a service from the local checkout can be safely upgraded to the version of
-    the next LTS.
-    """
-    lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
-    if lts_version is None:
-        LOG.warning(f"No next LTS for local {local_branch} branch")
-        return None
-
-    local_major_version = 1
-    LOG.info(
-        f'From local "{local_branch}" branch (version: {local_major_version}) to LTS {lts_version}'
-    )
-    if not args.dry_run:
-        run_code_upgrade_from(
-            args,
-            from_install_path=LOCAL_CHECKOUT_DIRECTORY,
-            to_install_path=lts_install_path,
-            from_major_version=local_major_version,
-            to_major_version=Version(lts_version).release[0],
-        )
-    return lts_version
-
-
 @reqs.description("Run ledger compatibility since first LTS")
 def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     """
@@ -350,14 +324,8 @@ if __name__ == "__main__":
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
     latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
-    following_lts_version = run_live_compatibility_with_following(
-        args, repo, env.branch
-    )
     compatibility_report["live compatibility"].update(
         {"with latest": latest_lts_version}
-    )
-    compatibility_report["live compatibility"].update(
-        {"with following": following_lts_version}
     )
 
     if args.check_ledger_compatibility:
