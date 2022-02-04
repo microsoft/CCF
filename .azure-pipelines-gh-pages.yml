@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe0.17.6-0
+    container: ccfciteam/ccf-ci:oe-0.17.6-0
     pool:
       vmImage: ubuntu-20.04
 
