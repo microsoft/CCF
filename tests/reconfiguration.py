@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.net
 import infra.logging_app as app
 import suite.test_requirements as reqs
 import tempfile
@@ -69,11 +70,11 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
 
 @reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
-    # Note: 127.0.0.1 is supplied explicitly to avoid having differently
+    # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
     operator_rpc_interface = "operator_rpc_interface"
-    host = "127.0.0.1"
+    host = infra.net.expand_localhost()
     new_node = network.create_node(
         infra.interfaces.HostSpec(
             rpc_interfaces={
