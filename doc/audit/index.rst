@@ -3,6 +3,13 @@ Audit
 
 .. panels::
 
+    :fa:`scroll` :doc:`receipts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Receipts can be used with the ledger for audit purposes.
+
+    ---
+
     :fa:`table` :doc:`builtin_maps`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -23,17 +30,9 @@ Audit
 
     ---
 
-    :fa:`scroll` :doc:`receipts`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Audit individual transactions on the basis of their receipt.
-
-    ---
-
-
 .. toctree::
     :hidden:
 
+    receipts
     builtin_maps
     python_library
-    receipts

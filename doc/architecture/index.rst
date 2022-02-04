@@ -55,9 +55,15 @@ Architecture
     :fa:`address-book` :doc:`indexing`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Indexing system used to speed up historical queries.
+    Transaction receipts in CCF.
 
     ---
+
+    :fa:`scroll` :doc:`receipts`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Receipts can be used with the ledger for audit purposes.
+
 
 .. toctree::
     :hidden:
@@ -71,3 +77,4 @@ Architecture
     raft_tla
     node_to_node
     indexing
+    receipts
