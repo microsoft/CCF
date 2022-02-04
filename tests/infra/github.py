@@ -29,9 +29,17 @@ INSTALL_DIRECTORY_PREFIX = "ccf_install_"
 INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
 DOWNLOAD_FOLDER_NAME = "downloads"
 INSTALL_SUCCESS_FILE = "test_github_infra_installed"
+INSTALL_VERSION_FILE_PATH = "share/VERSION"
 
 # Note: Releases are identified by tag since releases are not necessarily named, but all
 # releases are tagged
+
+
+def get_version_from_install(install_dir):
+    with open(
+        os.path.join(install_dir, INSTALL_VERSION_FILE_PATH), "r", encoding="utf-8"
+    ) as version_file:
+        return version_file.read()
 
 
 def is_release_branch(branch_name):

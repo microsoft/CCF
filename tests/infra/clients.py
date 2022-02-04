@@ -533,7 +533,8 @@ class CCFClient:
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
-        self.name = f"[{host}:{port}]"
+        self.hostname = f"{host}:{port}"
+        self.name = f"[{self.hostname}]"
         self.description = description or self.name
         self.is_connected = False
         self.auth = bool(session_auth)

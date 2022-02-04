@@ -170,6 +170,7 @@ def run_code_upgrade_from(
     to_install_path,
     from_version=None,
     to_version=None,
+    from_container_image=None,
 ):
     from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
         from_install_path
@@ -194,7 +195,7 @@ def run_code_upgrade_from(
             jwt_issuer=jwt_issuer,
             version=from_version,
         ) as network:
-            network.start_and_join(args)
+            network.start_and_join(args, node_container_image=from_container_image)
 
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
@@ -309,13 +310,17 @@ def run_code_upgrade_from(
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
-            jwt_issuer.refresh_keys()
-            # Note: /gov/jwt_keys/all endpoint was added in 2.x
-            primary, _ = network.find_nodes()
-            if not primary.major_version or primary.major_version > 1:
-                jwt_issuer.wait_for_refresh(network)
+            if not os.getenv("CONTAINER_NODES"):
+                jwt_issuer.refresh_keys()
+                # Note: /gov/jwt_keys/all endpoint was added in 2.x
+                primary, _ = network.find_nodes()
+                if not primary.major_version or primary.major_version > 1:
+                    jwt_issuer.wait_for_refresh(network)
+                else:
+                    time.sleep(3)
             else:
-                time.sleep(3)
+                # https://github.com/microsoft/CCF/issues/2608#issuecomment-924785744
+                LOG.warning("Skipping JWT refresh as running nodes in container")
 
             # Code update from 1.x to 2.x requires cycling the freshly-added 2.x nodes
             # once. This is because 2.x nodes will not have an endorsed certificate
@@ -337,16 +342,25 @@ def run_code_upgrade_from(
 
 @reqs.description("Run live compatibility with latest LTS")
 def run_live_compatibility_with_latest(
-    args, repo, local_branch, this_release_branch_only
+    args,
+    repo,
+    local_branch,
+    this_release_branch_only=False,
+    lts_install_path=None,
+    lts_container_image=None,
 ):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
-    lts_version, lts_install_path = repo.install_latest_lts_for_branch(
-        os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
-        this_release_branch_only,
-    )
+    if lts_install_path is None:
+        lts_version, lts_install_path = repo.install_latest_lts_for_branch(
+            os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
+            this_release_branch_only,
+        )
+    else:
+        lts_version = infra.github.get_version_from_install(lts_install_path)
+
     if lts_version is None:
         LOG.warning(
             f"Latest LTS not found for {local_branch} branch (this_release_branch_only: {this_release_branch_only})"
@@ -364,17 +378,24 @@ def run_live_compatibility_with_latest(
             to_install_path=LOCAL_CHECKOUT_DIRECTORY,
             from_version=lts_version,
             to_version=local_major_version,
+            from_container_image=lts_container_image,
         )
     return lts_version
 
 
 @reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_following(args, repo, local_branch):
+def run_live_compatibility_with_following(
+    args, repo, local_branch, lts_install_path=None
+):
     """
     Tests that a service from the local checkout can be safely upgraded to the version of
     the next LTS.
     """
-    lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
+    if lts_install_path is None:
+        lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
+    else:
+        lts_version = infra.github.get_version_from_install(lts_install_path)
+
     if lts_version is None:
         LOG.warning(f"Next LTS not found for {local_branch} branch")
         return None
@@ -523,6 +544,20 @@ if __name__ == "__main__":
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
         )
+        # It is only possible to test compatibility with past releases since only the local infra
+        # is able to spawn old nodes
+        parser.add_argument(
+            "--release-install-path",
+            type=str,
+            help='Absolute path to existing CCF release, e.g. "/opt/ccf"',
+            default=None,
+        )
+        parser.add_argument(
+            "--release-install-image",
+            type=str,
+            help="If --release-install-path is set, specify a docker image to run release in (only if CONTAINER_NODES envvar is set) ",
+            default=None,
+        )
         parser.add_argument("--dry-run", action="store_true")
 
     args = infra.e2e_args.cli_args(add)
@@ -540,7 +575,7 @@ if __name__ == "__main__":
     # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
     # current branch on any environment (either local checkout or CI run)
     env = cimetrics.env.get_env()
-    local_branch =  env.branch
+    local_branch = env.branch
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
@@ -548,48 +583,60 @@ if __name__ == "__main__":
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-
-    # Compatibility with previous LTS
-    # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-    latest_lts_version = run_live_compatibility_with_latest(
-        args, repo, local_branch, this_release_branch_only=False
-    )
-    compatibility_report["live compatibility"].update(
-        {"with previous LTS": latest_lts_version}
-    )
-
-    # Compatibility with latest LTS on the same release branch
-    # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
-    latest_lts_version = run_live_compatibility_with_latest(
-        args, repo, local_branch, this_release_branch_only=True
-    )
-    compatibility_report["live compatibility"].update(
-        {"with same LTS": latest_lts_version}
-    )
-
-    # Compatibility with following LTS
-    # (e.g. when releasing 1.0.10, check compatibility with existing 2.0.3)
-    following_lts_version = run_live_compatibility_with_following(
-        args, repo, local_branch
-    )
-    compatibility_report["live compatibility"].update(
-        {"with following LTS": following_lts_version}
-    )
-
-    if args.check_ledger_compatibility:
-        compatibility_report["data compatibility"] = {}
-        lts_versions = run_ledger_compatibility_since_first(
-            args, local_branch, use_snapshot=False
+    if args.release_install_path:
+        version = run_live_compatibility_with_latest(
+            args,
+            repo,
+            local_branch,
+            lts_install_path=args.release_install_path,
+            lts_container_image=args.release_install_image,
         )
-        compatibility_report["data compatibility"].update(
-            {"with previous ledger": lts_versions}
+        compatibility_report["live compatibility"].update(
+            {f"with release ({args.release_install_path})": version}
         )
-        lts_versions = run_ledger_compatibility_since_first(
-            args, local_branch, use_snapshot=True
+    else:
+
+        # Compatibility with previous LTS
+        # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=False
         )
-        compatibility_report["data compatibility"].update(
-            {"with previous snapshots": lts_versions}
+        compatibility_report["live compatibility"].update(
+            {"with previous LTS": latest_lts_version}
         )
+
+        # Compatibility with latest LTS on the same release branch
+        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=True
+        )
+        compatibility_report["live compatibility"].update(
+            {"with same LTS": latest_lts_version}
+        )
+
+        # Compatibility with following LTS
+        # (e.g. when releasing 1.0.10, check compatibility with existing 2.0.3)
+        following_lts_version = run_live_compatibility_with_following(
+            args, repo, local_branch
+        )
+        compatibility_report["live compatibility"].update(
+            {"with following LTS": following_lts_version}
+        )
+
+        if args.check_ledger_compatibility:
+            compatibility_report["data compatibility"] = {}
+            lts_versions = run_ledger_compatibility_since_first(
+                args, local_branch, use_snapshot=False
+            )
+            compatibility_report["data compatibility"].update(
+                {"with previous ledger": lts_versions}
+            )
+            lts_versions = run_ledger_compatibility_since_first(
+                args, local_branch, use_snapshot=True
+            )
+            compatibility_report["data compatibility"].update(
+                {"with previous snapshots": lts_versions}
+            )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:
