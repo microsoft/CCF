@@ -19,7 +19,6 @@
 #include "nodes.h"
 #include "proposals.h"
 #include "resharing.h"
-#include "scripts.h"
 #include "secrets.h"
 #include "service.h"
 #include "service_map.h"
