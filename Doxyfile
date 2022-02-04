@@ -930,7 +930,7 @@ EXCLUDE_PATTERNS       = */3rdparty/* \
                          */test/* \
                          */apps/* \
                          */aft/* \
-                         */perf_client/*
+                         */clients/perf/*
 
 # The EXCLUDE_SYMBOLS tag can be used to specify one or more symbol names
 # (namespaces, classes, functions, etc.) that should be excluded from the
