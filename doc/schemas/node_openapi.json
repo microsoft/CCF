@@ -1,6 +1,13 @@
 {
   "components": {
     "schemas": {
+      "Authority": {
+        "enum": [
+          "Node",
+          "Service"
+        ],
+        "type": "string"
+      },
       "CodeStatus": {
         "enum": [
           "AllowedToJoin"
@@ -105,6 +112,17 @@
           "BFT"
         ],
         "type": "string"
+      },
+      "Endorsement": {
+        "properties": {
+          "authority": {
+            "$ref": "#/components/schemas/Authority"
+          }
+        },
+        "required": [
+          "authority"
+        ],
+        "type": "object"
       },
       "EndpointMetrics": {
         "properties": {
@@ -418,6 +436,9 @@
           "bind_address": {
             "$ref": "#/components/schemas/string"
           },
+          "endorsement": {
+            "$ref": "#/components/schemas/Endorsement"
+          },
           "max_open_sessions_hard": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -717,7 +738,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.12.0"
+    "version": "2.13.0"
   },
   "openapi": "3.0.0",
   "paths": {

@@ -487,8 +487,10 @@ class Node:
     def get_public_rpc_host(self):
         return self.remote.get_host()
 
-    def get_public_rpc_port(self):
-        return self.host.get_primary_interface().port
+    def get_public_rpc_port(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
+        return self.host.rpc_interfaces[interface_name].port
 
     def session_ca(self, self_signed_ok):
         if self_signed_ok:
@@ -532,9 +534,14 @@ class Node:
             rpc_interface.public_host, rpc_interface.public_port, **akwargs
         )
 
-    def get_tls_certificate_pem(self):
+    def get_tls_certificate_pem(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
         return ssl.get_server_certificate(
-            (self.get_public_rpc_host(), self.get_public_rpc_port())
+            (
+                self.get_public_rpc_host(),
+                self.get_public_rpc_port(interface_name=interface_name),
+            )
         )
 
     def suspend(self):
@@ -554,9 +561,12 @@ class Node:
         self.certificate_validity_days = validity_period_days
 
     def verify_certificate_validity_period(
-        self, expected_validity_period_days=None, ignore_proposal_valid_from=False
+        self,
+        expected_validity_period_days=None,
+        ignore_proposal_valid_from=False,
+        interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
     ):
-        node_tls_cert = self.get_tls_certificate_pem()
+        node_tls_cert = self.get_tls_certificate_pem(interface_name=interface_name)
         assert (
             infra.crypto.compute_public_key_der_hash_hex_from_pem(node_tls_cert)
             == self.node_id

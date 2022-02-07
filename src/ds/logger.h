@@ -12,6 +12,31 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
+#include <type_traits>
+
+/**
+ * Generic formatter for scoped enums.
+ * Newer version of fmt does not include it by default.
+ */
+namespace fmt
+{
+  template <typename E>
+  struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const E& value, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(), "{}", static_cast<std::underlying_type_t<E>>(value));
+    }
+  };
+}
 
 namespace logger
 {
@@ -324,18 +349,28 @@ namespace logger
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
+// Clang 12.0 and 13.0 fails to compile the FMT_STRING macro in certain
+// contexts. Error is: non-literal type '<dependent type>' cannot be used in a
+// constant expression. Since consteval is available in these compilers, format
+// should already use compile-time checks.
+#if defined(__clang__) && __clang_major__ >= 12
+#  define CCF_FMT_STRING(s) (s)
+#else
+#  define CCF_FMT_STRING(s) FMT_STRING(s)
+#endif
+
 #ifdef VERBOSE_LOGGING
 #  define LOG_TRACE \
     logger::config::ok(logger::TRACE) && \
       logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
 #  define LOG_TRACE_FMT(s, ...) \
-    LOG_TRACE << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+    LOG_TRACE << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #  define LOG_DEBUG \
     logger::config::ok(logger::DEBUG) && \
       logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
 #  define LOG_DEBUG_FMT(s, ...) \
-    LOG_DEBUG << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+    LOG_DEBUG << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
 #else
 // Without compile-time VERBOSE_LOGGING option, these logging macros are
 // compile-time nops (and cannot be enabled by accident or malice)
@@ -350,19 +385,19 @@ namespace logger
   logger::config::ok(logger::INFO) && \
     logger::Out() == logger::LogLine(logger::INFO, __FILE__, __LINE__)
 #define LOG_INFO_FMT(s, ...) \
-  LOG_INFO << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+  LOG_INFO << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_FAIL \
   logger::config::ok(logger::FAIL) && \
     logger::Out() == logger::LogLine(logger::FAIL, __FILE__, __LINE__)
 #define LOG_FAIL_FMT(s, ...) \
-  LOG_FAIL << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+  LOG_FAIL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_FATAL \
   logger::config::ok(logger::FATAL) && \
     logger::Out() == logger::LogLine(logger::FATAL, __FILE__, __LINE__)
 #define LOG_FATAL_FMT(s, ...) \
-  LOG_FATAL << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+  LOG_FATAL << fmt::format(CCF_FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 // Convenient wrapper to report exception errors. Exception message is only
 // displayed in debug mode
