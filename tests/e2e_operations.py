@@ -14,7 +14,6 @@ import ipaddress
 import infra.interfaces
 import infra.path
 import infra.proc
-from infra.proposal import ProposalState
 
 
 from loguru import logger as LOG
