@@ -68,7 +68,54 @@ namespace ccf
     WAITING_FOR_FINAL,
     ESTABLISHED
   };
+}
 
+namespace fmt
+{
+  template <>
+  struct formatter<ccf::ChannelStatus>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+    {
+      char const* s = "Unknown";
+      switch (cs)
+      {
+        case (ccf::INACTIVE):
+        {
+          s = "INACTIVE";
+          break;
+        }
+        case (ccf::INITIATED):
+        {
+          s = "INITIATED";
+          break;
+        }
+        case (ccf::WAITING_FOR_FINAL):
+        {
+          s = "WAITING_FOR_FINAL";
+          break;
+        }
+        case (ccf::ESTABLISHED):
+        {
+          s = "ESTABLISHED";
+          break;
+        }
+      }
+
+      return format_to(ctx.out(), "{}", s);
+    }
+  };
+}
+
+namespace ccf
+{
   class Channel
   {
   public:
@@ -979,50 +1026,6 @@ namespace ccf
 }
 
 #pragma clang diagnostic pop
-
-namespace fmt
-{
-  template <>
-  struct formatter<ccf::ChannelStatus>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
-    {
-      char const* s = "Unknown";
-      switch (cs)
-      {
-        case (ccf::INACTIVE):
-        {
-          s = "INACTIVE";
-          break;
-        }
-        case (ccf::INITIATED):
-        {
-          s = "INITIATED";
-          break;
-        }
-        case (ccf::WAITING_FOR_FINAL):
-        {
-          s = "WAITING_FOR_FINAL";
-          break;
-        }
-        case (ccf::ESTABLISHED):
-        {
-          s = "ESTABLISHED";
-          break;
-        }
-      }
-
-      return format_to(ctx.out(), s);
-    }
-  };
-}
 
 #undef CHANNEL_RECV_TRACE
 #undef CHANNEL_SEND_TRACE

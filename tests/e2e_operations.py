@@ -85,7 +85,15 @@ def run_tls_san_checks(args):
 
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"
-        new_node = network.create_node("local://localhost")
+        new_node = network.create_node(
+            infra.interfaces.HostSpec(
+                rpc_interfaces={
+                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                        endorsement=infra.interfaces.Endorsement(authority="Node")
+                    )
+                }
+            )
+        )
         args.subject_alt_names = [f"dNSName:{dummy_san}"]
         network.join_node(new_node, args.package, args)
         sans = infra.crypto.get_san_from_pem_cert(new_node.get_tls_certificate_pem())
@@ -100,7 +108,8 @@ def run_tls_san_checks(args):
             infra.interfaces.HostSpec(
                 rpc_interfaces={
                     infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                        public_host=dummy_public_rpc_host
+                        public_host=dummy_public_rpc_host,
+                        endorsement=infra.interfaces.Endorsement(authority="Node"),
                     )
                 }
             )
