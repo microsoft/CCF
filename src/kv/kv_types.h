@@ -774,7 +774,9 @@ namespace kv
     };
 
     virtual void set_flags(uint8_t flags) = 0;
-    virtual uint8_t get_flags() const = 0;
+    virtual uint8_t get_flags() = 0;
+    virtual void set_flags_unsafe(uint8_t flags) = 0;
+    virtual uint8_t get_flags_unsafe() const = 0;
   };
 }
 

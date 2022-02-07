@@ -390,7 +390,8 @@ namespace kv
 
       // This is a signature and, if the ledger chunking flag is enabled, we
       // want the host to create a chunk when it sees this entry.
-      bool force_ledger_chunk = store->get_flags() &
+      // version_lock held by Store::commit
+      bool force_ledger_chunk = store->get_flags_unsafe() &
         AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE;
 
       if (force_ledger_chunk)
@@ -407,8 +408,8 @@ namespace kv
         force_ledger_chunk);
 
       // Reset ledger chunk flag in the store
-      store->set_flags(
-        store->get_flags() &
+      store->set_flags_unsafe(
+        store->get_flags_unsafe() &
         ~AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       return {

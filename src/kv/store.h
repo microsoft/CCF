@@ -1210,10 +1210,22 @@ namespace kv
 
     virtual void set_flags(uint8_t flags) override
     {
+      std::lock_guard<std::mutex> vguard(version_lock);
       this->flags = flags;
     }
 
-    virtual uint8_t get_flags() const override
+    virtual uint8_t get_flags() override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return flags;
+    }
+
+    virtual void set_flags_unsafe(uint8_t flags) override
+    {
+      this->flags = flags;
+    }
+
+    virtual uint8_t get_flags_unsafe() const override
     {
       return flags;
     }
