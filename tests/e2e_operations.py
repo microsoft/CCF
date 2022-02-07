@@ -185,8 +185,6 @@ def test_forced_ledger_chunk(args):
             primary,
             proposal,
             careful_vote,
-            wait_for_global_commit=True,
-            timeout=3,
         )
         assert proposal.state == ProposalState.ACCEPTED
 
