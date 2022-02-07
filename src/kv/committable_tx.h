@@ -22,6 +22,8 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
+    uint8_t flags = 0;
+
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
@@ -59,8 +61,7 @@ namespace kv
         EntryType::WriteSetWithCommitEvidence :
         EntryType::WriteSetWithCommitEvidenceAndClaims;
 
-      uint8_t header_flags =
-        force_ledger_chunk ? EntryFlags::FORCE_LEDGER_CHUNK : 0;
+      flags |= force_ledger_chunk ? EntryFlags::FORCE_LEDGER_CHUNK : 0;
 
       LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
@@ -70,7 +71,7 @@ namespace kv
         e,
         {commit_view, version},
         entry_type,
-        header_flags,
+        flags,
         tx_commit_evidence_digest,
         claims_digest);
 
@@ -164,6 +165,13 @@ namespace kv
       {
         committed = true;
         version = c.value();
+
+        if (flags & AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE)
+        {
+          store->set_flags(
+            store->get_flags() |
+            AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        }
 
         if (version == NoVersion)
         {
@@ -326,9 +334,14 @@ namespace kv
       root_at_read_version = r;
     }
 
-    void set_store_flags(uint8_t flags)
+    virtual void set_flags(uint8_t flags)
     {
-      store->set_flags(flags);
+      this->flags = flags;
+    }
+
+    virtual uint8_t get_flags() const
+    {
+      return flags;
     }
   };
 

@@ -1185,8 +1185,7 @@ namespace ccf
     void request_ledger_chunk(kv::Tx& tx) override
     {
       auto tx2 = static_cast<kv::CommittableTx*>(&tx);
-      tx2->set_store_flags(
-        kv::AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx2->set_flags(kv::AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
     void trigger_host_process_launch(
