@@ -93,7 +93,7 @@ language = "en"
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "colorful"
+pygments_style = "zenburn"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -107,7 +107,9 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    "announcement": 'CCF 2.0 release candidate <a href="https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0"> is now available </a>'
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

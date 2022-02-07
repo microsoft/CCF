@@ -16,9 +16,27 @@ def make_address(host, port=0):
 
 DEFAULT_MAX_OPEN_SESSIONS_SOFT = 1000
 DEFAULT_MAX_OPEN_SESSIONS_HARD = DEFAULT_MAX_OPEN_SESSIONS_SOFT + 10
+DEFAULT_AUTHORITY = "Service"
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
+
+
+@dataclass
+class Endorsement:
+    authority: str = DEFAULT_AUTHORITY
+
+    @staticmethod
+    def to_json(endorsement):
+        return {
+            "authority": endorsement.authority,
+        }
+
+    @staticmethod
+    def from_json(json):
+        endorsement = Endorsement()
+        endorsement.authority = json["authority"]
+        return endorsement
 
 
 @dataclass
@@ -34,6 +52,7 @@ class RPCInterface(Interface):
     public_port: Optional[int] = None
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
+    endorsement: Optional[Endorsement] = Endorsement()
 
     @staticmethod
     def to_json(interface):
@@ -42,6 +61,7 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
+            "endorsement": Endorsement.to_json(interface.endorsement),
         }
 
     @staticmethod
@@ -59,6 +79,8 @@ class RPCInterface(Interface):
         interface.max_open_sessions_hard = json.get(
             "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
         )
+        if "endorsement" in json:
+            interface.endorsement = Endorsement.from_json(json["endorsement"])
         return interface
 
 
@@ -88,11 +110,19 @@ class HostSpec:
     @staticmethod
     def from_str(s):
         protocol, address = s.split("://")
+        pub_host, pub_port = None, None
+        if "," in address:
+            address, published_address = address.split(",")
+            pub_host, pub_port = split_address(published_address)
         host, port = split_address(address)
         return HostSpec(
             rpc_interfaces={
                 PRIMARY_RPC_INTERFACE: RPCInterface(
-                    protocol=protocol, host=host, port=port
+                    protocol=protocol,
+                    host=host,
+                    port=port,
+                    public_host=pub_host,
+                    public_port=pub_port,
                 )
             }
         )

@@ -7,12 +7,12 @@
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "ds/net.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "json_schema.h"
+#include "lfs_file_handler.h"
 #include "load_monitor.h"
 #include "node_connections.h"
 #include "process_launcher.h"
@@ -46,6 +46,56 @@ void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
   exit(0);
+}
+
+void validate_enclave_file_suffix(
+  const std::string& file, host::EnclaveType type)
+{
+  char const* expected_suffix;
+  switch (type)
+  {
+    case host::EnclaveType::RELEASE:
+    {
+      expected_suffix = ".enclave.so.signed";
+      break;
+    }
+    case host::EnclaveType::DEBUG:
+    {
+      expected_suffix = ".enclave.so.debuggable";
+      break;
+    }
+    case host::EnclaveType::VIRTUAL:
+    {
+      expected_suffix = ".virtual.so";
+      break;
+    }
+    default:
+    {
+      throw std::logic_error(fmt::format("Unhandled enclave type: {}", type));
+    }
+  }
+
+  if (!nonstd::ends_with(file, expected_suffix))
+  {
+    // Remove possible suffixes to try and get root of filename, to build
+    // suggested filename
+    auto basename = file;
+    for (const char* suffix :
+         {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
+    {
+      if (nonstd::ends_with(basename, suffix))
+      {
+        basename = basename.substr(0, basename.size() - strlen(suffix));
+      }
+    }
+    const auto suggested = fmt::format("{}{}", basename, expected_suffix);
+    throw std::logic_error(fmt::format(
+      "Given enclave file '{}' does not have suffix expected for enclave type "
+      "{}. Did you mean '{}'?",
+      file,
+      nlohmann::json(type).dump(),
+      suggested));
+  }
 }
 
 int main(int argc, char** argv)
@@ -85,9 +135,8 @@ int main(int argc, char** argv)
   }
   catch (const std::exception& e)
   {
-    LOG_FAIL_FMT(
-      "Error parsing configuration file {}: {}", config_file_path, e.what());
-    return 1;
+    throw std::logic_error(fmt::format(
+      "Error parsing configuration file {}: {}", config_file_path, e.what()));
   }
 
   auto config_json = nlohmann::json(config);
@@ -96,11 +145,10 @@ int main(int argc, char** argv)
   auto schema_error_msg = json::validate_json(config_json, schema_json);
   if (schema_error_msg.has_value())
   {
-    LOG_FAIL_FMT(
+    throw std::logic_error(fmt::format(
       "Error validating JSON schema for configuration file {}: {}",
       config_file_path,
-      schema_error_msg.value());
-    return 1;
+      schema_error_msg.value()));
   }
 
   if (config.logging.format == host::LogFormat::JSON)
@@ -208,6 +256,7 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
+  validate_enclave_file_suffix(config.enclave.file, config.enclave.type);
   host::Enclave enclave(config.enclave.file, oe_flags);
 
   // messaging ring buffers
@@ -257,7 +306,7 @@ int main(int argc, char** argv)
     // regularly record some load statistics
     asynchost::LoadMonitor load_monitor(500ms, bp);
 
-    // handle outbound messages from the enclave
+    // handle outbound logging and admin messages from the enclave
     asynchost::HandleRingbuffer handle_ringbuffer(
       1ms, bp, circuit.read_from_inside(), non_blocking_factory);
 
@@ -274,6 +323,11 @@ int main(int argc, char** argv)
 
     asynchost::SnapshotManager snapshots(config.snapshots.directory, ledger);
     snapshots.register_message_handlers(bp.get_dispatcher());
+
+    // handle LFS-related messages from the enclave
+    asynchost::LFSFileHandler lfs_file_handler(
+      writer_factory.create_writer_to_inside());
+    lfs_file_handler.register_message_handlers(bp.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.
     // This includes DNS resolution and potentially dynamic port assignment (if

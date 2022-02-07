@@ -33,6 +33,35 @@ namespace ccf::historical
 
   using CompoundHandle = std::pair<RequestNamespace, RequestHandle>;
 
+};
+
+namespace fmt
+{
+  template <>
+  struct formatter<ccf::historical::CompoundHandle>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(),
+        "[{}|{}]",
+        std::get<0>(p) == ccf::historical::RequestNamespace::Application ?
+          "APP" :
+          "SYS",
+        std::get<1>(p));
+    }
+  };
+}
+
+namespace ccf::historical
+{
   static std::optional<ccf::PrimarySignature> get_signature(
     const StorePtr& sig_store)
   {
@@ -105,6 +134,37 @@ namespace ccf::historical
       bool is_signature = false;
       TxReceiptPtr receipt = nullptr;
       ccf::TxID transaction_id;
+      bool has_commit_evidence = false;
+
+      crypto::HashBytes get_commit_nonce()
+      {
+        if (store != nullptr)
+        {
+          auto e = store->get_encryptor();
+          return e->get_commit_nonce(
+            {transaction_id.view, transaction_id.seqno}, true);
+        }
+        else
+        {
+          throw std::logic_error("Store pointer not set");
+        }
+      }
+
+      std::optional<std::string> get_commit_evidence()
+      {
+        if (has_commit_evidence)
+        {
+          return fmt::format(
+            "ce:{}.{}:{}",
+            transaction_id.view,
+            transaction_id.seqno,
+            ds::to_hex(get_commit_nonce()));
+        }
+        else
+        {
+          return std::nullopt;
+        }
+      }
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
@@ -268,9 +328,10 @@ namespace ccf::historical
               if (tree.in_range(seqno))
               {
                 auto details = get_store_details(seqno);
-                if (details != nullptr)
+                if (details != nullptr && details->store != nullptr)
                 {
                   auto proof = tree.get_proof(seqno);
+                  details->transaction_id = {sig->view, seqno};
                   details->receipt = std::make_shared<TxReceipt>(
                     sig->sig,
                     proof.get_root(),
@@ -278,8 +339,8 @@ namespace ccf::historical
                     sig->node,
                     sig->cert,
                     details->entry_digest,
+                    details->get_commit_evidence(),
                     details->claims_digest);
-                  details->transaction_id = {sig->view, seqno};
                   HISTORICAL_LOG(
                     "Assigned a sig for {} after given signature at {}",
                     seqno,
@@ -357,6 +418,7 @@ namespace ccf::historical
                       if (tree.in_range(new_seqno))
                       {
                         auto proof = tree.get_proof(new_seqno);
+                        new_details->transaction_id = {sig->view, new_seqno};
                         new_details->receipt = std::make_shared<TxReceipt>(
                           sig->sig,
                           proof.get_root(),
@@ -364,8 +426,8 @@ namespace ccf::historical
                           sig->node,
                           sig->cert,
                           new_details->entry_digest,
+                          details->get_commit_evidence(),
                           new_details->claims_digest);
-                        new_details->transaction_id = {sig->view, new_seqno};
                         return std::nullopt;
                       }
 
@@ -403,6 +465,7 @@ namespace ccf::historical
                     if (tree.in_range(new_seqno))
                     {
                       auto proof = tree.get_proof(new_seqno);
+                      new_details->transaction_id = {sig->view, new_seqno};
                       new_details->receipt = std::make_shared<TxReceipt>(
                         sig->sig,
                         proof.get_root(),
@@ -410,8 +473,8 @@ namespace ccf::historical
                         sig->node,
                         sig->cert,
                         new_details->entry_digest,
+                        details->get_commit_evidence(),
                         new_details->claims_digest);
-                      new_details->transaction_id = {sig->view, new_seqno};
                     }
                   }
                 }
@@ -497,8 +560,9 @@ namespace ccf::historical
         {
           throw std::logic_error(fmt::format(
             "Earliest known ledger secret at {} has no earlier secret stored "
-            "version",
-            earliest_ledger_secret_seqno));
+            "version ({})",
+            earliest_ledger_secret_seqno,
+            seqno));
         }
 
         const auto seqno_to_fetch = previous_secret_stored_version.value();
@@ -521,7 +585,8 @@ namespace ccf::historical
       const crypto::Sha256Hash& entry_digest,
       ccf::SeqNo seqno,
       bool is_signature,
-      ccf::ClaimsDigest&& claims_digest)
+      ccf::ClaimsDigest&& claims_digest,
+      bool has_commit_evidence)
     {
       auto request_it = requests.begin();
       while (request_it != requests.end())
@@ -577,6 +642,7 @@ namespace ccf::historical
           // Deserialisation includes a GCM integrity check, so all entries have
           // been verified by the time we get here.
           details->current_stage = RequestStage::Trusted;
+          details->has_commit_evidence = has_commit_evidence;
 
           details->entry_digest = entry_digest;
           if (!claims_digest.empty())
@@ -598,9 +664,9 @@ namespace ccf::historical
             // the receipt _later_ for an already-fetched signature transaction.
             const auto sig = get_signature(details->store);
             assert(sig.has_value());
+            details->transaction_id = {sig->view, sig->seqno};
             details->receipt = std::make_shared<TxReceipt>(
               sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
-            details->transaction_id = {sig->view, sig->seqno};
           }
 
           if (request.include_receipts)
@@ -944,8 +1010,14 @@ namespace ccf::historical
 
       kv::ApplyResult deserialise_result;
       ccf::ClaimsDigest claims_digest;
+      bool has_commit_evidence;
       auto store = deserialise_ledger_entry(
-        seqno, data, size, deserialise_result, claims_digest);
+        seqno,
+        data,
+        size,
+        deserialise_result,
+        claims_digest,
+        has_commit_evidence);
 
       if (deserialise_result == kv::ApplyResult::FAIL)
       {
@@ -997,7 +1069,12 @@ namespace ccf::historical
         (size_t)deserialise_result);
       const auto entry_digest = crypto::Sha256Hash({data, size});
       process_deserialised_store(
-        store, entry_digest, seqno, is_signature, std::move(claims_digest));
+        store,
+        entry_digest,
+        seqno,
+        is_signature,
+        std::move(claims_digest),
+        has_commit_evidence);
 
       return true;
     }
@@ -1064,7 +1141,8 @@ namespace ccf::historical
       const uint8_t* data,
       size_t size,
       kv::ApplyResult& result,
-      ccf::ClaimsDigest& claims_digest)
+      ccf::ClaimsDigest& claims_digest,
+      bool& has_commit_evidence)
     {
       // Create a new store and try to deserialise this entry into it
       StorePtr store = std::make_shared<kv::Store>(
@@ -1110,6 +1188,10 @@ namespace ccf::historical
 
         result = exec->apply();
         claims_digest = std::move(exec->consume_claims_digest());
+
+        auto commit_evidence_digest =
+          std::move(exec->consume_commit_evidence_digest());
+        has_commit_evidence = commit_evidence_digest.has_value();
       }
       catch (const std::exception& e)
       {
@@ -1268,31 +1350,6 @@ namespace ccf::historical
     bool drop_cached_states(RequestHandle handle) override
     {
       return StateCacheImpl::drop_cached_states(make_compound_handle(handle));
-    }
-  };
-}
-
-namespace fmt
-{
-  template <>
-  struct formatter<ccf::historical::CompoundHandle>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(),
-        "[{}|{}]",
-        std::get<0>(p) == ccf::historical::RequestNamespace::Application ?
-          "APP" :
-          "SYS",
-        std::get<1>(p));
     }
   };
 }

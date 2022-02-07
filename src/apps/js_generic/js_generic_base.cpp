@@ -30,6 +30,9 @@ namespace ccfapp
   class JSHandlers : public UserEndpointRegistry
   {
   private:
+    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
+    {};
+
     NetworkTables& network;
     ccfapp::AbstractNodeContext& context;
     metrics::Tracker metrics_tracker;
@@ -155,13 +158,15 @@ namespace ccfapp
     }
 
     js::JSWrappedValue create_request_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
+      const JSDynamicEndpoint* endpoint,
+      ccf::endpoints::EndpointContext& endpoint_ctx,
+      js::Context& ctx)
     {
       auto request = ctx.new_obj();
 
+      const auto& r_headers = endpoint_ctx.rpc_ctx->get_request_headers();
       auto headers = ctx.new_obj();
-      for (auto& [header_name, header_value] :
-           endpoint_ctx.rpc_ctx->get_request_headers())
+      for (auto& [header_name, header_value] : r_headers)
       {
         headers.set(
           header_name,
@@ -174,10 +179,41 @@ namespace ccfapp
         ctx.new_string_len(request_query.c_str(), request_query.size());
       request.set("query", query_str);
 
-      const auto request_path = endpoint_ctx.rpc_ctx->get_request_path();
+      const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
       auto path_str =
         ctx.new_string_len(request_path.c_str(), request_path.size());
       request.set("path", path_str);
+
+      const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
+      auto method_str = ctx.new_string(request_method.c_str());
+      request.set("method", method_str);
+
+      const auto host_it = r_headers.find(http::headers::HOST);
+      if (host_it != r_headers.end())
+      {
+        const auto& request_hostname = host_it->second;
+        auto hostname_str =
+          ctx.new_string_len(request_hostname.c_str(), request_hostname.size());
+        request.set("hostname", hostname_str);
+      }
+      else
+      {
+        request.set("hostname", JS_NULL);
+      }
+
+      const auto request_route = endpoint->full_uri_path;
+      auto route_str =
+        ctx.new_string_len(request_route.c_str(), request_route.size());
+      request.set("route", route_str);
+
+      auto request_url = request_path;
+      if (!request_query.empty())
+      {
+        request_url = fmt::format("{}?{}", request_url, request_query);
+      }
+      auto url_str =
+        ctx.new_string_len(request_url.c_str(), request_url.size());
+      request.set("url", url_str);
 
       auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
@@ -200,10 +236,10 @@ namespace ccfapp
     }
 
     void execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      if (props.mode == ccf::endpoints::Mode::Historical)
+      if (endpoint->properties.mode == ccf::endpoints::Mode::Historical)
       {
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
@@ -212,26 +248,27 @@ namespace ccfapp
           };
 
         ccf::historical::adapter_v2(
-          [this, &props](
+          [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
             auto tx = state->store->create_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
             assert(receipt);
-            do_execute_request(props, endpoint_ctx, &tx, tx_id, receipt);
+            do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
           },
           context.get_historical_state(),
           is_tx_committed)(endpoint_ctx);
       }
       else
       {
-        do_execute_request(props, endpoint_ctx, nullptr, std::nullopt, nullptr);
+        do_execute_request(
+          endpoint, endpoint_ctx, nullptr, std::nullopt, nullptr);
       }
     }
 
     void do_execute_request(
-      const ccf::endpoints::EndpointProperties& props,
+      const JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
       kv::Tx* historical_tx,
       const std::optional<ccf::TxID>& transaction_id,
@@ -264,6 +301,7 @@ namespace ccfapp
       js::JSWrappedValue export_func;
       try
       {
+        const auto& props = endpoint->properties;
         auto module_val =
           js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
         export_func =
@@ -279,7 +317,7 @@ namespace ccfapp
       }
 
       // Call exported function
-      auto request = create_request_obj(endpoint_ctx, ctx);
+      auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
       auto val = ctx.call(export_func, {request});
 
       if (JS_IsException(val))
@@ -433,9 +471,6 @@ namespace ccfapp
       return;
     }
 
-    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
-    {};
-
   public:
     JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
@@ -477,6 +512,8 @@ namespace ccfapp
         auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
+        endpoint_def->full_uri_path =
+          fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
         instantiate_authn_policies(*endpoint_def);
         return endpoint_def;
       }
@@ -521,6 +558,8 @@ namespace ccfapp
 
                   auto endpoint = std::make_shared<JSDynamicEndpoint>();
                   endpoint->dispatch = other_key;
+                  endpoint->full_uri_path = fmt::format(
+                    "/{}{}", method_prefix, endpoint->dispatch.uri_path);
                   endpoint->properties = endpoints->get(other_key).value();
                   instantiate_authn_policies(*endpoint);
                   matches.push_back(endpoint);
@@ -584,7 +623,7 @@ namespace ccfapp
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(endpoint->properties, endpoint_ctx);
+        execute_request(endpoint, endpoint_ctx);
         return;
       }
 
@@ -610,7 +649,12 @@ namespace ccfapp
         if (!properties.openapi_hidden)
         {
           auto& path_op = ds::openapi::path_operation(
-            ds::openapi::path(document, key.uri_path),
+            ds::openapi::path(
+              document,
+              fmt::format(
+                "/{}{}",
+                ccf::get_actor_prefix(ccf::ActorsType::users),
+                key.uri_path)),
             http_verb.value(),
             false);
           if (!properties.openapi.empty())

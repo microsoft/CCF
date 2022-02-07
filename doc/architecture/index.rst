@@ -52,6 +52,13 @@ Architecture
 
     ---
 
+    :fa:`address-book` :doc:`indexing`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Indexing system used to speed up historical queries.
+
+    ---
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -63,3 +70,4 @@ Architecture
     ledger
     raft_tla
     node_to_node
+    indexing

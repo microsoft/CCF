@@ -5,6 +5,7 @@
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/entropy.h"
+#include "crypto/hmac.h"
 #include "crypto/key_pair.h"
 #include "crypto/key_wrap.h"
 #include "crypto/openssl/key_pair.h"
@@ -55,9 +56,10 @@ crypto::Pem generate_self_signed_cert(
   const KeyPairPtr& kp, const std::string& name)
 {
   constexpr size_t certificate_validity_period_days = 365;
+  using namespace std::literals;
   auto valid_from =
     crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-      std::chrono::system_clock::now())); // now
+      std::chrono::system_clock::now() - 24h));
 
   return crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -592,5 +594,27 @@ TEST_CASE("x509 time")
       auto converted_time_t = crypto::OpenSSL::to_time_t(asn1_time);
       REQUIRE(converted_time_t == adjusted_time_t);
     }
+  }
+}
+
+TEST_CASE("hmac")
+{
+  std::vector<uint8_t> key(32, 0);
+  std::vector<uint8_t> zeros(64, 0);
+  std::vector<uint8_t> mostly_zeros(64, 0);
+  mostly_zeros[0] = 1;
+
+  INFO("Same inputs, same hmac");
+  {
+    auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
+    auto r1 = crypto::hmac(MDType::SHA256, key, zeros);
+    REQUIRE(r0 == r1);
+  }
+
+  INFO("Different inputs, different hmacs");
+  {
+    auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
+    auto r1 = crypto::hmac(MDType::SHA256, key, mostly_zeros);
+    REQUIRE(r0 != r1);
   }
 }

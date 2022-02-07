@@ -11,7 +11,6 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
-#include "ds/net.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
@@ -416,7 +415,6 @@ namespace ccf
         network_ca,
         self_signed_node_cert,
         node_sign_kp->private_key_pem(),
-        tls::Auth::auth_required,
         config.join.target_rpc_address);
 
       // Create RPC client and connect to remote node
@@ -1558,7 +1556,7 @@ namespace ccf
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
       // node certificate.
-      rpcsessions->set_cert(
+      rpcsessions->set_node_cert(
         self_signed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
@@ -1571,7 +1569,7 @@ namespace ccf
         endorsed_node_cert.has_value(),
         "Node certificate should be endorsed before accepting endorsed client "
         "connections");
-      rpcsessions->set_cert(
+      rpcsessions->set_network_cert(
         endorsed_node_cert.value(), node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }

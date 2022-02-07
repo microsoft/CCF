@@ -20,9 +20,10 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using MapT = kv::Map<size_t, size_t>;
 
 constexpr size_t certificate_validity_period_days = 365;
-auto valid_from =
-  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-    std::chrono::system_clock::now())); // now
+using namespace std::literals;
+auto valid_from = crypto::OpenSSL::to_x509_time_string(
+  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
+
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
@@ -293,6 +294,8 @@ TEST_CASE(
   "halt replication")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<CompactingConsensus> consensus =
     std::make_shared<CompactingConsensus>(&store);
   store.set_consensus(consensus);
@@ -395,6 +398,8 @@ TEST_CASE(
   "Check that empty rollback during replicate does not cause replication halts")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 2);
   store.set_consensus(consensus);
@@ -433,6 +438,8 @@ TEST_CASE(
   "Check that rollback during replicate does not cause replication halts")
 {
   kv::Store store;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 1);
   store.set_consensus(consensus);

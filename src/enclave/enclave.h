@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
+#include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
 #include "js/wrap.h"
@@ -50,6 +51,7 @@ namespace enclave
         nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
       std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
+      std::unique_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
 
       NodeContext() {}
 
@@ -82,6 +84,17 @@ namespace enclave
             "initialized");
         }
         return *indexer;
+      }
+
+      ccf::indexing::AbstractLFSAccess& get_lfs_access() override
+      {
+        if (lfs_access == nullptr)
+        {
+          throw std::logic_error(
+            "Calling get_lfs_access before NodeContext is "
+            "initialized");
+        }
+        return *lfs_access;
       }
     };
 
@@ -143,6 +156,8 @@ namespace enclave
       context->indexer = std::make_shared<ccf::indexing::Indexer>(
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
           context->historical_state_cache));
+      context->lfs_access = std::make_unique<ccf::indexing::EnclaveLFSAccess>(
+        writer_factory->create_writer_to_outside());
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -195,7 +210,7 @@ namespace enclave
 
       start_type = start_type_;
 
-      rpcsessions->update_listening_interface_caps(ccf_config_.network);
+      rpcsessions->update_listening_interface_options(ccf_config_.network);
 
       ccf::NodeCreateInfo r;
       try
@@ -256,6 +271,8 @@ namespace enclave
         // reconstruct oversized messages sent to the enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
+        context->lfs_access->register_message_handlers(bp.get_dispatcher());
+
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
             bp.set_finished();
@@ -265,11 +282,11 @@ namespace enclave
         last_tick_time = enclave::get_enclave_time();
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::tick, [this, &bp](const uint8_t*, size_t) {
-            const auto message_counts =
-              bp.get_dispatcher().retrieve_message_counts();
-            const auto j =
-              bp.get_dispatcher().convert_message_counts(message_counts);
+          bp,
+          AdminMessage::tick,
+          [this, &disp = bp.get_dispatcher()](const uint8_t*, size_t) {
+            const auto message_counts = disp.retrieve_message_counts();
+            const auto j = disp.convert_message_counts(message_counts);
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::work_stats, to_host, j.dump());
 

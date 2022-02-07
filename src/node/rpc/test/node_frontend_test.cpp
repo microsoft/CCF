@@ -4,6 +4,7 @@
 #include "crypto/pem.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
 #include "node/rpc/node_frontend.h"
@@ -20,9 +21,9 @@ using namespace serdes;
 using TResponse = http::SimpleResponseProcessor::Response;
 
 constexpr size_t certificate_validity_period_days = 365;
-auto valid_from =
-  crypto::OpenSSL::to_x509_time_string(std::chrono::system_clock::to_time_t(
-    std::chrono::system_clock::now())); // now
+using namespace std::literals;
+auto valid_from = crypto::OpenSSL::to_x509_time_string(
+  std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() - 24h));
 auto valid_to = crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
@@ -91,6 +92,8 @@ void require_ledger_secrets_equal(
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_configuration({0, ConsensusType::CFT, std::nullopt});
@@ -225,6 +228,8 @@ TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
   auto gen_tx = network.tables->create_tx();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   GenesisGenerator gen(network, gen_tx);
 
   ShareManager share_manager(network);

@@ -7,7 +7,6 @@ import infra.e2e_args
 from infra.tx_status import TxStatus
 import infra.checker
 import infra.jwt_issuer
-import inspect
 import http
 from http.client import HTTPResponse
 import ssl
@@ -47,6 +46,10 @@ def verify_receipt(
         ccf.receipt.check_endorsement(node_cert, service_cert)
     if claims is not None:
         assert "leaf_components" in receipt
+        assert "commit_evidence" in receipt["leaf_components"]
+        commit_evidence_digest = sha256(
+            receipt["leaf_components"]["commit_evidence"].encode()
+        ).digest()
         if not generic:
             assert "claims_digest" not in receipt["leaf_components"]
         claims_digest = sha256(claims).digest()
@@ -54,6 +57,7 @@ def verify_receipt(
         leaf = (
             sha256(
                 bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
+                + commit_evidence_digest
                 + claims_digest
             )
             .digest()
@@ -64,17 +68,30 @@ def verify_receipt(
             leaf = receipt["leaf"]
         else:
             assert "leaf_components" in receipt
+            assert "write_set_digest" in receipt["leaf_components"]
             write_set_digest = bytes.fromhex(
                 receipt["leaf_components"]["write_set_digest"]
             )
-            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
-            leaf = sha256(write_set_digest + claims_digest).digest().hex()
+            assert "commit_evidence" in receipt["leaf_components"]
+            commit_evidence_digest = sha256(
+                receipt["leaf_components"]["commit_evidence"].encode()
+            ).digest()
+            claims_digest = (
+                bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+                if "claims_digest" in receipt["leaf_components"]
+                else b""
+            )
+            leaf = (
+                sha256(write_set_digest + commit_evidence_digest + claims_digest)
+                .digest()
+                .hex()
+            )
     root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("log/private", "log/public")
+@reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
 def test(network, args):
     network.txs.issue(
@@ -92,7 +109,7 @@ def test(network, args):
 
 
 @reqs.description("Protocol-illegal traffic")
-@reqs.supports_methods("log/private", "log/public")
+@reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args):
     primary, _ = network.find_primary()
@@ -141,7 +158,7 @@ def test_illegal(network, args):
 
 
 @reqs.description("Write/Read large messages on primary")
-@reqs.supports_methods("log/private")
+@reqs.supports_methods("/app/log/private")
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -156,7 +173,7 @@ def test_large_messages(network, args):
             # pass but not others, and finding where does it fail).
             log_id = 40
             for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2 ** p)
+                long_msg = "X" * (2**p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
                     result=True,
@@ -168,7 +185,7 @@ def test_large_messages(network, args):
 
 
 @reqs.description("Write/Read/Delete messages on primary")
-@reqs.supports_methods("log/private")
+@reqs.supports_methods("/app/log/private")
 def test_remove(network, args):
     primary, _ = network.find_primary()
 
@@ -208,7 +225,7 @@ def test_remove(network, args):
 
 
 @reqs.description("Write/Read/Clear messages on primary")
-@reqs.supports_methods("log/private/all", "log/public/all")
+@reqs.supports_methods("/app/log/private/all", "/app/log/public/all")
 def test_clear(network, args):
     primary, _ = network.find_primary()
 
@@ -252,7 +269,7 @@ def test_clear(network, args):
 
 
 @reqs.description("Count messages on primary")
-@reqs.supports_methods("log/private/count", "log/public/count")
+@reqs.supports_methods("/app/log/private/count", "/app/log/public/count")
 def test_record_count(network, args):
     primary, _ = network.find_primary()
 
@@ -300,7 +317,7 @@ def test_record_count(network, args):
 
 
 @reqs.description("Write/Read with cert prefix")
-@reqs.supports_methods("log/private/prefix_cert", "log/private")
+@reqs.supports_methods("/app/log/private/prefix_cert", "/app/log/private")
 def test_cert_prefix(network, args):
     primary, _ = network.find_primary()
 
@@ -316,7 +333,7 @@ def test_cert_prefix(network, args):
 
 
 @reqs.description("Write as anonymous caller")
-@reqs.supports_methods("log/private/anonymous", "log/private")
+@reqs.supports_methods("/app/log/private/anonymous", "/app/log/private")
 def test_anonymous_caller(network, args):
     primary, _ = network.find_primary()
 
@@ -339,115 +356,105 @@ def test_anonymous_caller(network, args):
 
 
 @reqs.description("Use multiple auth types on the same endpoint")
-@reqs.supports_methods("multi_auth")
+@reqs.supports_methods("/app/multi_auth")
 def test_multi_auth(network, args):
     primary, _ = network.find_primary()
     user = network.users[0]
     member = network.consortium.members[0]
 
     with primary.client(user.local_id) as c:
-        response = c.get("/app/api")
-        supported_methods = response.body.json()["paths"]
-        if "/multi_auth" in supported_methods.keys():
-            response_bodies = set()
+        response_bodies = set()
 
-            def require_new_response(r):
-                assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-                r_body = r.body.text()
-                assert r_body not in response_bodies, r_body
-                response_bodies.add(r_body)
+        def require_new_response(r):
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            r_body = r.body.text()
+            assert r_body not in response_bodies, r_body
+            response_bodies.add(r_body)
 
-            LOG.info("Anonymous, no auth")
-            with primary.client() as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Anonymous, no auth")
+        with primary.client() as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as a user, via TLS cert")
-            with primary.client(user.local_id) as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as a user, via TLS cert")
+        with primary.client(user.local_id) as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as same user, now with user data")
-            network.consortium.set_user_data(
-                primary, user.service_id, {"some": ["interesting", "data", 42]}
-            )
-            with primary.client(user.local_id) as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as same user, now with user data")
+        network.consortium.set_user_data(
+            primary, user.service_id, {"some": ["interesting", "data", 42]}
+        )
+        with primary.client(user.local_id) as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as a different user, via TLS cert")
-            with primary.client("user1") as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as a different user, via TLS cert")
+        with primary.client("user1") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as a member, via TLS cert")
-            with primary.client(member.local_id) as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as a member, via TLS cert")
+        with primary.client(member.local_id) as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as same member, now with user data")
-            network.consortium.set_member_data(
-                primary, member.service_id, {"distinct": {"arbitrary": ["data"]}}
-            )
-            with primary.client(member.local_id) as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as same member, now with user data")
+        network.consortium.set_member_data(
+            primary, member.service_id, {"distinct": {"arbitrary": ["data"]}}
+        )
+        with primary.client(member.local_id) as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as a different member, via TLS cert")
-            with primary.client("member1") as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as a different member, via TLS cert")
+        with primary.client("member1") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as a user, via HTTP signature")
-            with primary.client(None, user.local_id) as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as a user, via HTTP signature")
+        with primary.client(None, user.local_id) as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as a member, via HTTP signature")
-            with primary.client(None, member.local_id) as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as a member, via HTTP signature")
+        with primary.client(None, member.local_id) as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate as user2 but sign as user1")
-            with primary.client("user2", "user1") as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as user2 but sign as user1")
+        with primary.client("user2", "user1") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            network.create_user("user5", args.participants_curve, record=False)
+        network.create_user("user5", args.participants_curve, record=False)
 
-            LOG.info("Authenticate as invalid user5 but sign as valid user3")
-            with primary.client("user5", "user3") as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
+        LOG.info("Authenticate as invalid user5 but sign as valid user3")
+        with primary.client("user5", "user3") as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
-            LOG.info("Authenticate via JWT token")
-            jwt_issuer = infra.jwt_issuer.JwtIssuer()
-            jwt_issuer.register(network)
-            jwt = jwt_issuer.issue_jwt(claims={"user": "Alice"})
+        LOG.info("Authenticate via JWT token")
+        jwt_issuer = infra.jwt_issuer.JwtIssuer()
+        jwt_issuer.register(network)
+        jwt = jwt_issuer.issue_jwt(claims={"user": "Alice"})
 
-            with primary.client() as c:
-                r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
-                require_new_response(r)
+        with primary.client() as c:
+            r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
+            require_new_response(r)
 
-            LOG.info("Authenticate via second JWT token")
-            jwt2 = jwt_issuer.issue_jwt(claims={"user": "Bob"})
+        LOG.info("Authenticate via second JWT token")
+        jwt2 = jwt_issuer.issue_jwt(claims={"user": "Bob"})
 
-            with primary.client(
-                common_headers={"authorization": "Bearer " + jwt2}
-            ) as c:
-                r = c.get("/app/multi_auth")
-                require_new_response(r)
-
-        else:
-            LOG.warning(
-                f"Skipping {inspect.currentframe().f_code.co_name} as application does not implement '/multi_auth'"
-            )
+        with primary.client(common_headers={"authorization": "Bearer " + jwt2}) as c:
+            r = c.get("/app/multi_auth")
+            require_new_response(r)
 
     return network
 
 
 @reqs.description("Call an endpoint with a custom auth policy")
-@reqs.supports_methods("custom_auth")
+@reqs.supports_methods("/app/custom_auth")
 def test_custom_auth(network, args):
     primary, other = network.find_primary_and_any_backup()
 
@@ -487,7 +494,7 @@ def test_custom_auth(network, args):
 
 
 @reqs.description("Call an endpoint with a custom auth policy which throws")
-@reqs.supports_methods("custom_auth")
+@reqs.supports_methods("/app/custom_auth")
 def test_custom_auth_safety(network, args):
     primary, other = network.find_primary_and_any_backup()
 
@@ -505,7 +512,7 @@ def test_custom_auth_safety(network, args):
 
 
 @reqs.description("Write non-JSON body")
-@reqs.supports_methods("log/private/raw_text/{id}", "log/private")
+@reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
 def test_raw_text(network, args):
     primary, _ = network.find_primary()
 
@@ -525,7 +532,7 @@ def test_raw_text(network, args):
 
 
 @reqs.description("Read metrics")
-@reqs.supports_methods("api/metrics")
+@reqs.supports_methods("/app/api/metrics")
 def test_metrics(network, args):
     primary, _ = network.find_primary()
 
@@ -582,7 +589,7 @@ def test_metrics(network, args):
 
 
 @reqs.description("Read historical state")
-@reqs.supports_methods("log/private", "log/private/historical")
+@reqs.supports_methods("/app/log/private", "/app/log/private/historical")
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
@@ -610,7 +617,7 @@ def test_historical_query(network, args):
 
 
 @reqs.description("Read historical receipts")
-@reqs.supports_methods("log/private", "log/private/historical_receipt")
+@reqs.supports_methods("/app/log/private", "/app/log/private/historical_receipt")
 def test_historical_receipts(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
@@ -639,7 +646,7 @@ def test_historical_receipts(network, args):
 
 
 @reqs.description("Read historical receipts with claims")
-@reqs.supports_methods("log/public", "log/public/historical_receipt")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical_receipt")
 def test_historical_receipts_with_claims(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
@@ -678,7 +685,7 @@ def get_all_entries(
     start_time = time.time()
     end_time = start_time + timeout
     entries = []
-    path = f"/app/log/private/historical/range?id={target_id}"
+    path = f"/app/log/public/historical/range?id={target_id}"
     if from_seqno is not None:
         path += f"&from_seqno={from_seqno}"
     if to_seqno is not None:
@@ -713,7 +720,7 @@ def get_all_entries(
 
 
 @reqs.description("Read range of historical state")
-@reqs.supports_methods("log/private", "log/private/historical/range")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 def test_historical_query_range(network, args):
     id_a = 142
     id_b = 143
@@ -742,7 +749,7 @@ def test_historical_query_range(network, args):
             network.txs.issue(
                 network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
             )
-            _, tx = network.txs.get_last_tx(idx=idx)
+            _, tx = network.txs.get_last_tx(idx=idx, priv=False)
             msg = tx["msg"]
             seqno = tx["seqno"]
             view = tx["view"]
@@ -798,7 +805,7 @@ def test_historical_query_range(network, args):
 
 
 @reqs.description("Read state at multiple distinct historical points")
-@reqs.supports_methods("log/private", "log/private/historical/sparse")
+@reqs.supports_methods("/app/log/private", "/app/log/private/historical/sparse")
 def test_historical_query_sparse(network, args):
     idx = 142
 
@@ -940,7 +947,7 @@ def escaped_query_tests(c, endpoint):
 
 
 @reqs.description("Testing forwarding on member and user frontends")
-@reqs.supports_methods("log/private")
+@reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
@@ -978,7 +985,7 @@ def test_signed_escapes(network, args):
 
 
 @reqs.description("Test user-data used for access permissions")
-@reqs.supports_methods("log/private/admin_only")
+@reqs.supports_methods("/app/log/private/admin_only")
 def test_user_data_ACL(network, args):
     primary, _ = network.find_primary()
 
@@ -1123,7 +1130,7 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("log/private")
+@reqs.supports_methods("/app/log/private")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
@@ -1167,7 +1174,7 @@ def test_tx_statuses(network, args):
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("receipt", "log/private")
+@reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
@@ -1197,7 +1204,7 @@ def test_receipts(network, args):
 
 
 @reqs.description("Validate random receipts")
-@reqs.supports_methods("receipt", "log/private")
+@reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
 def test_random_receipts(
     network, args, lts=True, additional_seqnos=MappingProxyType({}), node=None
@@ -1336,8 +1343,8 @@ def run(args):
         if args.package == "samples/apps/logging/liblogging":
             network = test_receipts(network, args)
             network = test_historical_query_sparse(network, args)
-        network = test_historical_receipts(network, args)
         if "v8" not in args.package:
+            network = test_historical_receipts(network, args)
             network = test_historical_receipts_with_claims(network, args)
 
 

@@ -29,13 +29,10 @@ namespace ccf::indexing
 
     virtual void tick() {}
 
-    // Returns highest tx ID for which this index should be populated, or
-    // nullopt if it wants all Txs. Allows indexes to be populated
-    // lazily on-demand.
-    virtual std::optional<ccf::TxID> highest_requested()
-    {
-      return std::nullopt;
-    }
+    // Returns next tx for which this index should be populated, or
+    // nullopt if it wants none. Allows indexes to be populated
+    // lazily on-demand, or out-of-order, or reset
+    virtual std::optional<ccf::SeqNo> next_requested() = 0;
   };
 
   using StrategyPtr = std::shared_ptr<Strategy>;
@@ -44,21 +41,41 @@ namespace ccf::indexing
   class LazyStrategy : public Base
   {
   protected:
-    ccf::TxID requested_txid = {};
+    ccf::SeqNo requested_seqno = 0;
 
   public:
     using Base::Base;
 
-    virtual std::optional<ccf::TxID> highest_requested()
+    std::optional<ccf::SeqNo> next_requested() override
     {
-      return requested_txid;
+      const auto base = Base::next_requested();
+      if (base.has_value())
+      {
+        if (requested_seqno < *base)
+        {
+          if (requested_seqno > 0)
+          {
+            return requested_seqno;
+          }
+          else
+          {
+            return std::nullopt;
+          }
+        }
+        else
+        {
+          return base;
+        }
+      }
+
+      return std::nullopt;
     }
 
     void extend_index_to(ccf::TxID to_txid)
     {
-      if (to_txid.seqno > requested_txid.seqno)
+      if (to_txid.seqno > requested_seqno)
       {
-        requested_txid = to_txid;
+        requested_seqno = to_txid.seqno;
       }
     }
   };

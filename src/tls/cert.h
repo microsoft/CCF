@@ -26,7 +26,7 @@ namespace tls
   private:
     std::shared_ptr<CA> peer_ca;
     std::optional<std::string> peer_hostname;
-    Auth auth;
+    bool auth_required;
 
     Unique_X509 own_cert;
     std::shared_ptr<KeyPair_OpenSSL> own_pkey;
@@ -37,11 +37,11 @@ namespace tls
       std::shared_ptr<CA> peer_ca_,
       const std::optional<crypto::Pem>& own_cert_ = std::nullopt,
       const std::optional<crypto::Pem>& own_pkey_ = std::nullopt,
-      Auth auth_ = auth_default,
-      const std::optional<std::string>& peer_hostname_ = std::nullopt) :
+      const std::optional<std::string>& peer_hostname_ = std::nullopt,
+      bool auth_required_ = true) :
       peer_ca(peer_ca_),
       peer_hostname(peer_hostname_),
-      auth(auth_)
+      auth_required(auth_required_)
     {
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
@@ -58,11 +58,8 @@ namespace tls
     {
       if (peer_hostname.has_value())
       {
-        // Peer hostname is only checked against peer certificate (SAN
-        // extension) if it is set. This lets us connect to peers that present
-        // certificates with IPAddress in SAN field. This is OK since we check
-        // for peer CA endorsement.
-        SSL_set1_host(ssl, peer_hostname->c_str());
+        // Peer hostname for SNI
+        SSL_set_tlsext_host_name(ssl, peer_hostname->c_str());
       }
 
       if (peer_ca)
@@ -70,9 +67,15 @@ namespace tls
         peer_ca->use(ssl_ctx);
       }
 
-      if (auth != auth_default)
+      if (auth_required)
       {
-        SSL_CTX_set_verify(ssl_ctx, authmode(auth), NULL);
+        int opts = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+        auto cb = [](int ok, x509_store_ctx_st*) {
+          LOG_DEBUG_FMT("peer certificate verified: {}", ok);
+          return ok;
+        };
+        SSL_CTX_set_verify(ssl_ctx, opts, cb);
+        SSL_set_verify(ssl, opts, cb);
       }
       else
       {
@@ -82,43 +85,15 @@ namespace tls
         // that, so we set this here. We return 1 from the validation callback
         // (a common pattern in OpenSSL implementations) because we don't want
         // to verify it here, just request it.
-        SSL_CTX_set_verify(
-          ssl_ctx, SSL_VERIFY_PEER, [](int precheck, x509_store_ctx_st* st) {
-            (void)precheck;
-            (void)st;
-            return 1;
-          });
-        SSL_set_verify(
-          ssl, SSL_VERIFY_PEER, [](int precheck, x509_store_ctx_st* st) {
-            (void)precheck;
-            (void)st;
-            return 1;
-          });
+        auto cb = [](int, x509_store_ctx_st*) { return 1; };
+        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, cb);
+        SSL_set_verify(ssl, SSL_VERIFY_PEER, cb);
       }
 
       if (has_own_cert)
       {
         CHECK1(SSL_CTX_use_cert_and_key(ssl_ctx, own_cert, *own_pkey, NULL, 1));
         CHECK1(SSL_use_cert_and_key(ssl, own_cert, *own_pkey, NULL, 1));
-      }
-    }
-
-  private:
-    int authmode(Auth auth)
-    {
-      switch (auth)
-      {
-        case auth_none:
-        {
-          // Peer certificate is not checked
-          return SSL_VERIFY_NONE;
-        }
-
-        case auth_required:
-        default:
-        {
-          return SSL_VERIFY_PEER;
-        }
       }
     }
   };

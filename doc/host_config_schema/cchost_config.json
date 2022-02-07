@@ -13,8 +13,8 @@
         },
         "type": {
           "type": "string",
-          "enum": ["release", "debug", "virtual"],
-          "default": "release",
+          "enum": ["Release", "Debug", "Virtual"],
+          "default": "Release",
           "description": "Type of enclave application"
         }
       },
@@ -44,7 +44,7 @@
                 "type": "string",
                 "description": "Local address the node binds to and listens on"
               },
-              "published_rpc_address": {
+              "published_address": {
                 "type": "string",
                 "default": "Value of 'bind_address'",
                 "description": "The published RPC address advertised to clients"
@@ -58,11 +58,23 @@
                 "type": "integer",
                 "default": 1010,
                 "description": "The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``"
+              },
+              "endorsement": {
+                "type": "object",
+                "properties": {
+                  "authority": {
+                    "type": "string",
+                    "enum": ["Node", "Service"],
+                    "default": "Service",
+                    "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed."
+                  }
+                },
+                "required": ["authority"]
               }
             },
             "required": ["bind_address"]
           },
-          "description": "Interfaces to listen on for incoming client TLS connections, as a dictionnary from unique interface name to RPC interface information"
+          "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
@@ -73,19 +85,19 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["start", "join", "recover"],
+          "enum": ["Start", "Join", "Recover"],
           "description": "Type of CCF node"
         },
         "service_certificate_file": {
           "type": "string",
           "default": "service_cert.pem",
-          "description": "For ``start`` and ``recover`` nodes, path to which service certificate will be written to on startup. For ``join`` nodes, path to the certificate of the existing network to join"
+          "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing network to join"
         }
       },
       "allOf": [
         {
           "if": {
-            "properties": { "type": { "const": "start" } }
+            "properties": { "type": { "const": "Start" } }
           },
           "then": {
             "properties": {
@@ -158,7 +170,7 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "join" } }
+            "properties": { "type": { "const": "Join" } }
           },
           "then": {
             "properties": {
@@ -183,7 +195,7 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "recover" } }
+            "properties": { "type": { "const": "Recover" } }
           },
           "then": {
             "properties": {
@@ -218,12 +230,12 @@
           "items": {
             "type": "string"
           },
-          "description": "List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface 'published_rpc_address'"
+          "description": "List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface 'published_address'"
         },
         "curve_id": {
           "type": "string",
-          "enum": ["secp384r1", "secp256r1"],
-          "default": "secp384r1",
+          "enum": ["Secp384R1", "Secp256R1"],
+          "default": "Secp384R1",
           "description": "Elliptic curve to use for node identity key"
         },
         "initial_validity_days": {
@@ -280,14 +292,14 @@
       "properties": {
         "host_level": {
           "type": "string",
-          "enum": ["info", "fail", "fatal"],
-          "default": "info",
+          "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
+          "default": "Info",
           "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity."
         },
         "format": {
           "type": "string",
-          "enum": ["text", "json"],
-          "default": "text",
+          "enum": ["Text", "Json"],
+          "default": "Text",
           "description": "If 'json', node logs will be formatted as JSON"
         }
       },

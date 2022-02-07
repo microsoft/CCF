@@ -346,6 +346,9 @@
           "claims_digest": {
             "$ref": "#/components/schemas/string"
           },
+          "commit_evidence": {
+            "$ref": "#/components/schemas/string"
+          },
           "write_set_digest": {
             "$ref": "#/components/schemas/string"
           }
@@ -428,11 +431,11 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.5.0"
+    "version": "2.6.0"
   },
   "openapi": "3.0.0",
   "paths": {
-    "/ack": {
+    "/gov/ack": {
       "post": {
         "requestBody": {
           "content": {
@@ -456,7 +459,7 @@
         ]
       }
     },
-    "/ack/update_state_digest": {
+    "/gov/ack/update_state_digest": {
       "post": {
         "responses": {
           "200": {
@@ -477,7 +480,7 @@
         ]
       }
     },
-    "/api": {
+    "/gov/api": {
       "get": {
         "responses": {
           "200": {
@@ -493,7 +496,7 @@
         }
       }
     },
-    "/api/metrics": {
+    "/gov/api/metrics": {
       "get": {
         "responses": {
           "200": {
@@ -509,7 +512,7 @@
         }
       }
     },
-    "/code": {
+    "/gov/code": {
       "get": {
         "responses": {
           "200": {
@@ -525,7 +528,7 @@
         }
       }
     },
-    "/commit": {
+    "/gov/commit": {
       "get": {
         "responses": {
           "200": {
@@ -541,7 +544,7 @@
         }
       }
     },
-    "/jwt_keys/all": {
+    "/gov/jwt_keys/all": {
       "get": {
         "responses": {
           "200": {
@@ -557,7 +560,7 @@
         }
       }
     },
-    "/local_tx": {
+    "/gov/local_tx": {
       "get": {
         "parameters": [
           {
@@ -583,7 +586,7 @@
         }
       }
     },
-    "/proposals": {
+    "/gov/proposals": {
       "post": {
         "requestBody": {
           "content": {
@@ -614,7 +617,7 @@
         ]
       }
     },
-    "/proposals/{proposal_id}": {
+    "/gov/proposals/{proposal_id}": {
       "get": {
         "responses": {
           "200": {
@@ -645,7 +648,7 @@
         }
       ]
     },
-    "/proposals/{proposal_id}/actions": {
+    "/gov/proposals/{proposal_id}/actions": {
       "get": {
         "responses": {
           "200": {
@@ -676,7 +679,7 @@
         }
       ]
     },
-    "/proposals/{proposal_id}/ballots": {
+    "/gov/proposals/{proposal_id}/ballots": {
       "parameters": [
         {
           "in": "path",
@@ -717,7 +720,7 @@
         ]
       }
     },
-    "/proposals/{proposal_id}/ballots/{member_id}": {
+    "/gov/proposals/{proposal_id}/ballots/{member_id}": {
       "get": {
         "responses": {
           "200": {
@@ -756,7 +759,7 @@
         }
       ]
     },
-    "/proposals/{proposal_id}/withdraw": {
+    "/gov/proposals/{proposal_id}/withdraw": {
       "parameters": [
         {
           "in": "path",
@@ -787,7 +790,7 @@
         ]
       }
     },
-    "/receipt": {
+    "/gov/receipt": {
       "get": {
         "parameters": [
           {
@@ -813,7 +816,7 @@
         }
       }
     },
-    "/recovery_share": {
+    "/gov/recovery_share": {
       "get": {
         "responses": {
           "200": {
@@ -863,7 +866,7 @@
         ]
       }
     },
-    "/tx": {
+    "/gov/tx": {
       "get": {
         "parameters": [
           {
@@ -890,9 +893,5 @@
       }
     }
   },
-  "servers": [
-    {
-      "url": "/gov"
-    }
-  ]
+  "servers": []
 }
