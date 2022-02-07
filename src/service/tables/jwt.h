@@ -6,6 +6,7 @@
 #include "ds/json.h"
 #include "proposals.h"
 #include "service/map.h"
+#include "service/table_names.h"
 
 #include <openenclave/attestation/verifier.h>
 #include <optional>

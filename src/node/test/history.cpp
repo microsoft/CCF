@@ -8,6 +8,7 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
+#include "service/blit.h"
 #include "service/tables/nodes.h"
 #include "service/tables/signatures.h"
 
