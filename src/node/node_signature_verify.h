@@ -4,6 +4,7 @@
 
 #include "ccf/tx.h"
 #include "crypto/verifier.h"
+#include "service/blit.h"
 #include "service/tables/nodes.h"
 
 namespace ccf

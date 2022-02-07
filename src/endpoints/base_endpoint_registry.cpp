@@ -4,8 +4,10 @@
 #include "ccf/base_endpoint_registry.h"
 
 #include "enclave/enclave_time.h"
+#include "service/table_names.h"
 #include "service/tables/members.h"
 #include "service/tables/nodes.h"
+#include "service/tables/users.h"
 
 namespace ccf
 {

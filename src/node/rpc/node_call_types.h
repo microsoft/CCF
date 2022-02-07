@@ -1,11 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
 #include "common/configuration.h"
 #include "ds/json_schema.h"
 #include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
+#include "service/tables/code_id.h"
 #include "service/tables/config.h"
 #include "service/tables/members.h"
 #include "service/tables/node_info_network.h"
