@@ -186,7 +186,6 @@ def test_forced_ledger_chunk(args):
             proposal,
             careful_vote,
         )
-        assert proposal.state == ProposalState.ACCEPTED
 
         # Issue some more transactions
         network.txs.issue(network, number_txs=args.sig_tx_interval * 2)
@@ -213,6 +212,9 @@ def test_forced_ledger_chunk(args):
                 ):
                     next_signature = pd.get_seqno()
             if first <= proposal.seqno and proposal.seqno <= last:
+                LOG.info(
+                    f"Found ledger chunk {chunk.filename()} with chunking proposal @{proposal.seqno} and signature @{next_signature}"
+                )
                 assert last == next_signature
                 assert next_signature - proposal.seqno < args.sig_tx_interval
 
