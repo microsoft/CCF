@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.network
+import infra.net
+import infra.interfaces
 import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
@@ -213,7 +215,24 @@ def test_learner_does_not_take_part(network, args):
     primary, backups = network.find_nodes()
     f_backups = backups[: network.get_f() + 1]
 
-    new_node = network.create_node("local://localhost")
+    # Note: host is supplied explicitly to avoid having differently
+    # assigned IPs for the interfaces, something which the test infra doesn't
+    # support widely yet.
+    operator_rpc_interface = "operator_rpc_interface"
+    host = infra.net.expand_localhost()
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=host
+                ),
+                operator_rpc_interface: infra.interfaces.RPCInterface(
+                    host=host,
+                    endorsement=infra.interfaces.Endorsement(authority="Node"),
+                ),
+            }
+        )
+    )
     network.join_node(new_node, args.package, args, from_snapshot=False)
 
     LOG.info("Wait for all nodes to have committed join of new pending node")
@@ -246,11 +265,13 @@ def test_learner_does_not_take_part(network, args):
         check_does_not_progress(primary, timeout=5)
 
         LOG.info("Majority partition can make progress")
-        parition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
-        check_can_progress(parition_primary)
+        partition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
+        check_can_progress(partition_primary)
 
         LOG.info("New joiner is not promoted to Trusted without f other backups")
-        with new_node.client(self_signed_ok=True) as c:
+        with new_node.client(
+            interface_name=operator_rpc_interface, self_signed_ok=True
+        ) as c:
             r = c.get("/node/network/nodes/self")
             assert r.body.json()["status"] == "Learner"
             r = c.get("/node/consensus")
