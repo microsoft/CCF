@@ -28,6 +28,15 @@ std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
 
 extern "C"
 {
+  void open_enclave_logging_callback(
+    void* context,
+    oe_log_level_t level,
+    uint64_t thread_id,
+    const char* message)
+    {
+      LOG_INFO_FMT("OE: {}", message);
+    }
+
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
     char* ccf_config,
@@ -74,6 +83,8 @@ extern "C"
       writer_factory->create_writer_to_outside());
     auto ringbuffer_logger = new_logger.get();
     logger::config::loggers().push_back(std::move(new_logger));
+
+    oe_enclave_log_set_callback(nullptr, &open_enclave_logging_callback);
 
     {
       // Report enclave version to host
