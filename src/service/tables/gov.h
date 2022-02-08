@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ds/json.h"
-#include "entities.h"
 #include "kv/map.h"
 #include "proposals.h"
 

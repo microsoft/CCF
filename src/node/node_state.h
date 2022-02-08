@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "blit.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -16,7 +15,6 @@
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "entities.h"
-#include "genesis_gen.h"
 #include "history.h"
 #include "hooks.h"
 #include "indexing/indexer.h"
@@ -31,7 +29,7 @@
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
-#include "secret_share.h"
+#include "service/genesis_gen.h"
 #include "share_manager.h"
 #include "snapshotter.h"
 #include "tls/client.h"
@@ -1552,7 +1550,7 @@ namespace ccf
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
       // node certificate.
-      rpcsessions->set_cert(
+      rpcsessions->set_node_cert(
         self_signed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
@@ -1565,7 +1563,7 @@ namespace ccf
         endorsed_node_cert.has_value(),
         "Node certificate should be endorsed before accepting endorsed client "
         "connections");
-      rpcsessions->set_cert(
+      rpcsessions->set_network_cert(
         endorsed_node_cert.value(), node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }

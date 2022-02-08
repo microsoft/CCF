@@ -10,8 +10,8 @@
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
-#include "node/snapshot_evidence.h"
 #include "node/snapshot_serdes.h"
+#include "service/tables/snapshot_evidence.h"
 
 #include <deque>
 #include <optional>

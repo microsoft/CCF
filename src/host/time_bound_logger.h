@@ -18,7 +18,7 @@ namespace asynchost
       const auto us =
         std::chrono::duration_cast<std::chrono::microseconds>(d).count();
       if (us < 1000)
-        return fmt::format("{:>7.03f}us", us);
+        return fmt::format("{:>7.03f}us", static_cast<float>(us));
 
       const auto ms = us / 1000.0f;
       if (ms < 1000)

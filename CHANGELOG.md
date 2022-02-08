@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- The new `endorsement` configuration entry lets operators set the desired TLS certificate endorsement, either service-endorsed or node-endorsed (self-signed), for each network RPC interface of a node, defaulting to service-endorsed (#2875).
+
+### Changed
+
+- Node RPC interfaces do not transition anymore from node-endorsed to service-endorsed TLS certificates but are fixed to a single configured type. While a given endorsement is not available yet (typically at start-up for service-endorsed certificates) the interface rejects TLS sessions instead of defaulting to a node-endorsed certificate (#2875).
 - Add request details with additional URL components to JS + TS API: `request.url`, `request.route`, `request.method`, `request.hostname` (#3498).
 
 ### Dependencies
@@ -1207,6 +1214,7 @@ Initial pre-release
 [2.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev2
 [2.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev1
 [2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
+[1.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.4
 [1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
 [1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
 [1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1

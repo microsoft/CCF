@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
+#include "kv/kv_types.h"
 
 #include <ccf/tx_id.h>
 
@@ -10,12 +11,12 @@ namespace ccf
 {
   using ReconfigurationId = uint64_t;
 
-  typedef struct
+  struct ResharingResult
   {
     // SeqNo at which a resharing for a reconfiguration was completed
     SeqNo seqno;
     ReconfigurationId reconfiguration_id;
-  } ResharingResult;
+  };
 
   DECLARE_JSON_TYPE(ResharingResult)
   DECLARE_JSON_REQUIRED_FIELDS(ResharingResult, seqno, reconfiguration_id)

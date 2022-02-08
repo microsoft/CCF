@@ -4,7 +4,7 @@
 
 #include "ccf/entity_id.h"
 #include "client_signatures.h"
-#include "service_map.h"
+#include "service/map.h"
 
 namespace ccf
 {

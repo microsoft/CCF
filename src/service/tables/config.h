@@ -6,7 +6,6 @@
 #include "ds/json.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
-#include "entities.h"
 
 namespace ccf
 {

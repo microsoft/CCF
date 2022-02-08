@@ -19,6 +19,7 @@
 #include "node/rpc/error.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
+#include "service/genesis_gen.h"
 
 namespace ccf
 {
@@ -321,7 +322,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.12.0";
+      openapi_info.document_version = "2.13.0";
     }
 
     void init_handlers() override
