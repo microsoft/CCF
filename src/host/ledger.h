@@ -1128,10 +1128,6 @@ namespace asynchost
           auto idx = serialized::read<consensus::Index>(data, size);
           auto complete = serialized::read<bool>(data, size);
           truncate(idx, complete);
-          if (complete)
-          {
-            commit(idx);
-          }
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
