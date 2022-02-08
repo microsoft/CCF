@@ -11,7 +11,7 @@ LOCAL_INCLUDE = re.compile(r"#include \"([^/\"]*)\"")
 
 
 def canonicalise_includes(path):
-    rel_path = os.path.dirname(path)
+    rel_path = os.path.dirname(path).replace("src/", "")
     original = open(path).read()
     (fixed, corrections) = LOCAL_INCLUDE.subn(f'#include "{rel_path}/\g<1>"', original)
 
