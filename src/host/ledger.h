@@ -912,6 +912,12 @@ namespace asynchost
           "Forcing ledger chunk as required by the entry header flags");
       }
 
+      if (!committable && force_chunk_in_header)
+      {
+        throw std::runtime_error(
+          "ledger chunks cannot end in a non-comittable transaction");
+      }
+
       force_chunk |= force_chunk_in_header;
 
       TimeBoundLogger log_if_slow(fmt::format(
