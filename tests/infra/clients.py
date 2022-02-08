@@ -370,7 +370,10 @@ class CurlClient:
             rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
 
             if rc.returncode != 0:
-                if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
+                if rc.returncode in [
+                    35,
+                    60,
+                ]:  # PEER_FAILED_VERIFICATION, SSL_CONNECT_ERROR
                     raise CCFConnectionException
                 if rc.returncode == 28:  # OPERATION_TIMEDOUT
                     raise TimeoutError
