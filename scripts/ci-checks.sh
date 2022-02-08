@@ -21,6 +21,10 @@ git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s ba
 echo "TODOs"
 "$SCRIPT_DIR"/check-todo.sh include src
 
+echo "Includes"
+git ls-files src/ | grep -e '\.h$' -e '\.cpp$' | xargs python3 "$SCRIPT_DIR"/check-dependencies.py --write-mermaid "$ROOT_DIR"/doc/architecture/source_dependencies.mmd
+"$SCRIPT_DIR"/check-todo.sh include src
+
 echo "C/C++ format"
 if [ $FIX -ne 0 ]; then
   "$SCRIPT_DIR"/check-format.sh -f include src samples

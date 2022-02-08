@@ -65,7 +65,6 @@ Architecture
     Describes the structure and layout of the framework source code.
 
 
-
 .. toctree::
     :hidden:
     :maxdepth: 1
