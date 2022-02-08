@@ -9,6 +9,26 @@
 
 namespace ccf
 {
+  enum class Authority
+  {
+    NODE,
+    SERVICE
+  };
+  DECLARE_JSON_ENUM(
+    Authority, {{Authority::NODE, "Node"}, {Authority::SERVICE, "Service"}});
+
+  struct Endorsement
+  {
+    Authority authority;
+
+    bool operator==(const Endorsement& other) const
+    {
+      return authority == other.authority;
+    }
+  };
+  DECLARE_JSON_TYPE(Endorsement);
+  DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
+
   struct NodeInfoNetwork_v1
   {
     std::string rpchost;
@@ -37,12 +57,15 @@ namespace ccf
       std::optional<size_t> max_open_sessions_soft = std::nullopt;
       std::optional<size_t> max_open_sessions_hard = std::nullopt;
 
+      std::optional<Endorsement> endorsement = std::nullopt;
+
       bool operator==(const NetInterface& other) const
       {
         return bind_address == other.bind_address &&
           published_address == other.published_address &&
           max_open_sessions_soft == other.max_open_sessions_soft &&
-          max_open_sessions_hard == other.max_open_sessions_hard;
+          max_open_sessions_hard == other.max_open_sessions_hard &&
+          endorsement == other.endorsement;
       }
     };
 
@@ -55,6 +78,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
     NodeInfoNetwork_v2::NetInterface,
+    endorsement,
     max_open_sessions_soft,
     max_open_sessions_hard,
     published_address);
@@ -138,3 +162,32 @@ namespace ccf
     }
   }
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::Authority>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::Authority& authority, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    switch (authority)
+    {
+      case (ccf::Authority::NODE):
+      {
+        return format_to(ctx.out(), "Node");
+      }
+      case (ccf::Authority::SERVICE):
+      {
+        return format_to(ctx.out(), "Service");
+      }
+    }
+  }
+};
+FMT_END_NAMESPACE

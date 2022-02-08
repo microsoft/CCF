@@ -52,8 +52,8 @@ namespace ccf::endpoints
       const auto template_end = regex_s.find_first_of('}', template_start);
       if (template_end == std::string::npos)
       {
-        throw std::logic_error(
-          fmt::format("Invalid templated path - missing closing '}': {}", uri));
+        throw std::logic_error(fmt::format(
+          "Invalid templated path - missing closing curly bracket: {}", uri));
       }
 
       spec.template_component_names.push_back(
