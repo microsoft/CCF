@@ -81,8 +81,10 @@ TEST_CASE("base64 explicit")
   REQUIRE(raw_from_b64url("AQIDBAUGBw==") == Vec{1, 2, 3, 4, 5, 6, 7});
   REQUIRE(raw_from_b64url("AQIDBAUGBwg=") == Vec{1, 2, 3, 4, 5, 6, 7, 8});
 
-  REQUIRE(raw_from_b64url("+/+/++//") == Vec{0xfb, 0xff, 0xbf, 0xfb, 0xef, 0xff});
-  REQUIRE(raw_from_b64url("+/-_+-/_") == Vec{0xfb, 0xff, 0xbf, 0xfb, 0xef, 0xff});
+  REQUIRE(
+    raw_from_b64url("+/+/++//") == Vec{0xfb, 0xff, 0xbf, 0xfb, 0xef, 0xff});
+  REQUIRE(
+    raw_from_b64url("+/-_+-/_") == Vec{0xfb, 0xff, 0xbf, 0xfb, 0xef, 0xff});
 }
 
 TEST_CASE("base64 random")
