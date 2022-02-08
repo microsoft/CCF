@@ -61,7 +61,8 @@ namespace kv
         EntryType::WriteSetWithCommitEvidence :
         EntryType::WriteSetWithCommitEvidenceAndClaims;
 
-      flags |= force_ledger_chunk ? EntryFlags::FORCE_LEDGER_CHUNK : 0;
+      uint8_t header_flags =
+        force_ledger_chunk ? EntryFlags::FORCE_LEDGER_CHUNK : 0;
 
       LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
@@ -71,7 +72,7 @@ namespace kv
         e,
         {commit_view, version},
         entry_type,
-        flags,
+        header_flags,
         tx_commit_evidence_digest,
         claims_digest);
 
