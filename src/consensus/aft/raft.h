@@ -14,9 +14,9 @@
 #include "node/resharing_tracker.h"
 #include "node/retired_nodes_cleanup.h"
 #include "node/rpc/tx_status.h"
-#include "node/signatures.h"
 #include "orc_requests.h"
 #include "raft_types.h"
+#include "service/tables/signatures.h"
 
 #include <algorithm>
 #include <deque>

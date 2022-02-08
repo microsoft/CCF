@@ -15,7 +15,6 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
-#include "node/genesis_gen.h"
 #include "node/history.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
@@ -23,6 +22,7 @@
 #include "node/rpc/serdes.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
+#include "service/genesis_gen.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

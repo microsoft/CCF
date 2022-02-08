@@ -4,7 +4,7 @@
 
 #include "ccf/entity_id.h"
 #include "crypto/hash.h"
-#include "kv/map.h"
+#include "service/map.h"
 
 #include <string>
 #include <vector>

@@ -6,11 +6,10 @@
 #include "crypto/key_pair.h"
 #include "crypto/san.h"
 #include "crypto/verifier.h"
-#include "entities.h"
 #include "kv/map.h"
 #include "node_info_network.h"
 #include "quote_info.h"
-#include "service_map.h"
+#include "service/map.h"
 
 #include <string>
 #include <vector>

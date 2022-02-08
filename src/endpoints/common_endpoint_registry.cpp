@@ -10,7 +10,7 @@
 #include "ds/nonstd.h"
 #include "enclave/node_context.h"
 #include "http/http_consts.h"
-#include "node/code_id.h"
+#include "service/tables/code_id.h"
 
 namespace ccf
 {

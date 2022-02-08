@@ -5,7 +5,7 @@
 #include "consensus/aft/impl/state.h"
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
-#include "node/resharing_types.h"
+#include "service/tables/resharing_types.h"
 
 #include <algorithm>
 #include <iostream>

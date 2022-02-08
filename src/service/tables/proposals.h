@@ -3,9 +3,8 @@
 #pragma once
 
 #include "ds/json.h"
-#include "entities.h"
 #include "script.h"
-#include "service_map.h"
+#include "service/map.h"
 
 #include <unordered_map>
 #include <vector>

@@ -12,8 +12,8 @@
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node_signature_verify.h"
-#include "nodes.h"
-#include "signatures.h"
+#include "service/tables/nodes.h"
+#include "service/tables/signatures.h"
 
 #include <array>
 #include <deque>

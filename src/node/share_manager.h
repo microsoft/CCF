@@ -6,11 +6,11 @@
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
-#include "genesis_gen.h"
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
+#include "service/genesis_gen.h"
 
 #include <openssl/crypto.h>
 #include <vector>

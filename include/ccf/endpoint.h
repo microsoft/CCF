@@ -6,7 +6,7 @@
 #include "ds/json.h"
 #include "ds/openapi.h"
 #include "kv/serialise_entry_blit.h"
-#include "node/service_map.h"
+#include "service/map.h"
 
 #include <string>
 #include <utility>
