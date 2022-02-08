@@ -120,6 +120,8 @@ all_tests_suite = [
     # governance
     governance.test_each_node_cert_renewal,
     governance.test_service_cert_renewal,
+    # e2e_operations:
+    e2e_operations.test_forced_ledger_chunk,
     #
     #
     #
@@ -127,8 +129,6 @@ all_tests_suite = [
     # test the most complete ledgers
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
-    # e2e_operations:
-    e2e_operations.test_forced_ledger_chunk,
 ]
 
 suites["all"] = all_tests_suite
