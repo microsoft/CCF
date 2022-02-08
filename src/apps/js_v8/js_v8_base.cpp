@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "apps/js_v8/tmpl/ccf_global.h"
+#include "apps/js_v8/tmpl/console_global.h"
+#include "apps/js_v8/tmpl/request.h"
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
@@ -11,9 +14,6 @@
 #include "kv/untyped_map.h"
 #include "kv_module_loader.h"
 #include "named_auth_policies.h"
-#include "tmpl/ccf_global.h"
-#include "tmpl/console_global.h"
-#include "tmpl/request.h"
 #include "v8_runner.h"
 #include "v8_util.h"
 

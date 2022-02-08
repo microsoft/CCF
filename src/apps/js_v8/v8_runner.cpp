@@ -4,9 +4,9 @@
 #include "v8_runner.h"
 
 #include "ds/logger.h"
-#include "libplatform/libplatform.h"
 #include "v8_util.h"
 
+#include <libplatform/libplatform.h>
 #include <map>
 #include <sstream>
 #include <stdexcept>
