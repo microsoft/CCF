@@ -768,15 +768,17 @@ namespace kv
 
     virtual size_t commit_gap() = 0;
 
-    enum Flags : uint8_t
+    enum class Flag : uint8_t
     {
       LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01
     };
 
-    virtual void set_flags(uint8_t flags) = 0;
-    virtual uint8_t get_flags() = 0;
-    virtual void set_flags_unsafe(uint8_t flags) = 0;
-    virtual uint8_t get_flags_unsafe() const = 0;
+    virtual void set_flag(Flag f) = 0;
+    virtual void unset_flag(Flag f) = 0;
+    virtual bool flag_enabled(Flag f) = 0;
+    virtual void set_flag_unsafe(Flag f) = 0;
+    virtual void unset_flag_unsafe(Flag f) = 0;
+    virtual bool flag_enabled_unsafe(Flag f) const = 0;
   };
 }
 

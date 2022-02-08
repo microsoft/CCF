@@ -610,7 +610,7 @@ namespace kv
         version = tx_id.version;
         last_replicated = tx_id.version;
         last_committable = tx_id.version;
-        flags = flags & ~Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE;
+        unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
@@ -1208,26 +1208,37 @@ namespace kv
       return ReservedTx(this, term_of_last_version, tx_id);
     }
 
-    virtual void set_flags(uint8_t flags) override
+    virtual void set_flag(Flag f) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      this->flags = flags;
+      set_flag_unsafe(f);
     }
 
-    virtual uint8_t get_flags() override
+    virtual void unset_flag(Flag f) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      return flags;
+      unset_flag_unsafe(f);
     }
 
-    virtual void set_flags_unsafe(uint8_t flags) override
+    virtual bool flag_enabled(Flag f) override
     {
-      this->flags = flags;
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return flag_enabled_unsafe(f);
     }
 
-    virtual uint8_t get_flags_unsafe() const override
+    virtual void set_flag_unsafe(Flag f) override
     {
-      return flags;
+      this->flags |= static_cast<uint8_t>(f);
+    }
+
+    virtual void unset_flag_unsafe(Flag f) override
+    {
+      this->flags &= ~static_cast<uint8_t>(f);
+    }
+
+    virtual bool flag_enabled_unsafe(Flag f) const override
+    {
+      return (flags & static_cast<uint8_t>(f)) != 0;
     }
   };
 }

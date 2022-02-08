@@ -167,11 +167,9 @@ namespace kv
         committed = true;
         version = c.value();
 
-        if (flags & AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE)
+        if (flag_enabled(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
         {
-          store->set_flags(
-            store->get_flags() |
-            AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+          store->set_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         }
 
         if (version == NoVersion)
@@ -335,14 +333,19 @@ namespace kv
       root_at_read_version = r;
     }
 
-    virtual void set_flags(uint8_t flags)
+    virtual void set_flag(AbstractStore::Flag flag)
     {
-      this->flags = flags;
+      flags |= static_cast<uint8_t>(flag);
     }
 
-    virtual uint8_t get_flags() const
+    virtual void unset_flag(AbstractStore::Flag flag)
     {
-      return flags;
+      flags &= ~static_cast<uint8_t>(flag);
+    }
+
+    virtual bool flag_enabled(AbstractStore::Flag f) const
+    {
+      return (flags & static_cast<uint8_t>(f)) != 0;
     }
   };
 
@@ -392,8 +395,8 @@ namespace kv
       // This is a signature and, if the ledger chunking flag is enabled, we
       // want the host to create a chunk when it sees this entry.
       // version_lock held by Store::commit
-      bool force_ledger_chunk = store->get_flags_unsafe() &
-        AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE;
+      bool force_ledger_chunk = store->flag_enabled_unsafe(
+        AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       if (force_ledger_chunk)
       {
@@ -409,9 +412,8 @@ namespace kv
         force_ledger_chunk);
 
       // Reset ledger chunk flag in the store
-      store->set_flags_unsafe(
-        store->get_flags_unsafe() &
-        ~AbstractStore::Flags::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      store->unset_flag_unsafe(
+        AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       return {
         CommitResult::SUCCESS,
