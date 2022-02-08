@@ -580,9 +580,8 @@ class CCFRemote(object):
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
         # 1.x releases have a separate cchost.virtual binary for virtual enclaves
-        if (
-            enclave_type == "virtual"
-            and (major_version is not None and major_version <= 1)
+        if enclave_type == "virtual" and (
+            (major_version is not None and major_version <= 1)
             # This is still present in 2.0.0-rc0
             or (version == "ccf-2.0.0-rc0")
         ):
