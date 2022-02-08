@@ -11,6 +11,7 @@ import membership
 import governance_history
 import jwt_test
 import governance
+import e2e_operations
 
 from inspect import signature, Parameter
 
@@ -126,6 +127,8 @@ all_tests_suite = [
     # test the most complete ledgers
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
+    # e2e_operations:
+    e2e_operations.test_forced_ledger_chunk,
 ]
 
 suites["all"] = all_tests_suite

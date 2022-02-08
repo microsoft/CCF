@@ -914,7 +914,7 @@ namespace asynchost
 
       if (!committable && force_chunk_in_header)
       {
-        throw std::runtime_error(
+        throw std::logic_error(
           "ledger chunks cannot end in a non-comittable transaction");
       }
 
