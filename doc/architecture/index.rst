@@ -59,6 +59,13 @@ Architecture
 
     ---
 
+    :fa:`project-diagram` :doc:`source_navigation`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Describes the structure and layout of the framework source code.
+
+
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -71,3 +78,4 @@ Architecture
     raft_tla
     node_to_node
     indexing
+    source_navigation
