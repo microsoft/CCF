@@ -139,9 +139,10 @@ namespace consensus
      *
      * @param idx Index to start ledger from
      */
-    void init(Index idx)
+    void init(Index idx, Index force_chunk_idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_init, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_init, to_host, idx, force_chunk_idx);
     }
   };
 }

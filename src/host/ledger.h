@@ -499,6 +499,9 @@ namespace asynchost
     size_t last_idx = 0;
     size_t committed_idx = 0;
 
+    // Forces ledger chunk at specific idx
+    size_t force_chunk_idx = 0;
+
     size_t end_of_committed_files_idx = 0;
 
     // True if a new file should be created when writing an entry
@@ -837,9 +840,10 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
-    void init(size_t idx)
+    void init(size_t idx, size_t force_chunk_idx_)
     {
-      TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
+      TimeBoundLogger log_if_slow(fmt::format(
+        "Initing ledger - idx={}, force_chunk_idx={}", idx, force_chunk_idx_));
 
       // Used to initialise the ledger when starting from a non-empty state,
       // i.e. snapshot. It is assumed that idx is included in a committed
@@ -869,9 +873,13 @@ namespace asynchost
         require_new_file = true;
       }
 
-      LOG_INFO_FMT("Setting last known/commit index to {}", idx);
+      LOG_INFO_FMT(
+        "Setting last known/commit index to {}, force chunk idx at {}",
+        idx,
+        force_chunk_idx_);
       last_idx = idx;
       committed_idx = idx;
+      force_chunk_idx = force_chunk_idx_;
     }
 
     size_t get_last_idx() const
@@ -921,9 +929,17 @@ namespace asynchost
         committable,
         force_chunk);
 
+      if (last_idx == force_chunk_idx && !committable)
+      {
+        throw std::logic_error(fmt::format(
+          "Entry at {} forces a new ledger chunk but is not committable",
+          last_idx));
+      }
+
       if (
         committable &&
-        (force_chunk || f->get_current_size() >= chunk_threshold))
+        (force_chunk || last_idx == force_chunk_idx ||
+         f->get_current_size() >= chunk_threshold))
       {
         f->complete();
         require_new_file = true;
@@ -1109,7 +1125,8 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          init(idx);
+          auto force_chunk_idx = serialized::read<consensus::Index>(data, size);
+          init(idx, force_chunk_idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

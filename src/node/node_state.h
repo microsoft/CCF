@@ -136,7 +136,7 @@ namespace ccf
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    consensus::Index last_recovered_signed_idx = 1;
+    consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
 
@@ -581,8 +581,12 @@ namespace ccf
                 view);
             }
 
+            // TODO: Is this always right, especially for non-recovery?
             consensus->init_as_backup(
-              network.tables->current_version(), view, view_history);
+              network.tables->current_version(),
+              view,
+              view_history,
+              last_recovered_signed_idx);
 
             if (resp.network_info->public_only)
             {

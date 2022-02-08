@@ -585,7 +585,7 @@ class Network:
                             f"Ledger files on node {node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}"
                         )
                 LOG.success(
-                    f"Verified ledger files consistency on all {len(self.nodes)} stopped nodes"
+                    f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
                 )
 
         if fatal_error_found:
