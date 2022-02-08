@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
+import infra.net
 import infra.logging_app as app
 import suite.test_requirements as reqs
 import tempfile
@@ -69,11 +70,28 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
 
 @reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
-    new_node = network.create_node("local://localhost")
+    # Note: host is supplied explicitly to avoid having differently
+    # assigned IPs for the interfaces, something which the test infra doesn't
+    # support widely yet.
+    operator_rpc_interface = "operator_rpc_interface"
+    host = infra.net.expand_localhost()
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=host
+                ),
+                operator_rpc_interface: infra.interfaces.RPCInterface(
+                    host=host,
+                    endorsement=infra.interfaces.Endorsement(authority="Node"),
+                ),
+            }
+        )
+    )
     network.join_node(new_node, args.package, args, from_snapshot=False)
 
     # Verify self-signed node certificate validity period
-    new_node.verify_certificate_validity_period()
+    new_node.verify_certificate_validity_period(interface_name=operator_rpc_interface)
 
     network.trust_node(
         new_node,

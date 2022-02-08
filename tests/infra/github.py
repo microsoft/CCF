@@ -163,8 +163,8 @@ class Repository:
         return self._filter_released_tags(dev_tags)[0]
 
     def get_tags_for_major_version(self, major_version=None):
-        version_re = rf"{major_version}\." if major_version else ""
-        tag_re = rf"^{TAG_RELEASE_PREFIX}{version_re}([.\d+]+)(-rc.*|)$"
+        version_re = f"{major_version}\\." if major_version else ""
+        tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\\d+]+)(-rc.*|)$"
         tags = sorted(
             (tag for tag in self.tags if re.match(tag_re, tag)),
             key=get_version_from_tag_name,
@@ -332,12 +332,8 @@ if __name__ == "__main__":
             # must be in progress
             return True if tag_name != self.local_branch else False
 
-    def exp(**kwargs):
-        return {
-            "previous LTS": kwargs.get("prev", None),
-            "same LTS": kwargs.get("same", None),
-            "next LTS": kwargs.get("next", None),
-        }
+    def exp(prev=None, same=None):
+        return {"previous LTS": prev, "same LTS": same}
 
     env = MockGitEnv()
     test_scenario = [
@@ -362,24 +358,15 @@ if __name__ == "__main__":
         (env.mut(tag="ccf-2.0.0-dev0"), exp(prev="ccf-1.0.1")),  # 2.0 dev0 tag
         (env.mut(local="main"), exp(prev="ccf-1.0.1")),  # Dev on main
         (env.mut(tag="ccf-2.0.0-dev1"), exp(prev="ccf-1.0.1")),  # 2.0 dev1 tag
-        (
-            env.mut(local="release/1.x"),
-            exp(same="ccf-1.0.1", next=None),
-        ),  # Dev on rel/1.x
+        (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (env.mut(tag="ccf-2.0.0-rc0"), exp(prev="ccf-1.0.1")),  # 2.0 RC0
-        (
-            env.mut(local="release/1.x"),
-            exp(same="ccf-1.0.1", next="ccf-2.0.0-rc0"),
-        ),  # Dev on rel/1.x
+        (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (
             env.mut(tag="ccf-2.0.0"),
             exp(prev="ccf-1.0.1", same="ccf-2.0.0-rc0"),
         ),  # 2.0.0
         (env.mut(local="main"), exp(prev="ccf-2.0.0")),  # Dev on main
-        (
-            env.mut(local="release/1.x"),
-            exp(same="ccf-1.0.1", next="ccf-2.0.0"),
-        ),  # Dev on rel/1.x
+        (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (
             env.mut(local="release/2.x"),
             exp(prev="ccf-1.0.1", same="ccf-2.0.0"),
@@ -389,10 +376,7 @@ if __name__ == "__main__":
             exp(prev="ccf-1.0.1", same="ccf-2.0.0"),
         ),  # Dev on rel/2.x
         (env.mut(tag="ccf-2.0.1"), exp(prev="ccf-1.0.1", same="ccf-2.0.0")),  # 2.0.1
-        (
-            env.mut(local="release/1.x"),
-            exp(same="ccf-1.0.1", next="ccf-2.0.1"),
-        ),  # Dev on rel/1.x
+        (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (env.mut(tag="ccf-3.0.0-rc0"), exp(prev="ccf-2.0.1")),  # 3.0 RC0
         (
             env.mut(tag="ccf-3.0.0"),
@@ -400,12 +384,9 @@ if __name__ == "__main__":
         ),  # 3.0.0
         (
             env.mut(local="release/2.x"),
-            exp(prev="ccf-1.0.1", same="ccf-2.0.1", next="ccf-3.0.0"),
+            exp(prev="ccf-1.0.1", same="ccf-2.0.1"),
         ),  # Dev on rel/2.x
-        (
-            env.mut(tag="ccf-2.0.2"),
-            exp(prev="ccf-1.0.1", same="ccf-2.0.1", next="ccf-3.0.0"),
-        ),  # 2.0.2
+        (env.mut(tag="ccf-2.0.2"), exp(prev="ccf-1.0.1", same="ccf-2.0.1")),  # 2.0.2
         (
             env.mut(tag="ccf-3.0.0"),
             exp(same="ccf-3.0.0-rc0", prev="ccf-2.0.2"),
@@ -443,15 +424,6 @@ if __name__ == "__main__":
         assert (
             latest_tag_for_this_release_branch == exp["same LTS"]
         ), f'Same LTS: {latest_tag_for_this_release_branch} != expected {exp["same LTS"]}'
-
-        # Next LTS
-        next_tag = repo.get_first_tag_for_next_release_branch(e.local_branch)
-        assert (
-            next_tag == exp["next LTS"]
-        ), f'Next LTS: {next_tag} != expected {exp["next LTS"]}'
-        LOG.info(
-            f"-- prev LTS: {latest_tag}, same LTS: {latest_tag_for_this_release_branch}, next LTS: {next_tag}"
-        )
 
         # All releases so far
         lts_releases = repo.get_lts_releases(e.local_branch)
