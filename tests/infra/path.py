@@ -39,10 +39,7 @@ def build_lib_path(lib_name, enclave_type=None, library_dir="."):
         return os.path.join(library_dir, os.path.normpath(f"{lib_name}{ext}"))
 
 
-def build_bin_path(bin_name, enclave_type=None, binary_dir="."):
-    if enclave_type == "virtual":
-        bin_name = f"{bin_name}.virtual"
-
+def build_bin_path(bin_name, binary_dir="."):
     return os.path.join(binary_dir, os.path.normpath(bin_name))
 
 
