@@ -4,8 +4,8 @@
 #include "key_wrap.h"
 
 #include "crypto/key_pair.h"
-#include "crypto/symmetric_key.h"
 #include "crypto/openssl/symmetric_key.h"
+#include "crypto/symmetric_key.h"
 #include "rsa_key_pair.h"
 
 #include <cstdint>

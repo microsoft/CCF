@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tls/msg_types.h"
 #include "tcp.h"
+#include "tls/msg_types.h"
 
 #include <unordered_map>
 
