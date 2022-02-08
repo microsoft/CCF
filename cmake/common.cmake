@@ -269,7 +269,7 @@ install(TARGETS cchost DESTINATION bin)
 
 # Perf scenario executable
 add_executable(
-  scenario_perf_client ${CCF_DIR}/src/perf_client/scenario_perf_client.cpp
+  scenario_perf_client ${CCF_DIR}/src/clients/perf/scenario_perf_client.cpp
 )
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(
@@ -438,7 +438,7 @@ function(add_client_exe name)
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host
   )
   target_include_directories(
-    ${name} PRIVATE ${CCF_DIR}/src/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
+    ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
 
 endfunction()

@@ -170,7 +170,15 @@ def test_jinja_templates(network, args, verify=True):
 
 @reqs.description("Add untrusted node, check no quote is returned")
 def test_no_quote(network, args):
-    untrusted_node = network.create_node("local://localhost")
+    untrusted_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    endorsement=infra.interfaces.Endorsement(authority="Node")
+                )
+            }
+        )
+    )
     network.join_node(untrusted_node, args.package, args)
     with untrusted_node.client(
         ca=os.path.join(

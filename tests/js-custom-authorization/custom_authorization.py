@@ -70,6 +70,13 @@ def test_heap_size_limit(network, args):
 
 
 def run_limits(args):
+    if "v8" in args.package:
+        LOG.warning(
+            f"Skipping run_limits for {args.package} as heap and stack limits are not yet enforced"
+        )
+        # See https://github.com/microsoft/CCF/issues/3324
+        return
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -462,7 +469,6 @@ if __name__ == "__main__":
     cr.add(
         "authz",
         run,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
     )
@@ -470,7 +476,6 @@ if __name__ == "__main__":
     cr.add(
         "limits",
         run_limits,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
     )
@@ -478,7 +483,6 @@ if __name__ == "__main__":
     cr.add(
         "authn",
         run_authn,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
         initial_user_count=4,
@@ -488,7 +492,6 @@ if __name__ == "__main__":
     cr.add(
         "content_types",
         run_content_types,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
     )
@@ -496,7 +499,6 @@ if __name__ == "__main__":
     cr.add(
         "request_object",
         run_request_object,
-        package="libjs_generic",
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
     )

@@ -33,6 +33,35 @@ namespace ccf::historical
 
   using CompoundHandle = std::pair<RequestNamespace, RequestHandle>;
 
+};
+
+namespace fmt
+{
+  template <>
+  struct formatter<ccf::historical::CompoundHandle>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(),
+        "[{}|{}]",
+        std::get<0>(p) == ccf::historical::RequestNamespace::Application ?
+          "APP" :
+          "SYS",
+        std::get<1>(p));
+    }
+  };
+}
+
+namespace ccf::historical
+{
   static std::optional<ccf::PrimarySignature> get_signature(
     const StorePtr& sig_store)
   {
@@ -1321,31 +1350,6 @@ namespace ccf::historical
     bool drop_cached_states(RequestHandle handle) override
     {
       return StateCacheImpl::drop_cached_states(make_compound_handle(handle));
-    }
-  };
-}
-
-namespace fmt
-{
-  template <>
-  struct formatter<ccf::historical::CompoundHandle>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(),
-        "[{}|{}]",
-        std::get<0>(p) == ccf::historical::RequestNamespace::Application ?
-          "APP" :
-          "SYS",
-        std::get<1>(p));
     }
   };
 }

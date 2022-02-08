@@ -106,7 +106,7 @@ namespace ccf::v8_tmpl
       v8_util::to_v8_istr(isolate, "cert"), get_node_cert);
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "leaf"), get_leaf);
     tmpl->SetLazyDataProperty(
-      v8_util::to_v8_istr(isolate, "nodeId"), get_node_id);
+      v8_util::to_v8_istr(isolate, "node_id"), get_node_id);
     tmpl->SetLazyDataProperty(v8_util::to_v8_istr(isolate, "proof"), get_proof);
 
     return handle_scope.Escape(tmpl);

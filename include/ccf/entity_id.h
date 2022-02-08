@@ -190,7 +190,7 @@ namespace fmt
     {
       std::stringstream ss;
       ss << v;
-      return format_to(ctx.out(), ss.str());
+      return format_to(ctx.out(), "{}", ss.str());
     }
   };
 }
