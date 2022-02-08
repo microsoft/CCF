@@ -97,7 +97,7 @@ Invariants
 - Committed ledger files start and end at the same ``seqno``.
 - Committed ledger files with the same name are byte-identical.
 
-3. Snapshots are always taken at the ``seqno`` of a signature transaction.
+3. Snapshots are always generated for the ``seqno`` of a signature transaction (but not all signature transactions trigger the generation of snapshot).
 
 4. The generation of a snapshot triggers the creation of a new ledger file. This is a corollary of 2. and 3., since new nodes should be able to join from a snapshot only and generate further ledger files that are the same as on the other nodes.
 
