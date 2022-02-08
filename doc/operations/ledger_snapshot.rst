@@ -92,7 +92,10 @@ Invariants
 
 1. To facilitate audit and verification of the integrity of the ledger, individual ledger files always end on a signature transaction.
 
-2. For operator convenience, all committed ledger files (``.committed`` suffix) are the same on all up-to-date nodes.
+2. For operator convenience, all committed ledger files (``.committed`` suffix) are the same on all up-to-date nodes. More precisely, among up-to-date nodes:
+
+- Committed ledger files start and end at the same ``seqno``.
+- Committed ledger files with the same name are byte-identical.
 
 3. Snapshots are always taken at the ``seqno`` of a signature transaction.
 
