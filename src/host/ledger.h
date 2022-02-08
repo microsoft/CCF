@@ -963,12 +963,15 @@ namespace asynchost
         return;
       }
 
-      if (idx == last_idx && complete)
+      if (idx == last_idx)
       {
-        auto last = get_it_contains_idx(idx);
-        (*last)->complete();
-        require_new_file = true;
-        LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
+        if (complete)
+        {
+          auto last = get_it_contains_idx(idx);
+          (*last)->complete();
+          require_new_file = true;
+          LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
+        }
         return;
       }
 
