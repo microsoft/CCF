@@ -143,10 +143,10 @@ def recover(number_txs=5):
                 number_txs=vargs.get("msgs_per_recovery", number_txs),
             )
             new_network = func(*args, **kwargs)
-            # new_network.txs.verify(
-            #     network=new_network,
-            #     timeout=vargs.get("ledger_recovery_timeout"),
-            # )
+            new_network.txs.verify(
+                network=new_network,
+                timeout=vargs.get("ledger_recovery_timeout"),
+            )
             return new_network
 
         return wrapper
