@@ -6,28 +6,22 @@ graph LR
     ds -.-> http
     ds -.-> kv
     ds -.-> node
-    js --> ds
-    js -.-> enclave
-    js --> kv
-    js -.-> node
+    endpoints --> ds
+    endpoints --> enclave
+    endpoints --> http
+    endpoints --> node
+    indexing --> crypto
+    indexing --> ds
+    indexing -.-> node
     common --> consensus
     common --> crypto
     common --> ds
-    common --> enclave
+    common -.-> enclave
     common -.-> node
     http --> crypto
     http -.-> ds
     http -.-> enclave
     http -.-> node
-    indexing --> crypto
-    indexing --> ds
-    indexing --> kv
-    indexing -.-> node
-    apps --> ds
-    apps --> enclave
-    apps --> http
-    apps --> kv
-    apps --> node
     clients --> crypto
     clients --> ds
     clients --> http
@@ -43,6 +37,13 @@ graph LR
     kv -.-> ds
     kv --> enclave
     kv -.-> node
+    js --> crypto
+    js --> ds
+    js -.-> enclave
+    js --> kv
+    js -.-> node
+    js --> tls
+    enclave -.-> common
     enclave --> crypto
     enclave --> ds
     enclave -.-> http
@@ -58,6 +59,16 @@ graph LR
     host --> kv
     host --> node
     host --> tls
+    apps --> crypto
+    apps --> ds
+    apps --> enclave
+    apps --> http
+    apps --> js
+    apps --> kv
+    apps --> libplatform
+    apps --> node
+    apps --> tls
+    apps --> tmpl
     node -.-> common
     node -.-> consensus
     node --> crypto
