@@ -3,6 +3,7 @@
 import tempfile
 import os
 import shutil
+import time
 
 import infra.logging_app as app
 import infra.e2e_args
