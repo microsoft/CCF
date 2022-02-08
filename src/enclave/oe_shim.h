@@ -9,8 +9,8 @@
 
 #endif
 
-#  include <openenclave/log.h>
-#  include <openenclave/tracee.h>
+#include <openenclave/log.h>
+#include <openenclave/tracee.h>
 
 #ifndef VIRTUAL_ENCLAVE
 
@@ -45,12 +45,11 @@ OE_EXTERNC bool oe_is_outside_enclave(const void*, std::size_t)
   return true;
 }
 
-OE_EXTERNC oe_result_t oe_enclave_log_set_callback(
-    void* context,
-    oe_enclave_log_callback_t callback)
-    {
-      return OE_OK;
-    }
+OE_EXTERNC oe_result_t
+oe_enclave_log_set_callback(void* context, oe_enclave_log_callback_t callback)
+{
+  return OE_OK;
+}
 
 #  define oe_lfence() // nop
 

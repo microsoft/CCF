@@ -33,9 +33,30 @@ extern "C"
     oe_log_level_t level,
     uint64_t thread_id,
     const char* message)
+  {
+    switch (level)
     {
-      LOG_INFO_FMT("OE: {}", message);
+      case OE_LOG_LEVEL_FATAL:
+        LOG_FATAL_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_ERROR:
+        LOG_FAIL_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_WARNING:
+        LOG_FAIL_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_INFO:
+        LOG_INFO_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_VERBOSE:
+        LOG_DEBUG_FMT("OE: {}", message);
+        break;
+      case OE_LOG_LEVEL_MAX:
+      case OE_LOG_LEVEL_NONE:
+        LOG_TRACE_FMT("OE: {}", message);
+        break;
     }
+  }
 
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
