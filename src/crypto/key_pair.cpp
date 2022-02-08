@@ -3,8 +3,8 @@
 
 #include "key_pair.h"
 
-#include "openssl/key_pair.h"
-#include "openssl/public_key.h"
+#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/public_key.h"
 
 #include <cstring>
 #include <iomanip>

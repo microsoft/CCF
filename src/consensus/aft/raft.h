@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ccf/tx_id.h"
+#include "consensus/impl/state.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "enclave/reconfiguration_type.h"
-#include "impl/state.h"
 #include "kv/kv_types.h"
 #include "node/node_client.h"
 #include "node/node_to_node.h"

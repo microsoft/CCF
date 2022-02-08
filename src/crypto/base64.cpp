@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "openssl/base64.h"
+#include "crypto/openssl/base64.h"
 
 #include "ds/logger.h"
 

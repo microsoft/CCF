@@ -3,7 +3,7 @@
 
 #include "entropy.h"
 
-#include "openssl/entropy.h"
+#include "crypto/openssl/entropy.h"
 
 namespace crypto
 {

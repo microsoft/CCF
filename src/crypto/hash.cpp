@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "hash.h"
 
-#include "openssl/hash.h"
+#include "crypto/openssl/hash.h"
 
 #include <openssl/sha.h>
 

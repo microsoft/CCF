@@ -27,13 +27,13 @@
 #include "node/node_to_node.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/resharing.h"
+#include "node/rpc/frontend.h"
 #include "node/rpc/serdes.h"
+#include "node/rpc/serialization.h"
 #include "node/secret_broadcast.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node/snapshotter.h"
-#include "rpc/frontend.h"
-#include "rpc/serialization.h"
 #include "tls/client.h"
 
 #ifdef USE_NULL_ENCRYPTOR

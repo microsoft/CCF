@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../key_pair.h"
+#include "crypto/key_pair.h"
 #include "openssl_wrappers.h"
 #include "public_key.h"
 
