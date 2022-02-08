@@ -5,6 +5,7 @@
 #include "ds/json.h"
 #include "kv/value.h"
 #include "node/entities.h"
+#include "service/map.h"
 
 #include <vector>
 

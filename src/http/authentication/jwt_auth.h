@@ -4,7 +4,7 @@
 
 #include "authentication_types.h"
 #include "http/http_jwt.h"
-#include "node/jwt.h"
+#include "service/tables/jwt.h"
 
 namespace ccf
 {

@@ -14,9 +14,9 @@
 #include "js/historical.cpp"
 #include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
-#include "node/jwt.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/node_interface.h"
+#include "service/tables/jwt.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
