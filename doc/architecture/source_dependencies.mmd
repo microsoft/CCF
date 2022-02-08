@@ -1,64 +1,4 @@
 graph LR
-    crypto -.-> ds
-    tls --> crypto
-    tls --> ds
-    ds -.-> crypto
-    ds -.-> http
-    ds -.-> kv
-    ds -.-> node
-    endpoints --> ds
-    endpoints --> enclave
-    endpoints --> http
-    endpoints --> node
-    indexing --> crypto
-    indexing --> ds
-    indexing -.-> node
-    common --> consensus
-    common --> crypto
-    common --> ds
-    common -.-> enclave
-    common -.-> node
-    http --> crypto
-    http -.-> ds
-    http -.-> enclave
-    http -.-> node
-    clients --> crypto
-    clients --> ds
-    clients --> http
-    clients --> node
-    clients --> tls
-    consensus --> crypto
-    consensus --> ds
-    consensus --> enclave
-    consensus -.-> kv
-    consensus -.-> node
-    kv -.-> consensus
-    kv --> crypto
-    kv -.-> ds
-    kv --> enclave
-    kv -.-> node
-    js --> crypto
-    js --> ds
-    js -.-> enclave
-    js --> kv
-    js -.-> node
-    js --> tls
-    enclave -.-> common
-    enclave --> crypto
-    enclave --> ds
-    enclave -.-> http
-    enclave --> indexing
-    enclave -.-> js
-    enclave -.-> node
-    enclave --> tls
-    host --> common
-    host --> consensus
-    host --> crypto
-    host --> ds
-    host --> enclave
-    host --> kv
-    host --> node
-    host --> tls
     apps --> crypto
     apps --> ds
     apps --> enclave
@@ -67,6 +7,64 @@ graph LR
     apps --> kv
     apps --> node
     apps --> tls
+    clients --> crypto
+    clients --> ds
+    clients --> http
+    clients --> node
+    clients --> tls
+    common --> consensus
+    common --> crypto
+    common --> ds
+    common -.-> enclave
+    common -.-> node
+    consensus --> crypto
+    consensus --> ds
+    consensus --> enclave
+    consensus -.-> kv
+    consensus -.-> node
+    crypto -.-> ds
+    ds -.-> crypto
+    ds -.-> http
+    ds -.-> kv
+    ds -.-> node
+    enclave -.-> common
+    enclave --> crypto
+    enclave --> ds
+    enclave -.-> http
+    enclave --> indexing
+    enclave -.-> js
+    enclave -.-> node
+    enclave --> tls
+    endpoints --> ds
+    endpoints --> enclave
+    endpoints --> http
+    endpoints --> node
+    host --> common
+    host --> consensus
+    host --> crypto
+    host --> ds
+    host --> enclave
+    host --> kv
+    host --> node
+    host --> tls
+    http --> crypto
+    http -.-> ds
+    http -.-> enclave
+    http -.-> node
+    indexing --> crypto
+    indexing --> ds
+    indexing -.-> node
+    js --> crypto
+    js --> ds
+    js -.-> enclave
+    js --> kv
+    js -.-> node
+    js --> tls
+    kv -.-> consensus
+    kv --> crypto
+    kv -.-> ds
+    kv --> enclave
+    kv -.-> node
     node -.-> common
     node -.-> consensus
     node --> crypto
@@ -77,3 +75,5 @@ graph LR
     node -.-> js
     node -.-> kv
     node --> tls
+    tls --> crypto
+    tls --> ds

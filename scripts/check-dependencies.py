@@ -49,7 +49,7 @@ def run(paths, fix, mermaid_path):
     if mermaid_path:
         mermaid_contents = []
         mermaid_contents.append("graph LR")
-        for c, deps in sorted(all_deps.items(), key=lambda p: len(p[1])):
+        for c, deps in sorted(all_deps.items()):
             for dep in sorted(deps):
                 #  Don't print self-dependencies
                 if c == dep:
