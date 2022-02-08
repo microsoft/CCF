@@ -42,6 +42,8 @@ The listing below is an example of what a ledger directory may look like:
 
 .. note:: On startup, a CCF node started with existing ledger files may suffix some of the file names with ``.corrupted`` if the ledger file cannot be parsed, depending on the sequence number the node will join from.
 
+
+
 Snapshots
 ---------
 
@@ -86,3 +88,15 @@ A low value for ``ledger.chunk_size`` means that smaller ledger files are genera
 Similarly, a low value for ``snapshots.tx_count`` means that snapshots are generated often and that join/recovery time will be short, at the cost of additional workload on the primary node for snapshot generation.
 
 .. tip:: Uncommitted ledger files (which are likely to contain committed transactions) can also be used on join/recovery, as long as they are copied to the node's ``ledger.directory`` directory.
+
+Invariants
+----------
+
+1. To facilitate audit and verification of the integrity of the ledger, individual ledger files always end on a signature transaction.
+
+2. For operator convenience, all committed ledger files (``.committed`` suffix) are the same on all up-to-date nodes.
+
+3. Snapshots are always taken at the ``seqno`` of a signature transaction.
+
+4. The generation of a snapshot triggers the creation of a new ledger file. This is a corollary of 2. and 3., since new nodes should be able to join from a snapshot only and generate further ledger files that are the same as on the other nodes.
+
