@@ -3,38 +3,46 @@
 
 import os
 import sys
-import subprocess
+from collections import defaultdict
 import re
 
 
 LOCAL_INCLUDE = re.compile(r"#include \"([^/\"]*)\"")
+INCLUDE_DEPS = re.compile(r"#include \"(.*)/.*\.h\"")
 
 
-def canonicalise_includes(path):
+def root_component(path):
+    return path.split("/")[0]
+
+
+def get_include_dependencies(path, canonicalise_includes=False):
     rel_path = os.path.dirname(path).replace("src/", "")
-    original = open(path).read()
-    (fixed, corrections) = LOCAL_INCLUDE.subn(f'#include "{rel_path}/\g<1>"', original)
+    contents = open(path).read()
 
-    if corrections > 0:
-        with open(path, "w") as f:
-            f.write(fixed)
-            return True
+    if canonicalise_includes:
+        (contents, corrections) = LOCAL_INCLUDE.subn(
+            f'#include "{rel_path}/\g<1>"', contents
+        )
 
-    return False
+        if corrections > 0:
+            print(f"Canonicalised includes in {path}")
+            with open(path, "w") as f:
+                f.write(contents)
+
+    deps = INCLUDE_DEPS.findall(contents)
+    return rel_path, deps
 
 
 def run(files):
-    includes_changed = []
+    all_deps = defaultdict(set)
     for path in files:
-        if canonicalise_includes(path):
-            includes_changed.append(path)
+        component, deps = get_include_dependencies(path)
+        all_deps[root_component(component)].update(root_component(dep) for dep in deps)
 
-    if len(includes_changed) == 0:
-        print("All files contain canonical includes")
-    else:
-        print("Canonicalised include paths in the following files:")
-        for path in includes_changed:
-            print(f"  {path}")
+    print("graph LR")
+    for c, deps in sorted(all_deps.items(), key=lambda p: len(p[1])):
+        for dep in deps:
+            print(f"    {c} --> {dep}")
 
 
 if __name__ == "__main__":
