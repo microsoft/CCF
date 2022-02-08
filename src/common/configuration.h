@@ -11,9 +11,9 @@
 #include "ds/unit_strings.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
-#include "node/config.h"
-#include "node/members.h"
-#include "node/node_info_network.h"
+#include "service/tables/config.h"
+#include "service/tables/members.h"
+#include "service/tables/node_info_network.h"
 
 #include <optional>
 #include <string>

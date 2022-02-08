@@ -4,9 +4,9 @@
 
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
-#include "genesis_gen.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
+#include "service/genesis_gen.h"
 
 #include <optional>
 

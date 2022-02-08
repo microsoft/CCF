@@ -3,8 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
-#include "entities.h"
-#include "service_map.h"
+#include "service/map.h"
 
 namespace ccf
 {

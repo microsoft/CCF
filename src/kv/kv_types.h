@@ -11,8 +11,8 @@
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
-#include "node/resharing_types.h"
 #include "serialiser_declare.h"
+#include "service/tables/resharing_types.h"
 
 #include <array>
 #include <chrono>

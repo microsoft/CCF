@@ -4,9 +4,8 @@
 
 #include "crypto/hash.h"
 #include "ds/json.h"
-#include "entities.h"
 #include "kv/kv_types.h"
-#include "service_map.h"
+#include "service/map.h"
 
 namespace ccf
 {
