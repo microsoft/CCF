@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/app_interface.h"
-#include "crypto/hash.h"
 #include "ccf/ds/logger.h"
+#include "crypto/hash.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"

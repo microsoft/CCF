@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
-#include "ccf/ds/logger.h"
 #include "kv/kv_types.h"
 #include "node/rpc/tx_status.h"
 

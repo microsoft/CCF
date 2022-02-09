@@ -10,6 +10,7 @@
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/rpc/node_interface.h"
+#include "node/tx_receipt.h"
 #include "service/tables/node_signature.h"
 
 #include <list>

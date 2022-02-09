@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/ledger_enclave_types.h"
 #include "ccf/ds/logger.h"
+#include "consensus/ledger_enclave_types.h"
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
 #include "kv/serialised_entry_format.h"

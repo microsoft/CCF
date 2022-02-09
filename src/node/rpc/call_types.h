@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json_schema.h"
 #include "ccf/receipt.h"
 #include "ccf/tx_id.h"
-#include "ccf/ds/json_schema.h"
 #include "kv/kv_types.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"

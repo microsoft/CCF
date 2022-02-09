@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "ds/buffer.h"
-#include "ccf/ds/logger.h"
 #include "tls/ca.h"
 #include "tls/cert.h"
 

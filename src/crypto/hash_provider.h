@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ds/buffer.h"
 #include "ds/hex.h"
-#include "ccf/ds/json.h"
 
 #include <array>
 #include <cstdint>

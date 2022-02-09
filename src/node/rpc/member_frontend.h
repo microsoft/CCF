@@ -3,8 +3,8 @@
 #pragma once
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
-#include "ccf/json_handler.h"
 #include "ccf/crypto/base64.h"
+#include "ccf/json_handler.h"
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"

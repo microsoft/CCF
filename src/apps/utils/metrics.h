@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/histogram.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
+#include "ds/histogram.h"
 
 #include <nlohmann/json.hpp>
 

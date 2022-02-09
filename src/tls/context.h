@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "cert.h"
 #include "ccf/crypto/base64.h"
-#include "crypto/entropy.h"
 #include "ccf/ds/logger.h"
+#include "cert.h"
+#include "crypto/entropy.h"
 #include "tls/tls.h"
 
 #include <memory>

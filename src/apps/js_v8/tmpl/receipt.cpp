@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "receipt.h"
 
-#include "ccf/receipt.h"
 #include "ccf/ds/logger.h"
+#include "ccf/receipt.h"
 #include "template.h"
 
 namespace ccf::v8_tmpl

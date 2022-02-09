@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/ds/json.h"
+#include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "ds/ccf_exception.h"
-#include "ccf/ds/json.h"
-#include "ccf/ds/logger.h"
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"

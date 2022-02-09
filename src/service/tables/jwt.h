@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/verifier.h"
 #include "ccf/ds/json.h"
+#include "crypto/verifier.h"
 #include "proposals.h"
 #include "service/map.h"
 #include "service/table_names.h"

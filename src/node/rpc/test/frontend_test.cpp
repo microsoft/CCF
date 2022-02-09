@@ -5,11 +5,12 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
+#include "ccf/serdes.h"
 #include "ccf/user_frontend.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
-#include "ccf/ds/logger.h"
 #include "frontend_test_infra.h"
 #include "kv/map.h"
 #include "kv/test/null_encryptor.h"
@@ -19,7 +20,6 @@
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
-#include "ccf/serdes.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
@@ -406,7 +406,6 @@ auto create_simple_request(
 {
   http::Request request(method);
   request.set_header(
-    // TODO: Do I want to be responsible for this?
     http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
   return request;
 }

@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #include "js/wrap.h"
 
+#include "ccf/ds/logger.h"
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
-#include "ccf/ds/logger.h"
 #include "enclave/rpc_context.h"
 #include "js/consensus.cpp"
 #include "js/conv.cpp"

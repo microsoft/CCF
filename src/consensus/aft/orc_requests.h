@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/serdes.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "node/node_client.h"
-#include "ccf/serdes.h"
 
 #include <chrono>
 

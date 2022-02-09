@@ -8,8 +8,8 @@
 #include <exception>
 #include <openssl/err.h>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "ds/buffer.h"
 #include "ccf/ds/logger.h"
+#include "ds/buffer.h"
 #include "tls/client.h"
 #include "tls/msg_types.h"
 #include "tls/server.h"
