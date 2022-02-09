@@ -204,22 +204,8 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-whitelist_1_x = r"1\.\d+\.1\d+"  # from ccf-1.0.1x
-whitelist_2_x = r"2([.\d+]+)(-rc.*|)"  # all 2.x but no -dev
-whitelist_others = r"([3-9]|\d{2,}).*"  # all others
-smv_tag_whitelist = rf"^ccf-({whitelist_1_x}|{whitelist_2_x}|{whitelist_others})$"
-
-# Test versions regex match
-assert not re.match(smv_tag_whitelist, "ccf-1.0.9")
-assert re.match(smv_tag_whitelist, "ccf-1.0.10")
-assert re.match(smv_tag_whitelist, "ccf-2.0.0-rc0")
-assert not re.match(smv_tag_whitelist, "ccf-2.0.0-dev0")
-assert re.match(smv_tag_whitelist, "ccf-2.0.0")
-assert re.match(smv_tag_whitelist, "ccf-3.0.0")
-assert re.match(smv_tag_whitelist, "ccf-3.0.0-dev0")
-assert re.match(smv_tag_whitelist, "ccf-3.0.0-rc0")
-
-smv_branch_whitelist = r"^main$"
+smv_tag_whitelist = None
+smv_branch_whitelist = r"^(main)|(release\/\d\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
