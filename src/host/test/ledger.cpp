@@ -477,15 +477,14 @@ TEST_CASE("Truncation")
 
 TEST_CASE("Truncation and completion")
 {
-  // auto dir = AutoDeleteFolder(ledger_dir);
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
   Ledger ledger(ledger_dir, wf, chunk_threshold);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t chunk_count = 3;
-  size_t end_of_first_chunk_idx =
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+  initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
 
   entry_submitter.write(true);
   size_t last_idx = entry_submitter.get_last_idx();
@@ -522,6 +521,13 @@ TEST_CASE("Truncation and completion")
     entry_submitter.write(true);
     entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
+
+    entry_submitter.truncate(last_idx, true);
+
+    REQUIRE(number_of_files_in_ledger_dir() == chunk_count + 2);
+
+    ledger.commit(last_idx);
+    REQUIRE(number_of_committed_files_in_ledger_dir() == chunk_count + 2);
   }
 }
 
