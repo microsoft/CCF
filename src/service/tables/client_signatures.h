@@ -3,7 +3,7 @@
 #pragma once
 #include "crypto/hash.h"
 #include "ds/hash.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 #include "service/map.h"
 
 #include <vector>

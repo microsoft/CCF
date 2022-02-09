@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/endpoint_context.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 #include "ds/openapi.h"
 #include "kv/serialise_entry_blit.h"
 #include "service/map.h"

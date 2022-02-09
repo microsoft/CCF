@@ -10,7 +10,7 @@
 #include "crypto/verifier.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 
 // STL/3rdparty
 #include <CLI11/CLI11.hpp>

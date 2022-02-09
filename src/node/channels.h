@@ -9,7 +9,7 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/hex.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
 #include "enclave/enclave_time.h"

@@ -3,7 +3,7 @@
 
 #include "crypto/pem.h"
 #include "crypto/verifier.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"

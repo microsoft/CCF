@@ -5,7 +5,7 @@
 #include "crypto/entropy.h"
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"

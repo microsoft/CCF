@@ -3,7 +3,7 @@
 
 #include "ccf/tx_id.h"
 
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY

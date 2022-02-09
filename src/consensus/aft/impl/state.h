@@ -5,7 +5,7 @@
 #include "consensus/aft/raft_types.h"
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "kv/kv_types.h"
 #include "node/rpc/tx_status.h"
 

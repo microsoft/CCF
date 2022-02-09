@@ -5,7 +5,7 @@
 #include "crypto/ecdsa.h"
 #include "crypto/rsa_key_pair.h"
 #include "crypto/verifier.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "template.h"
 
 // NOTE: The rest of the crypto functions are defined in ccf_global.cpp.

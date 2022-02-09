@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "logger.h"
+#include "ccf/ds/logger.h"
 #include "ring_buffer.h"
 
 #include <atomic>

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "crypto/hash.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 #include "kv/kv_types.h"
 #include "service/map.h"
 

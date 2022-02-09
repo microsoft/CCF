@@ -3,9 +3,9 @@
 #pragma once
 
 #include "cert.h"
-#include "crypto/base64.h"
+#include "ccf/crypto/base64.h"
 #include "crypto/entropy.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "tls/tls.h"
 
 #include <memory>

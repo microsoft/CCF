@@ -6,7 +6,7 @@
 #include "ccf/user_frontend.h"
 #include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"

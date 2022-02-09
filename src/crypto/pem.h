@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/buffer.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 
 #include <cstring>
 #include <exception>

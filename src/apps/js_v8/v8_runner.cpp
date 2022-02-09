@@ -3,7 +3,7 @@
 
 #include "v8_runner.h"
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "libplatform/libplatform.h"
 #include "v8_util.h"
 

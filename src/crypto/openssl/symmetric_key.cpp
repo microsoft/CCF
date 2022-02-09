@@ -4,7 +4,7 @@
 
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/symmetric_key.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/thread_messaging.h"
 
 #include <openssl/aes.h>

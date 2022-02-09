@@ -3,7 +3,7 @@
 #pragma once
 
 #include "../ds/files.h"
-#include "../ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "../enclave/interface.h"
 #include "timer.h"
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/receipt.h"
-#include "crypto/base64.h"
+#include "ccf/crypto/base64.h"
 #include "node/history.h"
 
 namespace ccf

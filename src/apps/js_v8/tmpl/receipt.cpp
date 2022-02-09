@@ -3,7 +3,7 @@
 #include "receipt.h"
 
 #include "ccf/receipt.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "template.h"
 
 namespace ccf::v8_tmpl

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "crypto/hash.h"
-#include "ds/json.h"
-#include "ds/logger.h"
+#include "ccf/ds/json.h"
+#include "ccf/ds/logger.h"
 
 #include <openssl/evp.h>
 #include <stdexcept>

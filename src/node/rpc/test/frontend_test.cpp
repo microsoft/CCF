@@ -9,7 +9,7 @@
 #include "ccf/user_frontend.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "frontend_test_infra.h"
 #include "kv/map.h"
 #include "kv/test/null_encryptor.h"

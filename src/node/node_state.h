@@ -9,7 +9,7 @@
 #include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"

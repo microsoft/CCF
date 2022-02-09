@@ -6,7 +6,7 @@
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"

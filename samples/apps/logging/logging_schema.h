@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/receipt.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 
 namespace loggingapp
 {

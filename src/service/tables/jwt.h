@@ -3,7 +3,7 @@
 #pragma once
 
 #include "crypto/verifier.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 #include "proposals.h"
 #include "service/map.h"
 #include "service/table_names.h"

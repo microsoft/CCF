@@ -6,7 +6,7 @@
 #include "common/enclave_interface_types.h"
 #include "consensus/consensus_types.h"
 #include "crypto/curve.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/oversized.h"
 #include "ds/unit_strings.h"
 #include "enclave/consensus_type.h"

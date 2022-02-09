@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "enclave/reconfiguration_type.h"
 #include "service/tables/config.h"
 #include "service/tables/node_info_network.h"

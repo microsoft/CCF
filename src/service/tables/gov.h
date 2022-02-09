@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 #include "kv/map.h"
 #include "proposals.h"
 

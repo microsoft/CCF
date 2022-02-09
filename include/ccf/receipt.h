@@ -5,7 +5,7 @@
 
 #include "ccf/entity_id.h"
 #include "crypto/hash.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 
 namespace ccf
 {

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/indexing/indexer_interface.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "indexing/transaction_fetcher_interface.h"
 
 #include <memory>

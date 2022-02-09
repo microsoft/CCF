@@ -7,7 +7,7 @@
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "historical.h"
 #include "historical_state.h"
 #include "kv_store.h"

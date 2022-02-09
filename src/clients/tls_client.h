@@ -4,7 +4,7 @@
 
 #include "crypto/openssl/openssl_wrappers.h"
 #include "ds/buffer.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "tls/ca.h"
 #include "tls/cert.h"
 

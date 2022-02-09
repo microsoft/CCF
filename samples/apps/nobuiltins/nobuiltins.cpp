@@ -4,7 +4,7 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/json_handler.h"
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 #include "enclave/node_context.h"
 #include "node/rpc/frontend.h"
 #include "service/network_tables.h"

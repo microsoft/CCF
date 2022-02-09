@@ -165,10 +165,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/enclave/enclave_time.cpp
 )
 
-set(CCF_TX_SOURCES
-    ${CCF_DIR}/src/tx/tx_id.cpp
-)
-
 
 find_library(CRYPTO_LIBRARY crypto)
 find_library(TLS_LIBRARY ssl)
@@ -190,7 +186,7 @@ endif()
 
 # Unit test wrapper
 function(add_unit_test name)
-  add_executable(${name} ${ARGN})
+  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
@@ -321,26 +317,6 @@ add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 install(
   TARGETS ccf_endpoints.host
-  EXPORT ccf
-  DESTINATION lib
-)
-
-# CCF tx libs
-if("sgx" IN_LIST COMPILE_TARGETS)
-  add_enclave_library(ccf_tx.enclave "${CCF_TX_SOURCES}")
-  add_warning_checks(ccf_tx.enclave)
-  install(
-    # TODO: Why are all of these sub-libraries installed?
-    TARGETS ccf_tx.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
-add_host_library(ccf_tx.host "${CCF_TX_SOURCES}")
-add_san(ccf_tx.host)
-add_warning_checks(ccf_tx.host)
-install(
-  TARGETS ccf_tx.host
   EXPORT ccf
   DESTINATION lib
 )

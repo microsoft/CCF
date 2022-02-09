@@ -3,7 +3,7 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "crypto/hash.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"

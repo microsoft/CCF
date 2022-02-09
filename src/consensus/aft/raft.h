@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/tx_id.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/serialized.h"
 #include "enclave/reconfiguration_type.h"
 #include "impl/state.h"

@@ -5,7 +5,7 @@
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
 #include "ds/dl_list.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
 #include "entities.h"
