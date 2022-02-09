@@ -11,8 +11,8 @@
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
-#include "node/resharing_types.h"
 #include "serialiser_declare.h"
+#include "service/tables/resharing_types.h"
 
 #include <array>
 #include <chrono>
@@ -767,6 +767,18 @@ namespace kv
       bool public_only = false) = 0;
 
     virtual size_t commit_gap() = 0;
+
+    enum class Flag : uint8_t
+    {
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01
+    };
+
+    virtual void set_flag(Flag f) = 0;
+    virtual void unset_flag(Flag f) = 0;
+    virtual bool flag_enabled(Flag f) = 0;
+    virtual void set_flag_unsafe(Flag f) = 0;
+    virtual void unset_flag_unsafe(Flag f) = 0;
+    virtual bool flag_enabled_unsafe(Flag f) const = 0;
   };
 }
 

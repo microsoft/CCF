@@ -13,14 +13,14 @@ namespace host
 {
   enum class EnclaveType
   {
-    RELEASE,
-    DEBUG,
-    VIRTUAL
+    SGX_RELEASE,
+    SGX_DEBUG,
+    VIRTUAL,
   };
   DECLARE_JSON_ENUM(
     EnclaveType,
-    {{EnclaveType::RELEASE, "Release"},
-     {EnclaveType::DEBUG, "Debug"},
+    {{EnclaveType::SGX_RELEASE, "Release"},
+     {EnclaveType::SGX_DEBUG, "Debug"},
      {EnclaveType::VIRTUAL, "Virtual"}});
 
   enum class LogFormat
@@ -50,7 +50,7 @@ namespace host
     struct Enclave
     {
       std::string file;
-      EnclaveType type = EnclaveType::RELEASE;
+      EnclaveType type;
     };
     Enclave enclave = {};
 

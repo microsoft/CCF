@@ -19,6 +19,7 @@
 #include "node/rpc/error.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
+#include "service/genesis_gen.h"
 
 namespace ccf
 {

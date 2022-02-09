@@ -1122,4 +1122,13 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "request_ledger_chunk",
+    new Action(
+      function (args) {},
+      function (args, proposalId) {
+        ccf.node.requestLedgerChunk();
+      }
+    ),
+  ],
 ]);

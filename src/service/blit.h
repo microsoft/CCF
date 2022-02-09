@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/entity_id.h"
-#include "code_id.h"
 #include "crypto/pem.h"
 #include "kv/serialise_entry_blit.h"
+#include "service/tables/code_id.h"
 
 namespace kv::serialisers
 {

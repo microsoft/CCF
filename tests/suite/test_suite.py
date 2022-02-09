@@ -11,6 +11,7 @@ import membership
 import governance_history
 import jwt_test
 import governance
+import e2e_operations
 
 from inspect import signature, Parameter
 
@@ -119,6 +120,8 @@ all_tests_suite = [
     # governance
     governance.test_each_node_cert_renewal,
     governance.test_service_cert_renewal,
+    # e2e_operations:
+    e2e_operations.test_forced_ledger_chunk,
     #
     #
     #

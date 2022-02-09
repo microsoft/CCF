@@ -25,6 +25,7 @@ namespace kv
     W* current_writer;
     TxID tx_id;
     EntryType entry_type;
+    uint8_t header_flags;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -59,10 +60,12 @@ namespace kv
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
       EntryType entry_type_,
+      uint8_t header_flags_,
       const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
       entry_type(entry_type_),
+      header_flags(header_flags_),
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
@@ -154,7 +157,7 @@ namespace kv
 
       SerialisedEntryHeader entry_header;
       entry_header.version = entry_format_v1;
-      entry_header.flags = 0;
+      entry_header.flags = header_flags;
 
       // If no crypto util is set (unit test only), only the header and public
       // domain are serialised

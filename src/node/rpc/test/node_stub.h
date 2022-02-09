@@ -30,6 +30,11 @@ namespace ccf
       return;
     }
 
+    void request_ledger_chunk(kv::Tx& tx) override
+    {
+      return;
+    }
+
     void trigger_host_process_launch(
       const std::vector<std::string>& args) override
     {

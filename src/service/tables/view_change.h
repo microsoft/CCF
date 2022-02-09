@@ -3,7 +3,7 @@
 #pragma once
 #include "crypto/hash.h"
 #include "node_signature.h"
-#include "service_map.h"
+#include "service/map.h"
 
 #include <string>
 #include <vector>

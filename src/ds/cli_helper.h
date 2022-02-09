@@ -4,7 +4,7 @@
 
 #include "crypto/san.h"
 #include "ds/nonstd.h"
-#include "node/node_info_network.h"
+#include "service/tables/node_info_network.h"
 
 #include <CLI11/CLI11.hpp>
 #include <charconv>

@@ -6,8 +6,8 @@
 #include "ccf/json_handler.h"
 #include "ds/json.h"
 #include "enclave/node_context.h"
-#include "node/network_tables.h"
 #include "node/rpc/frontend.h"
+#include "service/network_tables.h"
 
 #include <charconv>
 
