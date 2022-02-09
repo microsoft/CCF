@@ -236,7 +236,7 @@ namespace host
     // from a thread
     bool run()
     {
-      bool ret;
+      bool ret = true;
       oe_result_t err = OE_FAILURE;
 
 #ifdef CCHOST_SUPPORTS_VIRTUAL
