@@ -204,8 +204,10 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-# Build tags from ccf-1.0.1x
-smv_tag_whitelist = r"^ccf-(1\.\d+\.1\d+|2.*)$"
+whitelist_1_x = r"1\.\d+\.1\d+"  # from ccf-1.0.1x
+whitelist_2_x = r"2([.\d+]+)(-rc.*|)"  # all 2.x but no -dev
+whitelist_others = r"([3-9]|\d{2,}).*"  # all others
+smv_tag_whitelist = rf"^ccf-({whitelist_1_x}|{whitelist_2_x}|{whitelist_others})$"
 smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
