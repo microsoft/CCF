@@ -109,7 +109,7 @@ def test_forced_ledger_chunk(network, args):
             assert last == next_signature
             assert next_signature - proposal.seqno < args.sig_tx_interval
 
-
+    return network
 def run_file_operations(args):
     with tempfile.TemporaryDirectory() as tmp_dir:
         txs = app.LoggingTxs("user0")
