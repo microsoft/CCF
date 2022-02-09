@@ -99,6 +99,9 @@ namespace kv
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
+    // Ledger entry header flags
+    uint8_t flags = 0;
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -607,6 +610,7 @@ namespace kv
         version = tx_id.version;
         last_replicated = tx_id.version;
         last_committable = tx_id.version;
+        unset_flag_unsafe(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
@@ -1202,6 +1206,39 @@ namespace kv
       // version_lock should already been acquired in case term_of_last_version
       // is incremented.
       return ReservedTx(this, term_of_last_version, tx_id);
+    }
+
+    virtual void set_flag(Flag f) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      set_flag_unsafe(f);
+    }
+
+    virtual void unset_flag(Flag f) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      unset_flag_unsafe(f);
+    }
+
+    virtual bool flag_enabled(Flag f) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return flag_enabled_unsafe(f);
+    }
+
+    virtual void set_flag_unsafe(Flag f) override
+    {
+      this->flags |= static_cast<uint8_t>(f);
+    }
+
+    virtual void unset_flag_unsafe(Flag f) override
+    {
+      this->flags &= ~static_cast<uint8_t>(f);
+    }
+
+    virtual bool flag_enabled_unsafe(Flag f) const override
+    {
+      return (flags & static_cast<uint8_t>(f)) != 0;
     }
   };
 }
