@@ -956,8 +956,6 @@ namespace asynchost
       LOG_DEBUG_FMT(
         "Ledger truncate: {}/{} (complete: {})", idx, last_idx, complete);
 
-      LOG_FAIL_FMT("Committed {}", committed_idx);
-
       if (idx > last_idx || idx < committed_idx)
       {
         return;
@@ -983,16 +981,12 @@ namespace asynchost
 
       for (auto it = f_from; it != f_end;)
       {
-        LOG_FAIL_FMT("here {}", (*it)->get_start_idx());
-
         // Truncate the first file to the truncation index while the more
         // recent files are deleted entirely
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
         if ((*it)->truncate(truncate_idx))
         {
-          auto it_ = it;
-          it++;
-          files.erase(it_);
+          it = files.erase(it);
         }
         else
         {
