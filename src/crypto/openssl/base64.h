@@ -27,7 +27,7 @@ namespace crypto
         return {};
 
       // Initialise the encode context
-      auto ctx = EVP_ENCODE_CTX_new();
+      OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_DecodeInit(ctx);
       int encoded_len = 0;
 
@@ -42,7 +42,6 @@ namespace crypto
       if (rc < 0)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        EVP_ENCODE_CTX_free(ctx);
         throw std::invalid_argument(fmt::format(
           "OSSL: Could not decode update from base64 string: {}", err_str));
       }
@@ -52,15 +51,12 @@ namespace crypto
       if (rc != 1)
       {
         auto err_str = OpenSSL::error_string(ERR_get_error());
-        EVP_ENCODE_CTX_free(ctx);
         throw std::logic_error(fmt::format(
           "OSSL: Could not decode final from base64 string: {}", err_str));
       }
       encoded_len += chunk_len;
 
       std::vector<uint8_t> ret(output, output + encoded_len);
-
-      EVP_ENCODE_CTX_free(ctx);
 
       return ret;
     }
@@ -72,7 +68,7 @@ namespace crypto
         return "";
 
       // Initialise the encode context
-      auto ctx = EVP_ENCODE_CTX_new();
+      OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_EncodeInit(ctx);
       int encoded_len = 0;
 
@@ -89,7 +85,6 @@ namespace crypto
       {
         char err_str[256];
         ERR_error_string(err, err_str);
-        EVP_ENCODE_CTX_free(ctx);
         throw std::logic_error(fmt::format(
           "OSSL: Could not encode update to base64 string: {}", err_str));
       }
@@ -102,7 +97,6 @@ namespace crypto
       {
         char err_str[256];
         ERR_error_string(err, err_str);
-        EVP_ENCODE_CTX_free(ctx);
         throw std::logic_error(fmt::format(
           "OSSL: Could not encode final to base64 string: {}", err_str));
       }
@@ -112,8 +106,6 @@ namespace crypto
       std::string ret = (const char*)output;
       ret.pop_back();
       ret.erase(std::remove(ret.begin(), ret.end(), '\n'), ret.end());
-
-      EVP_ENCODE_CTX_free(ctx);
 
       return ret;
     }
