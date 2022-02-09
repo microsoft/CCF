@@ -138,6 +138,7 @@ namespace consensus
      * Initialise ledger at a given index (e.g. after a snapshot)
      *
      * @param idx Index to start ledger from
+     * @param force_chunk_idx Index at which a new ledger chunk will be created
      */
     void init(Index idx, Index force_chunk_idx)
     {
