@@ -32,7 +32,6 @@ jobs:
       # This is because the configuration of the docs (e.g. theme) will change
       # over time and only the main branch should be source of truth and be
       # kept up to date.
-
       # Only on main and not on PRs
       - script: |
           set -ex
@@ -44,11 +43,11 @@ jobs:
           pip install -U -r doc/historical_ccf_requirements.txt
           sphinx-multiversion doc build/html
         displayName: Sphinx Multi-version
-        condition: |
-          and(
-            not(eq(variables['Build.Reason'], 'PullRequest')),
-            eq(variables['Build.SourceBranch'], 'refs/heads/main')
-          )
+        # condition: |
+        #   and(
+        #     not(eq(variables['Build.Reason'], 'PullRequest')),
+        #     eq(variables['Build.SourceBranch'], 'refs/heads/main')
+        #   )
 
       # Only on PRs and not on main (e.g. release branch/tag)
       - script: |
