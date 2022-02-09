@@ -16,7 +16,10 @@
         "bind_address": "127.0.0.1:8082",
         "published_address": "ccf.dummy.com:12346",
         "max_open_sessions_soft": 1000,
-        "max_open_sessions_hard": 1010
+        "max_open_sessions_hard": 1010,
+        "endorsement": {
+          "authority": "Node"
+        }
       }
     }
   },
