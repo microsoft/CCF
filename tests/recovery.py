@@ -182,7 +182,7 @@ def run(args):
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
 
-        LOG.success("Recovery complete on all nodes")
+            LOG.success("Recovery complete on all nodes")
 
 
 if __name__ == "__main__":

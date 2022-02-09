@@ -1186,6 +1186,12 @@ namespace ccf
       share_manager.shuffle_recovery_shares(tx);
     }
 
+    void request_ledger_chunk(kv::Tx& tx) override
+    {
+      auto tx2 = static_cast<kv::CommittableTx*>(&tx);
+      tx2->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+    }
+
     void trigger_host_process_launch(
       const std::vector<std::string>& args) override
     {

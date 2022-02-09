@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0-rc1]
 
 ### Added
 
 - The new `endorsement` configuration entry lets operators set the desired TLS certificate endorsement, either service-endorsed or node-endorsed (self-signed), for each network RPC interface of a node, defaulting to service-endorsed (#2875).
+- A new governance action `request_ledger_chunk` to request the creation of a ledger chunk at the next signature (#3519).
 
 ### Changed
 
@@ -1205,6 +1206,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[2.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc1
 [2.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-rc0
 [2.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev8
 [2.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev7
