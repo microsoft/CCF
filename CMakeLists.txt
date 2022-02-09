@@ -418,7 +418,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 sss.host ccf_endpoints.host 
+                                 sss.host ccf_endpoints.host
     )
 
     add_unit_test(
