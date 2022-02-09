@@ -23,7 +23,7 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/rpc/serdes.h"
+#include "ccf/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
 #include "rpc/frontend.h"

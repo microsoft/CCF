@@ -7,7 +7,7 @@
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
+#include "ccf/serdes.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
 

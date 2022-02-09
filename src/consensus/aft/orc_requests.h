@@ -5,7 +5,7 @@
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "node/node_client.h"
-#include "node/rpc/serdes.h"
+#include "ccf/serdes.h"
 
 #include <chrono>
 

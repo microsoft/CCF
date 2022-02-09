@@ -19,7 +19,7 @@
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
+#include "ccf/serdes.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
@@ -406,6 +406,7 @@ auto create_simple_request(
 {
   http::Request request(method);
   request.set_header(
+    // TODO: Do I want to be responsible for this?
     http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
   return request;
 }

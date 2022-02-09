@@ -162,6 +162,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/json_handler.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
 )
 

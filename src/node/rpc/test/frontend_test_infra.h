@@ -11,7 +11,7 @@
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/rpc/member_frontend.h"
-#include "node/rpc/serdes.h"
+#include "ccf/serdes.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
 #include "service/tables/client_signatures.h"

@@ -5,7 +5,7 @@
 #include "http/http_builder.h"
 #include "http/http_consts.h"
 #include "http/http_parser.h"
-#include "node/rpc/serdes.h"
+#include "ccf/serdes.h"
 #include "tls_client.h"
 
 #define FMT_HEADER_ONLY

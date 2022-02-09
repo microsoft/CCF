@@ -11,7 +11,7 @@
 #include "node/identity.h"
 #include "node/resharing_tracker.h"
 #include "node/rpc/call_types.h"
-#include "node/rpc/serdes.h"
+#include "ccf/serdes.h"
 #include "node/rpc/serialization.h"
 #include "service/map.h"
 
