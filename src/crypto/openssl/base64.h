@@ -27,7 +27,7 @@ namespace crypto
         return {};
 
       // Initialise the encode context
-      auto ctx = EVP_ENCODE_CTX_new();
+      OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_DecodeInit(ctx);
       int encoded_len = 0;
 
@@ -58,8 +58,6 @@ namespace crypto
 
       std::vector<uint8_t> ret(output, output + encoded_len);
 
-      EVP_ENCODE_CTX_free(ctx);
-
       return ret;
     }
 
@@ -70,7 +68,7 @@ namespace crypto
         return "";
 
       // Initialise the encode context
-      auto ctx = EVP_ENCODE_CTX_new();
+      OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_EncodeInit(ctx);
       int encoded_len = 0;
 
@@ -108,8 +106,6 @@ namespace crypto
       std::string ret = (const char*)output;
       ret.pop_back();
       ret.erase(std::remove(ret.begin(), ret.end(), '\n'), ret.end());
-
-      EVP_ENCODE_CTX_free(ctx);
 
       return ret;
     }
