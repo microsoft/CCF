@@ -916,9 +916,6 @@ namespace ccf
       network.tables->rollback(
         {last_recovered_term, last_recovered_signed_idx}, new_term);
 
-      // TODO:
-      // 1. Force new chunk after recovery - and commit existing files too?
-      // 2. Synchronise chunking on backup nodes
       ledger_truncate(last_recovered_signed_idx, true);
       snapshotter->rollback(last_recovered_signed_idx);
 
