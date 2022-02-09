@@ -970,12 +970,15 @@ namespace asynchost
       return last_idx;
     }
 
-    void truncate(size_t idx, bool complete = false)
+    void truncate(size_t idx, bool complete_ledger = false)
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
       LOG_DEBUG_FMT(
-        "Ledger truncate: {}/{} (complete: {})", idx, last_idx, complete);
+        "Ledger truncate: {}/{} (complete_ledger: {})",
+        idx,
+        last_idx,
+        complete_ledger);
 
       if (idx > last_idx || idx < committed_idx)
       {
@@ -984,7 +987,7 @@ namespace asynchost
 
       if (idx == last_idx)
       {
-        if (complete)
+        if (complete_ledger)
         {
           auto last = get_it_contains_idx(idx);
           (*last)->complete();
@@ -1011,19 +1014,15 @@ namespace asynchost
         }
         else
         {
-          if (complete)
+          // A new file will not be required on the next written entry if the
+          // file is _not_ deleted entirely
+          if (complete_ledger)
           {
             // If required, complete files that are not entirely truncated
             (*it)->complete();
-            require_new_file = true;
             LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
           }
-          else
-          {
-            // A new file will not be required on the next written entry if the
-            // file is _not_ deleted entirely
-            require_new_file = false;
-          }
+          require_new_file = complete_ledger;
           it++;
         }
       }

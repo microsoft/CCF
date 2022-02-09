@@ -805,8 +805,7 @@ class Ledger:
         elif len(elements) == 1:
             return (int(elements[0]), None)
         else:
-            assert False, elements
-
+            raise ValueError(f"Could not read range from ledger file {filename}")
 
     def __init__(self, directories: List[str], committed_only: bool = True):
 
