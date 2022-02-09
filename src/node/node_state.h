@@ -575,7 +575,6 @@ namespace ccf
                 view);
             }
 
-            // TODO: Is this always right, especially for non-recovery?
             consensus->init_as_backup(
               network.tables->current_version(),
               view,
