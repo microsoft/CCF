@@ -32,12 +32,13 @@ Hope your day's going well. :)
     window.location.href = document.getElementById("versions").value;
   }
 
-  window.addEventListener("DOMContentLoaded",function(){
-      let selectedVersion = "main"
-      const thisURL = window.location.toString()
-      let indexOfVersion = thisURL.indexOf("ccf-")
-      if (indexOfVersion != -1) {
-          selectedVersion = thisURL.substring(indexOfVersion, thisURL.indexOf("/", indexOfVersion));
+  window.addEventListener("DOMContentLoaded", function(){
+      let selectedVersion = "main";
+      const thisURL = window.location.toString();
+      const splitUrl = thisURL.split("/");
+      const indexOfRelease = splitUrl.indexOf("release");
+      if (indexOfRelease > 0) {
+        selectedVersion = splitUrl[indexOfRelease + 1];
       }
       let sel = document.getElementById("versions");
       if (sel != null) {
@@ -57,11 +58,14 @@ Hope your day's going well. :)
   <div class="visually-hidden">Select Version:</div>
 </label>
 <select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
-    {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
-    <option value="{{ item.url }}">{{ item.name }} </option>
-    {%- endfor %}
-    {%- for item in versions.tags|sort(attribute='name', reverse=True) %}
-    <option value="{{ item.url }}">{{ item.name }} </option>
+    {%- for item in versions.branches|sort(attribute='name') %}
+    <option value="{{ item.url }}">
+      {% if "release/" in item.name %}
+        {{ item.name.split("/")[1] }}
+      {% else %}
+        {{ item.name }}
+      {% endif %}
+    </option>
     {%- endfor %}
 </select>
 {% endif %}
