@@ -13,7 +13,6 @@ jobs:
 
     steps:
       - checkout: self
-        clean: true
 
       - script: |
           set -ex
