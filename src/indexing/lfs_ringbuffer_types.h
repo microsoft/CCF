@@ -6,9 +6,6 @@
 
 namespace ccf::indexing
 {
-  using LFSKey = std::string;
-  using LFSEncryptedContents = std::vector<uint8_t>;
-
   /// LFS-related ringbuffer messages
   enum LFSMsg : ringbuffer::Message
   {
