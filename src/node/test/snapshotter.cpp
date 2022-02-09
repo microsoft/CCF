@@ -4,6 +4,7 @@
 #include "node/snapshotter.h"
 
 #include "ds/logger.h"
+#include "ds/ring_buffer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"

@@ -3,7 +3,6 @@
 #pragma once
 #include "crypto/hash.h"
 #include "ds/json.h"
-#include "entities.h"
 
 #include <vector>
 

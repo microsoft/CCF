@@ -6,12 +6,12 @@
 #include "ccf/tx_id.h"
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
-#include "node/code_id.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
-#include "node/nodes.h"
-#include "node/service.h"
 #include "node_call_types.h"
+#include "service/tables/code_id.h"
+#include "service/tables/nodes.h"
+#include "service/tables/service.h"
 #include "tx_status.h"
 
 #include <nlohmann/json.hpp>

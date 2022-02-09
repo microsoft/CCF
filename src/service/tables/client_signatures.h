@@ -4,8 +4,7 @@
 #include "crypto/hash.h"
 #include "ds/hash.h"
 #include "ds/json.h"
-#include "entities.h"
-#include "service_map.h"
+#include "service/map.h"
 
 #include <vector>
 

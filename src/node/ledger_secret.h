@@ -6,8 +6,8 @@
 #include "crypto/hmac.h"
 #include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
-#include "secrets.h"
-#include "shares.h"
+#include "service/tables/secrets.h"
+#include "service/tables/shares.h"
 
 #include <openssl/crypto.h>
 
