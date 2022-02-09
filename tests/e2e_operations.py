@@ -85,7 +85,7 @@ def test_forced_ledger_chunk(network, args):
     network.check_ledger_files_identical()
 
     # Check that there is indeed a ledger chunk that ends at the
-    # first signature after proposal.seqno
+    # first signature after proposal.completed_seqno
     ledger = ccf.ledger.Ledger(ledger_dirs)
     for chunk in ledger:
         first = last = next_signature = None
@@ -97,19 +97,21 @@ def test_forced_ledger_chunk(network, args):
                 last = pd.get_seqno()
             tables = pd.get_tables()
             if (
-                pd.get_seqno() >= proposal.seqno
+                pd.get_seqno() >= proposal.completed_seqno
                 and next_signature is None
                 and ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
             ):
                 next_signature = pd.get_seqno()
-        if first <= proposal.seqno and proposal.seqno <= last:
+        if first <= proposal.completed_seqno and proposal.completed_seqno <= last:
             LOG.info(
-                f"Found ledger chunk {chunk.filename()} with chunking proposal @{proposal.seqno} and signature @{next_signature}"
+                f"Found ledger chunk {chunk.filename()} with chunking proposal @{proposal.completed_seqno} and signature @{next_signature}"
             )
             assert last == next_signature
-            assert next_signature - proposal.seqno < args.sig_tx_interval
+            assert next_signature - proposal.completed_seqno < args.sig_tx_interval
 
     return network
+
+
 def run_file_operations(args):
     with tempfile.TemporaryDirectory() as tmp_dir:
         txs = app.LoggingTxs("user0")
