@@ -173,7 +173,8 @@ public:
     return last_idx;
   }
 
-  void write(bool is_committable, bool force_chunk = false)
+  void write(
+    bool is_committable, bool force_chunk = false, uint8_t header_flags = 0)
   {
     auto e = TestLedgerEntry(++last_idx);
     std::vector<uint8_t> framed_entry(
@@ -183,6 +184,7 @@ public:
 
     kv::SerialisedEntryHeader header;
     header.set_size(sizeof(TestLedgerEntry));
+    header.flags = header_flags;
 
     serialized::write(data, size, header);
     serialized::write(data, size, e);
@@ -1392,5 +1394,50 @@ TEST_CASE(
     auto latest_committed_snapshot = snapshots.find_latest_committed_snapshot();
     REQUIRE(latest_committed_snapshot.has_value());
     REQUIRE(latest_committed_snapshot.value() == snapshot_file_name);
+  }
+}
+
+TEST_CASE("Chunking according to entry header flag")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
+
+  bool is_committable = true;
+
+  INFO("Add a few entries");
+  {
+    for (int i = 0; i < entries_per_chunk / 2; i++)
+    {
+      entry_submitter.write(is_committable);
+    }
+
+    // Up to here everything should be in one ledger file
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+  }
+
+  INFO("Write an entry with the ledger chunking header flag enabled");
+  {
+    entry_submitter.write(
+      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK);
+
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+
+    // As the threshold is passed, a new ledger file is created
+    entry_submitter.write(false);
+    REQUIRE(number_of_files_in_ledger_dir() == 2);
+  }
+
+  INFO("Add more entries to trigger normal chunking");
+  {
+    for (int i = 0; i < entries_per_chunk; i++)
+    {
+      entry_submitter.write(is_committable);
+    }
+
+    REQUIRE(number_of_files_in_ledger_dir() == 3);
   }
 }

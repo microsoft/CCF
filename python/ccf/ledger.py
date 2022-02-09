@@ -602,6 +602,9 @@ class Entry:
             GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
         )
 
+    def get_transaction_header(self) -> TransactionHeader:
+        return self._header
+
 
 class Transaction(Entry):
     """

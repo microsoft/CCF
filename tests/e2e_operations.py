@@ -3,6 +3,7 @@
 import tempfile
 import os
 import shutil
+import time
 
 import infra.logging_app as app
 import infra.e2e_args
@@ -53,6 +54,64 @@ def test_parse_snapshot_file(network, args):
     return network
 
 
+@reqs.description("Forced ledger chunk")
+def test_forced_ledger_chunk(network, args):
+    primary, _ = network.find_primary()
+
+    # Submit some dummy transactions
+    network.txs.issue(network, number_txs=7)
+
+    # Submit a proposal to force a ledger chunk at the following signature
+    proposal_body, careful_vote = network.consortium.make_proposal(
+        "request_ledger_chunk", node_id=primary.node_id
+    )
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+
+    proposal = network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        careful_vote,
+    )
+
+    # Issue some more transactions
+    network.txs.issue(network, number_txs=13)
+
+    # Wait for the signature interval to ensure we see at least one signature
+    time.sleep(args.sig_ms_interval / 1000)
+
+    ledger_dirs = primary.remote.ledger_paths()
+    network.check_ledger_files_identical()
+
+    # Check that there is indeed a ledger chunk that ends at the
+    # first signature after proposal.completed_seqno
+    ledger = ccf.ledger.Ledger(ledger_dirs)
+    for chunk in ledger:
+        first = last = next_signature = None
+        for tx in chunk:
+            pd = tx.get_public_domain()
+            if first is None:
+                first = pd.get_seqno()
+            else:
+                last = pd.get_seqno()
+            tables = pd.get_tables()
+            if (
+                pd.get_seqno() >= proposal.completed_seqno
+                and next_signature is None
+                and ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables
+            ):
+                next_signature = pd.get_seqno()
+        if first <= proposal.completed_seqno and proposal.completed_seqno <= last:
+            LOG.info(
+                f"Found ledger chunk {chunk.filename()} with chunking proposal @{proposal.completed_seqno} and signature @{next_signature}"
+            )
+            assert last == next_signature
+            assert next_signature - proposal.completed_seqno < args.sig_tx_interval
+
+    return network
+
+
 def run_file_operations(args):
     with tempfile.TemporaryDirectory() as tmp_dir:
         txs = app.LoggingTxs("user0")
@@ -70,6 +129,7 @@ def run_file_operations(args):
 
             test_save_committed_ledger_files(network, args)
             test_parse_snapshot_file(network, args)
+            test_forced_ledger_chunk(network, args)
 
 
 def run_tls_san_checks(args):
