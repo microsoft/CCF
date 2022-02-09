@@ -306,5 +306,13 @@ namespace crypto
           EC_KEY_new_by_curve_name(nid), EC_KEY_free, /*check_null=*/true)
       {}
     };
+
+    struct Unique_EVP_ENCODE_CTX : public Unique_SSL_OBJECT<
+                                     EVP_ENCODE_CTX,
+                                     EVP_ENCODE_CTX_new,
+                                     EVP_ENCODE_CTX_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
   }
 }
