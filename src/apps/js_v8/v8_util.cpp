@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/ds/logger.h"
+#include "ds/buffer.h"
 #include "v8.h"
 
 namespace ccf::v8_util
