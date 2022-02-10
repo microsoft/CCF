@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto.h"
 #include "ds/buffer.h"
 #include "ds/hex.h"
 #include "ds/json.h"
@@ -11,26 +12,6 @@
 #include <iostream>
 #include <span>
 #include <vector>
-
-namespace crypto
-{
-  enum class MDType
-  {
-    NONE = 0,
-    SHA1,
-    SHA256,
-    SHA384,
-    SHA512
-  };
-
-  DECLARE_JSON_ENUM(
-    MDType,
-    {{MDType::NONE, "NONE"},
-     {MDType::SHA1, "SHA1"},
-     {MDType::SHA256, "SHA256"},
-     {MDType::SHA384, "SHA384"},
-     {MDType::SHA512, "SHA512"}});
-}
 
 namespace crypto
 {
