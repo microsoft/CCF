@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "crypto/hash.h"
-#include "ds/ccf_assert.h"
+#include "ccf/assert.h"
 #include "ds/dl_list.h"
 
 #include <array>

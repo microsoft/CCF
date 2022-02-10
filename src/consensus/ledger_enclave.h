@@ -3,7 +3,7 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
-#include "ds/ccf_assert.h"
+#include "ccf/assert.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
