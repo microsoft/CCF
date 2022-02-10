@@ -69,7 +69,7 @@ Architecture
     :fa:`address-book` :doc:`quic_internals`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Internal implementation of QUIC communication.
+    Internal implementation of QUIC communication (in progress).
 
 .. toctree::
     :hidden:
@@ -83,3 +83,5 @@ Architecture
     raft_tla
     node_to_node
     indexing
+    tls_internals
+    quic_internals
