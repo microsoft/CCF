@@ -587,9 +587,7 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-
-        if not skip_verification:
-            self.check_ledger_files_identical()
+        self.check_ledger_files_identical()
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
