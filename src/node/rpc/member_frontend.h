@@ -10,6 +10,8 @@
 #include "frontend.h"
 #include "js/wrap.h"
 #include "node/quote.h"
+#include "node/rpc/call_types.h"
+#include "node/rpc/serialization.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"

@@ -13,6 +13,7 @@
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/verifier.h"
+#include "node/tx_receipt.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY

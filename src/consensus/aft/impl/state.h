@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
 #include "kv/kv_types.h"
-#include "node/rpc/tx_status.h"
 
 #include <map>
 #include <set>

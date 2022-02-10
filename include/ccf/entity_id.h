@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ds/serialized.h"
 
 #include <string>
 

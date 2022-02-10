@@ -6,11 +6,6 @@
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/tx.h"
-#include "ds/ccf_deprecated.h"
-#include "ds/openapi.h"
-#include "http/http_consts.h"
-#include "node/endpoint_metrics.h"
-#include "node/rpc/serialization.h"
 
 #include <charconv>
 #include <functional>

@@ -4,6 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/tx_id.h"
+#include "ccf/tx_status.h"
 #include "ds/serialized.h"
 #include "enclave/reconfiguration_type.h"
 #include "impl/state.h"
@@ -13,7 +14,6 @@
 #include "node/node_types.h"
 #include "node/resharing_tracker.h"
 #include "node/retired_nodes_cleanup.h"
-#include "node/rpc/tx_status.h"
 #include "orc_requests.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
