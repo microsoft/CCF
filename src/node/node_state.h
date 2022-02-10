@@ -522,10 +522,11 @@ namespace ccf
               n2n_channels_cert);
             auto_refresh_jwt_keys();
 
+            last_recovered_signed_idx =
+              resp.network_info->last_recovered_signed_idx;
+
             if (resp.network_info->public_only)
             {
-              last_recovered_signed_idx =
-                resp.network_info->last_recovered_signed_idx;
               setup_recovery_hook();
               snapshotter->set_snapshot_generation(false);
             }
