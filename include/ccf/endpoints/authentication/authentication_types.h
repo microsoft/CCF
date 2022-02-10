@@ -4,9 +4,9 @@
 
 #include "ccf/tx.h"
 
-#include <string>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <string>
 
 namespace enclave
 {

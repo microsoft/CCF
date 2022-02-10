@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
+#include "ccf/service/signed_req.h"
 #include "consensus/aft/request.h"
 #include "crypto/verifier.h"
 #include "ds/buffer.h"
@@ -11,7 +12,6 @@
 #include "http/http_jwt.h"
 #include "kv/store.h"
 #include "rpc_exception.h"
-#include "ccf/service/signed_req.h"
 #include "service/tables/jwt.h"
 #include "service/tables/nodes.h"
 #include "service/tables/service.h"
