@@ -11,7 +11,7 @@
 #include "http/http_jwt.h"
 #include "kv/store.h"
 #include "rpc_exception.h"
-#include "service/tables/client_signatures.h"
+#include "ccf/service/signed_req.h"
 #include "service/tables/jwt.h"
 #include "service/tables/nodes.h"
 #include "service/tables/service.h"

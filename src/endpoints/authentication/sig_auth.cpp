@@ -54,8 +54,7 @@ namespace ccf
     verifiers(std::make_unique<VerifierCache>())
   {}
 
-  // TODO: Surely default, in the header?
-  UserSignatureAuthnPolicy::~UserSignatureAuthnPolicy() {}
+  UserSignatureAuthnPolicy::~UserSignatureAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> UserSignatureAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
@@ -138,8 +137,7 @@ namespace ccf
     verifiers(std::make_unique<VerifierCache>())
   {}
 
-  // TODO: Surely default, in the header?
-  MemberSignatureAuthnPolicy::~MemberSignatureAuthnPolicy() {}
+  MemberSignatureAuthnPolicy::~MemberSignatureAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberSignatureAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,

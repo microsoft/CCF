@@ -5,9 +5,6 @@
 #include "ccf/endpoints/authentication/authentication_types.h"
 #include "ccf/entity_id.h"
 
-// TODO: Remove
-#include "service/tables/nodes.h"
-
 namespace ccf
 {
   namespace
@@ -70,7 +67,6 @@ namespace ccf
   struct NodeCertAuthnIdentity : public AuthnIdentity
   {
     ccf::NodeId node_id;
-    ccf::NodeInfo node_info;
   };
 
   class NodeCertAuthnPolicy : public AuthnPolicy

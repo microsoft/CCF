@@ -66,7 +66,6 @@ namespace ccf
     {
       auto identity = std::make_unique<NodeCertAuthnIdentity>();
       identity->node_id = node_caller_id;
-      identity->node_info = node.value();
       return identity;
     }
 

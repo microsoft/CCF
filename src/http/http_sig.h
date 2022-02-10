@@ -7,7 +7,7 @@
 #include "crypto/key_pair.h"
 #include "http_consts.h"
 #include "http_parser.h"
-#include "service/tables/client_signatures.h"
+#include "ccf/service/signed_req.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

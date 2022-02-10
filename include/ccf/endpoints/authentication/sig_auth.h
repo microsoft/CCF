@@ -4,9 +4,7 @@
 
 #include "ccf/endpoints/authentication/authentication_types.h"
 #include "ccf/entity_id.h"
-
-// TODO: Remove? Public?
-#include "service/tables/client_signatures.h"
+#include "ccf/service/signed_req.h"
 
 namespace ccf
 {

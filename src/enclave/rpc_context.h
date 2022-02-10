@@ -8,7 +8,7 @@
 #include "http/http_consts.h"
 #include "node/entities.h"
 #include "node/rpc/error.h"
-#include "service/tables/client_signatures.h"
+#include "ccf/service/signed_req.h"
 #include "service/tables/node_info_network.h"
 
 #include <llhttp/llhttp.h>

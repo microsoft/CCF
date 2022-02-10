@@ -14,7 +14,7 @@
 #include "node/rpc/serdes.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
-#include "service/tables/client_signatures.h"
+#include "ccf/service/signed_req.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
