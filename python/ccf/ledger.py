@@ -792,10 +792,12 @@ class Ledger:
     _current_chunk: LedgerChunk
     _ledger_validator: LedgerValidator
 
-    def _reset_iterators(self):
+    def _reset_iterators(self, insecure_skip_verification: bool = False):
         self._fileindex = -1
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
-        self._ledger_validator = LedgerValidator()
+        self._ledger_validator = (
+            LedgerValidator() if not insecure_skip_verification else None
+        )
 
     @classmethod
     def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
@@ -812,7 +814,12 @@ class Ledger:
         else:
             assert False, elements
 
-    def __init__(self, directories: List[str], committed_only: bool = True):
+    def __init__(
+        self,
+        directories: List[str],
+        committed_only: bool = True,
+        insecure_skip_verification: bool = False,
+    ):
 
         self._filenames = []
 
@@ -839,7 +846,7 @@ class Ledger:
             key=lambda x: Ledger._range_from_filename(x)[0],
         )
 
-        self._reset_iterators()
+        self._reset_iterators(insecure_skip_verification)
 
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
@@ -934,7 +941,7 @@ class Ledger:
 
         :return int: Number of verified signature transactions.
         """
-        return self._ledger_validator.signature_count
+        return self._ledger_validator.signature_count if self._ledger_validator else 0
 
     def last_verified_txid(self) -> TxID:
         """
@@ -944,9 +951,13 @@ class Ledger:
 
         :return: :py:class:`ccf.tx_id.TxID`
         """
-        return TxID(
-            self._ledger_validator.last_verified_view,
-            self._ledger_validator.last_verified_seqno,
+        return (
+            TxID(
+                self._ledger_validator.last_verified_view,
+                self._ledger_validator.last_verified_seqno,
+            )
+            if self._ledger_validator
+            else TxID(0, 0)
         )
 
 
