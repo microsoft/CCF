@@ -57,6 +57,13 @@ Architecture
 
     Indexing system used to speed up historical queries.
 
+    ---
+
+    :fa:`address-book` :doc:`tls_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of TLS communication.
+
 .. toctree::
     :hidden:
     :maxdepth: 1
