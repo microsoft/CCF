@@ -4,7 +4,7 @@
 
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
-#include "ds/ccf_assert.h"
+#include "ccf/assert.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_map.h"
 
@@ -74,7 +74,13 @@ namespace kv
       std::unique_ptr<untyped::ChangeSet>&& change_set,
       const std::shared_ptr<AbstractMap>& abstract_map)
     {
-      all_changes[map_name] = {abstract_map, std::move(change_set)};
+      const auto it = all_changes.find(map_name);
+      if (it != all_changes.end())
+      {
+        throw std::logic_error(fmt::format("Re-creating change set for map {}", map_name));
+      }
+      all_changes.emplace_hint(
+        it, map_name, MapChanges{abstract_map, std::move(change_set)});
     }
 
     void store_handle(
@@ -161,24 +167,37 @@ namespace kv
         }
       }
 
-      auto [abstract_map, change_set] =
-        get_map_and_change_set_by_name(map_name);
-
-      if (change_set == nullptr)
+      auto it = all_changes.find(map_name);
+      if (it != all_changes.end())
       {
-        CCF_ASSERT_FMT(
-          read_txid.has_value(), "read_txid should have already been set");
-        throw CompactedVersionConflict(fmt::format(
-          "Unable to retrieve state over map {} at {}",
-          map_name,
-          read_txid->version));
-      }
+        auto& [abstract_map, change_set] = it->second;
 
-      auto typed_handle = new THandle(*change_set, map_name);
-      std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
-      store_handle(map_name, std::move(abstract_handle));
-      store_change_set(map_name, std::move(change_set), abstract_map);
-      return typed_handle;
+        auto typed_handle = new THandle(*change_set, map_name);
+        std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
+        store_handle(map_name, std::move(abstract_handle));
+        return typed_handle;
+      }
+      else
+      {
+        auto [abstract_map, change_set] =
+          get_map_and_change_set_by_name(map_name);
+
+        if (change_set == nullptr)
+        {
+          CCF_ASSERT_FMT(
+            read_txid.has_value(), "read_txid should have already been set");
+          throw CompactedVersionConflict(fmt::format(
+            "Unable to retrieve state over map {} at {}",
+            map_name,
+            read_txid->version));
+        }
+
+        auto typed_handle = new THandle(*change_set, map_name);
+        std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
+        store_handle(map_name, std::move(abstract_handle));
+        store_change_set(map_name, std::move(change_set), abstract_map);
+        return typed_handle;
+      }
     }
 
   public:
