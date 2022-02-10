@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/assert.h"
+#include "ccf/ccf_assert.h"
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
 #include "kv/kv_types.h"
