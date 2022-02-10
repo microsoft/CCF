@@ -4,11 +4,10 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/endpoints/authentication/cert_auth.h"
+#include "ccf/endpoints/authentication/jwt_auth.h"
+#include "ccf/endpoints/authentication/sig_auth.h"
 #include "ccf/tx.h"
-#include "http/authentication/authentication_types.h"
-#include "http/authentication/cert_auth.h"
-#include "http/authentication/jwt_auth.h"
-#include "http/authentication/sig_auth.h"
 #include "v8.h"
 
 using ccf::BaseEndpointRegistry;

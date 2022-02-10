@@ -1,0 +1,87 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+#include "ccf/endpoints/authentication/cert_auth.h"
+
+#include "enclave/rpc_context.h"
+#include "service/blit.h"
+#include "service/table_names.h"
+#include "service/tables/members.h"
+#include "service/tables/nodes.h"
+#include "service/tables/users.h"
+
+namespace ccf
+{
+  std::unique_ptr<AuthnIdentity> UserCertAuthnPolicy::authenticate(
+    kv::ReadOnlyTx& tx,
+    const std::shared_ptr<enclave::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    const auto& caller_cert = ctx->session->caller_cert;
+    auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
+
+    auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
+    if (user_certs->has(caller_id))
+    {
+      auto identity = std::make_unique<UserCertAuthnIdentity>();
+      identity->user_id = caller_id;
+      return identity;
+    }
+
+    error_reason = "Could not find matching user certificate";
+    return nullptr;
+  }
+
+  std::unique_ptr<AuthnIdentity> MemberCertAuthnPolicy::authenticate(
+    kv::ReadOnlyTx& tx,
+    const std::shared_ptr<enclave::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    const auto& caller_cert = ctx->session->caller_cert;
+    auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
+
+    auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
+    if (member_certs->has(caller_id))
+    {
+      auto identity = std::make_unique<MemberCertAuthnIdentity>();
+      identity->member_id = caller_id;
+      return identity;
+    }
+
+    error_reason = "Could not find matching member certificate";
+    return nullptr;
+  }
+
+  std::unique_ptr<AuthnIdentity> NodeCertAuthnPolicy::authenticate(
+    kv::ReadOnlyTx& tx,
+    const std::shared_ptr<enclave::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    auto node_caller_id =
+      compute_node_id_from_cert_der(ctx->session->caller_cert);
+
+    auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+    auto node = nodes->get(node_caller_id);
+    if (node.has_value())
+    {
+      auto identity = std::make_unique<NodeCertAuthnIdentity>();
+      identity->node_id = node_caller_id;
+      identity->node_info = node.value();
+      return identity;
+    }
+
+    std::vector<ccf::NodeId> known_nids;
+    nodes->foreach([&known_nids](const NodeId& nid, const NodeInfo& ni) {
+      known_nids.push_back(nid);
+      return true;
+    });
+    LOG_DEBUG_FMT(
+      "Could not find matching node certificate for node {}; we have "
+      "certificates for the following node ids: {}",
+      node_caller_id,
+      fmt::join(known_nids, ", "));
+
+    error_reason = "Could not find matching node certificate";
+    return nullptr;
+  }
+}
