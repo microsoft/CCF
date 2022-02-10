@@ -707,24 +707,23 @@ class Snapshot(Entry):
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
             receipt = json.loads(receipt_bytes.decode("utf-8"))
-            if "leaf" in receipt:
-                leaf = receipt["leaf"]
-            else:
-                assert "leaf_components" in receipt
-                write_set_digest = bytes.fromhex(
-                    receipt["leaf_components"]["write_set_digest"]
-                )
-                claims_digest = bytes.fromhex(
-                    receipt["leaf_components"]["claims_digest"]
-                )
-                commit_evidence_digest = sha256(
-                    receipt["leaf_components"]["commit_evidence"].encode()
-                ).digest()
-                leaf = (
-                    sha256(write_set_digest + commit_evidence_digest + claims_digest)
-                    .digest()
-                    .hex()
-                )
+            # Receipts included in snapshots always contain leaf components,
+            # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
+            # This verification code deliberately does not support snapshots
+            # produced by 2.0.0-dev* releases.
+            assert "leaf_components" in receipt
+            write_set_digest = bytes.fromhex(
+                receipt["leaf_components"]["write_set_digest"]
+            )
+            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+            commit_evidence_digest = sha256(
+                receipt["leaf_components"]["commit_evidence"].encode()
+            ).digest()
+            leaf = (
+                sha256(write_set_digest + commit_evidence_digest + claims_digest)
+                .digest()
+                .hex()
+            )
             root = ccf.receipt.root(leaf, receipt["proof"])
             node_cert = load_pem_x509_certificate(
                 receipt["cert"].encode(), default_backend()
