@@ -64,6 +64,13 @@ Architecture
 
     Internal implementation of TLS communication.
 
+    ---
+
+    :fa:`address-book` :doc:`quic_internals`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Internal implementation of QUIC communication.
+
 .. toctree::
     :hidden:
     :maxdepth: 1
