@@ -650,6 +650,9 @@ class Transaction(Entry):
             pos=self._tx_offset,
         )
 
+    def get_len(self) -> int:
+        return len(self.get_raw_tx())
+
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
         commit_evidence_digest = self.get_public_domain().get_commit_evidence_digest()
@@ -738,6 +741,9 @@ class Snapshot(Entry):
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+
+    def get_len(self) -> int:
+        return self._file_size
 
 
 class LedgerChunk:
