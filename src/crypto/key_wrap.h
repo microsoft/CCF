@@ -60,10 +60,10 @@ namespace crypto
     const std::vector<uint8_t>& unwrapped);
 
   /// PKCS11 2.14.3 CKM_AES_KEY_WRAP_PAD unwrap
+  /// @param wrapping_key The wrapping (encryption) key
+  /// @param wrapped The wrapped key to unwrap
+  /// @return Unwrapped key
   std::vector<uint8_t> ckm_aes_key_unwrap_pad(
-    /// @param wrapping_key The wrapping (encryption) key
-    /// @param wrapped The wrapped key to unwrap
-    /// @return Unwrapped key
     const std::vector<uint8_t>& wrapping_key,
     const std::vector<uint8_t>& wrapped);
 

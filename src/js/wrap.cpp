@@ -921,6 +921,39 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
+  JSValue js_request_ledger_chunk(
+    JSContext* ctx,
+    JSValueConst this_val,
+    [[maybe_unused]] int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+    auto global_obj = jsctx.get_global_obj();
+    auto ccf = global_obj["ccf"];
+    auto kv = ccf["kv"];
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    try
+    {
+      node->request_ledger_chunk(*tx_ctx_ptr->tx);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
+    }
+
+    return JS_UNDEFINED;
+  }
+
   JSValue js_node_trigger_host_process_launch(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -1502,6 +1535,11 @@ namespace ccf::js
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
           0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "requestLedgerChunk",
+        JS_NewCFunction(ctx, js_request_ledger_chunk, "requestLedgerChunk", 0));
     }
 
     if (host_node_state != nullptr)

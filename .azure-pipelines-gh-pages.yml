@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe-0.17.6-0
+    container: ccfciteam/ccf-ci:oe-0.17.6-0-graphviz
     pool:
       vmImage: ubuntu-20.04
 
@@ -32,8 +32,9 @@ jobs:
       # This is because the configuration of the docs (e.g. theme) will change
       # over time and only the main branch should be source of truth and be
       # kept up to date.
-
+      #
       # Only on main and not on PRs
+      # Note: override remote whitelist to detect release branches on remote
       - script: |
           set -ex
           python3.8 -m venv env
@@ -42,7 +43,7 @@ jobs:
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
           pip install -U -r doc/historical_ccf_requirements.txt
-          sphinx-multiversion doc build/html
+          sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
         displayName: Sphinx Multi-version
         condition: |
           and(

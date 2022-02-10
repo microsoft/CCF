@@ -6,6 +6,8 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
+#include "ds/serialized.h"
+#include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
 #include "time_bound_logger.h"
 
@@ -899,6 +901,25 @@ namespace asynchost
     size_t write_entry(
       const uint8_t* data, size_t size, bool committable, bool force_chunk)
     {
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
+
+      bool force_chunk_in_header =
+        header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK;
+
+      if (force_chunk_in_header)
+      {
+        LOG_DEBUG_FMT(
+          "Forcing ledger chunk as required by the entry header flags");
+      }
+
+      if (!committable && force_chunk_in_header)
+      {
+        throw std::logic_error(
+          "ledger chunks cannot end in a non-comittable transaction");
+      }
+
+      force_chunk |= force_chunk_in_header;
+
       TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger entry - {} bytes, committable={}, force_chunk={}, "
         "require_new_file={}",

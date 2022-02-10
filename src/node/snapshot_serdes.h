@@ -100,7 +100,7 @@ namespace ccf
           snapshot_digest_claim));
       }
 
-      auto root = compute_root_from_receipt(receipt);
+      auto root = compute_root_from_snapshot_receipt(receipt);
       auto raw_sig = crypto::raw_from_b64(receipt.signature);
 
       if (!receipt.cert.has_value())
