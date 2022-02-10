@@ -1258,6 +1258,9 @@ namespace ccf
             "Service is already created.");
         }
 
+        auto tx2 = static_cast<kv::CommittableTx*>(&ctx.tx);
+        tx2->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+
         g.create_service(in.service_cert);
 
         // Retire all nodes, in case there are any (i.e. post recovery)

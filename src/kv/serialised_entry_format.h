@@ -12,7 +12,8 @@ namespace kv
 
   enum EntryFlags : uint8_t
   {
-    FORCE_LEDGER_CHUNK = 0x01
+    FORCE_LEDGER_CHUNK_AFTER = 0x01,
+    FORCE_LEDGER_CHUNK_BEFORE = 0x02
   };
 
   // 6 bytes are used for the size of the serialised entry

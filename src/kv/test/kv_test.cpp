@@ -2967,7 +2967,7 @@ TEST_CASE("Ledger entry chunk request")
     size_t entry_data_size = data.size();
     auto header =
       serialized::peek<kv::SerialisedEntryHeader>(entry_data, entry_data_size);
-    REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK) != 0);
+    REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
   }
 
   // Ledger chunk flag is not set in the store anymore
