@@ -7,8 +7,8 @@
 #include "ccf/json_handler.h"
 #include "enclave/node_context.h"
 #include "node/rpc/call_types.h"
-#include "node/rpc/serialization.h"
 #include "node/rpc/frontend.h"
+#include "node/rpc/serialization.h"
 #include "service/network_tables.h"
 
 #include <charconv>

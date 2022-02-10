@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/buffer.h"
 #include "ccf/assert.h"
+#include "ds/buffer.h"
 #include "kv_types.h"
 #include "node/rpc/claims.h"
 #include "serialised_entry.h"

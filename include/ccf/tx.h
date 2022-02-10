@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/assert.h"
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
-#include "ccf/assert.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_map.h"
 
@@ -77,7 +77,8 @@ namespace kv
       const auto it = all_changes.find(map_name);
       if (it != all_changes.end())
       {
-        throw std::logic_error(fmt::format("Re-creating change set for map {}", map_name));
+        throw std::logic_error(
+          fmt::format("Re-creating change set for map {}", map_name));
       }
       all_changes.emplace_hint(
         it, map_name, MapChanges{abstract_map, std::move(change_set)});

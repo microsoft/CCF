@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "crypto/hash.h"
 #include "ccf/assert.h"
+#include "crypto/hash.h"
 #include "ds/dl_list.h"
 
 #include <array>
