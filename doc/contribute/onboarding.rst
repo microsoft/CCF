@@ -47,7 +47,7 @@ To run a locally built copy of this application in a sandbox, see :doc:`/build_a
 Have a look at the Continuous Integration jobs
 ----------------------------------------------
 
-The main CI job for CCF is defined in `a YAML file in the repo <https://github.com/microsoft/CCF/blob/main/.azure-pipelines.yml>`_ and runs are accessible `here <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=3&_a=summary>`_.
+The main CI job for CCF is defined in `a YAML file in the repo <https://github.com/microsoft/CCF/blob/main/.azure-pipelines.yml>`_ and runs are accessible `here <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=3&_a=summary>`__.
 
 That job gates pull requests, and is also used with a different trigger (on tags like ``ccf-*``) to produce releases.
 
@@ -91,3 +91,8 @@ Note that this diagram deliberately does not represent host-to-enclave communica
         OtherNodes --> Consensus
         Consensus -- Sign --> MerkleTree
         MerkleTree -- Signature --> Store
+
+Doxygen
+-------
+
+Doxygen description of the codebase is available `here </doxygen_html>`__.
