@@ -38,10 +38,6 @@
 #  include "kv/test/null_encryptor.h"
 #endif
 
-#ifndef VIRTUAL_ENCLAVE
-#  include "ccf_t.h"
-#endif
-
 #include <atomic>
 #include <chrono>
 #define FMT_HEADER_ONLY
@@ -1184,6 +1180,12 @@ namespace ccf
     void trigger_recovery_shares_refresh(kv::Tx& tx) override
     {
       share_manager.shuffle_recovery_shares(tx);
+    }
+
+    void request_ledger_chunk(kv::Tx& tx) override
+    {
+      auto tx2 = static_cast<kv::CommittableTx*>(&tx);
+      tx2->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
     void trigger_host_process_launch(

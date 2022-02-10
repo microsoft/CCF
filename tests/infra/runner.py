@@ -88,6 +88,7 @@ def run(get_command, args):
 
     args.initial_user_count = 3
     args.sig_ms_interval = 1000  # Set to cchost default value
+    args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
     LOG.info("Starting nodes on {}".format(hosts))
 
