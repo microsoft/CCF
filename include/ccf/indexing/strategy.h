@@ -3,10 +3,14 @@
 #pragma once
 
 #include "ccf/tx_id.h"
-#include "kv/store.h"
 
 #include <memory>
 #include <string>
+
+namespace kv
+{
+  class Store;
+}
 
 namespace ccf::indexing
 {

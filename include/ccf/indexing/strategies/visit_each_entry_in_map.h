@@ -4,6 +4,7 @@
 
 #include "ccf/indexing/strategy.h"
 #include "indexing/indexing_types.h"
+#include "kv/store.h"
 
 namespace ccf::indexing::strategies
 {

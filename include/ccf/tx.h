@@ -4,7 +4,7 @@
 
 #include "ccf/ccf_assert.h"
 #include "ccf/tx_id.h"
-#include "crypto/hash.h"
+#include "ccf/crypto.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_map.h"
 
