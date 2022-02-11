@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/signed_req.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
@@ -10,7 +11,6 @@
 #include "table_names.h"
 #include "tables/backup_signatures.h"
 #include "tables/cert_bundles.h"
-#include "tables/client_signatures.h"
 #include "tables/code_id.h"
 #include "tables/config.h"
 #include "tables/constitution.h"

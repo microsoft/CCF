@@ -5,6 +5,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "ccf/service/signed_req.h"
 #include "ccf/user_frontend.h"
 #include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
@@ -14,7 +15,6 @@
 #include "node/rpc/member_frontend.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
-#include "service/tables/client_signatures.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

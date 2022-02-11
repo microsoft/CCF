@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/entity_id.h"
-#include "client_signatures.h"
+#include "ccf/service/signed_req.h"
 #include "crypto/pem.h"
 #include "ds/hash.h"
 #include "node_signature.h"

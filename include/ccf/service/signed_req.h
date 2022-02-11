@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
+#include "ccf/crypto.h"
 #include "ccf/ds/json.h"
-#include "crypto/hash.h"
-#include "ds/hash.h"
-#include "service/map.h"
 
 #include <vector>
 
@@ -14,6 +13,7 @@ namespace ccf
   {
     /// Signature
     std::vector<uint8_t> sig = {};
+
     /// Signed content
     std::vector<uint8_t> req = {};
 
