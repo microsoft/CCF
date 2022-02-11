@@ -64,7 +64,7 @@ namespace http
   {
     // Ensure digest is present and up-to-date
     crypto::Sha256Hash body_digest(
-      {request.get_content_data(), request.get_content_length()});
+      request.get_content_data(), request.get_content_length());
     request.set_header(
       headers::DIGEST,
       fmt::format(

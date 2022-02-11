@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto.h"
+#include "ccf/crypto/md_type.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ds/buffer.h"
 #include "ds/hex.h"
 
 #include <array>
 #include <cstdint>
 #include <iostream>
-#include <span>
 #include <vector>
 
 namespace crypto

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto.h"
+#include "ccf/crypto/sha256_hash.h"
 
 namespace ccf
 {
