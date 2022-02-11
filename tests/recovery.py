@@ -10,6 +10,7 @@ import ccf.split_ledger
 import ccf.ledger
 import os
 import random
+import json
 
 from loguru import logger as LOG
 
@@ -182,7 +183,27 @@ def run(args):
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
 
+            primary, _ = network.find_primary()
+
             LOG.success("Recovery complete on all nodes")
+
+    # Verify that a new ledger chunk was created at the start of each recovery
+    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
+    for chunk in ledger:
+        first_tx_in_chunk = True
+        for tx in chunk:
+            tables = tx.get_public_domain().get_tables()
+            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
+                service_status = json.loads(
+                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                    ]
+                )["status"]
+                if service_status == "Opening":
+                    assert (
+                        first_tx_in_chunk
+                    ), f"Opening service at seqno {tx.get_public_domain().get_seqno()} did not start a new ledger chunk"
+            first_tx_in_chunk = False
 
 
 if __name__ == "__main__":

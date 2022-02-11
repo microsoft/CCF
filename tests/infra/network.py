@@ -326,13 +326,6 @@ class Network:
                             infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                             timeout=args.ledger_recovery_timeout,
                         )
-                        # Verify that a new ledger chunk was created after public recovery
-                        for f in os.listdir(node.remote.ledger_paths()[0]):
-                            start_seqno, end_seqno = Ledger.range_from_filename(f)
-                            if end_seqno is None:  # Latest ledger chunk
-                                assert (
-                                    last_signed_seqno > start_seqno
-                                ), f"Last signed seqno {last_signed_seqno} is not in latest ledger chunk {f}"
                 else:
                     # When a new service is started, initial nodes join without a snapshot
                     self._add_node(
