@@ -1131,4 +1131,13 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "request_snapshot",
+    new Action(
+      function (args) {},
+      function (args, proposalId) {
+        ccf.node.requestSnapshot();
+      }
+    ),
+  ],
 ]);
