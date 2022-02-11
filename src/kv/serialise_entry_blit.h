@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/entity_id.h"
-#include "ds/nonstd.h"
+#include "ccf/ds/nonstd.h"
 #include "serialised_entry.h"
 
 namespace kv::serialisers

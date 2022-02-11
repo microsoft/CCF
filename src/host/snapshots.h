@@ -4,7 +4,7 @@
 
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
-#include "ds/nonstd.h"
+#include "ccf/ds/nonstd.h"
 #include "host/ledger.h"
 #include "time_bound_logger.h"
 

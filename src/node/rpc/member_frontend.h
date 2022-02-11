@@ -6,7 +6,7 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/json_handler.h"
 #include "crypto/key_pair.h"
-#include "ds/nonstd.h"
+#include "ccf/ds/nonstd.h"
 #include "frontend.h"
 #include "js/wrap.h"
 #include "node/quote.h"

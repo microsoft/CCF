@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/nonstd.h"
+#include "ccf/ds/nonstd.h"
 #include "http/http_status.h"
 #include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"

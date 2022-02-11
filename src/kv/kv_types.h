@@ -7,7 +7,7 @@
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
 #include "crypto/pem.h"
-#include "ds/nonstd.h"
+#include "ccf/ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
