@@ -83,14 +83,14 @@ done
 has_required_args=true
 if [ -z "$signing_cert" ]; then
     echo "Error: No signing certificate found in arguments (--signing-cert)."
-    if [ ! -z "$cert" ]; then
+    if [ -n "$cert" ]; then
         echo "  Did you mean: --signing-cert $cert?"
     fi
     has_required_args=false
 fi
 if [ -z "$signing_privk" ] && [ "$is_print_digest_to_sign" == false ]; then
     echo "Error: No signing private key found in arguments (--signing-key)."
-    if [ ! -z "$privk" ]; then
+    if [ -n "$privk" ]; then
         echo "  Did you mean: --signing-key $privk?"
     fi
     has_required_args=false
