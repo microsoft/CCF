@@ -99,9 +99,6 @@ def test_forced_ledger_chunk(network, args):
     # Issue some more transactions
     network.txs.issue(network, number_txs=13)
 
-    # Wait for the signature interval to ensure we see at least one signature
-    time.sleep(args.sig_ms_interval / 1000)
-
     ledger_dirs = primary.remote.ledger_paths()
 
     # Check that there is indeed a ledger chunk that ends at the
@@ -141,12 +138,8 @@ def test_forced_snapshot(network, args):
     # Issue some more transactions
     network.txs.issue(network, number_txs=13)
 
-    # Wait for the signature interval to ensure we see at least one signature
-    time.sleep(args.sig_ms_interval / 1000)
-
     ledger_dirs = primary.remote.ledger_paths()
     snapshots_dir = network.get_committed_snapshots(primary)
-    network.check_ledger_files_identical()
 
     # Find first signature after proposal.completed_seqno
     ledger = ccf.ledger.Ledger(ledger_dirs)
