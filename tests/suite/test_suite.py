@@ -122,6 +122,7 @@ all_tests_suite = [
     governance.test_service_cert_renewal,
     # e2e_operations:
     e2e_operations.test_forced_ledger_chunk,
+    e2e_operations.test_forced_snapshot,
     #
     #
     #
