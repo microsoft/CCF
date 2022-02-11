@@ -905,7 +905,7 @@ namespace ccf
       // Note: KV term must be set before the first Tx is committed
       network.tables->rollback(
         {last_recovered_term, last_recovered_signed_idx}, new_term);
-      ledger_truncate(last_recovered_signed_idx);
+      ledger_truncate(last_recovered_signed_idx, true);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
@@ -1062,6 +1062,9 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
+
+        // TODO: Add global hook on service table when service is open to notify
+        // host ledger that recovery chunk can be renamed
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -2054,9 +2057,10 @@ namespace ccf
         consensus::LedgerRequestPurpose::Recovery);
     }
 
-    void ledger_truncate(consensus::Index idx)
+    void ledger_truncate(consensus::Index idx, bool recovery_mode = false)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
   };
 }

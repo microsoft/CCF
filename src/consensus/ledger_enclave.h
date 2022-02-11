@@ -121,7 +121,8 @@ namespace consensus
      */
     void truncate(Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_truncate, to_host, idx, false /* no recovery */);
     }
 
     /**

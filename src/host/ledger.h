@@ -32,6 +32,8 @@ namespace asynchost
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
   static constexpr auto ledger_corrupt_file_suffix = "corrupted";
+  static constexpr auto ledger_recovery_file_suffix =
+    "recovery"; // TODO: Also true when service is open!
 
   static inline bool is_ledger_file_committed(const std::string& file_name)
   {
@@ -113,7 +115,7 @@ namespace asynchost
 
   class LedgerFile
   {
-  private:
+  public: // TODO: Fix
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
@@ -132,13 +134,23 @@ namespace asynchost
     bool completed = false;
     bool committed = false;
 
+    bool recovery = false;
+
   public:
     // Used when creating a new (empty) ledger file
-    LedgerFile(const std::string& dir, size_t start_idx) :
+    LedgerFile(
+      const std::string& dir, size_t start_idx, bool recovery = false) :
       dir(dir),
       file_name(fmt::format("{}_{}", file_name_prefix, start_idx)),
-      start_idx(start_idx)
+      start_idx(start_idx),
+      recovery(recovery)
     {
+      if (recovery)
+      {
+        file_name =
+          fmt::format("{}.{}", file_name, ledger_recovery_file_suffix);
+      }
+
       auto file_path = fs::path(dir) / fs::path(file_name);
       file = fopen(file_path.c_str(), "w+b");
       if (!file)
@@ -430,6 +442,13 @@ namespace asynchost
 
     bool commit(size_t idx)
     {
+      LOG_FAIL_FMT(
+        "Commit file at {}, complete {}, committed {}, last idx {}",
+        idx,
+        completed,
+        committed,
+        get_last_idx());
+
       if (!completed || committed || (idx != get_last_idx()))
       {
         // No effect if commit idx is not last idx
@@ -442,12 +461,18 @@ namespace asynchost
           fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
-      const auto committed_file_name = fmt::format(
+      auto committed_file_name = fmt::format(
         "{}_{}-{}.{}",
         file_name_prefix,
         start_idx,
         get_last_idx(),
         ledger_committed_suffix);
+
+      if (recovery)
+      {
+        committed_file_name = fmt::format(
+          "{}.{}", committed_file_name, ledger_recovery_file_suffix);
+      }
 
       auto file_path = fs::path(dir) / fs::path(file_name);
       auto committed_file_path = fs::path(dir) / fs::path(committed_file_name);
@@ -506,6 +531,10 @@ namespace asynchost
     // True if a new file should be created when writing an entry
     bool require_new_file;
 
+    // Set during recovery to mark files as temporary until the recovery is
+    // complete
+    bool recovery_mode = false;
+
     auto get_it_contains_idx(size_t idx) const
     {
       if (idx == 0)
@@ -520,6 +549,15 @@ namespace asynchost
         [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
           return (idx <= f->get_last_idx());
         });
+
+      if (f != files.end())
+      {
+        LOG_FAIL_FMT("Found file {} for idx {}", (*f)->file_name, idx);
+      }
+      else
+      {
+        LOG_FAIL_FMT("No file found for {}", idx);
+      }
 
       return f;
     }
@@ -881,6 +919,11 @@ namespace asynchost
       return last_idx;
     }
 
+    void set_recovery_mode()
+    {
+      recovery_mode = true;
+    }
+
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
       TimeBoundLogger log_if_slow(
@@ -947,7 +990,8 @@ namespace asynchost
 
       if (require_new_file)
       {
-        files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
+        files.push_back(std::make_shared<LedgerFile>(
+          ledger_dir, last_idx + 1, recovery_mode));
         require_new_file = false;
       }
 
@@ -1018,6 +1062,8 @@ namespace asynchost
         fmt::format("Committing ledger entry {}", idx));
 
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
+
+      LOG_FAIL_FMT("Committed idx: {}", committed_idx);
 
       if (idx <= committed_idx)
       {
@@ -1140,8 +1186,14 @@ namespace asynchost
         disp,
         consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
+          // TODO: Merge this call with init for the recover node?
           auto idx = serialized::read<consensus::Index>(data, size);
+          auto recovery_mode = serialized::read<bool>(data, size);
           truncate(idx);
+          if (recovery_mode)
+          {
+            set_recovery_mode();
+          }
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

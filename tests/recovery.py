@@ -159,7 +159,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        for i in range(args.recovery):
+        for i in range(1):  # range(args.recovery):
             # Issue transactions which will required historical ledger queries recovery
             # when the network is shutdown
             network.txs.issue(network, number_txs=1)
@@ -167,17 +167,17 @@ def run(args):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            if i % 2 == 0:
-                if args.consensus != "BFT":
-                    recovered_network = test_share_resilience(
-                        network, args, from_snapshot=True
-                    )
-                else:
-                    recovered_network = network
-            else:
-                recovered_network = test(
-                    network, args, from_snapshot=False, split_ledger=True
-                )
+            # if i % 2 == 0:
+            #     if args.consensus != "BFT":
+            #         recovered_network = test_share_resilience(
+            #             network, args, from_snapshot=True
+            #         )
+            #     else:
+            #         recovered_network = network
+            # else:
+            recovered_network = test(
+                network, args, from_snapshot=False, split_ledger=True
+            )
             network = recovered_network
 
             for node in network.get_joined_nodes():
