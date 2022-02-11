@@ -78,6 +78,19 @@ namespace ccf
     j = s;
   }
 
+  static inline llhttp_method http_method_from_str(const char* s)
+  {
+#define XX(num, name, string) \
+  if (strcmp(s, #string) == 0) \
+  { \
+    return llhttp_method(num); \
+  }
+    HTTP_METHOD_MAP(XX)
+#undef XX
+
+    throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
+  }
+
   inline void from_json(const nlohmann::json& j, RESTVerb& verb)
   {
     if (!j.is_string())
@@ -89,6 +102,6 @@ namespace ccf
     std::string s = j.get<std::string>();
     nonstd::to_upper(s);
 
-    verb = RESTVerb(http::http_method_from_str(s.c_str()));
+    verb = RESTVerb(http_method_from_str(s.c_str()));
   }
 }

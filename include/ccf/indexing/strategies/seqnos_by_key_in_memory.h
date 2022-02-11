@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/indexing/strategies/visit_each_entry_in_map.h"
+#include "ccf/seq_no_collection.h"
 
 namespace ccf::indexing::strategies
 {
