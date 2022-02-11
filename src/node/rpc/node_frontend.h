@@ -11,6 +11,7 @@
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/hash.h"
+#include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
 #include "node/entities.h"
