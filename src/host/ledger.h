@@ -899,34 +899,52 @@ namespace asynchost
     }
 
     size_t write_entry(
-      const uint8_t* data, size_t size, bool committable, bool force_chunk)
+      const uint8_t* data,
+      size_t size,
+      bool committable,
+      bool force_chunk_after)
     {
-      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
-
-      bool force_chunk_in_header =
-        header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
-
-      if (force_chunk_in_header)
-      {
-        LOG_DEBUG_FMT(
-          "Forcing ledger chunk as required by the entry header flags");
-      }
-
-      if (!committable && force_chunk_in_header)
-      {
-        throw std::logic_error(
-          "ledger chunks cannot end in a non-comittable transaction");
-      }
-
-      force_chunk |= force_chunk_in_header;
-
       TimeBoundLogger log_if_slow(fmt::format(
-        "Writing ledger entry - {} bytes, committable={}, force_chunk={}, "
+        "Writing ledger entry - {} bytes, committable={}, "
+        "force_chunk_after={}, "
         "require_new_file={}",
         size,
         committable,
-        force_chunk,
+        force_chunk_after,
         require_new_file));
+
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
+
+      if (header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
+      {
+        LOG_TRACE_FMT(
+          "Forcing ledger chunk before entry as required by the entry header "
+          "flags");
+
+        auto f = get_latest_file();
+        if (f != nullptr)
+        {
+          f->complete();
+          require_new_file = true;
+          LOG_DEBUG_FMT("Ledger chunk completed at {}", f->get_last_idx());
+        }
+      }
+
+      bool force_chunk_after_in_header =
+        header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
+      if (force_chunk_after_in_header)
+      {
+        if (!committable)
+        {
+          throw std::logic_error(
+            "Ledger chunks cannot end in a non-committable transaction");
+        }
+        LOG_TRACE_FMT(
+          "Forcing ledger chunk after entry as required by the entry header "
+          "flags");
+      }
+
+      force_chunk_after |= force_chunk_after_in_header;
 
       if (require_new_file)
       {
@@ -940,11 +958,11 @@ namespace asynchost
         "Wrote entry at {} [committable: {}, forced: {}]",
         last_idx,
         committable,
-        force_chunk);
+        force_chunk_after);
 
       if (
         committable &&
-        (force_chunk || f->get_current_size() >= chunk_threshold))
+        (force_chunk_after || f->get_current_size() >= chunk_threshold))
       {
         f->complete();
         require_new_file = true;

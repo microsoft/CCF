@@ -491,7 +491,7 @@ TEST_CASE("Commit")
   size_t last_idx = entry_submitter.get_last_idx();
   REQUIRE(number_of_committed_files_in_ledger_dir() == 0);
 
-  INFO("Comitting end of first chunk");
+  INFO("Committing end of first chunk");
   {
     ledger.commit(end_of_first_chunk_idx);
     REQUIRE(number_of_committed_files_in_ledger_dir() == 1);
@@ -499,7 +499,7 @@ TEST_CASE("Commit")
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx + 1);
   }
 
-  INFO("Comitting in the middle on complete chunk");
+  INFO("Committing in the middle on complete chunk");
   {
     ledger.commit(end_of_first_chunk_idx + 1);
     REQUIRE(number_of_committed_files_in_ledger_dir() == 1); // No effect
@@ -507,21 +507,21 @@ TEST_CASE("Commit")
     REQUIRE(number_of_committed_files_in_ledger_dir() == 1);
   }
 
-  INFO("Comitting at the end of a complete chunk");
+  INFO("Committing at the end of a complete chunk");
   {
     ledger.commit(2 * end_of_first_chunk_idx);
     REQUIRE(number_of_committed_files_in_ledger_dir() == 2);
     read_entries_range_from_ledger(ledger, 1, 2 * end_of_first_chunk_idx + 1);
   }
 
-  INFO("Comitting at the end of last complete chunk");
+  INFO("Committing at the end of last complete chunk");
   {
     ledger.commit(last_idx - 1);
     REQUIRE(number_of_committed_files_in_ledger_dir() == 3);
     read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 
-  INFO("Comitting incomplete chunk");
+  INFO("Committing incomplete chunk");
   {
     ledger.commit(last_idx); // No effect
     REQUIRE(number_of_committed_files_in_ledger_dir() == 3);
@@ -1419,14 +1419,14 @@ TEST_CASE("Chunking according to entry header flag")
     REQUIRE(number_of_files_in_ledger_dir() == 1);
   }
 
-  INFO("Write an entry with the ledger chunking header flag enabled");
+  INFO("Write an entry with the ledger chunking after header flag enabled");
   {
     entry_submitter.write(
       is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
 
     REQUIRE(number_of_files_in_ledger_dir() == 1);
 
-    // As the threshold is passed, a new ledger file is created
+    // New entry is written in a new chunk
     entry_submitter.write(false);
     REQUIRE(number_of_files_in_ledger_dir() == 2);
   }
@@ -1439,5 +1439,15 @@ TEST_CASE("Chunking according to entry header flag")
     }
 
     REQUIRE(number_of_files_in_ledger_dir() == 3);
+  }
+
+  INFO("Write an entry with the ledger chunking before header flag enabled");
+  {
+    auto ledger_files_count = number_of_files_in_ledger_dir();
+    entry_submitter.write(
+      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
+
+    // Forcing a new chunk before created a new chunk to store this entry
+    REQUIRE(number_of_files_in_ledger_dir() == ledger_files_count + 1);
   }
 }

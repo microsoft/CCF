@@ -1274,6 +1274,9 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key};
 
+        auto tx_ = static_cast<kv::CommittableTx*>(&ctx.tx);
+        tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {

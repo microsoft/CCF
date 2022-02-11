@@ -130,7 +130,7 @@ namespace ccf
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    consensus::Index last_recovered_signed_idx = 1;
+    consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
 
