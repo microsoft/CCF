@@ -5,7 +5,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/json.h"
 #include "ccf/json_handler.h"
-#include "enclave/node_context.h"
+#include "ccf/node_context.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/frontend.h"
 #include "node/rpc/serialization.h"

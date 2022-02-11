@@ -5,8 +5,8 @@
 #include "ccf/node_startup_state.h"
 #include "node/entities.h"
 #include "node/session_metrics.h"
-#include "service/tables/quote_info.h"
 #include "service/tables/code_id.h"
+#include "service/tables/quote_info.h"
 
 namespace ccf
 {

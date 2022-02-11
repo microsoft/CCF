@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// TODO: Would like to hide a bunch of this implementation! Templated, but SeqNoCollection doesn't care about that...
-
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <numeric>
