@@ -6,11 +6,11 @@
 #include "timing.h"
 
 // CCF
+#include "ccf/ds/logger.h"
 #include "clients/rpc_tls_client.h"
 #include "crypto/verifier.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 
 // STL/3rdparty
 #include <CLI11/CLI11.hpp>

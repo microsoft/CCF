@@ -8,6 +8,7 @@
 #include "crypto/symmetric_key.h"
 #include "ds/hex.h"
 #include "ds/messaging.h"
+#include "indexing/lfs_ringbuffer_types.h"
 
 #include <optional>
 #include <set>

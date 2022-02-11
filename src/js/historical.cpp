@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "js/wrap.h"
+#include "node/tx_receipt.h"
 
 namespace ccf::js
 {

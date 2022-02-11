@@ -2,13 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/indexing/lfs_interface.h"
 #include "ds/ring_buffer_types.h"
 
 namespace ccf::indexing
 {
-  using LFSKey = std::string;
-  using LFSEncryptedContents = std::vector<uint8_t>;
-
   /// LFS-related ringbuffer messages
   enum LFSMsg : ringbuffer::Message
   {

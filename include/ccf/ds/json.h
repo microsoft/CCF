@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "crypto/base64.h"
-#include "json_schema.h"
+#include "ccf/crypto/base64.h"
+#include "ccf/ds/json_schema.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

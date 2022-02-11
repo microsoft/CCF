@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/serialized.h"
 #include "entities.h"
 #include "kv/kv_types.h"

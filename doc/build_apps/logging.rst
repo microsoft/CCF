@@ -7,7 +7,7 @@ To add your own lines to the node's output you should use the macros defined in 
 
 .. code-block:: cpp
 
-    #include "ds/logger.h"
+    #include "ccf/ds/logger.h"
 
     int x = 5;
     LOG_INFO_FMT("x is currently {}", x);

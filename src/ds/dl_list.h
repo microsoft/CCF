@@ -15,5 +15,3 @@ namespace snmalloc
 }
 
 #include "snmalloc/src/ds/dllist.h"
-
-#include <assert.h>

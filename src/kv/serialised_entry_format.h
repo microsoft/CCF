@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ccf_assert.h"
+#include "ccf/ccf_assert.h"
 
 #include <stdint.h>
 

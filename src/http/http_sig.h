@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/base64.h"
+#include "ccf/crypto/base64.h"
+#include "ccf/service/signed_req.h"
 #include "crypto/hash.h"
 #include "crypto/key_pair.h"
 #include "http_consts.h"
 #include "http_parser.h"
-#include "service/tables/client_signatures.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

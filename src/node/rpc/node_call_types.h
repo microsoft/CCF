@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json_schema.h"
 #include "common/configuration.h"
-#include "ds/json_schema.h"
 #include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"

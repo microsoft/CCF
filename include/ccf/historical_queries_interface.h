@@ -4,14 +4,21 @@
 
 #include "ccf/receipt.h"
 #include "ccf/tx_id.h"
-#include "consensus/ledger_enclave_types.h"
 #include "ds/contiguous_set.h"
-#include "kv/store.h"
-#include "node/history.h"
-#include "node/tx_receipt.h"
 
 #include <chrono>
 #include <memory>
+
+namespace kv
+{
+  class Store;
+}
+
+namespace ccf
+{
+  struct TxReceipt;
+  using TxReceiptPtr = std::shared_ptr<TxReceipt>;
+}
 
 namespace ccf::historical
 {

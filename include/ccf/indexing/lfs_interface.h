@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/lfs_types.h"
-
 #include <memory>
 #include <string>
 #include <vector>
@@ -14,6 +12,8 @@
 /// this node can be read by this node.
 namespace ccf::indexing
 {
+  using LFSKey = std::string;
+  using LFSEncryptedContents = std::vector<uint8_t>;
   using LFSContents = std::vector<uint8_t>;
 
   struct FetchResult

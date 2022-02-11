@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "ds/nonstd.h"
 #include "serialised_entry.h"
 
@@ -71,6 +72,11 @@ namespace kv::serialisers
       else if constexpr (std::is_same_v<T, std::string>)
       {
         return T(rep.begin(), rep.end());
+      }
+      else if constexpr (nonstd::is_specialization<T, ccf::EntityId>::value)
+      {
+        typename T::Value v(rep.begin(), rep.end());
+        return T(v);
       }
       else
       {
