@@ -204,30 +204,28 @@ namespace ccf
 
     std::vector<kv::StorePtr> get_stores_for(
       historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos,
+      const SeqNoCollection& seqnos,
       historical::ExpiryDuration seconds_until_expiry)
     {
       return {};
     }
 
     std::vector<kv::StorePtr> get_stores_for(
-      historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos)
+      historical::RequestHandle handle, const SeqNoCollection& seqnos)
     {
       return {};
     }
 
     std::vector<historical::StatePtr> get_states_for(
       historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos,
+      const SeqNoCollection& seqnos,
       historical::ExpiryDuration seconds_until_expiry)
     {
       return {};
     }
 
     std::vector<historical::StatePtr> get_states_for(
-      historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos)
+      historical::RequestHandle handle, const SeqNoCollection& seqnos)
     {
       return {};
     }

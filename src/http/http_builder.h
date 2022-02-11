@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_consts.h"
 #include "ccf/http_status.h"
-#include "http_consts.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -31,7 +31,7 @@ namespace http
 // Most builder function are unused from enclave
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
-  static llhttp_method http_method_from_str(const char* s)
+  llhttp_method http_method_from_str(const char* s)
   {
 #define XX(num, name, string) \
   if (strcmp(s, #string) == 0) \

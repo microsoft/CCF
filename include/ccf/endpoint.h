@@ -3,8 +3,10 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ccf/endpoint_context.h"
 #include "ccf/ds/openapi.h"
+#include "ccf/endpoint_context.h"
+#include "ccf/http_consts.h"
+#include "ccf/rest_verb.h"
 #include "kv/serialise_entry_blit.h"
 #include "service/map.h"
 

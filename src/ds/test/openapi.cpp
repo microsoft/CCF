@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/ds/openapi.h"
 
-#include "http/http_consts.h"
+#include "ccf/http_consts.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
