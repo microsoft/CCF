@@ -22,7 +22,7 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    uint8_t flags = 0; // TODO: using type
+    SerialisedEntryFlags flags = 0;
 
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
@@ -49,7 +49,10 @@ namespace kv
 
       auto e = store->get_encryptor();
       if (e == nullptr)
+      {
         throw KvSerialiserException("No encryptor set");
+      }
+
       auto commit_nonce = e->get_commit_nonce({commit_view, version});
       commit_evidence = fmt::format(
         "ce:{}.{}:{}", commit_view, version, ds::to_hex(commit_nonce));
@@ -167,6 +170,10 @@ namespace kv
         if (flag_enabled(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
         {
           store->set_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+          // This transaction indicates to the store that the next signature
+          // should trigger a new ledger chunk, but *this* transaction does not
+          // create a new ledger chunk
+          unset_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         }
 
         if (version == NoVersion)
@@ -398,14 +405,6 @@ namespace kv
         flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
           "Forcing ledger chunk for signature at {}.{}", commit_view, version);
-      }
-
-      bool force_ledger_chunk = store->flag_enabled_unsafe(
-        AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
-
-      if (force_ledger_chunk)
-      {
-        LOG_DEBUG_FMT("Forcing ledger chunk for this signature");
       }
 
       committed = true;
