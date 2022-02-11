@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf_global.h"
 
+#include "apps/js_v8/tmpl/crypto.h"
 #include "ccf/ds/logger.h"
 #include "consensus.h"
-#include "apps/js_v8/tmpl/crypto.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"

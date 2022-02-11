@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/entity_id.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/entity_id.h"
 #include "serialised_entry.h"
 
 namespace kv::serialisers
