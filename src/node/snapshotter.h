@@ -365,8 +365,11 @@ namespace ccf
         LOG_TRACE_FMT("Recorded {} as last snapshot index", last_snapshot_idx);
       }
 
-      if (idx > forced_snapshot_after_idx)
+      if (forced_snapshot)
+      {
         unset_flag_unsafe(Flag::FORCE_SNAPSHOT_AT_NEXT_SIGNATURE);
+        forced_snapshot_after_idx = -1;
+      }
     }
 
     void rollback(consensus::Index idx)
