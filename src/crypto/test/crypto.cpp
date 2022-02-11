@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "crypto/base64.h"
+#include "ccf/crypto/base64.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/entropy.h"

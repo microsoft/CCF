@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
+#include "ccf/serdes.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -9,7 +11,6 @@
 #include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-#include "ds/logger.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
@@ -23,7 +24,6 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
 #include "rpc/frontend.h"

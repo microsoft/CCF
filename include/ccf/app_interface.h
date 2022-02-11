@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js_plugin.h"
+#include "ccf/js_plugin.h"
 
 #include <memory>
 #include <vector>

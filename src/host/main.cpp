@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"

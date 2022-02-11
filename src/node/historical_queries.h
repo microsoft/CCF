@@ -2,14 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ccf_assert.h"
 #include "ccf/historical_queries_interface.h"
 #include "consensus/ledger_enclave_types.h"
-#include "ds/ccf_assert.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/rpc/node_interface.h"
+#include "node/tx_receipt.h"
 #include "service/tables/node_signature.h"
 
 #include <list>

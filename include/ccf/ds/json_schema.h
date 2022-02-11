@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/nonstd.h"
-
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -12,6 +10,20 @@ namespace ds
 {
   namespace json
   {
+    namespace
+    {
+      /** is_specialization detects type-specialized templates. This does not
+       * work for value-dependent types (eg - std::array)
+       */
+      template <typename T, template <typename...> class U>
+      struct is_specialization : std::false_type
+      {};
+
+      template <template <typename...> class T, typename... Args>
+      struct is_specialization<T<Args...>, T> : std::true_type
+      {};
+    }
+
     struct JsonSchema
     {
       static constexpr auto hyperschema =
@@ -95,11 +107,11 @@ namespace ds
     template <typename T>
     inline std::string schema_name()
     {
-      if constexpr (nonstd::is_specialization<T, std::optional>::value)
+      if constexpr (is_specialization<T, std::optional>::value)
       {
         return schema_name<typename T::value_type>();
       }
-      else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+      else if constexpr (is_specialization<T, std::vector>::value)
       {
         if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
         {
@@ -112,15 +124,15 @@ namespace ds
         }
       }
       else if constexpr (
-        nonstd::is_specialization<T, std::map>::value ||
-        nonstd::is_specialization<T, std::unordered_map>::value)
+        is_specialization<T, std::map>::value ||
+        is_specialization<T, std::unordered_map>::value)
       {
         return fmt::format(
           "{}_to_{}",
           schema_name<typename T::key_type>(),
           schema_name<typename T::mapped_type>());
       }
-      else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+      else if constexpr (is_specialization<T, std::pair>::value)
       {
         return fmt::format(
           "{}_and_{}",
@@ -192,11 +204,11 @@ namespace ds
     template <typename T>
     inline void fill_schema(nlohmann::json& schema)
     {
-      if constexpr (nonstd::is_specialization<T, std::optional>::value)
+      if constexpr (is_specialization<T, std::optional>::value)
       {
         fill_schema<typename T::value_type>(schema);
       }
-      else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+      else if constexpr (is_specialization<T, std::vector>::value)
       {
         if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
         {
@@ -211,8 +223,8 @@ namespace ds
         }
       }
       else if constexpr (
-        nonstd::is_specialization<T, std::map>::value ||
-        nonstd::is_specialization<T, std::unordered_map>::value)
+        is_specialization<T, std::map>::value ||
+        is_specialization<T, std::unordered_map>::value)
       {
         // Nlohmann JSON serialises some maps as objects, if the keys can be
         // converted to strings. This should detect those cases. The others are
@@ -239,7 +251,7 @@ namespace ds
           schema["items"] = items;
         }
       }
-      else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+      else if constexpr (is_specialization<T, std::pair>::value)
       {
         schema["type"] = "array";
         auto items = nlohmann::json::array();

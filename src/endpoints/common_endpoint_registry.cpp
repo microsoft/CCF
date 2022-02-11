@@ -10,6 +10,9 @@
 #include "ds/nonstd.h"
 #include "enclave/node_context.h"
 #include "http/http_consts.h"
+#include "node/rpc/call_types.h"
+#include "node/rpc/serialization.h"
+#include "node/tx_receipt.h"
 #include "service/tables/code_id.h"
 
 namespace ccf

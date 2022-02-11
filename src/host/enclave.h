@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "crypto/hash.h"
 #include "crypto/key_pair.h"
-#include "ds/logger.h"
 #include "enclave/interface.h"
 
 #include <dlfcn.h>

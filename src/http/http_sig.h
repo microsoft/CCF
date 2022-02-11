@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/base64.h"
 #include "ccf/service/signed_req.h"
-#include "crypto/base64.h"
 #include "crypto/hash.h"
 #include "crypto/key_pair.h"
 #include "http_consts.h"

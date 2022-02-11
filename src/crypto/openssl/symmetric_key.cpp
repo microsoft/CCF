@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "symmetric_key.h"
 
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/symmetric_key.h"
-#include "ds/logger.h"
 #include "ds/thread_messaging.h"
 
 #include <openssl/aes.h>

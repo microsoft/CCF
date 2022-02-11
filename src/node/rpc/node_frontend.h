@@ -17,6 +17,7 @@
 #include "node/network_state.h"
 #include "node/quote.h"
 #include "node/rpc/error.h"
+#include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"

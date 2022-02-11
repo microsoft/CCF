@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "crypto/hash.h"
-#include "ds/json.h"
 #include "kv/kv_types.h"
 #include "service/map.h"
 

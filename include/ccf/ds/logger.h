@@ -2,8 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "logger_formatters.h"
-#include "thread_ids.h"
+#include "ccf/ds/thread_ids.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
