@@ -4,7 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/nonstd.h"
-#include "http/http_status.h"
+#include "ccf/http_status.h"
 
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
@@ -35,15 +35,6 @@ namespace ds
       {
         const auto ib = j.emplace(k, nlohmann::json::array());
         return ib.first.value();
-      }
-    }
-
-    static inline void check_path_valid(const std::string& s)
-    {
-      if (!nonstd::starts_with(s, "/"))
-      {
-        throw std::logic_error(
-          fmt::format("'{}' is not a valid path - must begin with '/'", s));
       }
     }
 

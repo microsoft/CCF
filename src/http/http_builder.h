@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_status.h"
 #include "http_consts.h"
-#include "http_status.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ds/openapi.h"
+#include "ccf/ds/openapi.h"
 
 #include "http/http_consts.h"
 
