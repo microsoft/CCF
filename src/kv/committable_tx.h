@@ -22,14 +22,13 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    uint8_t flags = 0;
+    uint8_t flags = 0; // TODO: using type
 
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
       const ccf::ClaimsDigest& claims_digest = ccf::no_claims(),
-      bool include_reads = false,
-      bool force_ledger_chunk = false)
+      bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
@@ -61,18 +60,16 @@ namespace kv
         EntryType::WriteSetWithCommitEvidence :
         EntryType::WriteSetWithCommitEvidenceAndClaims;
 
-      uint8_t header_flags =
-        force_ledger_chunk ? EntryFlags::FORCE_LEDGER_CHUNK : 0;
-
       LOG_TRACE_FMT(
         "Serialising claim digest {} {}",
         claims_digest.value(),
         claims_digest.empty());
+
       KvStoreSerialiser replicated_serialiser(
         e,
         {commit_view, version},
         entry_type,
-        header_flags,
+        flags,
         tx_commit_evidence_digest,
         claims_digest);
 
@@ -395,6 +392,14 @@ namespace kv
       // This is a signature and, if the ledger chunking flag is enabled, we
       // want the host to create a chunk when it sees this entry.
       // version_lock held by Store::commit
+      if (store->flag_enabled_unsafe(
+            AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
+      {
+        flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
+        LOG_DEBUG_FMT(
+          "Forcing ledger chunk for signature at {}.{}", commit_view, version);
+      }
+
       bool force_ledger_chunk = store->flag_enabled_unsafe(
         AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
@@ -404,12 +409,8 @@ namespace kv
       }
 
       committed = true;
-      auto data = serialise(
-        commit_evidence_digest,
-        commit_evidence,
-        ccf::no_claims(),
-        /* include_reads= */ false,
-        force_ledger_chunk);
+      auto data =
+        serialise(commit_evidence_digest, commit_evidence, ccf::no_claims());
 
       // Reset ledger chunk flag in the store
       store->unset_flag_unsafe(

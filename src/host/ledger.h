@@ -904,7 +904,7 @@ namespace asynchost
       auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
 
       bool force_chunk_in_header =
-        header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK;
+        header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
 
       if (force_chunk_in_header)
       {

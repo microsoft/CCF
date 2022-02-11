@@ -1422,7 +1422,7 @@ TEST_CASE("Chunking according to entry header flag")
   INFO("Write an entry with the ledger chunking header flag enabled");
   {
     entry_submitter.write(
-      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK);
+      is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
 
     REQUIRE(number_of_files_in_ledger_dir() == 1);
 

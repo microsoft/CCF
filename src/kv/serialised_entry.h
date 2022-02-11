@@ -9,3 +9,5 @@ namespace kv::serialisers
 {
   using SerialisedEntry = llvm_vecsmall::SmallVector<uint8_t, 8>;
 }
+
+#include "ds/logger_formatters.h" // TODO: Remove
