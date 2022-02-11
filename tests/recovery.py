@@ -193,6 +193,7 @@ def run(args):
         first_tx_in_chunk = True
         for tx in chunk:
             tables = tx.get_public_domain().get_tables()
+            seqno = tx.get_public_domain().get_seqno()
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
                 service_status = json.loads(
                     tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
@@ -200,9 +201,10 @@ def run(args):
                     ]
                 )["status"]
                 if service_status == "Opening":
+                    LOG.info(f"New ledger chunk found for service opening at {seqno}")
                     assert (
                         first_tx_in_chunk
-                    ), f"Opening service at seqno {tx.get_public_domain().get_seqno()} did not start a new ledger chunk"
+                    ), f"Opening service at seqno {seqno} did not start a new ledger chunk"
             first_tx_in_chunk = False
 
 

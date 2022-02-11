@@ -798,7 +798,7 @@ class Ledger:
         self._ledger_validator = LedgerValidator()
 
     @classmethod
-    def range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
+    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
         elements = (
             os.path.basename(filename)
             .replace(COMMITTED_FILE_SUFFIX, "")
@@ -836,7 +836,7 @@ class Ledger:
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: Ledger.range_from_filename(x)[0],
+            key=lambda x: Ledger._range_from_filename(x)[0],
         )
 
         self._reset_iterators()
@@ -844,7 +844,7 @@ class Ledger:
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
         last_chunk_name = self._filenames[-1]
-        return Ledger.range_from_filename(last_chunk_name)
+        return Ledger._range_from_filename(last_chunk_name)
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
