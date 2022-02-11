@@ -321,7 +321,7 @@ class Network:
                             **forwarded_args,
                             **kwargs,
                         )
-                        last_signed_seqno = self.wait_for_state(
+                        self.wait_for_state(
                             node,
                             infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                             timeout=args.ledger_recovery_timeout,
@@ -712,14 +712,12 @@ class Network:
         return infra.e2e_args.max_f(self.args, len(self.nodes))
 
     def wait_for_state(self, node, state, timeout=3):
-        last_signed_seqno = None
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout) as c:
                     r = c.get("/node/state").body.json()
                     if r["state"] == state:
-                        last_signed_seqno = r["last_signed_seqno"]
                         break
             except ConnectionRefusedError:
                 pass
@@ -730,7 +728,6 @@ class Network:
             )
         if state == infra.node.State.PART_OF_NETWORK.value:
             self.status = ServiceStatus.OPEN
-        return last_signed_seqno
 
     def _wait_for_app_open(self, node, timeout=3):
         end_time = time.time() + timeout
