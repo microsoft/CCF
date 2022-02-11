@@ -47,17 +47,6 @@
 #include <unordered_set>
 #include <vector>
 
-// Used by fmtlib to render ccf::State
-namespace std
-{
-  std::ostream& operator<<(std::ostream& os, ccf::State s)
-  {
-    nlohmann::json j;
-    to_json(j, s);
-    return os << j.dump();
-  }
-}
-
 namespace ccf
 {
   using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
@@ -80,7 +69,7 @@ namespace ccf
     //
     // this node's core state
     //
-    ds::StateMachine<State> sm;
+    ds::StateMachine<NodeStartupState> sm;
     std::mutex lock;
 
     CurveID curve_id;
@@ -1426,7 +1415,7 @@ namespace ccf
     ExtendedState state() override
     {
       std::lock_guard<std::mutex> guard(lock);
-      State s = sm.value();
+      auto s = sm.value();
       if (s == NodeStartupState::readingPrivateLedger)
       {
         return {s, recovery_v, recovery_store->current_version()};

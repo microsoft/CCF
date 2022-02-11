@@ -29,3 +29,14 @@ namespace ccf
      {ccf::NodeStartupState::readingPrivateLedger, "ReadingPrivateLedger"},
      {ccf::NodeStartupState::verifyingSnapshot, "VerifyingSnapshot"}})
 }
+
+// Used by fmtlib to render ccf::State
+namespace std
+{
+  inline std::ostream& operator<<(std::ostream& os, ccf::NodeStartupState s)
+  {
+    nlohmann::json j;
+    to_json(j, s);
+    return os << j.dump();
+  }
+}
