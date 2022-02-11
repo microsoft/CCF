@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/indexing/strategy.h"
-#include "indexing/indexing_types.h"
 #include "kv/store.h"
 
 namespace ccf::indexing::strategies
@@ -31,7 +30,7 @@ namespace ccf::indexing::strategies
     {}
 
     void handle_committed_transaction(
-      const ccf::TxID& tx_id, const StorePtr& store) override
+      const ccf::TxID& tx_id, const kv::StorePtr& store) override
     {
       // NB: Get an untyped view over the map with the same name. This saves
       // deserialisation here, where we hand on the raw key and value.
