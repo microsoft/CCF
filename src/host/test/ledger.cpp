@@ -1447,7 +1447,7 @@ TEST_CASE("Chunking according to entry header flag")
     entry_submitter.write(
       is_committable, false, kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
 
-    // Forcing a new chunk before created a new chunk to store this entry
+    // Forcing a new chunk before creating a new chunk to store this entry
     REQUIRE(number_of_files_in_ledger_dir() == ledger_files_count + 1);
   }
 }
