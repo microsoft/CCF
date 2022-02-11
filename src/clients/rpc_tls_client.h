@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/http_consts.h"
 #include "ccf/serdes.h"
 #include "http/http_builder.h"
-#include "ccf/http_consts.h"
 #include "http/http_parser.h"
 #include "tls_client.h"
 

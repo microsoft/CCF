@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/http_consts.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"
 #include "http/http_builder.h"
-#include "ccf/http_consts.h"
 #include "node/entities.h"
 #include "node/rpc/error.h"
 #include "service/tables/node_info_network.h"
