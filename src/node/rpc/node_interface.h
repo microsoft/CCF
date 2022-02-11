@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node_startup_state.h"
 #include "node/entities.h"
 #include "node/session_metrics.h"
-#include "node_call_types.h"
+#include "service/tables/quote_info.h"
+#include "service/tables/code_id.h"
 
 namespace ccf
 {
@@ -17,7 +19,7 @@ namespace ccf
   };
 
   using ExtendedState = std::tuple<
-    State,
+    NodeStartupState,
     std::optional<kv::Version> /* recovery_target_seqno */,
     std::optional<kv::Version> /* last_recovered_seqno */>;
 

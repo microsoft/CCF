@@ -103,7 +103,7 @@ namespace ccf
 
     ExtendedState state() override
     {
-      return {State::partOfNetwork, {}, {}};
+      return {NodeStartupState::partOfNetwork, {}, {}};
     }
 
     void open_user_frontend() override{};
