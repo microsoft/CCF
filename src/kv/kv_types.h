@@ -771,7 +771,7 @@ namespace kv
     enum class Flag : uint8_t
     {
       LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
-      LEDGER_CHUNK_BEFORE_THIS_TX = 0x02, // TODO: Move elsewhere
+      LEDGER_CHUNK_BEFORE_THIS_TX = 0x02,
     };
 
     virtual void set_flag(Flag f) = 0;
