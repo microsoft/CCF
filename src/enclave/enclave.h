@@ -16,6 +16,7 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
+#include "node/rpc/gov_effects.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
@@ -106,7 +107,13 @@ namespace enclave
     };
 
     std::unique_ptr<NodeContext> context = nullptr;
+
+    // TODO: These could be removed, and NodeState could just implement all of
+    // these interfaces? I think it's worth having this dumb redirection layer
+    // though, so it's obvious where we _could_ factor out behaviour/members in
+    // future.
     std::unique_ptr<ccf::NodeOperation> node_operation = nullptr;
+    std::unique_ptr<ccf::GovernanceEffects> gov_effects = nullptr;
 
   public:
     Enclave(
@@ -168,9 +175,10 @@ namespace enclave
         writer_factory->create_writer_to_outside());
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
+      gov_effects = std::make_unique<ccf::GovernanceEffects>(*node);
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
-          network, *context, share_manager));
+          network, *context, share_manager, *gov_effects));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         ccfapp::get_rpc_handler(network, *context));

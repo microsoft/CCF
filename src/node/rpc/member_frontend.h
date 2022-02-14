@@ -11,6 +11,7 @@
 #include "js/wrap.h"
 #include "node/quote.h"
 #include "node/rpc/call_types.h"
+#include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/serialization.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -373,7 +374,7 @@ namespace ccf
               nullptr,
               std::nullopt,
               nullptr,
-              &context.get_node_state(), // TODO: This is the governance one!
+              &gov_effects,
               nullptr,
               &network,
               nullptr,
@@ -463,15 +464,18 @@ namespace ccf
 
     NetworkState& network;
     ShareManager& share_manager;
+    AbstractGovernanceEffects& gov_effects;
 
   public:
     MemberEndpoints(
-      NetworkState& network,
+      NetworkState& network_,
       ccfapp::AbstractNodeContext& context_,
-      ShareManager& share_manager) :
+      ShareManager& share_manager_,
+      AbstractGovernanceEffects& gov_effects_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
-      network(network),
-      share_manager(share_manager)
+      network(network_),
+      share_manager(share_manager_),
+      gov_effects(gov_effects_)
     {
       openapi_info.title = "CCF Governance API";
       openapi_info.description =
@@ -1406,9 +1410,10 @@ namespace ccf
     MemberRpcFrontend(
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
-      ShareManager& share_manager) :
+      ShareManager& share_manager,
+      AbstractGovernanceEffects& gov_effects) :
       RpcFrontend(*network.tables, member_endpoints),
-      member_endpoints(network, context, share_manager)
+      member_endpoints(network, context, share_manager, gov_effects)
     {}
   };
 } // namespace ccf

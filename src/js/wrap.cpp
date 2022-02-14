@@ -512,7 +512,7 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
 
     auto global_obj = jsctx.get_global_obj();
@@ -527,7 +527,7 @@ namespace ccf::js
         ctx, "No transaction available to rekey ledger");
     }
 
-    bool result = node->rekey_ledger(*tx_ctx_ptr->tx);
+    bool result = gov_effects->rekey_ledger(*tx_ctx_ptr->tx);
 
     if (!result)
     {
@@ -551,10 +551,10 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
 
-    if (node == nullptr)
+    if (gov_effects == nullptr)
     {
       return JS_ThrowInternalError(ctx, "Node state is not set");
     }
@@ -573,7 +573,7 @@ namespace ccf::js
 
     try
     {
-      node->transition_service_to_open(*tx_ctx_ptr->tx);
+      gov_effects->transition_service_to_open(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
@@ -902,7 +902,7 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
     auto ccf = global_obj["ccf"];
@@ -916,7 +916,7 @@ namespace ccf::js
         ctx, "No transaction available to open service");
     }
 
-    node->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
+    gov_effects->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
 
     return JS_UNDEFINED;
   }
@@ -929,7 +929,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
     auto ccf = global_obj["ccf"];
@@ -944,7 +944,7 @@ namespace ccf::js
 
     try
     {
-      node->request_ledger_chunk(*tx_ctx_ptr->tx);
+      gov_effects->request_ledger_chunk(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
@@ -997,10 +997,10 @@ namespace ccf::js
       process_args.push_back(*arg);
     }
 
-    auto node = static_cast<ccf::AbstractNodeState*>(
+    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, host_class_id));
 
-    node->trigger_host_process_launch(process_args);
+    gov_effects->trigger_host_process_launch(process_args);
 
     return JS_UNDEFINED;
   }
@@ -1383,7 +1383,7 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
@@ -1501,7 +1501,7 @@ namespace ccf::js
     }
 
     // Node state
-    if (node_state != nullptr)
+    if (gov_effects != nullptr)
     {
       if (txctx == nullptr)
       {
@@ -1509,7 +1509,7 @@ namespace ccf::js
       }
 
       auto node = JS_NewObjectClass(ctx, node_class_id);
-      JS_SetOpaque(node, node_state);
+      JS_SetOpaque(node, gov_effects);
       JS_SetPropertyStr(ctx, ccf, "node", node);
       JS_SetPropertyStr(
         ctx,
@@ -1671,7 +1671,7 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
@@ -1690,7 +1690,7 @@ namespace ccf::js
         rpc_ctx,
         transaction_id,
         receipt,
-        node_state,
+        gov_effects,
         host_node_state,
         network_state,
         historical_state,
@@ -1704,7 +1704,7 @@ namespace ccf::js
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
-    ccf::AbstractNodeState* node_state,
+    ccf::AbstractGovernanceEffects* gov_effects,
     ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
@@ -1718,7 +1718,7 @@ namespace ccf::js
       rpc_ctx,
       transaction_id,
       receipt,
-      node_state,
+      gov_effects,
       host_node_state,
       network_state,
       historical_state,

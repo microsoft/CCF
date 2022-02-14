@@ -4,14 +4,17 @@
 
 #include "ccf/historical_queries_interface.h"
 #include "kv/test/stub_consensus.h"
+#include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_interface.h"
+#include "node/rpc/node_operation_interface.h"
 #include "node/share_manager.h"
 
 namespace ccf
 {
   // TODO: Split this into separate stubs, once duplicate methods are deleted
   class StubNodeState : public ccf::AbstractNodeState,
-                        public ccf::AbstractNodeOperation
+                        public ccf::AbstractNodeOperation,
+                        public ccf::AbstractGovernanceEffects
   {
   private:
     bool is_public = false;
