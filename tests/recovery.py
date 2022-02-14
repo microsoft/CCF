@@ -79,6 +79,15 @@ def test(network, args, from_snapshot=False, split_ledger=False):
         committed_ledger_dirs=committed_ledger_dirs,
         snapshots_dir=snapshots_dir,
     )
+
+    # TODO: Check that recovery files are committed
+    primary, _ = recovered_network.find_primary()
+    for _ in range(0, 10):
+        recovered_network.consortium.create_and_withdraw_large_proposal(primary)
+
+    import time
+
+    time.sleep(10)
     recovered_network.recover(args)
 
     return recovered_network

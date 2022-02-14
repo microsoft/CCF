@@ -1842,6 +1842,15 @@ namespace ccf
 
             network.identity->set_certificate(w->cert);
             open_user_frontend();
+
+            if (w->status == ServiceStatus::OPEN)
+            {
+              size_t idx = 0;
+              RINGBUFFER_WRITE_MESSAGE(
+                consensus::ledger_open,
+                to_host,
+                idx /* TODO: Needs at least one argument */);
+            }
           }));
     }
 

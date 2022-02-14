@@ -76,6 +76,24 @@ namespace asynchost
     return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
   }
 
+  static inline bool is_ledger_file_name_recovery(const std::string& file_name)
+  {
+    return nonstd::ends_with(file_name, ledger_recovery_file_suffix);
+  }
+
+  static inline std::string remove_recovery_suffix(const std::string& file_name)
+  {
+    if (!is_ledger_file_name_recovery(file_name))
+    {
+      throw std::logic_error(fmt::format(
+        "Cannot remove recovery suffix from non-recovery ledger file {}",
+        file_name));
+    }
+
+    // TODO: Not precise enough!
+    return file_name.substr(0, file_name.find_last_of("."));
+  }
+
   static std::optional<std::string> get_file_name_with_idx(
     const std::string& dir, size_t idx)
   {
@@ -914,6 +932,33 @@ namespace asynchost
       committed_idx = idx;
     }
 
+    void open()
+    {
+      TimeBoundLogger log_if_slow("Open ledger");
+
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename();
+        if (is_ledger_file_name_recovery(file_name))
+        {
+          LOG_FAIL_FMT("Recovery file: {}", file_name);
+
+          auto non_recovery_file_name = remove_recovery_suffix(file_name);
+
+          std::error_code ec;
+          fs::rename(
+            f.path(),
+            fs::path(ledger_dir) / fs::path(non_recovery_file_name),
+            ec);
+          if (ec)
+          {
+            // TODO: Handle error
+          }
+          LOG_DEBUG_FMT("Renamed recovery file to {}", non_recovery_file_name);
+        }
+      }
+    }
+
     size_t get_last_idx() const
     {
       return last_idx;
@@ -1202,6 +1247,11 @@ namespace asynchost
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
           commit(idx);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, consensus::ledger_open, [this](const uint8_t*, size_t) {
+          open();
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
