@@ -3,24 +3,13 @@
 #pragma once
 
 #include "node/entities.h"
+#include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
-#include "node_call_types.h"
+#include "service/tables/code_id.h"
+#include "service/tables/quote_info.h"
 
 namespace ccf
 {
-  enum class QuoteVerificationResult
-  {
-    Verified = 0,
-    Failed,
-    FailedCodeIdNotFound,
-    FailedInvalidQuotedPublicKey,
-  };
-
-  using ExtendedState = std::tuple<
-    State,
-    std::optional<kv::Version> /* recovery_target_seqno */,
-    std::optional<kv::Version> /* last_recovered_seqno */>;
-
   class AbstractNodeState
   {
   public:

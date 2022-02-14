@@ -5,6 +5,7 @@
 #include "ccf/ds/logger.h"
 #include "crypto/hash.h"
 #include "ds/oversized.h"
+#include "node/rpc/node_operation.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
@@ -99,6 +100,7 @@ namespace enclave
     };
 
     std::unique_ptr<NodeContext> context = nullptr;
+    std::unique_ptr<ccf::NodeOperation> node_operation = nullptr;
 
   public:
     Enclave(
@@ -167,8 +169,10 @@ namespace enclave
       rpc_map->register_frontend<ccf::ActorsType::users>(
         ccfapp::get_rpc_handler(network, *context));
 
+      node_operation = std::make_unique<ccf::NodeOperation>(*node);
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
-        std::make_unique<ccf::NodeRpcFrontend>(network, *context));
+        std::make_unique<ccf::NodeRpcFrontend>(
+          network, *context, *node_operation));
 
       ccf::js::register_ffi_plugins(ccfapp::get_js_plugins());
 

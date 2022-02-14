@@ -9,7 +9,9 @@
 
 namespace ccf
 {
-  class StubNodeState : public ccf::AbstractNodeState
+  // TODO: Split this into separate stubs, once duplicate methods are deleted
+  class StubNodeState : public ccf::AbstractNodeState,
+                        public ccf::AbstractNodeOperationInterface
   {
   private:
     bool is_public = false;
@@ -103,7 +105,7 @@ namespace ccf
 
     ExtendedState state() override
     {
-      return {State::partOfNetwork, {}, {}};
+      return {NodeStartupState::partOfNetwork, {}, {}};
     }
 
     void open_user_frontend() override{};

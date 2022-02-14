@@ -37,7 +37,7 @@ namespace ccf
     struct Out
     {
       ccf::NodeId node_id;
-      ccf::State state;
+      ccf::NodeStartupState state;
       kv::Version last_signed_seqno;
       kv::Version startup_seqno;
 

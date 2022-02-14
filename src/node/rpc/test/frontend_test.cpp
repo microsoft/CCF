@@ -351,7 +351,7 @@ class TestForwardingNodeFrontEnd : public NodeRpcFrontend,
 public:
   TestForwardingNodeFrontEnd(
     ccf::NetworkState& network, ccf::StubNodeContext& context) :
-    NodeRpcFrontend(network, context)
+    NodeRpcFrontend(network, context, context.state)
   {
     open();
 

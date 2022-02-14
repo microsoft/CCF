@@ -324,7 +324,7 @@
             "$ref": "#/components/schemas/uint64"
           },
           "state": {
-            "$ref": "#/components/schemas/ccf__State"
+            "$ref": "#/components/schemas/ccf__NodeStartupState"
           }
         },
         "required": [
@@ -688,7 +688,7 @@
       "boolean": {
         "type": "boolean"
       },
-      "ccf__State": {
+      "ccf__NodeStartupState": {
         "enum": [
           "Uninitialized",
           "Initialized",
