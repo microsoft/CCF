@@ -546,6 +546,10 @@ class Network:
                 longest_ledger_seqno = last_seqno
                 longest_ledger_node = node
 
+        LOG.error(
+            f"Longest ledger node: {longest_ledger_node}, seqno: {longest_ledger_seqno}"
+        )
+
         if longest_ledger_node:
 
             def list_files_in_dirs_with_checksums(dirs):
@@ -557,11 +561,14 @@ class Network:
                 ]
 
             longest_ledger_dirs, _ = nodes_ledger[longest_ledger_node.local_node_id]
+            LOG.error(f"longest_ledger_dirs: {longest_ledger_dirs}")
             longest_ledger_files = list_files_in_dirs_with_checksums(
                 longest_ledger_dirs
             )
+            LOG.error(f"longest_ledger_files: {longest_ledger_files}")
             for node_id, (ledger_dirs, _) in nodes_ledger.items():
                 ledger_files = list_files_in_dirs_with_checksums(ledger_dirs)
+                LOG.success(f"ledger_files for node {node_id}: {ledger_files}")
                 if not set(ledger_files).issubset(longest_ledger_files):
                     raise Exception(
                         f"Ledger files on node {node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}"
