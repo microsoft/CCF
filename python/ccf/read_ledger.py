@@ -79,8 +79,10 @@ def counted_string(l, name):
 def dump_entry(entry, table_filter, tables_format_rules):
     public_transaction = entry.get_public_domain()
     public_tables = public_transaction.get_tables()
+    flags = entry.get_transaction_header().flags
+    flags_msg = "" if flags == 0 else f", flags={hex(flags)}"
     LOG.success(
-        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{len(entry.get_raw_tx())} bytes]"
+        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{entry.get_len()} bytes{flags_msg}]"
     )
 
     private_table_size = entry.get_private_domain_size()
@@ -114,51 +116,29 @@ def dump_entry(entry, table_filter, tables_format_rules):
                 )
 
 
-def run(args_, tables_format_rules=None):
-    parser = argparse.ArgumentParser(
-        description="Read CCF ledger or snapshot",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument(
-        "paths", help="Path to ledger directories or snapshot file", nargs="+"
-    )
-    parser.add_argument(
-        "-s",
-        "--snapshot",
-        help="Indicates that the path to read is a snapshot",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-t",
-        "--tables",
-        help="Regex filter for tables to display",
-        type=str,
-        default=".*",
-    )
-    parser.add_argument(
-        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
-    )
-    args = parser.parse_args(args_)
-
-    table_filter = re.compile(args.tables)
+def run(
+    paths, is_snapshot=False, tables=".*", uncommitted=False, tables_format_rules=None
+):
 
     # Extend and compile rules
+    table_filter = re.compile(tables)
     tables_format_rules = tables_format_rules or []
     tables_format_rules.extend(default_tables_format_rules)
     tables_format_rules = [
         (re.compile(table_name_re), _) for (table_name_re, _) in tables_format_rules
     ]
 
-    if args.snapshot:
-        snapshot_file = args.paths[0]
+    if is_snapshot:
+        snapshot_file = paths[0]
         with ccf.ledger.Snapshot(snapshot_file) as snapshot:
             LOG.info(
                 f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
             )
             dump_entry(snapshot, table_filter, tables_format_rules)
+        return True
     else:
-        ledger_dirs = args.paths
-        ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not args.uncommitted)
+        ledger_dirs = paths
+        ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not uncommitted)
 
         LOG.info(f"Reading ledger from {ledger_dirs}")
         LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
@@ -191,5 +171,30 @@ if __name__ == "__main__":
         format="<level>{message}</level>",
     )
 
-    if not run(sys.argv[1:]):
+    parser = argparse.ArgumentParser(
+        description="Read CCF ledger or snapshot",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "paths", help="Path to ledger directories or snapshot file", nargs="+"
+    )
+    parser.add_argument(
+        "-s",
+        "--snapshot",
+        help="Indicates that the path to read is a snapshot",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-t",
+        "--tables",
+        help="Regex filter for tables to display",
+        type=str,
+        default=".*",
+    )
+    parser.add_argument(
+        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
+    )
+    args = parser.parse_args()
+
+    if not run(args.paths, args.snapshot, args.tables, args.uncommitted):
         sys.exit(1)

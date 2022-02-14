@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "ds/serialized.h"
 #include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
-#include "node/nodes.h"
-#include "node/service.h"
 #include "node/tx_receipt.h"
+#include "service/tables/nodes.h"
+#include "service/tables/service.h"
 
 #include <nlohmann/json.hpp>
 
@@ -100,7 +100,7 @@ namespace ccf
           snapshot_digest_claim));
       }
 
-      auto root = compute_root_from_receipt(receipt);
+      auto root = compute_root_from_snapshot_receipt(receipt);
       auto raw_sig = crypto::raw_from_b64(receipt.signature);
 
       if (!receipt.cert.has_value())

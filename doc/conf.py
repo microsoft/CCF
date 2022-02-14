@@ -18,7 +18,7 @@ import os
 import sys
 import subprocess
 import pathlib
-
+import re
 
 from docutils import nodes
 
@@ -132,6 +132,7 @@ html_css_files = [
 
 html_js_files = ["https://kit.fontawesome.com/c75a35380d.js"]
 
+html_extra_path = ["../doxygen/"]
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
@@ -204,11 +205,16 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-# Build tags from ccf-1.0.1x
-smv_tag_whitelist = r"^ccf-(1\.\d+\.1\d+|2.*)$"
-smv_branch_whitelist = r"^main$"
+smv_tag_whitelist = None
+smv_branch_whitelist = r"^(main)|(release\/\d+\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
+
+assert re.match(smv_branch_whitelist, "main")
+assert re.match(smv_branch_whitelist, "release/1.x")
+assert re.match(smv_branch_whitelist, "release/2.x")
+assert re.match(smv_branch_whitelist, "release/100.x")
+assert not re.match(smv_branch_whitelist, "release/1.x_feature")
 
 # Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
 # This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`

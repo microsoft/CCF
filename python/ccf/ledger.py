@@ -602,6 +602,9 @@ class Entry:
             GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
         )
 
+    def get_transaction_header(self) -> TransactionHeader:
+        return self._header
+
 
 class Transaction(Entry):
     """
@@ -646,6 +649,9 @@ class Transaction(Entry):
             TransactionHeader.get_size() + self._header.size,
             pos=self._tx_offset,
         )
+
+    def get_len(self) -> int:
+        return len(self.get_raw_tx())
 
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
@@ -704,24 +710,23 @@ class Snapshot(Entry):
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
 
             receipt = json.loads(receipt_bytes.decode("utf-8"))
-            if "leaf" in receipt:
-                leaf = receipt["leaf"]
-            else:
-                assert "leaf_components" in receipt
-                write_set_digest = bytes.fromhex(
-                    receipt["leaf_components"]["write_set_digest"]
-                )
-                claims_digest = bytes.fromhex(
-                    receipt["leaf_components"]["claims_digest"]
-                )
-                commit_evidence_digest = sha256(
-                    receipt["leaf_components"]["commit_evidence"].encode()
-                ).digest()
-                leaf = (
-                    sha256(write_set_digest + commit_evidence_digest + claims_digest)
-                    .digest()
-                    .hex()
-                )
+            # Receipts included in snapshots always contain leaf components,
+            # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
+            # This verification code deliberately does not support snapshots
+            # produced by 2.0.0-dev* releases.
+            assert "leaf_components" in receipt
+            write_set_digest = bytes.fromhex(
+                receipt["leaf_components"]["write_set_digest"]
+            )
+            claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
+            commit_evidence_digest = sha256(
+                receipt["leaf_components"]["commit_evidence"].encode()
+            ).digest()
+            leaf = (
+                sha256(write_set_digest + commit_evidence_digest + claims_digest)
+                .digest()
+                .hex()
+            )
             root = ccf.receipt.root(leaf, receipt["proof"])
             node_cert = load_pem_x509_certificate(
                 receipt["cert"].encode(), default_backend()
@@ -736,6 +741,9 @@ class Snapshot(Entry):
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+
+    def get_len(self) -> int:
+        return self._file_size
 
 
 class LedgerChunk:

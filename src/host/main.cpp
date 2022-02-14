@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/ds/logger.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"
@@ -46,56 +46,6 @@ void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
   exit(0);
-}
-
-void validate_enclave_file_suffix(
-  const std::string& file, host::EnclaveType type)
-{
-  char const* expected_suffix;
-  switch (type)
-  {
-    case host::EnclaveType::RELEASE:
-    {
-      expected_suffix = ".enclave.so.signed";
-      break;
-    }
-    case host::EnclaveType::DEBUG:
-    {
-      expected_suffix = ".enclave.so.debuggable";
-      break;
-    }
-    case host::EnclaveType::VIRTUAL:
-    {
-      expected_suffix = ".virtual.so";
-      break;
-    }
-    default:
-    {
-      throw std::logic_error(fmt::format("Unhandled enclave type: {}", type));
-    }
-  }
-
-  if (!nonstd::ends_with(file, expected_suffix))
-  {
-    // Remove possible suffixes to try and get root of filename, to build
-    // suggested filename
-    auto basename = file;
-    for (const char* suffix :
-         {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
-    {
-      if (nonstd::ends_with(basename, suffix))
-      {
-        basename = basename.substr(0, basename.size() - strlen(suffix));
-      }
-    }
-    const auto suggested = fmt::format("{}{}", basename, expected_suffix);
-    throw std::logic_error(fmt::format(
-      "Given enclave file '{}' does not have suffix expected for enclave type "
-      "{}. Did you mean '{}'?",
-      file,
-      nlohmann::json(type).dump(),
-      suggested));
-  }
 }
 
 int main(int argc, char** argv)
@@ -170,7 +120,6 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
 
-  uint32_t oe_flags = 0;
   size_t recovery_threshold = 0;
   try
   {
@@ -216,29 +165,6 @@ int main(int argc, char** argv)
           members_with_pubk_count));
       }
     }
-
-    switch (config.enclave.type)
-    {
-      case host::EnclaveType::RELEASE:
-      {
-        break;
-      }
-      case host::EnclaveType::DEBUG:
-      {
-        oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-        break;
-      }
-      case host::EnclaveType::VIRTUAL:
-      {
-        oe_flags = ENCLAVE_FLAG_VIRTUAL;
-        break;
-      }
-      default:
-      {
-        throw std::logic_error(
-          fmt::format("Invalid enclave type: {}", config.enclave.type));
-      }
-    }
   }
   catch (const std::logic_error& e)
   {
@@ -256,8 +182,7 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
-  validate_enclave_file_suffix(config.enclave.file, config.enclave.type);
-  host::Enclave enclave(config.enclave.file, oe_flags);
+  host::Enclave enclave(config.enclave.file, config.enclave.type);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
@@ -574,13 +499,10 @@ int main(int argc, char** argv)
     }
 
     auto enclave_thread_start = [&]() {
-#ifndef VIRTUAL_ENCLAVE
       try
-#endif
       {
         enclave.run();
       }
-#ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
@@ -592,7 +514,6 @@ int main(int argc, char** argv)
         std::this_thread::sleep_for(1s);
         throw;
       }
-#endif
     };
 
     // Start threads which will ECall and process messages inside the enclave

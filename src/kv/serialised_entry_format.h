@@ -2,13 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ccf_assert.h"
+#include "ccf/ccf_assert.h"
 
 #include <stdint.h>
 
 namespace kv
 {
   static constexpr auto entry_format_v1 = 1;
+
+  enum EntryFlags : uint8_t
+  {
+    FORCE_LEDGER_CHUNK = 0x01
+  };
 
   // 6 bytes are used for the size of the serialised entry
   static const size_t max_entry_size = 1UL << 48;

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "historical.h"
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "historical_state.h"
 #include "template.h"
 

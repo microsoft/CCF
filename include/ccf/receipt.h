@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ccf/entity_id.h"
 #include "crypto/hash.h"
-#include "ds/json.h"
 
 namespace ccf
 {
@@ -59,14 +59,16 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root, cert, leaf, leaf_components)
 
-  static crypto::Sha256Hash compute_root_from_receipt(const Receipt& receipt)
+  /* Receipts included in snapshots always contain leaf components,
+     including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
+     This verification code deliberately does not support snapshots
+     produced by 2.0.0-dev* releases
+  */
+  static crypto::Sha256Hash compute_root_from_snapshot_receipt(
+    const Receipt& receipt)
   {
     crypto::Sha256Hash current;
-    if (receipt.leaf.has_value())
-    {
-      current = crypto::Sha256Hash::from_hex_string(receipt.leaf.value());
-    }
-    else if (receipt.leaf_components.has_value())
+    if (receipt.leaf_components.has_value())
     {
       auto components = receipt.leaf_components.value();
       if (
@@ -92,7 +94,7 @@ namespace ccf
     else
     {
       throw std::logic_error(
-        "Cannot compute root if neither leaf nor leaf_components are set");
+        "Cannot compute root if leaf_components are not set");
     }
     for (auto const& element : receipt.proof)
     {

@@ -128,13 +128,8 @@ Once a CCF network is successfully started and an acceptable number of nodes hav
 Virtual Mode
 ------------
 
-To start a CCF node in ``virtual`` mode, operators should use the ``virtual`` variants of the ``cchost`` binary and enclave application:
-
-.. code-block:: bash
-
-    $ cchost.virtual --config /path/to/config/file
-
-In the JSON configuration file, ``enclave.file`` should specify the path of a ``.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
+To run a CCF node on a system without hardware TEE support, or to debug an application, a ``virtual`` enclave should be used.
+To start a CCF node in ``virtual`` mode, the JSON configuration file should specify the path of a ``*.virtual.so`` enclave library and ``enclave.type`` should be set to ``"virtual"``.
 
 .. warning:: Nodes started in virtual mode provide no security guarantees. They should never be used for production purposes.
 

@@ -531,6 +531,51 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
+    def check_ledger_files_identical(self):
+        # Note: Should be called on stopped service
+        # Verify that all ledger files on stopped nodes exist on most up-to-date node
+        # and are identical
+        longest_ledger_node = None
+        nodes_ledger = {}
+
+        longest_ledger_seqno = 0
+        for node in self.nodes:
+            if node.network_state != infra.node.NodeNetworkState.stopped:
+                raise RuntimeError(
+                    f"Node {node.node_id} should be stopped before verifying ledger consistency"
+                )
+
+            ledger = node.remote.ledger_paths()
+            last_seqno = Ledger(ledger).get_latest_public_state()[1]
+            nodes_ledger[node.local_node_id] = [ledger, last_seqno]
+            if last_seqno > longest_ledger_seqno:
+                longest_ledger_seqno = last_seqno
+                longest_ledger_node = node
+
+        if longest_ledger_node:
+
+            def list_files_in_dirs_with_checksums(dirs):
+                return [
+                    (f, infra.path.compute_file_checksum(os.path.join(d, f)))
+                    for d in dirs
+                    for f in os.listdir(d)
+                    if f.endswith(COMMITTED_FILE_SUFFIX)
+                ]
+
+            longest_ledger_dirs, _ = nodes_ledger[longest_ledger_node.local_node_id]
+            longest_ledger_files = list_files_in_dirs_with_checksums(
+                longest_ledger_dirs
+            )
+            for node_id, (ledger_dirs, _) in nodes_ledger.items():
+                ledger_files = list_files_in_dirs_with_checksums(ledger_dirs)
+                if not set(ledger_files).issubset(longest_ledger_files):
+                    raise Exception(
+                        f"Ledger files on node {node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}"
+                    )
+            LOG.success(
+                f"Verified ledger files consistency on all {len(self.nodes)} stopped nodes"
+            )
+
     def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
         if not skip_verification:
             if self.txs is not None:
@@ -548,45 +593,7 @@ class Network:
                 fatal_error_found = True
 
         LOG.info("All nodes stopped")
-
-        if not skip_verification:
-            # Verify that all ledger files on stopped nodes exist on most up-to-date node
-            # and are identical
-            longest_ledger_node = None
-            nodes_ledger = {}
-
-            longest_ledger_seqno = 0
-            for node in self.nodes:
-                ledger = node.remote.ledger_paths()
-                last_seqno = Ledger(ledger).get_latest_public_state()[1]
-                nodes_ledger[node.local_node_id] = [ledger, last_seqno]
-                if last_seqno > longest_ledger_seqno:
-                    longest_ledger_seqno = last_seqno
-                    longest_ledger_node = node
-
-            if longest_ledger_node:
-
-                def list_files_in_dirs_with_checksums(dirs):
-                    return [
-                        (f, infra.path.compute_file_checksum(os.path.join(d, f)))
-                        for d in dirs
-                        for f in os.listdir(d)
-                        if f.endswith(COMMITTED_FILE_SUFFIX)
-                    ]
-
-                longest_ledger_dirs, _ = nodes_ledger[longest_ledger_node.local_node_id]
-                longest_ledger_files = list_files_in_dirs_with_checksums(
-                    longest_ledger_dirs
-                )
-                for node_id, (ledger_dirs, _) in nodes_ledger.items():
-                    ledger_files = list_files_in_dirs_with_checksums(ledger_dirs)
-                    if not set(ledger_files).issubset(longest_ledger_files):
-                        raise Exception(
-                            f"Ledger files on node {node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}"
-                        )
-                LOG.success(
-                    f"Verified ledger files consistency on all {len(self.nodes)} stopped nodes"
-                )
+        self.check_ledger_files_identical()
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:

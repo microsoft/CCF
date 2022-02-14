@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "blit.h"
+#include "ccf/ds/logger.h"
+#include "ccf/serdes.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -10,13 +11,11 @@
 #include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-#include "ds/logger.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "entities.h"
-#include "genesis_gen.h"
 #include "history.h"
 #include "hooks.h"
 #include "indexing/indexer.h"
@@ -25,23 +24,18 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
-#include "secret_share.h"
+#include "service/genesis_gen.h"
 #include "share_manager.h"
 #include "snapshotter.h"
 #include "tls/client.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
-#endif
-
-#ifndef VIRTUAL_ENCLAVE
-#  include "ccf_t.h"
 #endif
 
 #include <atomic>
@@ -1186,6 +1180,12 @@ namespace ccf
     void trigger_recovery_shares_refresh(kv::Tx& tx) override
     {
       share_manager.shuffle_recovery_shares(tx);
+    }
+
+    void request_ledger_chunk(kv::Tx& tx) override
+    {
+      auto tx2 = static_cast<kv::CommittableTx*>(&tx);
+      tx2->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
     void trigger_host_process_launch(

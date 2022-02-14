@@ -5,24 +5,24 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
+#include "ccf/serdes.h"
 #include "ccf/user_frontend.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
-#include "ds/logger.h"
 #include "frontend_test_infra.h"
 #include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
-#include "node/genesis_gen.h"
 #include "node/history.h"
 #include "node/network_state.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
-#include "node/rpc/serdes.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
+#include "service/genesis_gen.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

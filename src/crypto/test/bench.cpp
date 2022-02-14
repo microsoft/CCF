@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "crypto/base64.h"
+#include "ccf/crypto/base64.h"
 #include "crypto/entropy.h"
 #include "crypto/hash.h"
 #include "crypto/hash_provider.h"

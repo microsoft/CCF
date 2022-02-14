@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "crypto/entropy.h"
 #include "crypto/key_pair.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
-#include "ds/logger.h"
 
 #include <iostream>
 #include <map>

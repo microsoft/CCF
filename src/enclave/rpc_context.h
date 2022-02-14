@@ -3,13 +3,13 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"
 #include "http/http_builder.h"
 #include "http/http_consts.h"
-#include "node/client_signatures.h"
 #include "node/entities.h"
-#include "node/node_info_network.h"
 #include "node/rpc/error.h"
+#include "service/tables/node_info_network.h"
 
 #include <llhttp/llhttp.h>
 #include <variant>

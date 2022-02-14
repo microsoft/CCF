@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ccf/endpoint_context.h"
-#include "ds/json.h"
 #include "ds/openapi.h"
 #include "kv/serialise_entry_blit.h"
-#include "node/service_map.h"
+#include "service/map.h"
 
 #include <string>
 #include <utility>

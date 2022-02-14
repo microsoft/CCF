@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ds/json.h"
+
+#include "ccf/ds/json.h"
 #include "enclave/consensus_type.h"
 #include "enclave/interface.h"
-#include "node/code_id.h"
 #include "node/rpc/call_types.h"
+#include "service/tables/code_id.h"
 
 namespace ccf
 {

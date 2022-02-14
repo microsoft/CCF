@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "console_global.h"
 
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 #include "template.h"
 
 #include <sstream>

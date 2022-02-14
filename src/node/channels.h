@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
 #include "crypto/hash_provider.h"
 #include "crypto/key_exchange.h"
@@ -9,7 +10,6 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/hex.h"
-#include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
 #include "enclave/enclave_time.h"
