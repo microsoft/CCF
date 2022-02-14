@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/nonstd.h"
-#include "http_consts.h"
-#include "http_status.h"
+#include "ccf/ds/nonstd.h"
+#include "ccf/http_consts.h"
+#include "ccf/http_status.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -27,23 +27,6 @@ namespace http
 
     return header_string;
   }
-
-// Most builder function are unused from enclave
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-function"
-  static llhttp_method http_method_from_str(const char* s)
-  {
-#define XX(num, name, string) \
-  if (strcmp(s, #string) == 0) \
-  { \
-    return llhttp_method(num); \
-  }
-    HTTP_METHOD_MAP(XX)
-#undef XX
-
-    throw std::logic_error(fmt::format("Unknown HTTP method '{}'", s));
-  }
-#pragma clang diagnostic pop
 
   class Message
   {
