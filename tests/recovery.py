@@ -46,29 +46,32 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
         os.remove(ledger_file_path)
 
 
-@reqs.description("Recovering a network")
-@reqs.recover(number_txs=2)
-def test(network, args, from_snapshot=False, split_ledger=False):
+@reqs.description("Recovering a service")
+# @reqs.recover(number_txs=2)
+def test_recover_service(network, args, from_snapshot=False, split_ledger=False):
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
 
+    # TODO: Delete
+    # network.consortium.create_and_withdraw_large_proposal(old_primary)
+
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    if split_ledger:
-        # Test that ledger files can be arbitrarily split and that recovery
-        # and historical queries work as expected.
-        # Note: For real operations, it would be best practice to use a separate
-        # output directory
-        split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
-        if committed_ledger_dirs:
-            split_all_ledger_files_in_dir(
-                committed_ledger_dirs[0], committed_ledger_dirs[0]
-            )
+    # if split_ledger:
+    #     # Test that ledger files can be arbitrarily split and that recovery
+    #     # and historical queries work as expected.
+    #     # Note: For real operations, it would be best practice to use a separate
+    #     # output directory
+    #     split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
+    #     if committed_ledger_dirs:
+    #         split_all_ledger_files_in_dir(
+    #             committed_ledger_dirs[0], committed_ledger_dirs[0]
+    #         )
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
@@ -80,15 +83,40 @@ def test(network, args, from_snapshot=False, split_ledger=False):
         snapshots_dir=snapshots_dir,
     )
 
-    # TODO: Check that recovery files are committed
+    recovered_network.recover(args)
+
+    return recovered_network
+
+
+@reqs.description("Attempt to recover a service but abort before recovery is complete")
+def test_recover_service_aborted(network, args, from_snapshot=False):
+    old_primary, _ = network.find_primary()
+
+    snapshots_dir = None
+    if from_snapshot:
+        snapshots_dir = network.get_committed_snapshots(old_primary)
+
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    recovered_network = infra.network.Network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
+    )
+
+    # Fill in ledger to trigger new ledger chunks
     primary, _ = recovered_network.find_primary()
     for _ in range(0, 10):
         recovered_network.consortium.create_and_withdraw_large_proposal(primary)
 
-    import time
-
-    time.sleep(10)
-    recovered_network.recover(args)
+    #
+    # Do not complete service recovery! (by *not* calling recovered_network.recover(args))
+    #
 
     return recovered_network
 
@@ -168,11 +196,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        for i in range(1):  # range(args.recovery):
-            # Issue transactions which will required historical ledger queries recovery
-            # when the network is shutdown
-            network.txs.issue(network, number_txs=1)
-            network.txs.issue(network, number_txs=1, repeat=True)
+        for i in range(2):  # range(args.recovery):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
@@ -184,9 +208,22 @@ def run(args):
             #     else:
             #         recovered_network = network
             # else:
-            recovered_network = test(
-                network, args, from_snapshot=False, split_ledger=True
-            )
+            if i % 2 == 0:
+                recovered_network = test_recover_service_aborted(
+                    network, args, from_snapshot=False
+                )  # TODO: Also tests with snapshots
+            else:
+                # Issue transactions which will required historical ledger queries recovery
+                # when the network is shutdown
+                # network.txs.issue(network, number_txs=1)
+                # network.txs.issue(network, number_txs=1, repeat=True)
+                recovered_network = test_recover_service(
+                    network, args, from_snapshot=False, split_ledger=True
+                )
+                recovered_network.txs.issue(recovered_network, number_txs=1)
+                recovered_network.txs.issue(
+                    recovered_network, number_txs=1, repeat=True
+                )
             network = recovered_network
 
             for node in network.get_joined_nodes():
@@ -221,7 +258,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.description = """
-This test executes multiple recoveries (as specified by the "--recovery" arg),
+This test_recover_service executes multiple recoveries (as specified by the "--recovery" arg),
 with a fixed number of messages applied between each network crash (as
 specified by the "--msgs-per-recovery" arg). After the network is recovered
 and before applying new transactions, all transactions previously applied are
@@ -239,7 +276,7 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "samples/apps/logging/liblogging"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)  # TODO: Back to 3
 
     # Test-specific values so that it is likely that ledger files contain
     # at least two signatures, so that they can be split at the first one

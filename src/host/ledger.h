@@ -95,7 +95,7 @@ namespace asynchost
   }
 
   static std::optional<std::string> get_file_name_with_idx(
-    const std::string& dir, size_t idx)
+    const std::string& dir, size_t idx, bool allow_recovery_files)
   {
     std::optional<std::string> match = std::nullopt;
     for (auto const& f : fs::directory_iterator(dir))
@@ -104,8 +104,11 @@ namespace asynchost
       // (i.e. those with a last idx) and non-corrupted files are considered
       // here.
       auto f_name = f.path().filename();
-      if (is_ledger_file_name_corrupted(f_name))
+      if (
+        is_ledger_file_name_corrupted(f_name) ||
+        (!allow_recovery_files && is_ledger_file_name_recovery(f_name)))
       {
+        // TODO: Add unit test
         continue;
       }
 
@@ -603,7 +606,7 @@ namespace asynchost
       // If the file is not in the cache, find the file from the ledger
       // directories, inspecting the main ledger directory first
       std::string ledger_dir_;
-      auto match = get_file_name_with_idx(ledger_dir, idx);
+      auto match = get_file_name_with_idx(ledger_dir, idx, true);
       if (match.has_value())
       {
         ledger_dir_ = ledger_dir;
@@ -612,7 +615,7 @@ namespace asynchost
       {
         for (auto const& dir : read_ledger_dirs)
         {
-          match = get_file_name_with_idx(dir, idx);
+          match = get_file_name_with_idx(dir, idx, false);
           if (match.has_value())
           {
             ledger_dir_ = dir;
@@ -788,6 +791,12 @@ namespace asynchost
           if (is_ledger_file_name_corrupted(file_name))
           {
             LOG_INFO_FMT("Ignoring corrupted ledger file {}", file_name);
+            continue;
+          }
+
+          if (is_ledger_file_name_recovery(file_name))
+          {
+            LOG_INFO_FMT("Ignoring recovery ledger file {}", file_name);
             continue;
           }
 

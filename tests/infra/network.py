@@ -752,7 +752,7 @@ class Network:
         primary_id = None
         view = None
 
-        logs = []
+        logs = None
 
         asked_nodes = nodes or self.get_joined_nodes()
         end_time = time.time() + timeout
@@ -760,8 +760,8 @@ class Network:
             for node in asked_nodes:
                 with node.client() as c:
                     try:
-                        logs = []
-                        res = c.get("/node/network", timeout=1, log_capture=logs)
+                        logs = None
+                        res = c.get("/node/network", timeout=1)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
                         body = res.body.json()
@@ -780,10 +780,10 @@ class Network:
             time.sleep(0.1)
 
         if primary_id is None:
-            flush_info(logs, log_capture, 0)
+            # flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
 
-        flush_info(logs, log_capture, 0)
+        # flush_info(logs, log_capture, 0)
 
         return (self._get_node_by_service_id(primary_id), view)
 
