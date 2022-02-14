@@ -15,11 +15,6 @@ namespace ccf
   public:
     NodeOperation(AbstractNodeState& impl_) : impl(impl_) {}
 
-    NodeId get_node_id() const override
-    {
-      return impl.get_node_id();
-    }
-
     ExtendedState state() override
     {
       return impl.state();

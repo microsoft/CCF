@@ -93,11 +93,6 @@ namespace ccf
       return kv::NoVersion;
     }
 
-    NodeId get_node_id() const override
-    {
-      return kv::test::PrimaryNodeId;
-    }
-
     void set_is_public(bool is_public_)
     {
       is_public = is_public_;
@@ -245,6 +240,11 @@ namespace ccf
   public:
     StubNodeState state = {};
     StubNodeStateCache cache = {};
+
+    ccf::NodeId get_node_id() const override
+    {
+      return kv::test::PrimaryNodeId;
+    }
 
     ccf::historical::AbstractStateCache& get_historical_state() override
     {

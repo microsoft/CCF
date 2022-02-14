@@ -5,7 +5,6 @@
 #include "ccf/ds/logger.h"
 #include "crypto/hash.h"
 #include "ds/oversized.h"
-#include "node/rpc/node_operation.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
@@ -19,6 +18,7 @@
 #include "node/rpc/forwarder.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/node_operation.h"
 #include "oe_init.h"
 #include "ringbuffer_logger.h"
 #include "rpc_map.h"
@@ -48,13 +48,19 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
+      const ccf::NodeId this_node;
       std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
         nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
       std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
       std::unique_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
 
-      NodeContext() {}
+      NodeContext(const ccf::NodeId& id) : this_node(id) {}
+
+      ccf::NodeId get_node_id() const override
+      {
+        return this_node;
+      }
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
@@ -148,7 +154,7 @@ namespace enclave
         *writer_factory, network, rpcsessions, share_manager, curve_id);
 
       LOG_TRACE_FMT("Creating context");
-      context = std::make_unique<NodeContext>();
+      context = std::make_unique<NodeContext>(node->get_node_id());
       context->historical_state_cache =
         std::make_shared<ccf::historical::StateCache>(
           *network.tables,

@@ -29,7 +29,6 @@ namespace ccf
   public:
     virtual ~AbstractNodeOperationInterface() = default;
 
-    virtual NodeId get_node_id() const = 0;
     virtual ExtendedState state() = 0;
 
     virtual bool is_in_initialised_state() const = 0;

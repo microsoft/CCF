@@ -1467,7 +1467,7 @@ namespace ccf
       return true;
     }
 
-    NodeId get_node_id() const override
+    NodeId get_node_id() const
     {
       return self;
     }

@@ -581,7 +581,7 @@ namespace ccf
                          const auto& node_id, const auto& node_info) {
           if (
             node_info.status == ccf::NodeStatus::RETIRED &&
-            node_id != this->node_operation.get_node_id())
+            node_id != this->context.get_node_id())
           {
             nodes->remove(node_id);
             node_endorsed_certificates->remove(node_id);
@@ -604,7 +604,7 @@ namespace ccf
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
         auto [s, rts, lrs] = this->node_operation.state();
-        result.node_id = this->node_operation.get_node_id();
+        result.node_id = this->context.get_node_id();
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
@@ -637,7 +637,7 @@ namespace ccf
         if (result == ApiResult::OK)
         {
           Quote q;
-          q.node_id = node_operation.get_node_id();
+          q.node_id = context.get_node_id();
           q.raw = node_quote_info.quote;
           q.endorsements = node_quote_info.endorsements;
           q.format = node_quote_info.format;
@@ -650,7 +650,7 @@ namespace ccf
           // that value when possible and only call the unreliable get_code_id
           // otherwise.
           auto nodes = args.tx.ro(network.nodes);
-          auto node_info = nodes->get(node_operation.get_node_id());
+          auto node_info = nodes->get(context.get_node_id());
           if (node_info.has_value() && node_info->code_digest.has_value())
           {
             q.mrenclave = node_info->code_digest.value();
@@ -925,7 +925,7 @@ namespace ccf
         .install();
 
       auto get_self_node = [this](auto& args) {
-        auto node_id = this->node_operation.get_node_id();
+        auto node_id = this->context.get_node_id();
         auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
         if (info)
@@ -965,7 +965,7 @@ namespace ccf
       auto get_primary_node = [this](auto& args) {
         if (consensus != nullptr)
         {
-          auto node_id = this->node_operation.get_node_id();
+          auto node_id = this->context.get_node_id();
           auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
@@ -1483,7 +1483,7 @@ namespace ccf
               "Primary unknown");
           }
 
-          if (primary_id.value() != node_operation.get_node_id())
+          if (primary_id.value() != context.get_node_id())
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
