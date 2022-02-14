@@ -217,6 +217,7 @@ def run(args):
                 # when the network is shutdown
                 # network.txs.issue(network, number_txs=1)
                 # network.txs.issue(network, number_txs=1, repeat=True)
+                # TODO: Test that some .recovery files are not committed yet!
                 recovered_network = test_recover_service(
                     network, args, from_snapshot=False, split_ledger=True
                 )

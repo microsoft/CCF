@@ -37,6 +37,7 @@ ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certifica
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
 
 COMMITTED_FILE_SUFFIX = ".committed"
+RECOVERY_FILE_SUFFIX = ".recovery"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
@@ -812,14 +813,21 @@ class Ledger:
         else:
             raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
-    def __init__(self, directories: List[str], committed_only: bool = True):
+    def __init__(
+        self,
+        directories: List[str],
+        committed_only: bool = True,
+        read_recovery_files: bool = False,
+    ):
 
         self._filenames = []
 
         ledger_files: List[str] = []
         for directory in directories:
             for path in os.listdir(directory):
-                if committed_only and not path.endswith(COMMITTED_FILE_SUFFIX):
+                if (
+                    not read_recovery_files and path.endswith(RECOVERY_FILE_SUFFIX)
+                ) or (committed_only and not path.endswith(COMMITTED_FILE_SUFFIX)):
                     continue
                 chunk = os.path.join(directory, path)
                 # The same ledger file may appear multiple times in different directories
