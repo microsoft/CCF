@@ -1845,6 +1845,10 @@ namespace ccf
             crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
           if (hook_pubk_pem != current_pubk_pem)
           {
+            LOG_TRACE_FMT(
+              "Ignoring historical service open at seqno {} for {}",
+              hook_version,
+              w->cert.str());
             return;
           }
           network.identity->set_certificate(w->cert);
