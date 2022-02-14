@@ -957,6 +957,8 @@ namespace asynchost
           LOG_DEBUG_FMT("Renamed recovery file to {}", non_recovery_file_name);
         }
       }
+
+      recovery_mode = false;
     }
 
     size_t get_last_idx() const

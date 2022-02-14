@@ -1833,25 +1833,39 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.service.get_name(),
-        network.service.wrap_commit_hook(
-          [this](kv::Version hook_version, const Service::Write& w) {
-            if (!w.has_value())
-            {
-              throw std::logic_error("Unexpected deletion in service value");
-            }
+        network.service.wrap_commit_hook([this](
+                                           kv::Version hook_version,
+                                           const Service::Write& w) {
+          if (!w.has_value())
+          {
+            throw std::logic_error("Unexpected deletion in service value");
+          }
 
-            network.identity->set_certificate(w->cert);
-            open_user_frontend();
+          LOG_FAIL_FMT("Global hook service table at {}", hook_version);
 
-            if (w->status == ServiceStatus::OPEN)
-            {
-              size_t idx = 0;
-              RINGBUFFER_WRITE_MESSAGE(
-                consensus::ledger_open,
-                to_host,
-                idx /* TODO: Needs at least one argument */);
-            }
-          }));
+          // Service open on historical service has no effect
+          auto hook_pubk_pem =
+            crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(w->cert));
+          auto current_pubk_pem =
+            crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
+          if (hook_pubk_pem != current_pubk_pem)
+          {
+            return;
+          }
+
+          network.identity->set_certificate(w->cert);
+          open_user_frontend();
+
+          if (w->status == ServiceStatus::OPEN)
+          {
+            LOG_FAIL_FMT("ledger open at {}", hook_version);
+            size_t idx = 0;
+            RINGBUFFER_WRITE_MESSAGE(
+              consensus::ledger_open,
+              to_host,
+              idx /* TODO: Needs at least one argument */);
+          }
+        }));
     }
 
     kv::Version get_last_recovered_signed_idx() override
