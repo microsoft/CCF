@@ -110,7 +110,7 @@ namespace ccf
   {
   private:
     NetworkState& network;
-    ccf::AbstractNodeOperationInterface& node_operation;
+    ccf::AbstractNodeOperation& node_operation;
 
     struct ExistingNodeInfo
     {
@@ -319,7 +319,7 @@ namespace ccf
     NodeEndpoints(
       NetworkState& network_,
       ccfapp::AbstractNodeContext& context_,
-      ccf::AbstractNodeOperationInterface& node_operation_) :
+      ccf::AbstractNodeOperation& node_operation_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network_),
       node_operation(node_operation_)
@@ -1562,7 +1562,7 @@ namespace ccf
     NodeRpcFrontend(
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
-      ccf::AbstractNodeOperationInterface& node_operation) :
+      ccf::AbstractNodeOperation& node_operation) :
       RpcFrontend(*network.tables, node_endpoints),
       node_endpoints(network, context, node_operation)
     {}

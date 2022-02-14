@@ -24,10 +24,10 @@ namespace ccf
     std::optional<kv::Version> /* recovery_target_seqno */,
     std::optional<kv::Version> /* last_recovered_seqno */>;
 
-  class AbstractNodeOperationInterface
+  class AbstractNodeOperation
   {
   public:
-    virtual ~AbstractNodeOperationInterface() = default;
+    virtual ~AbstractNodeOperation() = default;
 
     virtual ExtendedState state() = 0;
 

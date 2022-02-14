@@ -7,7 +7,7 @@
 
 namespace ccf
 {
-  class NodeOperation : public AbstractNodeOperationInterface
+  class NodeOperation : public AbstractNodeOperation
   {
   protected:
     AbstractNodeState& impl;

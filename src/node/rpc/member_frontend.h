@@ -373,7 +373,7 @@ namespace ccf
               nullptr,
               std::nullopt,
               nullptr,
-              &context.get_node_state(),
+              &context.get_node_state(), // TODO: This is the governance one!
               nullptr,
               &network,
               nullptr,
