@@ -771,6 +771,7 @@ namespace kv
     {
       LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
       LEDGER_CHUNK_BEFORE_THIS_TX = 0x02,
+      SNAPSHOT_AT_NEXT_SIGNATURE = 0x03
     };
 
     virtual void set_flag(Flag f) = 0;

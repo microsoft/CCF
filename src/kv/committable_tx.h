@@ -15,6 +15,13 @@ namespace kv
 {
   class CommittableTx : public Tx, public AbstractChangeContainer
   {
+  public:
+    enum class Flag : uint8_t
+    {
+      LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
+      SNAPSHOT_AT_NEXT_SIGNATURE = 0x02
+    };
+
   protected:
     bool committed = false;
     bool success = false;
@@ -168,13 +175,18 @@ namespace kv
         committed = true;
         version = c.value();
 
-        if (flag_enabled(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
+        if (flag_enabled(Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE))
         {
           store->set_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
           // This transaction indicates to the store that the next signature
           // should trigger a new ledger chunk, but *this* transaction does not
           // create a new ledger chunk
           unset_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+        }
+
+        if (flag_enabled(Flag::SNAPSHOT_AT_NEXT_SIGNATURE))
+        {
+          store->set_flag(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         }
 
         if (version == NoVersion)
@@ -338,17 +350,17 @@ namespace kv
       root_at_read_version = r;
     }
 
-    virtual void set_flag(AbstractStore::Flag flag)
+    virtual void set_flag(Flag flag)
     {
       flags |= static_cast<uint8_t>(flag);
     }
 
-    virtual void unset_flag(AbstractStore::Flag flag)
+    virtual void unset_flag(Flag flag)
     {
       flags &= ~static_cast<uint8_t>(flag);
     }
 
-    virtual bool flag_enabled(AbstractStore::Flag f) const
+    virtual bool flag_enabled(Flag f) const
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
     }

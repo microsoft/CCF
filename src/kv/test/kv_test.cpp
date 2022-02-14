@@ -2899,7 +2899,7 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_tx();
 
       // Request a ledger chunk at the next signature
-      tx.set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
@@ -2987,8 +2987,8 @@ TEST_CASE("Ledger entry chunk request")
       MapTypes::StringString map("public:map");
       auto tx = store.create_tx();
 
-      // Request a ledger chunk at the next signature
-      tx.set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+      // Request a ledger chunk at the next signature again
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");

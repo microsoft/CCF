@@ -42,6 +42,8 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) = 0;
+    virtual bool flag_enabled(kv::AbstractStore::Flag) = 0;
+    virtual void unset_flag(kv::AbstractStore::Flag) = 0;
   };
 
   template <typename T>
@@ -92,6 +94,25 @@ namespace aft
         return p->deserialize(data, consensus_type, public_only, expected_txid);
       }
       return nullptr;
+    }
+
+    bool flag_enabled(kv::AbstractStore::Flag f) override
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->flag_enabled(f);
+      }
+      return false;
+    }
+
+    void unset_flag(kv::AbstractStore::Flag f) override
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->unset_flag(f);
+      }
     }
   };
 

@@ -138,7 +138,6 @@ def test_forced_snapshot(network, args):
     network.txs.issue(network, number_txs=13)
 
     ledger_dirs = primary.remote.ledger_paths()
-    snapshots_dir = network.get_committed_snapshots(primary)
 
     # Find first signature after proposal.completed_seqno
     ledger = ccf.ledger.Ledger(ledger_dirs)
@@ -149,6 +148,7 @@ def test_forced_snapshot(network, args):
     assert chunk.is_complete and chunk.is_committed()
     LOG.info(f"Expecting snapshot at {next_signature}")
 
+    snapshots_dir = network.get_committed_snapshots(primary)
     for s in os.listdir(snapshots_dir):
         with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
             snapshot_seqno = snapshot.get_public_domain().get_seqno()

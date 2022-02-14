@@ -1177,15 +1177,14 @@ namespace ccf
       {
         throw std::logic_error("Could not cast tx to CommittableTx");
       }
-      tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
     void trigger_snapshot(kv::Tx& tx) override
     {
-      snapshotter->forced_snapshot_after_idx =
-        network.tables->current_version();
-      snapshotter->set_flag_unsafe(
-        ccf::Snapshotter::Flag::FORCE_SNAPSHOT_AT_NEXT_SIGNATURE);
+      auto committable_tx = static_cast<kv::CommittableTx*>(&tx);
+      committable_tx->set_flag(
+        kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
     }
 
     void trigger_host_process_launch(
