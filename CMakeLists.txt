@@ -347,7 +347,7 @@ if(BUILD_TESTS)
       indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
     )
-    target_link_libraries(indexing_test PRIVATE sss.host)
+    target_link_libraries(indexing_test PRIVATE ccf_endpoints.host sss.host)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp

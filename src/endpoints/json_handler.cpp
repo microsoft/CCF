@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/json_handler.h"
 
+#include "ccf/http_consts.h"
 #include "enclave/rpc_context.h"
 #include "http/http_accept.h"
-#include "http/http_consts.h"
 #include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"
 

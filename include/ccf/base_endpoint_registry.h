@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
+#include "ccf/node_context.h"
 #include "ccf/tx_status.h"
-#include "enclave/node_context.h"
 #include "node/endpoint_metrics.h"
 
 namespace ccf
