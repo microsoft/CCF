@@ -82,7 +82,6 @@ def test_forced_ledger_chunk(network, args):
     time.sleep(args.sig_ms_interval / 1000)
 
     ledger_dirs = primary.remote.ledger_paths()
-    network.check_ledger_files_identical()
 
     # Check that there is indeed a ledger chunk that ends at the
     # first signature after proposal.completed_seqno
