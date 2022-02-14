@@ -1170,7 +1170,7 @@ namespace ccf
       share_manager.shuffle_recovery_shares(tx);
     }
 
-    void request_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(kv::Tx& tx) override
     {
       auto tx_ = static_cast<kv::CommittableTx*>(&tx);
       if (tx_ == nullptr)
@@ -1180,7 +1180,7 @@ namespace ccf
       tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
-    void request_snapshot(kv::Tx& tx) override
+    void trigger_snapshot(kv::Tx& tx) override
     {
       snapshotter->forced_snapshot_after_idx =
         network.tables->current_version();

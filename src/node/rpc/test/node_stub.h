@@ -30,12 +30,12 @@ namespace ccf
       return;
     }
 
-    void request_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(kv::Tx& tx) override
     {
       return;
     }
 
-    void request_snapshot(kv::Tx& tx) override
+    void trigger_snapshot(kv::Tx& tx) override
     {
       return;
     }

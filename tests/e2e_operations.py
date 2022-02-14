@@ -83,7 +83,7 @@ def test_forced_ledger_chunk(network, args):
 
     # Submit a proposal to force a ledger chunk at the following signature
     proposal_body, careful_vote = network.consortium.make_proposal(
-        "request_ledger_chunk", node_id=primary.node_id
+        "trigger_ledger_chunk", node_id=primary.node_id
     )
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
@@ -122,7 +122,7 @@ def test_forced_snapshot(network, args):
 
     # Submit a proposal to force a snapshot at the following signature
     proposal_body, careful_vote = network.consortium.make_proposal(
-        "request_snapshot", node_id=primary.node_id
+        "trigger_snapshot", node_id=primary.node_id
     )
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body

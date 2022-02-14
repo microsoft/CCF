@@ -1123,20 +1123,20 @@ const actions = new Map([
     ),
   ],
   [
-    "request_ledger_chunk",
+    "trigger_ledger_chunk",
     new Action(
       function (args) {},
       function (args, proposalId) {
-        ccf.node.requestLedgerChunk();
+        ccf.node.triggerLedgerChunk();
       }
     ),
   ],
   [
-    "request_snapshot",
+    "trigger_snapshot",
     new Action(
       function (args) {},
       function (args, proposalId) {
-        ccf.node.requestSnapshot();
+        ccf.node.triggerSnapshot();
       }
     ),
   ],

@@ -1,7 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "js/wrap.h"
-
 #include "ccf/ds/logger.h"
 #include "ccf/tx_id.h"
 #include "ccf/version.h"
@@ -13,6 +11,7 @@
 #include "js/crypto.cpp"
 #include "js/historical.cpp"
 #include "js/no_plugins.cpp"
+#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/node_interface.h"
@@ -921,7 +920,7 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  JSValue js_request_ledger_chunk(
+  JSValue js_trigger_ledger_chunk(
     JSContext* ctx,
     JSValueConst this_val,
     [[maybe_unused]] int argc,
@@ -944,7 +943,7 @@ namespace ccf::js
 
     try
     {
-      node->request_ledger_chunk(*tx_ctx_ptr->tx);
+      node->trigger_ledger_chunk(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
@@ -954,7 +953,7 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  JSValue js_request_snapshot(
+  JSValue js_trigger_snapshot(
     JSContext* ctx,
     JSValueConst this_val,
     [[maybe_unused]] int argc,
@@ -977,7 +976,7 @@ namespace ccf::js
 
     try
     {
-      node->request_snapshot(*tx_ctx_ptr->tx);
+      node->trigger_snapshot(*tx_ctx_ptr->tx);
     }
     catch (const std::exception& e)
     {
@@ -1571,13 +1570,13 @@ namespace ccf::js
       JS_SetPropertyStr(
         ctx,
         node,
-        "requestLedgerChunk",
-        JS_NewCFunction(ctx, js_request_ledger_chunk, "requestLedgerChunk", 0));
+        "triggerLedgerChunk",
+        JS_NewCFunction(ctx, js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
       JS_SetPropertyStr(
         ctx,
         node,
-        "requestSnapshot",
-        JS_NewCFunction(ctx, js_request_snapshot, "requestSnapshot", 0));
+        "triggerSnapshot",
+        JS_NewCFunction(ctx, js_trigger_snapshot, "triggerSnapshot", 0));
     }
 
     if (host_node_state != nullptr)
