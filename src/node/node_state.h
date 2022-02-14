@@ -1830,16 +1830,26 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.service.get_name(),
-        network.service.wrap_commit_hook(
-          [this](kv::Version hook_version, const Service::Write& w) {
-            if (!w.has_value())
-            {
-              throw std::logic_error("Unexpected deletion in service value");
-            }
+        network.service.wrap_commit_hook([this](
+                                           kv::Version hook_version,
+                                           const Service::Write& w) {
+          if (!w.has_value())
+          {
+            throw std::logic_error("Unexpected deletion in service value");
+          }
 
-            network.identity->set_certificate(w->cert);
-            open_user_frontend();
-          }));
+          // Service open on historical service has no effect
+          auto hook_pubk_pem =
+            crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(w->cert));
+          auto current_pubk_pem =
+            crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
+          if (hook_pubk_pem != current_pubk_pem)
+          {
+            return;
+          }
+          network.identity->set_certificate(w->cert);
+          open_user_frontend();
+        }));
     }
 
     kv::Version get_last_recovered_signed_idx() override
