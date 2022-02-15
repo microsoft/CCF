@@ -4,7 +4,6 @@
 
 #include "ccf/historical_queries_interface.h"
 #include "ccf/indexing/indexer_interface.h"
-#include "ccf/indexing/lfs_interface.h"
 #include "ccf/node_subsystem_interface.h"
 
 namespace ccfapp
@@ -62,7 +61,10 @@ namespace ccfapp
       return get_subsystem<T>(T::get_subsystem_name());
     }
 
-    virtual ccf::NodeId get_node_id() const = 0;
+    virtual ccf::NodeId get_node_id() const
+    {
+      return {};
+    }
 
     ccf::historical::AbstractStateCache& get_historical_state()
     {
@@ -85,18 +87,6 @@ namespace ccfapp
           "Calling get_indexing_strategies before subsystem is installed");
       }
       return *indexer;
-    }
-
-    // TODO: Can make this private too!
-    ccf::indexing::AbstractLFSAccess& get_lfs_access()
-    {
-      auto lfs_access = get_subsystem<ccf::indexing::AbstractLFSAccess>();
-      if (lfs_access == nullptr)
-      {
-        throw std::logic_error(
-          "Calling get_lfs_access before subsystem is installed");
-      }
-      return *lfs_access;
     }
   };
 }

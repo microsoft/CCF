@@ -7,6 +7,7 @@
 #include "ds/hex.h"
 #include "ds/lru.h"
 #include "ds/serialized.h"
+#include "indexing/lfs_interface.h"
 #include "kv/kv_types.h"
 
 namespace ccf::indexing::strategies
@@ -33,13 +34,13 @@ namespace ccf::indexing::strategies
 
     std::string name;
 
-    AbstractLFSAccess& lfs_access;
+    std::shared_ptr<AbstractLFSAccess> lfs_access;
     ccf::TxID& current_txid;
 
     Impl(
       const std::string& name_,
       ccf::TxID& current_txid_,
-      AbstractLFSAccess& lfs_access_,
+      const std::shared_ptr<AbstractLFSAccess>& lfs_access_,
       size_t seqnos_per_bucket_,
       size_t max_buckets_) :
       seqnos_per_bucket(seqnos_per_bucket_),
@@ -47,7 +48,13 @@ namespace ccf::indexing::strategies
       name(name_),
       lfs_access(lfs_access_),
       current_txid(current_txid_)
-    {}
+    {
+      if (lfs_access == nullptr)
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot create this strategy without access to the LFS subsystem"));
+      }
+    }
 
     LFSContents serialise(SeqNoCollection&& seqnos)
     {
@@ -122,7 +129,7 @@ namespace ccf::indexing::strategies
     {
       const BucketKey bucket_key{k, range};
       const auto blob_key = get_blob_name(bucket_key);
-      lfs_access.store(blob_key, serialise(std::move(seqnos)));
+      lfs_access->store(blob_key, serialise(std::move(seqnos)));
     }
 
     Range get_range_for(ccf::SeqNo seqno) const
@@ -271,7 +278,7 @@ namespace ccf::indexing::strategies
           else
           {
             // Begin fetching this bucket from disk
-            auto fetch_handle = lfs_access.fetch(get_blob_name(bucket_key));
+            auto fetch_handle = lfs_access->fetch(get_blob_name(bucket_key));
             old_results.insert(
               bucket_key, std::make_pair(fetch_handle, SeqNoCollection()));
             complete = false;
@@ -344,7 +351,7 @@ namespace ccf::indexing::strategies
 
   SeqnosByKey_Bucketed_Untyped::SeqnosByKey_Bucketed_Untyped(
     const std::string& map_name_,
-    AbstractLFSAccess& lfs_access_,
+    ccfapp::AbstractNodeContext& node_context,
     size_t seqnos_per_bucket_,
     size_t max_buckets_) :
     VisitEachEntryInMap(map_name_, "SeqnosByKey")
@@ -358,7 +365,11 @@ namespace ccf::indexing::strategies
     }
 
     impl = std::make_shared<Impl>(
-      get_name(), current_txid, lfs_access_, seqnos_per_bucket_, max_buckets_);
+      get_name(),
+      current_txid,
+      node_context.get_subsystem<AbstractLFSAccess>(),
+      seqnos_per_bucket_,
+      max_buckets_);
   }
 
   size_t SeqnosByKey_Bucketed_Untyped::max_requestable_range() const

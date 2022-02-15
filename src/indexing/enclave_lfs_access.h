@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/indexing/lfs_interface.h"
 #include "crypto/entropy.h"
 #include "crypto/hash.h"
 #include "crypto/symmetric_key.h"
 #include "ds/hex.h"
 #include "ds/messaging.h"
+#include "indexing/lfs_interface.h"
 #include "indexing/lfs_ringbuffer_types.h"
 
 #include <optional>
