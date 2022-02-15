@@ -19,7 +19,8 @@ namespace kv
     enum class Flag : uint8_t
     {
       LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
-      SNAPSHOT_AT_NEXT_SIGNATURE = 0x02
+      SNAPSHOT_AT_NEXT_SIGNATURE = 0x02,
+      LEDGER_CHUNK_BEFORE_THIS_TX = 0x03,
     };
 
   protected:
@@ -181,12 +182,13 @@ namespace kv
           // This transaction indicates to the store that the next signature
           // should trigger a new ledger chunk, but *this* transaction does not
           // create a new ledger chunk
-          unset_flag(AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+          unset_flag(CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
         }
 
         if (flag_enabled(Flag::SNAPSHOT_AT_NEXT_SIGNATURE))
         {
           store->set_flag(AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+          unset_flag(CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
         }
 
         if (version == NoVersion)
