@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/siphash.h"
+#include "ccf/ds/siphash.h"
 
 #include <small_vector/SmallVector.h>
 
