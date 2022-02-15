@@ -167,7 +167,7 @@ def run(
             has_error = False
         finally:
             if insecure_skip_verification:
-                LOG.warning(f"Skipped ledger integrity verification")
+                LOG.warning("Skipped ledger integrity verification")
             else:
                 LOG.info(
                     f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
