@@ -341,10 +341,16 @@ class LoggingTxs:
         check = infra.checker.Checker()
         with primary.client(self.user) as c:
             table = "private" if priv else "public"
-            check(c.delete(f"/app/log/{table}?id={log_id}"))
+            check(
+                c.delete(
+                    f"/app/log/{table}?id={log_id}", headers=self._get_headers_base()
+                )
+            )
 
     def request(self, log_id, priv=False, log_capture=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
         with primary.client(self.user) as c:
             table = "private" if priv else "public"
-            return c.get(f"/app/log/{table}?id={log_id}")
+            return c.get(
+                f"/app/log/{table}?id={log_id}", headers=self._get_headers_base()
+            )
