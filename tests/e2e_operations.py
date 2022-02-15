@@ -102,7 +102,9 @@ def test_forced_ledger_chunk(network, args):
     # Check that there is indeed a ledger chunk that ends at the
     # first signature after proposal.completed_seqno
     ledger = ccf.ledger.Ledger(ledger_dirs)
-    chunk, _, last, next_signature = find_ledger_chunk(ledger, proposal.completed_seqno)
+    chunk, _, last, next_signature = find_ledger_chunk_for_seqno(
+        ledger, proposal.completed_seqno
+    )
     LOG.info(
         f"Found ledger chunk {chunk.filename()} with chunking proposal @{proposal.completed_seqno} and signature @{next_signature}"
     )
@@ -140,7 +142,9 @@ def test_forced_snapshot(network, args):
 
     # Find first signature after proposal.completed_seqno
     ledger = ccf.ledger.Ledger(ledger_dirs)
-    chunk, _, _, next_signature = find_ledger_chunk(ledger, proposal.completed_seqno)
+    chunk, _, _, next_signature = find_ledger_chunk_for_seqno(
+        ledger, proposal.completed_seqno
+    )
     LOG.info(
         f"Found ledger chunk {chunk.filename()} with snapshot proposal @{proposal.completed_seqno} and signature @{next_signature}"
     )
