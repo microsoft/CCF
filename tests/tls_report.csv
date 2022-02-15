@@ -44,7 +44,7 @@
 "cert_keyUsage","","INFO","No server key usage information","",""
 "cert_extKeyUsage","","INFO","No server extended key usage information","",""
 "cert_serialNumber","","INFO","","",""
-"cert_serialNumberLen","","INFO","16","",""
+"cert_serialNumberLen","","INFO","","",""
 "cert_fingerprintSHA1","","INFO","","",""
 "cert_fingerprintSHA256","","INFO","","",""
 "cert","","INFO","----------","",""
