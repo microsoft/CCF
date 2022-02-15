@@ -5,6 +5,7 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/logger.h"
 #include "ccf/historical_queries_interface.h"
+#include "ccf/host_processes_interface.h"
 #include "ccf/js_plugin.h"
 #include "ccf/tx.h"
 #include "enclave/rpc_context.h"
@@ -172,7 +173,7 @@ namespace ccf::js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,

@@ -292,7 +292,7 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
-        &context.get_node_state(),
+        context.get_host_processes(),
         nullptr,
         &context.get_historical_state(),
         this,

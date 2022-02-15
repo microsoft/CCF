@@ -997,10 +997,10 @@ namespace ccf::js
       process_args.push_back(*arg);
     }
 
-    auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
+    auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
       JS_GetOpaque(this_val, host_class_id));
 
-    gov_effects->trigger_host_process_launch(process_args);
+    host_processes->trigger_host_process_launch(process_args);
 
     return JS_UNDEFINED;
   }
@@ -1384,7 +1384,7 @@ namespace ccf::js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1500,7 +1500,7 @@ namespace ccf::js
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
 
-    // Node state
+    // Gov effects
     if (gov_effects != nullptr)
     {
       if (txctx == nullptr)
@@ -1542,10 +1542,10 @@ namespace ccf::js
         JS_NewCFunction(ctx, js_request_ledger_chunk, "requestLedgerChunk", 0));
     }
 
-    if (host_node_state != nullptr)
+    if (host_processes != nullptr)
     {
       auto host = JS_NewObjectClass(ctx, host_class_id);
-      JS_SetOpaque(host, host_node_state);
+      JS_SetOpaque(host, host_processes);
       JS_SetPropertyStr(ctx, ccf, "host", host);
 
       JS_SetPropertyStr(
@@ -1672,7 +1672,7 @@ namespace ccf::js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1691,7 +1691,7 @@ namespace ccf::js
         transaction_id,
         receipt,
         gov_effects,
-        host_node_state,
+        host_processes,
         network_state,
         historical_state,
         endpoint_registry,
@@ -1705,7 +1705,7 @@ namespace ccf::js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::TxReceiptPtr receipt,
     ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractNodeState* host_node_state,
+    ccf::AbstractHostProcesses* host_processes,
     ccf::NetworkState* network_state,
     ccf::historical::AbstractStateCache* historical_state,
     ccf::BaseEndpointRegistry* endpoint_registry,
@@ -1719,7 +1719,7 @@ namespace ccf::js
       transaction_id,
       receipt,
       gov_effects,
-      host_node_state,
+      host_processes,
       network_state,
       historical_state,
       endpoint_registry,

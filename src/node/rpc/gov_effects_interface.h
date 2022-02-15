@@ -15,9 +15,5 @@ namespace ccf
     virtual bool rekey_ledger(kv::Tx& tx) = 0;
     virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual void request_ledger_chunk(kv::Tx& tx) = 0;
-
-    // TODO: You don't live here!
-    virtual void trigger_host_process_launch(
-      const std::vector<std::string>& args) = 0;
   };
 }

@@ -14,7 +14,8 @@ namespace ccf
   // TODO: Split this into separate stubs, once duplicate methods are deleted
   class StubNodeState : public ccf::AbstractNodeState,
                         public ccf::AbstractNodeOperation,
-                        public ccf::AbstractGovernanceEffects
+                        public ccf::AbstractGovernanceEffects,
+                        public ccf::AbstractHostProcesses
   {
   private:
     bool is_public = false;
@@ -265,6 +266,11 @@ namespace ccf
     ccf::indexing::AbstractLFSAccess& get_lfs_access() override
     {
       throw std::logic_error("Not implemented");
+    }
+
+    ccf::AbstractHostProcesses* get_host_processes() override
+    {
+      return &state;
     }
   };
 }

@@ -34,12 +34,5 @@ namespace ccf
     {
       impl.request_ledger_chunk(tx);
     }
-
-    // TODO: You don't live here!
-    void trigger_host_process_launch(
-      const std::vector<std::string>& args) override
-    {
-      impl.trigger_host_process_launch(args);
-    }
   };
 }

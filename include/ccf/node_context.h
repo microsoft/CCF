@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/host_processes_interface.h"
 #include "ccf/indexing/indexer_interface.h"
 #include "ccf/indexing/lfs_interface.h"
 #include "node/rpc/node_interface.h"
@@ -18,5 +19,7 @@ namespace ccfapp
     virtual ccf::AbstractNodeState& get_node_state() = 0;
     virtual ccf::indexing::IndexingStrategies& get_indexing_strategies() = 0;
     virtual ccf::indexing::AbstractLFSAccess& get_lfs_access() = 0;
+
+    virtual ccf::AbstractHostProcesses* get_host_processes() = 0;
   };
 }

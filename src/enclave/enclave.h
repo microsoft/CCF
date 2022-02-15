@@ -17,6 +17,7 @@
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
+#include "node/rpc/host_processes.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
@@ -55,6 +56,7 @@ namespace enclave
       ccf::AbstractNodeState* node_state = nullptr;
       std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
       std::unique_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
+      std::unique_ptr<ccf::HostProcesses> host_processes = nullptr;
 
       NodeContext(const ccf::NodeId& id) : this_node(id) {}
 
@@ -103,6 +105,11 @@ namespace enclave
             "initialized");
         }
         return *lfs_access;
+      }
+
+      ccf::AbstractHostProcesses* get_host_processes() override
+      {
+        return host_processes.get();
       }
     };
 
@@ -173,6 +180,7 @@ namespace enclave
           context->historical_state_cache));
       context->lfs_access = std::make_unique<ccf::indexing::EnclaveLFSAccess>(
         writer_factory->create_writer_to_outside());
+      context->host_processes = std::make_unique<ccf::HostProcesses>(*node);
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       gov_effects = std::make_unique<ccf::GovernanceEffects>(*node);
