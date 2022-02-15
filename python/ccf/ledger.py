@@ -957,7 +957,7 @@ class Ledger:
                 self._ledger_validator.last_verified_seqno,
             )
             if self._ledger_validator
-            else TxID(0, 0)
+            else None
         )
 
 
