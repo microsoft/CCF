@@ -33,9 +33,11 @@ for item in "$@" ; do
         next_is_command=false
     fi
     if [ "$next_is_privk" == true ]; then
+        privk=$item
         next_is_privk=false
     fi
     if [ "$next_is_cert" == true ]; then
+        cert=$item
         next_is_cert=false
     fi
     if [ "$next_is_signing_privk" == true ]; then
@@ -78,12 +80,23 @@ for item in "$@" ; do
     fwd_args+=("$item")
 done
 
+has_required_args=true
 if [ -z "$signing_cert" ]; then
-    echo "Error: No signing certificate found in arguments (--signing-cert)"
-    exit 1
+    echo "Error: No signing certificate found in arguments (--signing-cert)."
+    if [ -n "$cert" ]; then
+        echo "  Did you mean: --signing-cert $cert?"
+    fi
+    has_required_args=false
 fi
 if [ -z "$signing_privk" ] && [ "$is_print_digest_to_sign" == false ]; then
-    echo "Error: No signing private key found in arguments (--signing-key)"
+    echo "Error: No signing private key found in arguments (--signing-key)."
+    if [ -n "$privk" ]; then
+        echo "  Did you mean: --signing-key $privk?"
+    fi
+    has_required_args=false
+fi
+
+if [ "$has_required_args" == false ]; then
     exit 1
 fi
 

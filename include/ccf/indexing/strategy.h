@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/store_ptr.h"
 #include "ccf/tx_id.h"
-#include "kv/store.h"
 
-#include <memory>
+#include <optional>
 #include <string>
 
 namespace ccf::indexing
@@ -25,7 +25,7 @@ namespace ccf::indexing
 
     // Receives every committed transaction, in-order
     virtual void handle_committed_transaction(
-      const ccf::TxID& tx_id, const std::shared_ptr<kv::Store>& store) = 0;
+      const ccf::TxID& tx_id, const kv::StorePtr& store) = 0;
 
     virtual void tick() {}
 

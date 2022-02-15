@@ -532,6 +532,7 @@ class Network:
         self.ignoring_shutdown_errors = True
 
     def check_ledger_files_identical(self):
+        # Note: Should be called on stopped service
         # Verify that all ledger files on stopped nodes exist on most up-to-date node
         # and are identical
         longest_ledger_node = None
@@ -539,6 +540,11 @@ class Network:
 
         longest_ledger_seqno = 0
         for node in self.nodes:
+            if node.network_state != infra.node.NodeNetworkState.stopped:
+                raise RuntimeError(
+                    f"Node {node.node_id} should be stopped before verifying ledger consistency"
+                )
+
             ledger = node.remote.ledger_paths()
             last_seqno = Ledger(ledger).get_latest_public_state()[1]
             nodes_ledger[node.local_node_id] = [ledger, last_seqno]
