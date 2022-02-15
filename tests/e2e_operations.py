@@ -55,12 +55,10 @@ def test_parse_snapshot_file(network, args):
 
 def find_ledger_chunk_for_seqno(ledger, seqno):
     for chunk in ledger:
-        first = last = next_signature = None
+        first, last = chunk.get_seqnos()
+        next_signature = None
         for tx in chunk:
             pd = tx.get_public_domain()
-            if first is None:
-                first = pd.get_seqno()
-            last = pd.get_seqno()
             tables = pd.get_tables()
             if (
                 pd.get_seqno() >= seqno
