@@ -55,7 +55,7 @@ First, the new member should update and retrieve the latest state digest via the
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/gov/ack/update_state_digest  --cacert service_cert.pem --key new_member_privk.pem --cert new_member_cert.pem
+    $ curl -X POST https://<ccf-node-address>/gov/ack/update_state_digest --cacert service_cert.pem --key new_member_privk.pem --cert new_member_cert.pem
     {
         "state_digest": <...>
     }
