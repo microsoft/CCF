@@ -1425,7 +1425,6 @@ namespace ccf
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
-      // TODO: Move ShareManager to node subsystem as well?
       RpcFrontend(*network.tables, member_endpoints),
       member_endpoints(network, context, share_manager)
     {}
