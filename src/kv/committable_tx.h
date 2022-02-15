@@ -410,7 +410,9 @@ namespace kv
       std::string commit_evidence;
 
       // This is a signature and, if the ledger chunking flag is enabled, we
-      // want the host to create a chunk when it sees this entry.
+      // want the host to create a chunk when it sees this entry. On backups, we
+      // also trigger a ledger chunk when the primary creates a snapshot (which
+      // also triggers a new ledger chunk).
       // version_lock held by Store::commit
       bool force_ledger_chunk =
         store->flag_enabled_unsafe(
