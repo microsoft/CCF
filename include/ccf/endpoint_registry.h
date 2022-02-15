@@ -6,6 +6,7 @@
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/tx.h"
+#include "enclave/rpc_context.h"
 
 #include <charconv>
 #include <functional>

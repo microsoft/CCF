@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ccf/crypto/base64.h"
+#include "ccf/http_consts.h"
 #include "ccf/service/signed_req.h"
 #include "crypto/hash.h"
 #include "crypto/key_pair.h"
-#include "http_consts.h"
 #include "http_parser.h"
 
 #define FMT_HEADER_ONLY
@@ -64,7 +64,7 @@ namespace http
   {
     // Ensure digest is present and up-to-date
     crypto::Sha256Hash body_digest(
-      {request.get_content_data(), request.get_content_length()});
+      request.get_content_data(), request.get_content_length());
     request.set_header(
       headers::DIGEST,
       fmt::format(

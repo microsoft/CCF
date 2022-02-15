@@ -5,6 +5,8 @@
 #include "ccf/ds/logger.h"
 #include "ccf/indexing/indexer_interface.h"
 #include "indexing/transaction_fetcher_interface.h"
+#include "kv/kv_types.h"
+#include "kv/store.h"
 
 #include <memory>
 #include <string>

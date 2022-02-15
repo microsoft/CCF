@@ -168,8 +168,7 @@ kv::Version rekey(
   return tx_version;
 }
 
-void validate_business_transaction(
-  ccf::historical::StorePtr store, ccf::SeqNo seqno)
+void validate_business_transaction(kv::StorePtr store, ccf::SeqNo seqno)
 {
   REQUIRE(store != nullptr);
 
@@ -817,59 +816,58 @@ TEST_CASE("StateCache sparse queries")
   std::random_device rd;
   std::mt19937 g(rd());
   auto next_handle = 0;
-  auto fetch_and_validate_sparse_set =
-    [&](const ccf::historical::SeqNoCollection& seqnos) {
-      const auto this_handle = next_handle++;
-      {
-        auto stores = cache.get_stores_for(this_handle, seqnos);
-        REQUIRE(stores.empty());
-      }
+  auto fetch_and_validate_sparse_set = [&](const ccf::SeqNoCollection& seqnos) {
+    const auto this_handle = next_handle++;
+    {
+      auto stores = cache.get_stores_for(this_handle, seqnos);
+      REQUIRE(stores.empty());
+    }
 
-      // Cache is robust to receiving these out-of-order, so stress that by
-      // submitting out-of-order
-      std::vector<ccf::SeqNo> to_provide;
-      for (auto it = seqnos.begin(); it != seqnos.end(); ++it)
-      {
-        to_provide.emplace_back(*it);
-      }
-      std::shuffle(to_provide.begin(), to_provide.end(), g);
+    // Cache is robust to receiving these out-of-order, so stress that by
+    // submitting out-of-order
+    std::vector<ccf::SeqNo> to_provide;
+    for (auto it = seqnos.begin(); it != seqnos.end(); ++it)
+    {
+      to_provide.emplace_back(*it);
+    }
+    std::shuffle(to_provide.begin(), to_provide.end(), g);
 
-      for (const auto seqno : to_provide)
-      {
-        // Some of these may be unrequested since they overlapped with the
-        // previous range so are already known. Provide them all blindly for
-        // simplicity, and make no assertion on the return code.
-        provide_ledger_entry(seqno);
-      }
+    for (const auto seqno : to_provide)
+    {
+      // Some of these may be unrequested since they overlapped with the
+      // previous range so are already known. Provide them all blindly for
+      // simplicity, and make no assertion on the return code.
+      provide_ledger_entry(seqno);
+    }
 
-      {
-        auto stores = cache.get_stores_for(this_handle, seqnos);
-        REQUIRE(!stores.empty());
+    {
+      auto stores = cache.get_stores_for(this_handle, seqnos);
+      REQUIRE(!stores.empty());
 
-        const auto range_size = to_provide.size();
-        REQUIRE(stores.size() == range_size);
-        for (auto& store : stores)
+      const auto range_size = to_provide.size();
+      REQUIRE(stores.size() == range_size);
+      for (auto& store : stores)
+      {
+        REQUIRE(store != nullptr);
+        const auto seqno = store->current_version();
+
+        // Don't validate anything about signature transactions, just the
+        // business transactions between them
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), seqno) ==
+          signature_versions.end())
         {
-          REQUIRE(store != nullptr);
-          const auto seqno = store->current_version();
-
-          // Don't validate anything about signature transactions, just the
-          // business transactions between them
-          if (
-            std::find(
-              signature_versions.begin(), signature_versions.end(), seqno) ==
-            signature_versions.end())
-          {
-            validate_business_transaction(store, seqno);
-          }
+          validate_business_transaction(store, seqno);
         }
       }
-    };
+    }
+  };
 
   {
     INFO("Fetch a single explicit sparse set");
 
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(4);
     seqnos.insert(5);
     seqnos.insert(7);
@@ -888,7 +886,7 @@ TEST_CASE("StateCache sparse queries")
       "signatures");
     for (size_t n = 0; n < 10; ++n)
     {
-      ccf::historical::SeqNoCollection seqnos;
+      ccf::SeqNoCollection seqnos;
       for (auto seqno = begin_seqno; seqno < end_seqno; ++seqno)
       {
         if (rand() % 3 == 0)
@@ -1033,21 +1031,20 @@ TEST_CASE("StateCache concurrent access")
       }
     };
 
-  auto validate_all_stores =
-    [&](const std::vector<ccf::historical::StorePtr>& stores) {
-      for (auto& store : stores)
+  auto validate_all_stores = [&](const std::vector<kv::StorePtr>& stores) {
+    for (auto& store : stores)
+    {
+      REQUIRE(store != nullptr);
+      const auto seqno = store->current_version();
+      if (
+        std::find(
+          signature_versions.begin(), signature_versions.end(), seqno) ==
+        signature_versions.end())
       {
-        REQUIRE(store != nullptr);
-        const auto seqno = store->current_version();
-        if (
-          std::find(
-            signature_versions.begin(), signature_versions.end(), seqno) ==
-          signature_versions.end())
-        {
-          validate_business_transaction(store, seqno);
-        }
+        validate_business_transaction(store, seqno);
       }
-    };
+    }
+  };
 
   auto validate_all_states =
     [&](const std::vector<ccf::historical::StatePtr>& states) {
@@ -1067,7 +1064,7 @@ TEST_CASE("StateCache concurrent access")
 
   auto query_random_point_store =
     [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
-      ccf::historical::StorePtr store;
+      kv::StorePtr store;
       auto fetch_result = [&]() {
         store = cache.get_store_at(handle, target_seqno);
       };
@@ -1094,7 +1091,7 @@ TEST_CASE("StateCache concurrent access")
                                      ccf::SeqNo range_end,
                                      size_t handle,
                                      const auto& error_printer) {
-    std::vector<ccf::historical::StorePtr> stores;
+    std::vector<kv::StorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_store_range(handle, range_start, range_end);
     };
@@ -1119,35 +1116,33 @@ TEST_CASE("StateCache concurrent access")
     validate_all_states(states);
   };
 
-  auto query_random_sparse_set_stores =
-    [&](
-      const ccf::historical::SeqNoCollection& seqnos,
-      size_t handle,
-      const auto& error_printer) {
-      std::vector<ccf::historical::StorePtr> stores;
-      auto fetch_result = [&]() {
-        stores = cache.get_stores_for(handle, seqnos);
-      };
-      auto check_result = [&]() { return !stores.empty(); };
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-      REQUIRE(stores.size() == seqnos.size());
-      validate_all_stores(stores);
+  auto query_random_sparse_set_stores = [&](
+                                          const ccf::SeqNoCollection& seqnos,
+                                          size_t handle,
+                                          const auto& error_printer) {
+    std::vector<kv::StorePtr> stores;
+    auto fetch_result = [&]() {
+      stores = cache.get_stores_for(handle, seqnos);
     };
+    auto check_result = [&]() { return !stores.empty(); };
+    REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+    REQUIRE(stores.size() == seqnos.size());
+    validate_all_stores(stores);
+  };
 
-  auto query_random_sparse_set_states =
-    [&](
-      const ccf::historical::SeqNoCollection& seqnos,
-      size_t handle,
-      const auto& error_printer) {
-      std::vector<ccf::historical::StatePtr> states;
-      auto fetch_result = [&]() {
-        states = cache.get_states_for(handle, seqnos);
-      };
-      auto check_result = [&]() { return !states.empty(); };
-      REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
-      REQUIRE(states.size() == seqnos.size());
-      validate_all_states(states);
+  auto query_random_sparse_set_states = [&](
+                                          const ccf::SeqNoCollection& seqnos,
+                                          size_t handle,
+                                          const auto& error_printer) {
+    std::vector<ccf::historical::StatePtr> states;
+    auto fetch_result = [&]() {
+      states = cache.get_states_for(handle, seqnos);
     };
+    auto check_result = [&]() { return !states.empty(); };
+    REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
+    REQUIRE(states.size() == seqnos.size());
+    validate_all_states(states);
+  };
 
   auto run_n_queries = [&](size_t handle) {
     std::vector<std::string> previously_requested;
@@ -1210,7 +1205,7 @@ TEST_CASE("StateCache concurrent access")
           {
             std::swap(range_start, range_end);
           }
-          ccf::historical::SeqNoCollection seqnos;
+          ccf::SeqNoCollection seqnos;
           seqnos.insert(range_start);
           for (auto i = range_start; i != range_end; ++i)
           {
@@ -1258,7 +1253,7 @@ TEST_CASE("StateCache concurrent access")
     };
     previously_requested.push_back("A");
     query_random_range_states(9, 12, handle, error_printer);
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(3);
     seqnos.insert(9);
     seqnos.insert(12);
@@ -1284,7 +1279,7 @@ TEST_CASE("StateCache concurrent access")
     auto error_printer = [&]() {
       default_error_printer(handle, i, previously_requested);
     };
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(4);
     seqnos.insert(5);
     seqnos.insert(7);
@@ -1305,7 +1300,7 @@ TEST_CASE("StateCache concurrent access")
       default_error_printer(handle, i, previously_requested);
     };
     {
-      ccf::historical::SeqNoCollection seqnos;
+      ccf::SeqNoCollection seqnos;
       seqnos.insert(14);
       seqnos.insert(16);
       seqnos.insert(17);
@@ -1316,7 +1311,7 @@ TEST_CASE("StateCache concurrent access")
       query_random_sparse_set_states(seqnos, handle, error_printer);
     }
     {
-      ccf::historical::SeqNoCollection seqnos;
+      ccf::SeqNoCollection seqnos;
       seqnos.insert(6);
       seqnos.insert(7);
       seqnos.insert(8);
@@ -1341,7 +1336,7 @@ TEST_CASE("StateCache concurrent access")
     auto error_printer = [&]() {
       default_error_printer(handle, i, previously_requested);
     };
-    ccf::historical::SeqNoCollection seqnos;
+    ccf::SeqNoCollection seqnos;
     seqnos.insert(22);
     seqnos.insert(23);
     previously_requested.push_back("A");

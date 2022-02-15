@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "http/http_status.h"
+#include "ccf/http_status.h"
 
 namespace ccf
 {
