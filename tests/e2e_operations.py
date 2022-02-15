@@ -60,8 +60,7 @@ def find_ledger_chunk(ledger, seqno):
             pd = tx.get_public_domain()
             if first is None:
                 first = pd.get_seqno()
-            else:
-                last = pd.get_seqno()
+            last = pd.get_seqno()
             tables = pd.get_tables()
             if (
                 pd.get_seqno() >= seqno
