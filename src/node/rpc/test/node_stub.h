@@ -106,7 +106,7 @@ namespace ccf
       return {NodeStartupState::partOfNetwork, {}, {}};
     }
 
-    void open_user_frontend() override{};
+    void open_user_frontend() override {}
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
