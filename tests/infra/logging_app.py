@@ -76,7 +76,7 @@ class LoggingTxs:
             for k in txs:
                 if max_id is None or k > max_id:
                     max_id = k
-        return max_id
+        return 0 if max_id is None else max_id
 
     def issue(
         self,
