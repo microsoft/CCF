@@ -9,10 +9,12 @@
 namespace kv
 {
   static constexpr auto entry_format_v1 = 1;
+  using SerialisedEntryFlags = uint8_t;
 
-  enum EntryFlags : uint8_t
+  enum EntryFlags : SerialisedEntryFlags
   {
-    FORCE_LEDGER_CHUNK = 0x01
+    FORCE_LEDGER_CHUNK_AFTER = 0x01,
+    FORCE_LEDGER_CHUNK_BEFORE = 0x02
   };
 
   // 6 bytes are used for the size of the serialised entry
@@ -21,10 +23,11 @@ namespace kv
   struct SerialisedEntryHeader
   {
     uint8_t version = entry_format_v1;
-    uint8_t flags = 0;
+    SerialisedEntryFlags flags = 0;
 
-    uint64_t size : (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(uint8_t)) *
-                    CHAR_BIT;
+    uint64_t size
+      : (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(SerialisedEntryFlags)) *
+        CHAR_BIT;
 
     void set_size(uint64_t size_)
     {
