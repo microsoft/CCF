@@ -139,10 +139,12 @@ namespace consensus
      * Initialise ledger at a given index (e.g. after a snapshot)
      *
      * @param idx Index to start ledger from
+     * @param recovery_start_idx Index at which the recovery starts
      */
-    void init(Index idx)
+    void init(Index idx = 0, Index recovery_start_idx = 0)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_init, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_init, to_host, idx, recovery_start_idx);
     }
   };
 }

@@ -576,7 +576,10 @@ namespace ccf
             }
 
             consensus->init_as_backup(
-              network.tables->current_version(), view, view_history);
+              network.tables->current_version(),
+              view,
+              view_history,
+              last_recovered_signed_idx);
 
             if (resp.network_info->public_only)
             {

@@ -570,6 +570,7 @@ namespace asynchost
     // Set during recovery to mark files as temporary until the recovery is
     // complete
     bool recovery_mode = false;
+    std::optional<size_t> recovery_start_idx = std::nullopt;
 
     auto get_it_contains_idx(size_t idx) const
     {
@@ -919,7 +920,7 @@ namespace asynchost
 
     Ledger(const Ledger& that) = delete;
 
-    void init(size_t idx)
+    void init(size_t idx, size_t recovery_start_idx_ = 0)
     {
       TimeBoundLogger log_if_slow(fmt::format("Initing ledger - idx={}", idx));
 
@@ -951,9 +952,14 @@ namespace asynchost
         require_new_file = true;
       }
 
-      LOG_INFO_FMT("Setting last known/commit index to {}", idx);
       last_idx = idx;
       committed_idx = idx;
+      recovery_start_idx = recovery_start_idx_;
+
+      LOG_INFO_FMT(
+        "Set last known/commit index to {}, recovery idx to {}",
+        idx,
+        recovery_start_idx_);
     }
 
     void open()
@@ -999,6 +1005,7 @@ namespace asynchost
       }
 
       recovery_mode = false;
+      recovery_start_idx.reset();
     }
 
     size_t get_last_idx() const
@@ -1092,6 +1099,17 @@ namespace asynchost
         force_chunk_after);
 
       if (
+        recovery_start_idx.has_value() &&
+        last_idx == recovery_start_idx.value())
+      {
+        // TODO: What if this rolls back before recovery start idx?
+        LOG_DEBUG_FMT(
+          "Transition to recovery mode after writing entry at {}",
+          recovery_start_idx.value());
+        recovery_mode = true;
+      }
+
+      if (
         committable &&
         (force_chunk_after || f->get_current_size() >= chunk_threshold))
       {
@@ -1141,6 +1159,12 @@ namespace asynchost
       }
 
       last_idx = idx;
+      // TODO: Unit test this!
+      if (
+        recovery_start_idx.has_value() && last_idx < recovery_start_idx.value())
+      {
+        recovery_mode = false;
+      }
     }
 
     void commit(size_t idx)
@@ -1257,7 +1281,9 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          init(idx);
+          auto recovery_start_idx =
+            serialized::read<consensus::Index>(data, size);
+          init(idx, recovery_start_idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
