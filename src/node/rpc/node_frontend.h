@@ -317,12 +317,10 @@ namespace ccf
 
   public:
     NodeEndpoints(
-      NetworkState& network_,
-      ccfapp::AbstractNodeContext& context_,
-      ccf::AbstractNodeOperation& node_operation_) :
+      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network_),
-      node_operation(node_operation_)
+      node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>())
     {
       openapi_info.title = "CCF Public Node API";
       openapi_info.description =
@@ -1560,11 +1558,9 @@ namespace ccf
 
   public:
     NodeRpcFrontend(
-      NetworkState& network,
-      ccfapp::AbstractNodeContext& context,
-      ccf::AbstractNodeOperation& node_operation) :
+      NetworkState& network, ccfapp::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, node_endpoints),
-      node_endpoints(network, context, node_operation)
+      node_endpoints(network, context)
     {}
   };
 }

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/indexing/strategy.h"
+#include "ccf/node_subsystem_interface.h"
 
 #include <map>
 #include <memory>
@@ -14,13 +15,18 @@ namespace ccf::indexing
   // installed strategy. Applications should install strategies at
   // construction, and then retrieve those strategies and query them for indexed
   // results during endpoint execution.
-  class IndexingStrategies
+  class IndexingStrategies : public ccf::AbstractNodeSubSystem
   {
   protected:
     std::set<StrategyPtr> strategies;
 
   public:
     virtual ~IndexingStrategies() = default;
+
+    static char const* get_subsystem_name()
+    {
+      return "IndexingStrategies";
+    }
 
     bool install_strategy(const StrategyPtr& strategy)
     {

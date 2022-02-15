@@ -180,7 +180,7 @@ auto init_frontend(
   }
 
   return MemberRpcFrontend(
-    network, context, share_manager, context.state, context.state);
+    network, context, share_manager);
 }
 
 void init_network(NetworkState& network)

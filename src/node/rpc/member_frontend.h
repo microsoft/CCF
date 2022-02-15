@@ -12,6 +12,7 @@
 #include "node/quote.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/node_operation_interface.h"
 #include "node/rpc/serialization.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -368,13 +369,22 @@ namespace ccf
             js::Context js_context(rt);
             rt.add_ccf_classdefs();
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
+
+            auto gov_effects =
+              context.get_subsystem<AbstractGovernanceEffects>();
+            if (gov_effects == nullptr)
+            {
+              throw std::logic_error(
+                "Unexpected: Could not access GovEffects subsytem");
+            }
+
             js::populate_global(
               &txctx,
               nullptr,
               nullptr,
               std::nullopt,
               nullptr,
-              &gov_effects,
+              gov_effects.get(),
               nullptr,
               &network,
               nullptr,
@@ -464,21 +474,15 @@ namespace ccf
 
     NetworkState& network;
     ShareManager& share_manager;
-    AbstractGovernanceEffects& gov_effects;
-    AbstractNodeOperation& node_operation;
 
   public:
     MemberEndpoints(
       NetworkState& network_,
       ccfapp::AbstractNodeContext& context_,
-      ShareManager& share_manager_,
-      AbstractGovernanceEffects& gov_effects_,
-      AbstractNodeOperation& node_operation_) :
+      ShareManager& share_manager_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
       network(network_),
-      share_manager(share_manager_),
-      gov_effects(gov_effects_),
-      node_operation(node_operation_)
+      share_manager(share_manager_)
     {
       openapi_info.title = "CCF Governance API";
       openapi_info.description =
@@ -714,7 +718,14 @@ namespace ccf
             "Service is not waiting for recovery shares");
         }
 
-        if (node_operation.is_reading_private_ledger())
+        auto node_operation = context.get_subsystem<AbstractNodeOperation>();
+        if (node_operation == nullptr)
+        {
+          throw std::logic_error(
+            "Unexpected: Could not access NodeOperation subsystem");
+        }
+
+        if (node_operation->is_reading_private_ledger())
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -759,7 +770,7 @@ namespace ccf
 
         try
         {
-          node_operation.initiate_private_recovery(ctx.tx);
+          node_operation->initiate_private_recovery(ctx.tx);
         }
         catch (const std::exception& e)
         {
@@ -1413,12 +1424,10 @@ namespace ccf
     MemberRpcFrontend(
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
-      ShareManager& share_manager,
-      AbstractGovernanceEffects& gov_effects,
-      AbstractNodeOperation& node_operation) :
+      ShareManager& share_manager) :
+      // TODO: Move ShareManager to node subsystem as well?
       RpcFrontend(*network.tables, member_endpoints),
-      member_endpoints(
-        network, context, share_manager, gov_effects, node_operation)
+      member_endpoints(network, context, share_manager)
     {}
   };
 } // namespace ccf

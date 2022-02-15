@@ -100,7 +100,7 @@ TEST_CASE("Add a node to an opening service")
 
   ShareManager share_manager(network);
   StubNodeContext context;
-  NodeRpcFrontend frontend(network, context, context.state);
+  NodeRpcFrontend frontend(network, context);
   frontend.open();
 
   network.identity = std::make_unique<ReplicatedNetworkIdentity>();
@@ -234,8 +234,8 @@ TEST_CASE("Add a node to an open service")
 
   ShareManager share_manager(network);
   StubNodeContext context;
-  context.state.set_is_public(true);
-  NodeRpcFrontend frontend(network, context, context.state);
+  context.node_operation->is_public = true;
+  NodeRpcFrontend frontend(network, context);
   frontend.open();
 
   network.identity = std::make_unique<ReplicatedNetworkIdentity>();

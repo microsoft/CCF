@@ -252,7 +252,7 @@ public:
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
     MemberRpcFrontend(
-      network, context, share_manager, context.state, context.state)
+      network, context, share_manager)
   {
     open();
 
@@ -352,7 +352,7 @@ class TestForwardingNodeFrontEnd : public NodeRpcFrontend,
 public:
   TestForwardingNodeFrontEnd(
     ccf::NetworkState& network, ccf::StubNodeContext& context) :
-    NodeRpcFrontend(network, context, context.state)
+    NodeRpcFrontend(network, context)
   {
     open();
 
@@ -379,7 +379,7 @@ public:
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
     MemberRpcFrontend(
-      network, context, share_manager, context.state, context.state)
+      network, context, share_manager)
   {
     open();
 

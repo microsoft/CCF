@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node_subsystem_interface.h"
 #include "ccf/receipt.h"
 #include "ccf/seq_no_collection.h"
 #include "ccf/store_ptr.h"
@@ -66,10 +67,15 @@ namespace ccf::historical
    * correlated across HTTP requests, how the active quota is divided between
    * callers) is left to the calling system.
    */
-  class AbstractStateCache
+  class AbstractStateCache : public ccf::AbstractNodeSubSystem
   {
   public:
     virtual ~AbstractStateCache() = default;
+
+    static char const* get_subsystem_name()
+    {
+      return "StateCache";
+    }
 
     /** Set the default time after which a request's state will be deleted, and
      * will not be accessible without retrieving it again from the ledger. Any

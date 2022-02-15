@@ -3,6 +3,7 @@
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/host_processes_interface.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/entropy.h"
@@ -292,7 +293,7 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
-        context.get_host_processes(),
+        context.get_subsystem<ccf::AbstractHostProcesses>().get(),
         nullptr,
         &context.get_historical_state(),
         this,

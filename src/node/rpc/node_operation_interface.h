@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/node_startup_state.h"
+#include "ccf/node_subsystem_interface.h"
 #include "ccf/quote_info.h"
 #include "ccf/tx.h"
 #include "node/entities.h"
@@ -24,10 +25,15 @@ namespace ccf
     std::optional<kv::Version> /* recovery_target_seqno */,
     std::optional<kv::Version> /* last_recovered_seqno */>;
 
-  class AbstractNodeOperation
+  class AbstractNodeOperation : public ccf::AbstractNodeSubSystem
   {
   public:
     virtual ~AbstractNodeOperation() = default;
+
+    static char const* get_subsystem_name()
+    {
+      return "NodeOperation";
+    }
 
     virtual ExtendedState state() = 0;
 

@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node_subsystem_interface.h"
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -33,10 +35,15 @@ namespace ccf::indexing
 
   using FetchResultPtr = std::shared_ptr<FetchResult>;
 
-  class AbstractLFSAccess
+  class AbstractLFSAccess : public ccf::AbstractNodeSubSystem
   {
   public:
     virtual ~AbstractLFSAccess() = default;
+
+    static char const* get_subsystem_name()
+    {
+      return "LFSAccess";
+    }
 
     virtual void store(const LFSKey& key, LFSContents&& contents) = 0;
     virtual FetchResultPtr fetch(const LFSKey& key) = 0;
