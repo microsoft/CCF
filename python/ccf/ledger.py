@@ -106,6 +106,21 @@ def unpack_array(stream, fmt, length):
     return ret
 
 
+def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
+    elements = (
+        os.path.basename(filename)
+        .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace("ledger_", "")
+        .split("-")
+    )
+    if len(elements) == 2:
+        return (int(elements[0]), int(elements[1]))
+    elif len(elements) == 1:
+        return (int(elements[0]), None)
+    else:
+        raise ValueError(f"Could not read seqno range from ledger file {filename}")
+
+
 class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV
@@ -763,6 +778,7 @@ class LedgerChunk:
         self._current_tx = Transaction(name, ledger_validator)
         self._pos_offset = self._current_tx._pos_offset
         self._filename = name
+        self.start_seqno, self.end_seqno = range_from_filename(name)
 
     def __next__(self) -> Transaction:
         return next(self._current_tx)
@@ -778,6 +794,9 @@ class LedgerChunk:
 
     def is_complete(self):
         return self._pos_offset > 0
+
+    def get_seqnos(self):
+        return self.start_seqno, self.end_seqno
 
 
 class Ledger:
@@ -798,21 +817,6 @@ class Ledger:
         self._ledger_validator = (
             LedgerValidator() if not insecure_skip_verification else None
         )
-
-    @classmethod
-    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
-        elements = (
-            os.path.basename(filename)
-            .replace(COMMITTED_FILE_SUFFIX, "")
-            .replace("ledger_", "")
-            .split("-")
-        )
-        if len(elements) == 2:
-            return (int(elements[0]), int(elements[1]))
-        elif len(elements) == 1:
-            return (int(elements[0]), None)
-        else:
-            assert False, elements
 
     def __init__(
         self,
@@ -843,7 +847,7 @@ class Ledger:
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: Ledger._range_from_filename(x)[0],
+            key=lambda x: range_from_filename(x)[0],
         )
 
         self._reset_iterators(insecure_skip_verification)
@@ -851,7 +855,7 @@ class Ledger:
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
         last_chunk_name = self._filenames[-1]
-        return Ledger._range_from_filename(last_chunk_name)
+        return range_from_filename(last_chunk_name)
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1

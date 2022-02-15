@@ -25,7 +25,7 @@ namespace kv
     W* current_writer;
     TxID tx_id;
     EntryType entry_type;
-    uint8_t header_flags;
+    SerialisedEntryFlags header_flags;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -60,7 +60,7 @@ namespace kv
       std::shared_ptr<AbstractTxEncryptor> e,
       const TxID& tx_id_,
       EntryType entry_type_,
-      uint8_t header_flags_,
+      SerialisedEntryFlags header_flags_,
       const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims()) :
       tx_id(tx_id_),
