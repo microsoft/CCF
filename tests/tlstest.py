@@ -39,7 +39,7 @@ def compare_golden():
         line = re.sub(reHASH, "", line)
         line = re.sub(reCERT, "", line)
         if re.match(reSERIAL, line):
-            # Length of serial number may vary if last bytes are null
+            # Length of serial number may vary if last bytes are zeros
             # so ignore it altogether
             line = re.sub(r"[1-9][0-9]", "", line)
         filtered.append(line)
