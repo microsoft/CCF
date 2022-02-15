@@ -5,13 +5,13 @@
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/logger.h"
 #include "ccf/historical_queries_interface.h"
-#include "ccf/host_processes_interface.h"
 #include "ccf/js_plugin.h"
 #include "ccf/tx.h"
 #include "enclave/rpc_context.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/host_processes_interface.h"
 #include "node/rpc/node_interface.h"
 
 #include <memory>

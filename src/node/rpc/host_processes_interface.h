@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-// TODO: Doesn't need to be public!
 namespace ccf
 {
   class AbstractHostProcesses : public ccf::AbstractNodeSubSystem

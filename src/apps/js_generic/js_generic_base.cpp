@@ -3,7 +3,6 @@
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/host_processes_interface.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/entropy.h"
@@ -12,6 +11,7 @@
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
+#include "node/rpc/host_processes_interface.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>

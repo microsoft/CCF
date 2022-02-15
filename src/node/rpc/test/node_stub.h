@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
-#include "ccf/host_processes_interface.h"
 #include "kv/test/stub_consensus.h"
 #include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/host_processes_interface.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/share_manager.h"

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/host_processes_interface.h"
+#include "node/rpc/host_processes_interface.h"
 
 namespace ccf
 {
