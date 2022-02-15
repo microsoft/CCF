@@ -812,7 +812,11 @@ namespace asynchost
 
           if (is_ledger_file_name_recovery(file_name))
           {
-            LOG_INFO_FMT("Ignoring recovery ledger file {}", file_name);
+            // TODO: Unit test
+            LOG_INFO_FMT(
+              "Deleting recovery ledger file {} in main ledger directory",
+              file_name);
+            fs::remove(f);
             continue;
           }
 
