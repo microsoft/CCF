@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "siphash.h"
+#include "ccf/ds/siphash.h"
 
 #include <array>
 #include <cstdint>

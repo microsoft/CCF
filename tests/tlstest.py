@@ -18,9 +18,9 @@ def compare_golden():
     print(f"Comparing output to golden file: {golden_file}")
 
     # Read both files into arrays
-    with open(golden_file, encoding="UTF-8") as g:
+    with open(golden_file, encoding="utf-8") as g:
         golden = g.readlines()
-    with open("tls_report.csv", encoding="UTF-8") as o:
+    with open("tls_report.csv", encoding="utf-8") as o:
         output = o.readlines()
 
     # Golden file is clean of random output (IP address, hashes)
@@ -30,6 +30,7 @@ def compare_golden():
     reDATETIME = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}")
     reHASH = re.compile(r"[0-9A-F]{30,}")
     reCERT = re.compile(r"BEGIN CERTIFICATE.*END CERTIFICATE")
+    reSERIAL = re.compile(r".*cert_serialNumberLen.*")
     filtered = []
     for line in output:
         line = re.sub(reIPPORT, "", line)
@@ -37,6 +38,10 @@ def compare_golden():
         line = re.sub(reDATETIME, "", line)
         line = re.sub(reHASH, "", line)
         line = re.sub(reCERT, "", line)
+        if re.match(reSERIAL, line):
+            # Length of serial number may vary if last bytes are zeros
+            # so ignore it altogether
+            line = re.sub(r"[1-9][0-9]", "", line)
         filtered.append(line)
 
     # Diff stable output on both files
