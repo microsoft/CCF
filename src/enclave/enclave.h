@@ -104,10 +104,6 @@ namespace enclave
 
     std::unique_ptr<NodeContext> context = nullptr;
 
-    // TODO: These could be removed, and NodeState could just implement all of
-    // these interfaces? I think it's worth having this dumb redirection layer
-    // though, so it's obvious where we _could_ factor out behaviour/members in
-    // future.
     std::unique_ptr<ccf::NodeOperation> node_operation = nullptr;
     std::unique_ptr<ccf::GovernanceEffects> gov_effects = nullptr;
 

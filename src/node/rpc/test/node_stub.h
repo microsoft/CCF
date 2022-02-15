@@ -11,7 +11,6 @@
 
 namespace ccf
 {
-  // TODO: Split this into separate stubs, once duplicate methods are deleted
   class StubNodeState : public ccf::AbstractNodeState,
                         public ccf::AbstractNodeOperation,
                         public ccf::AbstractGovernanceEffects,
