@@ -465,17 +465,20 @@ namespace ccf
     NetworkState& network;
     ShareManager& share_manager;
     AbstractGovernanceEffects& gov_effects;
+    AbstractNodeOperation& node_operation;
 
   public:
     MemberEndpoints(
       NetworkState& network_,
       ccfapp::AbstractNodeContext& context_,
       ShareManager& share_manager_,
-      AbstractGovernanceEffects& gov_effects_) :
+      AbstractGovernanceEffects& gov_effects_,
+      AbstractNodeOperation& node_operation_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
       network(network_),
       share_manager(share_manager_),
-      gov_effects(gov_effects_)
+      gov_effects(gov_effects_),
+      node_operation(node_operation_)
     {
       openapi_info.title = "CCF Governance API";
       openapi_info.description =
@@ -711,7 +714,7 @@ namespace ccf
             "Service is not waiting for recovery shares");
         }
 
-        if (context.get_node_state().is_reading_private_ledger())
+        if (node_operation.is_reading_private_ledger())
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -756,7 +759,7 @@ namespace ccf
 
         try
         {
-          context.get_node_state().initiate_private_recovery(ctx.tx);
+          node_operation.initiate_private_recovery(ctx.tx);
         }
         catch (const std::exception& e)
         {
@@ -1411,9 +1414,11 @@ namespace ccf
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager,
-      AbstractGovernanceEffects& gov_effects) :
+      AbstractGovernanceEffects& gov_effects,
+      AbstractNodeOperation& node_operation) :
       RpcFrontend(*network.tables, member_endpoints),
-      member_endpoints(network, context, share_manager, gov_effects)
+      member_endpoints(
+        network, context, share_manager, gov_effects, node_operation)
     {}
   };
 } // namespace ccf

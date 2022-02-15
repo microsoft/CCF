@@ -79,5 +79,10 @@ namespace ccf
       return impl.verify_quote(
         tx, quote_info, expected_node_public_key_der, code_digest);
     }
+
+    void initiate_private_recovery(kv::Tx& tx) override
+    {
+      impl.initiate_private_recovery(tx);
+    }
   };
 }

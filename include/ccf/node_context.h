@@ -16,7 +16,6 @@ namespace ccfapp
 
     virtual ccf::NodeId get_node_id() const = 0;
     virtual ccf::historical::AbstractStateCache& get_historical_state() = 0;
-    virtual ccf::AbstractNodeState& get_node_state() = 0;
     virtual ccf::indexing::IndexingStrategies& get_indexing_strategies() = 0;
     virtual ccf::indexing::AbstractLFSAccess& get_lfs_access() = 0;
 

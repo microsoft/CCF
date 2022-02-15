@@ -251,7 +251,8 @@ public:
     ccf::NetworkState& network,
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, context, share_manager, context.state)
+    MemberRpcFrontend(
+      network, context, share_manager, context.state, context.state)
   {
     open();
 
@@ -377,7 +378,8 @@ public:
     ccf::NetworkState& network,
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, context, share_manager, context.state)
+    MemberRpcFrontend(
+      network, context, share_manager, context.state, context.state)
   {
     open();
 

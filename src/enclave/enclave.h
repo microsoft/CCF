@@ -53,7 +53,6 @@ namespace enclave
       const ccf::NodeId this_node;
       std::shared_ptr<ccf::historical::StateCache> historical_state_cache =
         nullptr;
-      ccf::AbstractNodeState* node_state = nullptr;
       std::shared_ptr<ccf::indexing::Indexer> indexer = nullptr;
       std::unique_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
       std::unique_ptr<ccf::HostProcesses> host_processes = nullptr;
@@ -73,16 +72,6 @@ namespace enclave
             "Calling get_historical_state before NodeContext is initialized");
         }
         return *historical_state_cache;
-      }
-
-      ccf::AbstractNodeState& get_node_state() override
-      {
-        if (node_state == nullptr)
-        {
-          throw std::logic_error(
-            "Calling get_node_state before NodeContext is initialized");
-        }
-        return *node_state;
       }
 
       ccf::indexing::IndexingStrategies& get_indexing_strategies() override
@@ -174,7 +163,6 @@ namespace enclave
           *network.tables,
           network.ledger_secrets,
           writer_factory->create_writer_to_outside());
-      context->node_state = node.get();
       context->indexer = std::make_shared<ccf::indexing::Indexer>(
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
           context->historical_state_cache));
@@ -183,15 +171,16 @@ namespace enclave
       context->host_processes = std::make_unique<ccf::HostProcesses>(*node);
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
+      node_operation = std::make_unique<ccf::NodeOperation>(*node);
       gov_effects = std::make_unique<ccf::GovernanceEffects>(*node);
+
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
-          network, *context, share_manager, *gov_effects));
+          network, *context, share_manager, *gov_effects, *node_operation));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         ccfapp::get_rpc_handler(network, *context));
 
-      node_operation = std::make_unique<ccf::NodeOperation>(*node);
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(
           network, *context, *node_operation));

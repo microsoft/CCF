@@ -253,11 +253,6 @@ namespace ccf
       return cache;
     }
 
-    ccf::AbstractNodeState& get_node_state() override
-    {
-      return state;
-    }
-
     ccf::indexing::IndexingStrategies& get_indexing_strategies() override
     {
       throw std::logic_error("Not implemented");

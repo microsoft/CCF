@@ -50,5 +50,7 @@ namespace ccf
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
       CodeDigest& code_digest) = 0;
+
+    virtual void initiate_private_recovery(kv::Tx& tx) = 0;
   };
 }

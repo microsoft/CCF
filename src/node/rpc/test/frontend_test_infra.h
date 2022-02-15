@@ -179,7 +179,8 @@ auto init_frontend(
     gen.activate_member(gen.add_member(member_certs.back()));
   }
 
-  return MemberRpcFrontend(network, context, share_manager, context.state);
+  return MemberRpcFrontend(
+    network, context, share_manager, context.state, context.state);
 }
 
 void init_network(NetworkState& network)
