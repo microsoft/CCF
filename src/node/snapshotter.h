@@ -71,14 +71,15 @@ namespace ccf
     // Used to suspend snapshot generation during public recovery
     bool snapshot_generation_enabled = true;
 
-    // Indices at which a snapshot will be next generated
+    // Indices at which a snapshot will be next generated and Boolean to
+    // indicate whether a snapshot was forced at the given index
     struct SnapshotEntry
     {
       consensus::Index idx;
       bool forced;
     };
 
-    std::deque<snapshot_indices_entry> next_snapshot_indices;
+    std::deque<SnapshotEntry> next_snapshot_indices;
 
     void record_snapshot(
       consensus::Index idx,
