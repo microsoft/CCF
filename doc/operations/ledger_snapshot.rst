@@ -43,7 +43,7 @@ The listing below is an example of what a ledger directory may look like:
 .. note:: On startup, a CCF node started with existing ledger files may suffix some of the file names with ``.corrupted`` if the ledger file cannot be parsed, depending on 
 the sequence number the node will join from.
 
-.. note:: A new ledger chunk can also be created by the ``trigger_ledger_chunk`` governance action, which will produce a new chunk at the following signature transaction.
+.. note:: A new ledger chunk can also be created by the ``trigger_ledger_chunk`` governance action, which will automatically produce a new chunk at the following signature transaction.
 
 Snapshots
 ---------
