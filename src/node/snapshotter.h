@@ -72,11 +72,11 @@ namespace ccf
     bool snapshot_generation_enabled = true;
 
     // Indices at which a snapshot will be next generated
-    typedef struct
+    struct SnapshotEntry
     {
       consensus::Index idx;
       bool forced;
-    } snapshot_indices_entry;
+    };
 
     std::deque<snapshot_indices_entry> next_snapshot_indices;
 
