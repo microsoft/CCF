@@ -4,6 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "consensus/ledger_enclave_types.h"
+#include "ds/files.h"
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
 #include "ds/serialized.h"
@@ -81,7 +82,7 @@ namespace asynchost
     return nonstd::ends_with(file_name, ledger_recovery_file_suffix);
   }
 
-  static inline std::string remove_recovery_suffix(const std::string& file_name)
+  static inline fs::path remove_recovery_suffix(const std::string& file_name)
   {
     if (!is_ledger_file_name_recovery(file_name))
     {
@@ -141,7 +142,7 @@ namespace asynchost
     static constexpr auto file_name_prefix = "ledger";
 
     const std::string dir;
-    std::string file_name;
+    std::string file_name; // TODO: Make this a fs::path?
 
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
@@ -461,6 +462,33 @@ namespace asynchost
       completed = true;
     }
 
+    bool rename(const std::string& new_file_name)
+    {
+      auto file_path = fs::path(dir) / file_name;
+      auto new_file_path = fs::path(dir) / new_file_name;
+
+      try
+      {
+        files::rename(file_path, new_file_path);
+      }
+      catch (const std::exception& e)
+      {
+        // If the file cannot be renamed (e.g. file was removed), report an
+        // error and continue
+        LOG_FAIL_FMT("Error renaming ledger file: {}", e.what());
+      }
+      file_name = new_file_name;
+      return true;
+    }
+
+    void open()
+    {
+      auto new_file_name = remove_recovery_suffix(file_name);
+      rename(new_file_name);
+      recovery = false;
+      LOG_DEBUG_FMT("Open recovery ledger file {}", new_file_name);
+    }
+
     bool commit(size_t idx)
     {
       LOG_FAIL_FMT(
@@ -495,26 +523,13 @@ namespace asynchost
           "{}.{}", committed_file_name, ledger_recovery_file_suffix);
       }
 
-      auto file_path = fs::path(dir) / fs::path(file_name);
-      auto committed_file_path = fs::path(dir) / fs::path(committed_file_name);
+      if (!rename(committed_file_name))
+      {
+        return false;
+      }
 
-      std::error_code ec;
-      fs::rename(file_path, committed_file_path, ec);
-      if (ec)
-      {
-        // Even if the file cannot be renamed (e.g. file was removed), report an
-        // error and continue
-        LOG_FAIL_FMT(
-          "Could not rename committed ledger file {} to {}",
-          file_path,
-          committed_file_path);
-      }
-      else
-      {
-        file_name = committed_file_name;
-        committed = true;
-        LOG_DEBUG_FMT("Committed ledger file {}", file_name);
-      }
+      committed = true;
+      LOG_DEBUG_FMT("Committed ledger file {}", file_name);
 
       return true;
     }
@@ -629,8 +644,8 @@ namespace asynchost
         return nullptr;
       }
 
-      // Emplace file in the max-sized read cache, replacing the oldest entry if
-      // the read cache is full
+      // Emplace file in the max-sized read cache, replacing the oldest entry
+      // if the read cache is full
       auto match_file =
         std::make_shared<LedgerFile>(ledger_dir_, match.value());
 
@@ -824,7 +839,7 @@ namespace asynchost
         {
           auto new_file_name = fmt::format(
             "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
-          fs::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
+          files::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
 
           LOG_INFO_FMT(
             "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
@@ -943,27 +958,43 @@ namespace asynchost
 
     void open()
     {
-      TimeBoundLogger log_if_slow("Open ledger");
+      // When the service is open, temporary recovery ledger chunks are renamed
+      // as they can now be recovered
+      LOG_INFO_FMT("Ledger open");
+
+      for (auto& f : files)
+      {
+        if (is_ledger_file_name_recovery(f->file_name))
+        {
+          f->open();
+        }
+      }
 
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
         if (is_ledger_file_name_recovery(file_name))
         {
-          LOG_FAIL_FMT("Recovery file: {}", file_name);
-
           auto non_recovery_file_name = remove_recovery_suffix(file_name);
+          auto new_file_path =
+            fs::path(ledger_dir) / fs::path(non_recovery_file_name);
 
-          std::error_code ec;
-          fs::rename(
-            f.path(),
-            fs::path(ledger_dir) / fs::path(non_recovery_file_name),
-            ec);
-          if (ec)
+          try
           {
-            // TODO: Handle error
+            files::rename(f.path(), new_file_path);
           }
-          LOG_DEBUG_FMT("Renamed recovery file to {}", non_recovery_file_name);
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "Could not rename recovery file {} to {}",
+              file_name,
+              non_recovery_file_name);
+          }
+
+          LOG_DEBUG_FMT(
+            "Renamed recovery file {} to {}",
+            file_name,
+            non_recovery_file_name);
         }
       }
 
