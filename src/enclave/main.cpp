@@ -82,6 +82,12 @@ extern "C"
       return CreateNodeStatus::NodeAlreadyCreated;
     }
 
+    if (!oe_is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
+    {
+      LOG_FAIL_FMT("Memory outside enclave: enclave_config");
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 
     // Setup logger to allow enclave logs to reach the host before node is
@@ -143,12 +149,6 @@ extern "C"
 
       enclave::host_time =
         static_cast<decltype(enclave::host_time)>(time_location);
-
-      if (!oe_is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: enclave_config");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
 
       // Check that ringbuffer memory ranges are entirely outside of the enclave
       if (!oe_is_outside_enclave(
