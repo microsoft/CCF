@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
+#include "ccf/node_startup_state.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"
 #include "node/identity.h"
@@ -18,18 +19,6 @@
 
 namespace ccf
 {
-  enum class State
-  {
-    uninitialized,
-    initialized,
-    pending,
-    partOfPublicNetwork,
-    partOfNetwork,
-    readingPublicLedger,
-    readingPrivateLedger,
-    verifyingSnapshot
-  };
-
   struct GetState
   {
     using In = void;

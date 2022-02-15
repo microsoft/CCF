@@ -140,7 +140,7 @@ namespace ccf
       historical::ExpiryDuration seconds_until_expiry)
     {}
 
-    historical::StorePtr get_store_at(
+    kv::StorePtr get_store_at(
       historical::RequestHandle handle,
       ccf::SeqNo seqno,
       historical::ExpiryDuration seconds_until_expiry)
@@ -148,7 +148,7 @@ namespace ccf
       return nullptr;
     }
 
-    historical::StorePtr get_store_at(
+    kv::StorePtr get_store_at(
       historical::RequestHandle handle, ccf::SeqNo seqno)
     {
       return nullptr;
@@ -168,7 +168,7 @@ namespace ccf
       return nullptr;
     }
 
-    std::vector<historical::StorePtr> get_store_range(
+    std::vector<kv::StorePtr> get_store_range(
       historical::RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -177,7 +177,7 @@ namespace ccf
       return {};
     }
 
-    std::vector<historical::StorePtr> get_store_range(
+    std::vector<kv::StorePtr> get_store_range(
       historical::RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno)
@@ -202,32 +202,30 @@ namespace ccf
       return {};
     }
 
-    std::vector<historical::StorePtr> get_stores_for(
+    std::vector<kv::StorePtr> get_stores_for(
       historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos,
+      const SeqNoCollection& seqnos,
       historical::ExpiryDuration seconds_until_expiry)
     {
       return {};
     }
 
-    std::vector<historical::StorePtr> get_stores_for(
-      historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos)
+    std::vector<kv::StorePtr> get_stores_for(
+      historical::RequestHandle handle, const SeqNoCollection& seqnos)
     {
       return {};
     }
 
     std::vector<historical::StatePtr> get_states_for(
       historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos,
+      const SeqNoCollection& seqnos,
       historical::ExpiryDuration seconds_until_expiry)
     {
       return {};
     }
 
     std::vector<historical::StatePtr> get_states_for(
-      historical::RequestHandle handle,
-      const historical::SeqNoCollection& seqnos)
+      historical::RequestHandle handle, const SeqNoCollection& seqnos)
     {
       return {};
     }

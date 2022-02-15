@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node_startup_state.h"
 #include "node/entities.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
