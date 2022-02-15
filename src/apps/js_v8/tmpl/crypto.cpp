@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "crypto.h"
+#include "apps/js_v8/tmpl/crypto.h"
 
 #include "ccf/ds/logger.h"
 #include "crypto/ecdsa.h"

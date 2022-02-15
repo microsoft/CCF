@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/ds/nonstd.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/files.h"
 #include "ds/messaging.h"
-#include "ds/nonstd.h"
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
