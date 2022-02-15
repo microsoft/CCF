@@ -10,8 +10,6 @@ import os
 import difflib
 import re
 
-from loguru import logger as LOG
-
 
 def compare_golden():
     script_path = os.path.realpath(__file__)
