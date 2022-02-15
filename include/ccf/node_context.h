@@ -6,7 +6,6 @@
 #include "ccf/host_processes_interface.h"
 #include "ccf/indexing/indexer_interface.h"
 #include "ccf/indexing/lfs_interface.h"
-#include "node/rpc/node_interface.h"
 
 namespace ccfapp
 {
