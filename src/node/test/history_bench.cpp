@@ -58,8 +58,7 @@ static void hash_only(picobench::state& s)
   {
     (void)_;
     auto data = txs[idx++];
-    crypto::Sha256Hash h;
-    crypto::default_sha256({data}, h.h.data());
+    crypto::Sha256Hash h(data);
     do_not_optimize(h);
     clobber_memory();
   }

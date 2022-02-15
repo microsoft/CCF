@@ -22,10 +22,10 @@ public:
   std::shared_ptr<kv::NullTxEncryptor> encryptor =
     std::make_shared<kv::NullTxEncryptor>();
 
-  ccf::indexing::SeqNoCollection requested;
-  std::unordered_map<ccf::SeqNo, ccf::indexing::StorePtr> fetched_stores;
+  ccf::SeqNoCollection requested;
+  std::unordered_map<ccf::SeqNo, kv::StorePtr> fetched_stores;
 
-  ccf::indexing::StorePtr deserialise_transaction(
+  kv::StorePtr deserialise_transaction(
     ccf::SeqNo seqno, const uint8_t* data, size_t size)
   {
     auto store = std::make_shared<kv::Store>(
@@ -51,10 +51,10 @@ public:
     return store;
   }
 
-  std::vector<ccf::indexing::StorePtr> fetch_transactions(
-    const ccf::indexing::SeqNoCollection& seqnos)
+  std::vector<kv::StorePtr> fetch_transactions(
+    const ccf::SeqNoCollection& seqnos)
   {
-    std::vector<ccf::indexing::StorePtr> stores;
+    std::vector<kv::StorePtr> stores;
 
     for (auto seqno : seqnos)
     {
@@ -102,7 +102,7 @@ using ExpectedSeqNos = std::set<ccf::SeqNo>;
 
 static inline bool check_seqnos(
   const ExpectedSeqNos& expected,
-  const std::optional<ccf::indexing::SeqNoCollection>& actual,
+  const std::optional<ccf::SeqNoCollection>& actual,
   bool complete_match = true)
 {
   // Check that actual is a contiguous subrange of expected. May actually be a
