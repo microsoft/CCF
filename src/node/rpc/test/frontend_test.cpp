@@ -374,7 +374,6 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    kv::Store& tables,
     ccf::NetworkState& network,
     ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
@@ -1381,9 +1380,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network_primary.tables, network_primary, context, share_manager);
+    network_primary, context, share_manager);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network_backup.tables, network_backup, context, share_manager);
+    network_backup, context, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
