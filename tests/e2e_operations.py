@@ -53,7 +53,7 @@ def test_parse_snapshot_file(network, args):
     return network
 
 
-def find_ledger_chunk(ledger, seqno):
+def find_ledger_chunk_for_seqno(ledger, seqno):
     for chunk in ledger:
         first = last = next_signature = None
         for tx in chunk:
