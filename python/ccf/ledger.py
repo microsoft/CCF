@@ -790,7 +790,7 @@ class Ledger:
     _filenames: list
     _fileindex: int
     _current_chunk: LedgerChunk
-    _ledger_validator: LedgerValidator
+    _ledger_validator: Optional[LedgerValidator] = None
 
     def _reset_iterators(self, insecure_skip_verification: bool = False):
         self._fileindex = -1
