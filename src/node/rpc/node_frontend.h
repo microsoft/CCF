@@ -1275,13 +1275,6 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key};
 
-        auto tx_ = static_cast<kv::CommittableTx*>(&ctx.tx);
-        if (tx_ == nullptr)
-        {
-          throw std::logic_error("Could not cast tx to CommittableTx");
-        }
-        tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
-
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
         {
@@ -1309,6 +1302,16 @@ namespace ccf
 
           g.init_configuration(in.genesis_info->service_configuration);
           g.set_constitution(in.genesis_info->constitution);
+        }
+        else
+        {
+          // On recovery, force a new ledger chunk
+          auto tx_ = static_cast<kv::CommittableTx*>(&ctx.tx);
+          if (tx_ == nullptr)
+          {
+            throw std::logic_error("Could not cast tx to CommittableTx");
+          }
+          tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
         }
 
         auto endorsed_certificates =
