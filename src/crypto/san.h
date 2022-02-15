@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
-#include "ds/nonstd.h"
+#include "ccf/ds/json.h"
+#include "ccf/ds/nonstd.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

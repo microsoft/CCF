@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
-#include "http/http_status.h"
+#include "ccf/ds/json.h"
+#include "ccf/http_status.h"
 
 namespace ccf
 {

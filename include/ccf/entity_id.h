@@ -2,8 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
-#include "ds/serialized.h"
+#include "ccf/ds/json.h"
 
 #include <string>
 

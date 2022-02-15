@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ccf_assert.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/tx_id.h"
-#include "crypto/hash.h"
-#include "ds/ccf_assert.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_map.h"
 
@@ -69,55 +69,25 @@ namespace kv
 
     std::optional<crypto::Sha256Hash> root_at_read_version = std::nullopt;
 
-    template <typename THandle>
-    THandle* get_or_insert_handle(
-      untyped::ChangeSet& change_set, const std::string& name)
-    {
-      auto it = all_handles.find(name);
-      if (it == all_handles.end())
-      {
-        PossibleHandles handles;
-        auto typed_handle = new THandle(change_set, name);
-        handles.emplace_back(std::unique_ptr<AbstractHandle>(typed_handle));
-        all_handles[name] = std::move(handles);
-        return typed_handle;
-      }
-      else
-      {
-        PossibleHandles& handles = it->second;
-        for (auto& handle : handles)
-        {
-          auto typed_handle = dynamic_cast<THandle*>(handle.get());
-          if (typed_handle != nullptr)
-          {
-            return typed_handle;
-          }
-        }
-        auto typed_handle = new THandle(change_set, name);
-        handles.emplace_back(std::unique_ptr<AbstractHandle>(typed_handle));
-        return typed_handle;
-      }
-    }
-
-    template <typename THandle>
-    THandle* check_and_store_change_set(
-      std::unique_ptr<untyped::ChangeSet>&& change_set,
+    void store_change_set(
       const std::string& map_name,
+      std::unique_ptr<untyped::ChangeSet>&& change_set,
       const std::shared_ptr<AbstractMap>& abstract_map)
     {
-      if (change_set == nullptr)
+      const auto it = all_changes.find(map_name);
+      if (it != all_changes.end())
       {
-        CCF_ASSERT_FMT(
-          read_txid.has_value(), "read_txid should have already been set");
-        throw CompactedVersionConflict(fmt::format(
-          "Unable to retrieve state over map {} at {}",
-          map_name,
-          read_txid->version));
+        throw std::logic_error(
+          fmt::format("Re-creating change set for map {}", map_name));
       }
+      all_changes.emplace_hint(
+        it, map_name, MapChanges{abstract_map, std::move(change_set)});
+    }
 
-      auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
-      all_changes[map_name] = {abstract_map, std::move(change_set)};
-      return typed_handle;
+    void store_handle(
+      const std::string& map_name, std::unique_ptr<AbstractHandle>&& handle)
+    {
+      all_handles[map_name].emplace_back(std::move(handle));
     }
 
     auto get_map_and_change_set_by_name(const std::string& map_name)
@@ -171,21 +141,64 @@ namespace kv
         abstract_map, untyped_map->create_change_set(read_txid->version));
     }
 
+    std::list<AbstractHandle*> get_possible_handles(const std::string& map_name)
+    {
+      std::list<AbstractHandle*> handles;
+      auto it = all_handles.find(map_name);
+      if (it != all_handles.end())
+      {
+        for (auto& handle : it->second)
+        {
+          handles.push_back(handle.get());
+        }
+      }
+      return handles;
+    }
+
     template <class THandle>
     THandle* get_handle_by_name(const std::string& map_name)
     {
-      auto search = all_changes.find(map_name);
-      if (search != all_changes.end())
+      auto possible_handles = get_possible_handles(map_name);
+      for (auto handle : possible_handles)
       {
-        auto handle =
-          get_or_insert_handle<THandle>(*search->second.changeset, map_name);
-        return handle;
+        auto typed_handle = dynamic_cast<THandle*>(handle);
+        if (typed_handle != nullptr)
+        {
+          return typed_handle;
+        }
       }
 
-      auto [abstract_map, change_set] =
-        get_map_and_change_set_by_name(map_name);
-      return check_and_store_change_set<THandle>(
-        std::move(change_set), map_name, abstract_map);
+      auto it = all_changes.find(map_name);
+      if (it != all_changes.end())
+      {
+        auto& [abstract_map, change_set] = it->second;
+
+        auto typed_handle = new THandle(*change_set, map_name);
+        std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
+        store_handle(map_name, std::move(abstract_handle));
+        return typed_handle;
+      }
+      else
+      {
+        auto [abstract_map, change_set] =
+          get_map_and_change_set_by_name(map_name);
+
+        if (change_set == nullptr)
+        {
+          CCF_ASSERT_FMT(
+            read_txid.has_value(), "read_txid should have already been set");
+          throw CompactedVersionConflict(fmt::format(
+            "Unable to retrieve state over map {} at {}",
+            map_name,
+            read_txid->version));
+        }
+
+        auto typed_handle = new THandle(*change_set, map_name);
+        std::unique_ptr<AbstractHandle> abstract_handle(typed_handle);
+        store_handle(map_name, std::move(abstract_handle));
+        store_change_set(map_name, std::move(change_set), abstract_map);
+        return typed_handle;
+      }
     }
 
   public:

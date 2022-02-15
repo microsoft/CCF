@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/serdes.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/impl/state.h"
 #include "crypto/pem.h"
@@ -11,7 +12,6 @@
 #include "node/identity.h"
 #include "node/resharing_tracker.h"
 #include "node/rpc/call_types.h"
-#include "node/rpc/serdes.h"
 #include "node/rpc/serialization.h"
 #include "service/map.h"
 

@@ -3,9 +3,8 @@
 
 #pragma once
 
+#include "ccf/ds/json.h"
 #include "ccf/entity_id.h"
-#include "crypto/hash.h"
-#include "ds/json.h"
 
 namespace ccf
 {
@@ -58,60 +57,4 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, proof, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt, root, cert, leaf, leaf_components)
-
-  /* Receipts included in snapshots always contain leaf components,
-     including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
-     This verification code deliberately does not support snapshots
-     produced by 2.0.0-dev* releases
-  */
-  static crypto::Sha256Hash compute_root_from_snapshot_receipt(
-    const Receipt& receipt)
-  {
-    crypto::Sha256Hash current;
-    if (receipt.leaf_components.has_value())
-    {
-      auto components = receipt.leaf_components.value();
-      if (
-        components.write_set_digest.has_value() &&
-        components.commit_evidence.has_value() &&
-        components.claims_digest.has_value())
-      {
-        auto ws_dgst = crypto::Sha256Hash::from_hex_string(
-          components.write_set_digest.value());
-        crypto::Sha256Hash ce_dgst(components.commit_evidence.value());
-        auto cl_dgst =
-          crypto::Sha256Hash::from_hex_string(components.claims_digest.value());
-        current = crypto::Sha256Hash(ws_dgst, ce_dgst, cl_dgst);
-      }
-      else
-      {
-        throw std::logic_error(
-          "Cannot compute leaf unless write_set_digest, commit_evidence and "
-          "claims_digest "
-          "are set");
-      }
-    }
-    else
-    {
-      throw std::logic_error(
-        "Cannot compute root if leaf_components are not set");
-    }
-    for (auto const& element : receipt.proof)
-    {
-      if (element.left.has_value())
-      {
-        assert(!element.right.has_value());
-        auto left = crypto::Sha256Hash::from_hex_string(element.left.value());
-        current = crypto::Sha256Hash(left, current);
-      }
-      else
-      {
-        assert(element.right.has_value());
-        auto right = crypto::Sha256Hash::from_hex_string(element.right.value());
-        current = crypto::Sha256Hash(current, right);
-      }
-    }
-
-    return current;
-  }
 }

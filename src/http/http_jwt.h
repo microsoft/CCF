@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/base64.h"
+#include "ccf/crypto/base64.h"
+#include "ccf/http_consts.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
-#include "http_consts.h"
 #include "http_parser.h"
 
 #define FMT_HEADER_ONLY

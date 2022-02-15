@@ -13,6 +13,7 @@
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/verifier.h"
+#include "node/tx_receipt.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -1318,8 +1319,7 @@ namespace loggingapp
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        ccf::historical::SeqNoCollection seqno_collection(
-          seqnos.begin(), seqnos.end());
+        ccf::SeqNoCollection seqno_collection(seqnos.begin(), seqnos.end());
 
         auto stores = historical_cache.get_stores_for(handle, seqno_collection);
         if (stores.empty())

@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
+#include "ccf/serdes.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
@@ -9,7 +11,6 @@
 #include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-#include "ds/logger.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
@@ -23,7 +24,6 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
-#include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "resharing.h"
 #include "rpc/frontend.h"
@@ -47,17 +47,6 @@
 #include <unordered_set>
 #include <vector>
 
-// Used by fmtlib to render ccf::State
-namespace std
-{
-  std::ostream& operator<<(std::ostream& os, ccf::State s)
-  {
-    nlohmann::json j;
-    to_json(j, s);
-    return os << j.dump();
-  }
-}
-
 namespace ccf
 {
   using RaftType = aft::Aft<consensus::LedgerEnclave, Snapshotter>;
@@ -80,7 +69,7 @@ namespace ccf
     //
     // this node's core state
     //
-    ds::StateMachine<State> sm;
+    ds::StateMachine<NodeStartupState> sm;
     std::mutex lock;
 
     CurveID curve_id;
@@ -202,7 +191,7 @@ namespace ccf
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
       CurveID curve_id_) :
-      sm("NodeState", State::uninitialized),
+      sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
       self(compute_node_id_from_kp(node_sign_kp)),
@@ -244,7 +233,7 @@ namespace ccf
       size_t sig_ms_interval_)
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::uninitialized);
+      sm.expect(NodeStartupState::uninitialized);
 
       consensus_config = consensus_config_;
       rpc_map = rpc_map_;
@@ -258,7 +247,7 @@ namespace ccf
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.type);
 
-      sm.advance(State::initialized);
+      sm.advance(NodeStartupState::initialized);
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
@@ -273,7 +262,7 @@ namespace ccf
     NodeCreateInfo create(StartType start_type, StartupConfig&& config_)
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::initialized);
+      sm.expect(NodeStartupState::initialized);
 
       config = std::move(config_);
       subject_alt_names = get_subject_alternative_names();
@@ -347,7 +336,7 @@ namespace ccf
 
           reset_data(quote_info.quote);
           reset_data(quote_info.endorsements);
-          sm.advance(State::partOfNetwork);
+          sm.advance(NodeStartupState::partOfNetwork);
 
           LOG_INFO_FMT("Created new node {}", self);
 
@@ -359,12 +348,12 @@ namespace ccf
           {
             // Note: 2.x snapshots are self-verified so the ledger verification
             // of its evidence can be skipped entirely
-            sm.advance(State::pending);
+            sm.advance(NodeStartupState::pending);
           }
           else
           {
             // Node joins from a 1.x snapshot
-            sm.advance(State::verifyingSnapshot);
+            sm.advance(NodeStartupState::verifyingSnapshot);
           }
 
           LOG_INFO_FMT("Created join node {}", self);
@@ -386,7 +375,7 @@ namespace ccf
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
 
-          sm.advance(State::readingPublicLedger);
+          sm.advance(NodeStartupState::readingPublicLedger);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -426,7 +415,7 @@ namespace ccf
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           std::lock_guard<std::mutex> guard(lock);
-          if (!sm.check(State::pending))
+          if (!sm.check(NodeStartupState::pending))
           {
             return false;
           }
@@ -580,13 +569,13 @@ namespace ccf
 
             if (resp.network_info->public_only)
             {
-              sm.advance(State::partOfPublicNetwork);
+              sm.advance(NodeStartupState::partOfPublicNetwork);
             }
             else
             {
               reset_data(quote_info.quote);
               reset_data(quote_info.endorsements);
-              sm.advance(State::partOfNetwork);
+              sm.advance(NodeStartupState::partOfNetwork);
             }
 
             LOG_INFO_FMT(
@@ -641,7 +630,7 @@ namespace ccf
 
       auto timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
-          if (msg->data.self.sm.check(State::pending))
+          if (msg->data.self.sm.check(NodeStartupState::pending))
           {
             msg->data.self.initiate_join();
             auto delay = std::chrono::milliseconds(
@@ -660,7 +649,7 @@ namespace ccf
     void join()
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::pending);
+      sm.expect(NodeStartupState::pending);
       start_join_timer();
     }
 
@@ -703,13 +692,13 @@ namespace ccf
     {
       std::lock_guard<std::mutex> guard(lock);
       if (
-        !sm.check(State::readingPublicLedger) &&
-        !sm.check(State::verifyingSnapshot))
+        !sm.check(NodeStartupState::readingPublicLedger) &&
+        !sm.check(NodeStartupState::verifyingSnapshot))
       {
         throw std::logic_error(fmt::format(
           "Node should be in state {} or {} to start reading ledger",
-          State::readingPublicLedger,
-          State::verifyingSnapshot));
+          NodeStartupState::readingPublicLedger,
+          NodeStartupState::verifyingSnapshot));
       }
 
       LOG_INFO_FMT("Starting to read public ledger");
@@ -721,12 +710,12 @@ namespace ccf
       std::lock_guard<std::mutex> guard(lock);
 
       std::shared_ptr<kv::Store> store;
-      if (sm.check(State::readingPublicLedger))
+      if (sm.check(NodeStartupState::readingPublicLedger))
       {
         // In recovery, use the main store to deserialise public entries
         store = network.tables;
       }
-      else if (sm.check(State::verifyingSnapshot))
+      else if (sm.check(NodeStartupState::verifyingSnapshot))
       {
         store = startup_snapshot_info->store;
       }
@@ -734,8 +723,8 @@ namespace ccf
       {
         LOG_FAIL_FMT(
           "Node should be in state {} or {} to recover public ledger entry",
-          State::readingPublicLedger,
-          State::verifyingSnapshot);
+          NodeStartupState::readingPublicLedger,
+          NodeStartupState::verifyingSnapshot);
         return;
       }
 
@@ -801,7 +790,7 @@ namespace ccf
           startup_snapshot_info->is_evidence_committed = true;
         }
 
-        if (sm.check(State::readingPublicLedger))
+        if (sm.check(NodeStartupState::readingPublicLedger))
         {
           // Inform snapshotter of all signature entries so that this node can
           // continue generating snapshots at the correct interval once the
@@ -843,7 +832,7 @@ namespace ccf
     void verify_snapshot_end()
     {
       std::lock_guard<std::mutex> guard(lock);
-      if (!sm.check(State::verifyingSnapshot))
+      if (!sm.check(NodeStartupState::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
           "Node in state {} cannot finalise snapshot verification", sm.value());
@@ -870,13 +859,13 @@ namespace ccf
 
       ledger_truncate(startup_snapshot_info->seqno);
 
-      sm.advance(State::pending);
+      sm.advance(NodeStartupState::pending);
       start_join_timer();
     }
 
     void recover_public_ledger_end_unsafe()
     {
-      sm.expect(State::readingPublicLedger);
+      sm.expect(NodeStartupState::readingPublicLedger);
 
       if (
         startup_snapshot_info &&
@@ -972,7 +961,7 @@ namespace ccf
           "End of public recovery transaction could not be committed");
       }
 
-      sm.advance(State::partOfPublicNetwork);
+      sm.advance(NodeStartupState::partOfPublicNetwork);
     }
 
     //
@@ -981,7 +970,7 @@ namespace ccf
     void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<std::mutex> guard(lock);
-      if (!sm.check(State::readingPrivateLedger))
+      if (!sm.check(NodeStartupState::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
           "Node is state {} cannot recover private ledger entry", sm.value());
@@ -1025,7 +1014,7 @@ namespace ccf
       // When reaching the end of the private ledger, make sure the same
       // ledger has been read and swap in private state
 
-      sm.expect(State::readingPrivateLedger);
+      sm.expect(NodeStartupState::readingPrivateLedger);
 
       if (recovery_v != recovery_store->current_version())
       {
@@ -1076,7 +1065,7 @@ namespace ccf
       }
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
-      sm.advance(State::partOfNetwork);
+      sm.advance(NodeStartupState::partOfNetwork);
     }
 
     void setup_one_off_secret_hook()
@@ -1258,7 +1247,7 @@ namespace ccf
     void initiate_private_recovery(kv::Tx& tx) override
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::partOfPublicNetwork);
+      sm.expect(NodeStartupState::partOfPublicNetwork);
 
       auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
         tx, std::move(recovery_ledger_secrets));
@@ -1284,7 +1273,7 @@ namespace ccf
       ledger_idx = recovery_store->current_version();
       read_ledger_idx(++ledger_idx);
 
-      sm.advance(State::readingPrivateLedger);
+      sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     //
@@ -1293,16 +1282,16 @@ namespace ccf
     void tick(std::chrono::milliseconds elapsed)
     {
       if (
-        !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork) &&
-        !sm.check(State::readingPrivateLedger))
+        !sm.check(NodeStartupState::partOfNetwork) &&
+        !sm.check(NodeStartupState::partOfPublicNetwork) &&
+        !sm.check(NodeStartupState::readingPrivateLedger))
       {
         return;
       }
 
       consensus->periodic(elapsed);
 
-      if (sm.check(State::partOfNetwork))
+      if (sm.check(NodeStartupState::partOfNetwork))
       {
         const auto tx_id = consensus->get_committed_txid();
         indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
@@ -1312,9 +1301,9 @@ namespace ccf
     void tick_end()
     {
       if (
-        !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork) &&
-        !sm.check(State::readingPrivateLedger))
+        !sm.check(NodeStartupState::partOfNetwork) &&
+        !sm.check(NodeStartupState::partOfPublicNetwork) &&
+        !sm.check(NodeStartupState::readingPrivateLedger))
       {
         return;
       }
@@ -1338,9 +1327,9 @@ namespace ccf
       {
         // Only process messages once part of network
         if (
-          !sm.check(State::partOfNetwork) &&
-          !sm.check(State::partOfPublicNetwork) &&
-          !sm.check(State::readingPrivateLedger))
+          !sm.check(NodeStartupState::partOfNetwork) &&
+          !sm.check(NodeStartupState::partOfPublicNetwork) &&
+          !sm.check(NodeStartupState::readingPrivateLedger))
         {
           LOG_DEBUG_FMT(
             "Ignoring node msg received too early - current state is {}",
@@ -1378,56 +1367,56 @@ namespace ccf
     bool is_primary() const override
     {
       return (
-        (sm.check(State::partOfNetwork) ||
-         sm.check(State::partOfPublicNetwork) ||
-         sm.check(State::readingPrivateLedger)) &&
+        (sm.check(NodeStartupState::partOfNetwork) ||
+         sm.check(NodeStartupState::partOfPublicNetwork) ||
+         sm.check(NodeStartupState::readingPrivateLedger)) &&
         consensus->is_primary());
     }
 
     bool can_replicate() override
     {
       return (
-        (sm.check(State::partOfNetwork) ||
-         sm.check(State::partOfPublicNetwork) ||
-         sm.check(State::readingPrivateLedger)) &&
+        (sm.check(NodeStartupState::partOfNetwork) ||
+         sm.check(NodeStartupState::partOfPublicNetwork) ||
+         sm.check(NodeStartupState::readingPrivateLedger)) &&
         consensus->can_replicate());
     }
 
     bool is_in_initialised_state() const override
     {
-      return sm.check(State::initialized);
+      return sm.check(NodeStartupState::initialized);
     }
 
     bool is_part_of_network() const override
     {
-      return sm.check(State::partOfNetwork);
+      return sm.check(NodeStartupState::partOfNetwork);
     }
 
     bool is_reading_public_ledger() const override
     {
-      return sm.check(State::readingPublicLedger);
+      return sm.check(NodeStartupState::readingPublicLedger);
     }
 
     bool is_reading_private_ledger() const override
     {
-      return sm.check(State::readingPrivateLedger);
+      return sm.check(NodeStartupState::readingPrivateLedger);
     }
 
     bool is_verifying_snapshot() const override
     {
-      return sm.check(State::verifyingSnapshot);
+      return sm.check(NodeStartupState::verifyingSnapshot);
     }
 
     bool is_part_of_public_network() const override
     {
-      return sm.check(State::partOfPublicNetwork);
+      return sm.check(NodeStartupState::partOfPublicNetwork);
     }
 
     ExtendedState state() override
     {
       std::lock_guard<std::mutex> guard(lock);
-      State s = sm.value();
-      if (s == State::readingPrivateLedger)
+      auto s = sm.value();
+      if (s == NodeStartupState::readingPrivateLedger)
       {
         return {s, recovery_v, recovery_store->current_version()};
       }
@@ -1440,7 +1429,7 @@ namespace ccf
     bool rekey_ledger(kv::Tx& tx) override
     {
       std::lock_guard<std::mutex> guard(lock);
-      sm.expect(State::partOfNetwork);
+      sm.expect(NodeStartupState::partOfNetwork);
 
       // The ledger should not be re-keyed when the service is not open because:
       // - While waiting for recovery shares, the submitted shares are stored
@@ -1712,7 +1701,7 @@ namespace ccf
       if (!consensus->is_backup())
         return;
 
-      sm.expect(State::partOfPublicNetwork);
+      sm.expect(NodeStartupState::partOfPublicNetwork);
 
       LOG_INFO_FMT("Initiating end of recovery (backup)");
 
@@ -1725,7 +1714,7 @@ namespace ccf
       ledger_idx = recovery_store->current_version();
       read_ledger_idx(++ledger_idx);
 
-      sm.advance(State::readingPrivateLedger);
+      sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     void setup_basic_hooks()
@@ -1830,16 +1819,30 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.service.get_name(),
-        network.service.wrap_commit_hook(
-          [this](kv::Version hook_version, const Service::Write& w) {
-            if (!w.has_value())
-            {
-              throw std::logic_error("Unexpected deletion in service value");
-            }
+        network.service.wrap_commit_hook([this](
+                                           kv::Version hook_version,
+                                           const Service::Write& w) {
+          if (!w.has_value())
+          {
+            throw std::logic_error("Unexpected deletion in service value");
+          }
 
-            network.identity->set_certificate(w->cert);
-            open_user_frontend();
-          }));
+          // Service open on historical service has no effect
+          auto hook_pubk_pem =
+            crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(w->cert));
+          auto current_pubk_pem =
+            crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
+          if (hook_pubk_pem != current_pubk_pem)
+          {
+            LOG_TRACE_FMT(
+              "Ignoring historical service open at seqno {} for {}",
+              hook_version,
+              w->cert.str());
+            return;
+          }
+          network.identity->set_certificate(w->cert);
+          open_user_frontend();
+        }));
     }
 
     kv::Version get_last_recovered_signed_idx() override

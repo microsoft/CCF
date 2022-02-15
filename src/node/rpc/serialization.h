@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
+#include "ccf/ds/json.h"
 #include "enclave/consensus_type.h"
 #include "enclave/interface.h"
 #include "node/rpc/call_types.h"
@@ -10,16 +10,6 @@
 
 namespace ccf
 {
-  DECLARE_JSON_ENUM(
-    ccf::State,
-    {{ccf::State::uninitialized, "Uninitialized"},
-     {ccf::State::initialized, "Initialized"},
-     {ccf::State::pending, "Pending"},
-     {ccf::State::partOfPublicNetwork, "PartOfPublicNetwork"},
-     {ccf::State::partOfNetwork, "PartOfNetwork"},
-     {ccf::State::readingPublicLedger, "ReadingPublicLedger"},
-     {ccf::State::readingPrivateLedger, "ReadingPrivateLedger"},
-     {ccf::State::verifyingSnapshot, "VerifyingSnapshot"}})
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     GetState::Out, node_id, state, last_signed_seqno, startup_seqno)

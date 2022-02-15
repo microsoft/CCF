@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ds/logger.h"
+#include "ccf/ds/logger.h"
 
 namespace ccf
 {
@@ -17,7 +17,7 @@ namespace ccf
     const std::optional<crypto::Sha256Hash>& commit_evidence_digest,
     const ClaimsDigest& claims_digest)
   {
-    crypto::Sha256Hash write_set_digest({write_set.data(), write_set.size()});
+    crypto::Sha256Hash write_set_digest(write_set);
     if (commit_evidence_digest.has_value())
     {
       if (claims_digest.empty())
