@@ -1276,6 +1276,10 @@ namespace ccf
           in.public_key};
 
         auto tx_ = static_cast<kv::CommittableTx*>(&ctx.tx);
+        if (tx_ == nullptr)
+        {
+          throw std::logic_error("Could not cast tx to CommittableTx");
+        }
         tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
 
         // Genesis transaction (i.e. not after recovery)
