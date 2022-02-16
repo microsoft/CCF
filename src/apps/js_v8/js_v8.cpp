@@ -7,9 +7,9 @@
 namespace ccfapp
 {
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    kv::Store& store, ccfapp::AbstractNodeContext& context)
   {
-    return get_rpc_handler_impl(network, context);
+    return get_rpc_handler_impl(store, context);
   }
 
   std::vector<ccf::js::FFIPlugin> get_js_plugins()

@@ -33,7 +33,6 @@ namespace ccfapp
     struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
-    NetworkTables& network;
     ccfapp::AbstractNodeContext& context;
     metrics::Tracker metrics_tracker;
 
@@ -472,9 +471,8 @@ namespace ccfapp
     }
 
   public:
-    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+    JSHandlers(kv::Store& store, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       context(context)
     {
       metrics_tracker.install_endpoint(*this);
@@ -688,15 +686,15 @@ namespace ccfapp
     JSHandlers js_handlers;
 
   public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, context)
+    JS(kv::Store& store, ccfapp::AbstractNodeContext& context) :
+      ccf::RpcFrontend(store, js_handlers),
+      js_handlers(store, context)
     {}
   };
 
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    kv::Store& store, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<JS>(network, context);
+    return make_shared<JS>(store, context);
   }
 } // namespace ccfapp

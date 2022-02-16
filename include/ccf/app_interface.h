@@ -7,12 +7,15 @@
 #include <memory>
 #include <vector>
 
+// Forward declarations
 namespace ccf
 {
-  // Forward declarations
   class RpcFrontend;
+}
 
-  struct NetworkTables;
+namespace kv
+{
+  class Store;
 }
 
 namespace ccfapp
@@ -28,8 +31,9 @@ namespace ccfapp
    *
    * @return Shared pointer to the application handler instance
    */
+  // TODO: Does anyone even need this Store? Or can we remove it...
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& network, AbstractNodeContext& context);
+    kv::Store& store, AbstractNodeContext& context);
 
   /** To be implemented by the application to be registered by CCF.
    *

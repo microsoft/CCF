@@ -7,5 +7,5 @@
 namespace ccfapp
 {
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context);
+    kv::Store& store, ccfapp::AbstractNodeContext& context);
 }

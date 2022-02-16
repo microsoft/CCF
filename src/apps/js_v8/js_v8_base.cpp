@@ -36,7 +36,6 @@ namespace ccfapp
     struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
-    NetworkTables& network;
     ccfapp::AbstractNodeContext& node_context;
     ::metrics::Tracker metrics_tracker;
 
@@ -302,9 +301,8 @@ namespace ccfapp
     }
 
   public:
-    V8Handlers(NetworkTables& network, AbstractNodeContext& context) :
+    V8Handlers(kv::Store& store, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network),
       node_context(context)
     {
       metrics_tracker.install_endpoint(*this);
@@ -519,21 +517,21 @@ namespace ccfapp
     V8Handlers handlers;
 
   public:
-    V8Frontend(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, handlers),
-      handlers(network, context)
+    V8Frontend(kv::Store& store, ccfapp::AbstractNodeContext& context) :
+      ccf::RpcFrontend(store, handlers),
+      handlers(store, context)
     {}
   };
 
   /// Returns a new V8 Rpc Frontend
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    kv::Store& store, ccfapp::AbstractNodeContext& context)
   {
     // V8 initialization needs to move to a more central place
     // once/if V8 is integrated into core CCF.
     v8_initialize();
 
-    return make_shared<V8Frontend>(network, context);
+    return make_shared<V8Frontend>(store, context);
   }
 
 } // namespace ccfapp

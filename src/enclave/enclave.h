@@ -165,7 +165,7 @@ namespace enclave
           network, *context, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
-        ccfapp::get_rpc_handler(network, *context));
+        ccfapp::get_rpc_handler(*network.tables, *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));

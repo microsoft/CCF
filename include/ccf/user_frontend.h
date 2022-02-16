@@ -5,7 +5,6 @@
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/node_context.h"
 #include "node/rpc/frontend.h"
-#include "service/network_tables.h"
 
 namespace ccf
 {

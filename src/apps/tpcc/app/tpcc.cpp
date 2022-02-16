@@ -158,9 +158,9 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    NetworkTables& nwt, AbstractNodeContext& context)
+    kv::Store& store, AbstractNodeContext& context)
   {
-    return make_shared<Tpcc>(*nwt.tables, context);
+    return make_shared<Tpcc>(store, context);
   }
 }
 

@@ -1489,8 +1489,8 @@ namespace loggingapp
     LoggerHandlers logger_handlers;
 
   public:
-    Logger(ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, logger_handlers),
+    Logger(kv::Store& store, ccfapp::AbstractNodeContext& context) :
+      ccf::RpcFrontend(store, logger_handlers),
       logger_handlers(context)
     {}
 
@@ -1511,9 +1511,9 @@ namespace ccfapp
 {
   // SNIPPET_START: app_interface
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+    kv::Store& store, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<loggingapp::Logger>(nwt, context);
+    return make_shared<loggingapp::Logger>(store, context);
   }
   // SNIPPET_END: app_interface
 }

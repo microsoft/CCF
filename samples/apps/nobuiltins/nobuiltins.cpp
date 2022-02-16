@@ -337,8 +337,8 @@ namespace nobuiltins
 
   public:
     NoBuiltinsFrontend(
-      ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(*network.tables, nbr),
+      kv::Store& store, ccfapp::AbstractNodeContext& context) :
+      ccf::RpcFrontend(store, nbr),
       nbr(context)
     {}
   };
@@ -347,8 +347,8 @@ namespace nobuiltins
 namespace ccfapp
 {
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+    kv::Store& store, ccfapp::AbstractNodeContext& context)
   {
-    return std::make_shared<nobuiltins::NoBuiltinsFrontend>(nwt, context);
+    return std::make_shared<nobuiltins::NoBuiltinsFrontend>(store, context);
   }
 }
