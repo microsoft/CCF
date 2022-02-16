@@ -43,11 +43,17 @@ namespace ccf
 namespace ccfapp
 {
   // SNIPPET_START: app_interface
-  // TODO: Document
+  /** To be implemented by the application. Creates a collection of endpoints
+   * which will be exposed to callers under /app.
+   *
+   * @param context Access to node and host services
+   *
+   * @return Unique pointer to the endpoint registry instance
+   */
   std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
     ccfapp::AbstractNodeContext& context);
 
-  /** To be implemented by the application to be registered by CCF.
+  /** To be implemented by the application.
    *
    * @return Vector of JavaScript FFI plugins
    */

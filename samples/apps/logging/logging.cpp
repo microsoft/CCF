@@ -1493,7 +1493,6 @@ namespace loggingapp
 namespace ccfapp
 {
   // SNIPPET_START: app_interface
-  // TODO: Update documentation
   std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
     ccfapp::AbstractNodeContext& context)
   {

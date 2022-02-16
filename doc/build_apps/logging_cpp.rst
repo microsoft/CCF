@@ -19,8 +19,7 @@ The Logging application simply has:
 
 .. note::
 
-    :cpp:class:`kv::Store` tables are essentially the only interface between CCF
-    and the application, and the sole mechanism for it to have state.
+    :cpp:class:`kv::Store` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
 
     The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 
@@ -44,10 +43,10 @@ The Logging application simply has:
         :lines: 1
         :dedent:
 
-RPC Handler
------------
+Application Endpoints
+---------------------
 
-The type returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::RpcFrontend`, passing the base constructor a reference to an implementation of :cpp:class:`ccf::EndpointRegistry`:
+The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::BaseEndpointRegistry`, passing a reference to the node context if access to node-local subsystems is required.
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
@@ -75,7 +74,9 @@ Each function is installed as the handler for a specific HTTP resource, defined 
 
 This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning :http:POST:`/app/log/private`.
 
-The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for :http:POST:`/app/log/private` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the :http:GET:`/app/api` endpoint to populate the relevant parts of the OpenAPI document. There are other endpoints installed for the URI path ``/app/log/private`` with different verbs, to handle :http:GET:`GET </app/log/private>` and :http:DELETE:`DELETE </app/log/private>` requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
+The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for :http:POST:`/app/log/private` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the :http:GET:`/app/api` endpoint to populate the relevant parts of the OpenAPI document. That OpenAPI document in turn is used to generate the entries in this documentation describing :http:POST:`/app/log/private`.
+
+There are other endpoints installed for the URI path ``/app/log/private`` with different verbs, to handle :http:GET:`GET </app/log/private>` and :http:DELETE:`DELETE </app/log/private>` requests. Requests with those verbs will be executed by the appropriate handler. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
@@ -162,7 +163,7 @@ The final piece is the definition of the endpoint itself, which uses an instance
 Default Endpoints
 ~~~~~~~~~~~~~~~~~
 
-The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as ``/app/tx``, ``/app/commit``, and ``/app/user_id``. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in ``samples/apps/nobuiltins``. Whereas the logging app declares a registry inheriting from :cpp:class:`ccf::CommonEndpointRegistry`, this app inherits from :cpp:class:`ccf::BaseEndpointRegistry` which does not install any default endpoints:
+The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as :http:GET:`/app/tx`, :http:GET:`/app/commit`, and :http:GET:`/app/receipt`. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in ``samples/apps/nobuiltins``. Whereas the logging app declares a registry inheriting from :cpp:class:`ccf::CommonEndpointRegistry`, this app inherits from :cpp:class:`ccf::BaseEndpointRegistry` which does not install any default endpoints:
 
 .. literalinclude:: ../../samples/apps/nobuiltins/nobuiltins.cpp
     :language: cpp
