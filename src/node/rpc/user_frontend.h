@@ -11,12 +11,12 @@ namespace ccf
   class UserRpcFrontend : public RpcFrontend
   {
   protected:
-    std::unique_ptr<ccf::BaseEndpointRegistry> endpoints;
+    std::unique_ptr<ccf::endpoints::EndpointRegistry> endpoints;
 
   public:
     UserRpcFrontend(
       NetworkState& network,
-      std::unique_ptr<ccf::BaseEndpointRegistry>&& endpoints_) :
+      std::unique_ptr<ccf::endpoints::EndpointRegistry>&& endpoints_) :
       RpcFrontend(*network.tables, *endpoints_),
       endpoints(std::move(endpoints_))
     {}

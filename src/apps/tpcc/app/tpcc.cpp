@@ -144,7 +144,7 @@ namespace ccfapp
     }
   };
 
-  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
     ccfapp::AbstractNodeContext& context)
   {
     return std::make_unique<TpccHandlers>(context);

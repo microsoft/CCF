@@ -46,7 +46,7 @@ The Logging application simply has:
 Application Endpoints
 ---------------------
 
-The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::BaseEndpointRegistry`, passing a reference to the node context if access to node-local subsystems is required.
+The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::endpoints::EndpointRegistry`, containing the endpoints that constitute the app.
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

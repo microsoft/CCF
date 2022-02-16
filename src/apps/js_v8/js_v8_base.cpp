@@ -508,7 +508,7 @@ namespace ccfapp
   };
 
   /// Returns new V8 Endpoints
-  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints_impl(
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
     ccfapp::AbstractNodeContext& context)
   {
     // V8 initialization needs to move to a more central place

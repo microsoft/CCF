@@ -50,7 +50,7 @@ namespace ccfapp
    *
    * @return Unique pointer to the endpoint registry instance
    */
-  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
     ccfapp::AbstractNodeContext& context);
 
   /** To be implemented by the application.

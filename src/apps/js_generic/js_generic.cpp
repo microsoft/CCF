@@ -6,7 +6,7 @@
 
 namespace ccfapp
 {
-  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
+  std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
     ccfapp::AbstractNodeContext& context)
   {
     return make_user_endpoints_impl(context);
