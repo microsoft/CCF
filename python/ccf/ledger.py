@@ -111,6 +111,7 @@ def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
     elements = (
         os.path.basename(filename)
         .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace(RECOVERY_FILE_SUFFIX, "")
         .replace("ledger_", "")
         .split("-")
     )
@@ -832,10 +833,17 @@ class Ledger:
         ledger_files: List[str] = []
         for directory in directories:
             for path in os.listdir(directory):
-                if (
-                    not read_recovery_files and path.endswith(RECOVERY_FILE_SUFFIX)
-                ) or (committed_only and not path.endswith(COMMITTED_FILE_SUFFIX)):
+                sanitised_path = path
+                if path.endswith(RECOVERY_FILE_SUFFIX):
+                    sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
+                    if not read_recovery_files:
+                        continue
+
+                if committed_only and not sanitised_path.endswith(
+                    COMMITTED_FILE_SUFFIX
+                ):
                     continue
+
                 chunk = os.path.join(directory, path)
                 # The same ledger file may appear multiple times in different directories
                 # so ignore duplicates
