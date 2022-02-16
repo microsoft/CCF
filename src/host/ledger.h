@@ -33,18 +33,7 @@ namespace asynchost
   static constexpr auto ledger_start_idx_delimiter = "_";
   static constexpr auto ledger_last_idx_delimiter = "-";
   static constexpr auto ledger_corrupt_file_suffix = "corrupted";
-  static constexpr auto ledger_recovery_file_suffix =
-    "recovery"; // TODO: Also true when service is open!
-
-  static inline bool is_ledger_file_committed(const std::string& file_name)
-  {
-    auto pos = file_name.find(".");
-    if (pos == std::string::npos)
-    {
-      return false;
-    }
-    return file_name.substr(pos + 1) == ledger_committed_suffix;
-  }
+  static constexpr auto ledger_recovery_file_suffix = "recovery";
 
   static inline size_t get_start_idx_from_file_name(
     const std::string& file_name)
@@ -72,6 +61,11 @@ namespace asynchost
     return std::stol(file_name.substr(pos + 1));
   }
 
+  static inline bool is_ledger_file_committed(const std::string& file_name)
+  {
+    return nonstd::ends_with(file_name, ledger_committed_suffix);
+  }
+
   static inline bool is_ledger_file_name_corrupted(const std::string& file_name)
   {
     return nonstd::ends_with(file_name, ledger_corrupt_file_suffix);
@@ -84,15 +78,8 @@ namespace asynchost
 
   static inline fs::path remove_recovery_suffix(const std::string& file_name)
   {
-    if (!is_ledger_file_name_recovery(file_name))
-    {
-      throw std::logic_error(fmt::format(
-        "Cannot remove recovery suffix from non-recovery ledger file {}",
-        file_name));
-    }
-
-    // TODO: Not precise enough!
-    return file_name.substr(0, file_name.find_last_of("."));
+    return nonstd::remove_suffix(
+      file_name, fmt::format(".{}", ledger_recovery_file_suffix));
   }
 
   static std::optional<std::string> get_file_name_with_idx(
@@ -137,7 +124,7 @@ namespace asynchost
 
   class LedgerFile
   {
-  public: // TODO: Fix
+  private:
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
@@ -310,6 +297,11 @@ namespace asynchost
     bool is_complete() const
     {
       return completed;
+    }
+
+    bool is_recovery() const
+    {
+      return recovery;
     }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
@@ -491,13 +483,6 @@ namespace asynchost
 
     bool commit(size_t idx)
     {
-      LOG_FAIL_FMT(
-        "Commit file at {}, complete {}, committed {}, last idx {}",
-        idx,
-        completed,
-        committed,
-        get_last_idx());
-
       if (!completed || committed || (idx != get_last_idx()))
       {
         // No effect if commit idx is not last idx
@@ -586,15 +571,6 @@ namespace asynchost
         [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
           return (idx <= f->get_last_idx());
         });
-
-      if (f != files.end())
-      {
-        LOG_FAIL_FMT("Found file {} for idx {}", (*f)->file_name, idx);
-      }
-      else
-      {
-        LOG_FAIL_FMT("No file found for {}", idx);
-      }
 
       return f;
     }
@@ -974,7 +950,7 @@ namespace asynchost
 
       for (auto& f : files)
       {
-        if (is_ledger_file_name_recovery(f->file_name))
+        if (f->is_recovery())
         {
           f->open();
         }
@@ -1017,7 +993,7 @@ namespace asynchost
       return last_idx;
     }
 
-    void set_recovery_mode()
+    void enable_recovery_mode()
     {
       recovery_mode = true;
     }
@@ -1303,13 +1279,13 @@ namespace asynchost
         disp,
         consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
-          // TODO: Merge this call with init for the recover node?
+          // TODO: Unify this path with backup node path
           auto idx = serialized::read<consensus::Index>(data, size);
           auto recovery_mode = serialized::read<bool>(data, size);
           truncate(idx);
           if (recovery_mode)
           {
-            set_recovery_mode();
+            enable_recovery_mode();
           }
         });
 

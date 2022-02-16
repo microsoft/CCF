@@ -1055,8 +1055,6 @@ namespace ccf
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
 
-        // TODO: Add global hook on service table when service is open to notify
-        // host ledger that recovery chunk can be renamed
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1851,17 +1849,18 @@ namespace ccf
             return;
           }
 
+          network.identity->set_certificate(w->cert);
           if (w->status == ServiceStatus::OPEN)
           {
-            LOG_FAIL_FMT("ledger open at {}", hook_version);
+            open_user_frontend();
+
             size_t idx = 0;
             RINGBUFFER_WRITE_MESSAGE(
               consensus::ledger_open,
               to_host,
               idx /* TODO: Needs at least one argument */);
+            LOG_INFO_FMT("Service open at seqno {}", hook_version);
           }
-          network.identity->set_certificate(w->cert);
-          open_user_frontend();
         }));
     }
 

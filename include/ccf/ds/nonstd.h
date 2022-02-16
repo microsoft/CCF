@@ -160,4 +160,15 @@ namespace nonstd
 
     return s;
   }
+
+  static inline std::string remove_suffix(
+    const std::string& s, const std::string& suffix)
+  {
+    if (ends_with(s, suffix))
+    {
+      return s.substr(0, suffix.size());
+    }
+
+    return s;
+  }
 }
