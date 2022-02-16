@@ -573,7 +573,7 @@ class Network:
                         f"Ledger files on node {node_id} do not match files on most up-to-date node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}"
                     )
             LOG.success(
-                f"Verified ledger files consistency on all {len(self.nodes)} stopped nodes"
+                f"Verified {len(longest_ledger_files)} ledger files consistency on all {len(self.nodes)} stopped nodes"
             )
 
     def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
@@ -722,8 +722,8 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout) as c:
-                    r = c.get("/node/state")
-                    if r.body.json()["state"] == state:
+                    r = c.get("/node/state").body.json()
+                    if r["state"] == state:
                         break
             except ConnectionRefusedError:
                 pass

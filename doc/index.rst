@@ -94,4 +94,3 @@ CCF Documentation
     contribute/index.rst
     architecture/index.rst
     research/index.rst
-    GitHub Repository <https://github.com/microsoft/CCF>
