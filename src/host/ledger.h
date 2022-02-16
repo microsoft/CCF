@@ -554,7 +554,6 @@ namespace asynchost
 
     // Set during recovery to mark files as temporary until the recovery is
     // complete
-    bool recovery_mode = false;
     std::optional<size_t> recovery_start_idx = std::nullopt;
 
     auto get_it_contains_idx(size_t idx) const
@@ -945,9 +944,11 @@ namespace asynchost
     void open()
     {
       // When the service is open, temporary recovery ledger chunks are renamed
-      // as they can now be recovered
+      // as they can now be recovered.
+      // Note: this operation cannot be rolled back.
       LOG_INFO_FMT("Ledger open");
 
+      // Open files open for write
       for (auto& f : files)
       {
         if (f->is_recovery())
@@ -956,6 +957,7 @@ namespace asynchost
         }
       }
 
+      // Then, open committed files
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
@@ -984,7 +986,6 @@ namespace asynchost
         }
       }
 
-      recovery_mode = false;
       recovery_start_idx.reset();
     }
 
@@ -993,9 +994,9 @@ namespace asynchost
       return last_idx;
     }
 
-    void enable_recovery_mode()
+    void set_recovery_start_idx(size_t idx)
     {
-      recovery_mode = true;
+      recovery_start_idx = idx;
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx)
@@ -1064,8 +1065,12 @@ namespace asynchost
 
       if (require_new_file)
       {
-        files.push_back(std::make_shared<LedgerFile>(
-          ledger_dir, last_idx + 1, recovery_mode));
+        size_t start_idx = last_idx + 1;
+        bool is_recovery = recovery_start_idx.has_value() &&
+          start_idx > recovery_start_idx.value();
+
+        files.push_back(
+          std::make_shared<LedgerFile>(ledger_dir, last_idx + 1, is_recovery));
         require_new_file = false;
       }
 
@@ -1077,17 +1082,6 @@ namespace asynchost
         last_idx,
         committable,
         force_chunk_after);
-
-      if (
-        recovery_start_idx.has_value() &&
-        last_idx == recovery_start_idx.value())
-      {
-        // TODO: What if this rolls back before recovery start idx?
-        LOG_DEBUG_FMT(
-          "Transition to recovery mode after writing entry at {}",
-          recovery_start_idx.value());
-        recovery_mode = true;
-      }
 
       if (
         committable &&
@@ -1139,12 +1133,6 @@ namespace asynchost
       }
 
       last_idx = idx;
-      // TODO: Unit test this!
-      if (
-        recovery_start_idx.has_value() && last_idx < recovery_start_idx.value())
-      {
-        recovery_mode = false;
-      }
     }
 
     void commit(size_t idx)
@@ -1279,13 +1267,12 @@ namespace asynchost
         disp,
         consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
-          // TODO: Unify this path with backup node path
           auto idx = serialized::read<consensus::Index>(data, size);
           auto recovery_mode = serialized::read<bool>(data, size);
           truncate(idx);
           if (recovery_mode)
           {
-            enable_recovery_mode();
+            set_recovery_start_idx(idx);
           }
         });
 

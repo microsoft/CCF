@@ -247,7 +247,6 @@ def run(args, recoveries_count):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % recoveries_count == 0:
-                pass
                 if args.consensus != "BFT":
                     network = test_share_resilience(network, args, from_snapshot=True)
             elif i % recoveries_count == 1:

@@ -1493,7 +1493,7 @@ TEST_CASE("Recovery")
   SUBCASE("Recovery enabled")
   {
     REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
-    ledger.enable_recovery_mode();
+    ledger.set_recovery_start_idx(pre_recovery_last_idx);
 
     entry_submitter.write(true);
     REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
