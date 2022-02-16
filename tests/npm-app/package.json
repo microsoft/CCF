@@ -4,7 +4,7 @@
     "build": "del-cli -f dist/ && rollup --config && cp app.json dist/ && node build_bundle.js dist/",
     "bundle": "node build_bundle.js dist"
   },
-  "type": "module",
+  "type": "commonjs",
   "dependencies": {
     "@microsoft/ccf-app": "file:../../js/ccf-app",
     "js-base64": "^3.5.2",
