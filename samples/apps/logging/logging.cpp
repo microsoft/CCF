@@ -10,7 +10,6 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/verifier.h"
 #include "node/tx_receipt.h"
@@ -444,11 +443,11 @@ namespace loggingapp
           return;
         }
 
-        std::shared_ptr<Verifier> verifier;
+        std::shared_ptr<crypto::Verifier> verifier;
         try
         {
           const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
-          verifier = make_verifier(cert_data);
+          verifier = crypto::make_verifier(cert_data);
         }
         catch (const std::exception& ex)
         {
@@ -1483,37 +1482,27 @@ namespace loggingapp
     }
   };
 
-  class Logger : public ccf::RpcFrontend
-  {
-  private:
-    LoggerHandlers logger_handlers;
-
-  public:
-    Logger(kv::Store& store, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(store, logger_handlers),
-      logger_handlers(context)
-    {}
-
-    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
-    {
-      ccf::RpcFrontend::open(identity);
-      logger_handlers.openapi_info.title = "CCF Sample Logging App";
-      logger_handlers.openapi_info.description =
-        "This CCF sample app implements a simple logging application, securely "
-        "recording messages at client-specified IDs. It demonstrates most of "
-        "the features available to CCF apps.";
-      logger_handlers.openapi_info.document_version = "1.7.0";
-    }
-  };
+  // TODO: Where does this live now?
+  // void open(std::optional<crypto::Pem*> identity = std::nullopt)
+  // {
+  //   ccf::RpcFrontend::open(identity);
+  //   logger_handlers.openapi_info.title = "CCF Sample Logging App";
+  //   logger_handlers.openapi_info.description =
+  //     "This CCF sample app implements a simple logging application, securely
+  //     " "recording messages at client-specified IDs. It demonstrates most of
+  //     " "the features available to CCF apps.";
+  //   logger_handlers.openapi_info.document_version = "1.7.0";
+  // }
 }
 
 namespace ccfapp
 {
   // SNIPPET_START: app_interface
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    kv::Store& store, ccfapp::AbstractNodeContext& context)
+  // TODO: Update documentation
+  std::unique_ptr<ccf::UserEndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<loggingapp::Logger>(store, context);
+    return std::make_unique<loggingapp::LoggerHandlers>(context);
   }
   // SNIPPET_END: app_interface
 }

@@ -2,12 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ccf_deprecated.h"
+#include "ccf/common_endpoint_registry.h"
 #include "ccf/js_plugin.h"
+#include "ccf/node_context.h"
 
 #include <memory>
 #include <vector>
 
-// Forward declarations
+// TODO: Remove these?
+// Forward declarations, can be removed with deprecation
 namespace ccf
 {
   class RpcFrontend;
@@ -20,20 +24,32 @@ namespace kv
 
 namespace ccfapp
 {
-  // Forward declaration
-  struct AbstractNodeContext;
-
-  // SNIPPET_START: app_interface
-  /** To be implemented by the application to be registered by CCF.
-   *
-   * @param network Access to the network's replicated tables
-   * @param context Access to node and host services
-   *
-   * @return Shared pointer to the application handler instance
-   */
-  // TODO: Does anyone even need this Store? Or can we remove it...
+  CCF_DEPRECATED("Replace with make_user_endpoints")
   std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     kv::Store& store, AbstractNodeContext& context);
+}
+
+namespace ccf
+{
+  class UserEndpointRegistry : public CommonEndpointRegistry
+  {
+  public:
+    UserEndpointRegistry(ccfapp::AbstractNodeContext& context) :
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
+    {}
+  };
+}
+
+namespace ccfapp
+{
+  CCF_DEPRECATED("Replace with make_user_endpoints")
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
+    kv::Store& store, AbstractNodeContext& context);
+
+  // SNIPPET_START: app_interface
+  // TODO: Document
+  std::unique_ptr<ccf::UserEndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context);
 
   /** To be implemented by the application to be registered by CCF.
    *
