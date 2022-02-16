@@ -12,7 +12,7 @@
 #include "node/entities.h"
 #include "node/history.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
 #include <random>
@@ -2987,8 +2987,8 @@ TEST_CASE("Ledger entry chunk request")
       MapTypes::StringString map("public:map");
       auto tx = store.create_tx();
 
-      // Request a ledger chunk at the next signature again
-      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      // Request a ledger chunk before tx
+      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
@@ -3008,4 +3008,15 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0);
     }
   }
+}
+
+int main(int argc, char** argv)
+{
+  logger::config::default_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

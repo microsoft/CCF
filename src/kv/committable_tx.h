@@ -16,11 +16,13 @@ namespace kv
   class CommittableTx : public Tx, public AbstractChangeContainer
   {
   public:
-    enum class Flag : uint8_t
+    using TXFlags = uint8_t;
+
+    enum class Flag : TXFlags
     {
       LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
       SNAPSHOT_AT_NEXT_SIGNATURE = 0x02,
-      LEDGER_CHUNK_BEFORE_THIS_TX = 0x03,
+      LEDGER_CHUNK_BEFORE_THIS_TX = 0x04,
     };
 
   protected:
@@ -31,8 +33,11 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    SerialisedEntryFlags flags = 0;
+  public:
+    TXFlags flags = 0;
+    SerialisedEntryFlags entry_flags = 0;
 
+  protected:
     std::vector<uint8_t> serialise(
       crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
@@ -77,11 +82,16 @@ namespace kv
         claims_digest.value(),
         claims_digest.empty());
 
+      if (flag_enabled(Flag::LEDGER_CHUNK_BEFORE_THIS_TX))
+      {
+        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_BEFORE;
+      }
+
       KvStoreSerialiser replicated_serialiser(
         e,
         {commit_view, version},
         entry_type,
-        flags,
+        entry_flags,
         tx_commit_evidence_digest,
         claims_digest);
 
@@ -424,7 +434,7 @@ namespace kv
 
       if (force_ledger_chunk)
       {
-        flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
+        entry_flags |= EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
         LOG_DEBUG_FMT(
           "Forcing ledger chunk for signature at {}.{}", commit_view, version);
       }
