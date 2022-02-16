@@ -1472,7 +1472,7 @@ TEST_CASE("Chunking according to entry header flag")
 
 TEST_CASE("Recovery")
 {
-  // auto dir = AutoDeleteFolder(ledger_dir);
+  // auto dir = AutoDeleteFolder(ledger_dir); TODO: Enable
 
   size_t chunk_threshold = 30;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);

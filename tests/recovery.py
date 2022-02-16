@@ -22,6 +22,11 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
     # at any one (but not the last one, which would have no effect) at random.
     for ledger_file in os.listdir(input_dir):
         sig_seqnos = []
+
+        if ledger_file.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX):
+            # Ignore recovery files
+            continue
+
         ledger_file_path = os.path.join(input_dir, ledger_file)
         ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
         for transaction in ledger_chunk:
@@ -47,7 +52,7 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
 
 
 @reqs.description("Recovering a service")
-# @reqs.recover(number_txs=2)
+@reqs.recover(number_txs=2)
 def test_recover_service(network, args, from_snapshot=False, split_ledger=False):
     old_primary, _ = network.find_primary()
 
@@ -59,16 +64,16 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    # if split_ledger:
-    #     # Test that ledger files can be arbitrarily split and that recovery
-    #     # and historical queries work as expected.
-    #     # Note: For real operations, it would be best practice to use a separate
-    #     # output directory
-    #     split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
-    #     if committed_ledger_dirs:
-    #         split_all_ledger_files_in_dir(
-    #             committed_ledger_dirs[0], committed_ledger_dirs[0]
-    #         )
+    if split_ledger:
+        # Test that ledger files can be arbitrarily split and that recovery
+        # and historical queries work as expected.
+        # Note: For real operations, it would be best practice to use a separate
+        # output directory
+        split_all_ledger_files_in_dir(current_ledger_dir, current_ledger_dir)
+        if committed_ledger_dirs:
+            split_all_ledger_files_in_dir(
+                committed_ledger_dirs[0], committed_ledger_dirs[0]
+            )
 
     recovered_network = infra.network.Network(
         args.nodes,
@@ -242,6 +247,7 @@ def run(args, recoveries_count):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % recoveries_count == 0:
+                pass
                 if args.consensus != "BFT":
                     network = test_share_resilience(network, args, from_snapshot=True)
             elif i % recoveries_count == 1:

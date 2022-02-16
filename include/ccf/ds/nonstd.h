@@ -166,7 +166,7 @@ namespace nonstd
   {
     if (ends_with(s, suffix))
     {
-      return s.substr(0, suffix.size());
+      return s.substr(0, s.size() - suffix.size());
     }
 
     return s;
