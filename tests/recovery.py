@@ -111,7 +111,6 @@ def test_recover_service_aborted(network, args, from_snapshot=True):
     )
 
     LOG.info("Fill in ledger to trigger new chunks, which should be marked as recovery")
-    # TODO: Is this realdy working?
     primary, _ = aborted_network.find_primary()
     while (
         len(
