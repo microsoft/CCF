@@ -1305,11 +1305,11 @@ namespace ccf
         }
         else
         {
-          // Force a new ledger chunk for recovery
+          // On recovery, force a new ledger chunk
           auto tx_ = static_cast<kv::CommittableTx*>(&ctx.tx);
           if (tx_ == nullptr)
           {
-            throw std::logic_error("Could not cast tx to kv::CommittableTx");
+            throw std::logic_error("Could not cast tx to CommittableTx");
           }
           tx_->set_flag(kv::AbstractStore::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
         }

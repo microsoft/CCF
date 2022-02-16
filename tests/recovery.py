@@ -237,7 +237,7 @@ def run(args):
     # Verify that a new ledger chunk was created at the start of each recovery
     ledger = ccf.ledger.Ledger(primary.remote.ledger_paths(), committed_only=False)
     for chunk in ledger:
-        first_tx_in_chunk = True
+        chunk_start_seqno, _ = chunk.get_seqnos()
         for tx in chunk:
             tables = tx.get_public_domain().get_tables()
             seqno = tx.get_public_domain().get_seqno()
@@ -250,9 +250,8 @@ def run(args):
                 if service_status == "Opening":
                     LOG.info(f"New ledger chunk found for service opening at {seqno}")
                     assert (
-                        first_tx_in_chunk
-                    ), f"Opening service at seqno {seqno} did not start a new ledger chunk"
-            first_tx_in_chunk = False
+                        chunk_start_seqno == seqno
+                    ), f"Opening service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
 
 if __name__ == "__main__":
