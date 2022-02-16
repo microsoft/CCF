@@ -16,5 +16,5 @@ namespace ccfapp
   {
     return {ccf::js::openenclave_plugin};
   }
-  
+
 } // namespace ccfapp
