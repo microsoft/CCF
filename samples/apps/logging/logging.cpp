@@ -165,6 +165,13 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      openapi_info.title = "CCF Sample Logging App";
+      openapi_info.description =
+        "This CCF sample app implements a simple logging application, securely "
+        "recording messages at client-specified IDs. It demonstrates most of "
+        "the features available to CCF apps.";
+      openapi_info.document_version = "1.7.0";
+
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context.get_lfs_access(), 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
@@ -1481,18 +1488,6 @@ namespace loggingapp
       ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
-
-  // TODO: Where does this live now?
-  // void open(std::optional<crypto::Pem*> identity = std::nullopt)
-  // {
-  //   ccf::RpcFrontend::open(identity);
-  //   logger_handlers.openapi_info.title = "CCF Sample Logging App";
-  //   logger_handlers.openapi_info.description =
-  //     "This CCF sample app implements a simple logging application, securely
-  //     " "recording messages at client-specified IDs. It demonstrates most of
-  //     " "the features available to CCF apps.";
-  //   logger_handlers.openapi_info.document_version = "1.7.0";
-  // }
 }
 
 namespace ccfapp
