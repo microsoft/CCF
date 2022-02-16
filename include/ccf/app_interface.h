@@ -10,7 +10,6 @@
 #include <memory>
 #include <vector>
 
-// TODO: Remove these?
 // Forward declarations, can be removed with deprecation
 namespace ccf
 {
