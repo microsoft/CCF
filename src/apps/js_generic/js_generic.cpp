@@ -6,15 +6,15 @@
 
 namespace ccfapp
 {
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    kv::Store& store, ccfapp::AbstractNodeContext& context)
+  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-    return get_rpc_handler_impl(store, context);
+    return make_user_endpoints_impl(context);
   }
 
   std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
     return {ccf::js::openenclave_plugin};
   }
-
+  
 } // namespace ccfapp

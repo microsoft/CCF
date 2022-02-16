@@ -6,6 +6,6 @@
 
 namespace ccfapp
 {
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    kv::Store& store, ccfapp::AbstractNodeContext& context);
+  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context);
 }

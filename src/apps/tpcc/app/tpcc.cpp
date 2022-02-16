@@ -3,7 +3,6 @@
 #include "../tpcc_serializer.h"
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
-#include "ccf/user_frontend.h"
 #include "tpcc_setup.h"
 #include "tpcc_tables.h"
 #include "tpcc_transactions.h"
@@ -145,22 +144,10 @@ namespace ccfapp
     }
   };
 
-  class Tpcc : public ccf::RpcFrontend
+  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
+    ccfapp::AbstractNodeContext& context)
   {
-  private:
-    TpccHandlers tpcc_handlers;
-
-  public:
-    Tpcc(kv::Store& store, AbstractNodeContext& context) :
-      RpcFrontend(store, tpcc_handlers),
-      tpcc_handlers(context)
-    {}
-  };
-
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    kv::Store& store, AbstractNodeContext& context)
-  {
-    return make_shared<Tpcc>(store, context);
+    return std::make_unique<TpccHandlers>(context);
   }
 }
 

@@ -1499,7 +1499,7 @@ namespace ccfapp
 {
   // SNIPPET_START: app_interface
   // TODO: Update documentation
-  std::unique_ptr<ccf::UserEndpointRegistry> make_user_endpoints(
+  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
     ccfapp::AbstractNodeContext& context)
   {
     return std::make_unique<loggingapp::LoggerHandlers>(context);

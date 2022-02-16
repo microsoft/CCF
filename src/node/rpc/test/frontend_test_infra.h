@@ -6,7 +6,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "ccf/service/signed_req.h"
-#include "ccf/user_frontend.h"
 #include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
 #include "kv/test/null_encryptor.h"

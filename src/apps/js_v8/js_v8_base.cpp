@@ -3,7 +3,6 @@
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
@@ -301,7 +300,7 @@ namespace ccfapp
     }
 
   public:
-    V8Handlers(kv::Store& store, AbstractNodeContext& context) :
+    V8Handlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
       node_context(context)
     {
@@ -508,30 +507,14 @@ namespace ccfapp
     }
   };
 
-  /**
-   * V8 Frontend for RPC calls
-   */
-  class V8Frontend : public ccf::RpcFrontend
-  {
-  private:
-    V8Handlers handlers;
-
-  public:
-    V8Frontend(kv::Store& store, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(store, handlers),
-      handlers(store, context)
-    {}
-  };
-
-  /// Returns a new V8 Rpc Frontend
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    kv::Store& store, ccfapp::AbstractNodeContext& context)
+  /// Returns new V8 Endpoints
+  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
     // V8 initialization needs to move to a more central place
     // once/if V8 is integrated into core CCF.
     v8_initialize();
 
-    return make_shared<V8Frontend>(store, context);
+    return std::make_unique<V8Handlers>(context);
   }
-
 } // namespace ccfapp

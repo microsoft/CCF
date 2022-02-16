@@ -42,13 +42,9 @@ namespace ccf
 
 namespace ccfapp
 {
-  CCF_DEPRECATED("Replace with make_user_endpoints")
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    kv::Store& store, AbstractNodeContext& context);
-
   // SNIPPET_START: app_interface
   // TODO: Document
-  std::unique_ptr<ccf::UserEndpointRegistry> make_user_endpoints(
+  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints(
     ccfapp::AbstractNodeContext& context);
 
   /** To be implemented by the application to be registered by CCF.

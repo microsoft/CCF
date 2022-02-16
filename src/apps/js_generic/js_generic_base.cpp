@@ -3,7 +3,6 @@
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
-#include "ccf/user_frontend.h"
 #include "ccf/version.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
@@ -471,7 +470,7 @@ namespace ccfapp
     }
 
   public:
-    JSHandlers(kv::Store& store, AbstractNodeContext& context) :
+    JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
       context(context)
     {
@@ -680,21 +679,10 @@ namespace ccfapp
 
 #pragma clang diagnostic pop
 
-  class JS : public ccf::RpcFrontend
+  std::unique_ptr<ccf::BaseEndpointRegistry> make_user_endpoints_impl(
+    ccfapp::AbstractNodeContext& context)
   {
-  private:
-    JSHandlers js_handlers;
-
-  public:
-    JS(kv::Store& store, ccfapp::AbstractNodeContext& context) :
-      ccf::RpcFrontend(store, js_handlers),
-      js_handlers(store, context)
-    {}
-  };
-
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler_impl(
-    kv::Store& store, ccfapp::AbstractNodeContext& context)
-  {
-    return make_shared<JS>(store, context);
+    return std::make_unique<JSHandlers>(context);
   }
+
 } // namespace ccfapp
