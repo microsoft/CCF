@@ -104,6 +104,7 @@ all_tests_suite = [
     reconfiguration.test_retire_primary,
     # recovery:
     recovery.test_recover_service,
+    recovery.test_recover_service_aborted,
     # rekey:
     e2e_logging.test_rekey,
     # election:
