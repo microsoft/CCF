@@ -54,6 +54,7 @@ namespace crypto
   }
 }
 
+// TODO: Use this instead of namespace fmt, everywhere!
 FMT_BEGIN_NAMESPACE
 template <>
 struct formatter<crypto::SubjectAltName>

@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
-#include "crypto/pem.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"

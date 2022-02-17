@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
 #pragma once
 #include <atomic>
 #include <stdint.h>
@@ -7,6 +8,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+// TODO: Remove, replace with std::span
 
 template <typename T>
 struct Array

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "ds/buffer.h"
 
 #include <cstring>
 #include <exception>
@@ -37,8 +36,6 @@ namespace crypto
 
       s.assign(reinterpret_cast<const char*>(data), size);
     }
-
-    Pem(const CBuffer& b) : Pem(b.p, b.n) {}
 
     Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 

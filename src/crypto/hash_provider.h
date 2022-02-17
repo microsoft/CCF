@@ -4,7 +4,7 @@
 
 #include "ccf/crypto/md_type.h"
 #include "ccf/crypto/sha256_hash.h"
-#include "ds/buffer.h"
+#include "ccf/ds/buffer.h"
 #include "ds/hex.h"
 
 #include <array>
@@ -14,6 +14,7 @@
 
 namespace crypto
 {
+  // TODO: Deserves its own file?
   using HashBytes = std::vector<uint8_t>;
 
   class HashProvider

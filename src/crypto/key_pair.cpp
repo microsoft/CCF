@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "key_pair.h"
+#include "ccf/crypto/key_pair.h"
 
 #include "openssl/key_pair.h"
 #include "openssl/public_key.h"

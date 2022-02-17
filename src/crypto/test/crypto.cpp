@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/key_pair.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/entropy.h"
 #include "crypto/hmac.h"
-#include "crypto/key_pair.h"
 #include "crypto/key_wrap.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"

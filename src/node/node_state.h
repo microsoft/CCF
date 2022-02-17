@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "crypto/entropy.h"
-#include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/state_machine.h"
