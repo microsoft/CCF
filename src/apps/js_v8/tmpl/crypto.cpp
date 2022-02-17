@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "apps/js_v8/tmpl/crypto.h"
 
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/logger.h"
 #include "crypto/ecdsa.h"
-#include "crypto/rsa_key_pair.h"
 #include "crypto/verifier.h"
 #include "template.h"
 
