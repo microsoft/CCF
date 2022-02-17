@@ -13,14 +13,13 @@ namespace crypto
   /** Compute the SHA256 hash of @p data
    * @param data The data to compute the hash of
    */
-  // TODO: Function, should be sha256
-  std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data);
+  std::vector<uint8_t> sha256(const std::vector<uint8_t>& data);
 
   /** Compute the SHA256 hash of @p data
    * @param data The data to compute the hash of
    * @param len Length of the data
    */
-  std::vector<uint8_t> SHA256(const uint8_t* data, size_t len);
+  std::vector<uint8_t> sha256(const uint8_t* data, size_t len);
 
   /** Create a default hash provider */
   std::shared_ptr<HashProvider> make_hash_provider();

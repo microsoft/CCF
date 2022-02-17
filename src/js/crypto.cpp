@@ -112,7 +112,7 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    auto h = crypto::SHA256(data, data_size);
+    auto h = crypto::sha256(data, data_size);
     return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
   }
 

@@ -9,8 +9,6 @@
 #include <utility>
 #include <vector>
 
-// TODO: Remove, replace with std::span
-
 template <typename T>
 struct Array
 {

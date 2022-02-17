@@ -221,7 +221,7 @@ namespace ccf::v8_tmpl
     }
 
     auto data = v8_util::get_array_buffer_data(buffer);
-    auto h = crypto::SHA256(data.p, data.n);
+    auto h = crypto::sha256(data.p, data.n);
     v8::Local<v8::Value> value =
       v8_util::to_v8_array_buffer_copy(isolate, h.data(), h.size());
 

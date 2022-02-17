@@ -240,7 +240,7 @@ namespace ccf::indexing
 #ifdef PLAINTEXT_CACHE
       return key;
 #else
-      const auto h = crypto::SHA256((const uint8_t*)key.data(), key.size());
+      const auto h = crypto::sha256((const uint8_t*)key.data(), key.size());
       return ds::to_hex(h);
 #endif
     }

@@ -14,7 +14,6 @@
 
 namespace crypto
 {
-  // TODO: Deserves its own file?
   using HashBytes = std::vector<uint8_t>;
 
   class HashProvider
