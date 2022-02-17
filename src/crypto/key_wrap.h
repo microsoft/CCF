@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/rsa_key_pair.h"
-#include "crypto/symmetric_key.h"
+#include "ccf/crypto/symmetric_key.h"
 
 #include <cstddef>
 #include <cstdint>

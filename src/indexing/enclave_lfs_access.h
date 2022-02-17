@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
 #include "ccf/crypto/sha256.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/indexing/lfs_interface.h"
-#include "crypto/entropy.h"
-#include "crypto/symmetric_key.h"
 #include "ds/hex.h"
 #include "ds/messaging.h"
 #include "indexing/lfs_ringbuffer_types.h"

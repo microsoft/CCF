@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/ds/logger.h"
-#include "crypto/entropy.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
 

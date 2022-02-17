@@ -4,7 +4,7 @@
 #include "crypto/openssl/symmetric_key.h"
 
 #include "ccf/crypto/rsa_key_pair.h"
-#include "symmetric_key.h"
+#include "ccf/crypto/symmetric_key.h"
 
 namespace crypto
 {

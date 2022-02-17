@@ -4,10 +4,10 @@
 
 #include "ccf/crypto/hkdf.h"
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
 #include "crypto/key_exchange.h"
-#include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/hex.h"
 #include "ds/serialized.h"

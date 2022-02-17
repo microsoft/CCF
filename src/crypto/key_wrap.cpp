@@ -5,7 +5,7 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/rsa_key_pair.h"
-#include "crypto/symmetric_key.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "openssl/symmetric_key.h"
 
 #include <cstdint>
