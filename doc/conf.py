@@ -411,7 +411,8 @@ def setup(app):
         subprocess.run(["doxygen"], cwd=root_dir, check=True)
         doxygen_html_src = str(root_dir / "doxygen/html")
         doxygen_html_dest = str(out_dir / "doxygen")
-        subprocess.run(["cp", "-r", doxygen_html_src, doxygen_html_dest], check=True)
+        # check=False => it's fine if the source dir doesn't exist
+        subprocess.run(["cp", "-r", doxygen_html_src, doxygen_html_dest], check=False)
 
     # configuration generator
     input_file_path = doc_dir / "host_config_schema/cchost_config.json"
