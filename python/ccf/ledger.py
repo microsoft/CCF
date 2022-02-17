@@ -106,6 +106,21 @@ def unpack_array(stream, fmt, length):
     return ret
 
 
+def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
+    elements = (
+        os.path.basename(filename)
+        .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace("ledger_", "")
+        .split("-")
+    )
+    if len(elements) == 2:
+        return (int(elements[0]), int(elements[1]))
+    elif len(elements) == 1:
+        return (int(elements[0]), None)
+    else:
+        raise ValueError(f"Could not read seqno range from ledger file {filename}")
+
+
 class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV
@@ -763,6 +778,7 @@ class LedgerChunk:
         self._current_tx = Transaction(name, ledger_validator)
         self._pos_offset = self._current_tx._pos_offset
         self._filename = name
+        self.start_seqno, self.end_seqno = range_from_filename(name)
 
     def __next__(self) -> Transaction:
         return next(self._current_tx)
@@ -779,6 +795,9 @@ class LedgerChunk:
     def is_complete(self):
         return self._pos_offset > 0
 
+    def get_seqnos(self):
+        return self.start_seqno, self.end_seqno
+
 
 class Ledger:
     """
@@ -790,29 +809,21 @@ class Ledger:
     _filenames: list
     _fileindex: int
     _current_chunk: LedgerChunk
-    _ledger_validator: LedgerValidator
+    _ledger_validator: Optional[LedgerValidator] = None
 
-    def _reset_iterators(self):
+    def _reset_iterators(self, insecure_skip_verification: bool = False):
         self._fileindex = -1
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
-        self._ledger_validator = LedgerValidator()
-
-    @classmethod
-    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
-        elements = (
-            os.path.basename(filename)
-            .replace(COMMITTED_FILE_SUFFIX, "")
-            .replace("ledger_", "")
-            .split("-")
+        self._ledger_validator = (
+            LedgerValidator() if not insecure_skip_verification else None
         )
-        if len(elements) == 2:
-            return (int(elements[0]), int(elements[1]))
-        elif len(elements) == 1:
-            return (int(elements[0]), None)
-        else:
-            assert False, elements
 
-    def __init__(self, directories: List[str], committed_only: bool = True):
+    def __init__(
+        self,
+        directories: List[str],
+        committed_only: bool = True,
+        insecure_skip_verification: bool = False,
+    ):
 
         self._filenames = []
 
@@ -836,15 +847,15 @@ class Ledger:
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: Ledger._range_from_filename(x)[0],
+            key=lambda x: range_from_filename(x)[0],
         )
 
-        self._reset_iterators()
+        self._reset_iterators(insecure_skip_verification)
 
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
         last_chunk_name = self._filenames[-1]
-        return Ledger._range_from_filename(last_chunk_name)
+        return range_from_filename(last_chunk_name)
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
@@ -934,9 +945,9 @@ class Ledger:
 
         :return int: Number of verified signature transactions.
         """
-        return self._ledger_validator.signature_count
+        return self._ledger_validator.signature_count if self._ledger_validator else 0
 
-    def last_verified_txid(self) -> TxID:
+    def last_verified_txid(self) -> Optional[TxID]:
         """
         Return the :py:class:`ccf.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
 
@@ -944,9 +955,13 @@ class Ledger:
 
         :return: :py:class:`ccf.tx_id.TxID`
         """
-        return TxID(
-            self._ledger_validator.last_verified_view,
-            self._ledger_validator.last_verified_seqno,
+        return (
+            TxID(
+                self._ledger_validator.last_verified_view,
+                self._ledger_validator.last_verified_seqno,
+            )
+            if self._ledger_validator
+            else None
         )
 
 
