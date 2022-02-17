@@ -76,7 +76,7 @@ def test_forced_ledger_chunk(network, args):
     primary, _ = network.find_primary()
 
     # Submit some dummy transactions
-    network.txs.issue(network, number_txs=7)
+    network.txs.issue(network, number_txs=3)
 
     # Submit a proposal to force a ledger chunk at the following signature
     proposal_body, careful_vote = network.consortium.make_proposal(
@@ -93,7 +93,7 @@ def test_forced_ledger_chunk(network, args):
     )
 
     # Issue some more transactions
-    network.txs.issue(network, number_txs=13)
+    network.txs.issue(network, number_txs=3)
 
     ledger_dirs = primary.remote.ledger_paths()
 
@@ -117,7 +117,7 @@ def test_forced_snapshot(network, args):
     primary, _ = network.find_primary()
 
     # Submit some dummy transactions
-    network.txs.issue(network, number_txs=7)
+    network.txs.issue(network, number_txs=3)
 
     # Submit a proposal to force a snapshot at the following signature
     proposal_body, careful_vote = network.consortium.make_proposal(
@@ -134,7 +134,7 @@ def test_forced_snapshot(network, args):
     )
 
     # Issue some more transactions
-    network.txs.issue(network, number_txs=13)
+    network.txs.issue(network, number_txs=3)
 
     ledger_dirs = primary.remote.ledger_paths()
 

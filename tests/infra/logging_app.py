@@ -346,6 +346,10 @@ class LoggingTxs:
                     f"/app/log/{table}?id={log_id}", headers=self._get_headers_base()
                 )
             )
+            if priv:
+                self.priv.pop(log_id)
+            else:
+                self.pub.pop(log_id)
 
     def request(self, log_id, priv=False, log_capture=None):
         primary, _ = self.network.find_primary(log_capture=log_capture)
