@@ -1,15 +1,15 @@
-const fs = require("fs");
-const path = require("path");
+import { readdirSync, statSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
 
 const args = process.argv.slice(2);
 
 const getAllFiles = function (dirPath, arrayOfFiles) {
   arrayOfFiles = arrayOfFiles || [];
 
-  const files = fs.readdirSync(dirPath);
+  const files = readdirSync(dirPath);
   for (const file of files) {
-    const filePath = path.join(dirPath, file);
-    if (fs.statSync(filePath).isDirectory()) {
+    const filePath = join(dirPath, file);
+    if (statSync(filePath).isDirectory()) {
       arrayOfFiles = getAllFiles(filePath, arrayOfFiles);
     } else {
       arrayOfFiles.push(filePath);
@@ -25,10 +25,10 @@ const removePrefix = function (s, prefix) {
 
 const rootDir = args[0];
 
-const metadataPath = path.join(rootDir, "app.json");
-const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf-8"));
+const metadataPath = join(rootDir, "app.json");
+const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
 
-const srcDir = path.join(rootDir, "src");
+const srcDir = join(rootDir, "src");
 const allFiles = getAllFiles(srcDir);
 
 // The trailing / is included so that it is trimmed in removePrefix.
@@ -38,11 +38,11 @@ const toTrim = srcDir + "/";
 const modules = allFiles.map(function (filePath) {
   return {
     name: removePrefix(filePath, toTrim),
-    module: fs.readFileSync(filePath, "utf-8"),
+    module: readFileSync(filePath, "utf-8"),
   };
 });
 
-const bundlePath = path.join(args[0], "bundle.json");
+const bundlePath = join(args[0], "bundle.json");
 const bundle = {
   metadata: metadata,
   modules: modules,
@@ -50,4 +50,4 @@ const bundle = {
 console.log(
   `Writing bundle containing ${modules.length} modules to ${bundlePath}`
 );
-fs.writeFileSync(bundlePath, JSON.stringify(bundle));
+writeFileSync(bundlePath, JSON.stringify(bundle));
