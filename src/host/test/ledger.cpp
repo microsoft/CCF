@@ -1472,31 +1472,33 @@ TEST_CASE("Chunking according to entry header flag")
 
 TEST_CASE("Recovery")
 {
-  // auto dir = AutoDeleteFolder(ledger_dir); TODO: Enable
+  auto dir = AutoDeleteFolder(ledger_dir);
 
   size_t chunk_threshold = 30;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
-  Ledger ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(ledger);
 
-  size_t pre_recovery_last_idx = 0;
-
-  INFO("Write many entries on first ledger");
+  SUBCASE("Enable and complete recovery")
   {
-    // Writing some committed chunks
-    size_t chunk_count = 5;
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
-    pre_recovery_last_idx = entry_submitter.get_last_idx();
-    ledger.commit(pre_recovery_last_idx);
-  }
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+    size_t pre_recovery_last_idx = 0;
 
-  SUBCASE("Recovery enabled")
-  {
-    REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
-    ledger.set_recovery_start_idx(pre_recovery_last_idx);
+    INFO("Write many entries on ledger");
+    {
+      size_t chunk_count = 5;
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+      pre_recovery_last_idx = entry_submitter.get_last_idx();
+      ledger.commit(pre_recovery_last_idx);
+    }
 
-    entry_submitter.write(true);
-    REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+    INFO("Enable recovery");
+    {
+      REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+      ledger.set_recovery_start_idx(pre_recovery_last_idx);
+
+      entry_submitter.write(true);
+      REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+    }
 
     INFO("Truncation does not affect recovery mode");
     {
@@ -1506,13 +1508,16 @@ TEST_CASE("Recovery")
       REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
     }
 
-    INFO("Create and commit more recover chunks");
+    INFO("Create and commit more recovery chunks");
     {
       for (size_t i = 0; i < entries_per_chunk; i++)
       {
         entry_submitter.write(true);
       }
       REQUIRE(number_of_recovery_files_in_ledger_dir() == 2);
+
+      // Reading from uncommitted recovery chunks is OK
+      read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
 
       // Committed files are also marked .recovery
       auto initial_number_committed_files =
@@ -1522,6 +1527,9 @@ TEST_CASE("Recovery")
       REQUIRE(
         number_of_committed_files_in_ledger_dir(true) ==
         initial_number_committed_files + 1);
+
+      // Reading from committed recovery chunks is OK
+      read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
     }
 
     INFO("Finally open the ledger");
@@ -1544,12 +1552,63 @@ TEST_CASE("Recovery")
     }
   }
 
-  // TODO:
-  // 1. Create ledger
-  // 2. Truncate with recovery
-  // 3. Create a commit new chunks (they should be in recovery mode)
-  // 4. Rollback
-  // 5. Open: chunks are no longer in recovery
+  SUBCASE("Recover ledger with recovery chunks")
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+    size_t pre_recovery_last_idx = 0;
+    size_t last_idx = 0;
 
-  // 1. Backup flow with init
+    INFO("Write many entries on ledger");
+    {
+      size_t chunk_count = 5;
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+      pre_recovery_last_idx = entry_submitter.get_last_idx();
+      ledger.commit(pre_recovery_last_idx);
+    }
+
+    INFO("Enable recovery");
+    {
+      REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+      ledger.set_recovery_start_idx(pre_recovery_last_idx);
+
+      for (size_t i = 0; i < entries_per_chunk + 1; i++)
+      {
+        entry_submitter.write(true);
+      }
+      REQUIRE(number_of_recovery_files_in_ledger_dir() == 2);
+      last_idx = entry_submitter.get_last_idx();
+    }
+
+    INFO("New ledger recovery in read-only ledger directory");
+    {
+      auto new_ledger_dir = "new_ledger_dir";
+      Ledger new_ledger(
+        new_ledger_dir,
+        wf,
+        chunk_threshold,
+        ledger_max_read_cache_files_default,
+        {ledger_dir});
+
+      // Recovery files in read-only ledger directory are ignored on startup
+      REQUIRE(number_of_recovery_files_in_ledger_dir() == 2);
+      REQUIRE_THROWS(read_entries_range_from_ledger(new_ledger, 1, last_idx));
+
+      // Entries pre-recovery can still be read
+      read_entries_range_from_ledger(new_ledger, 1, pre_recovery_last_idx);
+    }
+
+    INFO("New ledger recovery in main ledger directory");
+    {
+      Ledger new_ledger(ledger_dir, wf, chunk_threshold);
+
+      // Recovery files in main ledger directory are automatically deleted on
+      // ledger creation
+      REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+      REQUIRE_THROWS(read_entries_range_from_ledger(new_ledger, 1, last_idx));
+
+      // Entries pre-recovery can still be read
+      read_entries_range_from_ledger(new_ledger, 1, pre_recovery_last_idx);
+    }
+  }
 }

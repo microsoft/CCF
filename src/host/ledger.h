@@ -96,7 +96,6 @@ namespace asynchost
         is_ledger_file_name_corrupted(f_name) ||
         (!allow_recovery_files && is_ledger_file_name_recovery(f_name)))
       {
-        // TODO: Add unit test
         continue;
       }
 
@@ -595,6 +594,8 @@ namespace asynchost
 
       // If the file is not in the cache, find the file from the ledger
       // directories, inspecting the main ledger directory first
+      // Note: reading recovery chunks from main ledger directory is
+      // acceptable and in fact required to complete private recovery.
       std::string ledger_dir_;
       auto match = get_file_name_with_idx(ledger_dir, idx, true);
       if (match.has_value())
@@ -787,7 +788,6 @@ namespace asynchost
 
           if (is_ledger_file_name_recovery(file_name))
           {
-            // TODO: Unit test
             LOG_INFO_FMT(
               "Deleting recovery ledger file {} in main ledger directory",
               file_name);
