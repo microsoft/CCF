@@ -948,12 +948,12 @@ namespace asynchost
         recovery_start_idx_);
     }
 
-    void open()
+    void complete_recovery()
     {
-      // When the service is open, temporary recovery ledger chunks are renamed
-      // as they can now be recovered.
+      // When the recovery is completed (i.e. service is open), temporary
+      // recovery ledger chunks are renamed as they can now be recovered.
       // Note: this operation cannot be rolled back.
-      LOG_INFO_FMT("Ledger open");
+      LOG_INFO_FMT("Ledger complete recovery");
 
       for (auto it = files.begin(); it != files.end();)
       {
@@ -1273,7 +1273,7 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_open, [this](const uint8_t*, size_t) {
-          open();
+          complete_recovery();
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

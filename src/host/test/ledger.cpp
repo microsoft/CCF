@@ -1534,7 +1534,7 @@ TEST_CASE("Recovery")
 
     INFO("Finally open the ledger");
     {
-      ledger.open();
+      ledger.complete_recovery();
 
       // All recovery chunks are gone
       REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
