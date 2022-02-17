@@ -128,8 +128,8 @@ namespace asynchost
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
 
-    const std::string dir;
-    std::string file_name; // TODO: Make this a fs::path?
+    const fs::path dir;
+    fs::path file_name;
 
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
@@ -147,8 +147,7 @@ namespace asynchost
 
   public:
     // Used when creating a new (empty) ledger file
-    LedgerFile(
-      const std::string& dir, size_t start_idx, bool recovery = false) :
+    LedgerFile(const fs::path& dir, size_t start_idx, bool recovery = false) :
       dir(dir),
       file_name(fmt::format("{}_{}", file_name_prefix, start_idx)),
       start_idx(start_idx),
@@ -157,10 +156,10 @@ namespace asynchost
       if (recovery)
       {
         file_name =
-          fmt::format("{}.{}", file_name, ledger_recovery_file_suffix);
+          fmt::format("{}.{}", file_name.string(), ledger_recovery_file_suffix);
       }
 
-      auto file_path = fs::path(dir) / fs::path(file_name);
+      auto file_path = dir / file_name;
       file = fopen(file_path.c_str(), "w+b");
       if (!file)
       {
@@ -178,7 +177,7 @@ namespace asynchost
       dir(dir),
       file_name(file_name_)
     {
-      auto file_path = (fs::path(dir) / fs::path(file_name));
+      auto file_path = dir / file_name;
       file = fopen(file_path.c_str(), "r+b");
       if (!file)
       {
@@ -378,7 +377,7 @@ namespace asynchost
       if (idx == start_idx - 1)
       {
         // Truncating everything triggers file deletion
-        if (!fs::remove(fs::path(dir) / fs::path(file_name)))
+        if (!fs::remove(dir / file_name))
         {
           throw std::logic_error(
             fmt::format("Could not remove file {}", file_name));
@@ -456,8 +455,8 @@ namespace asynchost
 
     bool rename(const std::string& new_file_name)
     {
-      auto file_path = fs::path(dir) / file_name;
-      auto new_file_path = fs::path(dir) / new_file_name;
+      auto file_path = dir / file_name;
+      auto new_file_path = dir / new_file_name;
 
       try
       {
@@ -529,10 +528,10 @@ namespace asynchost
     ringbuffer::WriterPtr to_enclave;
 
     // Main ledger directory (write and read)
-    const std::string ledger_dir;
+    const fs::path ledger_dir;
 
     // Ledger directories (read-only)
-    std::vector<std::string> read_ledger_dirs;
+    std::vector<fs::path> read_ledger_dirs;
 
     // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
@@ -711,14 +710,13 @@ namespace asynchost
 
   public:
     Ledger(
-      const std::string& ledger_dir,
+      const fs::path& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold,
       size_t max_read_cache_files = ledger_max_read_cache_files_default,
-      std::vector<std::string> read_ledger_dirs = {}) :
+      const std::vector<std::string>& read_ledger_dirs_ = {}) :
       to_enclave(writer_factory.create_writer_to_inside()),
       ledger_dir(ledger_dir),
-      read_ledger_dirs(read_ledger_dirs),
       max_read_cache_files(max_read_cache_files),
       chunk_threshold(chunk_threshold)
     {
@@ -730,14 +728,16 @@ namespace asynchost
       }
 
       // Recover last idx from read-only ledger directories
-      for (const auto& read_dir : read_ledger_dirs)
+      for (const auto& read_dir : read_ledger_dirs_)
       {
         LOG_INFO_FMT("Recovering read-only ledger directory \"{}\"", read_dir);
         if (!fs::is_directory(read_dir))
         {
-          throw std::logic_error(fmt::format(
-            "\"{}\" read-only ledger is not a directory", read_dir));
+          throw std::logic_error(
+            fmt::format("{} read-only ledger is not a directory", read_dir));
         }
+
+        read_ledger_dirs.emplace_back(read_dir);
 
         for (auto const& f : fs::directory_iterator(read_dir))
         {
@@ -773,7 +773,7 @@ namespace asynchost
       if (fs::is_directory(ledger_dir))
       {
         // If the ledger directory exists, recover ledger files from it
-        LOG_INFO_FMT("Recovering main ledger directory \"{}\"", ledger_dir);
+        LOG_INFO_FMT("Recovering main ledger directory {}", ledger_dir);
 
         std::vector<fs::path> corrupt_files = {};
         for (auto const& f : fs::directory_iterator(ledger_dir))
@@ -819,10 +819,10 @@ namespace asynchost
         {
           auto new_file_name = fmt::format(
             "{}.{}", f.filename().string(), ledger_corrupt_file_suffix);
-          files::rename(f, fs::path(ledger_dir) / fs::path(new_file_name));
+          files::rename(f, ledger_dir / new_file_name);
 
           LOG_INFO_FMT(
-            "Renamed invalid ledger file {} to \"{}\" (file will be ignored)",
+            "Renamed invalid ledger file {} to {} (file will be ignored)",
             f.filename(),
             new_file_name);
         }
@@ -830,7 +830,7 @@ namespace asynchost
         if (files.empty())
         {
           LOG_INFO_FMT(
-            "Main ledger directory \"{}\" is empty: no ledger file to "
+            "Main ledger directory {} is empty: no ledger file to "
             "recover",
             ledger_dir);
           require_new_file = true;
@@ -964,8 +964,7 @@ namespace asynchost
         if (is_ledger_file_name_recovery(file_name))
         {
           auto non_recovery_file_name = remove_recovery_suffix(file_name);
-          auto new_file_path =
-            fs::path(ledger_dir) / fs::path(non_recovery_file_name);
+          auto new_file_path = ledger_dir / non_recovery_file_name;
 
           try
           {
@@ -1141,8 +1140,6 @@ namespace asynchost
         fmt::format("Committing ledger entry {}", idx));
 
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
-
-      LOG_FAIL_FMT("Committed idx: {}", committed_idx);
 
       if (idx <= committed_idx)
       {
