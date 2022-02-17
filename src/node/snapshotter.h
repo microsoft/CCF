@@ -266,12 +266,15 @@ namespace ccf
       bool force = store->flag_enabled(
         kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-      if (
-        (idx - next_snapshot_indices.back().idx) >= snapshot_tx_interval ||
-        force)
+      if (force)
       {
-        next_snapshot_indices.push_back({idx, force});
         store->unset_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        schedule_snapshot(idx);
+      }
+
+      if ((idx - next_snapshot_indices.back().idx) >= snapshot_tx_interval)
+      {
+        next_snapshot_indices.push_back({idx, false});
         LOG_TRACE_FMT("Recorded {} as snapshot index", idx);
         return true;
       }
@@ -316,6 +319,17 @@ namespace ccf
       }
     }
 
+    void schedule_snapshot(consensus::Index idx)
+    {
+      auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
+      msg->data.self = shared_from_this();
+      msg->data.snapshot = store->snapshot(idx);
+      static uint32_t generation_count = 0;
+      threading::ThreadMessaging::thread_messaging.add_task(
+        threading::ThreadMessaging::get_execution_thread(generation_count++),
+        std::move(msg));
+    }
+
     void commit(consensus::Index idx, bool generate_snapshot)
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
@@ -343,19 +357,11 @@ namespace ccf
         next_snapshot_indices.front().idx);
 
       auto next = next_snapshot_indices.front();
-      if (next.idx - last_snapshot_idx >= snapshot_tx_interval || next.forced)
+      if (next.idx - last_snapshot_idx >= snapshot_tx_interval)
       {
         if (snapshot_generation_enabled && generate_snapshot && next.idx)
         {
-          auto msg =
-            std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-          msg->data.self = shared_from_this();
-          msg->data.snapshot = store->snapshot(next.idx);
-          static uint32_t generation_count = 0;
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::ThreadMessaging::get_execution_thread(
-              generation_count++),
-            std::move(msg));
+          schedule_snapshot(next.idx);
         }
 
         last_snapshot_idx = next.idx;
