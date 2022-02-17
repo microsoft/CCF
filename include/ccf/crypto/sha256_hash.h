@@ -50,3 +50,22 @@ namespace crypto
 
   bool operator!=(const Sha256Hash& lhs, const Sha256Hash& rhs);
 }
+
+namespace fmt
+{
+  template <>
+  struct formatter<crypto::Sha256Hash>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const crypto::Sha256Hash& p, FormatContext& ctx)
+    {
+      return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
+    }
+  };
+}

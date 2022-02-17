@@ -3,7 +3,7 @@
 
 #include "key_pair.h"
 
-#include "crypto/curve.h"
+#include "ccf/crypto/curve.h"
 #include "crypto/openssl/public_key.h"
 #include "hash.h"
 #include "openssl_wrappers.h"

@@ -13,6 +13,7 @@ namespace crypto
   /** Compute the SHA256 hash of @p data
    * @param data The data to compute the hash of
    */
+  // TODO: Function, should be sha256
   std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data);
 
   /** Compute the SHA256 hash of @p data
@@ -34,23 +35,4 @@ namespace crypto
     const std::vector<uint8_t>& ikm,
     const std::vector<uint8_t>& salt = {},
     const std::vector<uint8_t>& info = {});
-}
-
-namespace fmt
-{
-  template <>
-  struct formatter<crypto::Sha256Hash>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const crypto::Sha256Hash& p, FormatContext& ctx)
-    {
-      return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
-    }
-  };
 }

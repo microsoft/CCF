@@ -3,6 +3,7 @@
 
 #include "verifier.h"
 
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "public_key.h"
 #include "rsa_key_pair.h"
