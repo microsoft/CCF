@@ -514,7 +514,8 @@ namespace asynchost
       committed = true;
       LOG_DEBUG_FMT("Committed ledger file {}", file_name);
 
-      return true;
+      // Committed recovery files stay open until the ledger is open
+      return !recovery;
     }
   };
 
@@ -953,40 +954,25 @@ namespace asynchost
       // Note: this operation cannot be rolled back.
       LOG_INFO_FMT("Ledger open");
 
-      // Open files open for write
-      for (auto& f : files)
+      for (auto it = files.begin(); it != files.end();)
       {
+        auto& f = *it;
         if (f->is_recovery())
         {
           f->open();
-        }
-      }
 
-      // Then, open committed files
-      for (auto const& f : fs::directory_iterator(ledger_dir))
-      {
-        auto file_name = f.path().filename();
-        if (is_ledger_file_name_recovery(file_name))
-        {
-          auto non_recovery_file_name = remove_recovery_suffix(file_name);
-          auto new_file_path = ledger_dir / non_recovery_file_name;
-
-          try
+          // Recovery files are kept in the list of active files when committed
+          // so that they can be renamed in a stable order when the service is
+          // open. Once this is done, they can be removed from the list of
+          // active files.
+          if (f->is_committed())
           {
-            files::rename(f.path(), new_file_path);
+            it = files.erase(it);
           }
-          catch (const std::exception& e)
+          else
           {
-            LOG_FAIL_FMT(
-              "Could not rename recovery file {} to {}",
-              file_name,
-              non_recovery_file_name);
+            ++it;
           }
-
-          LOG_DEBUG_FMT(
-            "Renamed recovery file {} to {}",
-            file_name,
-            non_recovery_file_name);
         }
       }
 
