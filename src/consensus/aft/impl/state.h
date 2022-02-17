@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
-#include "ccf/crypto/verifier.h"
 #include "kv/kv_types.h"
 
 #include <map>
