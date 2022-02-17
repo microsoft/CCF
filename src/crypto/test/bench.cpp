@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/base64.h"
-#include "ccf/crypto/hash.h"
 #include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/sha256.h"
 #include "crypto/entropy.h"
 #include "crypto/hmac.h"
 #include "crypto/openssl/base64.h"

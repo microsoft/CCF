@@ -1,9 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/crypto/hash.h"
-
 #include "crypto/openssl/hash.h"
+
+#include "ccf/crypto/hkdf.h"
+#include "ccf/crypto/sha256.h"
 
 #include <openssl/sha.h>
 

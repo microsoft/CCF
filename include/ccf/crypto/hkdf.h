@@ -8,17 +8,6 @@
 
 namespace crypto
 {
-  /** Compute the SHA256 hash of @p data
-   * @param data The data to compute the hash of
-   */
-  std::vector<uint8_t> sha256(const std::vector<uint8_t>& data);
-
-  /** Compute the SHA256 hash of @p data
-   * @param data The data to compute the hash of
-   * @param len Length of the data
-   */
-  std::vector<uint8_t> sha256(const uint8_t* data, size_t len);
-
   /** Perform HKDF key derivation */
   std::vector<uint8_t> hkdf(
     MDType md_type,

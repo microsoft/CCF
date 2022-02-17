@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/hkdf.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
