@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/md_type.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/buffer.h"
-#include "ds/hex.h"
 
 #include <array>
 #include <cstdint>
@@ -14,8 +14,6 @@
 
 namespace crypto
 {
-  using HashBytes = std::vector<uint8_t>;
-
   class HashProvider
   {
   public:
@@ -29,6 +27,9 @@ namespace crypto
 
     virtual ~HashProvider() = default;
   };
+
+  /** Create a default hash provider */
+  std::shared_ptr<HashProvider> make_hash_provider();
 
   // Incremental Hash Objects
   class ISha256Hash
@@ -52,4 +53,7 @@ namespace crypto
       update_hash({d.data(), d.size()});
     }
   };
+
+  /** Create a default incremental SHA256 hash provider */
+  std::shared_ptr<ISha256Hash> make_incremental_sha256();
 }

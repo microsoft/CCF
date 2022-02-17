@@ -5,7 +5,6 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
-#include "hash.h"
 
 namespace crypto
 {

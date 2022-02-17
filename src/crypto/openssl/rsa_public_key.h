@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/crypto/key_pair.h"
+#include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
 #include "crypto/rsa_public_key.h"
-#include "hash.h"
 
 #include <optional>
 #include <string>

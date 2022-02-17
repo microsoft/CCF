@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
-#include "hash.h"
 
 #include <cstdint>
 #include <optional>

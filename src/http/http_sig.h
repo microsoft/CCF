@@ -4,9 +4,9 @@
 
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/http_consts.h"
 #include "ccf/service/signed_req.h"
-#include "crypto/hash.h"
 #include "http_parser.h"
 
 #define FMT_HEADER_ONLY

@@ -4,7 +4,7 @@
 #include "crypto/openssl/public_key.h"
 
 #include "ccf/ds/logger.h"
-#include "hash.h"
+#include "crypto/openssl/hash.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/ec.h>

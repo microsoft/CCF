@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/san.h"
 
@@ -13,8 +14,6 @@
 
 namespace crypto
 {
-  using HashBytes = std::vector<uint8_t>;
-
   class PublicKey
   {
   public:

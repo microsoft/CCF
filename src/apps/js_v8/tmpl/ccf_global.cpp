@@ -3,6 +3,7 @@
 #include "ccf_global.h"
 
 #include "apps/js_v8/tmpl/crypto.h"
+#include "ccf/crypto/hash.h"
 #include "ccf/ds/logger.h"
 #include "consensus.h"
 #include "crypto/entropy.h"

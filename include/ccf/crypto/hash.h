@@ -2,11 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "hash_provider.h"
+#include "ccf/crypto/md_type.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
-#include <ostream>
+#include <vector>
 
 namespace crypto
 {
@@ -20,12 +18,6 @@ namespace crypto
    * @param len Length of the data
    */
   std::vector<uint8_t> sha256(const uint8_t* data, size_t len);
-
-  /** Create a default hash provider */
-  std::shared_ptr<HashProvider> make_hash_provider();
-
-  /** Create a default incremental SHA256 hash provider */
-  std::shared_ptr<ISha256Hash> make_incremental_sha256();
 
   /** Perform HKDF key derivation */
   std::vector<uint8_t> hkdf(

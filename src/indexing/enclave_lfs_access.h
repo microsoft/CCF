@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/hash.h"
 #include "ccf/indexing/lfs_interface.h"
 #include "crypto/entropy.h"
-#include "crypto/hash.h"
 #include "crypto/symmetric_key.h"
 #include "ds/hex.h"
 #include "ds/messaging.h"

@@ -5,7 +5,6 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
-#include "crypto/hash_provider.h"
 #include "crypto/key_exchange.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"

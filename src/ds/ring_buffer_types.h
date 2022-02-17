@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
-#include "hash.h"
+#include "ds/hash.h"
 #include "serializer.h"
 
 #include <atomic>

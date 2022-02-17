@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
-#include "crypto/hash_provider.h"
 #include "rsa_public_key.h"
 
 #include <cstdint>
