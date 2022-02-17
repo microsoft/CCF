@@ -173,7 +173,7 @@ class Consortium:
         return f"@{proposal_output_path}", f"@{ballot_output_path}"
 
     def activate(self, remote_node):
-        for m in self.members:
+        for m in [m for m in self.members if not m.is_retired]:
             m.ack(remote_node)
 
     def generate_and_propose_new_member(
