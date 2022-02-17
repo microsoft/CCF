@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/verifier.h"
 #include "ccf/tx.h"
-#include "crypto/verifier.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
 #include "service/tables/code_id.h"

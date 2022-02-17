@@ -6,7 +6,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/raft_types.h"
-#include "crypto/verifier.h"
+#include "ccf/crypto/verifier.h"
 #include "kv/kv_types.h"
 
 #include <map>

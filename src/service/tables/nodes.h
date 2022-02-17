@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/san.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
-#include "crypto/verifier.h"
 #include "kv/map.h"
 #include "node_info_network.h"
 #include "quote_info.h"

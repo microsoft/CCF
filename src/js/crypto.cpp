@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/entropy.h"
+#include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "crypto/ecdsa.h"
-#include "crypto/key_wrap.h"
 #include "js/wrap.h"
 #include "tls/ca.h"
 

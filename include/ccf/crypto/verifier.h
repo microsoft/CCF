@@ -235,6 +235,4 @@ namespace crypto
     const std::vector<uint8_t>& der);
 
   crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der);
-
-  void check_is_cert(const CBuffer& der);
 }

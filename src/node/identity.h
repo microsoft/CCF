@@ -5,7 +5,6 @@
 #include "ccf/crypto/curve.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/key_pair.h"
-#include "crypto/verifier.h"
 
 #include <openssl/crypto.h>
 #include <string>

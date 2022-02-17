@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/http_consts.h"
-#include "crypto/verifier.h"
 #include "http_parser.h"
 
 #define FMT_HEADER_ONLY

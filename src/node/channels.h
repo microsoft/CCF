@@ -2,13 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hkdf.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
 #include "crypto/key_exchange.h"
-#include "crypto/verifier.h"
 #include "ds/hex.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"

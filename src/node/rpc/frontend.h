@@ -6,7 +6,6 @@
 #include "ccf/endpoint_registry.h"
 #include "ccf/service/signed_req.h"
 #include "consensus/aft/request.h"
-#include "crypto/verifier.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"

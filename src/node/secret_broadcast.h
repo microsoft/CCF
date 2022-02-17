@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
-#include "crypto/key_wrap.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "service/genesis_gen.h"

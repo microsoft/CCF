@@ -6,7 +6,6 @@
 #include "ccf/serdes.h"
 #include "ccf/tx_id.h"
 #include "consensus/aft/impl/state.h"
-#include "crypto/verifier.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
 #include "node/identity.h"

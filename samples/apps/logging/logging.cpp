@@ -7,12 +7,12 @@
 // CCF
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/user_frontend.h"
 #include "ccf/version.h"
-#include "crypto/verifier.h"
 #include "node/tx_receipt.h"
 
 #include <charconv>
