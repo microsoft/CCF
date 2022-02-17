@@ -394,7 +394,7 @@ def gov(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
         test_create_endpoint(network, args)
         test_consensus_status(network, args)
@@ -415,7 +415,7 @@ def js_gov(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         governance_js.test_proposal_validation(network, args)
         governance_js.test_proposal_storage(network, args)
         governance_js.test_proposal_withdrawal(network, args)

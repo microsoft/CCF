@@ -66,7 +66,7 @@ def run(args):
             )
             network.recover(args)
         else:
-            network.start_and_join(args)
+            network.start_and_open(args)
 
         nodes = network.get_joined_nodes()
         max_len = max([len(str(node.local_node_id)) for node in nodes])

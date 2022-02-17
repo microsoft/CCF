@@ -173,7 +173,7 @@ def test_large_messages(network, args):
             # pass but not others, and finding where does it fail).
             log_id = 40
             for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2**p)
+                long_msg = "X" * (2 ** p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
                     result=True,
@@ -1313,7 +1313,7 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         network = test(network, args)
         network = test_illegal(network, args)

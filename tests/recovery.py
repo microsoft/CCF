@@ -157,7 +157,7 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         for i in range(args.recovery):
             # Issue transactions which will required historical ledger queries recovery
