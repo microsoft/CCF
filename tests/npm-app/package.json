@@ -2,9 +2,13 @@
   "private": true,
   "scripts": {
     "build": "del-cli -f dist/ && rollup --config && cp app.json dist/ && node build_bundle.js dist/",
-    "bundle": "node build_bundle.js dist"
+    "bundle": "node build_bundle.js dist",
+    "test": "node --version"
   },
   "type": "module",
+  "engines": {
+    "node": ">=14"
+  },
   "dependencies": {
     "@microsoft/ccf-app": "file:../../js/ccf-app",
     "js-base64": "^3.5.2",
