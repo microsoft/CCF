@@ -66,7 +66,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_truncate, consensus::Index, bool /* recovery mode */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_open, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(consensus::ledger_open);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot,
   consensus::Index /* snapshot idx */,

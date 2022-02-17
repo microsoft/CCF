@@ -1853,11 +1853,7 @@ namespace ccf
           {
             open_user_frontend();
 
-            size_t idx = 0;
-            RINGBUFFER_WRITE_MESSAGE(
-              consensus::ledger_open,
-              to_host,
-              idx /* TODO: Needs at least one argument */);
+            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
             LOG_INFO_FMT("Service open at seqno {}", hook_version);
           }
         }));

@@ -514,7 +514,8 @@ namespace asynchost
       committed = true;
       LOG_DEBUG_FMT("Committed ledger file {}", file_name);
 
-      // Committed recovery files stay open until the ledger is open
+      // Committed recovery files stay in the list of active files until the
+      // ledger is open
       return !recovery;
     }
   };
@@ -968,12 +969,10 @@ namespace asynchost
           if (f->is_committed())
           {
             it = files.erase(it);
-          }
-          else
-          {
-            ++it;
+            continue;
           }
         }
+        ++it;
       }
 
       recovery_start_idx.reset();
