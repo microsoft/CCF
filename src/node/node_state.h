@@ -926,7 +926,6 @@ namespace ccf
       kv::Term view = 0;
       kv::Version global_commit = 0;
 
-      // auto ls = g.get_last_signature();
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
       {

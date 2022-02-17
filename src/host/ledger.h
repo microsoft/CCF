@@ -933,7 +933,12 @@ namespace asynchost
 
       last_idx = idx;
       committed_idx = idx;
-      recovery_start_idx = recovery_start_idx_;
+      if (recovery_start_idx_ > 0)
+      {
+        // Do not set recovery idx and create recovery chunks
+        // if the ledger is initialised from 0 (i.e. genesis)
+        recovery_start_idx = recovery_start_idx_;
+      }
 
       LOG_INFO_FMT(
         "Set last known/commit index to {}, recovery idx to {}",
