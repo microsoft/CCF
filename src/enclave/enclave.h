@@ -109,7 +109,7 @@ namespace enclave
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const consensus::Configuration& consensus_config,
-      const CurveID& curve_id) :
+      const crypto::CurveID& curve_id) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),

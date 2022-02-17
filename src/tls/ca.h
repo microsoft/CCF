@@ -8,7 +8,6 @@
 
 #include <exception>
 
-using namespace crypto;
 using namespace crypto::OpenSSL;
 
 namespace tls

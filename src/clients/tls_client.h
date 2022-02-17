@@ -17,7 +17,6 @@
 #include <string>
 #include <vector>
 
-using namespace crypto;
 using namespace crypto::OpenSSL;
 
 #ifdef _DEBUG

@@ -71,7 +71,7 @@ namespace ccf
     ds::StateMachine<NodeStartupState> sm;
     std::mutex lock;
 
-    CurveID curve_id;
+    crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
 
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
@@ -189,7 +189,7 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
-      CurveID curve_id_) :
+      crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),

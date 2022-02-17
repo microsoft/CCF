@@ -11,8 +11,6 @@
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 
-using namespace crypto;
-
 namespace tls
 {
   class Context

@@ -444,11 +444,11 @@ namespace loggingapp
           return;
         }
 
-        std::shared_ptr<Verifier> verifier;
+        std::shared_ptr<crypto::Verifier> verifier;
         try
         {
           const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
-          verifier = make_verifier(cert_data);
+          verifier = crypto::make_verifier(cert_data);
         }
         catch (const std::exception& ex)
         {
