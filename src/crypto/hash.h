@@ -36,21 +36,20 @@ namespace crypto
     const std::vector<uint8_t>& info = {});
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<crypto::Sha256Hash>
 {
-  template <>
-  struct formatter<crypto::Sha256Hash>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const crypto::Sha256Hash& p, FormatContext& ctx)
-    {
-      return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const crypto::Sha256Hash& p, FormatContext& ctx)
+  {
+    return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
+  }
+};
+FMT_END_NAMESPACE
