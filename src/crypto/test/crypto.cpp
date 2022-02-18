@@ -499,7 +499,7 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
 TEST_CASE("AES-GCM convenience functions")
 {
   EntropyPtr entropy = create_entropy();
-  std::vector<uint8_t> key = entropy->random(GCM_SIZE_KEY);
+  std::vector<uint8_t> key = entropy->random(GCM_DEFAULT_KEY_SIZE);
   auto encrypted = aes_gcm_encrypt(key, contents);
   auto decrypted = aes_gcm_decrypt(key, encrypted);
   REQUIRE(decrypted == contents);

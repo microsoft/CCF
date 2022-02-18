@@ -20,7 +20,7 @@ namespace ccf
   class LedgerSecretWrappingKey
   {
   private:
-    static constexpr auto KZ_KEY_SIZE = crypto::GCM_SIZE_KEY;
+    static constexpr auto KZ_KEY_SIZE = crypto::GCM_DEFAULT_KEY_SIZE;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
     bool has_wrapped = false;
 
