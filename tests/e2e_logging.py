@@ -173,7 +173,7 @@ def test_large_messages(network, args):
             # pass but not others, and finding where does it fail).
             log_id = network.txs.find_max_log_id() + 1
             for p in range(10, 20) if args.consensus == "CFT" else range(10, 13):
-                long_msg = "X" * (2 ** p)
+                long_msg = "X" * (2**p)
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
                     result=True,
