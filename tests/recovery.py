@@ -95,7 +95,7 @@ def test_recover_service(network, args, from_snapshot=False, split_ledger=False)
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
-def test_recover_service_aborted(network, args, from_snapshot=True):
+def test_recover_service_aborted(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
     snapshots_dir = None
