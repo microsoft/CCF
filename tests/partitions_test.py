@@ -307,7 +307,7 @@ def run_2tx_reconfig_tests(args):
         pdb=local_args.pdb,
         init_partitioner=True,
     ) as network:
-        network.start_and_join(local_args)
+        network.start_and_open(local_args)
 
         test_learner_does_not_take_part(network, local_args)
 
@@ -324,7 +324,7 @@ def run(args):
         txs=txs,
         init_partitioner=True,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)

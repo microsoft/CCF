@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/entity_id.h"
-#include "crypto/hash.h"
 #include "service/map.h"
 
 #include <string>

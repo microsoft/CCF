@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/entropy.h"
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "crypto/hmac.h"
-#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "service/tables/secrets.h"
 #include "service/tables/shares.h"
@@ -76,7 +76,7 @@ namespace ccf
   inline LedgerSecretPtr make_ledger_secret()
   {
     return std::make_shared<LedgerSecret>(
-      crypto::create_entropy()->random(crypto::GCM_SIZE_KEY));
+      crypto::create_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE));
   }
 
   inline std::vector<uint8_t> decrypt_previous_ledger_secret_raw(

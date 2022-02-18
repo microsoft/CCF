@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/key_pair.h"
 #include "ccf/http_consts.h"
 #include "ccf/serdes.h"
 #include "http/http_builder.h"
@@ -9,7 +10,6 @@
 #include "tls_client.h"
 
 #define FMT_HEADER_ONLY
-#include <crypto/key_pair.h>
 #include <fmt/format.h>
 #include <http/http_sig.h>
 #include <nlohmann/json.hpp>

@@ -124,7 +124,7 @@ def run_file_operations(args):
         ) as network:
 
             args.common_read_only_ledger_dir = tmp_dir
-            network.start_and_join(args)
+            network.start_and_open(args)
 
             test_save_committed_ledger_files(network, args)
             test_parse_snapshot_file(network, args)
@@ -140,7 +140,7 @@ def run_tls_san_checks(args):
         pdb=args.pdb,
     ) as network:
         args.common_read_only_ledger_dir = None  # Reset from previous test
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         LOG.info("Check SAN value in TLS certificate")
         dummy_san = "*.dummy.com"

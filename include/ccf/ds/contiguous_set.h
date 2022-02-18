@@ -498,31 +498,30 @@ namespace ds
   };
 }
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <typename T>
+struct formatter<ds::ContiguousSet<T>>
 {
-  template <typename T>
-  struct formatter<ds::ContiguousSet<T>>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const ds::ContiguousSet<T>& v, FormatContext& ctx)
+  template <typename FormatContext>
+  auto format(const ds::ContiguousSet<T>& v, FormatContext& ctx)
+  {
+    std::vector<std::string> ranges;
+    for (const auto& [from, additional] : v.get_ranges())
     {
-      std::vector<std::string> ranges;
-      for (const auto& [from, additional] : v.get_ranges())
-      {
-        ranges.emplace_back(fmt::format("[{}->{}]", from, from + additional));
-      }
-      return format_to(
-        ctx.out(),
-        "{{{} values in {} ranges: {}}}",
-        v.size(),
-        v.get_ranges().size(),
-        fmt::join(ranges, ", "));
+      ranges.emplace_back(fmt::format("[{}->{}]", from, from + additional));
     }
-  };
-}
+    return format_to(
+      ctx.out(),
+      "{{{} values in {} ranges: {}}}",
+      v.size(),
+      v.get_ranges().size(),
+      fmt::join(ranges, ", "));
+  }
+};
+FMT_END_NAMESPACE

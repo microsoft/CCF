@@ -5,7 +5,6 @@
 #include "ccf/entity_id.h"
 #include "consensus/consensus_types.h"
 #include "crypto/ecdsa.h"
-#include "crypto/hash.h"
 #include "ds/ring_buffer_types.h"
 #include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"

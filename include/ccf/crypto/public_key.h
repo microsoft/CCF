@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "curve.h"
-#include "hash.h"
-#include "pem.h"
-#include "san.h"
+#include "ccf/crypto/curve.h"
+#include "ccf/crypto/hash_bytes.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/san.h"
 
 #include <cstdint>
 #include <optional>

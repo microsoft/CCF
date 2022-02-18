@@ -182,7 +182,7 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         test_verify_quotes(network, args)
         test_add_node_with_bad_code(network, args)

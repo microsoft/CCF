@@ -6,9 +6,9 @@
 #include "timing.h"
 
 // CCF
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "clients/rpc_tls_client.h"
-#include "crypto/verifier.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 

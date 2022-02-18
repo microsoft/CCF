@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "hash.h"
-#include "key_pair.h"
-#include "pem.h"
-#include "public_key.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/public_key.h"
 
 namespace crypto
 {
@@ -236,6 +235,4 @@ namespace crypto
     const std::vector<uint8_t>& der);
 
   crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der);
-
-  void check_is_cert(const CBuffer& der);
 }

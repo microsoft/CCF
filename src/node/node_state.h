@@ -2,15 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
-#include "crypto/entropy.h"
-#include "crypto/pem.h"
-#include "crypto/symmetric_key.h"
-#include "crypto/verifier.h"
 #include "ds/state_machine.h"
 #include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
@@ -72,7 +71,7 @@ namespace ccf
     ds::StateMachine<NodeStartupState> sm;
     std::mutex lock;
 
-    CurveID curve_id;
+    crypto::CurveID curve_id;
     std::vector<crypto::SubjectAltName> subject_alt_names = {};
 
     std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
@@ -190,7 +189,7 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
-      CurveID curve_id_) :
+      crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),

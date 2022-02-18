@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "symmetric_key.h"
 
+#include "crypto/openssl/symmetric_key.h"
+
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/openssl_wrappers.h"
-#include "crypto/symmetric_key.h"
 #include "ds/thread_messaging.h"
 
 #include <openssl/aes.h>

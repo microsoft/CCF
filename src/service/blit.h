@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
 #include "ccf/entity_id.h"
-#include "crypto/pem.h"
 #include "kv/serialise_entry_blit.h"
 #include "service/tables/code_id.h"
 

@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/san.h"
 #include "ccf/ds/nonstd.h"
-#include "crypto/san.h"
 #include "service/tables/node_info_network.h"
 
 #include <CLI11/CLI11.hpp>

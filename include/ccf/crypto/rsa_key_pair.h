@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash_provider.h"
-#include "key_pair.h"
-#include "pem.h"
-#include "rsa_public_key.h"
+#include "ccf/crypto/key_pair.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/rsa_public_key.h"
 
 #include <cstdint>
 #include <optional>

@@ -4,6 +4,7 @@
 
 #include "apply_changes.h"
 #include "ccf/tx.h"
+#include "ds/hex.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "node/rpc/claims.h"

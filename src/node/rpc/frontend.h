@@ -2,11 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/buffer.h"
 #include "ccf/endpoint_registry.h"
 #include "ccf/service/signed_req.h"
 #include "consensus/aft/request.h"
-#include "crypto/verifier.h"
-#include "ds/buffer.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"

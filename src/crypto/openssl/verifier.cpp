@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "verifier.h"
+#include "crypto/openssl/verifier.h"
 
+#include "ccf/crypto/public_key.h"
+#include "ccf/ds/logger.h"
 #include "crypto/openssl/openssl_wrappers.h"
-#include "public_key.h"
-#include "rsa_key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
 #include "x509_time.h"
 
 #include <openssl/evp.h>
