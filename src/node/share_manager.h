@@ -20,7 +20,7 @@ namespace ccf
   class LedgerSecretWrappingKey
   {
   private:
-    static constexpr auto KZ_KEY_SIZE = crypto::GCM_SIZE_KEY;
+    static constexpr auto KZ_KEY_SIZE = crypto::GCM_DEFAULT_KEY_SIZE;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
     bool has_wrapped = false;
 
@@ -195,8 +195,7 @@ namespace ccf
 
         crypto::GcmCipher encrypted_previous_ls(
           previous_ledger_secret->second->raw_key.size());
-        auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
-        encrypted_previous_ls.hdr.set_iv(iv.data(), iv.size());
+        encrypted_previous_ls.hdr.set_random_iv();
 
         latest_ledger_secret->key->encrypt(
           encrypted_previous_ls.hdr.get_iv(),
@@ -226,8 +225,7 @@ namespace ccf
       // Submitted recovery shares are encrypted with the latest ledger secret.
       crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
 
-      auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
-      encrypted_submitted_share.hdr.set_iv(iv.data(), iv.size());
+      encrypted_submitted_share.hdr.set_random_iv();
 
       current_ledger_secret->key->encrypt(
         encrypted_submitted_share.hdr.get_iv(),
