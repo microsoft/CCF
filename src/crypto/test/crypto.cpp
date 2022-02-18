@@ -425,7 +425,7 @@ TEST_CASE("Create sign and verify certificates")
   } while (corrupt_csr);
 }
 
-static const vector<uint8_t>& getRawKey()
+static const vector<uint8_t>& get_raw_key()
 {
   static const vector<uint8_t> v(16, '$');
   return v;
@@ -433,23 +433,32 @@ static const vector<uint8_t>& getRawKey()
 
 TEST_CASE("ExtendedIv0")
 {
-  auto k = crypto::make_key_aes_gcm(getRawKey());
+  auto k = crypto::make_key_aes_gcm(get_raw_key());
   // setup plain text
   unsigned char rawP[100];
   memset(rawP, 'x', sizeof(rawP));
   Buffer p{rawP, sizeof(rawP)};
+
   // test large IV
-  GcmHeader<1234> h;
+  using LargeIVGcmHeader = FixedSizeGcmHeader<1234>;
+  LargeIVGcmHeader h;
+
+  SUBCASE("Null IV") {}
+
+  SUBCASE("Random IV")
+  {
+    h.set_random_iv();
+  }
+
   k->encrypt(h.get_iv(), p, nullb, p.p, h.tag);
 
-  auto k2 = crypto::make_key_aes_gcm(getRawKey());
+  auto k2 = crypto::make_key_aes_gcm(get_raw_key());
   REQUIRE(k2->decrypt(h.get_iv(), h.tag, p, nullb, p.p));
 }
 
 TEST_CASE("AES Key wrap with padding")
 {
-  auto key = getRawKey();
-  GcmHeader<1234> h;
+  auto key = get_raw_key();
   std::vector<uint8_t> aad(123, 'y');
 
   std::vector<uint8_t> key_to_wrap = create_entropy()->random(997);
@@ -465,7 +474,7 @@ TEST_CASE("AES Key wrap with padding")
 
 TEST_CASE("CKM_RSA_PKCS_OAEP")
 {
-  auto key = getRawKey();
+  auto key = get_raw_key();
 
   auto rsa_kp = make_rsa_key_pair();
   auto rsa_pk = make_rsa_public_key(rsa_kp->public_key_pem());
@@ -499,7 +508,7 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
 TEST_CASE("AES-GCM convenience functions")
 {
   EntropyPtr entropy = create_entropy();
-  std::vector<uint8_t> key = entropy->random(GCM_SIZE_KEY);
+  std::vector<uint8_t> key = entropy->random(GCM_DEFAULT_KEY_SIZE);
   auto encrypted = aes_gcm_encrypt(key, contents);
   auto decrypted = aes_gcm_decrypt(key, encrypted);
   REQUIRE(decrypted == contents);

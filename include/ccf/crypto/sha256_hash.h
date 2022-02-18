@@ -6,6 +6,8 @@
 
 #include <array>
 #include <span>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 
 namespace crypto
 {
