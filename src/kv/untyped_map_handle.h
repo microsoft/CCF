@@ -16,11 +16,9 @@ namespace kv::untyped
     kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
   using Read = kv::Read<SerialisedEntry>;
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
-  using ChangeSet =
-    kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+  using ChangeSet = kv::ChangeSet;
   using ChangeSetPtr = std::unique_ptr<ChangeSet>;
-  using SnapshotChangeSet = kv::
-    SnapshotChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+  using SnapshotChangeSet = kv::SnapshotChangeSet;
 
   class MapHandle : public kv::AbstractHandle
   {

@@ -4,6 +4,8 @@
 
 #include "ccf/ds/siphash.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <small_vector/SmallVector.h>
 
 namespace ccf
@@ -24,3 +26,33 @@ namespace std
     }
   };
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ByteVector>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::ByteVector& e, FormatContext& ctx)
+  {
+    if (std::find(e.begin(), e.end(), '\0') != e.end())
+    {
+      return format_to(
+        ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
+    }
+    else
+    {
+      return format_to(
+        ctx.out(),
+        "<uint8[{}]: ascii={}>",
+        e.size(),
+        std::string(e.begin(), e.end()));
+    }
+  }
+};
+FMT_END_NAMESPACE

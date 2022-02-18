@@ -39,11 +39,16 @@ namespace kv
 
   // This is a container for a write-set + dependencies. It can be applied to a
   // given state, or used to track a set of operations on a state
-  template <typename K, typename V, typename H>
   struct ChangeSet : public AbstractChangeSet
   {
   protected:
     ChangeSet() {}
+
+    // TODO: De-duplicate these definitions!
+    using SerialisedEntry = ccf::ByteVector;
+    using K = SerialisedEntry;
+    using V = SerialisedEntry;
+    using H = std::hash<SerialisedEntry>;
 
   public:
     const size_t rollback_counter = {};
@@ -76,8 +81,7 @@ namespace kv
 
   // This is a container for a snapshot. It has no dependencies as the snapshot
   // obliterates the current state.
-  template <typename K, typename V, typename H>
-  struct SnapshotChangeSet : public ChangeSet<K, V, H>
+  struct SnapshotChangeSet : public ChangeSet
   {
     const State<K, V, H> state;
     const Version version;
