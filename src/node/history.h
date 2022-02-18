@@ -22,25 +22,24 @@
 // #include "merklecpp_trace.h"
 #include <merklecpp/merklecpp.h>
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<kv::TxHistory::RequestID>
 {
-  template <>
-  struct formatter<kv::TxHistory::RequestID>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
+  {
+    return format_to(
+      ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
+  }
+};
+FMT_END_NAMESPACE
 
 namespace ccf
 {
