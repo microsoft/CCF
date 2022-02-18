@@ -555,7 +555,7 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         test_version(network, args)
 
@@ -600,7 +600,7 @@ def run_join_old_snapshot(args):
             pdb=args.pdb,
             txs=txs,
         ) as network:
-            network.start_and_join(args)
+            network.start_and_open(args)
             primary, _ = network.find_primary()
 
             # First, retrieve and save one committed snapshot
@@ -758,7 +758,7 @@ def run_migration_tests(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         test_migration_2tx_reconfiguration(network, args)
         primary, _ = network.find_primary()
         new_node = network.nodes[-1]

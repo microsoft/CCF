@@ -72,7 +72,7 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, _ = network.find_nodes()
 
         caps = interface_caps(primary.local_node_id)

@@ -35,7 +35,7 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network = test_custom_auth(network, args)
 
 
@@ -80,7 +80,7 @@ def run_limits(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network = test_stack_size_limit(network, args)
         network = test_heap_size_limit(network, args)
 
@@ -214,7 +214,7 @@ def run_authn(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network = test_jwt_auth(network, args)
         network = test_multi_auth(network, args)
         network = test_role_based_access(network, args)
@@ -371,7 +371,7 @@ def run_content_types(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network = test_content_types(network, args)
         network = test_accept_header(network, args)
         network = test_supported_methods(network, args)
@@ -459,7 +459,7 @@ def run_request_object(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         network = test_request_object_api(network, args)
 
 

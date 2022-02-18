@@ -95,7 +95,7 @@ def run(get_command, args):
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
         primary, backups = network.find_nodes()
 
         command_args = get_command_args(args, get_command)
