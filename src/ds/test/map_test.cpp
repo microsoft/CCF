@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "ccf/byte_vector.h"
 #include "ds/champ_map.h"
-#include "ds/map_serializers.h"
 #include "ds/rb_map.h"
 
 #include <doctest/doctest.h>
@@ -20,6 +20,15 @@ struct CollisionHash
 
 using K = uint64_t;
 using V = uint64_t;
+
+// TODO: These should live in serialized.h!
+namespace map
+{
+  inline size_t get_size(uint64_t n)
+  {
+    return sizeof(size_t);
+  }
+}
 
 struct KVPair
 {
@@ -347,8 +356,8 @@ TEST_CASE_TEMPLATE("Snapshot map", M, RBMap, ChampMap)
   }
 }
 
-using SerialisedKey = map::serialisers::SerialisedEntry;
-using SerialisedValue = map::serialisers::SerialisedEntry;
+using SerialisedKey = ccf::ByteVector;
+using SerialisedValue = ccf::ByteVector;
 
 TEST_CASE_TEMPLATE(
   "Serialize map with different key sizes",

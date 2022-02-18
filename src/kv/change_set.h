@@ -10,6 +10,9 @@
 #  include "ds/rb_map.h"
 #endif
 
+// TODO: Temp
+#include "kv/untyped_change_set.h"
+
 #include <map>
 
 namespace kv
@@ -36,68 +39,6 @@ namespace kv
   // nullopt values represent deletions
   template <typename K, typename V>
   using Write = std::map<K, std::optional<V>>;
-
-  // This is a container for a write-set + dependencies. It can be applied to a
-  // given state, or used to track a set of operations on a state
-  struct ChangeSet : public AbstractChangeSet
-  {
-  protected:
-    ChangeSet() {}
-
-    // TODO: De-duplicate these definitions!
-    using SerialisedEntry = ccf::ByteVector;
-    using K = SerialisedEntry;
-    using V = SerialisedEntry;
-    using H = std::hash<SerialisedEntry>;
-
-  public:
-    const size_t rollback_counter = {};
-    const State<K, V, H> state = {};
-    const State<K, V, H> committed = {};
-    const Version start_version = {};
-
-    Version read_version = NoVersion;
-    Read<K> reads = {};
-    Write<K, V> writes = {};
-
-    ChangeSet(
-      size_t rollbacks,
-      State<K, V, H>& current_state,
-      State<K, V, H>& committed_state,
-      Version current_version) :
-      rollback_counter(rollbacks),
-      state(current_state),
-      committed(committed_state),
-      start_version(current_version)
-    {}
-
-    ChangeSet(ChangeSet&) = delete;
-
-    bool has_writes() const override
-    {
-      return !writes.empty();
-    }
-  };
-
-  // This is a container for a snapshot. It has no dependencies as the snapshot
-  // obliterates the current state.
-  struct SnapshotChangeSet : public ChangeSet
-  {
-    const State<K, V, H> state;
-    const Version version;
-
-    SnapshotChangeSet(State<K, V, H>&& snapshot_state, Version version_) :
-      state(std::move(snapshot_state)),
-      version(version_)
-    {}
-
-    SnapshotChangeSet(SnapshotChangeSet&) = delete;
-
-    bool has_writes() const override
-    {
-      return true;
-    }
-  };
 
   /// Signature for transaction commit handlers
   template <typename W>
