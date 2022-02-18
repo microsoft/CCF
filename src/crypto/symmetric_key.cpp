@@ -5,9 +5,36 @@
 
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
+#include "ds/serialized.h"
 
 namespace crypto
 {
+  GcmCipher::GcmCipher() = default;
+
+  GcmCipher::GcmCipher(size_t size) : cipher(size) {}
+
+  std::vector<uint8_t> GcmCipher::serialise()
+  {
+    std::vector<uint8_t> serial;
+    auto space = GcmHeader<>::RAW_DATA_SIZE + cipher.size();
+    serial.resize(space);
+
+    auto data_ = serial.data();
+    serialized::write(data_, space, hdr.tag, sizeof(hdr.tag));
+    serialized::write(data_, space, hdr.iv, sizeof(hdr.iv));
+    serialized::write(data_, space, cipher.data(), cipher.size());
+
+    return serial;
+  }
+
+  void GcmCipher::deserialise(const std::vector<uint8_t>& serial)
+  {
+    auto size = serial.size();
+    auto data_ = serial.data();
+    hdr = serialized::read(data_, size, GcmHeader<>::RAW_DATA_SIZE);
+    cipher = serialized::read(data_, size, size);
+  }
+
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey)
   {
     return std::make_unique<KeyAesGcm_OpenSSL>(rawKey);

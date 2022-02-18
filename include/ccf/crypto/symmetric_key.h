@@ -4,7 +4,11 @@
 
 #include "ccf/ds/buffer.h"
 #include "ds/serialized.h"
-#include "ds/thread_messaging.h"
+
+// TODO: Move to cpp?
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+#include <vector>
 
 namespace crypto
 {
@@ -121,30 +125,12 @@ namespace crypto
     GcmHeader<> hdr;
     std::vector<uint8_t> cipher;
 
-    GcmCipher() {}
-    GcmCipher(size_t size) : cipher(size) {}
+    GcmCipher();
+    GcmCipher(size_t size);
 
-    std::vector<uint8_t> serialise()
-    {
-      std::vector<uint8_t> serial;
-      auto space = GcmHeader<>::RAW_DATA_SIZE + cipher.size();
-      serial.resize(space);
+    std::vector<uint8_t> serialise();
 
-      auto data_ = serial.data();
-      serialized::write(data_, space, hdr.tag, sizeof(hdr.tag));
-      serialized::write(data_, space, hdr.iv, sizeof(hdr.iv));
-      serialized::write(data_, space, cipher.data(), cipher.size());
-
-      return serial;
-    }
-
-    void deserialise(const std::vector<uint8_t>& serial)
-    {
-      auto size = serial.size();
-      auto data_ = serial.data();
-      hdr = serialized::read(data_, size, GcmHeader<>::RAW_DATA_SIZE);
-      cipher = serialized::read(data_, size, size);
-    }
+    void deserialise(const std::vector<uint8_t>& serial);
   };
 
   class KeyAesGcm
@@ -169,6 +155,7 @@ namespace crypto
       CBuffer aad,
       uint8_t* plain) const = 0;
 
+    // Key size in bits
     virtual size_t key_size() const = 0;
   };
 
