@@ -129,6 +129,7 @@ def test_new_service(
             network,
             args,
             initial_is_1tx=False,  # Reconfiguration type added in 2.x
+            from_snapshot=True,
             binary_dir=binary_dir,
             library_dir=library_dir,
             version=version,
