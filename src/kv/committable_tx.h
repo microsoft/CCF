@@ -16,7 +16,7 @@ namespace kv
   class CommittableTx : public Tx, public AbstractChangeContainer
   {
   public:
-    using TXFlags = uint8_t;
+    using TxFlags = uint8_t;
 
     enum class Flag : TXFlags
     {
