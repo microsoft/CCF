@@ -409,8 +409,8 @@ namespace ccf
         return false;
       }
 
-      CBuffer pc = extract_buffer(data, size);
-      if (pc.n == 0)
+      auto pc = extract_span(data, size);
+      if (pc.empty())
       {
         CHANNEL_RECV_FAIL("Empty cert");
         return false;
@@ -518,8 +518,8 @@ namespace ccf
         return false;
       }
 
-      CBuffer pc = extract_buffer(data, size);
-      if (pc.n == 0)
+      auto pc = extract_span(data, size);
+      if (pc.empty())
       {
         CHANNEL_RECV_FAIL("Empty cert");
         return false;
@@ -693,10 +693,38 @@ namespace ccf
       return r;
     }
 
-    bool verify_peer_certificate(
-      CBuffer pc, crypto::Pem& cert, crypto::VerifierPtr& verifier)
+    std::span<const uint8_t> extract_span(
+      const uint8_t*& data, size_t& size) const
     {
-      if (pc.n != 0)
+      if (size == 0)
+      {
+        return {};
+      }
+
+      auto sz = serialized::read<size_t>(data, size);
+      const uint8_t* data_start = data;
+
+      if (sz > size)
+      {
+        CHANNEL_RECV_FAIL(
+          "Buffer header wants {} bytes, but only {} remain", sz, size);
+        return {};
+      }
+      else
+      {
+        data += sz;
+        size -= sz;
+      }
+
+      return {data_start, sz};
+    }
+
+    bool verify_peer_certificate(
+      std::span<const uint8_t> pc,
+      crypto::Pem& cert,
+      crypto::VerifierPtr& verifier)
+    {
+      if (!pc.empty())
       {
         cert = crypto::Pem(pc);
         verifier = crypto::make_verifier(cert);
