@@ -36,30 +36,28 @@ namespace ccf::historical
 
 };
 
-namespace fmt
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::historical::CompoundHandle>
 {
-  template <>
-  struct formatter<ccf::historical::CompoundHandle>
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
   {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
+    return ctx.begin();
+  }
 
-    template <typename FormatContext>
-    auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.out(),
-        "[{}|{}]",
-        std::get<0>(p) == ccf::historical::RequestNamespace::Application ?
-          "APP" :
-          "SYS",
-        std::get<1>(p));
-    }
-  };
-}
+  template <typename FormatContext>
+  auto format(const ccf::historical::CompoundHandle& p, FormatContext& ctx)
+  {
+    return format_to(
+      ctx.out(),
+      "[{}|{}]",
+      std::get<0>(p) == ccf::historical::RequestNamespace::Application ? "APP" :
+                                                                         "SYS",
+      std::get<1>(p));
+  }
+};
+FMT_END_NAMESPACE
 
 namespace ccf::historical
 {
