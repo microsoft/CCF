@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/change_set.h"
+#include "ccf/byte_vector.h"
 #include "kv/kv_types.h"
-#include "kv/serialised_entry.h"
+#include "kv/untyped_change_set.h"
 
 namespace kv::untyped
 {
@@ -13,11 +13,11 @@ namespace kv::untyped
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
     // MyMap::MapHandle::KeyType, templated on the MapHandle or Map type
-    using KeyType = SerialisedEntry;
-    using ValueType = SerialisedEntry;
+    using KeyType = ccf::ByteVector;
+    using ValueType = ccf::ByteVector;
 
   protected:
-    ChangeSet& tx_changes;
+    kv::untyped::ChangeSet& tx_changes;
     std::string map_name;
 
     /** Get pointer to current value if this key exists, else nullptr if it does
@@ -111,7 +111,7 @@ namespace kv::untyped
     }
 
   public:
-    MapHandle(ChangeSet& cs, const std::string& map_name) :
+    MapHandle(kv::untyped::ChangeSet& cs, const std::string& map_name) :
       tx_changes(cs),
       map_name(map_name)
     {}

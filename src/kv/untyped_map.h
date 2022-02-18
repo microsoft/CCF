@@ -65,14 +65,14 @@ namespace kv::untyped
   class Map : public AbstractMap
   {
   public:
-    using K = SerialisedEntry;
-    using V = SerialisedEntry;
-    using H = SerialisedKeyHasher;
+    using K = kv::untyped::SerialisedEntry;
+    using V = kv::untyped::SerialisedEntry;
+    using H = kv::untyped::SerialisedKeyHasher;
 
-    using StateSnapshot = kv::Snapshot<K, V, H>;
+    using StateSnapshot = kv::untyped::State::Snapshot;
 
-    using CommitHook = CommitHook<Write>;
-    using MapHook = MapHook<Write>;
+    using CommitHook = kv::untyped::CommitHook;
+    using MapHook = kv::untyped::MapHook;
 
   private:
     AbstractStore* store;

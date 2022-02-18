@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/byte_vector.h"
+#include "kv/hooks.h"
 #include "kv/version_v.h"
 
 // #include "ds/hash.h"
@@ -29,6 +30,7 @@ namespace kv::untyped
 #ifndef KV_STATE_RB
   using State = champ::Map<K, VersionV, H>;
 #else
+  // TODO: Test with this define as well, once done
   using State = rb::Map<K, VersionV>;
 #endif
 
@@ -41,8 +43,11 @@ namespace kv::untyped
   // nullopt values represent deletions
   using Write = std::map<K, std::optional<V>>;
 
-  // This is a container for a write-set + dependencies. It can be applied to a
-  // given state, or used to track a set of operations on a state
+  using CommitHook = kv::CommitHook<Write>;
+  using MapHook = kv::MapHook<Write>;
+
+  // This is a container for a write-set + dependencies. It can be applied to
+  // a given state, or used to track a set of operations on a state
   struct ChangeSet : public AbstractChangeSet
   {
   protected:
@@ -98,15 +103,6 @@ namespace kv::untyped
       return true;
     }
   };
-
-  // TODO: Delete? Move to a separate header?
-  // /// Signature for transaction commit handlers
-  // template <typename W>
-  // using CommitHook = std::function<void(Version, const W&)>;
-
-  // template <typename W>
-  // using MapHook =
-  //   std::function<std::unique_ptr<ConsensusHook>(Version, const W&)>;
 }
 
 namespace map

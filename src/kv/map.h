@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv/hooks.h"
 #include "kv_types.h"
 #include "map_handle.h"
 #include "serialise_entry_blit.h"
