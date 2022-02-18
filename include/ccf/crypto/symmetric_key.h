@@ -2,149 +2,68 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/entropy.h"
 #include "ccf/ds/buffer.h"
-#include "ds/serialized.h"
-#include "ds/thread_messaging.h"
+
+#include <vector>
 
 namespace crypto
 {
-  constexpr size_t GCM_SIZE_KEY = 32;
-  constexpr size_t GCM_SIZE_TAG = 16;
-  constexpr size_t GCM_SIZE_IV = 12;
+  constexpr size_t GCM_DEFAULT_KEY_SIZE = 32;
 
-  template <size_t SIZE_IV = GCM_SIZE_IV>
+  constexpr size_t GCM_SIZE_TAG = 16;
+
   struct GcmHeader
   {
     uint8_t tag[GCM_SIZE_TAG] = {};
-    uint8_t iv[SIZE_IV] = {};
 
-    // 12 bytes IV with 8 LSB are unique sequence number
-    // and 4 MSB are 4 LSB of term (with last bit indicating a snapshot)
-    constexpr static uint8_t IV_DELIMITER = 8;
-    constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
+    // Size does not change after construction
+    std::vector<uint8_t> iv;
 
-    GcmHeader() = default;
-    GcmHeader(const uint8_t* data, size_t size)
+    GcmHeader(size_t iv_size);
+
+    void set_iv(const uint8_t* data, size_t size);
+    CBuffer get_iv() const;
+
+    size_t serialised_size() const;
+    std::vector<uint8_t> serialise();
+
+    void deserialise(const std::vector<uint8_t>& ser);
+    void deserialise(const uint8_t*& data, size_t& size);
+  };
+
+  template <size_t IV_BYTES>
+  struct FixedSizeGcmHeader : public GcmHeader
+  {
+    static constexpr size_t IV_SIZE = IV_BYTES;
+
+    FixedSizeGcmHeader() : GcmHeader(IV_SIZE) {}
+
+    static size_t serialised_size()
     {
-      if (size != RAW_DATA_SIZE)
-      {
-        throw std::logic_error("Incompatible IV size");
-      }
-
-      memcpy(tag, data, sizeof(tag));
-      memcpy(iv, data + sizeof(tag), sizeof(iv));
+      return GCM_SIZE_TAG + IV_SIZE;
     }
 
-    GcmHeader(const std::vector<uint8_t>& data) :
-      GcmHeader(data.data(), data.size())
-    {}
-
-    void set_iv_seq(uint64_t seq)
+    void set_random_iv(EntropyPtr entropy = crypto::create_entropy())
     {
-      *reinterpret_cast<uint64_t*>(iv) = seq;
-    }
-
-    void set_iv_term(uint64_t term)
-    {
-      if (term > 0x7FFFFFFF)
-      {
-        throw std::logic_error(fmt::format(
-          "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
-      }
-
-      *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
-        static_cast<uint32_t>(term);
-    }
-
-    uint64_t get_term() const
-    {
-      return *reinterpret_cast<const uint32_t*>(iv + IV_DELIMITER);
-    }
-
-    void set_iv_snapshot(bool is_snapshot)
-    {
-      // Set very last bit in IV
-      iv[SIZE_IV - 1] |= (is_snapshot << ((sizeof(uint8_t) * 8) - 1));
-    }
-
-    void set_iv(uint8_t* iv_, size_t size)
-    {
-      if (size != SIZE_IV)
-      {
-        throw std::logic_error(
-          fmt::format("Specified IV is not of size {}", SIZE_IV));
-      }
-
-      memcpy(iv, iv_, size);
-    }
-
-    CBuffer get_iv() const
-    {
-      return {iv, SIZE_IV};
-    }
-
-    uint64_t get_iv_int() const
-    {
-      return *reinterpret_cast<const uint64_t*>(iv);
-    }
-
-    std::vector<uint8_t> serialise()
-    {
-      auto space = RAW_DATA_SIZE;
-      std::vector<uint8_t> serial_hdr(space);
-
-      auto data_ = serial_hdr.data();
-      serialized::write(data_, space, tag, sizeof(tag));
-      serialized::write(data_, space, iv, sizeof(iv));
-
-      return serial_hdr;
-    }
-
-    void deserialise(const std::vector<uint8_t>& ser)
-    {
-      auto data = ser.data();
-      auto size = ser.size();
-
-      deserialise(data, size);
-    }
-
-    void deserialise(const uint8_t*& data, size_t& size)
-    {
-      memcpy(
-        tag, serialized::read(data, size, GCM_SIZE_TAG).data(), GCM_SIZE_TAG);
-      memcpy(iv, serialized::read(data, size, SIZE_IV).data(), SIZE_IV);
+      iv = entropy->random(IV_SIZE);
     }
   };
 
+  // GcmHeader with 12-byte (96-bit) IV
+  using StandardGcmHeader = FixedSizeGcmHeader<12>;
+
   struct GcmCipher
   {
-    GcmHeader<> hdr;
+    StandardGcmHeader hdr;
     std::vector<uint8_t> cipher;
 
-    GcmCipher() {}
-    GcmCipher(size_t size) : cipher(size) {}
+    GcmCipher();
+    GcmCipher(size_t size);
 
-    std::vector<uint8_t> serialise()
-    {
-      std::vector<uint8_t> serial;
-      auto space = GcmHeader<>::RAW_DATA_SIZE + cipher.size();
-      serial.resize(space);
+    std::vector<uint8_t> serialise();
 
-      auto data_ = serial.data();
-      serialized::write(data_, space, hdr.tag, sizeof(hdr.tag));
-      serialized::write(data_, space, hdr.iv, sizeof(hdr.iv));
-      serialized::write(data_, space, cipher.data(), cipher.size());
-
-      return serial;
-    }
-
-    void deserialise(const std::vector<uint8_t>& serial)
-    {
-      auto size = serial.size();
-      auto data_ = serial.data();
-      hdr = serialized::read(data_, size, GcmHeader<>::RAW_DATA_SIZE);
-      cipher = serialized::read(data_, size, size);
-    }
+    void deserialise(const std::vector<uint8_t>& serial);
   };
 
   class KeyAesGcm
@@ -169,6 +88,7 @@ namespace crypto
       CBuffer aad,
       uint8_t* plain) const = 0;
 
+    // Key size in bits
     virtual size_t key_size() const = 0;
   };
 
@@ -180,7 +100,7 @@ namespace crypto
   inline void check_supported_aes_key_size(size_t num_bits)
   {
     if (num_bits != 128 && num_bits != 192 && num_bits != 256)
-      throw std::runtime_error("unsupported key size");
+      throw std::runtime_error("Unsupported key size");
   }
 
   /** Default initialization vector for AES-GCM (12 zeroes) */
