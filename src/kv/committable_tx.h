@@ -18,7 +18,7 @@ namespace kv
   public:
     using TxFlags = uint8_t;
 
-    enum class Flag : TXFlags
+    enum class Flag : TxFlags
     {
       LEDGER_CHUNK_AT_NEXT_SIGNATURE = 0x01,
       SNAPSHOT_AT_NEXT_SIGNATURE = 0x02,
@@ -33,8 +33,7 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-  public:
-    TXFlags flags = 0;
+    TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
 
   protected:
@@ -421,10 +420,8 @@ namespace kv
       crypto::Sha256Hash commit_evidence_digest;
       std::string commit_evidence;
 
-      // This is a signature and, if the ledger chunking flag is enabled, we
-      // want the host to create a chunk when it sees this entry. On backups, we
-      // also trigger a ledger chunk when the primary creates a snapshot (which
-      // also triggers a new ledger chunk).
+      // This is a signature and, if the ledger chunking or snapshot flags are
+      // enabled, we want the host to create a chunk when it sees this entry.
       // version_lock held by Store::commit
       bool force_ledger_chunk =
         store->flag_enabled_unsafe(

@@ -1183,6 +1183,10 @@ namespace ccf
     void trigger_snapshot(kv::Tx& tx) override
     {
       auto committable_tx = static_cast<kv::CommittableTx*>(&tx);
+      if (committable_tx == nullptr)
+      {
+        throw std::logic_error("Could not cast tx to CommittableTx");
+      }
       committable_tx->set_flag(
         kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
     }

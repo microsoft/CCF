@@ -143,9 +143,7 @@ def test_forced_snapshot(network, args):
     chunk, _, _, next_signature = find_ledger_chunk_for_seqno(
         ledger, proposal.completed_seqno
     )
-    LOG.info(
-        f"Found ledger chunk {chunk.filename()} with snapshot proposal @{proposal.completed_seqno} and signature @{next_signature}"
-    )
+
     assert chunk.is_complete and chunk.is_committed()
     LOG.info(f"Expecting snapshot at {next_signature}")
 
@@ -154,6 +152,7 @@ def test_forced_snapshot(network, args):
         with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
             snapshot_seqno = snapshot.get_public_domain().get_seqno()
             if snapshot_seqno == next_signature:
+                LOG.info(f"Found expected forced snapshot at {next_signature}")
                 return network
 
     raise RuntimeError("Could not find matching snapshot file")
