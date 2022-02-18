@@ -117,7 +117,7 @@ namespace ccf
       return QuoteVerificationResult::Verified;
     }
 
-    std::optional<kv::Version> get_startup_snapshot_seqno() override
+    kv::Version get_startup_snapshot_seqno() override
     {
       return std::nullopt;
     }

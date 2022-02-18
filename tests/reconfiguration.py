@@ -643,7 +643,32 @@ def run_join_old_snapshot(args):
                     timeout=3,
                 )
             except infra.network.StartupSnapshotIsOld:
-                pass
+                LOG.info(
+                    f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
+                )
+            else:
+                raise RuntimeError(
+                    f"Node {new_node.local_node_id} started from old snapshot unexpectedly joined the service"
+                )
+
+            # Start new node from no snapshot
+            try:
+                new_node = network.create_node("local://localhost")
+                network.join_node(
+                    new_node,
+                    args.package,
+                    args,
+                    from_snapshot=False,
+                    timeout=3,
+                )
+            except infra.network.StartupSnapshotIsOld:
+                LOG.info(
+                    f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
+                )
+            else:
+                raise RuntimeError(
+                    f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
+                )
 
 
 def get_current_nodes_table(network):
@@ -745,7 +770,7 @@ def run_migration_tests(args):
 def run_all(args):
     run(args)
     if cr.args.consensus != "BFT":
-        run_join_old_snapshot(all)
+        run_join_old_snapshot(args)
 
 
 if __name__ == "__main__":
@@ -762,7 +787,7 @@ if __name__ == "__main__":
 
     cr.add(
         "1tx_reconfig",
-        run,
+        run_all,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         reconfiguration_type="OneTransaction",
@@ -771,7 +796,7 @@ if __name__ == "__main__":
     if cr.args.include_2tx_reconfig:
         cr.add(
             "2tx_reconfig",
-            run,
+            run_all,
             package="samples/apps/logging/liblogging",
             nodes=infra.e2e_args.min_nodes(cr.args, f=1),
             reconfiguration_type="TwoTransaction",

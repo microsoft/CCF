@@ -130,7 +130,7 @@ namespace ccf
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
-    std::optional<kv::Version> startup_seqno = std::nullopt;
+    kv::Version startup_seqno = 0;
 
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -177,7 +177,7 @@ namespace ccf
         config.startup_snapshot_evidence_seqno_for_1_x);
 
       startup_seqno = startup_snapshot_info->seqno;
-      ledger_idx = startup_seqno.value();
+      ledger_idx = startup_seqno;
       last_recovered_signed_idx = ledger_idx;
 
       return !startup_snapshot_info->requires_ledger_verification();
@@ -1463,7 +1463,7 @@ namespace ccf
       return self;
     }
 
-    std::optional<kv::Version> get_startup_snapshot_seqno() override
+    kv::Version get_startup_snapshot_seqno() override
     {
       std::lock_guard<std::mutex> guard(lock);
       return startup_seqno;

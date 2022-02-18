@@ -361,8 +361,8 @@ namespace ccf
         auto this_startup_seqno =
           this->context.get_node_state().get_startup_snapshot_seqno();
         if (
-          this_startup_seqno.has_value() && in.startup_seqno.has_value() &&
-          this_startup_seqno.value() > in.startup_seqno.value())
+          in.startup_seqno.has_value() &&
+          this_startup_seqno > in.startup_seqno.value())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -372,7 +372,7 @@ namespace ccf
               "older "
               "than this node startup seqno {}",
               in.startup_seqno.value(),
-              this_startup_seqno.value()));
+              this_startup_seqno));
         }
 
         auto nodes = args.tx.rw(this->network.nodes);
@@ -604,8 +604,7 @@ namespace ccf
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
         result.startup_seqno =
-          this->context.get_node_state().get_startup_snapshot_seqno().value_or(
-            0);
+          this->context.get_node_state().get_startup_snapshot_seqno();
 
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get();
