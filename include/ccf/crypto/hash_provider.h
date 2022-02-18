@@ -38,7 +38,7 @@ namespace crypto
     ISha256Hash() {}
     virtual ~ISha256Hash() {}
 
-    virtual void update_hash(CBuffer data) = 0;
+    virtual void update_hash(std::span<const uint8_t> data) = 0;
     virtual Sha256Hash finalise() = 0;
 
     template <typename T>

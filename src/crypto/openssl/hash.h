@@ -71,7 +71,7 @@ namespace crypto
   public:
     ISha256OpenSSL();
     ~ISha256OpenSSL();
-    virtual void update_hash(CBuffer data);
+    virtual void update_hash(std::span<const uint8_t> data);
     virtual Sha256Hash finalise();
 
   protected:

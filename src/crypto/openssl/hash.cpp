@@ -55,14 +55,14 @@ namespace crypto
     delete (SHA256_CTX*)ctx;
   }
 
-  void ISha256OpenSSL::update_hash(CBuffer data)
+  void ISha256OpenSSL::update_hash(std::span<const uint8_t> data)
   {
     if (!ctx)
     {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
 
-    SHA256_Update((SHA256_CTX*)ctx, data.p, data.rawSize());
+    SHA256_Update((SHA256_CTX*)ctx, data.data(), data.size());
   }
 
   Sha256Hash ISha256OpenSSL::finalise()
