@@ -1317,7 +1317,7 @@ def run(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
         network = test(network, args)
         network = test_illegal(network, args)

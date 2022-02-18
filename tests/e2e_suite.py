@@ -80,7 +80,7 @@ def run(args):
     )
 
     if not args.dry_run:
-        network.start_and_join(args)
+        network.start_and_open(args)
 
     LOG.info(f"Running {len(chosen_suite)} tests for {args.test_duration} seconds")
 
