@@ -23,9 +23,6 @@ namespace crypto
     uint8_t tag[GCM_SIZE_TAG] = {};
     uint8_t iv[SIZE_IV] = {};
 
-    // 12 bytes IV with 8 LSB are unique sequence number
-    // and 4 MSB are 4 LSB of term (with last bit indicating a snapshot)
-    constexpr static uint8_t IV_DELIMITER = 8;
     constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
 
     GcmHeader() = default;
@@ -44,35 +41,7 @@ namespace crypto
       GcmHeader(data.data(), data.size())
     {}
 
-    void set_iv_seq(uint64_t seq)
-    {
-      *reinterpret_cast<uint64_t*>(iv) = seq;
-    }
-
-    void set_iv_term(uint64_t term)
-    {
-      if (term > 0x7FFFFFFF)
-      {
-        throw std::logic_error(fmt::format(
-          "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
-      }
-
-      *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
-        static_cast<uint32_t>(term);
-    }
-
-    uint64_t get_term() const
-    {
-      return *reinterpret_cast<const uint32_t*>(iv + IV_DELIMITER);
-    }
-
-    void set_iv_snapshot(bool is_snapshot)
-    {
-      // Set very last bit in IV
-      iv[SIZE_IV - 1] |= (is_snapshot << ((sizeof(uint8_t) * 8) - 1));
-    }
-
-    void set_iv(uint8_t* iv_, size_t size)
+    void set_iv(const uint8_t* iv_, size_t size)
     {
       if (size != SIZE_IV)
       {
@@ -86,11 +55,6 @@ namespace crypto
     CBuffer get_iv() const
     {
       return {iv, SIZE_IV};
-    }
-
-    uint64_t get_iv_int() const
-    {
-      return *reinterpret_cast<const uint64_t*>(iv);
     }
 
     std::vector<uint8_t> serialise()
