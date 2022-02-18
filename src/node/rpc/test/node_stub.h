@@ -119,7 +119,7 @@ namespace ccf
 
     kv::Version get_startup_snapshot_seqno() override
     {
-      return std::nullopt;
+      return 0;
     }
 
     SessionMetrics get_session_metrics() override
